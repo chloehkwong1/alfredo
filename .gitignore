@@ -16,6 +16,9 @@ dist-ssr
 src-tauri/target/
 src-tauri/gen/
 
+# Alfredo runtime config (tokens, user prefs)
+.alfredo.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
