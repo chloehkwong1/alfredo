@@ -1,7 +1,6 @@
 import { useRef, useEffect } from "react";
 import "@xterm/xterm/css/xterm.css";
 
-import { TerminalHeader } from "./TerminalHeader";
 import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 
@@ -10,8 +9,6 @@ function TerminalView() {
   const worktree = useWorkspaceStore((s) =>
     s.worktrees.find((wt) => wt.id === activeWorktreeId),
   );
-  const setView = useWorkspaceStore((s) => s.setView);
-  const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const markWorktreeSeen = useWorkspaceStore((s) => s.markWorktreeSeen);
   const isSeen = useWorkspaceStore((s) =>
     activeWorktreeId ? s.seenWorktrees.has(activeWorktreeId) : false,
@@ -36,21 +33,24 @@ function TerminalView() {
     }
   }, [activeWorktreeId, agentState, isSeen, markWorktreeSeen]);
 
-  function handleBack() {
-    setActiveWorktree(null);
-    setView("board");
+  if (!activeWorktreeId) {
+    return (
+      <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+        Select a worktree to get started
+      </div>
+    );
+  }
+
+  if (!worktree) {
+    return (
+      <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+        Starting session...
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-bg-primary">
-      {worktree && (
-        <TerminalHeader
-          branch={worktree.branch}
-          agentState={agentState}
-          isSeen={isSeen}
-          onBack={handleBack}
-        />
-      )}
+    <div className="flex flex-col h-full bg-bg-primary">
       <div ref={containerRef} className="flex-1 min-h-0 p-1" />
     </div>
   );
