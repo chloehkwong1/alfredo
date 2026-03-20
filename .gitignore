@@ -29,3 +29,6 @@ src-tauri/gen/
 *.njsproj
 *.sln
 *.sw?
+
+# Git worktrees
+.worktrees/
