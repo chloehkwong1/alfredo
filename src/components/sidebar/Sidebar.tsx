@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { Settings, PanelLeftClose, PanelLeft, Plus } from "lucide-react";
 import { Logo } from "../Logo";
 import { IconButton } from "../ui";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
 import { SidebarDragContext } from "./SidebarDragContext";
+import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
+import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
+import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import type { KanbanColumn, Worktree } from "../../types";
 
 const COLUMNS: KanbanColumn[] = [
@@ -38,6 +42,10 @@ function Sidebar() {
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
 
+  const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
+  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
+  const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
+
   const grouped = groupByColumn(worktrees);
 
   if (sidebarCollapsed) {
@@ -62,7 +70,7 @@ function Sidebar() {
           </span>
         </div>
         <div className="flex items-center gap-0.5">
-          <IconButton size="sm" label="Settings">
+          <IconButton size="sm" label="Settings" onClick={() => setGlobalSettingsOpen(true)}>
             <Settings />
           </IconButton>
           <IconButton
@@ -98,6 +106,7 @@ function Sidebar() {
         <button
           type="button"
           className="w-full flex items-center justify-center gap-2 h-8 rounded-[var(--radius-md)] border border-dashed border-accent-primary text-accent-primary text-sm font-medium hover:bg-accent-muted transition-colors cursor-pointer"
+          onClick={() => setCreateWorktreeOpen(true)}
         >
           <Plus className="h-4 w-4" />
           New worktree
@@ -105,10 +114,25 @@ function Sidebar() {
         <button
           type="button"
           className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+          onClick={() => setWorkspaceSettingsOpen(true)}
         >
           Workspace settings
         </button>
       </div>
+
+      {/* Dialogs */}
+      <GlobalSettingsDialog
+        open={globalSettingsOpen}
+        onOpenChange={setGlobalSettingsOpen}
+      />
+      <WorkspaceSettingsDialog
+        open={workspaceSettingsOpen}
+        onOpenChange={setWorkspaceSettingsOpen}
+      />
+      <CreateWorktreeDialog
+        open={createWorktreeOpen}
+        onOpenChange={setCreateWorktreeOpen}
+      />
     </div>
   );
 }
