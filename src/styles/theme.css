@@ -1,0 +1,55 @@
+/*
+ * Alfredo Design Tokens
+ * Dark theme first — warm neutrals inspired by Linear + Slack
+ * All values exposed as CSS custom properties for future theme support
+ */
+
+:root {
+  /* ── Backgrounds ─────────────────────────────── */
+  --bg-primary: #1a1918;
+  --bg-secondary: #232220;
+  --bg-elevated: #2a2928;
+  --bg-hover: #333231;
+  --bg-active: #3d3a37;
+
+  /* ── Text ────────────────────────────────────── */
+  --text-primary: #f5f2ef;
+  --text-secondary: #a8a29e;
+  --text-tertiary: #78716c;
+  --text-on-accent: #ffffff;
+
+  /* ── Borders ─────────────────────────────────── */
+  --border-default: #3d3a37;
+  --border-hover: #57534e;
+  --border-focus: #9333ea;
+
+  /* ── Accent (purple from logo) ───────────────── */
+  --accent-primary: #9333ea;
+  --accent-secondary: #7e22ce;
+  --accent-muted: rgba(147, 51, 234, 0.15);
+
+  /* ── Status ──────────────────────────────────── */
+  --status-idle: #4ade80;
+  --status-busy: #fbbf24;
+  --status-waiting: #60a5fa;
+  --status-error: #f87171;
+
+  /* ── Danger ──────────────────────────────────── */
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --danger-muted: rgba(239, 68, 68, 0.15);
+
+  /* ── Shadows (warm-tinted) ───────────────────── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  /* ── Radii ───────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* ── Transitions ─────────────────────────────── */
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+}

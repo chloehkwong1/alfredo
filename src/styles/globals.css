@@ -1,38 +1,81 @@
 @import "tailwindcss";
-@import "@fontsource/inter";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "./theme.css";
 
-:root {
-  --bg-primary: #1a1918;
-  --bg-secondary: #232220;
-  --bg-elevated: #2a2928;
-  --bg-hover: #333231;
-  --text-primary: #f5f2ef;
-  --text-secondary: #a8a29e;
-  --text-tertiary: #78716c;
-  --border-default: #3d3a37;
-  --border-hover: #57534e;
-  --accent-primary: #9333ea;
-  --accent-secondary: #7e22ce;
-  --status-idle: #4ade80;
-  --status-busy: #fbbf24;
-  --status-waiting: #60a5fa;
-  --status-error: #f87171;
+/* ── Tailwind v4 theme extensions ──────────────── */
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-on-accent: var(--text-on-accent);
+
+  --color-border-default: var(--border-default);
+  --color-border-hover: var(--border-hover);
+  --color-border-focus: var(--border-focus);
+
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-secondary: var(--accent-secondary);
+  --color-accent-muted: var(--accent-muted);
+
+  --color-status-idle: var(--status-idle);
+  --color-status-busy: var(--status-busy);
+  --color-status-waiting: var(--status-waiting);
+  --color-status-error: var(--status-error);
+
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-muted: var(--danger-muted);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  --animate-card-in: card-in 200ms ease;
 }
 
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Base resets ───────────────────────────────── */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
   overflow: hidden;
 }
 
 body {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans);
   background-color: var(--bg-primary);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
@@ -42,4 +85,13 @@ body {
 ::selection {
   background-color: var(--accent-primary);
   color: white;
+}
+
+/* ── Focus ring utility ────────────────────────── */
+.focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+.focus-ring:focus-visible {
+  outline-color: var(--accent-primary);
 }
