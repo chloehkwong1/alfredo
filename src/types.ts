@@ -114,3 +114,47 @@ export interface LinearTeam {
   name: string;
   key: string;
 }
+
+// ── Diff viewer ──────────────────────────────────────────────────
+
+export interface DiffFile {
+  path: string;
+  status: "added" | "modified" | "deleted" | "renamed";
+  additions: number;
+  deletions: number;
+  hunks: DiffHunk[];
+}
+
+export interface DiffHunk {
+  header: string;
+  oldStart: number;
+  newStart: number;
+  lines: DiffLine[];
+}
+
+export interface DiffLine {
+  type: "context" | "addition" | "deletion";
+  content: string;
+  oldLineNumber: number | null;
+  newLineNumber: number | null;
+}
+
+export interface CommitInfo {
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  timestamp: number;
+}
+
+// ── Inline annotation ────────────────────────────────────────────
+
+export interface Annotation {
+  id: string;
+  worktreeId: string;
+  filePath: string;
+  lineNumber: number;
+  commitHash: string | null; // null = "all changes" mode
+  text: string;
+  createdAt: number;
+}

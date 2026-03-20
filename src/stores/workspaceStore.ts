@@ -1,20 +1,26 @@
 import { create } from "zustand";
-import type { KanbanColumn, PrStatusWithColumn, Worktree } from "../types";
+import type {
+  Annotation,
+  KanbanColumn,
+  PrStatusWithColumn,
+  Worktree,
+} from "../types";
 
 interface WorkspaceState {
   worktrees: Worktree[];
   activeWorktreeId: string | null;
-  view: "board" | "terminal";
   /** Tracks manual column overrides (from drag). Keyed by worktree id. */
   columnOverrides: Record<string, KanbanColumn>;
   /** Tracks the last-known PR state per worktree, so we can detect state changes. */
   lastPrState: Record<string, string>;
-  /** Whether branch mode is active (from config). */
-  branchMode: boolean;
-  /** The currently checked-out branch name (branch mode only). */
-  activeBranch: string | null;
   /** Tracks which worktrees the user has "seen" while idle/waiting. */
   seenWorktrees: Set<string>;
+  /** Active tab per worktree (terminal or changes). Keyed by worktreeId. */
+  activeTab: Record<string, "terminal" | "changes">;
+  /** Inline annotations per worktree. Keyed by worktreeId. */
+  annotations: Record<string, Annotation[]>;
+  /** Whether the sidebar is collapsed. */
+  sidebarCollapsed: boolean;
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
@@ -22,63 +28,15 @@ interface WorkspaceState {
   setColumn: (id: string, column: KanbanColumn) => void;
   setManualColumn: (id: string, column: KanbanColumn) => void;
   setActiveWorktree: (id: string | null) => void;
-  setView: (view: "board" | "terminal") => void;
   setWorktrees: (worktrees: Worktree[]) => void;
   applyPrUpdates: (prs: PrStatusWithColumn[]) => void;
-  setBranchMode: (enabled: boolean) => void;
-  setActiveBranch: (branchName: string | null) => void;
   markWorktreeSeen: (id: string) => void;
+  setActiveTab: (worktreeId: string, tab: "terminal" | "changes") => void;
+  addAnnotation: (annotation: Annotation) => void;
+  removeAnnotation: (worktreeId: string, annotationId: string) => void;
+  clearAnnotations: (worktreeId: string) => void;
+  toggleSidebar: () => void;
 }
-
-// Demo data so the board isn't empty on first render
-const DEMO_WORKTREES: Worktree[] = [
-  {
-    id: "wt-1",
-    name: "feat-auth-flow",
-    path: "/tmp/alfredo/worktrees/feat-auth-flow",
-    branch: "feat/auth-flow",
-    prStatus: null,
-    agentStatus: "notRunning",
-    column: "inProgress",
-    isBranchMode: false,
-  },
-  {
-    id: "wt-2",
-    name: "fix-sidebar-crash",
-    path: "/tmp/alfredo/worktrees/fix-sidebar-crash",
-    branch: "fix/sidebar-crash",
-    prStatus: {
-      number: 142,
-      state: "open",
-      title: "Fix sidebar crash on rapid navigation",
-      url: "https://github.com/org/repo/pull/142",
-      draft: true,
-      merged: false,
-      branch: "fix/sidebar-crash",
-    },
-    agentStatus: "idle",
-    column: "draftPr",
-    isBranchMode: false,
-  },
-  {
-    id: "wt-3",
-    name: "refactor-api-layer",
-    path: "/tmp/alfredo/worktrees/refactor-api-layer",
-    branch: "refactor/api-layer",
-    prStatus: {
-      number: 138,
-      state: "open",
-      title: "Refactor API layer to use tanstack-query",
-      url: "https://github.com/org/repo/pull/138",
-      draft: false,
-      merged: false,
-      branch: "refactor/api-layer",
-    },
-    agentStatus: "waitingForInput",
-    column: "openPr",
-    isBranchMode: false,
-  },
-];
 
 /**
  * Compute a stable key representing the PR "state" for override-clearing purposes.
@@ -91,14 +49,14 @@ function prStateKey(pr: PrStatusWithColumn): string {
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
-  worktrees: DEMO_WORKTREES,
+  worktrees: [],
   activeWorktreeId: null,
-  view: "board",
   columnOverrides: {},
   lastPrState: {},
-  branchMode: false,
-  activeBranch: null,
   seenWorktrees: new Set<string>(),
+  activeTab: {},
+  annotations: {},
+  sidebarCollapsed: false,
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -142,8 +100,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     })),
 
   setActiveWorktree: (id) => set({ activeWorktreeId: id }),
-
-  setView: (view) => set({ view }),
 
   setWorktrees: (worktrees) => set({ worktrees }),
 
@@ -211,7 +167,40 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       seenWorktrees: new Set(state.seenWorktrees).add(id),
     })),
 
-  setBranchMode: (enabled) => set({ branchMode: enabled }),
+  setActiveTab: (worktreeId, tab) =>
+    set((state) => ({
+      activeTab: { ...state.activeTab, [worktreeId]: tab },
+    })),
 
-  setActiveBranch: (branchName) => set({ activeBranch: branchName }),
+  addAnnotation: (annotation) =>
+    set((state) => ({
+      annotations: {
+        ...state.annotations,
+        [annotation.worktreeId]: [
+          ...(state.annotations[annotation.worktreeId] || []),
+          annotation,
+        ],
+      },
+    })),
+
+  removeAnnotation: (worktreeId, annotationId) =>
+    set((state) => ({
+      annotations: {
+        ...state.annotations,
+        [worktreeId]: (state.annotations[worktreeId] || []).filter(
+          (a) => a.id !== annotationId,
+        ),
+      },
+    })),
+
+  clearAnnotations: (worktreeId) =>
+    set((state) => ({
+      annotations: {
+        ...state.annotations,
+        [worktreeId]: [],
+      },
+    })),
+
+  toggleSidebar: () =>
+    set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 }));
