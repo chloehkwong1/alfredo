@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { TerminalView } from "../terminal";
@@ -64,10 +64,36 @@ function AppShell() {
     s.worktrees.find((wt) => wt.id === activeWorktreeId),
   );
   const activeTab = useWorkspaceStore((s) => s.activeTab);
+  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const annotations = useWorkspaceStore((s) => s.annotations);
 
   const [repoPath, setRepoPath] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      )
+        return;
+
+      if (event.metaKey && event.shiftKey) {
+        if (event.key === "T") {
+          event.preventDefault();
+          if (activeWorktreeId) setActiveTab(activeWorktreeId, "terminal");
+        } else if (event.key === "C") {
+          event.preventDefault();
+          if (activeWorktreeId) setActiveTab(activeWorktreeId, "changes");
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeWorktreeId, setActiveTab]);
 
   const currentTab = activeWorktreeId
     ? (activeTab[activeWorktreeId] ?? "terminal")

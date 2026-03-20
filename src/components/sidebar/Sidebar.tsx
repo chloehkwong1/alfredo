@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Settings, PanelLeftClose, PanelLeft, Plus } from "lucide-react";
 import { Logo } from "../Logo";
 import { IconButton } from "../ui";
@@ -42,11 +42,55 @@ function Sidebar() {
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
 
+  const grouped = groupByColumn(worktrees);
+
+  // Flat list of worktrees in display order (matches COLUMNS order)
+  const flatWorktrees = COLUMNS.flatMap((col) => grouped[col]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      )
+        return;
+
+      const currentIndex = flatWorktrees.findIndex(
+        (wt) => wt.id === activeWorktreeId,
+      );
+
+      if (event.key === "ArrowUp" && !event.metaKey) {
+        event.preventDefault();
+        if (flatWorktrees.length === 0) return;
+        const nextIndex =
+          currentIndex <= 0 ? flatWorktrees.length - 1 : currentIndex - 1;
+        setActiveWorktree(flatWorktrees[nextIndex].id);
+      } else if (event.key === "ArrowDown" && !event.metaKey) {
+        event.preventDefault();
+        if (flatWorktrees.length === 0) return;
+        const nextIndex =
+          currentIndex < 0 || currentIndex >= flatWorktrees.length - 1
+            ? 0
+            : currentIndex + 1;
+        setActiveWorktree(flatWorktrees[nextIndex].id);
+      } else if (event.metaKey && event.key >= "1" && event.key <= "9") {
+        const idx = parseInt(event.key, 10) - 1;
+        if (idx < flatWorktrees.length) {
+          event.preventDefault();
+          setActiveWorktree(flatWorktrees[idx].id);
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [flatWorktrees, activeWorktreeId, setActiveWorktree]);
+
   const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
-
-  const grouped = groupByColumn(worktrees);
 
   if (sidebarCollapsed) {
     return (
