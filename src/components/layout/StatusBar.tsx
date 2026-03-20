@@ -23,12 +23,10 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
     : "text-status-idle";
 
   return (
-    <div className="h-7 flex items-center justify-between px-3 bg-bg-secondary border-t border-border-default text-xs text-text-tertiary flex-shrink-0">
+    <div className="h-7 flex items-center justify-between px-4 bg-bg-secondary border-t border-border-default text-xs text-text-tertiary flex-shrink-0">
       {/* Left side */}
       <div className="flex items-center gap-3">
         <span className="font-medium">{worktree.branch}</span>
-        <span>&mdash;</span>
-        <span>&mdash;</span>
       </div>
 
       {/* Right side */}

@@ -131,7 +131,7 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
         </DialogHeader>
 
         {/* Tab bar */}
-        <div className="flex gap-1 p-1 bg-bg-secondary rounded-[var(--radius-md)] mb-4">
+        <div className="flex gap-1 p-1 bg-bg-secondary rounded-[var(--radius-md)] mb-5">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -156,9 +156,9 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
         {/* Tab content */}
         <div className="min-h-[200px]">
           {activeTab === "newBranch" && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                <label className="block text-xs font-medium text-text-secondary mb-2">
                   Branch name
                 </label>
                 <Input
@@ -169,7 +169,7 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                <label className="block text-xs font-medium text-text-secondary mb-2">
                   Base branch
                 </label>
                 <Input
@@ -277,7 +277,7 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
         </div>
 
         {/* Auto-run setup scripts checkbox */}
-        <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer mt-2">
+        <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer mt-4">
           <input
             type="checkbox"
             checked={runSetup}

@@ -1,5 +1,5 @@
 import { Button } from "../ui/Button";
-import logoSvg from "../../assets/logo.svg";
+import logoSvg from "../../assets/logo-cat.svg";
 import { FolderOpen } from "lucide-react";
 
 interface WelcomeScreenProps {
@@ -9,17 +9,14 @@ interface WelcomeScreenProps {
 function WelcomeScreen({ onOpenRepository }: WelcomeScreenProps) {
   return (
     <div className="flex-1 flex items-center justify-center h-full">
-      <div className="flex flex-col items-center text-center max-w-md px-6">
-        {/* Logo with gradient background */}
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-accent-primary to-accent-secondary flex items-center justify-center mb-6 shadow-lg">
-          <img src={logoSvg} alt="Alfredo" width={48} height={48} />
-        </div>
+      <div className="flex flex-col items-center text-center max-w-md px-6 -mt-12">
+        <img src={logoSvg} alt="Alfredo" width={72} height={72} className="mb-8" />
 
-        <h1 className="text-2xl font-semibold text-text-primary mb-2">
+        <h1 className="text-2xl font-semibold text-text-primary mb-3">
           Welcome to Alfredo
         </h1>
 
-        <p className="text-sm text-text-secondary mb-6 leading-relaxed">
+        <p className="text-sm text-text-secondary mb-8 leading-relaxed">
           Manage your AI coding agents across worktrees. Get started by opening
           a repository.
         </p>
@@ -29,7 +26,7 @@ function WelcomeScreen({ onOpenRepository }: WelcomeScreenProps) {
           Open repository...
         </Button>
 
-        <p className="text-xs text-text-tertiary mt-4">
+        <p className="text-xs text-text-tertiary mt-5">
           or drag a folder here
         </p>
       </div>

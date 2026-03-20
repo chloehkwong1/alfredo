@@ -59,7 +59,7 @@ function StatusGroup({
     <div
       ref={setNodeRef}
       className={[
-        "mb-1 rounded-md transition-colors",
+        "mb-2 rounded-md transition-colors",
         isOver ? "bg-accent-muted ring-1 ring-accent-primary" : "",
       ].join(" ")}
     >
@@ -67,7 +67,7 @@ function StatusGroup({
       <button
         onClick={() => setIsCollapsed((prev) => !prev)}
         className={[
-          "flex w-full items-center gap-2 px-3 py-1.5",
+          "flex w-full items-center gap-2 px-4 py-2",
           "cursor-pointer select-none",
           isDone ? "text-text-tertiary" : "text-text-secondary",
         ].join(" ")}

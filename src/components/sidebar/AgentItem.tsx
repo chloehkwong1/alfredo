@@ -45,7 +45,7 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
       {...attributes}
       {...listeners}
       className={[
-        "w-full text-left px-3 py-2 flex items-start gap-2.5",
+        "w-full text-left px-4 py-2.5 flex items-start gap-2.5",
         "transition-colors duration-[var(--transition-fast)]",
         "hover:bg-bg-hover",
         isDragging ? "opacity-50 cursor-grabbing" : "cursor-grab",
@@ -69,19 +69,16 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
           <span className="text-sm font-medium text-text-primary truncate">
             {worktree.branch}
           </span>
-          <span className="text-xs text-text-tertiary flex-shrink-0">
-            &mdash;
-          </span>
+          {worktree.prStatus && (
+            <span className="text-[10px] text-text-tertiary flex-shrink-0">
+              #{worktree.prStatus.number}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-xs text-text-tertiary truncate">
             {getStatusText(worktree.agentStatus)}
           </span>
-          {worktree.prStatus && (
-            <span className="text-xs text-text-tertiary flex-shrink-0">
-              #{worktree.prStatus.number}
-            </span>
-          )}
         </div>
       </div>
     </button>
