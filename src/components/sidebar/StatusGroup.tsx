@@ -43,14 +43,13 @@ function StatusGroup({
   onSelectWorktree,
   forceVisible,
 }: StatusGroupProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { isOver, setNodeRef } = useDroppable({ id: column });
+
   const isVisible =
     worktrees.length > 0 || column === "inProgress" || forceVisible === true;
 
-  const { isOver, setNodeRef } = useDroppable({ id: column });
-
   if (!isVisible) return null;
-
-  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const Icon = columnIcon[column];
   const label = columnLabel[column];
