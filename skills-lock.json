@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "skills": {
+    "calling-frontend-from-tauri-rust": {
+      "source": "dchuk/claude-code-tauri-skills",
+      "sourceType": "github",
+      "computedHash": "4fd27ed64c2a3a89dabc25f5f38ed1d9b2c0cc7e37f723896d0023f6938c7f91"
+    },
+    "calling-rust-from-tauri-frontend": {
+      "source": "dchuk/claude-code-tauri-skills",
+      "sourceType": "github",
+      "computedHash": "384db541a0a09f2890227e95f17c82e5b50470eb2dd4b7b51cedb19a2f8de3e0"
+    },
+    "configuring-tauri-capabilities": {
+      "source": "dchuk/claude-code-tauri-skills",
+      "sourceType": "github",
+      "computedHash": "86886ccd735b96e8c2a480b5269fde9a2ffdb0b2bdda9e2b46b8a6ba4e31f7d8"
+    },
+    "managing-tauri-app-resources": {
+      "source": "dchuk/claude-code-tauri-skills",
+      "sourceType": "github",
+      "computedHash": "9863eb9c90f7e4e596e43e4614cb4918aa7b4155e394d8d8b6cb767c671a999f"
+    },
+    "understanding-tauri-architecture": {
+      "source": "dchuk/claude-code-tauri-skills",
+      "sourceType": "github",
+      "computedHash": "8246fabd39dbd1c0f43e85bd2f6235667182e483c693bf770fe40d29fba977f8"
+    }
+  }
+}
