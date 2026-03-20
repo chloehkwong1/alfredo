@@ -1,0 +1,299 @@
+/*
+ * Alfredo Theme Overrides
+ * Default "Warm Dark" lives in theme.css (:root).
+ * Each theme below overrides all tokens via data-theme attribute.
+ */
+
+/* ── Light ───────────────────────────────────────── */
+html[data-theme="light"] {
+  --bg-primary: #fafaf9;
+  --bg-secondary: #f5f5f4;
+  --bg-elevated: #ffffff;
+  --bg-hover: #e7e5e4;
+  --bg-active: #d6d3d1;
+
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-tertiary: #a8a29e;
+  --text-on-accent: #ffffff;
+
+  --border-default: #d6d3d1;
+  --border-hover: #a8a29e;
+  --border-focus: #7c3aed;
+
+  --accent-primary: #7c3aed;
+  --accent-secondary: #6d28d9;
+  --accent-muted: rgba(124, 58, 237, 0.12);
+
+  --status-idle: #22c55e;
+  --status-busy: #f59e0b;
+  --status-waiting: #3b82f6;
+  --status-error: #ef4444;
+
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --danger-muted: rgba(239, 68, 68, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* ── Synthwave ───────────────────────────────────── */
+html[data-theme="synthwave"] {
+  --bg-primary: #1a1028;
+  --bg-secondary: #221538;
+  --bg-elevated: #2d1b4e;
+  --bg-hover: #3a2260;
+  --bg-active: #4a2d78;
+
+  --text-primary: #f0e6ff;
+  --text-secondary: #b794e6;
+  --text-tertiary: #7c5aad;
+  --text-on-accent: #ffffff;
+
+  --border-default: #3a2260;
+  --border-hover: #5b3a8a;
+  --border-focus: #ff2975;
+
+  --accent-primary: #ff2975;
+  --accent-secondary: #e0175f;
+  --accent-muted: rgba(255, 41, 117, 0.18);
+
+  --status-idle: #39ff14;
+  --status-busy: #ffe600;
+  --status-waiting: #00d4ff;
+  --status-error: #ff3860;
+
+  --danger: #ff3860;
+  --danger-hover: #e02050;
+  --danger-muted: rgba(255, 56, 96, 0.18);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* ── Catppuccin (Mocha) ──────────────────────────── */
+html[data-theme="catppuccin"] {
+  --bg-primary: #1e1e2e;
+  --bg-secondary: #252536;
+  --bg-elevated: #313244;
+  --bg-hover: #3b3b52;
+  --bg-active: #45475a;
+
+  --text-primary: #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-tertiary: #6c7086;
+  --text-on-accent: #1e1e2e;
+
+  --border-default: #45475a;
+  --border-hover: #585b70;
+  --border-focus: #cba6f7;
+
+  --accent-primary: #cba6f7;
+  --accent-secondary: #b48cee;
+  --accent-muted: rgba(203, 166, 247, 0.15);
+
+  --status-idle: #a6e3a1;
+  --status-busy: #f9e2af;
+  --status-waiting: #89b4fa;
+  --status-error: #f38ba8;
+
+  --danger: #f38ba8;
+  --danger-hover: #e06688;
+  --danger-muted: rgba(243, 139, 168, 0.15);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* ── Sunset ──────────────────────────────────────── */
+html[data-theme="sunset"] {
+  --bg-primary: #1f1520;
+  --bg-secondary: #2a1c2b;
+  --bg-elevated: #362438;
+  --bg-hover: #442e46;
+  --bg-active: #523854;
+
+  --text-primary: #f5e6f0;
+  --text-secondary: #c9a0bc;
+  --text-tertiary: #8a6280;
+  --text-on-accent: #ffffff;
+
+  --border-default: #442e46;
+  --border-hover: #6b4668;
+  --border-focus: #f472b6;
+
+  --accent-primary: #f472b6;
+  --accent-secondary: #e05aa0;
+  --accent-muted: rgba(244, 114, 182, 0.15);
+
+  --status-idle: #4ade80;
+  --status-busy: #fbbf24;
+  --status-waiting: #60a5fa;
+  --status-error: #fb7185;
+
+  --danger: #fb7185;
+  --danger-hover: #e0566c;
+  --danger-muted: rgba(251, 113, 133, 0.15);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* ── Tokyo Night ─────────────────────────────────── */
+html[data-theme="tokyo-night"] {
+  --bg-primary: #1a1b26;
+  --bg-secondary: #1f2030;
+  --bg-elevated: #24283b;
+  --bg-hover: #2f3347;
+  --bg-active: #3b3f54;
+
+  --text-primary: #c0caf5;
+  --text-secondary: #9aa5ce;
+  --text-tertiary: #565f89;
+  --text-on-accent: #1a1b26;
+
+  --border-default: #3b3f54;
+  --border-hover: #565f89;
+  --border-focus: #7aa2f7;
+
+  --accent-primary: #7aa2f7;
+  --accent-secondary: #6189e0;
+  --accent-muted: rgba(122, 162, 247, 0.15);
+
+  --status-idle: #9ece6a;
+  --status-busy: #e0af68;
+  --status-waiting: #7dcfff;
+  --status-error: #f7768e;
+
+  --danger: #f7768e;
+  --danger-hover: #e05a72;
+  --danger-muted: rgba(247, 118, 142, 0.15);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* ── Solarized Dark ──────────────────────────────── */
+html[data-theme="solarized"] {
+  --bg-primary: #002b36;
+  --bg-secondary: #073642;
+  --bg-elevated: #0a3f4e;
+  --bg-hover: #124b5c;
+  --bg-active: #1a5768;
+
+  --text-primary: #fdf6e3;
+  --text-secondary: #93a1a1;
+  --text-tertiary: #657b83;
+  --text-on-accent: #fdf6e3;
+
+  --border-default: #1a5768;
+  --border-hover: #2a7a8a;
+  --border-focus: #268bd2;
+
+  --accent-primary: #268bd2;
+  --accent-secondary: #1e78b8;
+  --accent-muted: rgba(38, 139, 210, 0.15);
+
+  --status-idle: #859900;
+  --status-busy: #b58900;
+  --status-waiting: #268bd2;
+  --status-error: #dc322f;
+
+  --danger: #dc322f;
+  --danger-hover: #c42220;
+  --danger-muted: rgba(220, 50, 47, 0.15);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* ── Honeycomb ───────────────────────────────────── */
+html[data-theme="honeycomb"] {
+  --bg-primary: #1c1a17;
+  --bg-secondary: #24221e;
+  --bg-elevated: #2e2b25;
+  --bg-hover: #3a362e;
+  --bg-active: #464137;
+
+  --text-primary: #f5f0e6;
+  --text-secondary: #b5a88e;
+  --text-tertiary: #7d7260;
+  --text-on-accent: #1c1a17;
+
+  --border-default: #3a362e;
+  --border-hover: #5a5346;
+  --border-focus: #eab308;
+
+  --accent-primary: #eab308;
+  --accent-secondary: #d19e06;
+  --accent-muted: rgba(234, 179, 8, 0.15);
+
+  --status-idle: #84cc16;
+  --status-busy: #fb923c;
+  --status-waiting: #60a5fa;
+  --status-error: #f87171;
+
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --danger-muted: rgba(239, 68, 68, 0.15);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+}

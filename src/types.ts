@@ -93,6 +93,7 @@ export interface AppConfig {
   linearApiKey: string | null;
   branchMode: boolean;
   columnOverrides?: Record<string, KanbanColumn>;
+  theme?: string;
 }
 
 // ── Linear ──────────────────────────────────────────────────────

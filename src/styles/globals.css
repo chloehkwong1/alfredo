@@ -4,6 +4,7 @@
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
 @import "./theme.css";
+@import "./themes.css";
 
 /* ── Tailwind v4 theme extensions ──────────────── */
 @theme {
