@@ -12,7 +12,7 @@ mod types;
 
 use tauri::Manager;
 
-use commands::{branch, config, github, linear, pty, worktree};
+use commands::{branch, config, diff, github, linear, pty, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 
@@ -71,6 +71,10 @@ pub fn run() {
             linear::search_linear_issues,
             linear::get_linear_issue,
             linear::list_linear_teams,
+            // Diff
+            diff::get_diff,
+            diff::get_commits,
+            diff::get_diff_for_commit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

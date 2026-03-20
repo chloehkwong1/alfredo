@@ -1,6 +1,8 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import type {
   AppConfig,
+  CommitInfo,
+  DiffFile,
   KanbanColumn,
   LinearTeam,
   LinearTicket,
@@ -184,4 +186,21 @@ export function getLinearIssue(issueId: string): Promise<LinearTicket> {
 
 export function listLinearTeams(): Promise<LinearTeam[]> {
   return invoke("list_linear_teams");
+}
+
+// ── Diff ───────────────────────────────────────────────────────
+
+export function getDiff(repoPath: string): Promise<DiffFile[]> {
+  return invoke("get_diff", { repoPath });
+}
+
+export function getCommits(repoPath: string): Promise<CommitInfo[]> {
+  return invoke("get_commits", { repoPath });
+}
+
+export function getDiffForCommit(
+  repoPath: string,
+  commitHash: string,
+): Promise<DiffFile[]> {
+  return invoke("get_diff_for_commit", { repoPath, commitHash });
 }
