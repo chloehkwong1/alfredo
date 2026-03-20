@@ -1,0 +1,45 @@
+@import "tailwindcss";
+@import "@fontsource/inter";
+
+:root {
+  --bg-primary: #1a1918;
+  --bg-secondary: #232220;
+  --bg-elevated: #2a2928;
+  --bg-hover: #333231;
+  --text-primary: #f5f2ef;
+  --text-secondary: #a8a29e;
+  --text-tertiary: #78716c;
+  --border-default: #3d3a37;
+  --border-hover: #57534e;
+  --accent-primary: #9333ea;
+  --accent-secondary: #7e22ce;
+  --status-idle: #4ade80;
+  --status-busy: #fbbf24;
+  --status-waiting: #60a5fa;
+  --status-error: #f87171;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--accent-primary);
+  color: white;
+}

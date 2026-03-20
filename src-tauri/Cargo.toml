@@ -1,0 +1,27 @@
+[package]
+name = "alfredo"
+version = "0.1.0"
+description = "AI Agent Management Desktop App"
+authors = ["Chloe"]
+edition = "2021"
+
+[lib]
+name = "alfredo_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-shell = "2"
+portable-pty = "0.9"
+git2 = "0.19"
+octocrab = "0.41"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+reqwest = { version = "0.12", features = ["json"] }
+
