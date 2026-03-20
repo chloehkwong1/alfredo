@@ -4,7 +4,7 @@ import { FileList } from "./FileList";
 import { DiffViewer } from "./DiffViewer";
 import { getDiff, getCommits, getDiffForCommit } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import type { DiffFile, CommitInfo, Annotation } from "../../types";
+import type { DiffFile, CommitInfo } from "../../types";
 import type { DiffMode } from "./DiffToolbar";
 
 interface ChangesViewProps {
@@ -22,8 +22,10 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     number | null
   >(null);
 
-  const annotations: Annotation[] =
+  const annotations =
     useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
+  const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
+  const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
 
   // Load diff data based on mode
   useEffect(() => {
@@ -122,9 +124,44 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     );
   }, []);
 
+  const handleSubmitAnnotation = useCallback(
+    (lineNumber: number, text: string) => {
+      const commitHash =
+        mode === "commit" && commits.length > 0
+          ? commits[currentCommitIndex].hash
+          : null;
+      addAnnotation({
+        id: crypto.randomUUID(),
+        worktreeId,
+        filePath: selectedFilePath ?? "",
+        lineNumber,
+        commitHash,
+        text,
+        createdAt: Date.now(),
+      });
+      setActiveAnnotationLine(null);
+    },
+    [worktreeId, selectedFilePath, mode, commits, currentCommitIndex, addAnnotation],
+  );
+
+  const handleDeleteAnnotation = useCallback(
+    (annotationId: string) => {
+      removeAnnotation(worktreeId, annotationId);
+    },
+    [worktreeId, removeAnnotation],
+  );
+
   const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
   const selectedFile = files.find((f) => f.path === selectedFilePath) ?? null;
+
+  // Filter annotations to current commit when in commit-by-commit mode
+  const filteredAnnotations =
+    mode === "commit" && commits.length > 0
+      ? annotations.filter(
+          (a) => a.commitHash === commits[currentCommitIndex].hash,
+        )
+      : annotations;
 
   return (
     <div className="flex flex-col h-full">
@@ -146,8 +183,10 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
         />
         <DiffViewer
           file={selectedFile}
-          annotations={annotations}
+          annotations={filteredAnnotations}
           onAddAnnotation={handleAddAnnotation}
+          onSubmitAnnotation={handleSubmitAnnotation}
+          onDeleteAnnotation={handleDeleteAnnotation}
           activeAnnotationLine={activeAnnotationLine}
         />
       </div>

@@ -1,9 +1,13 @@
+import { AnnotationBubble } from "./AnnotationBubble";
+import { AnnotationInput } from "./AnnotationInput";
 import type { Annotation, DiffFile, DiffLine } from "../../types";
 
 interface DiffViewerProps {
   file: DiffFile | null;
   annotations: Annotation[];
   onAddAnnotation: (lineNumber: number) => void;
+  onSubmitAnnotation: (lineNumber: number, text: string) => void;
+  onDeleteAnnotation: (id: string) => void;
   activeAnnotationLine: number | null;
 }
 
@@ -35,6 +39,8 @@ function DiffViewer({
   file,
   annotations,
   onAddAnnotation,
+  onSubmitAnnotation,
+  onDeleteAnnotation,
   activeAnnotationLine,
 }: DiffViewerProps) {
   if (!file) {
@@ -117,15 +123,22 @@ function DiffViewer({
                     </span>
                   </div>
 
-                  {/* Inline annotations (placeholder for AnnotationBubble from Task 8) */}
+                  {/* Inline annotations */}
                   {lineAnnotations?.map((ann) => (
-                    <div
+                    <AnnotationBubble
                       key={ann.id}
-                      className="ml-24 mr-4 my-1 px-3 py-1.5 rounded-md bg-accent-primary/10 border border-accent-primary/20 text-xs text-text-secondary"
-                    >
-                      {ann.text}
-                    </div>
+                      annotation={ann}
+                      onDelete={onDeleteAnnotation}
+                    />
                   ))}
+
+                  {/* Annotation input */}
+                  {isActiveLine && (
+                    <AnnotationInput
+                      onSubmit={(text) => onSubmitAnnotation(lineNum, text)}
+                      onCancel={() => onAddAnnotation(lineNum)}
+                    />
+                  )}
                 </div>
               );
             })}

@@ -1,8 +1,13 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
+import { MessageSquare, Send, Trash2 } from "lucide-react";
 import "@xterm/xterm/css/xterm.css";
 
 import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { sessionManager } from "../../services/sessionManager";
+import { writePty } from "../../api";
+import { Button } from "../ui/Button";
+import type { Annotation } from "../../types";
 
 function TerminalView() {
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
@@ -13,6 +18,11 @@ function TerminalView() {
   const isSeen = useWorkspaceStore((s) =>
     activeWorktreeId ? s.seenWorktrees.has(activeWorktreeId) : false,
   );
+  const annotations: Annotation[] =
+    useWorkspaceStore((s) =>
+      activeWorktreeId ? s.annotations[activeWorktreeId] : undefined,
+    ) ?? [];
+  const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -21,6 +31,26 @@ function TerminalView() {
     worktreePath: worktree?.path ?? "",
     containerRef,
   });
+
+  const handleSendFeedback = useCallback(async () => {
+    if (!activeWorktreeId || annotations.length === 0) return;
+    const session = sessionManager.getSession(activeWorktreeId);
+    if (!session) return;
+
+    const lines = annotations.map(
+      (a) => `Feedback on ${a.filePath}:${a.lineNumber} — ${a.text}`,
+    );
+    const message = "\n" + lines.join("\n") + "\n";
+    const bytes = Array.from(new TextEncoder().encode(message));
+    await writePty(session.sessionId, bytes);
+    clearAnnotations(activeWorktreeId);
+  }, [activeWorktreeId, annotations, clearAnnotations]);
+
+  const handleClearAnnotations = useCallback(() => {
+    if (activeWorktreeId) {
+      clearAnnotations(activeWorktreeId);
+    }
+  }, [activeWorktreeId, clearAnnotations]);
 
   // Mark as seen when user is viewing a terminal that's idle or waiting
   useEffect(() => {
@@ -51,6 +81,35 @@ function TerminalView() {
 
   return (
     <div className="flex flex-col h-full bg-bg-primary">
+      {annotations.length > 0 && (
+        <div className="flex items-center gap-3 px-3 py-1.5 bg-accent-primary/8 border-b border-accent-primary/20 flex-shrink-0">
+          <div className="flex items-center gap-1.5 text-xs text-accent-primary font-medium">
+            <MessageSquare size={14} />
+            <span>
+              {annotations.length}{" "}
+              {annotations.length === 1 ? "annotation" : "annotations"}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={handleSendFeedback}
+            >
+              <Send size={12} />
+              Send as feedback
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleClearAnnotations}
+            >
+              <Trash2 size={12} />
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
       <div ref={containerRef} className="flex-1 min-h-0 p-1" />
     </div>
   );

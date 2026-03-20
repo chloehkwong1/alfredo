@@ -35,8 +35,11 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
       <div className="flex items-center gap-3">
         {prLabel && <span className={prColor}>{prLabel}</span>}
         {annotationCount > 0 && (
-          <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-accent-primary text-text-on-accent text-[10px] font-semibold">
-            {annotationCount}
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-accent-primary/15 text-accent-primary text-[10px] font-medium">
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent-primary text-text-on-accent text-[9px] font-semibold">
+              {annotationCount}
+            </span>
+            {annotationCount === 1 ? "annotation" : "annotations"}
           </span>
         )}
       </div>
