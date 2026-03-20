@@ -58,6 +58,24 @@ export interface PrStatus {
   url: string;
   draft: boolean;
   merged: boolean;
+  branch: string;
+}
+
+/** Payload emitted by the `github:pr-update` Tauri event. */
+export interface PrUpdatePayload {
+  prs: PrStatusWithColumn[];
+}
+
+/** A PR status annotated with the auto-determined kanban column. */
+export interface PrStatusWithColumn {
+  number: number;
+  state: string;
+  title: string;
+  url: string;
+  draft: boolean;
+  merged: boolean;
+  branch: string;
+  autoColumn: KanbanColumn;
 }
 
 // ── Config ──────────────────────────────────────────────────────
@@ -74,6 +92,7 @@ export interface AppConfig {
   githubToken: string | null;
   linearApiKey: string | null;
   branchMode: boolean;
+  columnOverrides?: Record<string, KanbanColumn>;
 }
 
 // ── Linear ──────────────────────────────────────────────────────
@@ -83,6 +102,7 @@ export interface LinearTicket {
   identifier: string;
   title: string;
   description: string | null;
+  url: string;
   state: string;
   labels: string[];
   assignee: string | null;

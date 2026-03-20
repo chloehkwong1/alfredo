@@ -95,6 +95,38 @@ export function setWorktreeColumn(
   return invoke("set_worktree_column", { repoPath, worktreeName, column });
 }
 
+// ── Branch Mode ─────────────────────────────────────────────────
+
+export function listBranches(repoPath: string): Promise<Worktree[]> {
+  return invoke("list_branches", { repoPath });
+}
+
+export function getActiveBranch(repoPath: string): Promise<string | null> {
+  return invoke("get_active_branch", { repoPath });
+}
+
+export function createBranch(
+  repoPath: string,
+  branchName: string,
+  baseBranch: string,
+): Promise<Worktree> {
+  return invoke("create_branch", { repoPath, branchName, baseBranch });
+}
+
+export function switchBranch(
+  repoPath: string,
+  branchName: string,
+): Promise<void> {
+  return invoke("switch_branch", { repoPath, branchName });
+}
+
+export function deleteBranch(
+  repoPath: string,
+  branchName: string,
+): Promise<void> {
+  return invoke("delete_branch", { repoPath, branchName });
+}
+
 // ── GitHub ──────────────────────────────────────────────────────
 
 export function syncPrStatus(repoPath: string): Promise<PrStatus[]> {
@@ -107,6 +139,12 @@ export function getPrForBranch(
   branch: string,
 ): Promise<PrStatus | null> {
   return invoke("get_pr_for_branch", { owner, repo, branch });
+}
+
+// ── GitHub Sync ─────────────────────────────────────────────────
+
+export function setSyncRepoPath(repoPath: string): Promise<void> {
+  return invoke("set_sync_repo_path", { repoPath });
 }
 
 // ── Config ──────────────────────────────────────────────────────
