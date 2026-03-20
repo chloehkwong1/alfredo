@@ -3,6 +3,7 @@ import { Logo } from "../Logo";
 import { IconButton } from "../ui";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
+import { SidebarDragContext } from "./SidebarDragContext";
 import type { KanbanColumn, Worktree } from "../../types";
 
 const COLUMNS: KanbanColumn[] = [
@@ -76,15 +77,20 @@ function Sidebar() {
 
       {/* Scrollable agent list */}
       <div className="flex-1 overflow-y-auto py-2">
-        {COLUMNS.map((col) => (
-          <StatusGroup
-            key={col}
-            column={col}
-            worktrees={grouped[col]}
-            activeWorktreeId={activeWorktreeId}
-            onSelectWorktree={setActiveWorktree}
-          />
-        ))}
+        <SidebarDragContext>
+          {(isDragging) =>
+            COLUMNS.map((col) => (
+              <StatusGroup
+                key={col}
+                column={col}
+                worktrees={grouped[col]}
+                activeWorktreeId={activeWorktreeId}
+                onSelectWorktree={setActiveWorktree}
+                forceVisible={isDragging}
+              />
+            ))
+          }
+        </SidebarDragContext>
       </div>
 
       {/* Footer */}

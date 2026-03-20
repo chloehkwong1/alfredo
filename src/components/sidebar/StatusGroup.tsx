@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDroppable } from "@dnd-kit/core";
 import {
   Circle,
   OctagonX,
@@ -45,6 +46,8 @@ function StatusGroup({
   const isVisible =
     worktrees.length > 0 || column === "inProgress" || forceVisible === true;
 
+  const { isOver, setNodeRef } = useDroppable({ id: column });
+
   if (!isVisible) return null;
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -54,7 +57,13 @@ function StatusGroup({
   const isDone = column === "done";
 
   return (
-    <div className="mb-1">
+    <div
+      ref={setNodeRef}
+      className={[
+        "mb-1 rounded-md transition-colors",
+        isOver ? "bg-accent-muted ring-1 ring-accent-primary" : "",
+      ].join(" ")}
+    >
       {/* Group header */}
       <button
         onClick={() => setIsCollapsed((prev) => !prev)}

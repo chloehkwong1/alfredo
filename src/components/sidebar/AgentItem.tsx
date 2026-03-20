@@ -1,3 +1,4 @@
+import { useDraggable } from "@dnd-kit/core";
 import type { AgentState, Worktree } from "../../types";
 
 interface AgentItemProps {
@@ -32,15 +33,22 @@ function getStatusText(status: AgentState | string): string {
 
 function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
   const isWaiting = worktree.agentStatus === "waitingForInput";
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: worktree.id,
+  });
 
   return (
     <button
+      ref={setNodeRef}
       type="button"
       onClick={onClick}
+      {...attributes}
+      {...listeners}
       className={[
-        "w-full text-left px-3 py-2 flex items-start gap-2.5 cursor-pointer",
+        "w-full text-left px-3 py-2 flex items-start gap-2.5",
         "transition-colors duration-[var(--transition-fast)]",
         "hover:bg-bg-hover",
+        isDragging ? "opacity-50 cursor-grabbing" : "cursor-grab",
         isSelected
           ? "border-l-2 border-l-accent-primary bg-accent-muted"
           : "border-l-2 border-l-transparent",
