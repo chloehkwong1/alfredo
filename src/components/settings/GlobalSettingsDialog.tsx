@@ -114,14 +114,14 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
         {/* Vertical tab layout */}
         <div className="flex gap-6 min-h-[320px]">
           {/* Tab rail */}
-          <nav className="flex flex-col gap-0.5 w-36 flex-shrink-0 border-r border-border-default pr-4">
+          <nav className="flex flex-col gap-1 w-36 flex-shrink-0 border-r border-border-default pr-4">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
                 className={[
-                  "px-3 py-1.5 text-sm rounded-[var(--radius-md)] text-left",
+                  "px-3 py-2 text-sm rounded-[var(--radius-md)] text-left",
                   "transition-colors duration-[var(--transition-fast)]",
                   "cursor-pointer",
                   tab === t.id
@@ -135,7 +135,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
           </nav>
 
           {/* Tab content */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pr-4">
             {tab === "appearance" && (
               <div className="space-y-5">
                 <div className="space-y-2">
@@ -146,14 +146,6 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                     currentTheme={currentTheme}
                     onSelect={handleThemeSelect}
                   />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-text-primary">
-                    Font Size
-                  </label>
-                  <p className="text-xs text-text-tertiary">
-                    Coming soon
-                  </p>
                 </div>
               </div>
             )}
@@ -181,8 +173,30 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
             )}
 
             {tab === "shortcuts" && (
-              <div className="flex items-center justify-center h-full text-sm text-text-tertiary">
-                Coming soon
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-text-primary">
+                  Keyboard Shortcuts
+                </h3>
+                <div className="space-y-1">
+                  {[
+                    { keys: "↑ / ↓", description: "Navigate between worktrees" },
+                    { keys: "⌘ 1–9", description: "Jump to worktree by position" },
+                    { keys: "⌘ ⇧ T", description: "Toggle terminal / changes view" },
+                    { keys: "⌘ ⇧ C", description: "Toggle changes view" },
+                  ].map((shortcut) => (
+                    <div
+                      key={shortcut.keys}
+                      className="flex items-center justify-between gap-3 py-1.5"
+                    >
+                      <span className="text-sm text-text-secondary">
+                        {shortcut.description}
+                      </span>
+                      <kbd className="px-2 py-0.5 text-xs font-mono bg-bg-hover text-text-primary rounded-[var(--radius-sm)] border border-border-default whitespace-nowrap flex-shrink-0">
+                        {shortcut.keys}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

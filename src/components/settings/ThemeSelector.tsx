@@ -45,7 +45,7 @@ function ThemeSelector({ currentTheme, onSelect }: ThemeSelectorProps) {
               />
             </div>
             {/* Theme name */}
-            <span className="text-xs text-text-secondary truncate w-full text-center">
+            <span className="text-xs text-text-secondary text-center leading-tight">
               {theme.name}
             </span>
           </button>
