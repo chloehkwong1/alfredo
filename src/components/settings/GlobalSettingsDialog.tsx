@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "../ui/Dialog";
 import { GithubSettings } from "./GithubSettings";
+import { NotificationSettings, DEFAULT_NOTIFICATION_CONFIG } from "./NotificationSettings";
 import { TerminalSettings } from "./TerminalSettings";
 import { ThemeSelector } from "./ThemeSelector";
 
@@ -160,9 +161,10 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
             {tab === "terminal" && <TerminalSettings />}
 
             {tab === "notifications" && (
-              <div className="flex items-center justify-center h-full text-sm text-text-tertiary">
-                Coming soon
-              </div>
+              <NotificationSettings
+                config={config.notifications ?? DEFAULT_NOTIFICATION_CONFIG}
+                onChange={(notifications) => updateConfig({ notifications })}
+              />
             )}
 
             {tab === "integrations" && (

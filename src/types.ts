@@ -86,6 +86,14 @@ export interface SetupScript {
   runOn: string;
 }
 
+export interface NotificationConfig {
+  enabled: boolean;
+  sound: string; // sound ID
+  notifyOnWaiting: boolean;
+  notifyOnIdle: boolean;
+  notifyOnError: boolean;
+}
+
 export interface AppConfig {
   repoPath: string;
   setupScripts: SetupScript[];
@@ -94,6 +102,7 @@ export interface AppConfig {
   branchMode: boolean;
   columnOverrides?: Record<string, KanbanColumn>;
   theme?: string;
+  notifications?: NotificationConfig;
 }
 
 // ── Linear ──────────────────────────────────────────────────────
