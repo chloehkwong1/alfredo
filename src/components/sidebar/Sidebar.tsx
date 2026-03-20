@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Settings, PanelLeftClose, PanelLeft, Plus } from "lucide-react";
 import { IconButton } from "../ui";
-import logoSvg from "../../assets/logo.svg";
+import logoSvg from "../../assets/logo-cat.svg";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
 import { SidebarDragContext } from "./SidebarDragContext";
@@ -94,13 +94,60 @@ function Sidebar() {
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
 
+  const MAX_DOTS = 8;
+
+  const statusDotColor: Record<string, string> = useMemo(() => ({
+    waitingForInput: "bg-status-waiting",
+    busy: "bg-status-busy",
+    idle: "bg-status-idle",
+    error: "bg-status-error",
+    notRunning: "bg-text-tertiary",
+  }), []);
+
   if (sidebarCollapsed) {
+    const overflow = flatWorktrees.length - MAX_DOTS;
     return (
       <div className="flex flex-col items-center w-12 bg-bg-secondary border-r border-border-default py-3 gap-3 flex-shrink-0">
         <img src={logoSvg} alt="Alfredo" width={24} height={24} />
         <IconButton size="sm" label="Expand sidebar" onClick={toggleSidebar}>
           <PanelLeft />
         </IconButton>
+
+        {/* Worktree status dots */}
+        <div className="flex flex-col items-center gap-2 mt-1">
+          {flatWorktrees.slice(0, MAX_DOTS).map((wt) => (
+            <button
+              key={wt.id}
+              type="button"
+              onClick={() => setActiveWorktree(wt.id)}
+              className={[
+                "h-2.5 w-2.5 rounded-full transition-all cursor-pointer",
+                "hover:scale-125",
+                statusDotColor[wt.agentStatus] ?? "bg-text-tertiary",
+                wt.id === activeWorktreeId ? "ring-1 ring-offset-1 ring-accent-primary ring-offset-bg-secondary" : "",
+              ].join(" ")}
+              title={wt.branch}
+            />
+          ))}
+          {overflow > 0 && (
+            <span className="text-[9px] text-text-tertiary leading-none">
+              +{overflow}
+            </span>
+          )}
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* New worktree button */}
+        <IconButton size="sm" label="New worktree" onClick={() => setCreateWorktreeOpen(true)}>
+          <Plus />
+        </IconButton>
+
+        <CreateWorktreeDialog
+          open={createWorktreeOpen}
+          onOpenChange={setCreateWorktreeOpen}
+        />
       </div>
     );
   }
@@ -108,14 +155,14 @@ function Sidebar() {
   return (
     <div className="flex flex-col w-[260px] bg-bg-secondary border-r border-border-default flex-shrink-0">
       {/* Header */}
-      <div className="flex items-center justify-between h-11 px-3 border-b border-border-default flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between h-12 px-4 border-b border-border-default flex-shrink-0">
+        <div className="flex items-center gap-2.5">
           <img src={logoSvg} alt="Alfredo" width={22} height={22} />
           <span className="text-sm font-semibold text-text-primary">
             alfredo
           </span>
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <IconButton size="sm" label="Settings" onClick={() => setGlobalSettingsOpen(true)}>
             <Settings />
           </IconButton>
@@ -130,7 +177,7 @@ function Sidebar() {
       </div>
 
       {/* Scrollable agent list */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto py-3">
         <SidebarDragContext>
           {(isDragging) =>
             COLUMNS.map((col) => (
@@ -148,10 +195,10 @@ function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className="px-3 py-3 border-t border-border-default flex-shrink-0 space-y-2">
+      <div className="px-4 py-3 border-t border-border-default flex-shrink-0 space-y-2.5">
         <button
           type="button"
-          className="w-full flex items-center justify-center gap-2 h-8 rounded-[var(--radius-md)] border border-dashed border-accent-primary text-accent-primary text-sm font-medium hover:bg-accent-muted transition-colors cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-sm font-medium hover:bg-accent-primary hover:text-text-on-accent transition-colors cursor-pointer"
           onClick={() => setCreateWorktreeOpen(true)}
         >
           <Plus className="h-4 w-4" />
@@ -159,7 +206,7 @@ function Sidebar() {
         </button>
         <button
           type="button"
-          className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+          className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer py-0.5"
           onClick={() => setWorkspaceSettingsOpen(true)}
         >
           Workspace settings
@@ -184,3 +231,4 @@ function Sidebar() {
 }
 
 export { Sidebar };
+
