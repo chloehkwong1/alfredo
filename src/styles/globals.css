@@ -34,6 +34,9 @@
   --color-status-waiting: var(--status-waiting);
   --color-status-error: var(--status-error);
 
+  --color-diff-added: var(--diff-added);
+  --color-diff-removed: var(--diff-removed);
+
   --color-danger: var(--danger);
   --color-danger-hover: var(--danger-hover);
   --color-danger-muted: var(--danger-muted);

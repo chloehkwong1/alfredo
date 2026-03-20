@@ -10,9 +10,9 @@ const statusConfig: Record<
   DiffFile["status"],
   { label: string; color: string }
 > = {
-  added: { label: "A", color: "text-status-busy bg-status-busy/15" },
+  added: { label: "A", color: "text-diff-added bg-diff-added/15" },
   modified: { label: "M", color: "text-accent-primary bg-accent-primary/15" },
-  deleted: { label: "D", color: "text-status-error bg-status-error/15" },
+  deleted: { label: "D", color: "text-diff-removed bg-diff-removed/15" },
   renamed: { label: "R", color: "text-status-waiting bg-status-waiting/15" },
 };
 
@@ -56,11 +56,11 @@ function FileList({ files, selectedPath, onSelectFile }: FileListProps) {
               </span>
               <span className="text-[10px] text-text-tertiary whitespace-nowrap flex-shrink-0">
                 {file.additions > 0 && (
-                  <span className="text-status-busy">+{file.additions}</span>
+                  <span className="text-diff-added">+{file.additions}</span>
                 )}
                 {file.additions > 0 && file.deletions > 0 && " "}
                 {file.deletions > 0 && (
-                  <span className="text-status-error">-{file.deletions}</span>
+                  <span className="text-diff-removed">-{file.deletions}</span>
                 )}
               </span>
             </button>

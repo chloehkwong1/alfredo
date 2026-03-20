@@ -12,14 +12,14 @@ interface DiffViewerProps {
 }
 
 const lineTypeStyles: Record<string, string> = {
-  addition: "bg-status-busy/10 text-text-primary",
-  deletion: "bg-status-error/10 text-text-primary",
+  addition: "bg-diff-added/10 text-text-primary",
+  deletion: "bg-diff-removed/10 text-text-primary",
   context: "text-text-tertiary",
 };
 
 const lineNumberStyles: Record<string, string> = {
-  addition: "text-status-busy/60",
-  deletion: "text-status-error/60",
+  addition: "text-diff-added/60",
+  deletion: "text-diff-removed/60",
   context: "text-text-tertiary/50",
 };
 

@@ -92,9 +92,9 @@ function DiffToolbar({
 
       {/* Stats */}
       <span className="text-xs text-text-tertiary whitespace-nowrap">
-        <span className="text-status-busy">+{totalAdditions}</span>
+        <span className="text-diff-added">+{totalAdditions}</span>
         {" "}
-        <span className="text-status-error">-{totalDeletions}</span>
+        <span className="text-diff-removed">-{totalDeletions}</span>
         {" "}across {fileCount} {fileCount === 1 ? "file" : "files"}
       </span>
     </div>

@@ -34,6 +34,10 @@
   --status-waiting: #60a5fa;
   --status-error: #f87171;
 
+  /* ── Diff ──────────────────────────────────── */
+  --diff-added: #4ade80;
+  --diff-removed: #f87171;
+
   /* ── Danger ──────────────────────────────────── */
   --danger: #ef4444;
   --danger-hover: #dc2626;
