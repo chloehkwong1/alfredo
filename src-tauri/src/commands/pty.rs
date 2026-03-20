@@ -1,5 +1,6 @@
 use crate::pty_manager::PtyManager;
-use crate::types::{AppError, PtyEvent, Session};
+use crate::state_server::StateServerHandle;
+use crate::types::{AgentType, AppError, PtyEvent, Session};
 use tauri::ipc::Channel;
 use tauri::State;
 
@@ -7,15 +8,31 @@ type Result<T> = std::result::Result<T, AppError>;
 
 /// Spawn a new PTY session in the given worktree directory.
 /// Returns the session ID. Output streams back via the `on_data` Channel.
+/// `agent_type` tells the detector what agent is running so it can track
+/// state immediately without relying on banner/launch detection.
 #[tauri::command]
 pub async fn spawn_pty(
     manager: State<'_, PtyManager>,
+    state_server: State<'_, StateServerHandle>,
+    worktree_id: String,
     worktree_path: String,
     command: String,
     args: Vec<String>,
     on_data: Channel<PtyEvent>,
+    agent_type: Option<AgentType>,
 ) -> Result<String> {
-    manager.spawn(worktree_path, command, args, on_data)
+    // Register this session's channel with the state server so hooks can push state
+    state_server.register_channel(worktree_id.clone(), on_data.clone());
+
+    manager.spawn(
+        worktree_id,
+        worktree_path,
+        command,
+        args,
+        on_data,
+        agent_type.unwrap_or(AgentType::Unknown),
+        Some(state_server.port),
+    )
 }
 
 /// Write raw input bytes to a PTY session.

@@ -16,25 +16,20 @@ interface WorktreeCardProps {
   worktree: Worktree;
 }
 
-const agentStateLabel: Record<AgentState, string> = {
-  idle: "Idle",
-  busy: "Running",
-  waitingForInput: "Waiting",
-  notRunning: "Stopped",
-};
-
-const agentStateBadgeVariant: Record<AgentState, BadgeVariant> = {
-  idle: "idle",
-  busy: "busy",
-  waitingForInput: "waiting",
-  notRunning: "default",
-};
+function getStatusDisplay(agentState: AgentState, isSeen: boolean): { label: string; variant: BadgeVariant } {
+  if (agentState === "busy") return { label: "Thinking", variant: "busy" };
+  if (agentState === "notRunning") return { label: "Idle", variant: "default" };
+  // idle or waitingForInput
+  if (isSeen) return { label: "Reviewed", variant: "idle" };
+  return { label: "Attention", variant: "waiting" };
+}
 
 function WorktreeCard({ worktree }: WorktreeCardProps) {
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const setView = useWorkspaceStore((s) => s.setView);
   const branchMode = useWorkspaceStore((s) => s.branchMode);
   const activeBranch = useWorkspaceStore((s) => s.activeBranch);
+  const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
 
   const isActiveBranch = branchMode && activeBranch === worktree.branch;
 
@@ -99,8 +94,8 @@ function WorktreeCard({ worktree }: WorktreeCardProps) {
 
           {/* Agent state badge */}
           <div className="flex items-center gap-2 mb-2">
-            <Badge variant={agentStateBadgeVariant[worktree.agentStatus]}>
-              {agentStateLabel[worktree.agentStatus]}
+            <Badge variant={getStatusDisplay(worktree.agentStatus, isSeen).variant}>
+              {getStatusDisplay(worktree.agentStatus, isSeen).label}
             </Badge>
           </div>
 

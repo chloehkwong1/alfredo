@@ -7,7 +7,10 @@ mod github_manager;
 mod github_sync;
 mod linear_manager;
 mod pty_manager;
+mod state_server;
 mod types;
+
+use tauri::Manager;
 
 use commands::{branch, config, github, linear, pty, worktree};
 use github_sync::SyncState;
@@ -25,6 +28,15 @@ pub fn run() {
         .setup(|app| {
             // Start the background GitHub PR sync loop
             github_sync::start_sync_loop(app.handle().clone());
+
+            // Start the agent state HTTP server for hook callbacks
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let state_handle = state_server::start().await;
+                eprintln!("[alfredo] state server listening on port {}", state_handle.port);
+                handle.manage(state_handle);
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

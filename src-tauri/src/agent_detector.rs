@@ -23,9 +23,20 @@ pub struct AgentDetector {
 
 impl AgentDetector {
     pub fn new() -> Self {
+        Self::with_agent_type(AgentType::Unknown)
+    }
+
+    /// Create a detector pre-seeded with a known agent type.
+    /// Use this when the agent is spawned directly (not launched from a shell),
+    /// so we skip banner/launch detection and go straight to state tracking.
+    pub fn with_agent_type(agent_type: AgentType) -> Self {
+        let state = match agent_type {
+            AgentType::Unknown => AgentState::NotRunning,
+            _ => AgentState::Busy, // agent is starting up
+        };
         Self {
-            agent_type: AgentType::Unknown,
-            state: AgentState::NotRunning,
+            agent_type,
+            state,
             last_resize: None,
             last_input: None,
             line_buf: String::new(),
@@ -190,8 +201,10 @@ fn classify_claude_code(line: &str) -> (Option<AgentType>, Option<AgentState>) {
     if line.contains("Allow") && line.contains("Deny") {
         return (None, Some(AgentState::WaitingForInput));
     }
-    // "Do you want to proceed?" style prompts
-    if line.contains("Do you want to") || line.contains("(y/n)") || line.contains("[Y/n]") {
+    // Interactive prompts requiring user action
+    if line.contains("Do you want to") || line.contains("(y/n)") || line.contains("[Y/n]")
+        || line.contains("Enter to confirm") || line.contains("trust this folder")
+    {
         return (None, Some(AgentState::WaitingForInput));
     }
 
@@ -204,6 +217,12 @@ fn classify_claude_code(line: &str) -> (Option<AgentType>, Option<AgentState>) {
     // Exit detection — back to shell
     if line.contains("exited") || line.contains("Goodbye") {
         return (Some(AgentType::Unknown), Some(AgentState::NotRunning));
+    }
+
+    // Ignore status bar noise — Claude Code renders a persistent status line
+    // containing model info, context usage, etc. This is not agent output.
+    if is_status_bar(line) {
+        return (None, None);
     }
 
     // If we see substantial output, agent is busy
@@ -277,12 +296,31 @@ fn classify_aider(line: &str) -> (Option<AgentType>, Option<AgentState>) {
     (None, None)
 }
 
-/// Plain shell — just detect if someone types an agent command
-fn classify_shell(line: &str) -> (Option<AgentType>, Option<AgentState>) {
-    // We're in "no agent" mode. State stays NotRunning.
-    // Agent launches are caught in classify_line before we get here.
-    let _ = line;
+/// Plain shell — no agent detected yet.
+/// Agent launches via shell prompt (`$ claude`) are caught in `classify_line`.
+/// Direct spawns are handled by seeding `AgentDetector::with_agent_type()`.
+fn classify_shell(_line: &str) -> (Option<AgentType>, Option<AgentState>) {
     (None, None)
+}
+
+/// Detect status bar / chrome lines that agents render persistently.
+/// These should not influence agent state detection.
+fn is_status_bar(line: &str) -> bool {
+    // Claude Code status bar: "user | Model Name | ctx: [..."
+    if line.contains("ctx:") || line.contains("| ctx") {
+        return true;
+    }
+    // Model identifier patterns in status bars
+    if (line.contains("Opus") || line.contains("Sonnet") || line.contains("Haiku"))
+        && line.contains('|')
+    {
+        return true;
+    }
+    // Token/cost counters
+    if line.contains("tokens") && line.contains('|') {
+        return true;
+    }
+    false
 }
 
 /// Strip ANSI escape sequences from a string.
@@ -466,6 +504,42 @@ mod tests {
         assert_eq!(
             result,
             Some((AgentType::ClaudeCode, AgentState::Busy))
+        );
+    }
+
+    #[test]
+    fn with_agent_type_starts_busy() {
+        let det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        assert_eq!(det.state(), &AgentState::Busy);
+        assert_eq!(det.agent_type(), &AgentType::ClaudeCode);
+    }
+
+    #[test]
+    fn with_agent_type_unknown_starts_not_running() {
+        let det = AgentDetector::with_agent_type(AgentType::Unknown);
+        assert_eq!(det.state(), &AgentState::NotRunning);
+    }
+
+    #[test]
+    fn status_bar_does_not_flip_idle_to_busy() {
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        // Prompt detected → Idle
+        det.feed(b"\xe2\x9d\xaf \n");
+        assert_eq!(det.state(), &AgentState::Idle);
+        // Status bar line should NOT flip back to Busy
+        let result = det.feed(b"chloe | Opus 4.6 (1M context) | ctx: [ ] 2%\n");
+        assert_eq!(result, None);
+        assert_eq!(det.state(), &AgentState::Idle);
+    }
+
+    #[test]
+    fn with_agent_type_detects_idle_immediately() {
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        // Seeded as ClaudeCode/Busy — feeding an idle prompt should transition
+        let result = det.feed(b"\xe2\x9d\xaf \n");
+        assert_eq!(
+            result,
+            Some((AgentType::ClaudeCode, AgentState::Idle))
         );
     }
 

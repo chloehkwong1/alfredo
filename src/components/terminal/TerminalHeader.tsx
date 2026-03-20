@@ -7,24 +7,21 @@ import type { AgentState } from "../../types";
 interface TerminalHeaderProps {
   branch: string;
   agentState: AgentState;
+  isSeen?: boolean;
   onBack: () => void;
 }
 
-const agentStateLabel: Record<AgentState, string> = {
-  idle: "Idle",
-  busy: "Running",
-  waitingForInput: "Waiting",
-  notRunning: "Stopped",
-};
+function getStatusDisplay(agentState: AgentState, isSeen: boolean): { label: string; variant: BadgeVariant } {
+  if (agentState === "busy") return { label: "Thinking", variant: "busy" };
+  if (agentState === "notRunning") return { label: "Idle", variant: "default" };
+  // idle or waitingForInput
+  if (isSeen) return { label: "Reviewed", variant: "idle" };
+  return { label: "Attention", variant: "waiting" };
+}
 
-const agentStateBadgeVariant: Record<AgentState, BadgeVariant> = {
-  idle: "idle",
-  busy: "busy",
-  waitingForInput: "waiting",
-  notRunning: "default",
-};
+function TerminalHeader({ branch, agentState, isSeen = false, onBack }: TerminalHeaderProps) {
+  const { label, variant } = getStatusDisplay(agentState, isSeen);
 
-function TerminalHeader({ branch, agentState, onBack }: TerminalHeaderProps) {
   return (
     <div className="flex items-center gap-3 h-11 px-3 bg-bg-secondary border-b border-border-default flex-shrink-0">
       <IconButton size="sm" label="Back to board" onClick={onBack}>
@@ -38,8 +35,8 @@ function TerminalHeader({ branch, agentState, onBack }: TerminalHeaderProps) {
         </span>
       </div>
 
-      <Badge variant={agentStateBadgeVariant[agentState]}>
-        {agentStateLabel[agentState]}
+      <Badge variant={variant}>
+        {label}
       </Badge>
     </div>
   );

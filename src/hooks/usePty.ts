@@ -1,94 +1,132 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Terminal } from "@xterm/xterm";
-import type { AgentState, PtyEvent } from "../types";
-import { createPtyChannel, spawnPty, writePty, resizePty, closePty } from "../api";
+import type { AgentState } from "../types";
+import { writePty, resizePty } from "../api";
+import { sessionManager } from "../services/sessionManager";
+import type { ManagedSession } from "../services/sessionManager";
 
 interface UsePtyOptions {
+  worktreeId: string;
   worktreePath: string;
-  terminal: Terminal | null;
-  onAgentStateChange?: (state: AgentState) => void;
+  containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 interface UsePtyReturn {
+  terminal: Terminal | null;
+  agentState: AgentState;
   isConnected: boolean;
-  disconnect: () => void;
 }
 
+/**
+ * Thin attach/detach hook. The SessionManager owns the PTY session and xterm
+ * Terminal instance — this hook just mounts/unmounts the terminal DOM element
+ * into the provided container. Switching views no longer kills the PTY.
+ */
 export function usePty({
+  worktreeId,
   worktreePath,
-  terminal,
-  onAgentStateChange,
+  containerRef,
 }: UsePtyOptions): UsePtyReturn {
-  const sessionIdRef = useRef<string | null>(null);
-  const isConnectedRef = useRef(false);
-  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const disconnect = useCallback(() => {
-    if (sessionIdRef.current) {
-      closePty(sessionIdRef.current).catch(console.error);
-      sessionIdRef.current = null;
-      isConnectedRef.current = false;
-    }
-  }, []);
+  const [terminal, setTerminal] = useState<Terminal | null>(null);
+  const [agentState, setAgentState] = useState<AgentState>("notRunning");
+  const [isConnected, setIsConnected] = useState(false);
+  const sessionRef = useRef<ManagedSession | null>(null);
 
   useEffect(() => {
-    if (!terminal || !worktreePath) return;
+    if (!worktreeId || !worktreePath || !containerRef.current) return;
 
+    const container = containerRef.current;
     let disposed = false;
+    let onDataDisposable: { dispose(): void } | null = null;
+    let onResizeDisposable: { dispose(): void } | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const channel = createPtyChannel((event: PtyEvent) => {
+    async function attach() {
+      const session = await sessionManager.getOrSpawn(worktreeId, worktreePath);
       if (disposed) return;
-      if (event.event === "output") {
-        terminal.write(new Uint8Array(event.data));
-      } else if (event.event === "agentState") {
-        onAgentStateChange?.(event.data);
+
+      sessionRef.current = session;
+      const { terminal: term, fitAddon } = session;
+
+      // Attach xterm to the DOM. xterm doesn't support calling open() twice,
+      // so if the terminal already has a DOM element we reparent it; otherwise
+      // we call open() for the first time.
+      if (term.element) {
+        container.appendChild(term.element);
+      } else {
+        term.open(container);
       }
-    });
 
-    spawnPty(worktreePath, "/bin/zsh", [], channel)
-      .then((id) => {
-        if (disposed) {
-          closePty(id).catch(console.error);
-          return;
+      // Fit after attach so dimensions are correct
+      try {
+        fitAddon.fit();
+      } catch {
+        // Container might not be visible yet — safe to ignore
+      }
+
+      // Forward user input to the PTY backend
+      onDataDisposable = term.onData((data: string) => {
+        const bytes = Array.from(new TextEncoder().encode(data));
+        writePty(session.sessionId, bytes).catch(console.error);
+      });
+
+      // Debounced resize forwarding
+      onResizeDisposable = term.onResize(
+        ({ rows, cols }: { rows: number; cols: number }) => {
+          if (resizeTimer) clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            resizePty(session.sessionId, rows, cols).catch(console.error);
+          }, 100);
+        },
+      );
+
+      // ResizeObserver so fit runs when the container resizes (e.g. window resize)
+      resizeObserver = new ResizeObserver(() => {
+        try {
+          fitAddon.fit();
+        } catch {
+          // ignore
         }
-        sessionIdRef.current = id;
-        isConnectedRef.current = true;
-      })
-      .catch(console.error);
+      });
+      resizeObserver.observe(container);
 
-    // Forward user input to PTY
-    const onDataDisposable = terminal.onData((data: string) => {
-      if (!sessionIdRef.current) return;
-      const bytes = Array.from(new TextEncoder().encode(data));
-      writePty(sessionIdRef.current, bytes).catch(console.error);
-    });
+      setTerminal(term);
+      setAgentState(session.agentState);
+      setIsConnected(true);
+    }
 
-    // Debounced resize
-    const onResizeDisposable = terminal.onResize(
-      ({ rows, cols }: { rows: number; cols: number }) => {
-        if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-        resizeTimerRef.current = setTimeout(() => {
-          if (!sessionIdRef.current) return;
-          resizePty(sessionIdRef.current, rows, cols).catch(console.error);
-        }, 100);
-      },
-    );
+    attach().catch(console.error);
+
+    // Poll agent state so the UI stays current while attached
+    const stateInterval = setInterval(() => {
+      const session = sessionRef.current;
+      if (session) {
+        setAgentState(session.agentState);
+      }
+    }, 500);
 
     return () => {
       disposed = true;
-      onDataDisposable.dispose();
-      onResizeDisposable.dispose();
-      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-      if (sessionIdRef.current) {
-        closePty(sessionIdRef.current).catch(console.error);
-        sessionIdRef.current = null;
-        isConnectedRef.current = false;
-      }
-    };
-  }, [terminal, worktreePath, onAgentStateChange]);
+      clearInterval(stateInterval);
 
-  return {
-    isConnected: isConnectedRef.current,
-    disconnect,
-  };
+      onDataDisposable?.dispose();
+      onResizeDisposable?.dispose();
+      resizeObserver?.disconnect();
+      if (resizeTimer) clearTimeout(resizeTimer);
+
+      // Detach the terminal DOM element — do NOT close the PTY session.
+      // Move the terminal element out of the container so xterm keeps its state.
+      const session = sessionRef.current;
+      if (session?.terminal.element && container.contains(session.terminal.element)) {
+        container.removeChild(session.terminal.element);
+      }
+
+      sessionRef.current = null;
+      setTerminal(null);
+      setIsConnected(false);
+    };
+  }, [worktreeId, worktreePath, containerRef]);
+
+  return { terminal, agentState, isConnected };
 }

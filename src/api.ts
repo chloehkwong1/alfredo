@@ -15,12 +15,14 @@ import type {
 // ── PTY ─────────────────────────────────────────────────────────
 
 export function spawnPty(
+  worktreeId: string,
   worktreePath: string,
   command: string,
   args: string[],
   onData: Channel<PtyEvent>,
+  agentType?: "claudeCode" | "codex" | "aider",
 ): Promise<string> {
-  return invoke("spawn_pty", { worktreePath, command, args, onData });
+  return invoke("spawn_pty", { worktreeId, worktreePath, command, args, onData, agentType });
 }
 
 export function writePty(sessionId: string, data: number[]): Promise<void> {

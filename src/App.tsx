@@ -1,4 +1,3 @@
-import { AnimatePresence, motion } from "framer-motion";
 import { KanbanBoard } from "./components/kanban";
 import { TerminalView } from "./components/terminal";
 import { useGithubSync } from "./hooks/useGithubSync";
@@ -11,30 +10,17 @@ function App() {
   useGithubSync();
 
   return (
-    <AnimatePresence mode="wait">
-      {view === "board" ? (
-        <motion.div
-          key="board"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-        >
-          <KanbanBoard />
-        </motion.div>
-      ) : (
-        <motion.div
-          key="terminal"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          className="h-screen"
-        >
-          <TerminalView />
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <>
+      <div style={{ display: view === "board" ? "block" : "none" }}>
+        <KanbanBoard />
+      </div>
+      <div
+        className="h-screen"
+        style={{ display: view === "terminal" ? "block" : "none" }}
+      >
+        <TerminalView />
+      </div>
+    </>
   );
 }
 

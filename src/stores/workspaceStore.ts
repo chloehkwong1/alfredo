@@ -13,6 +13,8 @@ interface WorkspaceState {
   branchMode: boolean;
   /** The currently checked-out branch name (branch mode only). */
   activeBranch: string | null;
+  /** Tracks which worktrees the user has "seen" while idle/waiting. */
+  seenWorktrees: Set<string>;
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
@@ -25,6 +27,7 @@ interface WorkspaceState {
   applyPrUpdates: (prs: PrStatusWithColumn[]) => void;
   setBranchMode: (enabled: boolean) => void;
   setActiveBranch: (branchName: string | null) => void;
+  markWorktreeSeen: (id: string) => void;
 }
 
 // Demo data so the board isn't empty on first render
@@ -35,7 +38,7 @@ const DEMO_WORKTREES: Worktree[] = [
     path: "/tmp/alfredo/worktrees/feat-auth-flow",
     branch: "feat/auth-flow",
     prStatus: null,
-    agentStatus: "busy",
+    agentStatus: "notRunning",
     column: "inProgress",
     isBranchMode: false,
   },
@@ -95,6 +98,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   lastPrState: {},
   branchMode: false,
   activeBranch: null,
+  seenWorktrees: new Set<string>(),
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -107,11 +111,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     })),
 
   updateWorktree: (id, patch) =>
-    set((state) => ({
-      worktrees: state.worktrees.map((wt) =>
-        wt.id === id ? { ...wt, ...patch } : wt,
-      ),
-    })),
+    set((state) => {
+      // When agent starts working, clear the "seen" flag
+      const newSeen = new Set(state.seenWorktrees);
+      if (patch.agentStatus === "busy") {
+        newSeen.delete(id);
+      }
+      return {
+        worktrees: state.worktrees.map((wt) =>
+          wt.id === id ? { ...wt, ...patch } : wt,
+        ),
+        seenWorktrees: newSeen,
+      };
+    }),
 
   setColumn: (id, column) =>
     set((state) => ({
@@ -193,6 +205,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
         lastPrState: newLastPrState,
       };
     }),
+
+  markWorktreeSeen: (id) =>
+    set((state) => ({
+      seenWorktrees: new Set(state.seenWorktrees).add(id),
+    })),
 
   setBranchMode: (enabled) => set({ branchMode: enabled }),
 

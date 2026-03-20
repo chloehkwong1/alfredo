@@ -9,7 +9,7 @@ use tauri::ipc::Channel;
 use uuid::Uuid;
 
 use crate::agent_detector::AgentDetector;
-use crate::types::{AppError, PtyEvent, Session, SessionStatus};
+use crate::types::{AgentType, AppError, PtyEvent, Session, SessionStatus};
 
 /// Shared timestamps for signalling resize/input events to the reader thread's
 /// agent detector. The main thread writes; the reader thread reads.
@@ -44,12 +44,18 @@ impl PtyManager {
     }
 
     /// Spawn a new PTY session, returning its UUID.
+    /// `agent_type` seeds the detector so it can track state immediately
+    /// without waiting for a shell launch pattern or startup banner.
+    /// `state_server_port` is set as an env var so hooks can call back.
     pub fn spawn(
         &self,
+        worktree_id: String,
         worktree_path: String,
         command: String,
         args: Vec<String>,
         channel: Channel<PtyEvent>,
+        agent_type: AgentType,
+        state_server_port: Option<u16>,
     ) -> Result<String, AppError> {
         let pty_system = native_pty_system();
 
@@ -65,6 +71,19 @@ impl PtyManager {
         let mut cmd = CommandBuilder::new(&command);
         cmd.args(&args);
         cmd.cwd(&worktree_path);
+
+        // Set env vars for hook callbacks and write hooks config
+        if let Some(port) = state_server_port {
+            let base_url = format!("http://127.0.0.1:{port}");
+            cmd.env("ALFREDO_STATE_URL", &base_url);
+            cmd.env("ALFREDO_WORKTREE_ID", &worktree_id);
+
+            // Write .claude/settings.local.json with hook config
+            if let Err(e) = write_hooks_config(&worktree_path, &base_url, &worktree_id) {
+                eprintln!("[alfredo] failed to write hooks config: {e}");
+                // Non-fatal — agent detection falls back to PTY output parsing
+            }
+        }
 
         let child = pair
             .slave
@@ -92,7 +111,7 @@ impl PtyManager {
 
         thread::spawn(move || {
             let mut buf = [0u8; 4096];
-            let mut detector = AgentDetector::new();
+            let mut detector = AgentDetector::with_agent_type(agent_type);
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => {
@@ -294,6 +313,46 @@ impl PtyManager {
     }
 }
 
+/// Write `.claude/settings.local.json` into the worktree directory with hooks
+/// that call back to Alfredo's state server on agent lifecycle events.
+fn write_hooks_config(
+    worktree_path: &str,
+    base_url: &str,
+    worktree_id: &str,
+) -> Result<(), std::io::Error> {
+    let claude_dir = std::path::Path::new(worktree_path).join(".claude");
+    std::fs::create_dir_all(&claude_dir)?;
+
+    let config = serde_json::json!({
+        "hooks": {
+            "UserPromptSubmit": [{
+                "hooks": [{
+                    "type": "http",
+                    "url": format!("{base_url}/agent-state/{worktree_id}/busy")
+                }]
+            }],
+            "Stop": [{
+                "hooks": [{
+                    "type": "http",
+                    "url": format!("{base_url}/agent-state/{worktree_id}/idle")
+                }]
+            }],
+            "Notification": [{
+                "matcher": "permission_prompt",
+                "hooks": [{
+                    "type": "http",
+                    "url": format!("{base_url}/agent-state/{worktree_id}/waitingForInput")
+                }]
+            }]
+        }
+    });
+
+    let path = claude_dir.join("settings.local.json");
+    std::fs::write(&path, serde_json::to_string_pretty(&config).unwrap())?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,10 +374,13 @@ mod tests {
 
         let id = manager
             .spawn(
+                "test-worktree".to_string(),
                 "/tmp".to_string(),
                 "echo".to_string(),
                 vec!["hello".to_string()],
                 channel,
+                AgentType::Unknown,
+                None,
             )
             .expect("spawn should succeed");
 
