@@ -78,7 +78,7 @@ function WorkspaceSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-[720px]">
         <DialogHeader>
           <DialogTitle>Workspace Settings</DialogTitle>
         </DialogHeader>
@@ -118,7 +118,7 @@ function WorkspaceSettingsDialog({
                   <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-secondary px-3 h-8 text-sm text-text-secondary">
                     <FolderOpen className="h-4 w-4 flex-shrink-0 text-text-tertiary" />
                     <span className="truncate">
-                      {config.repoPath || "."}
+                      {config.repoPath && config.repoPath !== "." ? config.repoPath : "No repository configured"}
                     </span>
                   </div>
                 </div>
@@ -128,9 +128,7 @@ function WorkspaceSettingsDialog({
                   <label className="text-sm font-medium text-text-primary">
                     Default Branch
                   </label>
-                  <p className="text-xs text-text-tertiary">
-                    Coming soon
-                  </p>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-bg-hover text-text-tertiary">Coming soon</span>
                 </div>
               </div>
             )}
@@ -155,7 +153,7 @@ function WorkspaceSettingsDialog({
                       Hide status groups with no worktrees in the sidebar.
                     </p>
                   </div>
-                  <p className="text-xs text-text-tertiary">Coming soon</p>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-bg-hover text-text-tertiary">Coming soon</span>
                 </div>
               </div>
             )}

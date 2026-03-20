@@ -106,7 +106,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-[720px]">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
@@ -114,7 +114,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
         {/* Vertical tab layout */}
         <div className="flex gap-6 min-h-[320px]">
           {/* Tab rail */}
-          <nav className="flex flex-col gap-1 w-36 flex-shrink-0 border-r border-border-default pr-4">
+          <nav className="flex flex-col gap-1 w-36 flex-shrink-0 pr-6 pt-1">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -135,7 +135,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
           </nav>
 
           {/* Tab content */}
-          <div className="flex-1 min-w-0 pr-4">
+          <div className="flex-1 min-w-0 pr-2">
             {tab === "appearance" && (
               <div className="space-y-5">
                 <div className="space-y-2">
@@ -186,9 +186,9 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                   ].map((shortcut) => (
                     <div
                       key={shortcut.keys}
-                      className="flex items-center justify-between gap-3 py-1.5"
+                      className="flex items-center justify-between gap-4 py-1.5"
                     >
-                      <span className="text-sm text-text-secondary">
+                      <span className="text-sm text-text-secondary truncate min-w-0">
                         {shortcut.description}
                       </span>
                       <kbd className="px-2 py-0.5 text-xs font-mono bg-bg-hover text-text-primary rounded-[var(--radius-sm)] border border-border-default whitespace-nowrap flex-shrink-0">

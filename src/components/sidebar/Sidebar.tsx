@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Settings, PanelLeftClose, PanelLeft, Plus } from "lucide-react";
-import { IconButton } from "../ui";
+import { IconButton, Tooltip } from "../ui";
 import logoSvg from "../../assets/logo-cat.svg";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
@@ -35,7 +35,11 @@ function groupByColumn(
   return groups;
 }
 
-function Sidebar() {
+interface SidebarProps {
+  hasRepo?: boolean;
+}
+
+function Sidebar({ hasRepo = false }: SidebarProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
   const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
@@ -104,30 +108,44 @@ function Sidebar() {
     notRunning: "bg-text-tertiary",
   }), []);
 
+  const statusLabel: Record<string, string> = useMemo(() => ({
+    waitingForInput: "waiting for input",
+    busy: "busy",
+    idle: "idle",
+    error: "error",
+    notRunning: "not running",
+  }), []);
+
   if (sidebarCollapsed) {
     const overflow = flatWorktrees.length - MAX_DOTS;
     return (
       <div className="flex flex-col items-center w-12 bg-bg-secondary border-r border-border-default py-3 gap-3 flex-shrink-0">
-        <img src={logoSvg} alt="Alfredo" width={24} height={24} />
+        <img src={logoSvg} alt="Alfredo" width={28} height={28} />
         <IconButton size="sm" label="Expand sidebar" onClick={toggleSidebar}>
           <PanelLeft />
         </IconButton>
 
+        <div className="w-6 h-px bg-border-default" />
+
         {/* Worktree status dots */}
         <div className="flex flex-col items-center gap-2 mt-1">
           {flatWorktrees.slice(0, MAX_DOTS).map((wt) => (
-            <button
+            <Tooltip
               key={wt.id}
-              type="button"
-              onClick={() => setActiveWorktree(wt.id)}
-              className={[
-                "h-2.5 w-2.5 rounded-full transition-all cursor-pointer",
-                "hover:scale-125",
-                statusDotColor[wt.agentStatus] ?? "bg-text-tertiary",
-                wt.id === activeWorktreeId ? "ring-1 ring-offset-1 ring-accent-primary ring-offset-bg-secondary" : "",
-              ].join(" ")}
-              title={wt.branch}
-            />
+              side="right"
+              content={`${wt.branch} — ${statusLabel[wt.agentStatus] ?? wt.agentStatus}`}
+            >
+              <button
+                type="button"
+                onClick={() => setActiveWorktree(wt.id)}
+                className={[
+                  "h-2.5 w-2.5 rounded-full transition-all cursor-pointer",
+                  "hover:scale-125",
+                  statusDotColor[wt.agentStatus] ?? "bg-text-tertiary",
+                  wt.id === activeWorktreeId ? "ring-1 ring-offset-1 ring-accent-primary ring-offset-bg-secondary" : "",
+                ].join(" ")}
+              />
+            </Tooltip>
           ))}
           {overflow > 0 && (
             <span className="text-[9px] text-text-tertiary leading-none">
@@ -139,15 +157,19 @@ function Sidebar() {
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* New worktree button */}
-        <IconButton size="sm" label="New worktree" onClick={() => setCreateWorktreeOpen(true)}>
-          <Plus />
-        </IconButton>
+        {/* New worktree button — only when a repo is configured */}
+        {hasRepo && (
+          <>
+            <IconButton size="sm" label="New worktree" onClick={() => setCreateWorktreeOpen(true)}>
+              <Plus />
+            </IconButton>
 
-        <CreateWorktreeDialog
-          open={createWorktreeOpen}
-          onOpenChange={setCreateWorktreeOpen}
-        />
+            <CreateWorktreeDialog
+              open={createWorktreeOpen}
+              onOpenChange={setCreateWorktreeOpen}
+            />
+          </>
+        )}
       </div>
     );
   }
@@ -156,8 +178,8 @@ function Sidebar() {
     <div className="flex flex-col w-[260px] bg-bg-secondary border-r border-border-default flex-shrink-0">
       {/* Header */}
       <div className="flex items-center justify-between h-12 px-4 border-b border-border-default flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <img src={logoSvg} alt="Alfredo" width={22} height={22} />
+        <div className="flex items-center gap-3">
+          <img src={logoSvg} alt="Alfredo" width={24} height={24} />
           <span className="text-sm font-semibold text-text-primary">
             alfredo
           </span>
@@ -194,24 +216,26 @@ function Sidebar() {
         </SidebarDragContext>
       </div>
 
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-border-default flex-shrink-0 space-y-2.5">
-        <button
-          type="button"
-          className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-sm font-medium hover:bg-accent-primary hover:text-text-on-accent transition-colors cursor-pointer"
-          onClick={() => setCreateWorktreeOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          New worktree
-        </button>
-        <button
-          type="button"
-          className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer py-0.5"
-          onClick={() => setWorkspaceSettingsOpen(true)}
-        >
-          Workspace settings
-        </button>
-      </div>
+      {/* Footer — only show worktree actions when a repo is configured */}
+      {hasRepo && (
+        <div className="px-4 py-3 border-t border-border-default flex-shrink-0 space-y-2.5">
+          <button
+            type="button"
+            className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-sm font-medium hover:bg-accent-primary/25 transition-colors cursor-pointer"
+            onClick={() => setCreateWorktreeOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            New worktree
+          </button>
+          <button
+            type="button"
+            className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer py-0.5"
+            onClick={() => setWorkspaceSettingsOpen(true)}
+          >
+            Workspace settings
+          </button>
+        </div>
+      )}
 
       {/* Dialogs */}
       <GlobalSettingsDialog
@@ -222,10 +246,12 @@ function Sidebar() {
         open={workspaceSettingsOpen}
         onOpenChange={setWorkspaceSettingsOpen}
       />
-      <CreateWorktreeDialog
-        open={createWorktreeOpen}
-        onOpenChange={setCreateWorktreeOpen}
-      />
+      {hasRepo && (
+        <CreateWorktreeDialog
+          open={createWorktreeOpen}
+          onOpenChange={setCreateWorktreeOpen}
+        />
+      )}
     </div>
   );
 }

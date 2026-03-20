@@ -76,7 +76,9 @@ function StatusGroup({
         <span className="text-[11px] font-semibold uppercase tracking-wider">
           {label}
         </span>
-        <span className="text-[11px] font-medium">{worktrees.length}</span>
+        {worktrees.length > 0 && (
+          <span className="text-[11px] font-medium">{worktrees.length}</span>
+        )}
         <ChevronRight
           className={[
             "ml-auto h-3.5 w-3.5 transition-transform duration-150",

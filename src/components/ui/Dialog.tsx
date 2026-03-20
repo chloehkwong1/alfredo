@@ -34,7 +34,7 @@ const DialogContent = forwardRef<
       ref={ref}
       className={[
         "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
-        "w-full max-w-lg p-6",
+        "w-full p-6",
         "border border-border-default",
         "rounded-[var(--radius-lg)] shadow-lg",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
@@ -120,7 +120,7 @@ function DialogFooter({
   return (
     <div
       className={[
-        "mt-6 flex items-center justify-end gap-2",
+        "mt-6 pt-4 flex items-center justify-end gap-3 border-t border-border-default",
         className,
       ].join(" ")}
     >

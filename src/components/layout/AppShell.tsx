@@ -49,10 +49,6 @@ function TabBar() {
         ].join(" ")}
       >
         Changes
-        {/* Placeholder file count badge */}
-        <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-bg-hover text-text-tertiary text-[10px] font-semibold">
-          0
-        </span>
       </button>
     </div>
   );
@@ -132,10 +128,9 @@ function AppShell() {
   if (showWelcome) {
     return (
       <div className="flex h-screen">
-        <Sidebar />
+        <Sidebar hasRepo={!!repoPath} />
         <div className="flex-1 flex flex-col min-w-0">
           <WelcomeScreen onOpenRepository={handleOpenRepository} />
-          <StatusBar worktree={worktree} annotationCount={annotationCount} />
         </div>
       </div>
     );
@@ -145,10 +140,9 @@ function AppShell() {
   if (showEmptyWorkspace) {
     return (
       <div className="flex h-screen">
-        <Sidebar />
+        <Sidebar hasRepo={!!repoPath} />
         <div className="flex-1 flex flex-col min-w-0">
-          <EmptyWorkspace onCreateWorktree={handleCreateWorktree} />
-          <StatusBar worktree={worktree} annotationCount={annotationCount} />
+          <EmptyWorkspace onCreateWorktree={handleCreateWorktree} repoPath={repoPath ?? undefined} />
         </div>
         <CreateWorktreeDialog
           open={createDialogOpen}
@@ -161,7 +155,7 @@ function AppShell() {
   // Normal state — worktrees exist
   return (
     <div className="flex h-screen">
-      <Sidebar />
+      <Sidebar hasRepo={!!repoPath} />
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar />
         <main className="flex-1 min-h-0">
