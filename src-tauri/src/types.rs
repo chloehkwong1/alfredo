@@ -28,8 +28,11 @@ pub enum SessionStatus {
 pub enum PtyEvent {
     /// Raw terminal output bytes
     Output(Vec<u8>),
-    /// Agent state change detected
+    /// Agent state change detected by the PTY output parser (fallback).
     AgentState(AgentState),
+    /// Authoritative agent state from hook callbacks (via state server).
+    /// Takes priority over detector-sourced AgentState events.
+    HookAgentState(AgentState),
 }
 
 // ── Agent ───────────────────────────────────────────────────────

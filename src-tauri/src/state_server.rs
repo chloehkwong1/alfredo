@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::State;
+use axum::http::{StatusCode, Uri};
 use axum::routing::post;
 use axum::Router;
 use tokio::net::TcpListener;
@@ -51,7 +51,7 @@ pub async fn start() -> StateServerHandle {
 
     let app = Router::new()
         .route(
-            "/agent-state/{worktree_id}/{state}",
+            "/agent-state/{*path}",
             post(handle_state_update),
         )
         .with_state(Arc::clone(&channels));
@@ -85,19 +85,32 @@ fn parse_state(s: &str) -> Option<AgentState> {
     }
 }
 
-/// POST /agent-state/:worktree_id/:state
+/// POST /agent-state/{worktree_id...}/{state}
+///
+/// The worktree ID may contain slashes (e.g. "chloe/test-worktree"), so we
+/// use a wildcard route and split: everything before the last `/` is the
+/// worktree ID, the last segment is the state.
 async fn handle_state_update(
     State(channels): State<Arc<Mutex<HashMap<String, Channel<PtyEvent>>>>>,
-    Path((worktree_id, state_str)): Path<(String, String)>,
+    uri: Uri,
 ) -> StatusCode {
-    let state = match parse_state(&state_str) {
+    let path = uri.path();
+    let rest = path.strip_prefix("/agent-state/").unwrap_or("");
+
+    // Split off the last segment as the state
+    let (worktree_id, state_str) = match rest.rsplit_once('/') {
+        Some((id, st)) => (id, st),
+        None => return StatusCode::BAD_REQUEST,
+    };
+
+    let state = match parse_state(state_str) {
         Some(s) => s,
         None => return StatusCode::BAD_REQUEST,
     };
 
     let channels = channels.lock().expect("channels lock poisoned");
-    if let Some(channel) = channels.get(&worktree_id) {
-        let _ = channel.send(PtyEvent::AgentState(state));
+    if let Some(channel) = channels.get(worktree_id) {
+        let _ = channel.send(PtyEvent::HookAgentState(state));
         StatusCode::OK
     } else {
         // No channel registered — session may have closed. Not an error.

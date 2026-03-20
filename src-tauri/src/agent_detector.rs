@@ -8,6 +8,11 @@ const RESIZE_GRACE_MS: u128 = 150;
 /// Echo suppression window after user input — avoid misdetecting echoed commands.
 const ECHO_SUPPRESS_MS: u128 = 100;
 
+/// Cooldown after transitioning to Idle — suppress false Busy transitions caused
+/// by terminal chrome (status bar redraws, cursor repositioning) that arrive in
+/// chunks too small to match `is_status_bar()`.
+const IDLE_COOLDOWN_MS: u128 = 500;
+
 /// Detects which AI coding agent is running in a PTY and tracks its state
 /// by pattern-matching on terminal output.
 pub struct AgentDetector {
@@ -17,6 +22,8 @@ pub struct AgentDetector {
     last_resize: Option<Instant>,
     /// Timestamp of last user input (for echo suppression).
     last_input: Option<Instant>,
+    /// Timestamp of last transition to Idle (for cooldown before allowing Busy).
+    last_idle: Option<Instant>,
     /// Accumulates partial lines for pattern matching.
     line_buf: String,
 }
@@ -32,13 +39,14 @@ impl AgentDetector {
     pub fn with_agent_type(agent_type: AgentType) -> Self {
         let state = match agent_type {
             AgentType::Unknown => AgentState::NotRunning,
-            _ => AgentState::Busy, // agent is starting up
+            _ => AgentState::Idle, // agent is loading; hooks handle busy/idle from here
         };
         Self {
             agent_type,
             state,
             last_resize: None,
             last_input: None,
+            last_idle: None,
             line_buf: String::new(),
         }
     }
@@ -140,8 +148,23 @@ impl AgentDetector {
             self.line_buf = self.line_buf[self.line_buf.len() - 1024..].to_string();
         }
 
+        // Suppress Idle→Busy transitions during the cooldown window.
+        // Terminal chrome (status bar redraws) arrives in chunks that can
+        // look like agent output; the cooldown prevents false flips.
+        if self.state == AgentState::Idle && new_state == AgentState::Busy {
+            if let Some(ts) = self.last_idle {
+                if ts.elapsed().as_millis() < IDLE_COOLDOWN_MS {
+                    return None;
+                }
+            }
+        }
+
         // Only emit when something changed
         if new_type != self.agent_type || new_state != self.state {
+            // Record when we transition to Idle for cooldown tracking
+            if new_state == AgentState::Idle {
+                self.last_idle = Some(Instant::now());
+            }
             self.agent_type = new_type.clone();
             self.state = new_state.clone();
             Some((new_type, new_state))
@@ -424,6 +447,8 @@ mod tests {
         det.feed(b"$ claude\n");
         // Simulate idle first
         det.feed(b"\xe2\x9d\xaf \n");
+        // Expire the idle cooldown so busy detection works
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(1));
         // Then busy output
         let result = det.feed(b"Reading file src/main.rs and analyzing...\n");
         assert_eq!(
@@ -508,9 +533,9 @@ mod tests {
     }
 
     #[test]
-    fn with_agent_type_starts_busy() {
+    fn with_agent_type_starts_idle() {
         let det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
-        assert_eq!(det.state(), &AgentState::Busy);
+        assert_eq!(det.state(), &AgentState::Idle);
         assert_eq!(det.agent_type(), &AgentType::ClaudeCode);
     }
 
@@ -533,14 +558,12 @@ mod tests {
     }
 
     #[test]
-    fn with_agent_type_detects_idle_immediately() {
+    fn with_agent_type_stays_idle_on_prompt() {
         let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
-        // Seeded as ClaudeCode/Busy — feeding an idle prompt should transition
+        // Seeded as ClaudeCode/Idle — feeding an idle prompt should not emit a change
         let result = det.feed(b"\xe2\x9d\xaf \n");
-        assert_eq!(
-            result,
-            Some((AgentType::ClaudeCode, AgentState::Idle))
-        );
+        assert_eq!(result, None);
+        assert_eq!(det.state(), &AgentState::Idle);
     }
 
     #[test]
@@ -572,6 +595,44 @@ mod tests {
         assert_eq!(
             result,
             Some((AgentType::Codex, AgentState::WaitingForInput))
+        );
+    }
+
+    #[test]
+    fn idle_cooldown_suppresses_status_bar_chunks() {
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        // Simulate a busy→idle transition so the cooldown is active
+        det.state = AgentState::Busy;
+        det.feed(b"\xe2\x9d\xaf \n");
+        assert_eq!(det.state(), &AgentState::Idle);
+
+        // Status bar arrives in a partial chunk that doesn't match
+        // is_status_bar() patterns — should NOT flip to Busy during cooldown
+        let result = det.feed(b"alfredi git:(chloe/alfredi");
+        assert_eq!(result, None);
+        assert_eq!(det.state(), &AgentState::Idle);
+
+        // Rest of status bar arrives
+        let result = det.feed(b") | Opus 4.6 (1M context)\n");
+        assert_eq!(result, None);
+        assert_eq!(det.state(), &AgentState::Idle);
+    }
+
+    #[test]
+    fn idle_cooldown_allows_real_busy_after_delay() {
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        // Detect idle prompt
+        det.feed(b"\xe2\x9d\xaf \n");
+        assert_eq!(det.state(), &AgentState::Idle);
+
+        // Simulate cooldown expiring by backdating last_idle
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(1));
+
+        // Now a busy line should transition
+        let result = det.feed(b"Reading file src/main.rs and analyzing...\n");
+        assert_eq!(
+            result,
+            Some((AgentType::ClaudeCode, AgentState::Busy))
         );
     }
 }

@@ -15,7 +15,8 @@ export type SessionStatus =
 
 export type PtyEvent =
   | { event: "output"; data: number[] }
-  | { event: "agentState"; data: AgentState };
+  | { event: "agentState"; data: AgentState }
+  | { event: "hookAgentState"; data: AgentState };
 
 // ── Agent ───────────────────────────────────────────────────────
 

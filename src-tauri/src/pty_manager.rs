@@ -325,6 +325,12 @@ fn write_hooks_config(
 
     let config = serde_json::json!({
         "hooks": {
+            "SessionStart": [{
+                "hooks": [{
+                    "type": "http",
+                    "url": format!("{base_url}/agent-state/{worktree_id}/idle")
+                }]
+            }],
             "UserPromptSubmit": [{
                 "hooks": [{
                     "type": "http",

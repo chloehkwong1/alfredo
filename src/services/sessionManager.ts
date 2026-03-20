@@ -9,11 +9,18 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 /** Maximum bytes retained in the circular output buffer for replay on re-attach. */
 const OUTPUT_BUFFER_CAPACITY = 50_000;
 
+/** Duration (ms) during which detector-sourced state changes are suppressed
+ *  after an authoritative hook update arrives. */
+const HOOK_AUTHORITY_MS = 5_000;
+
 export interface ManagedSession {
   sessionId: string;
   terminal: Terminal;
   fitAddon: FitAddon;
   agentState: AgentState;
+  /** Timestamp of the last hook-sourced state update. Detector updates are
+   *  suppressed for HOOK_AUTHORITY_MS after this to avoid false overrides. */
+  lastHookUpdate: number;
   /** Circular buffer of recent output bytes for replay when re-attaching a UI. */
   outputBuffer: Uint8Array;
   /** Current write position in the circular buffer. */
@@ -51,7 +58,8 @@ export class SessionManager {
       sessionId: "", // filled after spawn
       terminal,
       fitAddon,
-      agentState: "busy",
+      agentState: "idle",
+      lastHookUpdate: Date.now(),
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
       outputBufferTotal: 0,
@@ -72,7 +80,22 @@ export class SessionManager {
           this.appendToBuffer(session, bytes);
           break;
         }
+        case "hookAgentState": {
+          // Authoritative state from hook callbacks — always apply and
+          // suppress detector updates for HOOK_AUTHORITY_MS.
+          session.agentState = event.data;
+          session.lastHookUpdate = Date.now();
+          useWorkspaceStore
+            .getState()
+            .updateWorktree(worktreeId, { agentStatus: event.data });
+          break;
+        }
         case "agentState": {
+          // Detector-sourced state — skip if a recent hook update is
+          // authoritative (avoids status bar noise flipping state back).
+          if (Date.now() - session.lastHookUpdate < HOOK_AUTHORITY_MS) {
+            break;
+          }
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
