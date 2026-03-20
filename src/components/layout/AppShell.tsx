@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { TerminalView } from "../terminal";
 import { ChangesView } from "../changes/ChangesView";
+import { WelcomeScreen } from "../empty/WelcomeScreen";
+import { EmptyWorkspace } from "../empty/EmptyWorkspace";
+import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 
 function TabBar() {
@@ -54,12 +58,16 @@ function TabBar() {
 }
 
 function AppShell() {
+  const worktrees = useWorkspaceStore((s) => s.worktrees);
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
   const worktree = useWorkspaceStore((s) =>
     s.worktrees.find((wt) => wt.id === activeWorktreeId),
   );
   const activeTab = useWorkspaceStore((s) => s.activeTab);
   const annotations = useWorkspaceStore((s) => s.annotations);
+
+  const [repoPath, setRepoPath] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const currentTab = activeWorktreeId
     ? (activeTab[activeWorktreeId] ?? "terminal")
@@ -69,6 +77,55 @@ function AppShell() {
     ? (annotations[activeWorktreeId]?.length ?? 0)
     : 0;
 
+  const showWelcome = !repoPath && worktrees.length === 0;
+  const showEmptyWorkspace =
+    !showWelcome && worktrees.length === 0 && !activeWorktreeId;
+
+  function handleOpenRepository() {
+    // Placeholder: Tauri file dialog plugin not yet installed.
+    // When @tauri-apps/plugin-dialog is available, replace with:
+    //   const selected = await open({ directory: true });
+    //   if (selected) setRepoPath(selected as string);
+    console.log("TODO: open Tauri directory picker");
+    // For development, set a dummy path so the UI progresses past welcome
+    setRepoPath("/tmp/demo-repo");
+  }
+
+  function handleCreateWorktree() {
+    setCreateDialogOpen(true);
+  }
+
+  // Welcome screen — no repo configured
+  if (showWelcome) {
+    return (
+      <div className="flex h-screen">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0">
+          <WelcomeScreen onOpenRepository={handleOpenRepository} />
+          <StatusBar worktree={worktree} annotationCount={annotationCount} />
+        </div>
+      </div>
+    );
+  }
+
+  // Repo configured but no worktrees
+  if (showEmptyWorkspace) {
+    return (
+      <div className="flex h-screen">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0">
+          <EmptyWorkspace onCreateWorktree={handleCreateWorktree} />
+          <StatusBar worktree={worktree} annotationCount={annotationCount} />
+        </div>
+        <CreateWorktreeDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+        />
+      </div>
+    );
+  }
+
+  // Normal state — worktrees exist
   return (
     <div className="flex h-screen">
       <Sidebar />
