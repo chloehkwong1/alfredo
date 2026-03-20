@@ -1,4 +1,3 @@
-export { SettingsDialog } from "./SettingsDialog";
 export { GlobalSettingsDialog } from "./GlobalSettingsDialog";
 export { WorkspaceSettingsDialog } from "./WorkspaceSettingsDialog";
 export { ThemeSelector } from "./ThemeSelector";

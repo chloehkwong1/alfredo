@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Settings, PanelLeftClose, PanelLeft, Plus } from "lucide-react";
-import { Logo } from "../Logo";
 import { IconButton } from "../ui";
+import logoSvg from "../../assets/logo.svg";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
 import { SidebarDragContext } from "./SidebarDragContext";
@@ -95,7 +95,7 @@ function Sidebar() {
   if (sidebarCollapsed) {
     return (
       <div className="flex flex-col items-center w-12 bg-bg-secondary border-r border-border-default py-3 gap-3 flex-shrink-0">
-        <Logo size={24} />
+        <img src={logoSvg} alt="Alfredo" width={24} height={24} />
         <IconButton size="sm" label="Expand sidebar" onClick={toggleSidebar}>
           <PanelLeft />
         </IconButton>
@@ -108,7 +108,7 @@ function Sidebar() {
       {/* Header */}
       <div className="flex items-center justify-between h-11 px-3 border-b border-border-default flex-shrink-0">
         <div className="flex items-center gap-2">
-          <Logo size={22} />
+          <img src={logoSvg} alt="Alfredo" width={22} height={22} />
           <span className="text-sm font-semibold text-text-primary">
             alfredo
           </span>

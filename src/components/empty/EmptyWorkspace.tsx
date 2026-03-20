@@ -1,5 +1,5 @@
-import { Logo } from "../Logo";
 import { Button } from "../ui/Button";
+import logoSvg from "../../assets/logo.svg";
 import { Plus } from "lucide-react";
 
 interface EmptyWorkspaceProps {
@@ -10,9 +10,11 @@ function EmptyWorkspace({ onCreateWorktree }: EmptyWorkspaceProps) {
   return (
     <div className="flex-1 flex items-center justify-center h-full">
       <div className="flex flex-col items-center text-center max-w-md px-6">
-        <Logo
-          size={48}
-          color="var(--text-tertiary)"
+        <img
+          src={logoSvg}
+          alt="Alfredo"
+          width={48}
+          height={48}
           className="mb-5 opacity-60"
         />
 

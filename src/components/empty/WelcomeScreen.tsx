@@ -1,5 +1,5 @@
-import { Logo } from "../Logo";
 import { Button } from "../ui/Button";
+import logoSvg from "../../assets/logo.svg";
 import { FolderOpen } from "lucide-react";
 
 interface WelcomeScreenProps {
@@ -12,7 +12,7 @@ function WelcomeScreen({ onOpenRepository }: WelcomeScreenProps) {
       <div className="flex flex-col items-center text-center max-w-md px-6">
         {/* Logo with gradient background */}
         <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-accent-primary to-accent-secondary flex items-center justify-center mb-6 shadow-lg">
-          <Logo size={48} color="var(--text-on-accent)" />
+          <img src={logoSvg} alt="Alfredo" width={48} height={48} />
         </div>
 
         <h1 className="text-2xl font-semibold text-text-primary mb-2">

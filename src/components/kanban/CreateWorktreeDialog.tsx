@@ -29,7 +29,6 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
 ];
 
 function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps) {
-  const branchMode = useWorkspaceStore((s) => s.branchMode);
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
   const [activeTab, setActiveTab] = useState<Tab>("newBranch");
   const [branchName, setBranchName] = useState("");
@@ -125,19 +124,15 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{branchMode ? "Create Branch" : "Create Worktree"}</DialogTitle>
+          <DialogTitle>Create Worktree</DialogTitle>
           <DialogDescription>
-            {branchMode
-              ? "Create and check out a new branch."
-              : "Create a new worktree from a branch, pull request, or Linear issue."}
+            Create a new worktree from a branch, pull request, or Linear issue.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Tab bar — in branch mode, only show New Branch and Branches tabs */}
+        {/* Tab bar */}
         <div className="flex gap-1 p-1 bg-bg-secondary rounded-[var(--radius-md)] mb-4">
-          {tabs
-            .filter((tab) => !branchMode || tab.id === "newBranch" || tab.id === "branches")
-            .map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => {
@@ -304,7 +299,7 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
               (activeTab === "linearIssues" && !selectedIssueId)
             }
           >
-            {creating ? "Creating..." : branchMode ? "Create Branch" : "Create Worktree"}
+            {creating ? "Creating..." : "Create Worktree"}
           </Button>
         </DialogFooter>
       </DialogContent>
