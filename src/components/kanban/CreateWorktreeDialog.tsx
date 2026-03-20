@@ -36,6 +36,7 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
   const [searchQuery, setSearchQuery] = useState("");
   const [runSetup, setRunSetup] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Linear search state
   const [linearResults, setLinearResults] = useState<LinearTicket[]>([]);
@@ -87,11 +88,13 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
       setLinearResults([]);
       setLinearError(null);
       setCreating(false);
+      setError(null);
     }
   }, [open]);
 
   async function handleCreate() {
     setCreating(true);
+    setError(null);
     try {
       let worktree;
       if (activeTab === "newBranch" && branchName.trim()) {
@@ -113,8 +116,8 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
       setBranchName("");
       setSearchQuery("");
       setSelectedIssueId(null);
-    } catch {
-      // Error handling will be enhanced later
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setCreating(false);
     }
@@ -131,7 +134,7 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
         </DialogHeader>
 
         {/* Tab bar */}
-        <div className="flex gap-1 p-1 bg-bg-secondary rounded-[var(--radius-md)] mb-5">
+        <div className="flex gap-1 p-1.5 bg-bg-primary rounded-[var(--radius-md)] mb-5">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -140,11 +143,11 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
                 setSearchQuery("");
               }}
               className={[
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)]",
+                "flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium rounded-[var(--radius-sm)]",
                 "transition-all duration-[var(--transition-fast)] cursor-pointer",
                 activeTab === tab.id
-                  ? "bg-bg-elevated text-text-primary shadow-sm"
-                  : "text-text-tertiary hover:text-text-secondary",
+                  ? "bg-bg-elevated text-text-primary shadow-sm border border-border-default"
+                  : "text-text-tertiary hover:text-text-secondary hover:bg-bg-hover border border-transparent",
               ].join(" ")}
             >
               {tab.icon}
@@ -224,7 +227,7 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
                   </div>
                 )}
                 {linearError && (
-                  <div className="text-xs text-red-500 text-center py-4">
+                  <div className="text-xs text-danger text-center py-4">
                     {linearError}
                   </div>
                 )}
@@ -287,6 +290,12 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
           Auto-run setup scripts
         </label>
 
+        {error && (
+          <div className="text-xs text-danger bg-danger/10 rounded-[var(--radius-sm)] px-3 py-2">
+            {error}
+          </div>
+        )}
+
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
@@ -296,6 +305,8 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
             disabled={
               creating ||
               (activeTab === "newBranch" && !branchName.trim()) ||
+              activeTab === "branches" ||
+              activeTab === "pullRequests" ||
               (activeTab === "linearIssues" && !selectedIssueId)
             }
           >
