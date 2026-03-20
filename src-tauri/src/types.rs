@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 // ── PTY ─────────────────────────────────────────────────────────
@@ -97,6 +98,9 @@ pub struct PrStatus {
     pub url: String,
     pub draft: bool,
     pub merged: bool,
+    /// The head branch name for this PR (used to match PRs to worktrees).
+    #[serde(default)]
+    pub branch: String,
 }
 
 // ── Config ──────────────────────────────────────────────────────
@@ -117,6 +121,8 @@ pub struct AppConfig {
     pub github_token: Option<String>,
     pub linear_api_key: Option<String>,
     pub branch_mode: bool,
+    #[serde(default)]
+    pub column_overrides: HashMap<String, KanbanColumn>,
 }
 
 // ── Linear ──────────────────────────────────────────────────────
@@ -128,6 +134,7 @@ pub struct LinearTicket {
     pub identifier: String,
     pub title: String,
     pub description: Option<String>,
+    pub url: String,
     pub state: String,
     pub labels: Vec<String>,
     pub assignee: Option<String>,
