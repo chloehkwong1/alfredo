@@ -1,0 +1,159 @@
+import { useCallback, useEffect, useState } from "react";
+import { DiffToolbar } from "./DiffToolbar";
+import { FileList } from "./FileList";
+import { DiffViewer } from "./DiffViewer";
+import { getDiff, getCommits, getDiffForCommit } from "../../api";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import type { DiffFile, CommitInfo, Annotation } from "../../types";
+import type { DiffMode } from "./DiffToolbar";
+
+interface ChangesViewProps {
+  worktreeId: string;
+  repoPath: string;
+}
+
+function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
+  const [mode, setMode] = useState<DiffMode>("all");
+  const [files, setFiles] = useState<DiffFile[]>([]);
+  const [commits, setCommits] = useState<CommitInfo[]>([]);
+  const [currentCommitIndex, setCurrentCommitIndex] = useState(0);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [activeAnnotationLine, setActiveAnnotationLine] = useState<
+    number | null
+  >(null);
+
+  const annotations: Annotation[] =
+    useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
+
+  // Load diff data based on mode
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        if (mode === "all") {
+          const diffFiles = await getDiff(repoPath);
+          if (!cancelled) {
+            setFiles(diffFiles);
+            setSelectedFilePath(diffFiles[0]?.path ?? null);
+          }
+        } else {
+          const commitList = await getCommits(repoPath);
+          if (cancelled) return;
+          setCommits(commitList);
+
+          if (commitList.length > 0) {
+            const idx = Math.min(currentCommitIndex, commitList.length - 1);
+            setCurrentCommitIndex(idx);
+            const diffFiles = await getDiffForCommit(
+              repoPath,
+              commitList[idx].hash,
+            );
+            if (!cancelled) {
+              setFiles(diffFiles);
+              setSelectedFilePath(diffFiles[0]?.path ?? null);
+            }
+          } else {
+            setFiles([]);
+            setSelectedFilePath(null);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load diff data:", err);
+        if (!cancelled) {
+          setFiles([]);
+        }
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+    // Re-run when mode changes. For commit mode, we also load on index change below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, repoPath]);
+
+  // Load diff when stepping through commits
+  useEffect(() => {
+    if (mode !== "commit" || commits.length === 0) return;
+
+    let cancelled = false;
+    async function loadCommitDiff() {
+      try {
+        const diffFiles = await getDiffForCommit(
+          repoPath,
+          commits[currentCommitIndex].hash,
+        );
+        if (!cancelled) {
+          setFiles(diffFiles);
+          setSelectedFilePath(diffFiles[0]?.path ?? null);
+        }
+      } catch (err) {
+        console.error("Failed to load commit diff:", err);
+      }
+    }
+
+    loadCommitDiff();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, commits, currentCommitIndex, repoPath]);
+
+  const handleModeChange = useCallback((newMode: DiffMode) => {
+    setMode(newMode);
+    setCurrentCommitIndex(0);
+    setActiveAnnotationLine(null);
+  }, []);
+
+  const handleCommitStep = useCallback((index: number) => {
+    setCurrentCommitIndex(index);
+    setActiveAnnotationLine(null);
+  }, []);
+
+  const handleSelectFile = useCallback((path: string) => {
+    setSelectedFilePath(path);
+    setActiveAnnotationLine(null);
+  }, []);
+
+  const handleAddAnnotation = useCallback((lineNumber: number) => {
+    setActiveAnnotationLine((prev) =>
+      prev === lineNumber ? null : lineNumber,
+    );
+  }, []);
+
+  const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
+  const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
+  const selectedFile = files.find((f) => f.path === selectedFilePath) ?? null;
+
+  return (
+    <div className="flex flex-col h-full">
+      <DiffToolbar
+        mode={mode}
+        onModeChange={handleModeChange}
+        commits={commits}
+        currentCommitIndex={currentCommitIndex}
+        onCommitStep={handleCommitStep}
+        totalAdditions={totalAdditions}
+        totalDeletions={totalDeletions}
+        fileCount={files.length}
+      />
+      <div className="flex flex-1 min-h-0">
+        <FileList
+          files={files}
+          selectedPath={selectedFilePath}
+          onSelectFile={handleSelectFile}
+        />
+        <DiffViewer
+          file={selectedFile}
+          annotations={annotations}
+          onAddAnnotation={handleAddAnnotation}
+          activeAnnotationLine={activeAnnotationLine}
+        />
+      </div>
+    </div>
+  );
+}
+
+export { ChangesView };
+export type { ChangesViewProps };

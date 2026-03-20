@@ -1,6 +1,7 @@
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { TerminalView } from "../terminal";
+import { ChangesView } from "../changes/ChangesView";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 
 function TabBar() {
@@ -76,9 +77,14 @@ function AppShell() {
         <main className="flex-1 min-h-0">
           {currentTab === "terminal" ? (
             <TerminalView />
+          ) : activeWorktreeId ? (
+            <ChangesView
+              worktreeId={activeWorktreeId}
+              repoPath={worktree?.path ?? "."}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-              Changes coming soon
+              Select a worktree to view changes
             </div>
           )}
         </main>
