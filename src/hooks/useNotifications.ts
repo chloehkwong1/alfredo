@@ -14,9 +14,15 @@ const SOUNDS: Record<string, { frequency: number; duration: number }> = {
   none: { frequency: 0, duration: 0 },
 };
 
+let audioCtx: AudioContext | null = null;
+function getAudioContext(): AudioContext {
+  if (!audioCtx) audioCtx = new AudioContext();
+  return audioCtx;
+}
+
 export function playTone(frequency: number, duration: number) {
   if (frequency === 0 || duration === 0) return;
-  const ctx = new AudioContext();
+  const ctx = getAudioContext();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.connect(gain);
@@ -118,6 +124,9 @@ export function useNotifications() {
         playSoundById(config.sound);
       } else if (wt.agentStatus === "idle" && config.notifyOnIdle) {
         sendNotification(`${wt.branch} finished`);
+        playSoundById(config.sound);
+      } else if ((wt.agentStatus as string) === "error" && config.notifyOnError) {
+        sendNotification(`${wt.branch} encountered an error`);
         playSoundById(config.sound);
       }
     }

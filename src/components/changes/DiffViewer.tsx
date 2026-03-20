@@ -1,6 +1,6 @@
 import { AnnotationBubble } from "./AnnotationBubble";
 import { AnnotationInput } from "./AnnotationInput";
-import type { Annotation, DiffFile, DiffLine } from "../../types";
+import type { Annotation, DiffFile } from "../../types";
 
 interface DiffViewerProps {
   file: DiffFile | null;
@@ -9,18 +9,6 @@ interface DiffViewerProps {
   onSubmitAnnotation: (lineNumber: number, text: string) => void;
   onDeleteAnnotation: (id: string) => void;
   activeAnnotationLine: number | null;
-}
-
-/**
- * Normalize a DiffLine coming from the Rust backend.
- * The backend serializes `line_type` as `lineType` (camelCase),
- * but the TS interface declares `type`. Handle both shapes.
- */
-function getLineType(
-  line: DiffLine,
-): "context" | "addition" | "deletion" {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (line as any).lineType ?? line.type ?? "context";
 }
 
 const lineTypeStyles: Record<string, string> = {
@@ -81,7 +69,7 @@ function DiffViewer({
 
             {/* Lines */}
             {hunk.lines.map((line, lineIdx) => {
-              const lt = getLineType(line);
+              const lt = line.lineType;
               const lineNum = line.newLineNumber ?? line.oldLineNumber ?? 0;
               const lineAnnotations = annotationsByLine.get(lineNum);
               const isActiveLine = activeAnnotationLine === lineNum;

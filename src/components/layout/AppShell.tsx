@@ -7,6 +7,7 @@ import { WelcomeScreen } from "../empty/WelcomeScreen";
 import { EmptyWorkspace } from "../empty/EmptyWorkspace";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { getConfig } from "../../api";
 
 function TabBar() {
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
@@ -69,6 +70,12 @@ function AppShell() {
 
   const [repoPath, setRepoPath] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  useEffect(() => {
+    getConfig(".").then(c => {
+      if (c.repoPath && c.repoPath !== ".") setRepoPath(c.repoPath);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {

@@ -57,6 +57,8 @@ function Sidebar() {
       )
         return;
 
+      if ((document.activeElement as HTMLElement)?.closest?.('.xterm')) return;
+
       const currentIndex = flatWorktrees.findIndex(
         (wt) => wt.id === activeWorktreeId,
       );

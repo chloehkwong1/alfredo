@@ -142,7 +142,7 @@ export interface DiffHunk {
 }
 
 export interface DiffLine {
-  type: "context" | "addition" | "deletion";
+  lineType: "context" | "addition" | "deletion";
   content: string;
   oldLineNumber: number | null;
   newLineNumber: number | null;
