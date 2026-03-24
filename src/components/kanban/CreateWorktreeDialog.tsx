@@ -19,6 +19,7 @@ type Tab = "newBranch" | "branches" | "pullRequests" | "linearIssues";
 interface CreateWorktreeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  repoPath?: string;
 }
 
 const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -28,7 +29,7 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "linearIssues", label: "Linear Issues", icon: <Ticket className="h-3.5 w-3.5" /> },
 ];
 
-function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps) {
+function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWorktreeDialogProps) {
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
   const [activeTab, setActiveTab] = useState<Tab>("newBranch");
   const [branchName, setBranchName] = useState("");
@@ -98,13 +99,13 @@ function CreateWorktreeDialog({ open, onOpenChange }: CreateWorktreeDialogProps)
     try {
       let worktree;
       if (activeTab === "newBranch" && branchName.trim()) {
-        worktree = await createWorktreeFrom(".", {
+        worktree = await createWorktreeFrom(repoPath, {
           kind: "newBranch",
           name: branchName.trim(),
           base: baseBranch || "main",
         });
       } else if (activeTab === "linearIssues" && selectedIssueId) {
-        worktree = await createWorktreeFrom(".", {
+        worktree = await createWorktreeFrom(repoPath, {
           kind: "linearTicket",
           id: selectedIssueId,
         });
