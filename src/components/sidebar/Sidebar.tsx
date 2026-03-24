@@ -129,24 +129,28 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
 
         {/* Worktree status dots */}
         <div className="flex flex-col items-center gap-2 mt-1">
-          {flatWorktrees.slice(0, MAX_DOTS).map((wt) => (
-            <Tooltip
-              key={wt.id}
-              side="right"
-              content={`${wt.branch} — ${statusLabel[wt.agentStatus] ?? wt.agentStatus}`}
-            >
-              <button
-                type="button"
-                onClick={() => setActiveWorktree(wt.id)}
-                className={[
-                  "h-2.5 w-2.5 rounded-full transition-all cursor-pointer",
-                  "hover:scale-125",
-                  statusDotColor[wt.agentStatus] ?? "bg-text-tertiary",
-                  wt.id === activeWorktreeId ? "ring-1 ring-offset-1 ring-accent-primary ring-offset-bg-secondary" : "",
-                ].join(" ")}
-              />
-            </Tooltip>
-          ))}
+          {flatWorktrees.slice(0, MAX_DOTS).map((wt) => {
+            const shouldPulse = wt.agentStatus === "busy" || wt.agentStatus === "waitingForInput";
+            return (
+              <Tooltip
+                key={wt.id}
+                side="right"
+                content={`${wt.branch} — ${statusLabel[wt.agentStatus] ?? wt.agentStatus}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveWorktree(wt.id)}
+                  className={[
+                    "h-2.5 w-2.5 rounded-full transition-all cursor-pointer",
+                    "hover:scale-125",
+                    statusDotColor[wt.agentStatus] ?? "bg-text-tertiary",
+                    shouldPulse ? "animate-pulse-dot" : "",
+                    wt.id === activeWorktreeId ? "ring-1 ring-offset-1 ring-accent-primary ring-offset-bg-secondary" : "",
+                  ].join(" ")}
+                />
+              </Tooltip>
+            );
+          })}
           {overflow > 0 && (
             <span className="text-[9px] text-text-tertiary leading-none">
               +{overflow}

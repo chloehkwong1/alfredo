@@ -33,6 +33,7 @@ function getStatusText(status: AgentState | string): string {
 
 function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
   const isWaiting = worktree.agentStatus === "waitingForInput";
+  const shouldPulse = worktree.agentStatus === "busy" || worktree.agentStatus === "waitingForInput";
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: worktree.id,
   });
@@ -60,6 +61,7 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
         className={[
           "mt-1.5 h-1.5 w-1.5 rounded-full flex-shrink-0",
           getDotColor(worktree.agentStatus),
+          shouldPulse ? "animate-pulse-dot" : "",
         ].join(" ")}
       />
 
