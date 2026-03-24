@@ -16,6 +16,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-store = "2"
 portable-pty = "0.9"
 git2 = "0.19"
 octocrab = "0.41"
