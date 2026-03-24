@@ -74,14 +74,14 @@ function OnboardingScreen({
         <div className="absolute inset-4 border-2 border-dashed border-border-hover rounded-[var(--radius-lg)] pointer-events-none z-10" />
       )}
 
-      <div className="flex flex-col items-center text-center max-w-[420px] px-6">
+      <div className="flex flex-col items-center text-center max-w-[480px] px-8">
         {/* Cat logo — stable anchor across both states */}
         <img
           src={logoSvg}
           alt="Alfredo"
           width={72}
           height={72}
-          className="mb-8 opacity-70"
+          className="mb-10 opacity-70"
         />
 
         <AnimatePresence mode="wait">
@@ -94,10 +94,10 @@ function OnboardingScreen({
               transition={transition}
               className="flex flex-col items-center"
             >
-              <h1 className="text-[26px] font-semibold text-text-primary mb-3 tracking-[-0.3px]">
+              <h1 className="text-[26px] font-semibold text-text-primary mb-4 tracking-[-0.3px]">
                 Welcome to Alfredo
               </h1>
-              <p className="text-[15px] text-text-secondary leading-relaxed mb-9">
+              <p className="text-[15px] text-text-secondary leading-relaxed mb-10">
                 Manage your AI coding agents across git worktrees.
               </p>
               <Button size="lg" onClick={handleOpenPicker}>
@@ -105,9 +105,9 @@ function OnboardingScreen({
                 Open a repository
               </Button>
               {error && (
-                <p className="text-sm text-status-error mt-4">{error}</p>
+                <p className="text-sm text-status-error mt-5">{error}</p>
               )}
-              <p className="text-[13px] text-text-tertiary mt-5">
+              <p className="text-[13px] text-text-tertiary mt-6">
                 or drag a folder here
               </p>
             </motion.div>
@@ -120,32 +120,24 @@ function OnboardingScreen({
               transition={transition}
               className="flex flex-col items-center w-full"
             >
-              {/* Repo confirmation */}
-              <div className="flex items-center gap-3 w-full px-4 py-2.5 rounded-[var(--radius-md)] mb-10 text-left">
-                <div className="h-7 w-7 rounded-full bg-[rgba(74,222,128,0.12)] flex items-center justify-center flex-shrink-0">
-                  <span className="text-status-idle text-sm">✓</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-text-primary">
-                    {repoName}
-                  </div>
-                  <div className="text-[11px] text-text-tertiary font-mono truncate">
-                    {repoPath}
-                  </div>
-                </div>
+              {/* Repo confirmation — small, understated */}
+              <div className="flex items-center gap-2 text-sm text-text-secondary mb-12">
+                <span className="text-status-idle">✓</span>
+                <span className="font-medium text-text-primary">{repoName}</span>
+                <span className="text-text-tertiary">·</span>
                 <button
                   type="button"
-                  className="text-xs text-accent-primary hover:underline flex-shrink-0 cursor-pointer"
+                  className="text-accent-primary hover:underline cursor-pointer"
                   onClick={handleOpenPicker}
                 >
                   Change
                 </button>
               </div>
 
-              <h2 className="text-xl font-semibold text-text-primary mb-3 tracking-[-0.2px]">
+              <h2 className="text-[22px] font-semibold text-text-primary mb-4 tracking-[-0.2px]">
                 Create your first worktree
               </h2>
-              <p className="text-[15px] text-text-secondary leading-relaxed mb-9">
+              <p className="text-[15px] text-text-secondary leading-relaxed mb-10">
                 Each worktree gets its own branch, terminal, and agent.
               </p>
               <Button size="lg" onClick={onCreateWorktree}>
@@ -153,7 +145,7 @@ function OnboardingScreen({
                 Create a worktree
               </Button>
               {error && (
-                <p className="text-sm text-status-error mt-4">{error}</p>
+                <p className="text-sm text-status-error mt-5">{error}</p>
               )}
             </motion.div>
           )}
