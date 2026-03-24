@@ -120,8 +120,8 @@ function OnboardingScreen({
               transition={transition}
               className="flex flex-col items-center w-full"
             >
-              {/* Repo confirmation card */}
-              <div className="flex items-center gap-3 w-full px-4 py-3 bg-bg-secondary border border-border-default rounded-[10px] mb-8 text-left">
+              {/* Repo confirmation */}
+              <div className="flex items-center gap-3 w-full px-4 py-2.5 rounded-[var(--radius-md)] mb-10 text-left">
                 <div className="h-7 w-7 rounded-full bg-[rgba(74,222,128,0.12)] flex items-center justify-center flex-shrink-0">
                   <span className="text-status-idle text-sm">✓</span>
                 </div>
@@ -142,10 +142,10 @@ function OnboardingScreen({
                 </button>
               </div>
 
-              <h2 className="text-xl font-semibold text-text-primary mb-2.5 tracking-[-0.2px]">
+              <h2 className="text-xl font-semibold text-text-primary mb-3 tracking-[-0.2px]">
                 Create your first worktree
               </h2>
-              <p className="text-sm text-text-secondary leading-relaxed mb-8">
+              <p className="text-[15px] text-text-secondary leading-relaxed mb-9">
                 Each worktree gets its own branch, terminal, and agent.
               </p>
               <Button size="lg" onClick={onCreateWorktree}>

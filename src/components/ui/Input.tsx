@@ -7,6 +7,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <input
         ref={ref}
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
         className={[
           "h-8 w-full px-3 text-sm",
           "bg-bg-secondary text-text-primary",
