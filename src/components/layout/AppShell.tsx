@@ -117,12 +117,14 @@ function AppShell() {
   const isOnboarding = worktrees.length === 0;
 
   // Track onboarding → normal transition for sidebar animation
-  if (isOnboarding) {
-    wasOnboarding.current = true;
-  } else if (wasOnboarding.current) {
-    shouldAnimateSidebar.current = true;
-    wasOnboarding.current = false;
-  }
+  useEffect(() => {
+    if (isOnboarding) {
+      wasOnboarding.current = true;
+    } else if (wasOnboarding.current) {
+      shouldAnimateSidebar.current = true;
+      wasOnboarding.current = false;
+    }
+  }, [isOnboarding]);
 
   // Onboarding — no sidebar
   if (isOnboarding) {
@@ -149,10 +151,12 @@ function AppShell() {
     ? { initial: { x: -260, opacity: 0 }, animate: { x: 0, opacity: 1 }, transition: { duration: 0.2, ease: "easeOut" as const } }
     : {};
 
-  // Clear the flag after first render with animation
-  if (shouldAnimateSidebar.current) {
-    shouldAnimateSidebar.current = false;
-  }
+  // Clear animation flag after it's been consumed
+  useEffect(() => {
+    if (shouldAnimateSidebar.current) {
+      shouldAnimateSidebar.current = false;
+    }
+  });
 
   return (
     <div className="flex h-screen">
