@@ -204,3 +204,9 @@ export function getDiffForCommit(
 ): Promise<DiffFile[]> {
   return invoke("get_diff_for_commit", { repoPath, commitHash });
 }
+
+// ── Repo ───────────────────────────────────────────────────────
+
+export function validateGitRepo(path: string): Promise<boolean> {
+  return invoke("validate_git_repo", { path });
+}
