@@ -11,7 +11,7 @@ import {
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { searchLinearIssues, createWorktreeFrom } from "../../api";
+import { searchLinearIssues, createWorktreeFrom, getConfig } from "../../api";
 import type { LinearTicket } from "../../types";
 
 type Tab = "newBranch" | "branches" | "pullRequests" | "linearIssues";
@@ -20,7 +20,6 @@ interface CreateWorktreeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   repoPath?: string;
-  hasSetupScripts?: boolean;
 }
 
 const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -30,15 +29,25 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "linearIssues", label: "Linear Issues", icon: <Ticket className="h-3.5 w-3.5" /> },
 ];
 
-function CreateWorktreeDialog({ open, onOpenChange, repoPath = ".", hasSetupScripts = false }: CreateWorktreeDialogProps) {
+function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWorktreeDialogProps) {
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
   const [activeTab, setActiveTab] = useState<Tab>("newBranch");
   const [branchName, setBranchName] = useState("");
   const [baseBranch, setBaseBranch] = useState("main");
   const [searchQuery, setSearchQuery] = useState("");
   const [runSetup, setRunSetup] = useState(true);
+  const [hasSetupScripts, setHasSetupScripts] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load config to check for setup scripts when dialog opens
+  useEffect(() => {
+    if (open && repoPath) {
+      getConfig(repoPath)
+        .then((config) => setHasSetupScripts(config.setupScripts.length > 0))
+        .catch(() => setHasSetupScripts(false));
+    }
+  }, [open, repoPath]);
 
   // Linear search state
   const [linearResults, setLinearResults] = useState<LinearTicket[]>([]);
