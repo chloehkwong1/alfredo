@@ -35,15 +35,22 @@ export class SessionManager {
   private sessions = new Map<string, ManagedSession>();
 
   /**
-   * Return an existing session for the worktree, or spawn a new one.
+   * Return an existing session for the given key, or spawn a new one.
    * The channel callback is wired up immediately so agent-state events
    * flow to the workspace store even when no terminal UI is mounted.
+   *
+   * @param sessionKey  Unique key for this session (typically a tab ID).
+   * @param worktreeId  The worktree this session belongs to (for store updates).
+   * @param worktreePath  Filesystem path of the worktree.
+   * @param mode  "claude" spawns Claude Code; "shell" spawns the user's default shell.
    */
   async getOrSpawn(
+    sessionKey: string,
     worktreeId: string,
     worktreePath: string,
+    mode: "claude" | "shell" = "claude",
   ): Promise<ManagedSession> {
-    const existing = this.sessions.get(worktreeId);
+    const existing = this.sessions.get(sessionKey);
     if (existing) return existing;
 
     // Create xterm instance (headless — not attached to DOM yet)
@@ -58,7 +65,7 @@ export class SessionManager {
       sessionId: "", // filled after spawn
       terminal,
       fitAddon,
-      agentState: "idle",
+      agentState: mode === "shell" ? "notRunning" : "idle",
       lastHookUpdate: Date.now(),
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
@@ -66,23 +73,15 @@ export class SessionManager {
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
-    // State events arrive both from the Rust agent detector AND from the
-    // HTTP state server (hook callbacks). Both use the same channel.
     const channel = createPtyChannel((event) => {
       switch (event.event) {
         case "output": {
           const bytes = new Uint8Array(event.data);
-
-          // Write to xterm (handles parsing / rendering when attached)
           terminal.write(bytes);
-
-          // Append to circular replay buffer
           this.appendToBuffer(session, bytes);
           break;
         }
         case "hookAgentState": {
-          // Authoritative state from hook callbacks — always apply and
-          // suppress detector updates for HOOK_AUTHORITY_MS.
           session.agentState = event.data;
           session.lastHookUpdate = Date.now();
           useWorkspaceStore
@@ -91,8 +90,6 @@ export class SessionManager {
           break;
         }
         case "agentState": {
-          // Detector-sourced state — skip if a recent hook update is
-          // authoritative (avoids status bar noise flipping state back).
           if (Date.now() - session.lastHookUpdate < HOOK_AUTHORITY_MS) {
             break;
           }
@@ -105,41 +102,43 @@ export class SessionManager {
       }
     });
 
-    // Spawn the PTY process on the Rust side.
-    // The Rust command now accepts worktreeId so it can register the channel
-    // with the state server and set env vars for hook callbacks.
+    // Determine command and agent type based on mode
+    const command = mode === "shell" ? "/bin/zsh" : "claude";
+    const agentType = mode === "claude" ? "claudeCode" : undefined;
+
     const sessionId = await spawnPty(
       worktreeId,
       worktreePath,
-      "claude",
+      command,
       [],
       channel,
-      "claudeCode",
+      agentType,
     );
     session.sessionId = sessionId;
 
-    this.sessions.set(worktreeId, session);
+    this.sessions.set(sessionKey, session);
 
-    // Push initial state to the workspace store immediately so kanban cards
-    // reflect the correct status without waiting for a Rust state-change event.
-    useWorkspaceStore
-      .getState()
-      .updateWorktree(worktreeId, { agentStatus: session.agentState });
+    // Push initial state for Claude sessions
+    if (mode === "claude") {
+      useWorkspaceStore
+        .getState()
+        .updateWorktree(worktreeId, { agentStatus: session.agentState });
+    }
 
     return session;
   }
 
   /** Retrieve a managed session without spawning. Returns `null` if none exists. */
-  getSession(worktreeId: string): ManagedSession | null {
-    return this.sessions.get(worktreeId) ?? null;
+  getSession(sessionKey: string): ManagedSession | null {
+    return this.sessions.get(sessionKey) ?? null;
   }
 
   /** Close a single PTY session and dispose its terminal. */
-  async closeSession(worktreeId: string): Promise<void> {
-    const session = this.sessions.get(worktreeId);
+  async closeSession(sessionKey: string): Promise<void> {
+    const session = this.sessions.get(sessionKey);
     if (!session) return;
 
-    this.sessions.delete(worktreeId);
+    this.sessions.delete(sessionKey);
     try {
       await closePty(session.sessionId);
     } catch {
@@ -172,8 +171,8 @@ export class SessionManager {
    * Read the circular buffer contents in chronological order.
    * Useful for replaying output when a terminal UI re-attaches.
    */
-  getBufferedOutput(worktreeId: string): Uint8Array {
-    const session = this.sessions.get(worktreeId);
+  getBufferedOutput(sessionKey: string): Uint8Array {
+    const session = this.sessions.get(sessionKey);
     if (!session) return new Uint8Array(0);
 
     const { outputBuffer: buf, outputBufferPos: pos, outputBufferTotal: total } =

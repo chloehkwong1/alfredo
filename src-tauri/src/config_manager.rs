@@ -3,7 +3,7 @@ use std::path::Path;
 
 use tokio::process::Command;
 
-use crate::types::{AppConfig, AppError, KanbanColumn, SetupScript};
+use crate::types::{AppConfig, AppError, KanbanColumn, NotificationConfig, SetupScript};
 
 const CONFIG_FILE: &str = ".alfredo.json";
 
@@ -22,6 +22,10 @@ struct ConfigFile {
     pub branch_mode: bool,
     #[serde(default)]
     pub column_overrides: HashMap<String, KanbanColumn>,
+    #[serde(default)]
+    pub theme: Option<String>,
+    #[serde(default)]
+    pub notifications: Option<NotificationConfig>,
 }
 
 /// Load the `.alfredo.json` config from a repo root.
@@ -37,6 +41,8 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
             linear_api_key: None,
             branch_mode: false,
             column_overrides: HashMap::new(),
+            theme: None,
+            notifications: None,
         });
     }
 
@@ -54,6 +60,8 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
         linear_api_key: file.linear_api_key,
         branch_mode: file.branch_mode,
         column_overrides: file.column_overrides,
+        theme: file.theme,
+        notifications: file.notifications,
     })
 }
 
@@ -67,6 +75,8 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
         linear_api_key: config.linear_api_key.clone(),
         branch_mode: config.branch_mode,
         column_overrides: config.column_overrides.clone(),
+        theme: config.theme.clone(),
+        notifications: config.notifications.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -157,6 +167,8 @@ mod tests {
             linear_api_key: None,
             branch_mode: true,
             column_overrides: HashMap::new(),
+            theme: None,
+            notifications: None,
         };
         config
             .column_overrides

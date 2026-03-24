@@ -3,7 +3,9 @@ import type {
   Annotation,
   KanbanColumn,
   PrStatusWithColumn,
+  TabType,
   Worktree,
+  WorkspaceTab,
 } from "../types";
 
 interface WorkspaceState {
@@ -15,8 +17,10 @@ interface WorkspaceState {
   lastPrState: Record<string, string>;
   /** Tracks which worktrees the user has "seen" while idle/waiting. */
   seenWorktrees: Set<string>;
-  /** Active tab per worktree (terminal or changes). Keyed by worktreeId. */
-  activeTab: Record<string, "terminal" | "changes">;
+  /** Tabs per worktree. Keyed by worktreeId. */
+  tabs: Record<string, WorkspaceTab[]>;
+  /** Active tab ID per worktree. Keyed by worktreeId. */
+  activeTabId: Record<string, string>;
   /** Inline annotations per worktree. Keyed by worktreeId. */
   annotations: Record<string, Annotation[]>;
   /** Whether the sidebar is collapsed. */
@@ -31,7 +35,10 @@ interface WorkspaceState {
   setWorktrees: (worktrees: Worktree[]) => void;
   applyPrUpdates: (prs: PrStatusWithColumn[]) => void;
   markWorktreeSeen: (id: string) => void;
-  setActiveTab: (worktreeId: string, tab: "terminal" | "changes") => void;
+  addTab: (worktreeId: string, type: TabType) => void;
+  removeTab: (worktreeId: string, tabId: string) => void;
+  setActiveTabId: (worktreeId: string, tabId: string) => void;
+  ensureDefaultTabs: (worktreeId: string) => void;
   addAnnotation: (annotation: Annotation) => void;
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
   clearAnnotations: (worktreeId: string) => void;
@@ -48,13 +55,14 @@ function prStateKey(pr: PrStatusWithColumn): string {
   return "open";
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set) => ({
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   worktrees: [],
   activeWorktreeId: null,
   columnOverrides: {},
   lastPrState: {},
   seenWorktrees: new Set<string>(),
-  activeTab: {},
+  tabs: {},
+  activeTabId: {},
   annotations: {},
   sidebarCollapsed: false,
 
@@ -167,9 +175,73 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       seenWorktrees: new Set(state.seenWorktrees).add(id),
     })),
 
-  setActiveTab: (worktreeId, tab) =>
+  ensureDefaultTabs: (worktreeId) => {
+    const state = get();
+    if (state.tabs[worktreeId]?.length) return; // already initialized
+    const claudeTab: WorkspaceTab = {
+      id: `${worktreeId}:claude:${crypto.randomUUID().slice(0, 8)}`,
+      type: "claude",
+      label: "Claude",
+    };
+    const changesTab: WorkspaceTab = {
+      id: `${worktreeId}:changes`,
+      type: "changes",
+      label: "Changes",
+    };
+    set({
+      tabs: { ...state.tabs, [worktreeId]: [claudeTab, changesTab] },
+      activeTabId: { ...state.activeTabId, [worktreeId]: claudeTab.id },
+    });
+  },
+
+  addTab: (worktreeId, type) =>
+    set((state) => {
+      const existing = state.tabs[worktreeId] ?? [];
+      const count = existing.filter((t) => t.type === type).length;
+      const label =
+        type === "claude"
+          ? count > 0 ? `Claude ${count + 1}` : "Claude"
+          : type === "shell"
+            ? count > 0 ? `Terminal ${count + 1}` : "Terminal"
+            : "Changes";
+      const tab: WorkspaceTab = {
+        id: `${worktreeId}:${type}:${crypto.randomUUID().slice(0, 8)}`,
+        type,
+        label,
+      };
+      // Insert before the Changes tab (always last)
+      const changesIdx = existing.findIndex((t) => t.type === "changes");
+      const tabs = [...existing];
+      if (changesIdx >= 0) {
+        tabs.splice(changesIdx, 0, tab);
+      } else {
+        tabs.push(tab);
+      }
+      return {
+        tabs: { ...state.tabs, [worktreeId]: tabs },
+        activeTabId: { ...state.activeTabId, [worktreeId]: tab.id },
+      };
+    }),
+
+  removeTab: (worktreeId, tabId) =>
+    set((state) => {
+      const existing = state.tabs[worktreeId] ?? [];
+      const filtered = existing.filter((t) => t.id !== tabId);
+      // Don't allow removing the last non-changes tab
+      if (filtered.filter((t) => t.type !== "changes").length === 0) return state;
+      const newActiveId =
+        state.activeTabId[worktreeId] === tabId
+          ? (filtered.find((t) => t.type !== "changes")?.id ?? filtered[0]?.id ?? "")
+          : state.activeTabId[worktreeId];
+      return {
+        tabs: { ...state.tabs, [worktreeId]: filtered },
+        activeTabId: { ...state.activeTabId, [worktreeId]: newActiveId },
+      };
+    }),
+
+  setActiveTabId: (worktreeId, tabId) =>
     set((state) => ({
-      activeTab: { ...state.activeTab, [worktreeId]: tab },
+      activeTabId: { ...state.activeTabId, [worktreeId]: tabId },
     })),
 
   addAnnotation: (annotation) =>

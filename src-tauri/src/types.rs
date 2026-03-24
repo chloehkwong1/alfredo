@@ -118,6 +118,24 @@ pub struct SetupScript {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NotificationConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_sound")]
+    pub sound: String,
+    #[serde(default = "default_true")]
+    pub notify_on_waiting: bool,
+    #[serde(default = "default_true")]
+    pub notify_on_idle: bool,
+    #[serde(default)]
+    pub notify_on_error: bool,
+}
+
+fn default_sound() -> String { "chime".to_string() }
+fn default_true() -> bool { true }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub repo_path: String,
     pub setup_scripts: Vec<SetupScript>,
@@ -126,6 +144,10 @@ pub struct AppConfig {
     pub branch_mode: bool,
     #[serde(default)]
     pub column_overrides: HashMap<String, KanbanColumn>,
+    #[serde(default)]
+    pub theme: Option<String>,
+    #[serde(default)]
+    pub notifications: Option<NotificationConfig>,
 }
 
 // ── Linear ──────────────────────────────────────────────────────

@@ -7,9 +7,16 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { sessionManager } from "../../services/sessionManager";
 import { writePty } from "../../api";
 import { Button } from "../ui/Button";
-import type { Annotation } from "../../types";
+import type { Annotation, TabType } from "../../types";
 
-function TerminalView() {
+interface TerminalViewProps {
+  /** The tab ID, used as the session key. */
+  tabId?: string;
+  /** The tab type — determines whether to spawn Claude or a shell. */
+  tabType?: TabType;
+}
+
+function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
   const worktree = useWorkspaceStore((s) =>
     s.worktrees.find((wt) => wt.id === activeWorktreeId),
@@ -25,16 +32,26 @@ function TerminalView() {
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const sessionKey = tabId ?? activeWorktreeId ?? "";
+  const mode = tabType === "shell" ? "shell" : "claude";
 
   const { agentState } = usePty({
+    sessionKey,
     worktreeId: activeWorktreeId ?? "",
     worktreePath: worktree?.path ?? "",
     containerRef,
+    mode,
   });
 
   const handleSendFeedback = useCallback(async () => {
     if (!activeWorktreeId || annotations.length === 0) return;
-    const session = sessionManager.getSession(activeWorktreeId);
+
+    // Find the first Claude session for this worktree to send feedback to
+    const tabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
+    const claudeTab = tabs.find((t) => t.type === "claude");
+    const targetKey = claudeTab?.id ?? activeWorktreeId;
+
+    const session = sessionManager.getSession(targetKey);
     if (!session) return;
 
     const lines = annotations.map(

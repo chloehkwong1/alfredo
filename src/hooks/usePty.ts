@@ -6,9 +6,14 @@ import { sessionManager } from "../services/sessionManager";
 import type { ManagedSession } from "../services/sessionManager";
 
 interface UsePtyOptions {
+  /** Unique key for the session (typically a tab ID). */
+  sessionKey: string;
+  /** The worktree this session belongs to. */
   worktreeId: string;
   worktreePath: string;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  /** "claude" spawns Claude Code; "shell" spawns user's default shell. */
+  mode?: "claude" | "shell";
 }
 
 interface UsePtyReturn {
@@ -23,9 +28,11 @@ interface UsePtyReturn {
  * into the provided container. Switching views no longer kills the PTY.
  */
 export function usePty({
+  sessionKey,
   worktreeId,
   worktreePath,
   containerRef,
+  mode = "claude",
 }: UsePtyOptions): UsePtyReturn {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [agentState, setAgentState] = useState<AgentState>("notRunning");
@@ -33,7 +40,7 @@ export function usePty({
   const sessionRef = useRef<ManagedSession | null>(null);
 
   useEffect(() => {
-    if (!worktreeId || !worktreePath || !containerRef.current) return;
+    if (!sessionKey || !worktreeId || !worktreePath || !containerRef.current) return;
 
     const container = containerRef.current;
     let disposed = false;
@@ -43,7 +50,7 @@ export function usePty({
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     async function attach() {
-      const session = await sessionManager.getOrSpawn(worktreeId, worktreePath);
+      const session = await sessionManager.getOrSpawn(sessionKey, worktreeId, worktreePath, mode);
       if (disposed) return;
 
       sessionRef.current = session;
@@ -126,7 +133,7 @@ export function usePty({
       setTerminal(null);
       setIsConnected(false);
     };
-  }, [worktreeId, worktreePath, containerRef]);
+  }, [sessionKey, worktreeId, worktreePath, mode, containerRef]);
 
   return { terminal, agentState, isConnected };
 }

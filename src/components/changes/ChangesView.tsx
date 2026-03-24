@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { Send, Trash2, MessageSquare } from "lucide-react";
 import { DiffToolbar } from "./DiffToolbar";
 import { FileList } from "./FileList";
 import { DiffViewer } from "./DiffViewer";
-import { getDiff, getCommits, getDiffForCommit } from "../../api";
+import { getDiff, getCommits, getDiffForCommit, writePty } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { sessionManager } from "../../services/sessionManager";
+import { Button } from "../ui/Button";
 import type { DiffFile, CommitInfo } from "../../types";
 import type { DiffMode } from "./DiffToolbar";
 
@@ -26,6 +29,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
   const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
+  const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
 
   // Load diff data based on mode
   useEffect(() => {
@@ -151,6 +155,26 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     [worktreeId, removeAnnotation],
   );
 
+  const handleSendToClaude = useCallback(async () => {
+    if (annotations.length === 0) return;
+
+    // Find the first Claude session for this worktree
+    const tabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
+    const claudeTab = tabs.find((t) => t.type === "claude");
+    const targetKey = claudeTab?.id ?? worktreeId;
+
+    const session = sessionManager.getSession(targetKey);
+    if (!session) return;
+
+    const lines = annotations.map(
+      (a) => `Feedback on ${a.filePath}:${a.lineNumber} — ${a.text}`,
+    );
+    const message = "\n" + lines.join("\n") + "\n";
+    const bytes = Array.from(new TextEncoder().encode(message));
+    await writePty(session.sessionId, bytes);
+    clearAnnotations(worktreeId);
+  }, [worktreeId, annotations, clearAnnotations]);
+
   const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
   const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
   const selectedFile = files.find((f) => f.path === selectedFilePath) ?? null;
@@ -165,6 +189,27 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {annotations.length > 0 && (
+        <div className="flex items-center gap-3 px-3 py-1.5 bg-accent-primary/8 border-b border-accent-primary/20 flex-shrink-0">
+          <div className="flex items-center gap-1.5 text-xs text-accent-primary font-medium">
+            <MessageSquare size={14} />
+            <span>
+              {annotations.length}{" "}
+              {annotations.length === 1 ? "annotation" : "annotations"}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <Button size="sm" variant="primary" onClick={handleSendToClaude}>
+              <Send size={12} />
+              Send to Claude
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => clearAnnotations(worktreeId)}>
+              <Trash2 size={12} />
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
       <DiffToolbar
         mode={mode}
         onModeChange={handleModeChange}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
+import { Plus, X, Terminal, Sparkles, GitCompareArrows } from "lucide-react";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { TerminalView } from "../terminal";
@@ -9,48 +10,118 @@ import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useRepoPath } from "../../hooks/useRepoPath";
 import logoSvg from "../../assets/logo-cat.svg";
+import type { TabType, WorkspaceTab } from "../../types";
+
+const TAB_ICONS: Record<TabType, typeof Terminal> = {
+  claude: Sparkles,
+  shell: Terminal,
+  changes: GitCompareArrows,
+};
+
+const EMPTY_TABS: WorkspaceTab[] = [];
 
 function TabBar() {
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
-  const activeTab = useWorkspaceStore((s) => s.activeTab);
-  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
+  const allTabs = useWorkspaceStore((s) => s.tabs);
+  const allActiveTabIds = useWorkspaceStore((s) => s.activeTabId);
+  const tabs = activeWorktreeId ? (allTabs[activeWorktreeId] ?? EMPTY_TABS) : EMPTY_TABS;
+  const activeTabId = activeWorktreeId ? allActiveTabIds[activeWorktreeId] : undefined;
+  const setActiveTabId = useWorkspaceStore((s) => s.setActiveTabId);
+  const addTab = useWorkspaceStore((s) => s.addTab);
+  const removeTab = useWorkspaceStore((s) => s.removeTab);
+  const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const currentTab = activeWorktreeId
-    ? (activeTab[activeWorktreeId] ?? "terminal")
-    : "terminal";
-
-  function handleTabClick(tab: "terminal" | "changes") {
+  // Ensure default tabs exist when worktree is selected
+  useEffect(() => {
     if (activeWorktreeId) {
-      setActiveTab(activeWorktreeId, tab);
+      ensureDefaultTabs(activeWorktreeId);
+    }
+  }, [activeWorktreeId, ensureDefaultTabs]);
+
+  function handleAddTab(type: TabType) {
+    if (activeWorktreeId) {
+      addTab(activeWorktreeId, type);
+    }
+    setMenuOpen(false);
+  }
+
+  function handleCloseTab(e: React.MouseEvent, tabId: string) {
+    e.stopPropagation();
+    if (activeWorktreeId) {
+      removeTab(activeWorktreeId, tabId);
     }
   }
 
+  const nonChangeTabs = tabs.filter((t) => t.type !== "changes");
+  const canClose = nonChangeTabs.length > 1;
+
   return (
     <div className="flex items-center h-9 bg-bg-secondary border-b border-border-default flex-shrink-0">
-      <button
-        type="button"
-        onClick={() => handleTabClick("terminal")}
-        className={[
-          "h-full px-4 text-sm font-medium transition-colors cursor-pointer",
-          currentTab === "terminal"
-            ? "text-text-primary border-b-2 border-b-accent-primary"
-            : "text-text-tertiary hover:text-text-secondary border-b-2 border-b-transparent",
-        ].join(" ")}
-      >
-        Terminal
-      </button>
-      <button
-        type="button"
-        onClick={() => handleTabClick("changes")}
-        className={[
-          "h-full px-4 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5",
-          currentTab === "changes"
-            ? "text-text-primary border-b-2 border-b-accent-primary"
-            : "text-text-tertiary hover:text-text-secondary border-b-2 border-b-transparent",
-        ].join(" ")}
-      >
-        Changes
-      </button>
+      {tabs.map((tab) => {
+        const Icon = TAB_ICONS[tab.type];
+        const isActive = tab.id === activeTabId;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => activeWorktreeId && setActiveTabId(activeWorktreeId, tab.id)}
+            className={[
+              "group h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
+              isActive
+                ? "text-text-primary border-b-2 border-b-accent-primary"
+                : "text-text-tertiary hover:text-text-secondary border-b-2 border-b-transparent",
+            ].join(" ")}
+          >
+            <Icon size={13} />
+            <span>{tab.label}</span>
+            {canClose && tab.type !== "changes" && (
+              <span
+                role="button"
+                tabIndex={-1}
+                onClick={(e) => handleCloseTab(e, tab.id)}
+                className="ml-0.5 opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary rounded p-0.5 transition-opacity"
+              >
+                <X size={12} />
+              </span>
+            )}
+          </button>
+        );
+      })}
+
+      {/* Add tab button */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="h-9 px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
+        >
+          <Plus size={16} />
+        </button>
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+            <div className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border-default rounded-[var(--radius-md)] shadow-lg py-1 z-20 min-w-[160px]">
+              <button
+                type="button"
+                onClick={() => handleAddTab("claude")}
+                className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
+              >
+                <Sparkles size={14} />
+                New Claude tab
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddTab("shell")}
+                className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
+              >
+                <Terminal size={14} />
+                New terminal tab
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -61,8 +132,12 @@ function AppShell() {
   const worktree = useWorkspaceStore((s) =>
     s.worktrees.find((wt) => wt.id === activeWorktreeId),
   );
-  const activeTab = useWorkspaceStore((s) => s.activeTab);
-  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
+  const allTabs = useWorkspaceStore((s) => s.tabs);
+  const allActiveTabIds = useWorkspaceStore((s) => s.activeTabId);
+  const tabs = activeWorktreeId ? (allTabs[activeWorktreeId] ?? EMPTY_TABS) : EMPTY_TABS;
+  const activeTabIdValue = activeWorktreeId ? allActiveTabIds[activeWorktreeId] : undefined;
+  const addTab = useWorkspaceStore((s) => s.addTab);
+  const setActiveTabId = useWorkspaceStore((s) => s.setActiveTabId);
   const annotations = useWorkspaceStore((s) => s.annotations);
 
   const { repoPath, setRepoPath, error, clearError, loading } = useRepoPath();
@@ -71,6 +146,9 @@ function AppShell() {
   // Track whether we just transitioned from onboarding to animate sidebar
   const wasOnboarding = useRef(true);
   const shouldAnimateSidebar = useRef(false);
+
+  // Resolve the active tab object
+  const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabIdValue);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -82,20 +160,40 @@ function AppShell() {
       )
         return;
 
-      if (event.metaKey && event.shiftKey) {
-        if (event.key === "T") {
-          event.preventDefault();
-          if (activeWorktreeId) setActiveTab(activeWorktreeId, "terminal");
-        } else if (event.key === "C") {
-          event.preventDefault();
-          if (activeWorktreeId) setActiveTab(activeWorktreeId, "changes");
+      // Cmd+T: new tab of same type as current
+      if (event.metaKey && !event.shiftKey && event.key === "t") {
+        event.preventDefault();
+        if (activeWorktreeId && activeTab) {
+          const type = activeTab.type === "changes" ? "claude" : activeTab.type;
+          addTab(activeWorktreeId, type);
         }
+        return;
+      }
+
+      // Cmd+Shift+C: switch to Changes tab
+      if (event.metaKey && event.shiftKey && event.key === "C") {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const changesTab = tabs.find((t) => t.type === "changes");
+          if (changesTab) setActiveTabId(activeWorktreeId, changesTab.id);
+        }
+        return;
+      }
+
+      // Cmd+Shift+T: switch to first terminal/claude tab
+      if (event.metaKey && event.shiftKey && event.key === "T") {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const termTab = tabs.find((t) => t.type !== "changes");
+          if (termTab) setActiveTabId(activeWorktreeId, termTab.id);
+        }
+        return;
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeWorktreeId, setActiveTab]);
+  }, [activeWorktreeId, activeTab, tabs, addTab, setActiveTabId]);
 
   const isOnboarding = !loading && worktrees.length === 0;
 
@@ -116,10 +214,6 @@ function AppShell() {
       shouldAnimateSidebar.current = false;
     }
   });
-
-  const currentTab = activeWorktreeId
-    ? (activeTab[activeWorktreeId] ?? "terminal")
-    : "terminal";
 
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)
@@ -167,16 +261,19 @@ function AppShell() {
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar />
         <main className="flex-1 min-h-0">
-          {currentTab === "terminal" ? (
-            <TerminalView />
-          ) : activeWorktreeId ? (
+          {activeTab?.type === "changes" && activeWorktreeId ? (
             <ChangesView
               worktreeId={activeWorktreeId}
               repoPath={worktree?.path ?? "."}
             />
+          ) : activeTab?.type === "claude" || activeTab?.type === "shell" ? (
+            <TerminalView
+              tabId={activeTab.id}
+              tabType={activeTab.type}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-              Select a worktree to view changes
+              Select a worktree to get started
             </div>
           )}
         </main>

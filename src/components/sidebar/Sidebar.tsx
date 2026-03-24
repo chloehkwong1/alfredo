@@ -175,7 +175,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
   }
 
   return (
-    <div className="flex flex-col w-[260px] bg-bg-secondary border-r border-border-default flex-shrink-0">
+    <div className="flex flex-col w-[260px] h-full bg-bg-secondary border-r border-border-default flex-shrink-0">
       {/* Header */}
       <div className="flex items-center justify-between h-12 px-4 border-b border-border-default flex-shrink-0">
         <div className="flex items-center gap-3">

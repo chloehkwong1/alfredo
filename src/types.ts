@@ -157,6 +157,16 @@ export interface CommitInfo {
   timestamp: number;
 }
 
+// ── Workspace tabs ──────────────────────────────────────────────
+
+export type TabType = "claude" | "shell" | "changes";
+
+export interface WorkspaceTab {
+  id: string;
+  type: TabType;
+  label: string;
+}
+
 // ── Inline annotation ────────────────────────────────────────────
 
 export interface Annotation {
