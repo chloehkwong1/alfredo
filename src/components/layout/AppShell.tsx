@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { TerminalView } from "../terminal";
 import { ChangesView } from "../changes/ChangesView";
-import { WelcomeScreen } from "../empty/WelcomeScreen";
-import { EmptyWorkspace } from "../empty/EmptyWorkspace";
+import { OnboardingScreen } from "../onboarding/OnboardingScreen";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { getConfig } from "../../api";
+import { useRepoPath } from "../../hooks/useRepoPath";
+import logoSvg from "../../assets/logo-cat.svg";
 
 function TabBar() {
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
@@ -64,14 +65,12 @@ function AppShell() {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab);
   const annotations = useWorkspaceStore((s) => s.annotations);
 
-  const [repoPath, setRepoPath] = useState<string | null>(null);
+  const { repoPath, setRepoPath, error, clearError, loading } = useRepoPath();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
-  useEffect(() => {
-    getConfig(".").then(c => {
-      if (c.repoPath && c.repoPath !== ".") setRepoPath(c.repoPath);
-    }).catch(() => {});
-  }, []);
+  // Track whether we just transitioned from onboarding to animate sidebar
+  const wasOnboarding = useRef(true);
+  const shouldAnimateSidebar = useRef(false);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -106,56 +105,60 @@ function AppShell() {
     ? (annotations[activeWorktreeId]?.length ?? 0)
     : 0;
 
-  const showWelcome = !repoPath && worktrees.length === 0;
-  const showEmptyWorkspace =
-    !showWelcome && worktrees.length === 0 && !activeWorktreeId;
-
-  function handleOpenRepository() {
-    // Placeholder: Tauri file dialog plugin not yet installed.
-    // When @tauri-apps/plugin-dialog is available, replace with:
-    //   const selected = await open({ directory: true });
-    //   if (selected) setRepoPath(selected as string);
-    console.log("TODO: open Tauri directory picker");
-    // For development, set a dummy path so the UI progresses past welcome
-    setRepoPath("/tmp/demo-repo");
-  }
-
-  function handleCreateWorktree() {
-    setCreateDialogOpen(true);
-  }
-
-  // Welcome screen — no repo configured
-  if (showWelcome) {
+  // Show cat logo while loading persisted repo path
+  if (loading) {
     return (
-      <div className="flex h-screen">
-        <Sidebar hasRepo={!!repoPath} />
-        <div className="flex-1 flex flex-col min-w-0">
-          <WelcomeScreen onOpenRepository={handleOpenRepository} />
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <img src={logoSvg} alt="Alfredo" width={72} height={72} className="opacity-70" />
       </div>
     );
   }
 
-  // Repo configured but no worktrees
-  if (showEmptyWorkspace) {
+  const isOnboarding = worktrees.length === 0;
+
+  // Track onboarding → normal transition for sidebar animation
+  if (isOnboarding) {
+    wasOnboarding.current = true;
+  } else if (wasOnboarding.current) {
+    shouldAnimateSidebar.current = true;
+    wasOnboarding.current = false;
+  }
+
+  // Onboarding — no sidebar
+  if (isOnboarding) {
     return (
-      <div className="flex h-screen">
-        <Sidebar hasRepo={!!repoPath} />
-        <div className="flex-1 flex flex-col min-w-0">
-          <EmptyWorkspace onCreateWorktree={handleCreateWorktree} repoPath={repoPath ?? undefined} />
-        </div>
+      <>
+        <OnboardingScreen
+          repoPath={repoPath}
+          error={error}
+          onRepoSelected={setRepoPath}
+          onClearError={clearError}
+          onCreateWorktree={() => setCreateDialogOpen(true)}
+        />
         <CreateWorktreeDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
+          repoPath={repoPath ?? undefined}
         />
-      </div>
+      </>
     );
   }
 
-  // Normal state — worktrees exist
+  // Normal state — worktrees exist, show sidebar
+  const sidebarAnimation = shouldAnimateSidebar.current
+    ? { initial: { x: -260, opacity: 0 }, animate: { x: 0, opacity: 1 }, transition: { duration: 0.2, ease: "easeOut" as const } }
+    : {};
+
+  // Clear the flag after first render with animation
+  if (shouldAnimateSidebar.current) {
+    shouldAnimateSidebar.current = false;
+  }
+
   return (
     <div className="flex h-screen">
-      <Sidebar hasRepo={!!repoPath} />
+      <motion.div {...sidebarAnimation}>
+        <Sidebar hasRepo={!!repoPath} />
+      </motion.div>
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar />
         <main className="flex-1 min-h-0">
