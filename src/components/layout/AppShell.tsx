@@ -97,6 +97,26 @@ function AppShell() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeWorktreeId, setActiveTab]);
 
+  const isOnboarding = !loading && worktrees.length === 0;
+
+  // Track onboarding → normal transition for sidebar animation
+  useEffect(() => {
+    if (loading) return;
+    if (worktrees.length === 0) {
+      wasOnboarding.current = true;
+    } else if (wasOnboarding.current) {
+      shouldAnimateSidebar.current = true;
+      wasOnboarding.current = false;
+    }
+  }, [loading, worktrees.length]);
+
+  // Clear animation flag after it's been consumed
+  useEffect(() => {
+    if (shouldAnimateSidebar.current) {
+      shouldAnimateSidebar.current = false;
+    }
+  });
+
   const currentTab = activeWorktreeId
     ? (activeTab[activeWorktreeId] ?? "terminal")
     : "terminal";
@@ -113,18 +133,6 @@ function AppShell() {
       </div>
     );
   }
-
-  const isOnboarding = worktrees.length === 0;
-
-  // Track onboarding → normal transition for sidebar animation
-  useEffect(() => {
-    if (isOnboarding) {
-      wasOnboarding.current = true;
-    } else if (wasOnboarding.current) {
-      shouldAnimateSidebar.current = true;
-      wasOnboarding.current = false;
-    }
-  }, [isOnboarding]);
 
   // Onboarding — no sidebar
   if (isOnboarding) {
@@ -150,13 +158,6 @@ function AppShell() {
   const sidebarAnimation = shouldAnimateSidebar.current
     ? { initial: { x: -260, opacity: 0 }, animate: { x: 0, opacity: 1 }, transition: { duration: 0.2, ease: "easeOut" as const } }
     : {};
-
-  // Clear animation flag after it's been consumed
-  useEffect(() => {
-    if (shouldAnimateSidebar.current) {
-      shouldAnimateSidebar.current = false;
-    }
-  });
 
   return (
     <div className="flex h-screen">
