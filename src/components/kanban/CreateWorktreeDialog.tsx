@@ -20,6 +20,7 @@ interface CreateWorktreeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   repoPath?: string;
+  hasSetupScripts?: boolean;
 }
 
 const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -29,7 +30,7 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "linearIssues", label: "Linear Issues", icon: <Ticket className="h-3.5 w-3.5" /> },
 ];
 
-function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWorktreeDialogProps) {
+function CreateWorktreeDialog({ open, onOpenChange, repoPath = ".", hasSetupScripts = false }: CreateWorktreeDialogProps) {
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
   const [activeTab, setActiveTab] = useState<Tab>("newBranch");
   const [branchName, setBranchName] = useState("");
@@ -280,16 +281,18 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
           )}
         </div>
 
-        {/* Auto-run setup scripts checkbox */}
-        <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer mt-6">
-          <input
-            type="checkbox"
-            checked={runSetup}
-            onChange={(e) => setRunSetup(e.target.checked)}
-            className="rounded border-border-default accent-accent-primary"
-          />
-          Auto-run setup scripts
-        </label>
+        {/* Auto-run setup scripts checkbox — only shown when scripts are configured */}
+        {hasSetupScripts && (
+          <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer mt-6">
+            <input
+              type="checkbox"
+              checked={runSetup}
+              onChange={(e) => setRunSetup(e.target.checked)}
+              className="rounded border-border-default accent-accent-primary"
+            />
+            Auto-run setup scripts
+          </label>
+        )}
 
         {error && (
           <div className="text-xs text-danger bg-danger/10 rounded-[var(--radius-sm)] px-3 py-2">
