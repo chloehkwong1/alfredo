@@ -180,12 +180,24 @@ function OnboardingScreen({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={transition}
-              className="flex flex-col items-center w-full pt-10"
+              className="flex flex-col items-center w-full"
             >
-              {/* Repo confirmation bar */}
-              <div className="flex items-center gap-2 text-body mb-7">
-                <Check className="h-4 w-4 text-status-idle" />
-                <span className="font-medium text-text-primary">{repoName}</span>
+              {/* Logo — visual anchor matching step 1 */}
+              <div className="p-3 rounded-xl bg-gradient-to-br from-[rgba(147,51,234,0.08)] to-[rgba(147,51,234,0.03)] mb-6">
+                <img
+                  src={logoSvg}
+                  alt="Alfredo"
+                  width={40}
+                  height={40}
+                  className="opacity-70"
+                />
+              </div>
+
+              {/* Repo confirmation */}
+              <div className="flex items-center gap-1.5 text-caption text-text-tertiary mb-6">
+                <Check className="h-3 w-3 text-status-idle" />
+                <span className="font-medium text-text-secondary">{repoName}</span>
+                <span className="text-text-tertiary">·</span>
                 <button
                   type="button"
                   className="text-accent-primary hover:underline cursor-pointer"
@@ -196,23 +208,23 @@ function OnboardingScreen({
               </div>
 
               {/* Title & subtitle */}
-              <h2 className="text-heading font-semibold tracking-[-0.3px] text-text-primary">
+              <h2 className="text-subheading font-semibold tracking-[-0.2px] text-text-primary">
                 Set up your workspace
               </h2>
-              <p className="text-body text-text-tertiary mt-2">
+              <p className="text-caption text-text-tertiary mt-1.5 mb-8">
                 Configure integrations and scripts. You can always change these later in settings.
               </p>
 
-              <div className="w-full mt-9 text-left">
+              <div className="w-full text-left space-y-4">
                 {/* GitHub card */}
-                <div className="p-5 border border-border-default rounded-[10px] mb-7">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="h-8 w-8 rounded-lg bg-[rgba(245,242,239,0.04)] flex items-center justify-center shrink-0">
-                      <Key className="h-4 w-4 text-text-secondary" />
+                <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-7 w-7 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
+                      <Key className="h-3.5 w-3.5 text-text-tertiary" />
                     </div>
-                    <div>
-                      <div className="text-body font-semibold text-text-primary">Connect GitHub</div>
-                      <div className="text-micro text-text-tertiary">Enables PR status, check runs, and branch management</div>
+                    <div className="min-w-0">
+                      <div className="text-caption font-medium text-text-primary">Connect GitHub</div>
+                      <div className="text-micro text-text-tertiary">PR status, check runs, and branch management</div>
                     </div>
                   </div>
                   <Input
@@ -221,19 +233,19 @@ function OnboardingScreen({
                     value={githubTokenInput}
                     onChange={(e) => setGithubTokenInput(e.target.value)}
                   />
-                  <p className="text-caption text-text-tertiary mt-2">
+                  <p className="text-micro text-text-tertiary mt-1.5">
                     Optional — you can add this later in settings
                   </p>
                 </div>
 
                 {/* Setup scripts card */}
-                <div className="p-5 border border-border-default rounded-[10px] mb-7">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="h-8 w-8 rounded-lg bg-[rgba(245,242,239,0.04)] flex items-center justify-center shrink-0">
-                      <Terminal className="h-4 w-4 text-text-secondary" />
+                <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-7 w-7 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
+                      <Terminal className="h-3.5 w-3.5 text-text-tertiary" />
                     </div>
-                    <div>
-                      <div className="text-body font-semibold text-text-primary">Setup scripts</div>
+                    <div className="min-w-0">
+                      <div className="text-caption font-medium text-text-primary">Setup scripts</div>
                       <div className="text-micro text-text-tertiary">Run automatically when creating new worktrees</div>
                     </div>
                   </div>
@@ -246,13 +258,13 @@ function OnboardingScreen({
                 </div>
 
                 {/* Worktree location card */}
-                <div className="p-5 border border-border-default rounded-[10px] mb-9">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="h-8 w-8 rounded-lg bg-[rgba(245,242,239,0.04)] flex items-center justify-center shrink-0">
-                      <FolderOpen className="h-4 w-4 text-text-secondary" />
+                <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-7 w-7 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
+                      <FolderOpen className="h-3.5 w-3.5 text-text-tertiary" />
                     </div>
-                    <div>
-                      <div className="text-body font-semibold text-text-primary">Worktree location</div>
+                    <div className="min-w-0">
+                      <div className="text-caption font-medium text-text-primary">Worktree location</div>
                       <div className="text-micro text-text-tertiary">Where new worktrees are created on disk</div>
                     </div>
                   </div>
@@ -260,16 +272,18 @@ function OnboardingScreen({
                     value={worktreeBasePathInput}
                     onChange={(e) => setWorktreeBasePathInput(e.target.value)}
                   />
-                  <p className="text-caption text-text-tertiary mt-2">
+                  <p className="text-micro text-text-tertiary mt-1.5">
                     Default: sibling directories of the repository
                   </p>
                 </div>
+              </div>
 
-                {/* CTA */}
+              {/* CTA */}
+              <div className="w-full mt-6">
                 <Button size="lg" className="w-full" onClick={handleConfigure}>
                   Create your first worktree
                 </Button>
-                <p className="text-caption text-text-tertiary mt-3 text-center">
+                <p className="text-micro text-text-tertiary mt-2 text-center">
                   This will open the worktree creation dialog
                 </p>
               </div>
