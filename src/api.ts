@@ -77,8 +77,9 @@ export function createWorktree(
 export function deleteWorktree(
   repoPath: string,
   worktreeName: string,
+  force = true,
 ): Promise<void> {
-  return invoke("delete_worktree", { repoPath, worktreeName });
+  return invoke("delete_worktree", { repoPath, worktreeName, force });
 }
 
 export function listWorktrees(repoPath: string): Promise<Worktree[]> {

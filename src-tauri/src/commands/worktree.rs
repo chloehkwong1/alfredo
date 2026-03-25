@@ -71,8 +71,12 @@ pub async fn create_worktree(
 
 /// Delete a worktree by name.
 #[tauri::command]
-pub async fn delete_worktree(repo_path: String, worktree_name: String) -> Result<()> {
-    git_manager::delete_worktree(&repo_path, &worktree_name).await
+pub async fn delete_worktree(
+    repo_path: String,
+    worktree_name: String,
+    force: bool,
+) -> Result<()> {
+    git_manager::delete_worktree(&repo_path, &worktree_name, force).await
 }
 
 /// List all worktrees for a repository.

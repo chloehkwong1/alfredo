@@ -174,6 +174,7 @@ mod tests {
             column_overrides: HashMap::new(),
             theme: None,
             notifications: None,
+            worktree_base_path: None,
         };
         config
             .column_overrides

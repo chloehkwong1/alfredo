@@ -41,19 +41,27 @@ pub async fn create_worktree(
 }
 
 /// Delete a worktree by shelling out to `git worktree remove`.
-pub async fn delete_worktree(repo_path: &str, worktree_name: &str) -> Result<(), AppError> {
+/// If `force` is true, passes `--force` to allow removing dirty worktrees and
+/// also deletes the local branch with `git branch -D`.
+pub async fn delete_worktree(
+    repo_path: &str,
+    worktree_name: &str,
+    force: bool,
+) -> Result<(), AppError> {
     // Resolve the worktree path — sibling directory of the repo
     let worktree_path = Path::new(repo_path)
         .parent()
         .unwrap_or(Path::new(repo_path))
         .join(worktree_name);
 
+    let mut args = vec!["worktree", "remove"];
+    if force {
+        args.push("--force");
+    }
+    args.push(worktree_path.to_str().unwrap_or_default());
+
     let output = Command::new("git")
-        .args([
-            "worktree",
-            "remove",
-            worktree_path.to_str().unwrap_or_default(),
-        ])
+        .args(&args)
         .current_dir(repo_path)
         .output()
         .await
@@ -64,6 +72,24 @@ pub async fn delete_worktree(repo_path: &str, worktree_name: &str) -> Result<(),
         return Err(AppError::Git(format!(
             "git worktree remove failed: {stderr}"
         )));
+    }
+
+    if force {
+        // Delete the local branch; ignore "not found" errors
+        let branch_output = Command::new("git")
+            .args(["branch", "-D", worktree_name])
+            .current_dir(repo_path)
+            .output()
+            .await
+            .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
+
+        if !branch_output.status.success() {
+            let stderr = String::from_utf8_lossy(&branch_output.stderr);
+            // "not found" is acceptable — branch may already be gone
+            if !stderr.contains("not found") {
+                return Err(AppError::Git(format!("git branch -D failed: {stderr}")));
+            }
+        }
     }
 
     Ok(())
@@ -229,5 +255,29 @@ mod tests {
         assert!(result.is_ok());
         let status = result.unwrap();
         assert!(status.is_clean);
+    }
+
+    #[tokio::test]
+    async fn test_delete_worktree_force_and_branch() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().unwrap();
+
+        // Create a worktree
+        let wt_path = create_worktree(repo_path, "test-branch", "main").await.unwrap();
+        assert!(wt_path.exists());
+
+        // Make it dirty so non-force would fail
+        std::fs::write(wt_path.join("dirty.txt"), "dirty").unwrap();
+
+        // Force delete should succeed and also remove the branch
+        delete_worktree(repo_path, "test-branch", true).await.unwrap();
+
+        // Worktree directory should be gone
+        assert!(!wt_path.exists());
+
+        // Branch should also be gone
+        let repo = Repository::open(repo_path).unwrap();
+        let branch = repo.find_branch("test-branch", git2::BranchType::Local);
+        assert!(branch.is_err());
     }
 }
