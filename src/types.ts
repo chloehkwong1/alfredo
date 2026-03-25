@@ -106,6 +106,7 @@ export interface AppConfig {
   columnOverrides?: Record<string, KanbanColumn>;
   theme?: string;
   notifications?: NotificationConfig;
+  worktreeBasePath?: string | null;
 }
 
 // ── Linear ──────────────────────────────────────────────────────

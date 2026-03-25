@@ -162,6 +162,8 @@ pub struct AppConfig {
     pub theme: Option<String>,
     #[serde(default)]
     pub notifications: Option<NotificationConfig>,
+    #[serde(default)]
+    pub worktree_base_path: Option<String>,
 }
 
 // ── Linear ──────────────────────────────────────────────────────
