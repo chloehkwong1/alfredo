@@ -141,7 +141,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                 type="button"
                 onClick={() => setTab(t.id)}
                 className={[
-                  "px-3 py-2 text-sm rounded-[var(--radius-md)] text-left",
+                  "px-3 py-2 text-body rounded-[var(--radius-md)] text-left",
                   "transition-colors duration-[var(--transition-fast)]",
                   "cursor-pointer",
                   tab === t.id
@@ -159,7 +159,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
             {tab === "appearance" && (
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-text-primary">
+                  <label className="text-body font-medium text-text-primary">
                     Theme
                   </label>
                   <ThemeSelector
@@ -194,7 +194,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
 
             {tab === "shortcuts" && (
               <div className="space-y-4">
-                <h3 className="text-sm font-medium text-text-primary">
+                <h3 className="text-body font-medium text-text-primary">
                   Keyboard Shortcuts
                 </h3>
                 <div className="space-y-1">
@@ -208,10 +208,10 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                       key={shortcut.keys}
                       className="flex items-center justify-between gap-4 py-1.5"
                     >
-                      <span className="text-sm text-text-secondary truncate min-w-0">
+                      <span className="text-body text-text-secondary truncate min-w-0">
                         {shortcut.description}
                       </span>
-                      <kbd className="px-2 py-0.5 text-xs font-mono bg-bg-hover text-text-primary rounded-[var(--radius-sm)] border border-border-default whitespace-nowrap flex-shrink-0">
+                      <kbd className="px-2 py-0.5 text-caption font-mono bg-bg-hover text-text-primary rounded-[var(--radius-sm)] border border-border-default whitespace-nowrap flex-shrink-0">
                         {shortcut.keys}
                       </kbd>
                     </div>

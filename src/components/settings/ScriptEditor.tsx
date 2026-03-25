@@ -31,13 +31,13 @@ function ScriptEditor({ scripts, onChange }: ScriptEditorProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-text-secondary">
+        <p className="text-body text-text-secondary">
           Scripts run automatically when a new worktree is created.
         </p>
       </div>
 
       {scripts.length === 0 && (
-        <div className="rounded-[var(--radius-md)] border border-border-default bg-bg-secondary px-4 py-6 text-center text-sm text-text-tertiary">
+        <div className="rounded-[var(--radius-md)] border border-border-default bg-bg-secondary px-4 py-6 text-center text-body text-text-tertiary">
           No setup scripts configured yet.
         </div>
       )}
