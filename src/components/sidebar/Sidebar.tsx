@@ -267,6 +267,7 @@ function Sidebar({
       <WorkspaceSettingsDialog
         open={workspaceSettingsOpen}
         onOpenChange={setWorkspaceSettingsOpen}
+        repoPath={repoPath || "."}
       />
       {hasRepo && (
         <CreateWorktreeDialog

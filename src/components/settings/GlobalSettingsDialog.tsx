@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AppConfig } from "../../types";
-import { getConfig, saveConfig } from "../../api";
+import type { AppConfig, GlobalAppConfig } from "../../types";
+import { getConfig, saveConfig, getAppConfig, saveAppConfig } from "../../api";
 import { Button } from "../ui/Button";
 import {
   Dialog,
@@ -45,7 +45,10 @@ function applyTheme(theme: string) {
 
 function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps) {
   const [tab, setTab] = useState<GlobalTab>("appearance");
-  const [config, setConfig] = useState<AppConfig | null>(null);
+  // Per-repo config — only used for GitHub token and Linear API key
+  const [repoConfig, setRepoConfig] = useState<AppConfig | null>(null);
+  // App-level config — theme and notifications
+  const [appConfig, setAppConfig] = useState<GlobalAppConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [currentTheme, setCurrentTheme] = useState(
@@ -55,13 +58,25 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
   // Load config when dialog opens
   useEffect(() => {
     if (!open) return;
-    getConfig(".")
+    getAppConfig()
       .then((c) => {
-        setConfig(c);
+        setAppConfig(c);
         setDirty(false);
       })
       .catch(() => {
-        setConfig({
+        setAppConfig({
+          repos: [],
+          activeRepo: null,
+          theme: null,
+          notifications: null,
+        });
+      });
+    getConfig(".")
+      .then((c) => {
+        setRepoConfig(c);
+      })
+      .catch(() => {
+        setRepoConfig({
           repoPath: ".",
           setupScripts: [],
           githubToken: null,
@@ -72,25 +87,30 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
     setCurrentTheme(localStorage.getItem("alfredo-theme") || "warm-dark");
   }, [open]);
 
-  const updateConfig = useCallback((patch: Partial<AppConfig>) => {
-    setConfig((prev) => (prev ? { ...prev, ...patch } : prev));
+  const updateAppConfig = useCallback((patch: Partial<GlobalAppConfig>) => {
+    setAppConfig((prev) => (prev ? { ...prev, ...patch } : prev));
+    setDirty(true);
+  }, []);
+
+  const updateRepoConfig = useCallback((patch: Partial<AppConfig>) => {
+    setRepoConfig((prev) => (prev ? { ...prev, ...patch } : prev));
     setDirty(true);
   }, []);
 
   const handleThemeSelect = useCallback((theme: string) => {
     setCurrentTheme(theme);
     applyTheme(theme);
-    // Theme is applied instantly via localStorage + data-attribute,
-    // also persist in config
-    setConfig((prev) => (prev ? { ...prev, theme } : prev));
-    setDirty(true);
-  }, []);
+    updateAppConfig({ theme });
+  }, [updateAppConfig]);
 
   const handleSave = useCallback(async () => {
-    if (!config) return;
+    if (!appConfig || !repoConfig) return;
     setSaving(true);
     try {
-      await saveConfig(".", config);
+      await Promise.all([
+        saveAppConfig(appConfig),
+        saveConfig(".", repoConfig),
+      ]);
       setDirty(false);
       onOpenChange(false);
     } catch {
@@ -100,13 +120,13 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
     } finally {
       setSaving(false);
     }
-  }, [config, onOpenChange]);
+  }, [appConfig, repoConfig, onOpenChange]);
 
-  if (!config) return null;
+  if (!appConfig || !repoConfig) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[720px]">
+      <DialogContent className="w-[720px]">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
@@ -154,20 +174,20 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
 
             {tab === "notifications" && (
               <NotificationSettings
-                config={config.notifications ?? DEFAULT_NOTIFICATION_CONFIG}
-                onChange={(notifications) => updateConfig({ notifications })}
+                config={appConfig.notifications ?? DEFAULT_NOTIFICATION_CONFIG}
+                onChange={(notifications) => updateAppConfig({ notifications })}
               />
             )}
 
             {tab === "integrations" && (
               <GithubSettings
-                githubToken={config.githubToken ?? ""}
-                linearApiKey={config.linearApiKey ?? ""}
+                githubToken={repoConfig.githubToken ?? ""}
+                linearApiKey={repoConfig.linearApiKey ?? ""}
                 onGithubTokenChange={(v) =>
-                  updateConfig({ githubToken: v || null })
+                  updateRepoConfig({ githubToken: v || null })
                 }
                 onLinearApiKeyChange={(v) =>
-                  updateConfig({ linearApiKey: v || null })
+                  updateRepoConfig({ linearApiKey: v || null })
                 }
               />
             )}

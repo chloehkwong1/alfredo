@@ -23,11 +23,13 @@ const TABS: { id: WorkspaceTab; label: string }[] = [
 interface WorkspaceSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  repoPath: string;
 }
 
 function WorkspaceSettingsDialog({
   open,
   onOpenChange,
+  repoPath,
 }: WorkspaceSettingsDialogProps) {
   const [tab, setTab] = useState<WorkspaceTab>("repository");
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -37,14 +39,14 @@ function WorkspaceSettingsDialog({
   // Load config when dialog opens
   useEffect(() => {
     if (!open) return;
-    getConfig(".")
+    getConfig(repoPath)
       .then((c) => {
         setConfig(c);
         setDirty(false);
       })
       .catch(() => {
         setConfig({
-          repoPath: ".",
+          repoPath,
           setupScripts: [],
           githubToken: null,
           linearApiKey: null,
@@ -52,7 +54,7 @@ function WorkspaceSettingsDialog({
           worktreeBasePath: null,
         });
       });
-  }, [open]);
+  }, [open, repoPath]);
 
   const updateConfig = useCallback((patch: Partial<AppConfig>) => {
     setConfig((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -63,7 +65,7 @@ function WorkspaceSettingsDialog({
     if (!config) return;
     setSaving(true);
     try {
-      await saveConfig(".", config);
+      await saveConfig(repoPath, config);
       setDirty(false);
       onOpenChange(false);
     } catch {
@@ -79,7 +81,7 @@ function WorkspaceSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[720px]">
+      <DialogContent className="w-[720px]">
         <DialogHeader>
           <DialogTitle>Workspace Settings</DialogTitle>
         </DialogHeader>
