@@ -139,6 +139,7 @@ function AppShell() {
   const addTab = useWorkspaceStore((s) => s.addTab);
   const setActiveTabId = useWorkspaceStore((s) => s.setActiveTabId);
   const annotations = useWorkspaceStore((s) => s.annotations);
+  const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
 
   const { repoPath, setRepoPath, error, clearError, loading } = useRepoPath();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -249,13 +250,14 @@ function AppShell() {
   }
 
   // Normal state — worktrees exist, show sidebar
-  const sidebarAnimation = shouldAnimateSidebar.current
-    ? { initial: { x: -260, opacity: 0 }, animate: { x: 0, opacity: 1 }, transition: { duration: 0.2, ease: "easeOut" as const } }
-    : {};
-
   return (
     <div className="flex h-screen">
-      <motion.div className="flex-shrink-0 h-full" {...sidebarAnimation}>
+      <motion.div
+        className="flex-shrink-0 h-full overflow-hidden"
+        initial={shouldAnimateSidebar.current ? { x: -260, opacity: 0 } : false}
+        animate={{ x: 0, opacity: 1, width: sidebarCollapsed ? 48 : 260 }}
+        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+      >
         <Sidebar hasRepo={!!repoPath} />
       </motion.div>
       <div className="flex-1 flex flex-col min-w-0">
