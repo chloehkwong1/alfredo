@@ -1,8 +1,10 @@
+pub mod app_config;
 pub mod branch;
 pub mod checks;
 pub mod config;
 pub mod diff;
 pub mod github;
+pub mod github_auth;
 pub mod linear;
 pub mod pty;
 pub mod repo;

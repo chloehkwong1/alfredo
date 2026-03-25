@@ -13,7 +13,7 @@ mod types;
 
 use tauri::Manager;
 
-use commands::{branch, checks, config, diff, github, github_auth, linear, pty, repo, session, worktree};
+use commands::{app_config, branch, checks, config, diff, github, github_auth, linear, pty, repo, session, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 
@@ -29,6 +29,13 @@ pub fn run() {
             repo_path: std::sync::Mutex::new(None),
         })
         .setup(|app| {
+            // Migrate legacy single-repo config to app.json
+            let app_data = app.path().app_data_dir().expect("app data dir");
+            let store_path = app_data.clone();
+            tauri::async_runtime::block_on(async {
+                app_config_manager::migrate_if_needed(&app_data, &store_path).await.ok();
+            });
+
             // Start the background GitHub PR sync loop
             github_sync::start_sync_loop(app.handle().clone());
 
@@ -43,6 +50,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // App Config
+            app_config::get_app_config,
+            app_config::save_app_config,
+            app_config::add_app_repo,
+            app_config::remove_app_repo,
+            app_config::set_active_repo,
+            app_config::has_active_sessions,
             // PTY
             pty::spawn_pty,
             pty::write_pty,
