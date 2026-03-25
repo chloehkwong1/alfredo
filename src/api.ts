@@ -218,3 +218,32 @@ export function validateGitRepo(path: string): Promise<boolean> {
 export function getCheckRuns(repoPath: string, branch: string): Promise<CheckRun[]> {
   return invoke("get_check_runs", { repoPath, branch });
 }
+
+// ── Session Persistence ──────────────────────────────────────────────────────
+
+export function saveSessionFile(
+  repoPath: string,
+  worktreeId: string,
+  data: string,
+): Promise<void> {
+  return invoke("save_session_file", { repoPath, worktreeId, data });
+}
+
+export function loadSessionFile(
+  repoPath: string,
+  worktreeId: string,
+): Promise<string | null> {
+  return invoke("load_session_file", { repoPath, worktreeId });
+}
+
+export function deleteSessionFile(
+  repoPath: string,
+  worktreeId: string,
+): Promise<void> {
+  return invoke("delete_session_file", { repoPath, worktreeId });
+}
+
+export function ensureAlfredoGitignore(repoPath: string): Promise<void> {
+  return invoke("ensure_alfredo_gitignore", { repoPath });
+}
+

@@ -12,7 +12,7 @@ mod types;
 
 use tauri::Manager;
 
-use commands::{branch, checks, config, diff, github, linear, pty, repo, worktree};
+use commands::{branch, checks, config, diff, github, linear, pty, repo, session, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 
@@ -80,6 +80,11 @@ pub fn run() {
             diff::get_diff,
             diff::get_commits,
             diff::get_diff_for_commit,
+            // Session persistence
+            session::save_session_file,
+            session::load_session_file,
+            session::delete_session_file,
+            session::ensure_alfredo_gitignore,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -6,4 +6,5 @@ pub mod github;
 pub mod linear;
 pub mod pty;
 pub mod repo;
+pub mod session;
 pub mod worktree;

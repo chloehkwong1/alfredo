@@ -167,6 +167,17 @@ export class SessionManager {
     session.outputBufferTotal += bytes.length;
   }
 
+  /** Get all active session keys. */
+  getSessionKeys(): string[] {
+    return [...this.sessions.keys()];
+  }
+
+  /** Get buffered output for a session as a base64 string for persistence. */
+  getBufferedOutputBase64(sessionKey: string): string {
+    const bytes = this.getBufferedOutput(sessionKey);
+    return btoa(String.fromCharCode(...bytes));
+  }
+
   /**
    * Read the circular buffer contents in chronological order.
    * Useful for replaying output when a terminal UI re-attaches.
