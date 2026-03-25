@@ -234,6 +234,13 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
             <Plus className="h-4 w-4" />
             New worktree
           </button>
+          <button
+            type="button"
+            className="w-full text-center text-[11px] text-text-tertiary hover:text-text-secondary mt-2 cursor-pointer transition-colors"
+            onClick={() => setWorkspaceSettingsOpen(true)}
+          >
+            Workspace settings
+          </button>
         </div>
       )}
 
