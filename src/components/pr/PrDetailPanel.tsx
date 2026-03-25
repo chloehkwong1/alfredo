@@ -26,9 +26,10 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
   }, [repoPath, worktree.branch, worktree.id, setCheckRuns]);
 
   useEffect(() => {
-    if (worktree.prStatus) {
-      fetchChecks();
-    }
+    if (!worktree.prStatus) return;
+    fetchChecks();
+    const interval = setInterval(fetchChecks, 30_000);
+    return () => clearInterval(interval);
   }, [worktree.prStatus, fetchChecks]);
 
   if (!worktree.prStatus) {
