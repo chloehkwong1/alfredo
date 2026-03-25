@@ -117,6 +117,7 @@ pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
 }
 
 /// List all worktrees using git2 for reads.
+/// Skips diff stats for speed — call `get_diff_stats` separately for the active worktree.
 pub fn list_worktrees(repo_path: &str) -> Result<Vec<Worktree>, AppError> {
     let repo = Repository::open(repo_path)
         .map_err(|e| AppError::Git(format!("failed to open repo: {e}")))?;
@@ -138,11 +139,6 @@ pub fn list_worktrees(repo_path: &str) -> Result<Vec<Worktree>, AppError> {
         let wt_path = wt.path().to_path_buf();
         let branch = get_branch_for_path(&wt_path).unwrap_or_else(|| name.to_string());
 
-        let (additions, deletions) = match get_diff_stats(&wt_path.to_string_lossy()) {
-            Ok((a, d)) => (Some(a), Some(d)),
-            Err(_) => (None, None),
-        };
-
         worktrees.push(Worktree {
             id: name.to_string(),
             name: name.to_string(),
@@ -152,8 +148,8 @@ pub fn list_worktrees(repo_path: &str) -> Result<Vec<Worktree>, AppError> {
             agent_status: AgentState::NotRunning,
             column: KanbanColumn::InProgress,
             is_branch_mode: false,
-            additions,
-            deletions,
+            additions: None,
+            deletions: None,
         });
     }
 

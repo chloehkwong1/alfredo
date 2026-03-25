@@ -12,7 +12,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useRepoPath } from "../../hooks/useRepoPath";
 import { useDensity } from "../../hooks/useDensity";
-import { listWorktrees, ensureAlfredoGitignore } from "../../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats } from "../../api";
 import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -175,6 +175,7 @@ function AppShell() {
 
   const { repoPath, setRepoPath, error, clearError, loading } = useRepoPath();
   const setWorktrees = useWorkspaceStore((s) => s.setWorktrees);
+  const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
@@ -183,6 +184,7 @@ function AppShell() {
     if (!repoPath) return;
     listWorktrees(repoPath).then(async (wts) => {
       if (wts.length > 0) {
+        // Show sidebar immediately (diff stats load in background)
         setWorktrees(wts);
         // Only set up .alfredo once worktrees exist (don't modify repo during onboarding)
         ensureAlfredoGitignore(repoPath).catch(() => {});
@@ -194,11 +196,20 @@ function AppShell() {
             restoreTabs(wt.id, session.tabs, session.activeTabId);
           }
         }
+
+        // Background: load diff stats per worktree (non-blocking)
+        for (const wt of wts) {
+          getWorktreeDiffStats(wt.path)
+            .then(([additions, deletions]) => {
+              updateWorktree(wt.id, { additions, deletions });
+            })
+            .catch(() => {}); // Worktree path may not exist
+        }
       }
     }).catch(() => {
       // Silently ignore — user may not have worktrees yet
     });
-  }, [repoPath, setWorktrees, restoreTabs]);
+  }, [repoPath, setWorktrees, updateWorktree, restoreTabs]);
 
   // Track whether we just transitioned from onboarding to animate sidebar
   const wasOnboarding = useRef(true);

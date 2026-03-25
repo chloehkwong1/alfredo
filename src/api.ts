@@ -86,6 +86,12 @@ export function listWorktrees(repoPath: string): Promise<Worktree[]> {
   return invoke("list_worktrees", { repoPath });
 }
 
+export function getWorktreeDiffStats(
+  worktreePath: string,
+): Promise<[number, number]> {
+  return invoke("get_worktree_diff_stats", { worktreePath });
+}
+
 export function getWorktreeStatus(
   repoPath: string,
   worktreeName: string,

@@ -91,6 +91,14 @@ pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>> {
     worktrees
 }
 
+/// Get diff stats (additions, deletions) for a single worktree. Lightweight — no config or status loading.
+#[tauri::command]
+pub async fn get_worktree_diff_stats(worktree_path: String) -> Result<(u32, u32)> {
+    tokio::task::spawn_blocking(move || get_diff_stats(&worktree_path))
+        .await
+        .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
 /// Get the current status of a specific worktree.
 #[tauri::command]
 pub async fn get_worktree_status(

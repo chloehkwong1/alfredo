@@ -53,6 +53,7 @@ pub fn run() {
             worktree::create_worktree,
             worktree::delete_worktree,
             worktree::list_worktrees,
+            worktree::get_worktree_diff_stats,
             worktree::get_worktree_status,
             worktree::set_worktree_column,
             // GitHub
