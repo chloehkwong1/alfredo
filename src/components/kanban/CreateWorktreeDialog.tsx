@@ -177,13 +177,15 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
       }
       if (worktree) {
         addWorktree(worktree);
+        onOpenChange(false);
+        setBranchName("");
+        setSearchQuery("");
+        setSelectedBranch(null);
+        setSelectedPrNumber(null);
+        setSelectedIssueId(null);
+      } else {
+        setError("Failed to create worktree. Please try again.");
       }
-      onOpenChange(false);
-      setBranchName("");
-      setSearchQuery("");
-      setSelectedBranch(null);
-      setSelectedPrNumber(null);
-      setSelectedIssueId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

@@ -170,6 +170,7 @@ function AppShell() {
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   // Dialog state for multi-repo lifecycle
   const [addRepoModalOpen, setAddRepoModalOpen] = useState(false);
@@ -182,18 +183,23 @@ function AppShell() {
 
   // Repo switching handler — save sessions, clear store, switch
   const handleSwitchRepo = useCallback(async (path: string) => {
-    if (repoPath && hasWorktrees) {
-      const state = useWorkspaceStore.getState();
-      await saveAllSessions(
-        repoPath,
-        state.worktrees.map((wt) => wt.id),
-        (wtId) => state.tabs[wtId] ?? [],
-        (wtId) => state.activeTabId[wtId] ?? "",
-        (tabId) => sessionManager.getBufferedOutputBase64(tabId),
-      );
+    setSwitching(true);
+    try {
+      if (repoPath && hasWorktrees) {
+        const state = useWorkspaceStore.getState();
+        await saveAllSessions(
+          repoPath,
+          state.worktrees.map((wt) => wt.id),
+          (wtId) => state.tabs[wtId] ?? [],
+          (wtId) => state.activeTabId[wtId] ?? "",
+          (tabId) => sessionManager.getBufferedOutputBase64(tabId),
+        );
+      }
+      clearStore();
+      await switchRepo(path);
+    } finally {
+      setSwitching(false);
     }
-    clearStore();
-    await switchRepo(path);
   }, [repoPath, hasWorktrees, switchRepo, clearStore]);
 
   // When a new repo is selected (from welcome screen or add modal)
@@ -274,6 +280,13 @@ function AppShell() {
         (document.activeElement as HTMLElement)?.isContentEditable
       )
         return;
+
+      // Cmd+N: open Create Worktree dialog
+      if (event.metaKey && !event.shiftKey && event.key === "n") {
+        event.preventDefault();
+        setCreateDialogOpen(true);
+        return;
+      }
 
       // Cmd+T: new tab of same type as current
       if (event.metaKey && !event.shiftKey && event.key === "t") {
@@ -420,7 +433,7 @@ function AppShell() {
   return (
     <div className="flex h-screen">
       <motion.div
-        className="flex-shrink-0 h-full overflow-hidden"
+        className={["flex-shrink-0 h-full overflow-hidden", switching ? "opacity-50 pointer-events-none" : ""].join(" ")}
         initial={shouldAnimateSidebar.current ? { x: -260, opacity: 0 } : false}
         animate={{ x: 0, opacity: 1, width: 260 }}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
