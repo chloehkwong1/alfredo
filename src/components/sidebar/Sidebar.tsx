@@ -8,6 +8,9 @@ import { SidebarDragContext } from "./SidebarDragContext";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
+import { deleteWorktree } from "../../api";
+import { sessionManager } from "../../services/sessionManager";
+import { useRepoPath } from "../../hooks/useRepoPath";
 import type { KanbanColumn, Worktree } from "../../types";
 
 const COLUMNS: KanbanColumn[] = [
@@ -45,6 +48,31 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
   const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
+  const removeWorktree = useWorkspaceStore((s) => s.removeWorktree);
+  const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
+  const allTabs = useWorkspaceStore((s) => s.tabs);
+  const { repoPath } = useRepoPath();
+
+  async function handleDeleteWorktree(id: string) {
+    const wt = worktrees.find((w) => w.id === id);
+    if (!wt || !repoPath) return;
+
+    // 1. Remove from store first (prevents sync loop race)
+    removeWorktree(id);
+
+    // 2. Close any PTY sessions for this worktree's tabs
+    const worktreeTabs = allTabs[id] ?? [];
+    for (const tab of worktreeTabs) {
+      await sessionManager.closeSession(tab.id);
+    }
+
+    // 3. Force-delete worktree + branch
+    try {
+      await deleteWorktree(repoPath, wt.name, true);
+    } catch (e) {
+      console.error("Failed to delete worktree:", e);
+    }
+  }
 
   const grouped = groupByColumn(worktrees);
 
@@ -216,6 +244,8 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
                 worktrees={grouped[col]}
                 activeWorktreeId={activeWorktreeId}
                 onSelectWorktree={setActiveWorktree}
+                onDeleteWorktree={handleDeleteWorktree}
+                onArchiveWorktree={archiveWorktree}
                 forceVisible={isDragging}
               />
             ))

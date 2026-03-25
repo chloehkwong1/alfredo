@@ -18,6 +18,8 @@ interface StatusGroupProps {
   worktrees: Worktree[];
   activeWorktreeId: string | null;
   onSelectWorktree: (id: string) => void;
+  onDeleteWorktree?: (id: string) => void;
+  onArchiveWorktree?: (id: string) => void;
   forceVisible?: boolean;
 }
 
@@ -42,6 +44,8 @@ function StatusGroup({
   worktrees,
   activeWorktreeId,
   onSelectWorktree,
+  onDeleteWorktree,
+  onArchiveWorktree,
   forceVisible,
 }: StatusGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -104,6 +108,8 @@ function StatusGroup({
                 worktree={wt}
                 isSelected={wt.id === activeWorktreeId}
                 onClick={() => onSelectWorktree(wt.id)}
+                onDelete={onDeleteWorktree}
+                onArchive={onArchiveWorktree}
               />
             ))}
           </motion.div>
