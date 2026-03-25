@@ -181,10 +181,11 @@ function AppShell() {
   // Load worktrees from git when repo path is available
   useEffect(() => {
     if (!repoPath) return;
-    ensureAlfredoGitignore(repoPath).catch(() => {});
     listWorktrees(repoPath).then(async (wts) => {
       if (wts.length > 0) {
         setWorktrees(wts);
+        // Only set up .alfredo once worktrees exist (don't modify repo during onboarding)
+        ensureAlfredoGitignore(repoPath).catch(() => {});
 
         // Restore saved sessions for each worktree
         for (const wt of wts) {
@@ -271,9 +272,10 @@ function AppShell() {
     }
   });
 
-  // Save sessions on app quit
+  // Save sessions on app quit (only when worktrees exist — not during onboarding)
+  const hasWorktrees = worktrees.length > 0;
   useEffect(() => {
-    if (!repoPath) return;
+    if (!repoPath || !hasWorktrees) return;
 
     const currentWindow = getCurrentWindow();
     const unlisten = currentWindow.onCloseRequested(async (event) => {
@@ -295,11 +297,11 @@ function AppShell() {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [repoPath]);
+  }, [repoPath, hasWorktrees]);
 
-  // Debounced auto-save every 30s
+  // Debounced auto-save every 30s (only when worktrees exist)
   useEffect(() => {
-    if (!repoPath) return;
+    if (!repoPath || !hasWorktrees) return;
 
     const interval = setInterval(() => {
       const state = useWorkspaceStore.getState();
@@ -315,7 +317,7 @@ function AppShell() {
     }, 30_000);
 
     return () => clearInterval(interval);
-  }, [repoPath]);
+  }, [repoPath, hasWorktrees]);
 
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)
