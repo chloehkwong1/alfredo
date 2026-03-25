@@ -166,7 +166,11 @@ pub struct AppConfig {
     pub notifications: Option<NotificationConfig>,
     #[serde(default)]
     pub worktree_base_path: Option<String>,
+    #[serde(default = "default_archive_days")]
+    pub archive_after_days: Option<u32>,
 }
+
+fn default_archive_days() -> Option<u32> { Some(2) }
 
 // ── Linear ──────────────────────────────────────────────────────
 

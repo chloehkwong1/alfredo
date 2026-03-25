@@ -37,6 +37,7 @@ export interface Worktree {
   isBranchMode: boolean;
   additions: number | null;
   deletions: number | null;
+  archived?: boolean;
 }
 
 export type KanbanColumn =
@@ -109,6 +110,7 @@ export interface AppConfig {
   theme?: string;
   notifications?: NotificationConfig;
   worktreeBasePath?: string | null;
+  archiveAfterDays?: number;
 }
 
 // ── Linear ──────────────────────────────────────────────────────

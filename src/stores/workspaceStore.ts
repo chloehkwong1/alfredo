@@ -29,6 +29,7 @@ interface WorkspaceState {
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
+  archiveWorktree: (id: string) => void;
   updateWorktree: (id: string, patch: Partial<Worktree>) => void;
   setColumn: (id: string, column: KanbanColumn) => void;
   setManualColumn: (id: string, column: KanbanColumn) => void;
@@ -76,10 +77,33 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
 
   removeWorktree: (id) =>
+    set((state) => {
+      const { [id]: _tabs, ...restTabs } = state.tabs;
+      const { [id]: _activeTab, ...restActiveTabId } = state.activeTabId;
+      const { [id]: _annotations, ...restAnnotations } = state.annotations;
+      const { [id]: _checkRuns, ...restCheckRuns } = state.checkRuns;
+      const { [id]: _override, ...restOverrides } = state.columnOverrides;
+      const { [id]: _prState, ...restPrState } = state.lastPrState;
+      const newSeen = new Set(state.seenWorktrees);
+      newSeen.delete(id);
+      return {
+        worktrees: state.worktrees.filter((wt) => wt.id !== id),
+        activeWorktreeId: state.activeWorktreeId === id ? null : state.activeWorktreeId,
+        tabs: restTabs,
+        activeTabId: restActiveTabId,
+        annotations: restAnnotations,
+        checkRuns: restCheckRuns,
+        columnOverrides: restOverrides,
+        lastPrState: restPrState,
+        seenWorktrees: newSeen,
+      };
+    }),
+
+  archiveWorktree: (id) =>
     set((state) => ({
-      worktrees: state.worktrees.filter((wt) => wt.id !== id),
-      activeWorktreeId:
-        state.activeWorktreeId === id ? null : state.activeWorktreeId,
+      worktrees: state.worktrees.map((wt) =>
+        wt.id === id ? { ...wt, archived: true } : wt,
+      ),
     })),
 
   updateWorktree: (id, patch) =>
@@ -161,6 +185,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           draft: pr.draft,
           merged: pr.merged,
           branch: pr.branch,
+          mergedAt: pr.mergedAt,
         };
 
         // Use manual override if still active, otherwise auto-assign

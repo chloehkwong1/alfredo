@@ -7,6 +7,8 @@ use crate::types::{AppConfig, AppError, KanbanColumn, NotificationConfig, SetupS
 
 const CONFIG_FILE: &str = ".alfredo.json";
 
+fn default_archive_days() -> Option<u32> { Some(2) }
+
 /// On-disk representation of `.alfredo.json`.
 /// Slightly different from AppConfig to include column overrides.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -28,6 +30,8 @@ struct ConfigFile {
     pub notifications: Option<NotificationConfig>,
     #[serde(default)]
     pub worktree_base_path: Option<String>,
+    #[serde(default = "default_archive_days")]
+    pub archive_after_days: Option<u32>,
 }
 
 /// Load the `.alfredo.json` config from a repo root.
@@ -46,6 +50,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
             theme: None,
             notifications: None,
             worktree_base_path: None,
+            archive_after_days: Some(2),
         });
     }
 
@@ -66,6 +71,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
         theme: file.theme,
         notifications: file.notifications,
         worktree_base_path: file.worktree_base_path,
+        archive_after_days: file.archive_after_days,
     })
 }
 
@@ -82,6 +88,7 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
         theme: config.theme.clone(),
         notifications: config.notifications.clone(),
         worktree_base_path: config.worktree_base_path.clone(),
+        archive_after_days: config.archive_after_days,
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -175,6 +182,7 @@ mod tests {
             theme: None,
             notifications: None,
             worktree_base_path: None,
+            archive_after_days: Some(2),
         };
         config
             .column_overrides
