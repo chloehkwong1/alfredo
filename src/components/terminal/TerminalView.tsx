@@ -6,7 +6,7 @@ import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { sessionManager } from "../../services/sessionManager";
 import { writePty } from "../../api";
-import { useRepoPath } from "../../hooks/useRepoPath";
+import { useAppConfig } from "../../hooks/useAppConfig";
 import { loadSession } from "../../services/SessionPersistence";
 import { Button } from "../ui/Button";
 import type { Annotation, TabType } from "../../types";
@@ -37,7 +37,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const sessionKey = tabId ?? activeWorktreeId ?? "";
   const mode = tabType === "shell" ? "shell" : "claude";
 
-  const { repoPath } = useRepoPath();
+  const { activeRepo: repoPath } = useAppConfig();
   const [savedScrollback, setSavedScrollback] = useState<string | undefined>();
 
   useEffect(() => {

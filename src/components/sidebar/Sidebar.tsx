@@ -14,7 +14,6 @@ import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { deleteWorktree } from "../../api";
 import { sessionManager } from "../../services/sessionManager";
 import { deleteSession } from "../../services/SessionPersistence";
-import { useRepoPath } from "../../hooks/useRepoPath";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 
 const COLUMNS: KanbanColumn[] = [
@@ -73,7 +72,7 @@ function Sidebar({
   const removeWorktree = useWorkspaceStore((s) => s.removeWorktree);
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
   const allTabs = useWorkspaceStore((s) => s.tabs);
-  const { repoPath } = useRepoPath();
+  const repoPath = activeRepo;
 
   async function handleDeleteWorktree(id: string) {
     const wt = worktrees.find((w) => w.id === id);
