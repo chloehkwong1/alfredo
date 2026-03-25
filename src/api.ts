@@ -157,20 +157,8 @@ export function getPrForBranch(
 
 // ── GitHub Auth ─────────────────────────────────────────────────
 
-export interface DeviceCodeResponse {
-  deviceCode: string;
-  userCode: string;
-  verificationUri: string;
-  expiresIn: number;
-  interval: number;
-}
-
-export function githubAuthStart(): Promise<DeviceCodeResponse> {
-  return invoke("github_auth_start");
-}
-
-export function githubAuthPoll(deviceCode: string, initialInterval: number): Promise<string> {
-  return invoke("github_auth_poll", { deviceCode, initialInterval });
+export function githubAuthExchange(code: string): Promise<string> {
+  return invoke("github_auth_exchange", { code });
 }
 
 export function githubAuthUser(token: string): Promise<string> {
