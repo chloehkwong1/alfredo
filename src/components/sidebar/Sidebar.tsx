@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
-import { Settings, PanelLeftClose, PanelLeft, Plus } from "lucide-react";
-import { IconButton, Tooltip, TooltipProvider } from "../ui";
+import { useState, useEffect } from "react";
+import { Settings, Plus } from "lucide-react";
+import { IconButton } from "../ui";
 import logoSvg from "../../assets/logo-cat.svg";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
 import { SidebarDragContext } from "./SidebarDragContext";
 import { ArchiveSection } from "./ArchiveSection";
+import { RepoPills } from "./RepoPills";
+import { BranchModeView } from "./BranchModeView";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
@@ -13,7 +15,7 @@ import { deleteWorktree } from "../../api";
 import { sessionManager } from "../../services/sessionManager";
 import { deleteSession } from "../../services/SessionPersistence";
 import { useRepoPath } from "../../hooks/useRepoPath";
-import type { KanbanColumn, Worktree } from "../../types";
+import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 
 const COLUMNS: KanbanColumn[] = [
   "inProgress",
@@ -40,15 +42,33 @@ function groupByColumn(
   return groups;
 }
 
-interface SidebarProps {
-  hasRepo?: boolean;
+function repoNameFromPath(path: string): string {
+  return path.split("/").filter(Boolean).at(-1) ?? path;
 }
 
-function Sidebar({ hasRepo = false }: SidebarProps) {
+interface SidebarProps {
+  hasRepo: boolean;
+  repos: RepoEntry[];
+  activeRepo: string | null;
+  onSwitchRepo: (path: string) => void;
+  onAddRepo: () => void;
+  onRemoveRepo: (path: string) => void;
+  activeRepoMode: "worktree" | "branch";
+  onEnableWorktrees: () => void;
+}
+
+function Sidebar({
+  hasRepo = false,
+  repos,
+  activeRepo,
+  onSwitchRepo,
+  onAddRepo,
+  onRemoveRepo,
+  activeRepoMode,
+  onEnableWorktrees,
+}: SidebarProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
-  const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
-  const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const removeWorktree = useWorkspaceStore((s) => s.removeWorktree);
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
@@ -148,85 +168,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
     setDeletingCount(null);
   }
 
-  const MAX_DOTS = 8;
-
-  const statusDotColor: Record<string, string> = useMemo(() => ({
-    waitingForInput: "bg-status-waiting",
-    busy: "bg-status-busy",
-    idle: "bg-status-idle",
-    error: "bg-status-error",
-    notRunning: "bg-text-tertiary",
-  }), []);
-
-  const statusLabel: Record<string, string> = useMemo(() => ({
-    waitingForInput: "waiting for input",
-    busy: "busy",
-    idle: "idle",
-    error: "error",
-    notRunning: "not running",
-  }), []);
-
-  if (sidebarCollapsed) {
-    const overflow = flatWorktrees.length - MAX_DOTS;
-    return (
-      <TooltipProvider><div className="flex flex-col items-center w-12 bg-bg-sidebar border-r border-border-subtle py-3 gap-3 flex-shrink-0">
-        <img src={logoSvg} alt="Alfredo" width={28} height={28} />
-        <IconButton size="sm" label="Expand sidebar" onClick={toggleSidebar}>
-          <PanelLeft />
-        </IconButton>
-
-        <div className="w-6 h-px bg-border-default" />
-
-        {/* Worktree status dots */}
-        <div className="flex flex-col items-center gap-2 mt-1">
-          {flatWorktrees.slice(0, MAX_DOTS).map((wt) => {
-            const shouldPulse = wt.agentStatus === "busy" || wt.agentStatus === "waitingForInput";
-            return (
-              <Tooltip
-                key={wt.id}
-                side="right"
-                content={`${wt.branch} — ${statusLabel[wt.agentStatus] ?? wt.agentStatus}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => setActiveWorktree(wt.id)}
-                  className={[
-                    "h-2.5 w-2.5 rounded-full transition-all cursor-pointer",
-                    "hover:scale-125",
-                    statusDotColor[wt.agentStatus] ?? "bg-text-tertiary",
-                    shouldPulse ? "animate-pulse-dot" : "",
-                    wt.id === activeWorktreeId ? "ring-1 ring-offset-1 ring-accent-primary ring-offset-bg-secondary" : "",
-                  ].join(" ")}
-                />
-              </Tooltip>
-            );
-          })}
-          {overflow > 0 && (
-            <span className="text-[9px] text-text-tertiary leading-none">
-              +{overflow}
-            </span>
-          )}
-        </div>
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* New worktree button — only when a repo is configured */}
-        {hasRepo && (
-          <>
-            <IconButton size="sm" label="New worktree" onClick={() => setCreateWorktreeOpen(true)}>
-              <Plus />
-            </IconButton>
-
-            <CreateWorktreeDialog
-              open={createWorktreeOpen}
-              onOpenChange={setCreateWorktreeOpen}
-            />
-          </>
-        )}
-      </div></TooltipProvider>
-    );
-  }
+  const displayName = activeRepo ? repoNameFromPath(activeRepo) : "alfredo";
 
   return (
     <div className="flex flex-col w-[260px] h-full bg-bg-sidebar border-r border-border-subtle flex-shrink-0">
@@ -237,69 +179,84 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
             <img src={logoSvg} alt="Alfredo" width={14} height={14} />
           </div>
           <span className="text-body font-semibold tracking-[-0.3px] text-text-primary">
-            alfredo
+            {displayName}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
             <Settings />
           </IconButton>
-          <IconButton
-            size="sm"
-            label="Collapse sidebar"
-            className="rounded-[6px]"
-            onClick={toggleSidebar}
-          >
-            <PanelLeftClose />
-          </IconButton>
         </div>
       </div>
 
-      {/* Scrollable agent list */}
-      <div className="flex-1 overflow-y-auto py-3">
-        <SidebarDragContext>
-          {(isDragging) =>
-            COLUMNS.map((col) => (
-              <StatusGroup
-                key={col}
-                column={col}
-                worktrees={grouped[col]}
-                activeWorktreeId={activeWorktreeId}
-                onSelectWorktree={setActiveWorktree}
-                onDeleteWorktree={handleDeleteWorktree}
-                onArchiveWorktree={archiveWorktree}
-                forceVisible={isDragging}
-              />
-            ))
-          }
-        </SidebarDragContext>
-        <ArchiveSection
-          worktrees={archivedWorktrees}
-          onDelete={handleDeleteWorktree}
-          onDeleteAll={handleDeleteAllArchived}
-          deletingCount={deletingCount}
+      {/* Repo pills */}
+      {repos.length > 0 && (
+        <RepoPills
+          repos={repos}
+          activeRepo={activeRepo}
+          activeSessions={{}}
+          onSwitch={onSwitchRepo}
+          onAddRepo={onAddRepo}
+          onRemoveRepo={onRemoveRepo}
         />
-      </div>
+      )}
 
-      {/* Footer — only show worktree actions when a repo is configured */}
-      {hasRepo && (
-        <div className="p-4 border-t border-border-subtle flex-shrink-0">
-          <button
-            type="button"
-            className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-body font-medium hover:bg-accent-primary/25 transition-colors cursor-pointer"
-            onClick={() => setCreateWorktreeOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            New worktree
-          </button>
-          <button
-            type="button"
-            className="w-full text-center text-caption text-text-tertiary hover:text-text-secondary mt-2 cursor-pointer transition-colors"
-            onClick={() => setWorkspaceSettingsOpen(true)}
-          >
-            Workspace settings
-          </button>
-        </div>
+      {/* Main content — branch mode vs worktree mode */}
+      {activeRepoMode === "branch" ? (
+        <BranchModeView
+          repoPath={activeRepo ?? ""}
+          onEnableWorktrees={onEnableWorktrees}
+          onOpenWorkspaceSettings={() => setWorkspaceSettingsOpen(true)}
+        />
+      ) : (
+        <>
+          {/* Scrollable agent list */}
+          <div className="flex-1 overflow-y-auto py-3">
+            <SidebarDragContext>
+              {(isDragging) =>
+                COLUMNS.map((col) => (
+                  <StatusGroup
+                    key={col}
+                    column={col}
+                    worktrees={grouped[col]}
+                    activeWorktreeId={activeWorktreeId}
+                    onSelectWorktree={setActiveWorktree}
+                    onDeleteWorktree={handleDeleteWorktree}
+                    onArchiveWorktree={archiveWorktree}
+                    forceVisible={isDragging}
+                  />
+                ))
+              }
+            </SidebarDragContext>
+            <ArchiveSection
+              worktrees={archivedWorktrees}
+              onDelete={handleDeleteWorktree}
+              onDeleteAll={handleDeleteAllArchived}
+              deletingCount={deletingCount}
+            />
+          </div>
+
+          {/* Footer — only show worktree actions when a repo is configured */}
+          {hasRepo && (
+            <div className="p-4 border-t border-border-subtle flex-shrink-0">
+              <button
+                type="button"
+                className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-body font-medium hover:bg-accent-primary/25 transition-colors cursor-pointer"
+                onClick={() => setCreateWorktreeOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                New worktree
+              </button>
+              <button
+                type="button"
+                className="w-full text-center text-caption text-text-tertiary hover:text-text-secondary mt-2 cursor-pointer transition-colors"
+                onClick={() => setWorkspaceSettingsOpen(true)}
+              >
+                Workspace settings
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Dialogs */}
@@ -322,4 +279,3 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
 }
 
 export { Sidebar };
-
