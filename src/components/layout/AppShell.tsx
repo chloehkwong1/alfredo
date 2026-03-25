@@ -288,26 +288,44 @@ function AppShell() {
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar />
         <main className="flex-1 min-h-0">
-          {activeTab?.type === "pr" && activeWorktreeId && worktree ? (
-            <PrDetailPanel
-              worktree={worktree}
-              repoPath={worktree.path}
-            />
-          ) : activeTab?.type === "changes" && activeWorktreeId ? (
-            <ChangesView
-              worktreeId={activeWorktreeId}
-              repoPath={worktree?.path ?? "."}
-            />
-          ) : activeTab?.type === "claude" || activeTab?.type === "shell" ? (
+          <AnimatePresence mode="wait">
+            {activeTab?.type === "pr" && activeWorktreeId && worktree ? (
+              <motion.div
+                key="pr"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.1 }}
+                className="h-full"
+              >
+                <PrDetailPanel worktree={worktree} repoPath={worktree.path} />
+              </motion.div>
+            ) : activeTab?.type === "changes" && activeWorktreeId ? (
+              <motion.div
+                key="changes"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.1 }}
+                className="h-full"
+              >
+                <ChangesView
+                  worktreeId={activeWorktreeId}
+                  repoPath={worktree?.path ?? "."}
+                />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          {activeTab?.type === "claude" || activeTab?.type === "shell" ? (
             <TerminalView
               tabId={activeTab.id}
               tabType={activeTab.type}
             />
-          ) : (
+          ) : !activeWorktreeId ? (
             <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
               Select a worktree to get started
             </div>
-          )}
+          ) : null}
         </main>
         <StatusBar worktree={worktree} annotationCount={annotationCount} />
       </div>
