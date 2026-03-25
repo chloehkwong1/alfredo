@@ -145,7 +145,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
         </DialogHeader>
 
         {/* Tab bar */}
-        <div className="flex gap-1 p-1.5 bg-bg-primary rounded-[var(--radius-md)] mb-6">
+        <div className="flex gap-1 p-1 bg-bg-sidebar rounded-lg mb-6">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -154,10 +154,10 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                 setSearchQuery("");
               }}
               className={[
-                "flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium rounded-[var(--radius-sm)]",
+                "flex items-center gap-1.5 px-[14px] py-2 text-[13px] font-medium rounded-[6px]",
                 "transition-all duration-[var(--transition-fast)] cursor-pointer",
                 activeTab === tab.id
-                  ? "bg-bg-elevated text-text-primary shadow-sm border border-border-default"
+                  ? "bg-[#2a2928] text-text-primary shadow-sm border border-border-default"
                   : "text-text-tertiary hover:text-text-secondary hover:bg-bg-hover border border-transparent",
               ].join(" ")}
             >
@@ -172,7 +172,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
           {activeTab === "newBranch" && (
             <div className="space-y-5">
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-2.5">
+                <label className="block text-[13px] font-medium text-text-secondary mb-2">
                   Branch name
                 </label>
                 <Input
@@ -183,7 +183,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-2.5">
+                <label className="block text-[13px] font-medium text-text-secondary mb-2">
                   Base branch
                 </label>
                 <Input

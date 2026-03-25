@@ -11,9 +11,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         autoCorrect="off"
         spellCheck={false}
         className={[
-          "h-8 w-full px-3 text-sm",
+          "h-8 w-full px-[14px] text-[14px]",
           "bg-bg-secondary text-text-primary",
-          "border border-border-default rounded-[var(--radius-md)]",
+          "border border-border-default rounded-lg",
           "placeholder:text-text-tertiary",
           "hover:border-border-hover",
           "focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50",

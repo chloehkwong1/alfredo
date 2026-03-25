@@ -34,7 +34,7 @@ const DialogContent = forwardRef<
       ref={ref}
       className={[
         "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
-        "w-full p-6",
+        "w-full p-7",
         "border border-border-default",
         "rounded-[var(--radius-lg)] shadow-lg",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
@@ -50,7 +50,8 @@ const DialogContent = forwardRef<
         className={[
           "absolute right-4 top-4",
           "text-text-tertiary hover:text-text-primary",
-          "rounded-[var(--radius-sm)] p-1",
+          "h-7 w-7 rounded-[6px]",
+          "flex items-center justify-center",
           "hover:bg-bg-hover",
           "transition-colors duration-[var(--transition-fast)]",
           "focus-ring cursor-pointer",
@@ -72,7 +73,7 @@ function DialogHeader({
   children: ReactNode;
 }) {
   return (
-    <div className={["mb-4 space-y-1.5", className].join(" ")}>{children}</div>
+    <div className={["mb-5 space-y-1.5", className].join(" ")}>{children}</div>
   );
 }
 
@@ -85,7 +86,7 @@ function DialogTitle({
 }) {
   return (
     <RadixDialog.Title
-      className={["text-lg font-semibold text-text-primary", className].join(
+      className={["text-[15px] font-semibold text-text-primary", className].join(
         " ",
       )}
     >
@@ -103,7 +104,7 @@ function DialogDescription({
 }) {
   return (
     <RadixDialog.Description
-      className={["text-sm text-text-secondary", className].join(" ")}
+      className={["text-[13px] text-text-tertiary", className].join(" ")}
     >
       {children}
     </RadixDialog.Description>
@@ -120,7 +121,7 @@ function DialogFooter({
   return (
     <div
       className={[
-        "mt-6 pt-4 flex items-center justify-end gap-3 border-t border-border-default",
+        "mt-7 pt-5 flex items-center justify-end gap-3 border-t border-border-default",
         className,
       ].join(" ")}
     >
