@@ -154,7 +154,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                 setSearchQuery("");
               }}
               className={[
-                "flex items-center gap-1.5 px-[14px] py-2 text-[13px] font-medium rounded-[6px]",
+                "flex items-center gap-1.5 px-[14px] py-2 text-body font-medium rounded-[6px]",
                 "transition-all duration-[var(--transition-fast)] cursor-pointer",
                 activeTab === tab.id
                   ? "bg-[#2a2928] text-text-primary shadow-sm border border-border-default"
@@ -172,7 +172,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
           {activeTab === "newBranch" && (
             <div className="space-y-5">
               <div>
-                <label className="block text-[13px] font-medium text-text-secondary mb-2">
+                <label className="block text-body font-medium text-text-secondary mb-2">
                   Branch name
                 </label>
                 <Input
@@ -183,7 +183,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                 />
               </div>
               <div>
-                <label className="block text-[13px] font-medium text-text-secondary mb-2">
+                <label className="block text-body font-medium text-text-secondary mb-2">
                   Base branch
                 </label>
                 <Input

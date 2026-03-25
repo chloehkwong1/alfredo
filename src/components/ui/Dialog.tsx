@@ -86,7 +86,7 @@ function DialogTitle({
 }) {
   return (
     <RadixDialog.Title
-      className={["text-[15px] font-semibold text-text-primary", className].join(
+      className={["text-subheading font-semibold text-text-primary", className].join(
         " ",
       )}
     >
@@ -104,7 +104,7 @@ function DialogDescription({
 }) {
   return (
     <RadixDialog.Description
-      className={["text-[13px] text-text-tertiary", className].join(" ")}
+      className={["text-body text-text-tertiary", className].join(" ")}
     >
       {children}
     </RadixDialog.Description>

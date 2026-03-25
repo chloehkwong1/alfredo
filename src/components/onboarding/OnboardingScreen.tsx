@@ -156,20 +156,20 @@ function OnboardingScreen({
                 />
               </div>
 
-              <h1 className="text-[26px] font-semibold text-text-primary mb-3 tracking-[-0.5px]">
+              <h1 className="text-display font-semibold text-text-primary mb-3 tracking-[-0.5px]">
                 Welcome to Alfredo
               </h1>
-              <p className="text-[15px] text-text-secondary leading-relaxed mb-8">
+              <p className="text-subheading text-text-secondary leading-relaxed mb-8">
                 Manage your AI coding agents across git worktrees.
               </p>
-              <Button size="lg" onClick={handleOpenPicker} className="py-3 px-6 text-[14px]">
+              <Button size="lg" onClick={handleOpenPicker} className="py-3 px-6 text-body">
                 <FolderOpen className="h-[18px] w-[18px]" />
                 Open a repository
               </Button>
               {error && (
                 <p className="text-sm text-status-error mt-5">{error}</p>
               )}
-              <p className="text-[13px] text-text-tertiary mt-5">
+              <p className="text-body text-text-tertiary mt-5">
                 or drag a folder here
               </p>
             </motion.div>
@@ -183,7 +183,7 @@ function OnboardingScreen({
               className="flex flex-col items-center w-full pt-10"
             >
               {/* Repo confirmation bar */}
-              <div className="flex items-center gap-2 text-[13px] mb-7">
+              <div className="flex items-center gap-2 text-body mb-7">
                 <Check className="h-4 w-4 text-status-idle" />
                 <span className="font-medium text-text-primary">{repoName}</span>
                 <button
@@ -196,10 +196,10 @@ function OnboardingScreen({
               </div>
 
               {/* Title & subtitle */}
-              <h2 className="text-[20px] font-semibold tracking-[-0.3px] text-text-primary">
+              <h2 className="text-heading font-semibold tracking-[-0.3px] text-text-primary">
                 Set up your workspace
               </h2>
-              <p className="text-[14px] text-text-tertiary mt-2">
+              <p className="text-body text-text-tertiary mt-2">
                 Configure integrations and scripts. You can always change these later in settings.
               </p>
 
@@ -211,8 +211,8 @@ function OnboardingScreen({
                       <Key className="h-4 w-4 text-text-secondary" />
                     </div>
                     <div>
-                      <div className="text-[13px] font-semibold text-text-primary">Connect GitHub</div>
-                      <div className="text-[10px] text-text-tertiary">Enables PR status, check runs, and branch management</div>
+                      <div className="text-body font-semibold text-text-primary">Connect GitHub</div>
+                      <div className="text-micro text-text-tertiary">Enables PR status, check runs, and branch management</div>
                     </div>
                   </div>
                   <Input
@@ -221,7 +221,7 @@ function OnboardingScreen({
                     value={githubTokenInput}
                     onChange={(e) => setGithubTokenInput(e.target.value)}
                   />
-                  <p className="text-[11px] text-text-tertiary mt-2">
+                  <p className="text-caption text-text-tertiary mt-2">
                     Optional — you can add this later in settings
                   </p>
                 </div>
@@ -233,8 +233,8 @@ function OnboardingScreen({
                       <Terminal className="h-4 w-4 text-text-secondary" />
                     </div>
                     <div>
-                      <div className="text-[13px] font-semibold text-text-primary">Setup scripts</div>
-                      <div className="text-[10px] text-text-tertiary">Run automatically when creating new worktrees</div>
+                      <div className="text-body font-semibold text-text-primary">Setup scripts</div>
+                      <div className="text-micro text-text-tertiary">Run automatically when creating new worktrees</div>
                     </div>
                   </div>
                   <Input
@@ -252,15 +252,15 @@ function OnboardingScreen({
                       <FolderOpen className="h-4 w-4 text-text-secondary" />
                     </div>
                     <div>
-                      <div className="text-[13px] font-semibold text-text-primary">Worktree location</div>
-                      <div className="text-[10px] text-text-tertiary">Where new worktrees are created on disk</div>
+                      <div className="text-body font-semibold text-text-primary">Worktree location</div>
+                      <div className="text-micro text-text-tertiary">Where new worktrees are created on disk</div>
                     </div>
                   </div>
                   <Input
                     value={worktreeBasePathInput}
                     onChange={(e) => setWorktreeBasePathInput(e.target.value)}
                   />
-                  <p className="text-[11px] text-text-tertiary mt-2">
+                  <p className="text-caption text-text-tertiary mt-2">
                     Default: sibling directories of the repository
                   </p>
                 </div>
@@ -269,7 +269,7 @@ function OnboardingScreen({
                 <Button size="lg" className="w-full" onClick={handleConfigure}>
                   Create your first worktree
                 </Button>
-                <p className="text-[12px] text-text-tertiary mt-3 text-center">
+                <p className="text-caption text-text-tertiary mt-3 text-center">
                   This will open the worktree creation dialog
                 </p>
               </div>

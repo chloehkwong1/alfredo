@@ -10,7 +10,7 @@ interface StatusBarProps {
 function StatusBar({ worktree, annotationCount }: StatusBarProps) {
   if (!worktree) {
     return (
-      <div className="h-8 flex items-center justify-center bg-bg-bar border-t border-border-subtle flex-shrink-0 text-[11px] text-text-tertiary">
+      <div className="h-8 flex items-center justify-center bg-bg-bar border-t border-border-subtle flex-shrink-0 text-caption text-text-tertiary">
         Select a worktree to get started
       </div>
     );
@@ -19,7 +19,7 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
   const pr = worktree.prStatus;
 
   return (
-    <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-t border-border-subtle text-[11px] text-text-tertiary flex-shrink-0">
+    <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-t border-border-subtle text-caption text-text-tertiary flex-shrink-0">
       {/* Left side */}
       <div className="flex items-center gap-3">
         <span className="font-medium text-text-secondary max-w-[300px] truncate">{worktree.branch}</span>
@@ -46,7 +46,7 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
           </button>
         )}
         {annotationCount > 0 && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-accent-primary/15 text-accent-primary text-[10px] font-medium">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-accent-primary/15 text-accent-primary text-micro font-medium">
             <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent-primary text-text-on-accent text-[9px] font-semibold">
               {annotationCount}
             </span>

@@ -59,6 +59,14 @@
   /* Subtle border */
   --color-border-subtle: var(--border-subtle);
 
+  /* Typography scale */
+  --font-size-micro: var(--text-2xs);     /* 10px — diff stats, PR numbers, overflow counts */
+  --font-size-caption: var(--text-xs);    /* 11px — status text, metadata */
+  --font-size-body: var(--text-sm);       /* 13px — branch names, tab labels, body text */
+  --font-size-subheading: var(--text-base); /* 15px — dialog titles, section headings */
+  --font-size-heading: var(--text-lg);    /* 20px — onboarding step headings */
+  --font-size-display: var(--text-xl);    /* 26px — welcome headline */
+
   /* Spacing */
   --spacing-xs: var(--space-xs);
   --spacing-sm: var(--space-sm);

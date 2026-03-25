@@ -68,18 +68,18 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[13px] font-medium text-text-primary truncate">
+          <span className="text-body font-medium text-text-primary truncate">
             {worktree.branch}
           </span>
           {worktree.prStatus && (
-            <span className="text-[10px] text-text-tertiary flex-shrink-0">
+            <span className="text-micro text-text-tertiary flex-shrink-0">
               #{worktree.prStatus.number}
             </span>
           )}
         </div>
         {/* PR title */}
         {worktree.prStatus && (
-          <div className="text-[11px] text-text-tertiary truncate mt-1">
+          <div className="text-caption text-text-tertiary truncate mt-1">
             {worktree.prStatus.title}
           </div>
         )}
@@ -89,7 +89,7 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
           </span>
           {/* Diff stats */}
           {(worktree.additions != null || worktree.deletions != null) && (
-            <span className="flex items-center gap-1 text-[10px] ml-auto flex-shrink-0">
+            <span className="flex items-center gap-1 text-micro ml-auto flex-shrink-0">
               {worktree.additions != null && worktree.additions > 0 && (
                 <span className="text-text-tertiary">+{worktree.additions}</span>
               )}

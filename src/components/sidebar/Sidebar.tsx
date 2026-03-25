@@ -186,7 +186,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
           <div className="w-[22px] h-[22px] rounded-[6px] bg-gradient-to-br from-[#9333ea] to-[#7e22ce] flex items-center justify-center flex-shrink-0">
             <img src={logoSvg} alt="Alfredo" width={14} height={14} />
           </div>
-          <span className="text-[14px] font-semibold tracking-[-0.3px] text-text-primary">
+          <span className="text-body font-semibold tracking-[-0.3px] text-text-primary">
             alfredo
           </span>
         </div>
@@ -228,7 +228,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
         <div className="p-4 border-t border-border-subtle flex-shrink-0">
           <button
             type="button"
-            className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-[13px] font-medium hover:bg-accent-primary/25 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-body font-medium hover:bg-accent-primary/25 transition-colors cursor-pointer"
             onClick={() => setCreateWorktreeOpen(true)}
           >
             <Plus className="h-4 w-4" />
@@ -236,7 +236,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
           </button>
           <button
             type="button"
-            className="w-full text-center text-[11px] text-text-tertiary hover:text-text-secondary mt-2 cursor-pointer transition-colors"
+            className="w-full text-center text-caption text-text-tertiary hover:text-text-secondary mt-2 cursor-pointer transition-colors"
             onClick={() => setWorkspaceSettingsOpen(true)}
           >
             Workspace settings
