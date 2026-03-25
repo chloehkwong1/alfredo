@@ -28,7 +28,7 @@ function DiffToolbar({
   const currentCommit = commits[currentCommitIndex] ?? null;
 
   return (
-    <div className="flex items-center gap-3 h-10 px-3 bg-bg-secondary border-b border-border-default flex-shrink-0">
+    <div className="flex items-center gap-3 h-10 px-3 bg-bg-secondary border-b border-border-subtle flex-shrink-0">
       {/* Mode toggle */}
       <div className="flex items-center rounded-md border border-border-default overflow-hidden">
         <button

@@ -13,7 +13,7 @@ function PrHeader({ pr }: PrHeaderProps) {
   const stateLabel = pr.merged ? "Merged" : pr.draft ? "Draft" : "Open";
 
   return (
-    <div className="px-4 py-3 border-b border-border-default">
+    <div className="px-4 py-3 border-b border-border-subtle">
       <div className="flex items-center gap-2 mb-1">
         <Icon size={16} className="text-text-tertiary flex-shrink-0" />
         <span className="text-sm font-semibold text-text-primary truncate">

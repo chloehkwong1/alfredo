@@ -49,7 +49,7 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
       <PrHeader pr={worktree.prStatus} />
 
       {/* Checks section */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border-default">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border-subtle">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
             Checks

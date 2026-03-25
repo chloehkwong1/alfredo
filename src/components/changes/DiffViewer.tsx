@@ -52,7 +52,7 @@ function DiffViewer({
   return (
     <div className="flex-1 overflow-auto bg-bg-primary">
       {/* File header */}
-      <div className="sticky top-0 z-10 px-4 py-2 bg-bg-secondary border-b border-border-default">
+      <div className="sticky top-0 z-10 px-4 py-2 bg-bg-secondary border-b border-border-subtle">
         <span className="text-xs font-mono text-text-secondary">
           {file.path}
         </span>

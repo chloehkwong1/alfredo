@@ -23,7 +23,7 @@ function basename(path: string): string {
 
 function FileList({ files, selectedPath, onSelectFile }: FileListProps) {
   return (
-    <div className="w-[220px] flex-shrink-0 border-r border-border-default flex flex-col bg-bg-primary overflow-y-auto">
+    <div className="w-[220px] flex-shrink-0 border-r border-border-subtle flex flex-col bg-bg-primary overflow-y-auto">
       <div className="px-3 py-2 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
         Changed files
       </div>
