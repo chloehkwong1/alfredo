@@ -67,6 +67,22 @@
   --spacing-xl: var(--space-xl);
 }
 
+/* ── Density-responsive spacing ──────────────── */
+:root {
+  --space-component: var(--space-md);   /* 12px default */
+  --space-section: var(--space-lg);     /* 16px default */
+}
+
+:root[data-density="compact"] {
+  --space-component: var(--space-sm);   /* 8px */
+  --space-section: var(--space-md);     /* 12px */
+}
+
+:root[data-density="comfortable"] {
+  --space-component: var(--space-lg);   /* 16px */
+  --space-section: var(--space-xl);     /* 24px */
+}
+
 @keyframes card-in {
   from {
     opacity: 0;

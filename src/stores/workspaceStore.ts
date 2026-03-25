@@ -44,6 +44,7 @@ interface WorkspaceState {
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
   clearAnnotations: (worktreeId: string) => void;
   toggleSidebar: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
   /** Check runs per worktree. Keyed by worktreeId. */
   checkRuns: Record<string, CheckRun[]>;
   setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
@@ -302,6 +303,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   toggleSidebar: () =>
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+  setSidebarCollapsed: (collapsed) =>
+    set({ sidebarCollapsed: collapsed }),
 
   setCheckRuns: (worktreeId, runs) =>
     set((state) => ({

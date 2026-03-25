@@ -10,6 +10,7 @@ import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useRepoPath } from "../../hooks/useRepoPath";
+import { useDensity } from "../../hooks/useDensity";
 import { listWorktrees } from "../../api";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { TabType, WorkspaceTab } from "../../types";
@@ -166,6 +167,8 @@ function AppShell() {
   const setActiveTabId = useWorkspaceStore((s) => s.setActiveTabId);
   const annotations = useWorkspaceStore((s) => s.annotations);
   const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
+
+  useDensity();
 
   const { repoPath, setRepoPath, error, clearError, loading } = useRepoPath();
   const setWorktrees = useWorkspaceStore((s) => s.setWorktrees);
