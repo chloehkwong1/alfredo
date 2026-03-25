@@ -10,6 +10,7 @@ import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useRepoPath } from "../../hooks/useRepoPath";
+import { listWorktrees } from "../../api";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { TabType, WorkspaceTab } from "../../types";
 
@@ -167,7 +168,20 @@ function AppShell() {
   const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
 
   const { repoPath, setRepoPath, error, clearError, loading } = useRepoPath();
+  const setWorktrees = useWorkspaceStore((s) => s.setWorktrees);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Load worktrees from git when repo path is available
+  useEffect(() => {
+    if (!repoPath) return;
+    listWorktrees(repoPath).then((wts) => {
+      if (wts.length > 0) {
+        setWorktrees(wts);
+      }
+    }).catch(() => {
+      // Silently ignore — user may not have worktrees yet
+    });
+  }, [repoPath, setWorktrees]);
 
   // Track whether we just transitioned from onboarding to animate sidebar
   const wasOnboarding = useRef(true);
