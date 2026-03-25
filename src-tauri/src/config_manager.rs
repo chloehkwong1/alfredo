@@ -19,6 +19,8 @@ struct ConfigFile {
     #[serde(default)]
     pub github_token: Option<String>,
     #[serde(default)]
+    pub github_installation_id: Option<u64>,
+    #[serde(default)]
     pub linear_api_key: Option<String>,
     #[serde(default)]
     pub branch_mode: bool,
@@ -44,6 +46,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
             repo_path: repo_path.to_string(),
             setup_scripts: vec![],
             github_token: None,
+            github_installation_id: None,
             linear_api_key: None,
             branch_mode: false,
             column_overrides: HashMap::new(),
@@ -65,6 +68,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
         repo_path: repo_path.to_string(),
         setup_scripts: file.setup_scripts,
         github_token: file.github_token,
+        github_installation_id: file.github_installation_id,
         linear_api_key: file.linear_api_key,
         branch_mode: file.branch_mode,
         column_overrides: file.column_overrides,
@@ -82,6 +86,7 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
     let file = ConfigFile {
         setup_scripts: config.setup_scripts.clone(),
         github_token: config.github_token.clone(),
+        github_installation_id: config.github_installation_id,
         linear_api_key: config.linear_api_key.clone(),
         branch_mode: config.branch_mode,
         column_overrides: config.column_overrides.clone(),
@@ -176,6 +181,7 @@ mod tests {
                 run_on: "create".into(),
             }],
             github_token: Some("ghp_test".into()),
+            github_installation_id: Some(12345),
             linear_api_key: None,
             branch_mode: true,
             column_overrides: HashMap::new(),
@@ -193,6 +199,7 @@ mod tests {
 
         assert_eq!(loaded.setup_scripts.len(), 1);
         assert_eq!(loaded.github_token, Some("ghp_test".into()));
+        assert_eq!(loaded.github_installation_id, Some(12345));
         assert!(loaded.branch_mode);
         assert_eq!(
             loaded.column_overrides.get("feat-x"),
