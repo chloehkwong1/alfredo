@@ -55,13 +55,13 @@
   /* Subtle border */
   --color-border-subtle: var(--border-subtle);
 
-  /* Typography scale */
-  --font-size-micro: var(--text-2xs);     /* 10px — diff stats, PR numbers, overflow counts */
-  --font-size-caption: var(--text-xs);    /* 11px — status text, metadata */
-  --font-size-body: var(--text-sm);       /* 13px — branch names, tab labels, body text */
-  --font-size-subheading: var(--text-base); /* 15px — dialog titles, section headings */
-  --font-size-heading: var(--text-lg);    /* 20px — onboarding step headings */
-  --font-size-display: var(--text-xl);    /* 26px — welcome headline */
+  /* Typography scale — use direct values, NOT Tailwind's --text-* vars (TW4 overrides them) */
+  --font-size-micro: 10px;       /* diff stats, PR numbers, overflow counts */
+  --font-size-caption: 11px;     /* status text, metadata */
+  --font-size-body: 12px;        /* branch names, tab labels, body text */
+  --font-size-subheading: 15px;  /* dialog titles, section headings */
+  --font-size-heading: 20px;     /* onboarding step headings */
+  --font-size-display: 26px;     /* welcome headline */
 
   /* Spacing */
   --spacing-xs: var(--space-xs);
