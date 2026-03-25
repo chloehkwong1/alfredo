@@ -51,6 +51,7 @@ pub async fn sync_pr_status(repo_path: String) -> Result<Vec<PrStatus>> {
         .ok_or_else(|| AppError::Github("no GitHub token configured".into()))?;
 
     let (owner, repo) = resolve_owner_repo(&repo_path).await?;
+    eprintln!("sync_pr_status: owner={owner}, repo={repo}, repo_path={repo_path}");
     let manager = GithubManager::new(&token)?;
     manager.sync_prs(&owner, &repo).await
 }

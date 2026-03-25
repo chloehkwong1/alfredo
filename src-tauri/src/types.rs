@@ -172,6 +172,35 @@ pub struct AppConfig {
 
 fn default_archive_days() -> Option<u32> { Some(2) }
 
+// ── App-Level Config ────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum RepoMode {
+    Worktree,
+    Branch,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoEntry {
+    pub path: String,
+    pub mode: RepoMode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalAppConfig {
+    #[serde(default)]
+    pub repos: Vec<RepoEntry>,
+    #[serde(default)]
+    pub active_repo: Option<String>,
+    #[serde(default)]
+    pub theme: Option<String>,
+    #[serde(default)]
+    pub notifications: Option<NotificationConfig>,
+}
+
 // ── Linear ──────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

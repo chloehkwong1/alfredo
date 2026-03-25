@@ -1,4 +1,5 @@
 mod agent_detector;
+mod app_config_manager;
 mod branch_manager;
 mod commands;
 mod config_manager;
@@ -12,7 +13,7 @@ mod types;
 
 use tauri::Manager;
 
-use commands::{branch, checks, config, diff, github, linear, pty, repo, session, worktree};
+use commands::{branch, checks, config, diff, github, github_auth, linear, pty, repo, session, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 
@@ -61,6 +62,11 @@ pub fn run() {
             github::get_pr_for_branch,
             checks::get_check_runs,
             github_sync::set_sync_repo_path,
+            // GitHub Auth
+            github_auth::github_auth_start,
+            github_auth::github_auth_poll,
+            github_auth::github_auth_user,
+            github_auth::github_auth_disconnect,
             // Config
             config::get_config,
             config::save_config,
