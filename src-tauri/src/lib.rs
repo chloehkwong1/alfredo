@@ -11,7 +11,8 @@ mod pty_manager;
 mod state_server;
 mod types;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri_plugin_deep_link::DeepLinkExt;
 
 use commands::{app_config, branch, checks, config, diff, github, github_auth, linear, pty, repo, session, worktree};
 use github_sync::SyncState;
@@ -24,6 +25,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_deep_link::init())
         .manage(PtyManager::new())
         .manage(SyncState {
             repo_path: std::sync::Mutex::new(None),
@@ -34,6 +36,32 @@ pub fn run() {
             let store_path = app_data.clone();
             tauri::async_runtime::block_on(async {
                 app_config_manager::migrate_if_needed(&app_data, &store_path).await.ok();
+            });
+
+            // Handle deep links (GitHub App installation callback)
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    if url.scheme() == "alfredo" && url.path() == "/callback" {
+                        let code = url.query_pairs()
+                            .find(|(k, _)| k == "code")
+                            .map(|(_, v)| v.to_string());
+                        let installation_id = url.query_pairs()
+                            .find(|(k, _)| k == "installation_id")
+                            .map(|(_, v)| v.to_string());
+
+                        if let Some(code) = code {
+                            let _ = handle.emit("github-auth-callback", serde_json::json!({
+                                "code": code,
+                                "installationId": installation_id,
+                            }));
+                        } else {
+                            let _ = handle.emit("github-auth-callback-error", serde_json::json!({
+                                "error": "Missing authorization code in callback URL",
+                            }));
+                        }
+                    }
+                }
             });
 
             // Start the background GitHub PR sync loop
@@ -77,8 +105,7 @@ pub fn run() {
             checks::get_check_runs,
             github_sync::set_sync_repo_path,
             // GitHub Auth
-            github_auth::github_auth_start,
-            github_auth::github_auth_poll,
+            github_auth::github_auth_exchange,
             github_auth::github_auth_user,
             github_auth::github_auth_disconnect,
             // Config
