@@ -4,11 +4,13 @@ import type {
   CheckRun,
   CommitInfo,
   DiffFile,
+  GlobalAppConfig,
   KanbanColumn,
   LinearTeam,
   LinearTicket,
   PrStatus,
   PtyEvent,
+  RepoMode,
   Session,
   SetupScript,
   Worktree,
@@ -153,6 +155,32 @@ export function getPrForBranch(
   return invoke("get_pr_for_branch", { owner, repo, branch });
 }
 
+// ── GitHub Auth ─────────────────────────────────────────────────
+
+export interface DeviceCodeResponse {
+  deviceCode: string;
+  userCode: string;
+  verificationUri: string;
+  expiresIn: number;
+  interval: number;
+}
+
+export function githubAuthStart(): Promise<DeviceCodeResponse> {
+  return invoke("github_auth_start");
+}
+
+export function githubAuthPoll(deviceCode: string, initialInterval: number): Promise<string> {
+  return invoke("github_auth_poll", { deviceCode, initialInterval });
+}
+
+export function githubAuthUser(token: string): Promise<string> {
+  return invoke("github_auth_user", { token });
+}
+
+export function githubAuthDisconnect(repoPath: string): Promise<void> {
+  return invoke("github_auth_disconnect", { repoPath });
+}
+
 // ── GitHub Sync ─────────────────────────────────────────────────
 
 export function setSyncRepoPath(repoPath: string): Promise<void> {
@@ -253,3 +281,28 @@ export function ensureAlfredoGitignore(repoPath: string): Promise<void> {
   return invoke("ensure_alfredo_gitignore", { repoPath });
 }
 
+// ── App Config ──────────────────────────────────────────────────
+
+export function getAppConfig(): Promise<GlobalAppConfig> {
+  return invoke("get_app_config");
+}
+
+export function saveAppConfig(config: GlobalAppConfig): Promise<void> {
+  return invoke("save_app_config", { config });
+}
+
+export function addRepo(path: string, mode: RepoMode): Promise<GlobalAppConfig> {
+  return invoke("add_app_repo", { path, mode });
+}
+
+export function removeRepo(path: string): Promise<GlobalAppConfig> {
+  return invoke("remove_app_repo", { path });
+}
+
+export function setActiveRepo(path: string): Promise<void> {
+  return invoke("set_active_repo", { path });
+}
+
+export function hasActiveSessions(repoPath: string): Promise<boolean> {
+  return invoke("has_active_sessions", { repoPath });
+}

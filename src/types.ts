@@ -184,6 +184,22 @@ export interface WorkspaceTab {
   label: string;
 }
 
+// ── App Config (multi-repo) ──────────────────────────────────────
+
+export type RepoMode = "worktree" | "branch";
+
+export interface RepoEntry {
+  path: string;
+  mode: RepoMode;
+}
+
+export interface GlobalAppConfig {
+  repos: RepoEntry[];
+  activeRepo: string | null;
+  theme: string | null;
+  notifications: NotificationConfig | null;
+}
+
 // ── Inline annotation ────────────────────────────────────────────
 
 export interface Annotation {
