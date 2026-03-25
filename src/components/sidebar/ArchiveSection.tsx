@@ -20,7 +20,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: Arc
     <div className="mt-4 border-t border-border-subtle pt-2">
       <button
         onClick={() => setIsCollapsed((prev) => !prev)}
-        className="flex w-full items-center gap-2 px-4 pt-3 pb-2 cursor-pointer select-none text-text-tertiary opacity-60"
+        className="flex w-full items-center gap-2 px-4 pt-3 pb-2 cursor-pointer select-none text-text-tertiary"
       >
         <Archive className="h-3.5 w-3.5" />
         <span className="text-caption font-semibold uppercase tracking-wider">

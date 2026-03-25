@@ -74,7 +74,7 @@ function StatusGroup({
         className={[
           "flex w-full items-center gap-2 px-4 pt-3 pb-2",
           "cursor-pointer select-none",
-          isDone ? "text-text-tertiary opacity-60" : "text-text-tertiary",
+          "text-text-tertiary",
         ].join(" ")}
       >
         <Icon className="h-3.5 w-3.5" />
