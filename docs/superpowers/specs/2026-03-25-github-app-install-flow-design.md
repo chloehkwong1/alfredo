@@ -144,3 +144,4 @@ Needs to be set in GitHub App settings (`github.com/settings/apps/alfredo-deskto
 | `src-tauri/src/types.rs` | Add `installation_id` to `AppConfig` |
 | `src/api.ts` | Replace `githubAuthStart`/`githubAuthPoll` with `githubAuthExchange` |
 | `src/components/settings/GithubSettings.tsx` | New connect flow, simplified waiting UI |
+| `src/components/onboarding/RepoSetupDialog.tsx` | Same deep-link auth flow for onboarding |
