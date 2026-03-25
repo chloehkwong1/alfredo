@@ -10,14 +10,14 @@ interface StatusBarProps {
 function StatusBar({ worktree, annotationCount }: StatusBarProps) {
   if (!worktree) {
     return (
-      <div className="h-7 bg-bg-secondary border-t border-border-default flex-shrink-0" />
+      <div className="h-8 bg-bg-bar border-t border-border-subtle flex-shrink-0" />
     );
   }
 
   const pr = worktree.prStatus;
 
   return (
-    <div className="h-7 flex items-center justify-between px-4 bg-bg-secondary border-t border-border-default text-xs text-text-tertiary flex-shrink-0">
+    <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-t border-border-subtle text-[11px] text-text-tertiary flex-shrink-0">
       {/* Left side */}
       <div className="flex items-center gap-3">
         <span className="font-medium text-text-secondary">{worktree.branch}</span>
@@ -40,7 +40,7 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
             <span className={pr.draft ? "text-status-busy" : "text-status-idle"}>
               {pr.draft ? "Draft" : "Open"} PR #{pr.number}
             </span>
-            <ExternalLink size={10} />
+            <ExternalLink size={12} />
           </button>
         )}
         {annotationCount > 0 && (

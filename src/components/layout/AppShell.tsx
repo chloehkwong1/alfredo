@@ -61,7 +61,7 @@ function TabBar() {
   const canClose = nonChangeTabs.length > 1;
 
   return (
-    <div className="flex items-center h-9 bg-bg-secondary border-b border-border-default flex-shrink-0">
+    <div className="flex items-center h-10 bg-bg-bar border-b border-border-subtle flex-shrink-0">
       {tabs.map((tab) => {
         const Icon = TAB_ICONS[tab.type];
         const isActive = tab.id === activeTabId;
@@ -77,7 +77,7 @@ function TabBar() {
                 : "text-text-tertiary hover:text-text-secondary",
             ].join(" ")}
           >
-            <Icon size={13} />
+            <Icon size={14} />
             <span>{tab.label}</span>
             {canClose && tab.type !== "changes" && (
               <span
@@ -92,7 +92,7 @@ function TabBar() {
             {isActive && (
               <motion.div
                 layoutId={`tab-underline-${activeWorktreeId}`}
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary"
+                className="absolute bottom-0 left-2 right-2 h-0.5 bg-accent-primary"
                 transition={{ type: "spring", stiffness: 500, damping: 35 }}
               />
             )}
@@ -105,7 +105,7 @@ function TabBar() {
         <button
           type="button"
           onClick={() => setMenuOpen(!menuOpen)}
-          className="h-9 px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
+          className="h-10 px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
         >
           <Plus size={16} />
         </button>

@@ -119,7 +119,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
   if (sidebarCollapsed) {
     const overflow = flatWorktrees.length - MAX_DOTS;
     return (
-      <div className="flex flex-col items-center w-12 bg-bg-secondary border-r border-border-default py-3 gap-3 flex-shrink-0">
+      <div className="flex flex-col items-center w-12 bg-bg-sidebar border-r border-border-subtle py-3 gap-3 flex-shrink-0">
         <img src={logoSvg} alt="Alfredo" width={28} height={28} />
         <IconButton size="sm" label="Expand sidebar" onClick={toggleSidebar}>
           <PanelLeft />
@@ -179,22 +179,25 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
   }
 
   return (
-    <div className="flex flex-col w-[260px] h-full bg-bg-secondary border-r border-border-default flex-shrink-0">
+    <div className="flex flex-col w-[260px] h-full bg-bg-sidebar border-r border-border-subtle flex-shrink-0">
       {/* Header */}
-      <div className="flex items-center justify-between h-12 px-4 border-b border-border-default flex-shrink-0">
+      <div className="flex items-center justify-between h-10 px-4 border-b border-border-subtle flex-shrink-0">
         <div className="flex items-center gap-3">
-          <img src={logoSvg} alt="Alfredo" width={24} height={24} />
-          <span className="text-sm font-semibold text-text-primary">
+          <div className="w-[22px] h-[22px] rounded-[6px] bg-gradient-to-br from-[#9333ea] to-[#7e22ce] flex items-center justify-center flex-shrink-0">
+            <img src={logoSvg} alt="Alfredo" width={14} height={14} />
+          </div>
+          <span className="text-[14px] font-semibold tracking-[-0.3px] text-text-primary">
             alfredo
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          <IconButton size="sm" label="Settings" onClick={() => setGlobalSettingsOpen(true)}>
+        <div className="flex items-center gap-2">
+          <IconButton size="sm" label="Settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
             <Settings />
           </IconButton>
           <IconButton
             size="sm"
             label="Collapse sidebar"
+            className="rounded-[6px]"
             onClick={toggleSidebar}
           >
             <PanelLeftClose />
@@ -222,7 +225,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
 
       {/* Footer — only show worktree actions when a repo is configured */}
       {hasRepo && (
-        <div className="px-4 py-3 border-t border-border-default flex-shrink-0 space-y-2.5">
+        <div className="p-4 border-t border-border-subtle flex-shrink-0">
           <button
             type="button"
             className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-sm font-medium hover:bg-accent-primary/25 transition-colors cursor-pointer"
@@ -230,13 +233,6 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
           >
             <Plus className="h-4 w-4" />
             New worktree
-          </button>
-          <button
-            type="button"
-            className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer py-0.5"
-            onClick={() => setWorkspaceSettingsOpen(true)}
-          >
-            Workspace settings
           </button>
         </div>
       )}
