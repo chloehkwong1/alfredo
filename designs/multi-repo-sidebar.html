@@ -1,0 +1,152 @@
+<h2>Sidebar with Repo Pills</h2>
+<p class="subtitle">Full sidebar mockup showing the pills in context with worktrees below</p>
+
+<div class="split">
+  <!-- Active state: alfredo selected -->
+  <div class="mockup">
+    <div class="mockup-header">Active repo: alfredo</div>
+    <div class="mockup-body" style="background: #16161e; padding: 0; width: 260px; margin: 0 auto;">
+      <!-- Header -->
+      <div style="display: flex; align-items: center; padding: 12px 14px 8px; gap: 8px;">
+        <div style="width: 20px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #7c8aff, #5b6abf); display: flex; align-items: center; justify-content: center; font-size: 10px; color: white; font-weight: bold;">A</div>
+        <span style="color: #e0e0e0; font-weight: 600; font-size: 13px; font-family: system-ui;">alfredo</span>
+        <span style="margin-left: auto; color: #555; font-size: 14px; cursor: pointer;">&#9881;</span>
+        <span style="color: #555; font-size: 11px; cursor: pointer;">&#9664;</span>
+      </div>
+
+      <!-- Repo pills -->
+      <div style="display: flex; gap: 5px; padding: 4px 14px 10px; overflow-x: auto; align-items: center;">
+        <div style="padding: 3px 10px; border-radius: 5px; background: rgba(124,138,255,0.2); border: 1px solid rgba(124,138,255,0.35); color: #7c8aff; font-size: 10px; font-weight: 600; font-family: system-ui; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+          <span style="width: 5px; height: 5px; border-radius: 50%; background: #4ade80;"></span>
+          alfredo
+        </div>
+        <div style="padding: 3px 10px; border-radius: 5px; background: rgba(255,255,255,0.04); color: #666; font-size: 10px; font-family: system-ui; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+          <span style="width: 5px; height: 5px; border-radius: 50%; background: #4ade80;"></span>
+          my-api
+        </div>
+        <div style="padding: 3px 10px; border-radius: 5px; background: rgba(255,255,255,0.04); color: #666; font-size: 10px; font-family: system-ui; white-space: nowrap;">
+          design-sys
+        </div>
+        <div style="padding: 3px 10px; border-radius: 5px; background: rgba(255,255,255,0.04); color: #666; font-size: 10px; font-family: system-ui; white-space: nowrap;">
+          docs
+        </div>
+        <div style="width: 18px; height: 18px; border-radius: 4px; color: #444; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer;">+</div>
+      </div>
+
+      <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 0 14px;"></div>
+
+      <!-- Status groups -->
+      <div style="padding: 8px 14px; font-family: system-ui; overflow-y: auto;">
+        <div style="color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; padding: 6px 0 4px; font-weight: 500;">In Progress</div>
+
+        <div style="padding: 7px 10px; display: flex; align-items: center; gap: 8px; background: rgba(124,138,255,0.08); border-radius: 6px; margin-bottom: 3px; cursor: pointer;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #4ade80; flex-shrink: 0;"></span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="color: #d0d0d0; font-size: 11px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">feat/github-auth</div>
+            <div style="color: #666; font-size: 9px; margin-top: 1px;">Running task...</div>
+          </div>
+          <span style="color: #555; font-size: 9px;">#42</span>
+        </div>
+
+        <div style="padding: 7px 10px; display: flex; align-items: center; gap: 8px; border-radius: 6px; margin-bottom: 3px; cursor: pointer;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #fbbf24; flex-shrink: 0;"></span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="color: #d0d0d0; font-size: 11px; font-weight: 500;">fix/sidebar-crash</div>
+            <div style="color: #666; font-size: 9px; margin-top: 1px;">Waiting for input</div>
+          </div>
+        </div>
+
+        <div style="color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; padding: 10px 0 4px; font-weight: 500;">Blocked</div>
+
+        <div style="padding: 7px 10px; display: flex; align-items: center; gap: 8px; border-radius: 6px; margin-bottom: 3px; cursor: pointer;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #ef4444; flex-shrink: 0;"></span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="color: #d0d0d0; font-size: 11px; font-weight: 500;">feat/notifications</div>
+            <div style="color: #666; font-size: 9px; margin-top: 1px;">Error: build failed</div>
+          </div>
+        </div>
+
+        <div style="color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; padding: 10px 0 4px; font-weight: 500;">Open PR</div>
+
+        <div style="padding: 7px 10px; display: flex; align-items: center; gap: 8px; border-radius: 6px; margin-bottom: 3px; cursor: pointer;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #888; flex-shrink: 0;"></span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="color: #d0d0d0; font-size: 11px; font-weight: 500;">refactor/config</div>
+            <div style="color: #666; font-size: 9px; margin-top: 1px;">Idle</div>
+          </div>
+          <span style="color: #555; font-size: 9px;">#38</span>
+        </div>
+      </div>
+
+      <!-- Bottom actions -->
+      <div style="border-top: 1px solid rgba(255,255,255,0.06); padding: 10px 14px; margin-top: auto;">
+        <div style="padding: 8px 0; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(124,138,255,0.1); border: 1px solid rgba(124,138,255,0.2); border-radius: 8px; color: #7c8aff; font-size: 11px; font-weight: 500; font-family: system-ui; cursor: pointer;">
+          + New worktree
+        </div>
+        <div style="text-align: center; padding-top: 8px;">
+          <span style="color: #555; font-size: 10px; cursor: pointer; font-family: system-ui;">Workspace settings</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hover state: showing + on hover -->
+  <div class="mockup">
+    <div class="mockup-header">Branch-mode repo selected</div>
+    <div class="mockup-body" style="background: #16161e; padding: 0; width: 260px; margin: 0 auto;">
+      <!-- Header -->
+      <div style="display: flex; align-items: center; padding: 12px 14px 8px; gap: 8px;">
+        <div style="width: 20px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #ec4899, #be185d); display: flex; align-items: center; justify-content: center; font-size: 10px; color: white; font-weight: bold;">D</div>
+        <span style="color: #e0e0e0; font-weight: 600; font-size: 13px; font-family: system-ui;">design-system</span>
+        <span style="margin-left: auto; color: #555; font-size: 14px; cursor: pointer;">&#9881;</span>
+        <span style="color: #555; font-size: 11px; cursor: pointer;">&#9664;</span>
+      </div>
+
+      <!-- Repo pills -->
+      <div style="display: flex; gap: 5px; padding: 4px 14px 10px; overflow-x: auto; align-items: center;">
+        <div style="padding: 3px 10px; border-radius: 5px; background: rgba(255,255,255,0.04); color: #666; font-size: 10px; font-family: system-ui; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+          <span style="width: 5px; height: 5px; border-radius: 50%; background: #4ade80;"></span>
+          alfredo
+        </div>
+        <div style="padding: 3px 10px; border-radius: 5px; background: rgba(255,255,255,0.04); color: #666; font-size: 10px; font-family: system-ui; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+          <span style="width: 5px; height: 5px; border-radius: 50%; background: #4ade80;"></span>
+          my-api
+        </div>
+        <div style="padding: 3px 10px; border-radius: 5px; background: rgba(124,138,255,0.2); border: 1px solid rgba(124,138,255,0.35); color: #7c8aff; font-size: 10px; font-weight: 600; font-family: system-ui; white-space: nowrap;">
+          design-sys
+        </div>
+        <div style="padding: 3px 10px; border-radius: 5px; background: rgba(255,255,255,0.04); color: #666; font-size: 10px; font-family: system-ui; white-space: nowrap;">
+          docs
+        </div>
+        <div style="width: 18px; height: 18px; border-radius: 4px; color: #444; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer;">+</div>
+      </div>
+
+      <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 0 14px;"></div>
+
+      <!-- Branch mode content -->
+      <div style="padding: 14px; font-family: system-ui;">
+        <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 40px 20px; text-align: center;">
+          <div style="color: #555; font-size: 32px; margin-bottom: 12px;">&#128194;</div>
+          <div style="color: #888; font-size: 12px; font-weight: 500; margin-bottom: 4px;">Branch mode</div>
+          <div style="color: #555; font-size: 10px; line-height: 1.5; margin-bottom: 16px;">This repo is using branches directly.<br>Enable worktrees for parallel development.</div>
+          <div style="padding: 6px 14px; border-radius: 6px; border: 1px solid rgba(124,138,255,0.25); color: #7c8aff; font-size: 10px; font-weight: 500; cursor: pointer;">Enable worktrees</div>
+        </div>
+
+        <div style="height: 1px; background: rgba(255,255,255,0.04); margin: 8px 0;"></div>
+
+        <div style="color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; padding: 8px 0 6px; font-weight: 500;">Current branch</div>
+        <div style="padding: 7px 10px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border-radius: 6px;">
+          <span style="color: #888; font-size: 10px;">&#9745;</span>
+          <span style="color: #d0d0d0; font-size: 11px; font-weight: 500;">main</span>
+        </div>
+      </div>
+
+      <!-- Bottom -->
+      <div style="border-top: 1px solid rgba(255,255,255,0.06); padding: 10px 14px; margin-top: auto;">
+        <div style="text-align: center;">
+          <span style="color: #555; font-size: 10px; cursor: pointer; font-family: system-ui;">Workspace settings</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
