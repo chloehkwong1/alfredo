@@ -13,7 +13,7 @@ import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useRepoPath } from "../../hooks/useRepoPath";
 import { useDensity } from "../../hooks/useDensity";
 import { listWorktrees, ensureAlfredoGitignore } from "../../api";
-import { saveAllSessions } from "../../services/SessionPersistence";
+import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { TabType, WorkspaceTab } from "../../types";
@@ -175,20 +175,29 @@ function AppShell() {
 
   const { repoPath, setRepoPath, error, clearError, loading } = useRepoPath();
   const setWorktrees = useWorkspaceStore((s) => s.setWorktrees);
+  const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   // Load worktrees from git when repo path is available
   useEffect(() => {
     if (!repoPath) return;
     ensureAlfredoGitignore(repoPath).catch(() => {});
-    listWorktrees(repoPath).then((wts) => {
+    listWorktrees(repoPath).then(async (wts) => {
       if (wts.length > 0) {
         setWorktrees(wts);
+
+        // Restore saved sessions for each worktree
+        for (const wt of wts) {
+          const session = await loadSession(repoPath, wt.id);
+          if (session) {
+            restoreTabs(wt.id, session.tabs, session.activeTabId);
+          }
+        }
       }
     }).catch(() => {
       // Silently ignore — user may not have worktrees yet
     });
-  }, [repoPath, setWorktrees]);
+  }, [repoPath, setWorktrees, restoreTabs]);
 
   // Track whether we just transitioned from onboarding to animate sidebar
   const wasOnboarding = useRef(true);

@@ -14,6 +14,8 @@ interface UsePtyOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** "claude" spawns Claude Code; "shell" spawns user's default shell. */
   mode?: "claude" | "shell";
+  /** Base64-encoded saved terminal output to replay before spawning the PTY. */
+  initialScrollback?: string;
 }
 
 interface UsePtyReturn {
@@ -33,6 +35,7 @@ export function usePty({
   worktreePath,
   containerRef,
   mode = "claude",
+  initialScrollback,
 }: UsePtyOptions): UsePtyReturn {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [agentState, setAgentState] = useState<AgentState>("notRunning");
@@ -50,7 +53,7 @@ export function usePty({
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     async function attach() {
-      const session = await sessionManager.getOrSpawn(sessionKey, worktreeId, worktreePath, mode);
+      const session = await sessionManager.getOrSpawn(sessionKey, worktreeId, worktreePath, mode, initialScrollback);
       if (disposed) return;
 
       sessionRef.current = session;
@@ -133,7 +136,7 @@ export function usePty({
       setTerminal(null);
       setIsConnected(false);
     };
-  }, [sessionKey, worktreeId, worktreePath, mode, containerRef]);
+  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, initialScrollback]);
 
   return { terminal, agentState, isConnected };
 }

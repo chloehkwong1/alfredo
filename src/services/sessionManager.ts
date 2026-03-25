@@ -49,6 +49,7 @@ export class SessionManager {
     worktreeId: string,
     worktreePath: string,
     mode: "claude" | "shell" = "claude",
+    initialScrollback?: string, // base64-encoded saved output
   ): Promise<ManagedSession> {
     const existing = this.sessions.get(sessionKey);
     if (existing) return existing;
@@ -60,6 +61,16 @@ export class SessionManager {
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
+
+    // Replay saved scrollback BEFORE spawning the PTY
+    if (initialScrollback) {
+      try {
+        const bytes = Uint8Array.from(atob(initialScrollback), (c) => c.charCodeAt(0));
+        terminal.write(bytes);
+      } catch {
+        // Invalid base64 — skip replay
+      }
+    }
 
     const session: ManagedSession = {
       sessionId: "", // filled after spawn

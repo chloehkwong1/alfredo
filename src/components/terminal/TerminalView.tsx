@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
 import "@xterm/xterm/css/xterm.css";
 
@@ -6,6 +6,8 @@ import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { sessionManager } from "../../services/sessionManager";
 import { writePty } from "../../api";
+import { useRepoPath } from "../../hooks/useRepoPath";
+import { loadSession } from "../../services/SessionPersistence";
 import { Button } from "../ui/Button";
 import type { Annotation, TabType } from "../../types";
 
@@ -35,12 +37,24 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const sessionKey = tabId ?? activeWorktreeId ?? "";
   const mode = tabType === "shell" ? "shell" : "claude";
 
+  const { repoPath } = useRepoPath();
+  const [savedScrollback, setSavedScrollback] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!repoPath || !activeWorktreeId || !tabId) return;
+    loadSession(repoPath, activeWorktreeId).then((session) => {
+      const scrollback = session?.terminals[tabId]?.scrollback;
+      if (scrollback) setSavedScrollback(scrollback);
+    }).catch(() => {});
+  }, [repoPath, activeWorktreeId, tabId]);
+
   const { agentState } = usePty({
     sessionKey,
     worktreeId: activeWorktreeId ?? "",
     worktreePath: worktree?.path ?? "",
     containerRef,
     mode,
+    initialScrollback: savedScrollback,
   });
 
   const handleSendFeedback = useCallback(async () => {

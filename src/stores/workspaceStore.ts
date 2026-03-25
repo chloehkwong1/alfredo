@@ -44,6 +44,7 @@ interface WorkspaceState {
   addAnnotation: (annotation: Annotation) => void;
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
   clearAnnotations: (worktreeId: string) => void;
+  restoreTabs: (worktreeId: string, tabs: WorkspaceTab[], activeTabId: string) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   /** Check runs per worktree. Keyed by worktreeId. */
@@ -324,6 +325,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         ...state.annotations,
         [worktreeId]: [],
       },
+    })),
+
+  restoreTabs: (worktreeId, tabs, activeTabId) =>
+    set((state) => ({
+      tabs: { ...state.tabs, [worktreeId]: tabs },
+      activeTabId: { ...state.activeTabId, [worktreeId]: activeTabId },
     })),
 
   toggleSidebar: () =>
