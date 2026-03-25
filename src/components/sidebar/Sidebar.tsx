@@ -5,6 +5,7 @@ import logoSvg from "../../assets/logo-cat.svg";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
 import { SidebarDragContext } from "./SidebarDragContext";
+import { ArchiveSection } from "./ArchiveSection";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
@@ -82,7 +83,9 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
     }
   }
 
-  const grouped = groupByColumn(worktrees);
+  const activeWorktrees = worktrees.filter((wt) => !wt.archived);
+  const archivedWorktrees = worktrees.filter((wt) => wt.archived);
+  const grouped = groupByColumn(activeWorktrees);
 
   // Flat list of worktrees in display order (matches COLUMNS order)
   const flatWorktrees = COLUMNS.flatMap((col) => grouped[col]);
@@ -133,6 +136,17 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
   const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
+  const [deletingCount, setDeletingCount] = useState<{ current: number; total: number } | null>(null);
+
+  async function handleDeleteAllArchived() {
+    if (!repoPath) return;
+    const total = archivedWorktrees.length;
+    for (let i = 0; i < archivedWorktrees.length; i++) {
+      setDeletingCount({ current: i + 1, total });
+      await handleDeleteWorktree(archivedWorktrees[i].id);
+    }
+    setDeletingCount(null);
+  }
 
   const MAX_DOTS = 8;
 
@@ -259,6 +273,12 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
             ))
           }
         </SidebarDragContext>
+        <ArchiveSection
+          worktrees={archivedWorktrees}
+          onDelete={handleDeleteWorktree}
+          onDeleteAll={handleDeleteAllArchived}
+          deletingCount={deletingCount}
+        />
       </div>
 
       {/* Footer — only show worktree actions when a repo is configured */}

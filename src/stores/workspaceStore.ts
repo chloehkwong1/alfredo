@@ -26,6 +26,8 @@ interface WorkspaceState {
   annotations: Record<string, Annotation[]>;
   /** Whether the sidebar is collapsed. */
   sidebarCollapsed: boolean;
+  /** Number of days after merging before a worktree is auto-archived. */
+  archiveAfterDays: number;
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
@@ -72,6 +74,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   activeTabId: {},
   annotations: {},
   sidebarCollapsed: false,
+  archiveAfterDays: 2,
   checkRuns: {},
 
   addWorktree: (worktree) =>
