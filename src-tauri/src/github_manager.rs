@@ -17,9 +17,9 @@ impl GithubManager {
         Ok(Self { client })
     }
 
-    /// Fetch all open PRs for the given owner/repo.
+    /// Fetch all open PRs and recently merged PRs for the given owner/repo.
     pub async fn sync_prs(&self, owner: &str, repo: &str) -> Result<Vec<PrStatus>, AppError> {
-        let page = self
+        let open_page = self
             .client
             .pulls(owner, repo)
             .list()
@@ -29,7 +29,7 @@ impl GithubManager {
             .await
             .map_err(|e| AppError::Github(format!("failed to fetch PRs: {e}")))?;
 
-        let prs = page
+        let mut prs: Vec<PrStatus> = open_page
             .items
             .into_iter()
             .map(|pr| PrStatus {
@@ -46,8 +46,44 @@ impl GithubManager {
                 draft: pr.draft.unwrap_or(false),
                 merged: false, // open PRs aren't merged
                 branch: pr.head.ref_field,
+                merged_at: None,
             })
             .collect();
+
+        let closed_page = self
+            .client
+            .pulls(owner, repo)
+            .list()
+            .state(octocrab::params::State::Closed)
+            .sort(octocrab::params::pulls::Sort::Updated)
+            .direction(octocrab::params::Direction::Descending)
+            .per_page(30)
+            .send()
+            .await
+            .map_err(|e| AppError::Github(format!("failed to fetch closed PRs: {e}")))?;
+
+        let merged_prs = closed_page
+            .items
+            .into_iter()
+            .filter(|pr| pr.merged_at.is_some())
+            .map(|pr| PrStatus {
+                number: pr.number,
+                state: pr
+                    .state
+                    .map(|s| format!("{s:?}").to_lowercase())
+                    .unwrap_or_else(|| "closed".to_string()),
+                title: pr.title.unwrap_or_default(),
+                url: pr
+                    .html_url
+                    .map(|u| u.to_string())
+                    .unwrap_or_default(),
+                draft: pr.draft.unwrap_or(false),
+                merged: true,
+                branch: pr.head.ref_field,
+                merged_at: pr.merged_at.map(|dt| dt.to_rfc3339()),
+            });
+
+        prs.extend(merged_prs);
 
         Ok(prs)
     }
@@ -75,7 +111,8 @@ impl GithubManager {
             None => return Ok(None),
         };
 
-        let merged = pr.merged_at.is_some();
+        let merged_at = pr.merged_at.map(|dt| dt.to_rfc3339());
+        let merged = merged_at.is_some();
         let draft = pr.draft.unwrap_or(false);
 
         let branch = pr.head.ref_field.clone();
@@ -94,6 +131,7 @@ impl GithubManager {
             draft,
             merged,
             branch,
+            merged_at,
         }))
     }
 
@@ -173,6 +211,7 @@ mod tests {
             draft: true,
             merged: false,
             branch: "feat/test".into(),
+            merged_at: None,
         };
         assert_eq!(determine_column(Some(&pr)), KanbanColumn::DraftPr);
     }
@@ -187,6 +226,7 @@ mod tests {
             draft: false,
             merged: false,
             branch: "feat/test".into(),
+            merged_at: None,
         };
         assert_eq!(determine_column(Some(&pr)), KanbanColumn::OpenPr);
     }
@@ -201,6 +241,7 @@ mod tests {
             draft: false,
             merged: true,
             branch: "feat/test".into(),
+            merged_at: None,
         };
         assert_eq!(determine_column(Some(&pr)), KanbanColumn::Done);
     }

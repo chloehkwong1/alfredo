@@ -62,6 +62,7 @@ export interface PrStatus {
   draft: boolean;
   merged: boolean;
   branch: string;
+  mergedAt?: string;
 }
 
 /** Payload emitted by the `github:pr-update` Tauri event. */
@@ -79,6 +80,7 @@ export interface PrStatusWithColumn {
   merged: boolean;
   branch: string;
   autoColumn: KanbanColumn;
+  mergedAt?: string;
 }
 
 // ── Config ──────────────────────────────────────────────────────

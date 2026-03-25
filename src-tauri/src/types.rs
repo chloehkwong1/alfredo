@@ -106,6 +106,8 @@ pub struct PrStatus {
     /// The head branch name for this PR (used to match PRs to worktrees).
     #[serde(default)]
     pub branch: String,
+    #[serde(default)]
+    pub merged_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

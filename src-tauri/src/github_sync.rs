@@ -27,6 +27,7 @@ pub struct PrStatusWithColumn {
     pub merged: bool,
     pub branch: String,
     pub auto_column: String,
+    pub merged_at: Option<String>,
 }
 
 impl From<&PrStatus> for PrStatusWithColumn {
@@ -44,6 +45,7 @@ impl From<&PrStatus> for PrStatusWithColumn {
                 .ok()
                 .and_then(|v| v.as_str().map(String::from))
                 .unwrap_or_else(|| "inProgress".to_string()),
+            merged_at: pr.merged_at.clone(),
         }
     }
 }
@@ -178,6 +180,7 @@ mod tests {
             draft: true,
             merged: false,
             branch: "feat/test".into(),
+            merged_at: None,
         };
         let with_col = PrStatusWithColumn::from(&pr);
         assert_eq!(with_col.auto_column, "draftPr");
@@ -193,6 +196,7 @@ mod tests {
             draft: false,
             merged: false,
             branch: "feat/open".into(),
+            merged_at: None,
         };
         let with_col = PrStatusWithColumn::from(&pr);
         assert_eq!(with_col.auto_column, "openPr");
@@ -208,6 +212,7 @@ mod tests {
             draft: false,
             merged: true,
             branch: "feat/done".into(),
+            merged_at: None,
         };
         let with_col = PrStatusWithColumn::from(&pr);
         assert_eq!(with_col.auto_column, "done");
