@@ -35,3 +35,11 @@ export {
   DialogDescription,
   DialogFooter,
 } from "./Dialog";
+
+export {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "./ContextMenu";
