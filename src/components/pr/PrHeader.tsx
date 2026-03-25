@@ -16,17 +16,17 @@ function PrHeader({ pr }: PrHeaderProps) {
     <div className="px-4 py-3 border-b border-border-subtle">
       <div className="flex items-center gap-2 mb-1">
         <Icon size={16} className="text-text-tertiary flex-shrink-0" />
-        <span className="text-sm font-semibold text-text-primary truncate">
+        <span className="text-body font-semibold text-text-primary truncate">
           {pr.title}
         </span>
       </div>
       <div className="flex items-center gap-2">
         <Badge variant={stateVariant}>{stateLabel}</Badge>
-        <span className="text-xs text-text-tertiary">#{pr.number}</span>
+        <span className="text-caption text-text-tertiary">#{pr.number}</span>
         <button
           type="button"
           onClick={() => openUrl(pr.url)}
-          className="ml-auto flex items-center gap-1 text-xs text-text-tertiary hover:text-accent-primary transition-colors cursor-pointer"
+          className="ml-auto flex items-center gap-1 text-caption text-text-tertiary hover:text-accent-primary transition-colors cursor-pointer"
         >
           Open on GitHub
           <ExternalLink size={11} />

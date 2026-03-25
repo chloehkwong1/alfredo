@@ -33,7 +33,7 @@ function DiffViewer({
 }: DiffViewerProps) {
   if (!file) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">
+      <div className="flex-1 flex items-center justify-center text-text-tertiary text-body">
         Select a file to view changes
       </div>
     );
@@ -53,17 +53,17 @@ function DiffViewer({
     <div className="flex-1 overflow-auto bg-bg-primary">
       {/* File header */}
       <div className="sticky top-0 z-10 px-4 py-2 bg-bg-secondary border-b border-border-subtle">
-        <span className="text-xs font-mono text-text-secondary">
+        <span className="text-caption font-mono text-text-secondary">
           {file.path}
         </span>
       </div>
 
       {/* Diff content */}
-      <div className="font-mono text-xs leading-5">
+      <div className="font-mono text-caption leading-5">
         {file.hunks.map((hunk, hunkIdx) => (
           <div key={hunkIdx}>
             {/* Hunk header */}
-            <div className="px-4 py-1 bg-accent-primary/8 text-accent-primary text-xs select-none">
+            <div className="px-4 py-1 bg-accent-primary/8 text-accent-primary text-caption select-none">
               {hunk.header}
             </div>
 

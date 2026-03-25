@@ -24,7 +24,7 @@ function basename(path: string): string {
 function FileList({ files, selectedPath, onSelectFile }: FileListProps) {
   return (
     <div className="w-[220px] flex-shrink-0 border-r border-border-subtle flex flex-col bg-bg-primary overflow-y-auto">
-      <div className="px-3 py-2 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+      <div className="px-3 py-2 text-caption font-semibold text-text-tertiary uppercase tracking-wider">
         Changed files
       </div>
       <div className="flex-1">
@@ -45,16 +45,16 @@ function FileList({ files, selectedPath, onSelectFile }: FileListProps) {
             >
               <span
                 className={[
-                  "inline-flex items-center justify-center h-4 w-4 rounded text-[10px] font-bold flex-shrink-0",
+                  "inline-flex items-center justify-center h-4 w-4 rounded text-micro font-bold flex-shrink-0",
                   cfg.color,
                 ].join(" ")}
               >
                 {cfg.label}
               </span>
-              <span className="text-xs text-text-primary truncate flex-1">
+              <span className="text-caption text-text-primary truncate flex-1">
                 {basename(file.path)}
               </span>
-              <span className="text-[10px] text-text-tertiary whitespace-nowrap flex-shrink-0">
+              <span className="text-micro text-text-tertiary whitespace-nowrap flex-shrink-0">
                 {file.additions > 0 && (
                   <span className="text-diff-added">+{file.additions}</span>
                 )}
