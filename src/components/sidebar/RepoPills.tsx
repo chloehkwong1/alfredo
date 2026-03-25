@@ -74,7 +74,7 @@ function RepoPills({
                 "transition-colors duration-[var(--transition-fast)]",
                 isActive
                   ? "bg-accent-primary/20 border border-accent-primary/35 text-accent-primary font-semibold"
-                  : "bg-[rgba(255,255,255,0.04)] text-text-tertiary hover:text-text-secondary border border-transparent",
+                  : "bg-bg-hover/50 text-text-tertiary hover:text-text-secondary border border-transparent",
               ].join(" ")}
             >
               {hasActive && (
@@ -89,7 +89,7 @@ function RepoPills({
         <button
           type="button"
           onClick={onAddRepo}
-          className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] text-text-quaternary hover:text-text-tertiary hover:bg-[rgba(255,255,255,0.05)] transition-colors flex-shrink-0 cursor-pointer"
+          className="inline-flex items-center justify-center w-5 h-5 rounded-[4px] text-text-quaternary hover:text-text-tertiary hover:bg-bg-hover transition-colors flex-shrink-0 cursor-pointer"
           aria-label="Add repository"
         >
           <Plus className="w-3 h-3" />

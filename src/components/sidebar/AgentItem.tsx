@@ -76,9 +76,9 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
               "transition-colors duration-[var(--transition-fast)]",
               isDragging ? "opacity-50 cursor-grabbing" : "cursor-grab",
               isSelected
-                ? "border-l-2 border-l-accent-primary bg-[rgba(147,51,234,0.08)]"
-                : "border-l-2 border-l-transparent bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.06)]",
-              isWaiting && !isSelected ? "bg-[color-mix(in_srgb,var(--status-waiting)_8%,transparent)]" : "",
+                ? "border-l-2 border-l-accent-primary bg-accent-muted"
+                : "border-l-2 border-l-transparent hover:bg-bg-hover",
+              isWaiting && !isSelected ? "bg-status-waiting/8" : "",
             ].join(" ")}
           >
             <span
@@ -111,10 +111,10 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
                 {(worktree.additions != null || worktree.deletions != null) && (
                   <span className="flex items-center gap-1 text-micro ml-auto flex-shrink-0">
                     {worktree.additions != null && worktree.additions > 0 && (
-                      <span className="text-text-tertiary">+{worktree.additions}</span>
+                      <span className="text-diff-added">+{worktree.additions}</span>
                     )}
                     {worktree.deletions != null && worktree.deletions > 0 && (
-                      <span className="text-text-tertiary">-{worktree.deletions}</span>
+                      <span className="text-diff-removed">-{worktree.deletions}</span>
                     )}
                   </span>
                 )}

@@ -214,7 +214,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                 "flex items-center gap-1.5 px-[14px] py-2 text-body font-medium rounded-[6px]",
                 "transition-all duration-[var(--transition-fast)] cursor-pointer",
                 activeTab === tab.id
-                  ? "bg-[#2a2928] text-text-primary shadow-sm border border-border-default"
+                  ? "bg-bg-elevated text-text-primary shadow-sm border border-border-default"
                   : "text-text-tertiary hover:text-text-secondary hover:bg-bg-hover border border-transparent",
               ].join(" ")}
             >
