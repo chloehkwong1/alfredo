@@ -56,4 +56,26 @@
   /* ── Transitions ─────────────────────────────── */
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  /* ── Spacing scale (4px base grid) ───────────── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  /* ── Typography ─────────────────────────────── */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 20px;
+  --text-xl: 26px;
+
+  /* ── Zone backgrounds ────────────────────────── */
+  --bg-sidebar: #151413;
+  --bg-bar: #1e1d1c;
+
+  /* ── Subtle border (replaces heavy borders) ─── */
+  --border-subtle: rgba(255, 255, 255, 0.06);
 }

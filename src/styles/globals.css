@@ -51,6 +51,20 @@
 
   --animate-card-in: card-in 200ms ease;
   --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
+
+  /* Zone backgrounds */
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-bar: var(--bg-bar);
+
+  /* Subtle border */
+  --color-border-subtle: var(--border-subtle);
+
+  /* Spacing */
+  --spacing-xs: var(--space-xs);
+  --spacing-sm: var(--space-sm);
+  --spacing-md: var(--space-md);
+  --spacing-lg: var(--space-lg);
+  --spacing-xl: var(--space-xl);
 }
 
 @keyframes card-in {

@@ -47,6 +47,10 @@ html[data-theme="light"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --bg-sidebar: #eeeeec;
+  --bg-bar: #f0efed;
+  --border-subtle: rgba(0, 0, 0, 0.06);
 }
 
 /* ── Synthwave ───────────────────────────────────── */
@@ -92,6 +96,10 @@ html[data-theme="synthwave"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --bg-sidebar: #140c20;
+  --bg-bar: #1e1230;
+  --border-subtle: rgba(255, 255, 255, 0.06);
 }
 
 /* ── Catppuccin (Mocha) ──────────────────────────── */
@@ -137,6 +145,10 @@ html[data-theme="catppuccin"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --bg-sidebar: #181826;
+  --bg-bar: #21212f;
+  --border-subtle: rgba(255, 255, 255, 0.06);
 }
 
 /* ── Sunset ──────────────────────────────────────── */
@@ -182,6 +194,10 @@ html[data-theme="sunset"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --bg-sidebar: #180f18;
+  --bg-bar: #221824;
+  --border-subtle: rgba(255, 255, 255, 0.06);
 }
 
 /* ── Tokyo Night ─────────────────────────────────── */
@@ -227,6 +243,10 @@ html[data-theme="tokyo-night"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --bg-sidebar: #15161f;
+  --bg-bar: #1c1d28;
+  --border-subtle: rgba(255, 255, 255, 0.06);
 }
 
 /* ── Solarized Dark ──────────────────────────────── */
@@ -272,6 +292,10 @@ html[data-theme="solarized"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --bg-sidebar: #00232d;
+  --bg-bar: #003540;
+  --border-subtle: rgba(255, 255, 255, 0.06);
 }
 
 /* ── Honeycomb ───────────────────────────────────── */
@@ -317,4 +341,8 @@ html[data-theme="honeycomb"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --bg-sidebar: #161411;
+  --bg-bar: #1f1d19;
+  --border-subtle: rgba(255, 255, 255, 0.06);
 }
