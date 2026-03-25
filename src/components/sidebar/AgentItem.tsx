@@ -46,20 +46,20 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
       {...attributes}
       {...listeners}
       className={[
-        "w-full text-left px-4 py-2.5 flex items-start gap-2.5",
+        "w-full text-left px-3 py-3 flex items-start gap-2",
+        "mx-2 rounded-lg mb-0.5",
         "transition-colors duration-[var(--transition-fast)]",
-        "hover:bg-bg-hover",
         isDragging ? "opacity-50 cursor-grabbing" : "cursor-grab",
         isSelected
-          ? "border-l-2 border-l-accent-primary bg-accent-muted"
-          : "border-l-2 border-l-transparent",
+          ? "border-l-2 border-l-accent-primary bg-[rgba(147,51,234,0.08)]"
+          : "border-l-2 border-l-transparent hover:bg-[rgba(255,255,255,0.03)]",
         isWaiting && !isSelected ? "bg-[color-mix(in_srgb,var(--status-waiting)_8%,transparent)]" : "",
       ].join(" ")}
     >
       {/* Status dot */}
       <span
         className={[
-          "mt-1.5 h-1.5 w-1.5 rounded-full flex-shrink-0",
+          "mt-1 h-[7px] w-[7px] rounded-full flex-shrink-0",
           getDotColor(worktree.agentStatus),
           shouldPulse ? "animate-pulse-dot" : "",
         ].join(" ")}
@@ -79,11 +79,11 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
         </div>
         {/* PR title */}
         {worktree.prStatus && (
-          <div className="text-[11px] text-text-tertiary truncate mt-0.5">
+          <div className="text-[11px] text-text-tertiary truncate mt-1">
             {worktree.prStatus.title}
           </div>
         )}
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-2 mt-1">
           <span className="text-xs text-text-tertiary truncate">
             {getStatusText(worktree.agentStatus)}
           </span>
