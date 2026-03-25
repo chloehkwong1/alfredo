@@ -68,9 +68,9 @@ function StatusGroup({
       <button
         onClick={() => setIsCollapsed((prev) => !prev)}
         className={[
-          "flex w-full items-center gap-2 px-4 pt-[10px] pb-2",
+          "flex w-full items-center gap-2 px-4 pt-3 pb-2",
           "cursor-pointer select-none",
-          isDone ? "text-[#57534e]" : "text-[#57534e]",
+          isDone ? "text-text-tertiary opacity-60" : "text-text-tertiary",
         ].join(" ")}
       >
         <Icon className="h-3.5 w-3.5" />

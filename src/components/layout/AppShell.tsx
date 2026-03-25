@@ -71,7 +71,7 @@ function TabBar() {
             type="button"
             onClick={() => activeWorktreeId && setActiveTabId(activeWorktreeId, tab.id)}
             className={[
-              "group h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative border-b-2 border-b-transparent",
+              "group h-full px-3 text-[13px] font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
               isActive
                 ? "text-text-primary"
                 : "text-text-tertiary hover:text-text-secondary",

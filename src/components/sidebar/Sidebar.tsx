@@ -191,7 +191,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <IconButton size="sm" label="Settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
+          <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
             <Settings />
           </IconButton>
           <IconButton
@@ -228,7 +228,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
         <div className="p-4 border-t border-border-subtle flex-shrink-0">
           <button
             type="button"
-            className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-sm font-medium hover:bg-accent-primary/25 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-[13px] font-medium hover:bg-accent-primary/25 transition-colors cursor-pointer"
             onClick={() => setCreateWorktreeOpen(true)}
           >
             <Plus className="h-4 w-4" />

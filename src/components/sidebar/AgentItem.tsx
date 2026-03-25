@@ -47,12 +47,12 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
       {...listeners}
       className={[
         "w-full text-left px-3 py-3 flex items-start gap-2",
-        "mx-2 rounded-lg mb-0.5",
+        "mx-2 rounded-lg mb-1",
         "transition-colors duration-[var(--transition-fast)]",
         isDragging ? "opacity-50 cursor-grabbing" : "cursor-grab",
         isSelected
           ? "border-l-2 border-l-accent-primary bg-[rgba(147,51,234,0.08)]"
-          : "border-l-2 border-l-transparent hover:bg-[rgba(255,255,255,0.03)]",
+          : "border-l-2 border-l-transparent bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.06)]",
         isWaiting && !isSelected ? "bg-[color-mix(in_srgb,var(--status-waiting)_8%,transparent)]" : "",
       ].join(" ")}
     >
@@ -68,7 +68,7 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-text-primary truncate">
+          <span className="text-[13px] font-medium text-text-primary truncate">
             {worktree.branch}
           </span>
           {worktree.prStatus && (
@@ -91,10 +91,10 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
           {(worktree.additions != null || worktree.deletions != null) && (
             <span className="flex items-center gap-1 text-[10px] ml-auto flex-shrink-0">
               {worktree.additions != null && worktree.additions > 0 && (
-                <span className="text-diff-added">+{worktree.additions}</span>
+                <span className="text-text-tertiary">+{worktree.additions}</span>
               )}
               {worktree.deletions != null && worktree.deletions > 0 && (
-                <span className="text-diff-removed">-{worktree.deletions}</span>
+                <span className="text-text-tertiary">-{worktree.deletions}</span>
               )}
             </span>
           )}
