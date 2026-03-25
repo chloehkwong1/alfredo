@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Terminal, Sparkles, GitCompareArrows, GitPullRequest } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { TerminalView } from "../terminal";
@@ -11,7 +12,9 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useRepoPath } from "../../hooks/useRepoPath";
 import { useDensity } from "../../hooks/useDensity";
-import { listWorktrees } from "../../api";
+import { listWorktrees, ensureAlfredoGitignore } from "../../api";
+import { saveAllSessions } from "../../services/SessionPersistence";
+import { sessionManager } from "../../services/sessionManager";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { TabType, WorkspaceTab } from "../../types";
 
@@ -177,6 +180,7 @@ function AppShell() {
   // Load worktrees from git when repo path is available
   useEffect(() => {
     if (!repoPath) return;
+    ensureAlfredoGitignore(repoPath).catch(() => {});
     listWorktrees(repoPath).then((wts) => {
       if (wts.length > 0) {
         setWorktrees(wts);
@@ -257,6 +261,52 @@ function AppShell() {
       shouldAnimateSidebar.current = false;
     }
   });
+
+  // Save sessions on app quit
+  useEffect(() => {
+    if (!repoPath) return;
+
+    const currentWindow = getCurrentWindow();
+    const unlisten = currentWindow.onCloseRequested(async (event) => {
+      event.preventDefault();
+      const state = useWorkspaceStore.getState();
+      const worktreeIds = state.worktrees.map((wt) => wt.id);
+
+      await saveAllSessions(
+        repoPath,
+        worktreeIds,
+        (wtId) => state.tabs[wtId] ?? [],
+        (wtId) => state.activeTabId[wtId] ?? "",
+        (tabId) => sessionManager.getBufferedOutputBase64(tabId),
+      );
+
+      await currentWindow.destroy();
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [repoPath]);
+
+  // Debounced auto-save every 30s
+  useEffect(() => {
+    if (!repoPath) return;
+
+    const interval = setInterval(() => {
+      const state = useWorkspaceStore.getState();
+      const worktreeIds = state.worktrees.map((wt) => wt.id);
+
+      saveAllSessions(
+        repoPath,
+        worktreeIds,
+        (wtId) => state.tabs[wtId] ?? [],
+        (wtId) => state.activeTabId[wtId] ?? "",
+        (tabId) => sessionManager.getBufferedOutputBase64(tabId),
+      ).catch((err) => console.error("Auto-save failed:", err));
+    }, 30_000);
+
+    return () => clearInterval(interval);
+  }, [repoPath]);
 
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)

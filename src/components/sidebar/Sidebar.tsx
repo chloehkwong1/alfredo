@@ -10,6 +10,7 @@ import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { deleteWorktree } from "../../api";
 import { sessionManager } from "../../services/sessionManager";
+import { deleteSession } from "../../services/SessionPersistence";
 import { useRepoPath } from "../../hooks/useRepoPath";
 import type { KanbanColumn, Worktree } from "../../types";
 
@@ -71,6 +72,13 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
       await deleteWorktree(repoPath, wt.name, true);
     } catch (e) {
       console.error("Failed to delete worktree:", e);
+    }
+
+    // 4. Delete session file
+    try {
+      await deleteSession(repoPath, id);
+    } catch {
+      // Non-critical — session file may not exist
     }
   }
 
