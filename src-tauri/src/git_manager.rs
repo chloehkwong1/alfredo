@@ -12,10 +12,16 @@ pub async fn create_worktree(
     repo_path: &str,
     branch_name: &str,
     base_branch: &str,
+    base_path: Option<&str>,
 ) -> Result<PathBuf, AppError> {
-    let worktree_dir = Path::new(repo_path)
-        .parent()
-        .unwrap_or(Path::new(repo_path))
+    let worktree_dir = base_path
+        .map(|p| Path::new(p).to_path_buf())
+        .unwrap_or_else(|| {
+            Path::new(repo_path)
+                .parent()
+                .unwrap_or(Path::new(repo_path))
+                .to_path_buf()
+        })
         .join(branch_name);
 
     let output = Command::new("git")
@@ -47,11 +53,16 @@ pub async fn delete_worktree(
     repo_path: &str,
     worktree_name: &str,
     force: bool,
+    base_path: Option<&str>,
 ) -> Result<(), AppError> {
-    // Resolve the worktree path — sibling directory of the repo
-    let worktree_path = Path::new(repo_path)
-        .parent()
-        .unwrap_or(Path::new(repo_path))
+    let worktree_path = base_path
+        .map(|p| Path::new(p).to_path_buf())
+        .unwrap_or_else(|| {
+            Path::new(repo_path)
+                .parent()
+                .unwrap_or(Path::new(repo_path))
+                .to_path_buf()
+        })
         .join(worktree_name);
 
     let mut args = vec!["worktree", "remove"];
@@ -259,14 +270,14 @@ mod tests {
         let repo_path = dir.path().to_str().unwrap();
 
         // Create a worktree
-        let wt_path = create_worktree(repo_path, "test-branch", "main").await.unwrap();
+        let wt_path = create_worktree(repo_path, "test-branch", "main", None).await.unwrap();
         assert!(wt_path.exists());
 
         // Make it dirty so non-force would fail
         std::fs::write(wt_path.join("dirty.txt"), "dirty").unwrap();
 
         // Force delete should succeed and also remove the branch
-        delete_worktree(repo_path, "test-branch", true).await.unwrap();
+        delete_worktree(repo_path, "test-branch", true, None).await.unwrap();
 
         // Worktree directory should be gone
         assert!(!wt_path.exists());

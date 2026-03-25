@@ -49,6 +49,7 @@ function WorkspaceSettingsDialog({
           githubToken: null,
           linearApiKey: null,
           branchMode: false,
+          worktreeBasePath: null,
         });
       });
   }, [open]);
@@ -121,6 +122,27 @@ function WorkspaceSettingsDialog({
                       {config.repoPath && config.repoPath !== "." ? config.repoPath : "No repository configured"}
                     </span>
                   </div>
+                </div>
+
+                {/* Worktree Base Path */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-text-primary">
+                    Worktree Directory
+                  </label>
+                  <p className="text-xs text-text-tertiary">
+                    Where new worktrees are created. Defaults to the parent of the repository.
+                  </p>
+                  <input
+                    type="text"
+                    className="w-full rounded-[var(--radius-md)] border border-border-default bg-bg-primary px-3 h-8 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                    placeholder="e.g. /Users/you/worktrees"
+                    value={config.worktreeBasePath ?? ""}
+                    onChange={(e) =>
+                      updateConfig({
+                        worktreeBasePath: e.target.value || null,
+                      })
+                    }
+                  />
                 </div>
 
                 {/* Default Branch */}

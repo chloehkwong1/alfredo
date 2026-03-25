@@ -38,13 +38,13 @@ pub async fn create_worktree(
     branch_name: String,
     base_branch: String,
 ) -> Result<Worktree> {
+    let config = config_manager::load_config(&repo_path).await?;
+    let base_path = config.worktree_base_path.as_deref();
+
     let worktree_path =
-        git_manager::create_worktree(&repo_path, &branch_name, &base_branch).await?;
+        git_manager::create_worktree(&repo_path, &branch_name, &base_branch, base_path).await?;
 
     let path_str = worktree_path.to_string_lossy().to_string();
-
-    // Run setup scripts if configured
-    let config = config_manager::load_config(&repo_path).await?;
     let create_scripts: Vec<_> = config
         .setup_scripts
         .iter()
@@ -76,7 +76,9 @@ pub async fn delete_worktree(
     worktree_name: String,
     force: bool,
 ) -> Result<()> {
-    git_manager::delete_worktree(&repo_path, &worktree_name, force).await
+    let config = config_manager::load_config(&repo_path).await?;
+    let base_path = config.worktree_base_path.as_deref();
+    git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path).await
 }
 
 /// List all worktrees for a repository.
@@ -107,10 +109,17 @@ pub async fn get_worktree_status(
 ) -> Result<Worktree> {
     let config = config_manager::load_config(&repo_path).await?;
 
-    // Resolve worktree path
-    let worktree_path = std::path::Path::new(&repo_path)
-        .parent()
-        .unwrap_or(std::path::Path::new(&repo_path))
+    // Resolve worktree path using configured base or repo parent
+    let worktree_path = config
+        .worktree_base_path
+        .as_ref()
+        .map(|p| std::path::Path::new(p).to_path_buf())
+        .unwrap_or_else(|| {
+            std::path::Path::new(&repo_path)
+                .parent()
+                .unwrap_or(std::path::Path::new(&repo_path))
+                .to_path_buf()
+        })
         .join(&worktree_name);
 
     let wt_name = worktree_name.clone();
