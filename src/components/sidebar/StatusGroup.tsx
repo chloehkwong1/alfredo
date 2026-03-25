@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useDroppable } from "@dnd-kit/core";
 import {
   Circle,
@@ -76,27 +77,38 @@ function StatusGroup({
         <span className="text-[11px] font-semibold uppercase tracking-wider">
           {label}
         </span>
-        {worktrees.length > 0 && (
-          <span className="text-[11px] font-medium">{worktrees.length}</span>
-        )}
+        <span className="ml-auto text-[10px] text-text-tertiary tabular-nums">
+          {worktrees.length}
+        </span>
         <ChevronRight
           className={[
-            "ml-auto h-3.5 w-3.5 transition-transform duration-150",
+            "h-3.5 w-3.5 transition-transform duration-150",
             isCollapsed ? "rotate-0" : "rotate-90",
           ].join(" ")}
         />
       </button>
 
       {/* Agent items */}
-      {!isCollapsed &&
-        worktrees.map((wt) => (
-          <AgentItem
-            key={wt.id}
-            worktree={wt}
-            isSelected={wt.id === activeWorktreeId}
-            onClick={() => onSelectWorktree(wt.id)}
-          />
-        ))}
+      <AnimatePresence initial={false}>
+        {!isCollapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            {worktrees.map((wt) => (
+              <AgentItem
+                key={wt.id}
+                worktree={wt}
+                isSelected={wt.id === activeWorktreeId}
+                onClick={() => onSelectWorktree(wt.id)}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
