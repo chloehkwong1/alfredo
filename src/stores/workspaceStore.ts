@@ -52,6 +52,7 @@ interface WorkspaceState {
   /** Check runs per worktree. Keyed by worktreeId. */
   checkRuns: Record<string, CheckRun[]>;
   setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
+  clearStore: () => void;
 }
 
 /**
@@ -346,4 +347,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set((state) => ({
       checkRuns: { ...state.checkRuns, [worktreeId]: runs },
     })),
+
+  clearStore: () =>
+    set({
+      worktrees: [],
+      activeWorktreeId: null,
+      columnOverrides: {},
+      lastPrState: {},
+      seenWorktrees: new Set<string>(),
+      tabs: {},
+      activeTabId: {},
+      annotations: {},
+      sidebarCollapsed: false,
+      archiveAfterDays: 2,
+      checkRuns: {},
+    }),
 }));
