@@ -26,6 +26,8 @@ struct ConfigFile {
     pub theme: Option<String>,
     #[serde(default)]
     pub notifications: Option<NotificationConfig>,
+    #[serde(default)]
+    pub worktree_base_path: Option<String>,
 }
 
 /// Load the `.alfredo.json` config from a repo root.
@@ -43,6 +45,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
             column_overrides: HashMap::new(),
             theme: None,
             notifications: None,
+            worktree_base_path: None,
         });
     }
 
@@ -62,6 +65,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
         column_overrides: file.column_overrides,
         theme: file.theme,
         notifications: file.notifications,
+        worktree_base_path: file.worktree_base_path,
     })
 }
 
@@ -77,6 +81,7 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
         column_overrides: config.column_overrides.clone(),
         theme: config.theme.clone(),
         notifications: config.notifications.clone(),
+        worktree_base_path: config.worktree_base_path.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
