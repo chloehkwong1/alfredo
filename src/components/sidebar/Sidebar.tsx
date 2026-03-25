@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Settings, PanelLeftClose, PanelLeft, Plus } from "lucide-react";
-import { IconButton, Tooltip } from "../ui";
+import { IconButton, Tooltip, TooltipProvider } from "../ui";
 import logoSvg from "../../assets/logo-cat.svg";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
@@ -119,7 +119,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
   if (sidebarCollapsed) {
     const overflow = flatWorktrees.length - MAX_DOTS;
     return (
-      <div className="flex flex-col items-center w-12 bg-bg-sidebar border-r border-border-subtle py-3 gap-3 flex-shrink-0">
+      <TooltipProvider><div className="flex flex-col items-center w-12 bg-bg-sidebar border-r border-border-subtle py-3 gap-3 flex-shrink-0">
         <img src={logoSvg} alt="Alfredo" width={28} height={28} />
         <IconButton size="sm" label="Expand sidebar" onClick={toggleSidebar}>
           <PanelLeft />
@@ -174,7 +174,7 @@ function Sidebar({ hasRepo = false }: SidebarProps) {
             />
           </>
         )}
-      </div>
+      </div></TooltipProvider>
     );
   }
 
