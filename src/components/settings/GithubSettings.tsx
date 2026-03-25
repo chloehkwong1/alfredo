@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
-import { Github, Check, Loader2, ExternalLink, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Github, Check, Loader2, X } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { listen } from "@tauri-apps/api/event";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
-  githubAuthStart,
-  githubAuthPoll,
+  githubAuthExchange,
   githubAuthUser,
   githubAuthDisconnect,
   saveConfig,
   getConfig,
 } from "../../api";
+
+const INSTALL_URL = "https://github.com/apps/alfredo-desktop/installations/new";
+const AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 interface GithubSettingsProps {
   githubToken: string;
@@ -21,7 +24,7 @@ interface GithubSettingsProps {
 
 type AuthState =
   | { step: "idle" }
-  | { step: "waiting"; userCode: string; verificationUri: string }
+  | { step: "waiting" }
   | { step: "connected"; username: string };
 
 function GithubSettings({
@@ -32,7 +35,8 @@ function GithubSettings({
 }: GithubSettingsProps) {
   const [auth, setAuth] = useState<AuthState>({ step: "idle" });
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const unlistenRef = useRef<(() => void) | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // On mount, check if we already have a token and resolve username
   useEffect(() => {
@@ -42,38 +46,88 @@ function GithubSettings({
       .catch(() => setAuth({ step: "idle" }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cleanup listeners and timeouts on unmount
+  useEffect(() => {
+    return () => {
+      unlistenRef.current?.();
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   const startAuth = useCallback(async () => {
     setError(null);
-    setLoading(true);
+    setAuth({ step: "waiting" });
+
     try {
-      const device = await githubAuthStart();
-      setAuth({
-        step: "waiting",
-        userCode: device.userCode,
-        verificationUri: device.verificationUri,
-      });
-      setLoading(false);
+      // Listen for the deep link callback from Tauri
+      unlistenRef.current?.();
+      const unlisten = await listen<{ code: string; installationId?: string }>(
+        "github-auth-callback",
+        async (event) => {
+          try {
+            const { code, installationId } = event.payload;
+            const token = await githubAuthExchange(code);
 
-      // Open browser
-      await openUrl(device.verificationUri);
+            onGithubTokenChange(token);
+            const username = await githubAuthUser(token);
+            setAuth({ step: "connected", username });
 
-      // Poll blocks on the Rust side until authorized or failed
-      const token = await githubAuthPoll(device.deviceCode, device.interval);
+            // Persist immediately so sync loop picks it up
+            const config = await getConfig(".");
+            config.githubToken = token;
+            if (installationId) {
+              config.githubInstallationId = Number(installationId);
+            }
+            await saveConfig(".", config);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+            setAuth({ step: "idle" });
+          } finally {
+            unlisten();
+            unlistenRef.current = null;
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          }
+        }
+      );
+      unlistenRef.current = unlisten;
 
-      onGithubTokenChange(token);
-      const username = await githubAuthUser(token);
-      setAuth({ step: "connected", username });
+      // Also listen for errors
+      const unlistenError = await listen<{ error: string }>(
+        "github-auth-callback-error",
+        (event) => {
+          setError(event.payload.error);
+          setAuth({ step: "idle" });
+          unlisten();
+          unlistenError();
+          unlistenRef.current = null;
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        }
+      );
 
-      // Persist immediately so sync loop picks it up
-      const config = await getConfig(".");
-      config.githubToken = token;
-      await saveConfig(".", config);
+      // Timeout after 5 minutes
+      timeoutRef.current = setTimeout(() => {
+        unlisten();
+        unlistenError();
+        unlistenRef.current = null;
+        setError("Timed out waiting for GitHub authorization. Please try again.");
+        setAuth({ step: "idle" });
+      }, AUTH_TIMEOUT_MS);
+
+      // Open the GitHub App installation page
+      await openUrl(INSTALL_URL);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setAuth({ step: "idle" });
-      setLoading(false);
     }
   }, [onGithubTokenChange]);
+
+  const cancelAuth = useCallback(() => {
+    unlistenRef.current?.();
+    unlistenRef.current = null;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setAuth({ step: "idle" });
+    setError(null);
+  }, []);
 
   const disconnect = useCallback(async () => {
     onGithubTokenChange("");
@@ -90,7 +144,7 @@ function GithubSettings({
     <div className="space-y-5">
       {/* GitHub Connection */}
       <div className="space-y-1.5">
-        <label className="text-body font-medium text-text-primary">GitHub</label>
+        <label className="text-sm font-medium text-text-primary">GitHub</label>
 
         {auth.step === "idle" && (
           <div className="space-y-2">
@@ -98,52 +152,40 @@ function GithubSettings({
               variant="secondary"
               size="sm"
               onClick={startAuth}
-              disabled={loading}
             >
-              {loading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-              ) : (
-                <Github className="h-3.5 w-3.5 mr-1.5" />
-              )}
+              <Github className="h-3.5 w-3.5 mr-1.5" />
               Connect to GitHub
             </Button>
-            <p className="text-caption text-text-tertiary">
-              Authorizes Alfredo to read your repos and PRs.
+            <p className="text-xs text-text-tertiary">
+              Installs the Alfredo app on your GitHub account to access repos and PRs.
             </p>
             {error && (
-              <p className="text-caption text-red-400">{error}</p>
+              <p className="text-xs text-red-400">{error}</p>
             )}
           </div>
         )}
 
         {auth.step === "waiting" && (
           <div className="rounded-[var(--radius-md)] border border-border-default bg-bg-secondary p-3 space-y-2">
-            <p className="text-body text-text-secondary">
-              Enter this code on GitHub:
-            </p>
-            <div className="flex items-center gap-3">
-              <code className="text-lg font-mono font-bold text-text-primary tracking-widest bg-bg-primary px-3 py-1.5 rounded-[var(--radius-sm)] border border-border-default select-all">
-                {auth.userCode}
-              </code>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => openUrl(auth.verificationUri)}
-              >
-                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                Open GitHub
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-text-secondary">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Waiting for GitHub authorization...
+              </div>
+              <Button variant="secondary" size="sm" onClick={cancelAuth}>
+                <X className="h-3.5 w-3.5 mr-1" />
+                Cancel
               </Button>
             </div>
-            <div className="flex items-center gap-2 text-caption text-text-tertiary">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Waiting for authorization...
-            </div>
+            <p className="text-xs text-text-tertiary">
+              Complete the installation in your browser, then return here.
+            </p>
           </div>
         )}
 
         {auth.step === "connected" && (
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-secondary px-3 h-8 text-body">
+            <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-secondary px-3 h-8 text-sm">
               <Check className="h-3.5 w-3.5 text-green-400" />
               <span className="text-text-primary font-medium">
                 @{auth.username}
@@ -159,7 +201,7 @@ function GithubSettings({
 
       {/* Linear API Key */}
       <div className="space-y-1.5">
-        <label className="text-body font-medium text-text-primary">
+        <label className="text-sm font-medium text-text-primary">
           Linear API Key
         </label>
         <Input
@@ -168,7 +210,7 @@ function GithubSettings({
           value={linearApiKey}
           onChange={(e) => onLinearApiKeyChange(e.target.value)}
         />
-        <p className="text-caption text-text-tertiary">
+        <p className="text-xs text-text-tertiary">
           Used for creating worktrees from Linear tickets.
         </p>
       </div>
