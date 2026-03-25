@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Terminal, Sparkles, GitCompareArrows } from "lucide-react";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
@@ -67,10 +67,10 @@ function TabBar() {
             type="button"
             onClick={() => activeWorktreeId && setActiveTabId(activeWorktreeId, tab.id)}
             className={[
-              "group h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
+              "group h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative border-b-2 border-b-transparent",
               isActive
-                ? "text-text-primary border-b-2 border-b-accent-primary"
-                : "text-text-tertiary hover:text-text-secondary border-b-2 border-b-transparent",
+                ? "text-text-primary"
+                : "text-text-tertiary hover:text-text-secondary",
             ].join(" ")}
           >
             <Icon size={13} />
@@ -85,6 +85,13 @@ function TabBar() {
                 <X size={12} />
               </span>
             )}
+            {isActive && (
+              <motion.div
+                layoutId={`tab-underline-${activeWorktreeId}`}
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary"
+                transition={{ type: "spring", stiffness: 500, damping: 35 }}
+              />
+            )}
           </button>
         );
       })}
@@ -98,29 +105,37 @@ function TabBar() {
         >
           <Plus size={16} />
         </button>
-        {menuOpen && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border-default rounded-[var(--radius-md)] shadow-lg py-1 z-20 min-w-[160px]">
-              <button
-                type="button"
-                onClick={() => handleAddTab("claude")}
-                className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
+        <AnimatePresence>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <motion.div
+                initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                transition={{ duration: 0.12 }}
+                className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border-default rounded-[var(--radius-md)] shadow-lg py-1 z-20 min-w-[160px]"
               >
-                <Sparkles size={14} />
-                New Claude tab
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddTab("shell")}
-                className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
-              >
-                <Terminal size={14} />
-                New terminal tab
-              </button>
-            </div>
-          </>
-        )}
+                <button
+                  type="button"
+                  onClick={() => handleAddTab("claude")}
+                  className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
+                >
+                  <Sparkles size={14} />
+                  New Claude tab
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddTab("shell")}
+                  className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
+                >
+                  <Terminal size={14} />
+                  New terminal tab
+                </button>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
