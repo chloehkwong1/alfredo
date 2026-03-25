@@ -108,6 +108,18 @@ pub struct PrStatus {
     pub branch: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckRun {
+    pub id: u64,
+    pub name: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+    pub html_url: String,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+}
+
 // ── Config ──────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

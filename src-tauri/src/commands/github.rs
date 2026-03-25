@@ -5,7 +5,7 @@ use crate::types::{AppError, PrStatus};
 type Result<T> = std::result::Result<T, AppError>;
 
 /// Parse "owner/repo" from a repo path by reading the git remote.
-async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String)> {
+pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String)> {
     let output = tokio::process::Command::new("git")
         .args(["remote", "get-url", "origin"])
         .current_dir(repo_path)

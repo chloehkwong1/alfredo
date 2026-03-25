@@ -1,6 +1,6 @@
 use octocrab::Octocrab;
 
-use crate::types::{AppError, KanbanColumn, PrStatus};
+use crate::types::{AppError, CheckRun, KanbanColumn, PrStatus};
 
 /// Manages GitHub API interactions via octocrab.
 pub struct GithubManager {
@@ -95,6 +95,52 @@ impl GithubManager {
             merged,
             branch,
         }))
+    }
+
+    /// Fetch check runs for a given git ref (branch, SHA, or tag).
+    pub async fn get_check_runs(
+        &self,
+        owner: &str,
+        repo: &str,
+        git_ref: &str,
+    ) -> Result<Vec<CheckRun>, AppError> {
+        let url = format!("/repos/{owner}/{repo}/commits/{git_ref}/check-runs");
+        let response: serde_json::Value = self
+            .client
+            .get(url, None::<&()>)
+            .await
+            .map_err(|e| AppError::Github(format!("failed to fetch check runs: {e}")))?;
+
+        let check_runs = response
+            .get("check_runs")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|run| {
+                        Some(CheckRun {
+                            id: run.get("id")?.as_u64()?,
+                            name: run.get("name")?.as_str()?.to_string(),
+                            status: run.get("status")?.as_str()?.to_string(),
+                            conclusion: run
+                                .get("conclusion")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            html_url: run.get("html_url")?.as_str()?.to_string(),
+                            started_at: run
+                                .get("started_at")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                            completed_at: run
+                                .get("completed_at")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(check_runs)
     }
 }
 

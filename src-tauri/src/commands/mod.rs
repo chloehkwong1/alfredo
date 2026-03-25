@@ -1,4 +1,5 @@
 pub mod branch;
+pub mod checks;
 pub mod config;
 pub mod diff;
 pub mod github;

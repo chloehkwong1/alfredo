@@ -12,7 +12,7 @@ mod types;
 
 use tauri::Manager;
 
-use commands::{branch, config, diff, github, linear, pty, repo, worktree};
+use commands::{branch, checks, config, diff, github, linear, pty, repo, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 
@@ -58,6 +58,7 @@ pub fn run() {
             // GitHub
             github::sync_pr_status,
             github::get_pr_for_branch,
+            checks::get_check_runs,
             github_sync::set_sync_repo_path,
             // Config
             config::get_config,
