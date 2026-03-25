@@ -58,7 +58,6 @@ function StatusGroup({
 
   const Icon = columnIcon[column];
   const label = columnLabel[column];
-  const isDone = column === "done";
 
   return (
     <div

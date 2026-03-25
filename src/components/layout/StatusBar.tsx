@@ -9,11 +9,7 @@ interface StatusBarProps {
 
 function StatusBar({ worktree, annotationCount }: StatusBarProps) {
   if (!worktree) {
-    return (
-      <div className="h-8 flex items-center justify-center bg-bg-bar border-t border-border-subtle flex-shrink-0 text-caption text-text-tertiary">
-        Select a worktree to get started
-      </div>
-    );
+    return <div className="h-8 bg-bg-bar border-t border-border-subtle flex-shrink-0" />;
   }
 
   const pr = worktree.prStatus;

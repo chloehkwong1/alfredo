@@ -71,8 +71,8 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
             {...attributes}
             {...listeners}
             className={[
-              "w-full text-left px-3 py-3 flex items-start gap-2",
-              "mx-2 rounded-lg mb-1",
+              "w-full text-left px-4 py-2.5 flex items-start gap-2",
+              "rounded-lg mb-0.5",
               "transition-colors duration-[var(--transition-fast)]",
               isDragging ? "opacity-50 cursor-grabbing" : "cursor-grab",
               isSelected

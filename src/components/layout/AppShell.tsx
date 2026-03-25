@@ -86,14 +86,15 @@ function TabBar() {
             <Icon size={14} />
             <span>{tab.label}</span>
             {canClose && tab.type !== "changes" && (
-              <span
-                role="button"
-                tabIndex={-1}
+              <button
+                type="button"
+                tabIndex={0}
+                aria-label={`Close ${tab.label} tab`}
                 onClick={(e) => handleCloseTab(e, tab.id)}
-                className="ml-0.5 opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary rounded p-0.5 transition-opacity"
+                className="ml-0.5 opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary rounded p-0.5 transition-opacity cursor-pointer"
               >
                 <X size={12} />
-              </span>
+              </button>
             )}
             {isActive && (
               <motion.div
