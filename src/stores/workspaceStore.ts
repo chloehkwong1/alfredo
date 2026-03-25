@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   Annotation,
+  CheckRun,
   KanbanColumn,
   PrStatusWithColumn,
   TabType,
@@ -43,6 +44,9 @@ interface WorkspaceState {
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
   clearAnnotations: (worktreeId: string) => void;
   toggleSidebar: () => void;
+  /** Check runs per worktree. Keyed by worktreeId. */
+  checkRuns: Record<string, CheckRun[]>;
+  setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
 }
 
 /**
@@ -65,6 +69,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   activeTabId: {},
   annotations: {},
   sidebarCollapsed: false,
+  checkRuns: {},
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -203,6 +208,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           ? count > 0 ? `Claude ${count + 1}` : "Claude"
           : type === "shell"
             ? count > 0 ? `Terminal ${count + 1}` : "Terminal"
+            : type === "pr" ? "PR"
             : "Changes";
       const tab: WorkspaceTab = {
         id: `${worktreeId}:${type}:${crypto.randomUUID().slice(0, 8)}`,
@@ -275,4 +281,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   toggleSidebar: () =>
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+  setCheckRuns: (worktreeId, runs) =>
+    set((state) => ({
+      checkRuns: { ...state.checkRuns, [worktreeId]: runs },
+    })),
 }));

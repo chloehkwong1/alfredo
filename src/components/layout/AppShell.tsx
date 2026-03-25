@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, Terminal, Sparkles, GitCompareArrows } from "lucide-react";
+import { Plus, X, Terminal, Sparkles, GitCompareArrows, GitPullRequest } from "lucide-react";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { TerminalView } from "../terminal";
@@ -16,6 +16,7 @@ const TAB_ICONS: Record<TabType, typeof Terminal> = {
   claude: Sparkles,
   shell: Terminal,
   changes: GitCompareArrows,
+  pr: GitPullRequest,
 };
 
 const EMPTY_TABS: WorkspaceTab[] = [];

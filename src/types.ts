@@ -161,7 +161,17 @@ export interface CommitInfo {
 
 // ── Workspace tabs ──────────────────────────────────────────────
 
-export type TabType = "claude" | "shell" | "changes";
+export type TabType = "claude" | "shell" | "changes" | "pr";
+
+export interface CheckRun {
+  id: number;
+  name: string;
+  status: string;       // "queued" | "in_progress" | "completed"
+  conclusion: string | null;
+  htmlUrl: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}
 
 export interface WorkspaceTab {
   id: string;

@@ -1,6 +1,7 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import type {
   AppConfig,
+  CheckRun,
   CommitInfo,
   DiffFile,
   KanbanColumn,
@@ -209,4 +210,10 @@ export function getDiffForCommit(
 
 export function validateGitRepo(path: string): Promise<boolean> {
   return invoke("validate_git_repo", { path });
+}
+
+// ── Check Runs ──────────────────────────────────────────────────
+
+export function getCheckRuns(repoPath: string, branch: string): Promise<CheckRun[]> {
+  return invoke("get_check_runs", { repoPath, branch });
 }
