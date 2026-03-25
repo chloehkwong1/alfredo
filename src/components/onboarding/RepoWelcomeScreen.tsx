@@ -83,7 +83,7 @@ function RepoWelcomeScreen({ onRepoSelected, error, onClearError }: RepoWelcomeS
           Open a repository
         </Button>
         {error && (
-          <p className="text-sm text-status-error mt-5">{error}</p>
+          <p className="text-caption text-status-error mt-5">{error}</p>
         )}
         <p className="text-body text-text-tertiary mt-5">
           or drag a folder here

@@ -200,7 +200,7 @@ function RepoSetupDialog({
             </div>
 
             {githubConnected ? (
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-body">
                 <Check className="h-3.5 w-3.5 text-green-400" />
                 <span className="text-text-primary font-medium">@{githubConnected}</span>
                 {usingExistingGithub && (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Terminal, Sparkles, GitCompareArrows, GitPullRequest } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -6,13 +6,16 @@ import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { TerminalView } from "../terminal";
 import { ChangesView } from "../changes/ChangesView";
-import { OnboardingScreen } from "../onboarding/OnboardingScreen";
+import { RepoWelcomeScreen } from "../onboarding/RepoWelcomeScreen";
+import { AddRepoModal } from "../onboarding/AddRepoModal";
+import { RepoSetupDialog } from "../onboarding/RepoSetupDialog";
+import { RemoveRepoDialog } from "../sidebar/RemoveRepoDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { PrDetailPanel } from "../pr/PrDetailPanel";
-import { useRepoPath } from "../../hooks/useRepoPath";
+import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats } from "../../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath } from "../../api";
 import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -126,7 +129,7 @@ function TabBar() {
                 <button
                   type="button"
                   onClick={() => handleAddTab("claude")}
-                  className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
+                  className="w-full px-3 py-1.5 text-body text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
                 >
                   <Sparkles size={14} />
                   New Claude tab
@@ -134,7 +137,7 @@ function TabBar() {
                 <button
                   type="button"
                   onClick={() => handleAddTab("shell")}
-                  className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
+                  className="w-full px-3 py-1.5 text-body text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
                 >
                   <Terminal size={14} />
                   New terminal tab
@@ -142,7 +145,7 @@ function TabBar() {
                 <button
                   type="button"
                   onClick={() => handleAddTab("pr")}
-                  className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
+                  className="w-full px-3 py-1.5 text-body text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
                 >
                   <GitPullRequest size={14} />
                   PR & Checks
@@ -169,19 +172,86 @@ function AppShell() {
   const addTab = useWorkspaceStore((s) => s.addTab);
   const setActiveTabId = useWorkspaceStore((s) => s.setActiveTabId);
   const annotations = useWorkspaceStore((s) => s.annotations);
-  const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
+  const clearStore = useWorkspaceStore((s) => s.clearStore);
 
   useDensity();
 
-  const { repoPath, setRepoPath, error, clearError, loading } = useRepoPath();
+  const {
+    config: _appConfig,
+    loading,
+    error,
+    clearError,
+    activeRepo: repoPath,
+    repos,
+    addRepo,
+    removeRepo,
+    switchRepo,
+    updateRepoMode,
+  } = useAppConfig();
+
   const setWorktrees = useWorkspaceStore((s) => s.setWorktrees);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
+  // Dialog state for multi-repo lifecycle
+  const [addRepoModalOpen, setAddRepoModalOpen] = useState(false);
+  const [setupDialogOpen, setSetupDialogOpen] = useState(false);
+  const [setupRepoPath, setSetupRepoPath] = useState<string | null>(null);
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [removeRepoPath, setRemoveRepoPath] = useState<string | null>(null);
+
+  const hasWorktrees = worktrees.length > 0;
+
+  // Repo switching handler — save sessions, clear store, switch
+  const handleSwitchRepo = useCallback(async (path: string) => {
+    if (repoPath && hasWorktrees) {
+      const state = useWorkspaceStore.getState();
+      await saveAllSessions(
+        repoPath,
+        state.worktrees.map((wt) => wt.id),
+        (wtId) => state.tabs[wtId] ?? [],
+        (wtId) => state.activeTabId[wtId] ?? "",
+        (tabId) => sessionManager.getBufferedOutputBase64(tabId),
+      );
+    }
+    clearStore();
+    await switchRepo(path);
+  }, [repoPath, hasWorktrees, switchRepo, clearStore]);
+
+  // When a new repo is selected (from welcome screen or add modal)
+  const handleRepoSelected = useCallback(async (path: string) => {
+    const result = await addRepo(path);
+    if (result) {
+      setAddRepoModalOpen(false);
+      setSetupRepoPath(path);
+      setSetupDialogOpen(true);
+    }
+  }, [addRepo]);
+
+  // When repo setup is configured
+  const handleRepoConfigured = useCallback(async (mode: "worktree" | "branch") => {
+    if (!setupRepoPath) return;
+    await updateRepoMode(setupRepoPath, mode);
+    setSetupDialogOpen(false);
+    if (mode === "worktree") {
+      setCreateDialogOpen(true);
+    }
+    setSetupRepoPath(null);
+  }, [setupRepoPath, updateRepoMode]);
+
+  // When removing a repo
+  const handleRemoveRepo = useCallback(async () => {
+    if (!removeRepoPath) return;
+    await removeRepo(removeRepoPath);
+    setRemoveDialogOpen(false);
+    setRemoveRepoPath(null);
+  }, [removeRepoPath, removeRepo]);
+
   // Load worktrees from git when repo path is available
   useEffect(() => {
     if (!repoPath) return;
+    setSyncRepoPath(repoPath).catch(() => {});
     listWorktrees(repoPath).then(async (wts) => {
       if (wts.length > 0) {
         // Show sidebar immediately (diff stats load in background)
@@ -263,7 +333,8 @@ function AppShell() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeWorktreeId, activeTab, tabs, addTab, setActiveTabId]);
 
-  const isOnboarding = !loading && worktrees.length === 0;
+  const hasNoRepos = !loading && repos.length === 0;
+  const activeRepoEntry = repos.find((r) => r.path === repoPath);
 
   // Track onboarding → normal transition for sidebar animation
   useEffect(() => {
@@ -284,7 +355,6 @@ function AppShell() {
   });
 
   // Save sessions on app quit (only when worktrees exist — not during onboarding)
-  const hasWorktrees = worktrees.length > 0;
   useEffect(() => {
     if (!repoPath || !hasWorktrees) return;
 
@@ -343,21 +413,27 @@ function AppShell() {
     );
   }
 
-  // Onboarding — no sidebar
-  if (isOnboarding) {
+  // No repos — show welcome screen
+  if (hasNoRepos) {
     return (
       <>
-        <OnboardingScreen
-          repoPath={repoPath}
+        <RepoWelcomeScreen
+          onRepoSelected={handleRepoSelected}
           error={error}
-          onRepoSelected={setRepoPath}
           onClearError={clearError}
-          onCreateWorktree={() => setCreateDialogOpen(true)}
         />
+        {setupRepoPath && (
+          <RepoSetupDialog
+            open={setupDialogOpen}
+            onOpenChange={setSetupDialogOpen}
+            repoPath={setupRepoPath}
+            onConfigured={handleRepoConfigured}
+          />
+        )}
         <CreateWorktreeDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
-          repoPath={repoPath ?? undefined}
+          repoPath={setupRepoPath ?? undefined}
         />
       </>
     );
@@ -369,10 +445,27 @@ function AppShell() {
       <motion.div
         className="flex-shrink-0 h-full overflow-hidden"
         initial={shouldAnimateSidebar.current ? { x: -260, opacity: 0 } : false}
-        animate={{ x: 0, opacity: 1, width: sidebarCollapsed ? 48 : 260 }}
+        animate={{ x: 0, opacity: 1, width: 260 }}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
       >
-        <Sidebar hasRepo={!!repoPath} />
+        <Sidebar
+          hasRepo={!!repoPath}
+          repos={repos}
+          activeRepo={repoPath}
+          onSwitchRepo={handleSwitchRepo}
+          onAddRepo={() => setAddRepoModalOpen(true)}
+          onRemoveRepo={(path: string) => {
+            setRemoveRepoPath(path);
+            setRemoveDialogOpen(true);
+          }}
+          activeRepoMode={activeRepoEntry?.mode ?? "worktree"}
+          onEnableWorktrees={() => {
+            if (repoPath) {
+              setSetupRepoPath(repoPath);
+              setSetupDialogOpen(true);
+            }
+          }}
+        />
       </motion.div>
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar />
@@ -393,13 +486,43 @@ function AppShell() {
             />
           )}
           {!activeWorktreeId && (
-            <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+            <div className="flex items-center justify-center h-full text-text-tertiary text-body">
               Select a worktree to get started
             </div>
           )}
         </main>
         <StatusBar worktree={worktree} annotationCount={annotationCount} />
       </div>
+
+      {/* Multi-repo dialogs */}
+      <AddRepoModal
+        open={addRepoModalOpen}
+        onOpenChange={setAddRepoModalOpen}
+        onRepoSelected={handleRepoSelected}
+        error={error}
+        onClearError={clearError}
+      />
+      {setupRepoPath && (
+        <RepoSetupDialog
+          open={setupDialogOpen}
+          onOpenChange={setSetupDialogOpen}
+          repoPath={setupRepoPath}
+          existingGithubToken={null}
+          existingLinearKey={null}
+          onConfigured={handleRepoConfigured}
+        />
+      )}
+      <RemoveRepoDialog
+        open={removeDialogOpen}
+        onOpenChange={setRemoveDialogOpen}
+        repoName={removeRepoPath?.split("/").filter(Boolean).pop() ?? ""}
+        onConfirm={handleRemoveRepo}
+      />
+      <CreateWorktreeDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        repoPath={repoPath ?? undefined}
+      />
     </div>
   );
 }

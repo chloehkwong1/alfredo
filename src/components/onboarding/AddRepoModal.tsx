@@ -103,7 +103,7 @@ function AddRepoModal({
         </div>
 
         {error && (
-          <p className="text-sm text-status-error mt-3">{error}</p>
+          <p className="text-caption text-status-error mt-3">{error}</p>
         )}
       </DialogContent>
     </Dialog>

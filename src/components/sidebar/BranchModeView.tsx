@@ -48,10 +48,10 @@ function BranchModeView({
 
       {activeBranch && (
         <div className="flex flex-col items-center gap-1">
-          <span className="text-[9px] uppercase tracking-wider text-text-tertiary">
+          <span className="text-micro uppercase tracking-wider text-text-tertiary">
             Current branch
           </span>
-          <span className="text-[11px] text-text-secondary font-mono">
+          <span className="text-caption text-text-secondary font-mono">
             {activeBranch}
           </span>
         </div>

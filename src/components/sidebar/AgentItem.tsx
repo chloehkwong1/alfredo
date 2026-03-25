@@ -105,7 +105,7 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
                 </div>
               )}
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-text-tertiary truncate">
+                <span className="text-caption text-text-tertiary truncate">
                   {getStatusText(worktree.agentStatus)}
                 </span>
                 {(worktree.additions != null || worktree.deletions != null) && (
@@ -143,7 +143,7 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
       </ContextMenu>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[420px]">
           <DialogHeader>
             <DialogTitle>Delete worktree</DialogTitle>
             <DialogDescription>

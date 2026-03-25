@@ -47,7 +47,7 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
         )}
         {annotationCount > 0 && (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-accent-primary/15 text-accent-primary text-micro font-medium">
-            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent-primary text-text-on-accent text-[9px] font-semibold">
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent-primary text-text-on-accent text-micro font-semibold">
               {annotationCount}
             </span>
             {annotationCount === 1 ? "annotation" : "annotations"}

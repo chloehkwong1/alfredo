@@ -70,7 +70,7 @@ function RepoPills({
               onContextMenu={(e) => handleContextMenu(e, repo.path)}
               className={[
                 "inline-flex items-center gap-1 px-3.5 py-1 rounded-[5px] cursor-pointer",
-                "text-[10px] whitespace-nowrap flex-shrink-0",
+                "text-caption whitespace-nowrap flex-shrink-0",
                 "transition-colors duration-[var(--transition-fast)]",
                 isActive
                   ? "bg-accent-primary/20 border border-accent-primary/35 text-accent-primary font-semibold"
@@ -105,7 +105,7 @@ function RepoPills({
         >
           <button
             type="button"
-            className="w-full text-left px-3 py-1.5 text-[11px] text-red-400 hover:bg-bg-hover cursor-pointer transition-colors"
+            className="w-full text-left px-3 py-1.5 text-caption text-red-400 hover:bg-bg-hover cursor-pointer transition-colors"
             onClick={() => {
               onRemoveRepo(contextMenu.repoPath);
               setContextMenu(null);
