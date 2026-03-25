@@ -249,7 +249,7 @@ function Sidebar({
               </button>
               <button
                 type="button"
-                className="w-full text-center text-caption text-text-tertiary hover:text-text-secondary mt-2 cursor-pointer transition-colors"
+                className="w-full text-center text-caption text-text-tertiary hover:text-text-secondary hover:underline mt-2 cursor-pointer transition-colors"
                 onClick={() => setWorkspaceSettingsOpen(true)}
               >
                 Workspace settings

@@ -2,6 +2,14 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Archive, ChevronRight, Trash2 } from "lucide-react";
 import { Button } from "../ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../ui/Dialog";
 import type { Worktree } from "../../types";
 
 interface ArchiveSectionProps {
@@ -13,6 +21,7 @@ interface ArchiveSectionProps {
 
 function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: ArchiveSectionProps) {
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
 
   if (worktrees.length === 0) return null;
 
@@ -51,7 +60,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: Arc
                 variant="ghost"
                 size="sm"
                 className="text-red-400 hover:text-red-300 text-caption w-full"
-                onClick={onDeleteAll}
+                onClick={() => setDeleteAllDialogOpen(true)}
                 disabled={!!deletingCount}
               >
                 {deletingCount
@@ -80,6 +89,23 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: Arc
           </motion.div>
         )}
       </AnimatePresence>
+
+      <Dialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+        <DialogContent className="w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete all archived worktrees</DialogTitle>
+            <DialogDescription>
+              This will delete {worktrees.length} worktree{worktrees.length === 1 ? "" : "s"} and their local branches. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDeleteAllDialogOpen(false)}>Cancel</Button>
+            <Button variant="danger" onClick={() => { setDeleteAllDialogOpen(false); onDeleteAll(); }}>
+              Delete all
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

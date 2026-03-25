@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Plus, X, Terminal, Sparkles, GitCompareArrows, GitPullRequest } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "../ui/DropdownMenu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
@@ -40,8 +46,6 @@ function TabBar() {
   const addTab = useWorkspaceStore((s) => s.addTab);
   const removeTab = useWorkspaceStore((s) => s.removeTab);
   const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
-  const [menuOpen, setMenuOpen] = useState(false);
-
   // Ensure default tabs exist when worktree is selected
   useEffect(() => {
     if (activeWorktreeId) {
@@ -53,7 +57,6 @@ function TabBar() {
     if (activeWorktreeId) {
       addTab(activeWorktreeId, type);
     }
-    setMenuOpen(false);
   }
 
   function handleCloseTab(e: React.MouseEvent, tabId: string) {
@@ -108,54 +111,27 @@ function TabBar() {
       })}
 
       {/* Add tab button */}
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="h-10 px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
-        >
-          <Plus size={16} />
-        </button>
-        <AnimatePresence>
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <motion.div
-                initial={{ opacity: 0, y: -4, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -4, scale: 0.95 }}
-                transition={{ duration: 0.12 }}
-                className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border-default rounded-[var(--radius-md)] shadow-lg py-1 z-20 min-w-[160px]"
-              >
-                <button
-                  type="button"
-                  onClick={() => handleAddTab("claude")}
-                  className="w-full px-3 py-1.5 text-body text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
-                >
-                  <Sparkles size={14} />
-                  New Claude tab
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAddTab("shell")}
-                  className="w-full px-3 py-1.5 text-body text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
-                >
-                  <Terminal size={14} />
-                  New terminal tab
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAddTab("pr")}
-                  className="w-full px-3 py-1.5 text-body text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
-                >
-                  <GitPullRequest size={14} />
-                  PR & Checks
-                </button>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="h-10 px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
+          >
+            <Plus size={16} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onSelect={() => handleAddTab("claude")}>
+            <Sparkles size={14} /> New Claude tab
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
+            <Terminal size={14} /> New terminal tab
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => handleAddTab("pr")}>
+            <GitPullRequest size={14} /> PR & Checks
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -487,8 +463,9 @@ function AppShell() {
             />
           )}
           {!activeWorktreeId && (
-            <div className="flex items-center justify-center h-full text-text-tertiary text-body">
-              Select a worktree to get started
+            <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-2">
+              <span className="text-body">Select a worktree to get started</span>
+              <span className="text-caption">Each worktree gets its own branch, terminal, and agent</span>
             </div>
           )}
         </main>

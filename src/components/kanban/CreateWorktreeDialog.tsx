@@ -208,7 +208,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
               key={tab.id}
               onClick={() => {
                 setActiveTab(tab.id);
-                setSearchQuery("");
               }}
               className={[
                 "flex items-center gap-1.5 px-[14px] py-2 text-body font-medium rounded-[6px]",
