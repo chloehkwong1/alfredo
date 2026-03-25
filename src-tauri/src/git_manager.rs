@@ -69,6 +69,27 @@ pub async fn delete_worktree(repo_path: &str, worktree_name: &str) -> Result<(),
     Ok(())
 }
 
+/// Get diff stats (additions, deletions) for uncommitted changes in a worktree.
+pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
+    let repo = Repository::open(worktree_path)
+        .map_err(|e| AppError::Git(format!("failed to open repo for diff stats: {e}")))?;
+
+    let head_tree = repo
+        .head()
+        .ok()
+        .and_then(|h| h.peel_to_tree().ok());
+
+    let diff = repo
+        .diff_tree_to_workdir_with_index(head_tree.as_ref(), None)
+        .map_err(|e| AppError::Git(format!("failed to compute diff: {e}")))?;
+
+    let stats = diff
+        .stats()
+        .map_err(|e| AppError::Git(format!("failed to get diff stats: {e}")))?;
+
+    Ok((stats.insertions() as u32, stats.deletions() as u32))
+}
+
 /// List all worktrees using git2 for reads.
 pub fn list_worktrees(repo_path: &str) -> Result<Vec<Worktree>, AppError> {
     let repo = Repository::open(repo_path)
@@ -91,6 +112,11 @@ pub fn list_worktrees(repo_path: &str) -> Result<Vec<Worktree>, AppError> {
         let wt_path = wt.path().to_path_buf();
         let branch = get_branch_for_path(&wt_path).unwrap_or_else(|| name.to_string());
 
+        let (additions, deletions) = match get_diff_stats(&wt_path.to_string_lossy()) {
+            Ok((a, d)) => (Some(a), Some(d)),
+            Err(_) => (None, None),
+        };
+
         worktrees.push(Worktree {
             id: name.to_string(),
             name: name.to_string(),
@@ -100,6 +126,8 @@ pub fn list_worktrees(repo_path: &str) -> Result<Vec<Worktree>, AppError> {
             agent_status: AgentState::NotRunning,
             column: KanbanColumn::InProgress,
             is_branch_mode: false,
+            additions,
+            deletions,
         });
     }
 

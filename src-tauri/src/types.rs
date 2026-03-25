@@ -68,6 +68,8 @@ pub struct Worktree {
     pub agent_status: AgentState,
     pub column: KanbanColumn,
     pub is_branch_mode: bool,
+    pub additions: Option<u32>,
+    pub deletions: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

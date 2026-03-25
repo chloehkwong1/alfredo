@@ -40,6 +40,8 @@ pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>),
             agent_status: AgentState::NotRunning,
             column: KanbanColumn::InProgress,
             is_branch_mode: true,
+            additions: None,
+            deletions: None,
         });
     }
 
@@ -76,6 +78,8 @@ pub async fn create_branch(
         agent_status: AgentState::NotRunning,
         column: KanbanColumn::InProgress,
         is_branch_mode: true,
+        additions: None,
+        deletions: None,
     })
 }
 

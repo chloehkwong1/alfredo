@@ -1,5 +1,6 @@
 use crate::config_manager;
 use crate::git_manager;
+use crate::git_manager::get_diff_stats;
 use crate::github_manager::GithubManager;
 use crate::linear_manager;
 use crate::types::{AgentState, AppError, KanbanColumn, Worktree, WorktreeSource};
@@ -63,6 +64,8 @@ pub async fn create_worktree(
         agent_status: AgentState::NotRunning,
         column: KanbanColumn::InProgress,
         is_branch_mode: config.branch_mode,
+        additions: None,
+        deletions: None,
     })
 }
 
@@ -97,14 +100,20 @@ pub async fn get_worktree_status(
         .parent()
         .unwrap_or(std::path::Path::new(&repo_path))
         .join(&worktree_name);
-    let wt_path_str = worktree_path.to_string_lossy().to_string();
 
     let wt_name = worktree_name.clone();
+    let wt_path_str = worktree_path.to_string_lossy().to_string();
     let status = tokio::task::spawn_blocking(move || git_manager::get_status(&wt_path_str))
         .await
         .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
 
     let status = status?;
+
+    let path_str = worktree_path.to_string_lossy().to_string();
+    let (additions, deletions) = match get_diff_stats(&path_str) {
+        Ok((a, d)) => (Some(a), Some(d)),
+        Err(_) => (None, None),
+    };
 
     // Determine column from config overrides or default
     let column = config_manager::get_column_override(&config, &wt_name)
@@ -113,12 +122,14 @@ pub async fn get_worktree_status(
     Ok(Worktree {
         id: wt_name.clone(),
         name: wt_name,
-        path: worktree_path.to_string_lossy().to_string(),
+        path: path_str,
         branch: status.branch,
         pr_status: None,
         agent_status: AgentState::NotRunning,
         column,
         is_branch_mode: config.branch_mode,
+        additions,
+        deletions,
     })
 }
 

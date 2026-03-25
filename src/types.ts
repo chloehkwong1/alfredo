@@ -35,6 +35,8 @@ export interface Worktree {
   agentStatus: AgentState;
   column: KanbanColumn;
   isBranchMode: boolean;
+  additions: number | null;
+  deletions: number | null;
 }
 
 export type KanbanColumn =

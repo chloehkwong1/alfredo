@@ -77,10 +77,27 @@ function AgentItem({ worktree, isSelected, onClick }: AgentItemProps) {
             </span>
           )}
         </div>
+        {/* PR title */}
+        {worktree.prStatus && (
+          <div className="text-[11px] text-text-tertiary truncate mt-0.5">
+            {worktree.prStatus.title}
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-xs text-text-tertiary truncate">
             {getStatusText(worktree.agentStatus)}
           </span>
+          {/* Diff stats */}
+          {(worktree.additions != null || worktree.deletions != null) && (
+            <span className="flex items-center gap-1 text-[10px] ml-auto flex-shrink-0">
+              {worktree.additions != null && worktree.additions > 0 && (
+                <span className="text-diff-added">+{worktree.additions}</span>
+              )}
+              {worktree.deletions != null && worktree.deletions > 0 && (
+                <span className="text-diff-removed">-{worktree.deletions}</span>
+              )}
+            </span>
+          )}
         </div>
       </div>
     </button>
