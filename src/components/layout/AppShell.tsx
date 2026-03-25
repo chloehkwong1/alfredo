@@ -8,6 +8,7 @@ import { ChangesView } from "../changes/ChangesView";
 import { OnboardingScreen } from "../onboarding/OnboardingScreen";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useRepoPath } from "../../hooks/useRepoPath";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { TabType, WorkspaceTab } from "../../types";
@@ -132,6 +133,14 @@ function TabBar() {
                 >
                   <Terminal size={14} />
                   New terminal tab
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddTab("pr")}
+                  className="w-full px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-tertiary flex items-center gap-2 cursor-pointer"
+                >
+                  <GitPullRequest size={14} />
+                  PR & Checks
                 </button>
               </motion.div>
             </>
@@ -279,7 +288,12 @@ function AppShell() {
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar />
         <main className="flex-1 min-h-0">
-          {activeTab?.type === "changes" && activeWorktreeId ? (
+          {activeTab?.type === "pr" && activeWorktreeId && worktree ? (
+            <PrDetailPanel
+              worktree={worktree}
+              repoPath={worktree.path}
+            />
+          ) : activeTab?.type === "changes" && activeWorktreeId ? (
             <ChangesView
               worktreeId={activeWorktreeId}
               repoPath={worktree?.path ?? "."}

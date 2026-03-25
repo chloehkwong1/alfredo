@@ -168,8 +168,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         return { ...wt, prStatus, column };
       });
 
+      // Auto-create PR tabs for worktrees that gained a PR
+      const newTabs = { ...state.tabs };
+      for (const wt of worktrees) {
+        const existingTabs = newTabs[wt.id] ?? [];
+        const hasPrTab = existingTabs.some((t) => t.type === "pr");
+
+        if (wt.prStatus && !hasPrTab) {
+          // Worktree gained a PR — add PR tab before Changes
+          const prTab: WorkspaceTab = { id: `${wt.id}:pr`, type: "pr", label: "PR" };
+          const changesIdx = existingTabs.findIndex((t) => t.type === "changes");
+          const tabs = [...existingTabs];
+          if (changesIdx >= 0) {
+            tabs.splice(changesIdx, 0, prTab);
+          } else {
+            tabs.push(prTab);
+          }
+          newTabs[wt.id] = tabs;
+        }
+      }
+
       return {
         worktrees,
+        tabs: newTabs,
         columnOverrides: newOverrides,
         lastPrState: newLastPrState,
       };
