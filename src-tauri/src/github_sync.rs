@@ -87,13 +87,22 @@ pub struct SyncState {
 }
 
 /// Set the repo path so the sync loop knows what to poll.
+/// Also triggers an immediate poll so worktrees get correct PR status on startup
+/// without waiting for the next 30-second tick.
 #[tauri::command]
 pub async fn set_sync_repo_path(
+    app_handle: tauri::AppHandle,
     state: tauri::State<'_, SyncState>,
     repo_path: String,
 ) -> Result<(), String> {
-    let mut path = state.repo_path.lock().map_err(|e| e.to_string())?;
-    *path = Some(repo_path);
+    {
+        let mut path = state.repo_path.lock().map_err(|e| e.to_string())?;
+        *path = Some(repo_path);
+    }
+    // Fire an immediate poll so the frontend doesn't wait 30s for PR status
+    if let Err(e) = poll_once(&app_handle).await {
+        eprintln!("[github_sync] immediate poll after set_sync_repo_path: {e}");
+    }
     Ok(())
 }
 
