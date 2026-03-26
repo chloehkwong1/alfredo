@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Send, Trash2, MessageSquare } from "lucide-react";
 import { DiffToolbar } from "./DiffToolbar";
+import { CommitDetailBar } from "./CommitDetailBar";
+import { CommitList } from "./CommitList";
 import { FileList } from "./FileList";
 import { DiffViewer } from "./DiffViewer";
 import { getDiff, getCommits, getDiffForCommit, writePty } from "../../api";
@@ -213,27 +215,41 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
       <DiffToolbar
         mode={mode}
         onModeChange={handleModeChange}
-        commits={commits}
-        currentCommitIndex={currentCommitIndex}
-        onCommitStep={handleCommitStep}
         totalAdditions={totalAdditions}
         totalDeletions={totalDeletions}
         fileCount={files.length}
       />
       <div className="flex flex-1 min-h-0">
-        <FileList
-          files={files}
-          selectedPath={selectedFilePath}
-          onSelectFile={handleSelectFile}
-        />
-        <DiffViewer
-          file={selectedFile}
-          annotations={filteredAnnotations}
-          onAddAnnotation={handleAddAnnotation}
-          onSubmitAnnotation={handleSubmitAnnotation}
-          onDeleteAnnotation={handleDeleteAnnotation}
-          activeAnnotationLine={activeAnnotationLine}
-        />
+        {/* Left panel: commits (if commit mode) + files */}
+        <div className="w-[260px] flex-shrink-0 border-r border-border-subtle flex flex-col bg-bg-primary">
+          {mode === "commit" && commits.length > 0 && (
+            <CommitList
+              commits={commits}
+              selectedIndex={currentCommitIndex}
+              onSelect={handleCommitStep}
+            />
+          )}
+          <FileList
+            files={files}
+            selectedPath={selectedFilePath}
+            onSelectFile={handleSelectFile}
+            stacked={mode === "commit" && commits.length > 0}
+          />
+        </div>
+        {/* Right area: commit detail bar + diff */}
+        <div className="flex flex-col flex-1 min-w-0">
+          {mode === "commit" && commits.length > 0 && (
+            <CommitDetailBar commit={commits[currentCommitIndex]} />
+          )}
+          <DiffViewer
+            file={selectedFile}
+            annotations={filteredAnnotations}
+            onAddAnnotation={handleAddAnnotation}
+            onSubmitAnnotation={handleSubmitAnnotation}
+            onDeleteAnnotation={handleDeleteAnnotation}
+            activeAnnotationLine={activeAnnotationLine}
+          />
+        </div>
       </div>
     </div>
   );

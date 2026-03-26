@@ -4,6 +4,8 @@ interface FileListProps {
   files: DiffFile[];
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
+  /** When true, renders as a flex-[2] section with top border (for stacking under CommitList) */
+  stacked?: boolean;
 }
 
 const statusConfig: Record<
@@ -21,13 +23,16 @@ function basename(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
-function FileList({ files, selectedPath, onSelectFile }: FileListProps) {
+function FileList({ files, selectedPath, onSelectFile, stacked }: FileListProps) {
   return (
-    <div className="w-[220px] flex-shrink-0 border-r border-border-subtle flex flex-col bg-bg-primary overflow-y-auto">
-      <div className="px-3 py-2 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+    <div className={stacked ? "flex flex-col flex-[2] min-h-0" : "flex flex-col flex-1 min-h-0"}>
+      <div className={[
+        "px-3 py-2 text-xs font-semibold text-text-tertiary uppercase tracking-wider flex-shrink-0",
+        stacked ? "border-t border-border-subtle" : "",
+      ].join(" ")}>
         Changed files
       </div>
-      <div className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         {files.map((file) => {
           const isSelected = file.path === selectedPath;
           const cfg = statusConfig[file.status];
