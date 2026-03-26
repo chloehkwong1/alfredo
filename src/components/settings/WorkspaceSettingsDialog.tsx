@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/Dialog";
+import { Input } from "../ui/Input";
 import { ScriptEditor } from "./ScriptEditor";
 
 type WorkspaceTab = "repository" | "scripts" | "display";
@@ -158,12 +159,49 @@ function WorkspaceSettingsDialog({
             )}
 
             {tab === "scripts" && (
-              <ScriptEditor
-                scripts={config.setupScripts}
-                onChange={(scripts: SetupScript[]) =>
-                  updateConfig({ setupScripts: scripts })
-                }
-              />
+              <>
+                <div className="space-y-3 mb-6">
+                  <div>
+                    <h3 className="text-sm font-medium text-text-primary mb-1">Run Script</h3>
+                    <p className="text-sm text-text-secondary">
+                      A dev server command that can be started from any worktree via the play button in the tab bar.
+                    </p>
+                  </div>
+                  <div className="space-y-2 rounded-[var(--radius-md)] border border-border-default bg-bg-secondary p-3">
+                    <Input
+                      placeholder="Name (e.g. Dev Server)"
+                      value={config.runScript?.name ?? ""}
+                      onChange={(e) =>
+                        updateConfig({
+                          runScript: e.target.value || config.runScript?.command
+                            ? { name: e.target.value, command: config.runScript?.command ?? "" }
+                            : null,
+                        })
+                      }
+                    />
+                    <Input
+                      placeholder="Command (e.g. npm run dev)"
+                      value={config.runScript?.command ?? ""}
+                      onChange={(e) =>
+                        updateConfig({
+                          runScript: config.runScript?.name || e.target.value
+                            ? { name: config.runScript?.name ?? "", command: e.target.value }
+                            : null,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-text-primary mb-1">Setup Scripts</h3>
+                  <ScriptEditor
+                    scripts={config.setupScripts}
+                    onChange={(scripts: SetupScript[]) =>
+                      updateConfig({ setupScripts: scripts })
+                    }
+                  />
+                </div>
+              </>
             )}
 
             {tab === "display" && (
