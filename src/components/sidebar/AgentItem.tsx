@@ -19,6 +19,7 @@ import {
   DialogFooter,
 } from "../ui/Dialog";
 import { Button } from "../ui";
+import { ServerIndicator } from "./ServerIndicator";
 
 interface AgentItemProps {
   worktree: Worktree;
@@ -59,6 +60,9 @@ function getStatusText(status: AgentState | string): string {
 function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
+  const isServerRunning = useWorkspaceStore(
+    (s) => s.runningServer?.worktreeId === worktree.id,
+  );
   const baseStatus = worktree.channelAlive === false ? "disconnected" : worktree.agentStatus;
   const effectiveStatus = baseStatus === "idle" && !isSeen ? "done" : baseStatus;
   const isWaiting = effectiveStatus === "waitingForInput";
@@ -106,6 +110,7 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
                     #{worktree.prStatus.number}
                   </span>
                 )}
+                {isServerRunning && <ServerIndicator />}
               </div>
               {worktree.prStatus && (
                 <div className="text-xs text-text-tertiary truncate mt-1">
