@@ -10,6 +10,7 @@ import { useAppConfig } from "../../hooks/useAppConfig";
 import { loadSession } from "../../services/SessionPersistence";
 import { Button } from "../ui/Button";
 import { SessionResumeOverlay } from "./SessionResumeOverlay";
+import { AgentSettingsPopover } from "./AgentSettingsPopover";
 import {
   resolveSettings,
   buildClaudeArgs,
@@ -200,6 +201,58 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }
   }, [tabId, activeWorktreeId, worktree, sessionKey, resolvedArgs, removeDisconnectedTab, currentSnapshot]);
 
+  const handleRestartSession = useCallback(async () => {
+    if (!tabId || !activeWorktreeId || !worktree || !repoPath) return;
+
+    // Close existing session
+    await sessionManager.closeSession(sessionKey);
+
+    // Re-resolve settings
+    const config = await getConfig(repoPath);
+    const branch = worktree.branch ?? "";
+    const resolved = resolveSettings(
+      config.claudeDefaults,
+      config.worktreeOverrides?.[branch],
+    );
+    const newArgs = buildClaudeArgs(resolved);
+    setResolvedArgs(newArgs);
+    setCurrentSnapshot(settingsSnapshot(resolved));
+
+    // Spawn new session with fresh settings
+    await sessionManager.getOrSpawn(
+      sessionKey,
+      activeWorktreeId,
+      worktree.path,
+      "claude",
+      undefined,
+      newArgs,
+    );
+
+    // Wire up input forwarding
+    const session = sessionManager.getSession(sessionKey);
+    if (session?.sessionId && containerRef.current) {
+      const term = session.terminal;
+      if (term.element && containerRef.current) {
+        containerRef.current.appendChild(term.element);
+      } else if (containerRef.current) {
+        term.open(containerRef.current);
+      }
+      term.onData((data: string) => {
+        const bytes = Array.from(new TextEncoder().encode(data));
+        writePty(session.sessionId, bytes).catch(console.error);
+      });
+    }
+
+    // Update tab snapshot
+    if (activeWorktreeId && tabId) {
+      useWorkspaceStore.getState().updateTab(activeWorktreeId, tabId, {
+        command: "claude",
+        args: newArgs,
+        claudeSettings: settingsSnapshot(resolved),
+      });
+    }
+  }, [tabId, activeWorktreeId, worktree, sessionKey, repoPath]);
+
   // Mark as seen when user is viewing a terminal that's idle or waiting
   useEffect(() => {
     if (
@@ -268,6 +321,15 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           />
         )}
       </div>
+      {/* Status bar */}
+      {mode === "claude" && worktree && (
+        <div className="relative flex items-center justify-end px-2 py-1 border-t border-border-default flex-shrink-0">
+          <AgentSettingsPopover
+            branch={worktree.branch ?? ""}
+            onRestartSession={handleRestartSession}
+          />
+        </div>
+      )}
     </div>
   );
 }
