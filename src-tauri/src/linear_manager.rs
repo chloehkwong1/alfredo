@@ -34,7 +34,7 @@ pub async fn search_issues(
 
     let graphql_query = format!(
         r#"{{
-  issueSearch(query: "{query}"{team_filter}, first: 25) {{
+  searchIssues(term: "{query}"{team_filter}, first: 25) {{
     nodes {{
       id
       identifier
@@ -84,7 +84,7 @@ pub async fn search_issues(
     }
 
     let nodes = json
-        .pointer("/data/issueSearch/nodes")
+        .pointer("/data/searchIssues/nodes")
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default();
