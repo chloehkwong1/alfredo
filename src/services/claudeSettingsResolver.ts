@@ -60,6 +60,8 @@ export function buildClaudeArgs(settings: ResolvedClaudeSettings): string[] {
  * and appending `--settings <path>` to the args array.
  *
  * Returns null if no settings file is needed.
+ *
+ * TODO: Not yet wired — needs Tauri command to write temp file.
  */
 export function buildOutputStyleFileContent(
   settings: ResolvedClaudeSettings,
