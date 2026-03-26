@@ -285,15 +285,18 @@ pub async fn get_commits(repo_path: String) -> Result<Vec<CommitInfo>> {
         revwalk
             .push(head_oid)
             .map_err(|e| AppError::Git(format!("revwalk push failed: {e}")))?;
+        // Exclude all commits reachable from the default branch (main..HEAD).
+        // Without this, merging main into the feature branch would include
+        // other people's commits in the list.
+        revwalk
+            .hide(default_oid)
+            .map_err(|e| AppError::Git(format!("revwalk hide failed: {e}")))?;
         revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
             .map_err(|e| AppError::Git(format!("revwalk sorting failed: {e}")))?;
 
         let mut commits = Vec::new();
         for oid_result in revwalk {
             let oid = oid_result.map_err(|e| AppError::Git(format!("revwalk error: {e}")))?;
-            if oid == merge_base {
-                break;
-            }
             let commit = repo
                 .find_commit(oid)
                 .map_err(|e| AppError::Git(format!("find commit failed: {e}")))?;
