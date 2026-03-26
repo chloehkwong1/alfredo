@@ -2,6 +2,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { useState } from "react";
 import { Archive, Trash2 } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -31,6 +32,7 @@ const statusDotColor: Record<string, string> = {
   waitingForInput: "bg-status-waiting",
   busy: "bg-status-busy",
   idle: "bg-status-idle",
+  done: "bg-blue-400",
   error: "bg-status-error",
   notRunning: "bg-text-tertiary",
   disconnected: "bg-amber-400",
@@ -40,6 +42,7 @@ const statusText: Record<string, string> = {
   waitingForInput: "Waiting for input",
   busy: "Thinking...",
   idle: "Idle",
+  done: "Done",
   error: "Error",
   notRunning: "Not running",
   disconnected: "Disconnected",
@@ -55,7 +58,9 @@ function getStatusText(status: AgentState | string): string {
 
 function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const effectiveStatus = worktree.channelAlive === false ? "disconnected" : worktree.agentStatus;
+  const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
+  const baseStatus = worktree.channelAlive === false ? "disconnected" : worktree.agentStatus;
+  const effectiveStatus = baseStatus === "idle" && !isSeen ? "done" : baseStatus;
   const isWaiting = effectiveStatus === "waitingForInput";
   const shouldPulse = effectiveStatus === "busy" || effectiveStatus === "waitingForInput";
   const isDone = worktree.column === "done";
