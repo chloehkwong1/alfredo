@@ -397,42 +397,37 @@ fn write_hooks_config(
     }
     let hooks = config["hooks"].as_object_mut().unwrap();
 
-    // Our hook entries to merge in
+    // Build hook entries using command hooks with env var interpolation.
+    // Each PTY process has ALFREDO_STATE_URL and ALFREDO_WORKTREE_ID set,
+    // so the shell expands them correctly per-session — even when
+    // settings.local.json is shared across git worktrees.
+    let cmd = |state: &str| -> serde_json::Value {
+        serde_json::json!({
+            "hooks": [{
+                "type": "command",
+                "command": format!("curl -s -o /dev/null -X POST $ALFREDO_STATE_URL/agent-state/$ALFREDO_WORKTREE_ID/{state}")
+            }]
+        })
+    };
+
     let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
-        ("SessionStart", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/idle") }]
-        })),
-        ("UserPromptSubmit", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
-        })),
-        ("Stop", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/idle") }]
-        })),
-        ("PreToolUse", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
-        })),
+        ("SessionStart",    cmd("idle")),
+        ("UserPromptSubmit", cmd("busy")),
+        ("Stop",            cmd("idle")),
+        ("PreToolUse",      cmd("busy")),
         ("Notification", serde_json::json!({
             "matcher": "permission_prompt",
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/waitingForInput") }]
+            "hooks": [{
+                "type": "command",
+                "command": "curl -s -o /dev/null -X POST $ALFREDO_STATE_URL/agent-state/$ALFREDO_WORKTREE_ID/waitingForInput"
+            }]
         })),
-        ("SubagentStart", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
-        })),
-        ("SubagentStop", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
-        })),
-        ("PostToolUse", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
-        })),
-        ("TaskCreated", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
-        })),
-        ("TaskCompleted", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
-        })),
-        ("StopFailure", serde_json::json!({
-            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/idle") }]
-        })),
+        ("SubagentStart",   cmd("busy")),
+        ("SubagentStop",    cmd("busy")),
+        ("PostToolUse",     cmd("busy")),
+        ("TaskCreated",     cmd("busy")),
+        ("TaskCompleted",   cmd("busy")),
+        ("StopFailure",     cmd("idle")),
     ];
 
     for (hook_name, entry) in alfredo_hooks {
@@ -454,13 +449,21 @@ fn write_hooks_config(
     Ok(())
 }
 
-/// Returns true if a hook entry was created by Alfredo (contains our marker URL).
+/// Returns true if a hook entry was created by Alfredo.
+/// Detects both old HTTP hooks (url contains marker) and new command hooks
+/// (command contains $ALFREDO_STATE_URL).
 fn is_alfredo_hook_entry(entry: &serde_json::Value) -> bool {
     if let Some(hooks) = entry.get("hooks").and_then(|h| h.as_array()) {
         hooks.iter().any(|h| {
-            h.get("url")
+            // Old-style HTTP hooks
+            let is_http = h.get("url")
                 .and_then(|u| u.as_str())
-                .is_some_and(|u| u.contains(ALFREDO_HOOK_MARKER))
+                .is_some_and(|u| u.contains(ALFREDO_HOOK_MARKER));
+            // New-style command hooks
+            let is_cmd = h.get("command")
+                .and_then(|c| c.as_str())
+                .is_some_and(|c| c.contains("$ALFREDO_STATE_URL"));
+            is_http || is_cmd
         })
     } else {
         false
