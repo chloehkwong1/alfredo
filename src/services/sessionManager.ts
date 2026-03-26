@@ -36,6 +36,8 @@ export interface ManagedSession {
   outputBufferPos: number;
   /** Total bytes written (used to determine if buffer has wrapped). */
   outputBufferTotal: number;
+  /** Timestamp of the last heartbeat received from the PTY channel. */
+  lastHeartbeat: number;
 }
 
 /**
@@ -127,6 +129,7 @@ export class SessionManager {
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
       outputBufferTotal: 0,
+      lastHeartbeat: Date.now(),
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -136,6 +139,10 @@ export class SessionManager {
           const bytes = new Uint8Array(event.data);
           terminal.write(bytes);
           this.appendToBuffer(session, bytes);
+          break;
+        }
+        case "heartbeat": {
+          session.lastHeartbeat = Date.now();
           break;
         }
         case "hookAgentState": {
@@ -230,6 +237,7 @@ export class SessionManager {
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
       outputBufferTotal: 0,
+      lastHeartbeat: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -257,6 +265,10 @@ export class SessionManager {
           const bytes = new Uint8Array(event.data);
           session.terminal.write(bytes);
           this.appendToBuffer(session, bytes);
+          break;
+        }
+        case "heartbeat": {
+          session.lastHeartbeat = Date.now();
           break;
         }
         case "hookAgentState": {
@@ -301,6 +313,7 @@ export class SessionManager {
     session.sessionId = sessionId;
     session.agentState = mode === "shell" ? "notRunning" : "idle";
     session.lastHookUpdate = Date.now();
+    session.lastHeartbeat = Date.now();
 
     // Resize PTY immediately to match the terminal's current dimensions.
     // The PTY starts at 80×24 but the terminal was already fitted to the

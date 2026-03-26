@@ -16,7 +16,8 @@ export type SessionStatus =
 export type PtyEvent =
   | { event: "output"; data: number[] }
   | { event: "agentState"; data: AgentState }
-  | { event: "hookAgentState"; data: AgentState };
+  | { event: "hookAgentState"; data: AgentState }
+  | { event: "heartbeat" };
 
 // ── Agent ───────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ export interface Worktree {
   branch: string;
   prStatus: PrStatus | null;
   agentStatus: AgentState;
+  channelAlive?: boolean;
   column: KanbanColumn;
   isBranchMode: boolean;
   additions: number | null;

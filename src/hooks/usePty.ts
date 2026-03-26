@@ -3,6 +3,7 @@ import type { Terminal } from "@xterm/xterm";
 import type { AgentState } from "../types";
 import { writePty, resizePty } from "../api";
 import { sessionManager } from "../services/sessionManager";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { ManagedSession } from "../services/sessionManager";
 
 interface UsePtyOptions {
@@ -24,6 +25,7 @@ interface UsePtyReturn {
   terminal: Terminal | null;
   agentState: AgentState;
   isConnected: boolean;
+  channelAlive: boolean;
 }
 
 /**
@@ -43,6 +45,7 @@ export function usePty({
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [agentState, setAgentState] = useState<AgentState>("notRunning");
   const [isConnected, setIsConnected] = useState(false);
+  const [channelAlive, setChannelAlive] = useState(true);
   const sessionRef = useRef<ManagedSession | null>(null);
 
   // Use a ref for args so it doesn't trigger re-attach cycles.
@@ -120,6 +123,9 @@ export function usePty({
       const session = sessionRef.current;
       if (session) {
         setAgentState(session.agentState);
+        const alive = !session.sessionId || Date.now() - session.lastHeartbeat < 6000;
+        setChannelAlive(alive);
+        useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: alive });
       }
     }, 500);
 
@@ -145,5 +151,5 @@ export function usePty({
     };
   }, [sessionKey, worktreeId, worktreePath, mode, containerRef, reconnectKey]);
 
-  return { terminal, agentState, isConnected };
+  return { terminal, agentState, isConnected, channelAlive };
 }

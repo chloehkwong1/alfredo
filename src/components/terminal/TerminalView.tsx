@@ -60,7 +60,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }).catch(() => {});
   }, [repoPath, worktree?.branch, mode]);
 
-  const { agentState } = usePty({
+  const { agentState, channelAlive } = usePty({
     sessionKey,
     worktreeId: activeWorktreeId ?? "",
     worktreePath: worktree?.path ?? "",
@@ -171,6 +171,12 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         </div>
       )}
       <div className="relative flex-1 min-h-0">
+        {!channelAlive && (
+          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-3 py-2 bg-bg-secondary/90 border-b border-border-default">
+            <span className="text-xs text-text-secondary">Terminal disconnected</span>
+            <Button size="sm" variant="secondary" onClick={handleRestartSession}>Restart session</Button>
+          </div>
+        )}
         <div ref={containerRef} className="h-full p-1" />
       </div>
       {/* Status bar */}

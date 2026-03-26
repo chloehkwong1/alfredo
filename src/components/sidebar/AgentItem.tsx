@@ -33,6 +33,7 @@ const statusDotColor: Record<string, string> = {
   idle: "bg-status-idle",
   error: "bg-status-error",
   notRunning: "bg-text-tertiary",
+  disconnected: "bg-amber-400",
 };
 
 const statusText: Record<string, string> = {
@@ -41,6 +42,7 @@ const statusText: Record<string, string> = {
   idle: "Idle",
   error: "Error",
   notRunning: "Not running",
+  disconnected: "Disconnected",
 };
 
 function getDotColor(status: AgentState | string): string {
@@ -53,8 +55,9 @@ function getStatusText(status: AgentState | string): string {
 
 function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const isWaiting = worktree.agentStatus === "waitingForInput";
-  const shouldPulse = worktree.agentStatus === "busy" || worktree.agentStatus === "waitingForInput";
+  const effectiveStatus = worktree.channelAlive === false ? "disconnected" : worktree.agentStatus;
+  const isWaiting = effectiveStatus === "waitingForInput";
+  const shouldPulse = effectiveStatus === "busy" || effectiveStatus === "waitingForInput";
   const isDone = worktree.column === "done";
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: worktree.id,
@@ -84,14 +87,14 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
             <span
               className={[
                 "mt-1 h-[7px] w-[7px] rounded-full flex-shrink-0",
-                getDotColor(worktree.agentStatus),
+                getDotColor(effectiveStatus),
                 shouldPulse ? "animate-pulse-dot" : "",
               ].join(" ")}
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-text-primary truncate">
-                  {worktree.branch}
+                  {worktree.name}
                 </span>
                 {worktree.prStatus && (
                   <span className="text-2xs text-text-tertiary flex-shrink-0">
@@ -106,7 +109,7 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
               )}
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-text-tertiary truncate">
-                  {getStatusText(worktree.agentStatus)}
+                  {getStatusText(effectiveStatus)}
                 </span>
                 {(worktree.additions != null || worktree.deletions != null) && (
                   <span className="flex items-center gap-1 text-2xs ml-auto flex-shrink-0">
