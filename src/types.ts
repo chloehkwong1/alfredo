@@ -192,7 +192,7 @@ export interface CommitInfo {
 
 // ── Workspace tabs ──────────────────────────────────────────────
 
-export type TabType = "claude" | "shell" | "changes" | "pr";
+export type TabType = "claude" | "shell" | "server" | "changes" | "pr";
 
 export interface CheckRun {
   id: number;

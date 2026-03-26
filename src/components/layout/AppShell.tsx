@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, X, Terminal, Sparkles, GitCompareArrows, GitPullRequest } from "lucide-react";
+import { Plus, X, Terminal, Sparkles, GitCompareArrows, GitPullRequest, Play } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -30,6 +30,7 @@ import type { TabType, WorkspaceTab } from "../../types";
 const TAB_ICONS: Record<TabType, typeof Terminal> = {
   claude: Sparkles,
   shell: Terminal,
+  server: Play,
   changes: GitCompareArrows,
   pr: GitPullRequest,
 };
@@ -66,12 +67,22 @@ function TabBar() {
     }
   }
 
-  const nonChangeTabs = tabs.filter((t) => t.type !== "changes");
-  const canClose = nonChangeTabs.length > 1;
+  const claudeCount = tabs.filter((t) => t.type === "claude").length;
+  const shellCount = tabs.filter((t) => t.type === "shell").length;
+  function canClose(tab: WorkspaceTab) {
+    if (tab.type === "changes") return false;
+    if (tab.type === "claude" && claudeCount <= 1) return false;
+    if (tab.type === "shell" && shellCount <= 1) return false;
+    return true;
+  }
+
+  const sessionTabs = tabs.filter((t) => t.type !== "changes");
+  const changesTab = tabs.find((t) => t.type === "changes");
+  const isChangesActive = changesTab?.id === activeTabId;
 
   return (
-    <div className="flex items-center h-10 bg-bg-bar border-b border-border-subtle flex-shrink-0">
-      {tabs.map((tab) => {
+    <div className="flex items-center w-full h-10 bg-bg-bar border-b border-border-subtle flex-shrink-0">
+      {sessionTabs.map((tab) => {
         const Icon = TAB_ICONS[tab.type];
         const isActive = tab.id === activeTabId;
         return (
@@ -88,7 +99,7 @@ function TabBar() {
           >
             <Icon size={14} />
             <span>{tab.label}</span>
-            {canClose && tab.type !== "changes" && (
+            {canClose(tab) && (
               <button
                 type="button"
                 tabIndex={0}
@@ -132,6 +143,28 @@ function TabBar() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Spacer pushes Changes to far right */}
+      <div className="flex-1" />
+
+      {/* Changes toggle — right-aligned, visually separated */}
+      {changesTab && (
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => activeWorktreeId && setActiveTabId(activeWorktreeId, changesTab.id)}
+            className={[
+              "h-10 px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5",
+              isChangesActive
+                ? "text-text-primary bg-bg-secondary"
+                : "text-text-tertiary hover:text-text-secondary",
+            ].join(" ")}
+          >
+            <GitCompareArrows size={14} />
+            <span>Changes</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -477,7 +510,7 @@ function AppShell() {
         <TabBar />
         <StatusBar worktree={worktree} annotationCount={annotationCount} />
         <main className="flex-1 min-h-0 relative">
-          {(activeTab?.type === "claude" || activeTab?.type === "shell") && (
+          {(activeTab?.type === "claude" || activeTab?.type === "shell" || activeTab?.type === "server") && (
             <TerminalView
               key={activeTab.id}
               tabId={activeTab.id}

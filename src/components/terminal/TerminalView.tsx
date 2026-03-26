@@ -40,7 +40,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionKey = tabId ?? activeWorktreeId ?? "";
-  const mode = tabType === "shell" ? "shell" : "claude";
+  const mode = (tabType === "shell" || tabType === "server") ? "shell" : "claude";
 
   const { activeRepo: repoPath } = useAppConfig();
 
