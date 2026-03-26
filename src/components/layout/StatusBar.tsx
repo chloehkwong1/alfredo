@@ -9,13 +9,13 @@ interface StatusBarProps {
 
 function StatusBar({ worktree, annotationCount }: StatusBarProps) {
   if (!worktree) {
-    return <div className="h-8 bg-bg-bar border-t border-border-subtle flex-shrink-0" />;
+    return <div className="h-8 bg-bg-bar border-b border-border-subtle flex-shrink-0" />;
   }
 
   const pr = worktree.prStatus;
 
   return (
-    <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-t border-border-subtle text-xs text-text-tertiary flex-shrink-0">
+    <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-b border-border-subtle text-xs text-text-tertiary flex-shrink-0">
       {/* Left side */}
       <div className="flex items-center gap-3">
         <span className="font-medium text-text-secondary max-w-[300px] truncate">{worktree.branch}</span>

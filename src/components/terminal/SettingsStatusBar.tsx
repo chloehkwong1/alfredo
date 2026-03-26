@@ -37,8 +37,8 @@ const OUTPUT_OPTIONS = [
   { value: "Learning", label: "Learning" },
 ];
 
-function displayLabel(options: { value: string; label: string }[], value?: string): string {
-  return options.find((o) => o.value === value)?.label ?? "Default";
+function displayLabel(options: { value: string; label: string }[], value: string | undefined, fallback: string): string {
+  return options.find((o) => o.value === value)?.label ?? fallback;
 }
 
 interface SettingsStatusBarProps {
@@ -128,7 +128,7 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
     <div className="flex items-center justify-between px-2 py-1 border-t border-border-default flex-shrink-0">
       <div className="flex items-center gap-1.5">
         <SettingsChip
-          label={displayLabel(MODEL_OPTIONS, resolved.model)}
+          label={displayLabel(MODEL_OPTIONS, resolved.model, "Model")}
           options={MODEL_OPTIONS}
           value={resolved.model ?? ""}
           isOpen={openDropdown === "model"}
@@ -136,7 +136,7 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
           onChange={(v) => handleChange("model", v)}
         />
         <SettingsChip
-          label={displayLabel(EFFORT_OPTIONS, resolved.effort)}
+          label={displayLabel(EFFORT_OPTIONS, resolved.effort, "Effort")}
           options={EFFORT_OPTIONS}
           value={resolved.effort ?? ""}
           isOpen={openDropdown === "effort"}
@@ -144,7 +144,7 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
           onChange={(v) => handleChange("effort", v)}
         />
         <SettingsChip
-          label={displayLabel(PERMISSION_OPTIONS, resolved.permissionMode)}
+          label={displayLabel(PERMISSION_OPTIONS, resolved.permissionMode, "Permissions")}
           options={PERMISSION_OPTIONS}
           value={resolved.permissionMode ?? ""}
           isOpen={openDropdown === "permissionMode"}
@@ -152,7 +152,7 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
           onChange={(v) => handleChange("permissionMode", v)}
         />
         <SettingsChip
-          label={displayLabel(OUTPUT_OPTIONS, resolved.outputStyle)}
+          label={displayLabel(OUTPUT_OPTIONS, resolved.outputStyle, "Output")}
           options={OUTPUT_OPTIONS}
           value={resolved.outputStyle ?? ""}
           isOpen={openDropdown === "outputStyle"}

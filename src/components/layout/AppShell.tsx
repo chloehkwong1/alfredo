@@ -474,6 +474,7 @@ function AppShell() {
       </motion.div>
       <div className="flex-1 flex flex-col min-w-0">
         <TabBar />
+        <StatusBar worktree={worktree} annotationCount={annotationCount} />
         <main className="flex-1 min-h-0 relative">
           {(activeTab?.type === "claude" || activeTab?.type === "shell") && (
             <TerminalView
@@ -498,7 +499,6 @@ function AppShell() {
             </div>
           )}
         </main>
-        <StatusBar worktree={worktree} annotationCount={annotationCount} />
       </div>
 
       {/* Multi-repo dialogs */}
