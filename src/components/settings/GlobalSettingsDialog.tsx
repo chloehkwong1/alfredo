@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/Dialog";
+import { AgentSettings } from "./AgentSettings";
 import { GithubSettings } from "./GithubSettings";
 import { NotificationSettings, DEFAULT_NOTIFICATION_CONFIG } from "./NotificationSettings";
 import { TerminalSettings } from "./TerminalSettings";
@@ -17,6 +18,7 @@ import { ThemeSelector } from "./ThemeSelector";
 type GlobalTab =
   | "appearance"
   | "terminal"
+  | "agent"
   | "notifications"
   | "integrations"
   | "shortcuts";
@@ -24,6 +26,7 @@ type GlobalTab =
 const TABS: { id: GlobalTab; label: string }[] = [
   { id: "appearance", label: "Appearance" },
   { id: "terminal", label: "Terminal" },
+  { id: "agent", label: "Agent" },
   { id: "notifications", label: "Notifications" },
   { id: "integrations", label: "Integrations" },
   { id: "shortcuts", label: "Shortcuts" },
@@ -171,6 +174,15 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
             )}
 
             {tab === "terminal" && <TerminalSettings />}
+
+            {tab === "agent" && (
+              <AgentSettings
+                settings={repoConfig.claudeDefaults ?? {}}
+                onChange={(claudeDefaults) =>
+                  updateRepoConfig({ claudeDefaults })
+                }
+              />
+            )}
 
             {tab === "notifications" && (
               <NotificationSettings
