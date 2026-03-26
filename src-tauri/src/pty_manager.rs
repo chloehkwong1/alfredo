@@ -415,6 +415,24 @@ fn write_hooks_config(
             "matcher": "permission_prompt",
             "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/waitingForInput") }]
         })),
+        ("SubagentStart", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
+        })),
+        ("SubagentStop", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
+        })),
+        ("PostToolUse", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
+        })),
+        ("TaskCreated", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
+        })),
+        ("TaskCompleted", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
+        })),
+        ("StopFailure", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/idle") }]
+        })),
     ];
 
     for (hook_name, entry) in alfredo_hooks {
