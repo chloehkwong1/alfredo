@@ -28,6 +28,8 @@ interface WorkspaceState {
   sidebarCollapsed: boolean;
   /** Number of days after merging before a worktree is auto-archived. */
   archiveAfterDays: number;
+  /** Tab IDs awaiting resume/fresh decision after app restart. */
+  disconnectedTabs: Set<string>;
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
@@ -52,6 +54,9 @@ interface WorkspaceState {
   /** Check runs per worktree. Keyed by worktreeId. */
   checkRuns: Record<string, CheckRun[]>;
   setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
+  addDisconnectedTab: (tabId: string) => void;
+  removeDisconnectedTab: (tabId: string) => void;
+  isTabDisconnected: (tabId: string) => boolean;
   clearStore: () => void;
 }
 
@@ -77,6 +82,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   sidebarCollapsed: false,
   archiveAfterDays: 2,
   checkRuns: {},
+  disconnectedTabs: new Set<string>(),
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -348,6 +354,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       checkRuns: { ...state.checkRuns, [worktreeId]: runs },
     })),
 
+  addDisconnectedTab: (tabId) =>
+    set((state) => ({
+      disconnectedTabs: new Set(state.disconnectedTabs).add(tabId),
+    })),
+
+  removeDisconnectedTab: (tabId) =>
+    set((state) => {
+      const next = new Set(state.disconnectedTabs);
+      next.delete(tabId);
+      return { disconnectedTabs: next };
+    }),
+
+  isTabDisconnected: (tabId) => get().disconnectedTabs.has(tabId),
+
   clearStore: () =>
     set({
       worktrees: [],
@@ -361,5 +381,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       sidebarCollapsed: false,
       archiveAfterDays: 2,
       checkRuns: {},
+      disconnectedTabs: new Set<string>(),
     }),
 }));
