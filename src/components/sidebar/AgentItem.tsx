@@ -116,7 +116,7 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
                 <span className="text-xs text-text-tertiary truncate">
                   {getStatusText(effectiveStatus)}
                 </span>
-                {(worktree.additions != null || worktree.deletions != null) && (
+                {worktree.column !== "done" && (worktree.additions != null || worktree.deletions != null) && (
                   <span className="flex items-center gap-1 text-2xs ml-auto flex-shrink-0">
                     {worktree.additions != null && worktree.additions > 0 && (
                       <span className="text-diff-added">+{worktree.additions}</span>

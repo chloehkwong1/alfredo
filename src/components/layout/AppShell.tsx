@@ -265,8 +265,9 @@ function AppShell() {
           }
         }
 
-        // Background: load diff stats per worktree (non-blocking)
+        // Background: load diff stats per worktree (non-blocking), skip "done" worktrees
         for (const wt of wts) {
+          if (wt.column === "done") continue;
           getWorktreeDiffStats(wt.path)
             .then(([additions, deletions]) => {
               updateWorktree(wt.id, { additions, deletions });
