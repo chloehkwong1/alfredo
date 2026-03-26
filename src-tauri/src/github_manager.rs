@@ -2,6 +2,31 @@ use octocrab::Octocrab;
 
 use crate::types::{AppError, CheckRun, KanbanColumn, PrStatus};
 
+/// Get a GitHub token: tries `gh auth token` first, falls back to the provided config token.
+pub async fn resolve_token(config_token: Option<&str>) -> Result<String, AppError> {
+    // Try gh CLI first
+    if let Ok(output) = tokio::process::Command::new("gh")
+        .args(["auth", "token"])
+        .output()
+        .await
+    {
+        if output.status.success() {
+            if let Ok(token) = String::from_utf8(output.stdout) {
+                let token = token.trim().to_string();
+                if !token.is_empty() {
+                    return Ok(token);
+                }
+            }
+        }
+    }
+
+    // Fall back to stored config token
+    config_token
+        .filter(|t| !t.is_empty())
+        .map(String::from)
+        .ok_or_else(|| AppError::Github("no GitHub token available — install and authenticate the gh CLI: brew install gh && gh auth login".into()))
+}
+
 /// Format an octocrab error with useful detail (status code, message body).
 fn format_octocrab_error(context: &str, e: octocrab::Error) -> AppError {
     let detail = match &e {

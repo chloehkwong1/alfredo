@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Github, Check, Loader2, X, Terminal } from "lucide-react";
+import { Github, Check, Loader2, Terminal } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
   githubAuthStatus,
   githubAuthToken,
-  githubAuthDisconnect,
   saveConfig,
   getConfig,
 } from "../../api";
@@ -77,17 +76,6 @@ function GithubSettings({
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const disconnect = useCallback(async () => {
-    onGithubTokenChange("");
-    setError(null);
-    try {
-      await githubAuthDisconnect(".");
-    } catch {
-      // Best effort
-    }
-    checkStatus();
-  }, [onGithubTokenChange, checkStatus]);
-
   return (
     <div className="space-y-5">
       {/* GitHub Connection */}
@@ -138,17 +126,16 @@ function GithubSettings({
         )}
 
         {auth.step === "connected" && (
-          <div className="flex items-center gap-3">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-secondary px-3 h-8 text-body">
               <Check className="h-3.5 w-3.5 text-green-400" />
               <span className="text-text-primary font-medium">
                 @{auth.username}
               </span>
             </div>
-            <Button variant="secondary" size="sm" onClick={disconnect}>
-              <X className="h-3.5 w-3.5 mr-1" />
-              Disconnect
-            </Button>
+            <p className="text-caption text-text-tertiary">
+              Authenticated via GitHub CLI. Run <code className="font-mono bg-bg-primary px-1 py-0.5 rounded">gh auth login</code> to switch accounts.
+            </p>
           </div>
         )}
       </div>

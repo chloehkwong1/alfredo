@@ -81,12 +81,22 @@ pub async fn delete_worktree(
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path).await
 }
 
-/// List all worktrees for a repository.
+/// List all worktrees for a repository, filtered to the configured base path
+/// (or repo parent directory if not configured).
 #[tauri::command]
 pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>> {
+    let config = config_manager::load_config(&repo_path).await?;
+    let base_path = config.worktree_base_path.unwrap_or_else(|| {
+        std::path::Path::new(&repo_path)
+            .parent()
+            .unwrap_or(std::path::Path::new(&repo_path))
+            .to_string_lossy()
+            .to_string()
+    });
+
     // git2 operations are blocking — run on a blocking thread
     let worktrees =
-        tokio::task::spawn_blocking(move || git_manager::list_worktrees(&repo_path))
+        tokio::task::spawn_blocking(move || git_manager::list_worktrees(&repo_path, Some(&base_path)))
             .await
             .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
 
@@ -210,16 +220,9 @@ async fn create_worktree_from_linear(repo_path: String, issue_id: &str) -> Resul
 
 /// Create a worktree from a GitHub pull request by fetching the PR's head branch.
 async fn create_worktree_from_pr(repo_path: String, pr_number: u64) -> Result<Worktree> {
-    // 1. Get GitHub token from config
+    // 1. Get GitHub token (gh CLI or config)
     let config = config_manager::load_config(&repo_path).await?;
-    let token = config
-        .github_token
-        .filter(|t| !t.is_empty())
-        .ok_or_else(|| {
-            AppError::Github(
-                "GitHub token not configured. Add it in Settings > Integrations.".into(),
-            )
-        })?;
+    let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await?;
 
     // 2. Resolve owner/repo from git remote
     let output = tokio::process::Command::new("git")

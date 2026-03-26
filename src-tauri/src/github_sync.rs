@@ -108,13 +108,9 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| format!("{e}"))?;
 
-    // Prefer a fresh token from gh CLI; fall back to stored config token
-    let token = match get_gh_token().await {
-        Some(t) => t,
-        None => match config.github_token {
-            Some(t) => t,
-            None => return Ok(()), // No token — silently skip
-        },
+    let token = match crate::github_manager::resolve_token(config.github_token.as_deref()).await {
+        Ok(t) => t,
+        Err(_) => return Ok(()), // No token available — silently skip
     };
 
     let manager = GithubManager::new(&token).map_err(|e| format!("{e}"))?;
@@ -149,23 +145,6 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
         .map_err(|e| format!("failed to emit event: {e}"))?;
 
     Ok(())
-}
-
-/// Get a fresh token from `gh auth token`, if available.
-async fn get_gh_token() -> Option<String> {
-    let output = tokio::process::Command::new("gh")
-        .args(["auth", "token"])
-        .output()
-        .await
-        .ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    let token = String::from_utf8(output.stdout).ok()?;
-    let token = token.trim().to_string();
-    if token.is_empty() { None } else { Some(token) }
 }
 
 /// Extract owner and repo from a GitHub URL (HTTPS or SSH).

@@ -46,9 +46,7 @@ fn parse_github_owner_repo(url: &str) -> Option<(String, String)> {
 #[tauri::command]
 pub async fn sync_pr_status(repo_path: String) -> Result<Vec<PrStatus>> {
     let config = config_manager::load_config(&repo_path).await?;
-    let token = config
-        .github_token
-        .ok_or_else(|| AppError::Github("no GitHub token configured".into()))?;
+    let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await?;
 
     let (owner, repo) = resolve_owner_repo(&repo_path).await?;
     eprintln!("sync_pr_status: owner={owner}, repo={repo}, repo_path={repo_path}");

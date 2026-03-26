@@ -9,10 +9,7 @@ type Result<T> = std::result::Result<T, AppError>;
 #[tauri::command]
 pub async fn get_check_runs(repo_path: String, branch: String) -> Result<Vec<CheckRun>> {
     let config = config_manager::load_config(&repo_path).await?;
-    let token = config
-        .github_token
-        .filter(|t| !t.is_empty())
-        .ok_or_else(|| AppError::Github("no GitHub token configured".into()))?;
+    let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await?;
 
     let manager = GithubManager::new(&token)?;
     let (owner, repo) = resolve_owner_repo(&repo_path).await?;
