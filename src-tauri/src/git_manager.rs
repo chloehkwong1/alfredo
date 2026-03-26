@@ -129,24 +129,34 @@ pub async fn delete_worktree(
 }
 
 /// Get diff stats (additions, deletions) for uncommitted changes in a worktree.
+/// Uses git CLI instead of git2, which has known issues with worktree diff accuracy.
 pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
-    let repo = Repository::open(worktree_path)
-        .map_err(|e| AppError::Git(format!("failed to open repo for diff stats: {e}")))?;
+    let output = std::process::Command::new("git")
+        .args(["diff", "--shortstat", "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to run git diff: {e}")))?;
 
-    let head_tree = repo
-        .head()
-        .ok()
-        .and_then(|h| h.peel_to_tree().ok());
+    if !output.status.success() {
+        return Ok((0, 0));
+    }
 
-    let diff = repo
-        .diff_tree_to_workdir_with_index(head_tree.as_ref(), None)
-        .map_err(|e| AppError::Git(format!("failed to compute diff: {e}")))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let (mut insertions, mut deletions) = (0u32, 0u32);
 
-    let stats = diff
-        .stats()
-        .map_err(|e| AppError::Git(format!("failed to get diff stats: {e}")))?;
+    // Parse: " 3 files changed, 10 insertions(+), 5 deletions(-)"
+    for part in stdout.split(',') {
+        let part = part.trim();
+        if let Some(n) = part.split_whitespace().next().and_then(|s| s.parse::<u32>().ok()) {
+            if part.contains("insertion") {
+                insertions = n;
+            } else if part.contains("deletion") {
+                deletions = n;
+            }
+        }
+    }
 
-    Ok((stats.insertions() as u32, stats.deletions() as u32))
+    Ok((insertions, deletions))
 }
 
 /// List worktrees using git2 for reads.
