@@ -24,6 +24,8 @@ pub async fn create_worktree(
         })
         .join(branch_name);
 
+    // Try creating with a new branch first; if the branch already exists,
+    // fall back to using the existing branch.
     let output = Command::new("git")
         .args([
             "worktree",
@@ -40,7 +42,27 @@ pub async fn create_worktree(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AppError::Git(format!("git worktree add failed: {stderr}")));
+        if stderr.contains("already exists") {
+            // Branch exists locally — create worktree using existing branch
+            let output2 = Command::new("git")
+                .args([
+                    "worktree",
+                    "add",
+                    worktree_dir.to_str().unwrap_or_default(),
+                    branch_name,
+                ])
+                .current_dir(repo_path)
+                .output()
+                .await
+                .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
+
+            if !output2.status.success() {
+                let stderr2 = String::from_utf8_lossy(&output2.stderr);
+                return Err(AppError::Git(format!("git worktree add failed: {stderr2}")));
+            }
+        } else {
+            return Err(AppError::Git(format!("git worktree add failed: {stderr}")));
+        }
     }
 
     Ok(worktree_dir)
@@ -167,7 +189,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
         let branch = get_branch_for_path(&wt_path).unwrap_or_else(|| name.to_string());
 
         worktrees.push(Worktree {
-            id: name.to_string(),
+            id: branch.clone(),
             name: name.to_string(),
             path: wt_path.to_string_lossy().to_string(),
             branch,

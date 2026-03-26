@@ -179,8 +179,8 @@ pub async fn set_worktree_column(
 
 /// Create a worktree from a Linear ticket, injecting ticket context.
 async fn create_worktree_from_linear(repo_path: String, issue_id: &str) -> Result<Worktree> {
-    // 1. Get API key from config
-    let config = config_manager::load_config(&repo_path).await?;
+    // 1. Get API key from config (use "." to match the Linear commands' config source)
+    let config = config_manager::load_config(".").await?;
     let api_key = config
         .linear_api_key
         .filter(|k| !k.is_empty())
