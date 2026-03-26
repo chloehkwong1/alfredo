@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import type { TerminalPreferences } from "../../services/terminalPreferences";
+import { loadTerminalPreferences, saveTerminalPreferences } from "../../services/terminalPreferences";
 
 const FONT_FAMILIES = [
   "JetBrains Mono",
@@ -9,43 +11,11 @@ const FONT_FAMILIES = [
   "Cascadia Code",
 ] as const;
 
-type CursorStyle = "block" | "underline" | "bar";
-
-interface TerminalPreferences {
-  fontFamily: string;
-  fontSize: number;
-  cursorStyle: CursorStyle;
-  cursorBlink: boolean;
-}
-
-const STORAGE_KEY = "alfredo:terminalPreferences";
-
-const DEFAULTS: TerminalPreferences = {
-  fontFamily: "JetBrains Mono",
-  fontSize: 14,
-  cursorStyle: "block",
-  cursorBlink: true,
-};
-
-function loadPreferences(): TerminalPreferences {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) };
-  } catch {
-    // ignore
-  }
-  return DEFAULTS;
-}
-
-function savePreferences(prefs: TerminalPreferences) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-}
-
 function TerminalSettings() {
-  const [prefs, setPrefs] = useState<TerminalPreferences>(loadPreferences);
+  const [prefs, setPrefs] = useState<TerminalPreferences>(loadTerminalPreferences);
 
   useEffect(() => {
-    savePreferences(prefs);
+    saveTerminalPreferences(prefs);
   }, [prefs]);
 
   const update = <K extends keyof TerminalPreferences>(
@@ -103,6 +73,52 @@ function TerminalSettings() {
         <div className="flex justify-between text-xs text-text-tertiary">
           <span>10px</span>
           <span>20px</span>
+        </div>
+      </div>
+
+      {/* Line Height */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-text-primary">
+          Line Height:{" "}
+          <span className="font-normal text-text-secondary">
+            {prefs.lineHeight.toFixed(1)}
+          </span>
+        </label>
+        <input
+          type="range"
+          min={1.0}
+          max={1.8}
+          step={0.1}
+          value={prefs.lineHeight}
+          onChange={(e) => update("lineHeight", Number(e.target.value))}
+          className="w-full accent-accent-primary cursor-pointer"
+        />
+        <div className="flex justify-between text-xs text-text-tertiary">
+          <span>Tight</span>
+          <span>Relaxed</span>
+        </div>
+      </div>
+
+      {/* Letter Spacing */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-text-primary">
+          Letter Spacing:{" "}
+          <span className="font-normal text-text-secondary">
+            {prefs.letterSpacing}px
+          </span>
+        </label>
+        <input
+          type="range"
+          min={-1}
+          max={3}
+          step={0.5}
+          value={prefs.letterSpacing}
+          onChange={(e) => update("letterSpacing", Number(e.target.value))}
+          className="w-full accent-accent-primary cursor-pointer"
+        />
+        <div className="flex justify-between text-xs text-text-tertiary">
+          <span>Tight</span>
+          <span>Wide</span>
         </div>
       </div>
 
@@ -169,11 +185,13 @@ function TerminalSettings() {
           style={{
             fontFamily: `"${prefs.fontFamily}", monospace`,
             fontSize: `${prefs.fontSize}px`,
-            lineHeight: 1.5,
+            lineHeight: prefs.lineHeight,
+            letterSpacing: `${prefs.letterSpacing}px`,
           }}
         >
-          <span className="text-status-idle">$</span>{" "}
-          <span className="text-text-primary">npm run dev</span>
+          <div><span className="text-status-idle">$</span>{" "}
+          <span className="text-text-primary">npm run dev</span></div>
+          <div className="text-text-secondary">Ready in 1.2s</div>
         </div>
       </div>
     </div>
