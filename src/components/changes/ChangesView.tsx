@@ -148,14 +148,15 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     setVisibleFilePath(path);
   }, []);
 
-  const handleAddAnnotation = useCallback((lineNumber: number) => {
+  const handleAddAnnotation = useCallback((filePath: string, lineNumber: number) => {
+    void filePath; // filePath is passed through to FileCard callbacks; tracked per-click in handleSubmitAnnotation
     setActiveAnnotationLine((prev) =>
       prev === lineNumber ? null : lineNumber,
     );
   }, []);
 
   const handleSubmitAnnotation = useCallback(
-    (lineNumber: number, text: string) => {
+    (filePath: string, lineNumber: number, text: string) => {
       const commitHash =
         mode === "commit" && commits.length > 0
           ? commits[currentCommitIndex].hash
@@ -163,7 +164,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
       addAnnotation({
         id: crypto.randomUUID(),
         worktreeId,
-        filePath: visibleFilePath ?? files[0]?.path ?? "",
+        filePath,
         lineNumber,
         commitHash,
         text,
@@ -173,8 +174,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     },
     [
       worktreeId,
-      visibleFilePath,
-      files,
       mode,
       commits,
       currentCommitIndex,
@@ -290,18 +289,16 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
             fileTreeOpen ? "w-[220px]" : "w-0",
           ].join(" ")}
         >
-          {fileTreeOpen && (
-            <FileTreeSidebar
-              files={files}
-              visibleFilePath={visibleFilePath}
-              onSelectFile={handleFileTreeSelect}
-              commits={mode === "commit" ? commits : undefined}
-              selectedCommitIndex={
-                mode === "commit" ? currentCommitIndex : undefined
-              }
-              onSelectCommit={mode === "commit" ? handleCommitStep : undefined}
-            />
-          )}
+          <FileTreeSidebar
+            files={files}
+            visibleFilePath={visibleFilePath}
+            onSelectFile={handleFileTreeSelect}
+            commits={mode === "commit" ? commits : undefined}
+            selectedCommitIndex={
+              mode === "commit" ? currentCommitIndex : undefined
+            }
+            onSelectCommit={mode === "commit" ? handleCommitStep : undefined}
+          />
         </div>
       </div>
     </div>

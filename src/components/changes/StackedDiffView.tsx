@@ -9,8 +9,8 @@ interface StackedDiffViewProps {
   onToggleExpanded: (path: string) => void;
   annotations: Annotation[];
   activeAnnotationLine: number | null;
-  onAddAnnotation: (lineNumber: number) => void;
-  onSubmitAnnotation: (lineNumber: number, text: string) => void;
+  onAddAnnotation: (filePath: string, lineNumber: number) => void;
+  onSubmitAnnotation: (filePath: string, lineNumber: number, text: string) => void;
   onDeleteAnnotation: (id: string) => void;
   onVisibleFileChange: (path: string) => void;
   scrollToFile: string | null;

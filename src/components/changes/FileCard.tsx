@@ -11,8 +11,8 @@ interface FileCardProps {
   onToggleExpanded: () => void;
   annotations: Annotation[];
   activeAnnotationLine: number | null;
-  onAddAnnotation: (lineNumber: number) => void;
-  onSubmitAnnotation: (lineNumber: number, text: string) => void;
+  onAddAnnotation: (filePath: string, lineNumber: number) => void;
+  onSubmitAnnotation: (filePath: string, lineNumber: number, text: string) => void;
   onDeleteAnnotation: (id: string) => void;
 }
 
@@ -75,7 +75,7 @@ const FileCard = forwardRef<HTMLDivElement, FileCardProps>(function FileCard(
   return (
     <div
       ref={ref}
-      className="border border-border-subtle rounded-lg overflow-hidden"
+      className="border border-border-subtle rounded-lg"
       data-file-path={file.path}
     >
       {/* Sticky file header */}
@@ -116,7 +116,7 @@ const FileCard = forwardRef<HTMLDivElement, FileCardProps>(function FileCard(
 
       {/* Diff content */}
       {expanded && (
-        <div className="font-mono text-xs leading-5">
+        <div className="font-mono text-xs leading-5 bg-bg-primary overflow-hidden rounded-b-lg">
           {file.hunks.map((hunk, hunkIdx) => (
             <div key={hunkIdx}>
               {/* Hunk separator for non-first hunks */}
@@ -150,7 +150,7 @@ const FileCard = forwardRef<HTMLDivElement, FileCardProps>(function FileCard(
                           ? "ring-1 ring-inset ring-accent-primary"
                           : "",
                       ].join(" ")}
-                      onClick={() => onAddAnnotation(lineNum)}
+                      onClick={() => onAddAnnotation(file.path, lineNum)}
                     >
                       <span
                         className={[
@@ -186,8 +186,8 @@ const FileCard = forwardRef<HTMLDivElement, FileCardProps>(function FileCard(
 
                     {isActiveLine && (
                       <AnnotationInput
-                        onSubmit={(text) => onSubmitAnnotation(lineNum, text)}
-                        onCancel={() => onAddAnnotation(lineNum)}
+                        onSubmit={(text) => onSubmitAnnotation(file.path, lineNum, text)}
+                        onCancel={() => onAddAnnotation(file.path, lineNum)}
                       />
                     )}
                   </div>
