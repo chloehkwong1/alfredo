@@ -49,7 +49,8 @@ export class SessionManager {
     worktreeId: string,
     worktreePath: string,
     mode: "claude" | "shell" = "claude",
-    initialScrollback?: string, // base64-encoded saved output
+    initialScrollback?: string,
+    args?: string[],
   ): Promise<ManagedSession> {
     const existing = this.sessions.get(sessionKey);
     if (existing) return existing;
@@ -121,7 +122,7 @@ export class SessionManager {
       worktreeId,
       worktreePath,
       command,
-      [],
+      args ?? [],
       channel,
       agentType,
     );
@@ -130,6 +131,116 @@ export class SessionManager {
     this.sessions.set(sessionKey, session);
 
     // Push initial state for Claude sessions
+    if (mode === "claude") {
+      useWorkspaceStore
+        .getState()
+        .updateWorktree(worktreeId, { agentStatus: session.agentState });
+    }
+
+    return session;
+  }
+
+  /**
+   * Create a terminal with scrollback loaded but no PTY process spawned.
+   * Used for session restore — the user decides whether to resume or start fresh.
+   */
+  loadScrollbackOnly(
+    sessionKey: string,
+    initialScrollback?: string,
+  ): ManagedSession {
+    const existing = this.sessions.get(sessionKey);
+    if (existing) return existing;
+
+    const terminal = new Terminal({
+      allowProposedApi: true,
+      scrollback: 10_000,
+    });
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
+
+    if (initialScrollback) {
+      try {
+        const bytes = Uint8Array.from(atob(initialScrollback), (c) => c.charCodeAt(0));
+        terminal.write(bytes);
+      } catch {
+        // Invalid base64 — skip replay
+      }
+    }
+
+    const session: ManagedSession = {
+      sessionId: "", // No PTY — filled when user chooses to spawn
+      terminal,
+      fitAddon,
+      agentState: "notRunning",
+      lastHookUpdate: 0,
+      outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
+      outputBufferPos: 0,
+      outputBufferTotal: 0,
+    };
+
+    this.sessions.set(sessionKey, session);
+    return session;
+  }
+
+  /**
+   * Spawn a PTY for an existing disconnected session (one created by loadScrollbackOnly).
+   * Wires up the Tauri channel and starts pumping events.
+   */
+  async spawnForExisting(
+    sessionKey: string,
+    worktreeId: string,
+    worktreePath: string,
+    mode: "claude" | "shell" = "claude",
+    args?: string[],
+  ): Promise<ManagedSession> {
+    const session = this.sessions.get(sessionKey);
+    if (!session) throw new Error(`No session found for key: ${sessionKey}`);
+    if (session.sessionId) return session; // Already spawned
+
+    const channel = createPtyChannel((event) => {
+      switch (event.event) {
+        case "output": {
+          const bytes = new Uint8Array(event.data);
+          session.terminal.write(bytes);
+          this.appendToBuffer(session, bytes);
+          break;
+        }
+        case "hookAgentState": {
+          session.agentState = event.data;
+          session.lastHookUpdate = Date.now();
+          useWorkspaceStore
+            .getState()
+            .updateWorktree(worktreeId, { agentStatus: event.data });
+          break;
+        }
+        case "agentState": {
+          if (Date.now() - session.lastHookUpdate < HOOK_AUTHORITY_MS) {
+            break;
+          }
+          session.agentState = event.data;
+          useWorkspaceStore
+            .getState()
+            .updateWorktree(worktreeId, { agentStatus: event.data });
+          break;
+        }
+      }
+    });
+
+    const command = mode === "shell" ? "/bin/zsh" : "claude";
+    const agentType = mode === "claude" ? "claudeCode" : undefined;
+
+    const sessionId = await spawnPty(
+      worktreeId,
+      worktreePath,
+      command,
+      args ?? [],
+      channel,
+      agentType,
+    );
+    session.sessionId = sessionId;
+    session.agentState = mode === "shell" ? "notRunning" : "idle";
+    session.lastHookUpdate = Date.now();
+
     if (mode === "claude") {
       useWorkspaceStore
         .getState()
