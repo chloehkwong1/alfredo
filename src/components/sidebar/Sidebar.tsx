@@ -271,6 +271,7 @@ function Sidebar({
         <CreateWorktreeDialog
           open={createWorktreeOpen}
           onOpenChange={setCreateWorktreeOpen}
+          repoPath={repoPath ?? undefined}
         />
       )}
     </div>
