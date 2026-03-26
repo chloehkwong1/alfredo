@@ -99,16 +99,21 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const handleRestartSession = useCallback(async () => {
     if (!tabId || !activeWorktreeId || !worktree || !repoPath) return;
 
-    await sessionManager.closeSession(sessionKey);
+    // Resolve new args BEFORE closing the old session so a config error
+    // doesn't leave the session dead with no reconnect trigger.
+    try {
+      const config = await getConfig(repoPath);
+      const branch = worktree.branch ?? "";
+      const resolved = resolveSettings(
+        config.claudeDefaults,
+        config.worktreeOverrides?.[branch],
+      );
+      setResolvedArgs(buildClaudeArgs(resolved));
+    } catch {
+      // Config fetch failed — keep current args and still restart.
+    }
 
-    const config = await getConfig(repoPath);
-    const branch = worktree.branch ?? "";
-    const resolved = resolveSettings(
-      config.claudeDefaults,
-      config.worktreeOverrides?.[branch],
-    );
-    const newArgs = buildClaudeArgs(resolved);
-    setResolvedArgs(newArgs);
+    await sessionManager.closeSession(sessionKey);
     setReconnectKey((k) => k + 1);
   }, [tabId, activeWorktreeId, worktree, sessionKey, repoPath]);
 
