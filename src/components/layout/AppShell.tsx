@@ -21,7 +21,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath, getConfig, writePty } from "../../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath, getConfig } from "../../api";
 import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -109,9 +109,14 @@ function TabBar() {
       useWorkspaceStore.getState().removeTab(activeWorktreeId, oldServerTab.id);
     }
 
-    // Create a fresh server tab with a new ID (forces React to remount TerminalView)
+    // Create a fresh server tab with the run command stored on it
     const tabId = `${activeWorktreeId}:server:${crypto.randomUUID().slice(0, 8)}`;
-    const newTab = { id: tabId, type: "server" as const, label: "Server" };
+    const newTab = {
+      id: tabId,
+      type: "server" as const,
+      label: "Server",
+      command: runScript.command,
+    };
     const currentTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
     const tabs = [...currentTabs];
     const changesIdx = tabs.findIndex((t) => t.type === "changes");
@@ -124,27 +129,16 @@ function TabBar() {
       tabs: { ...state.tabs, [activeWorktreeId]: tabs },
     }));
 
-    // Switch to the server tab — TerminalView will mount and spawn the shell via usePty
+    // Switch to the server tab — TerminalView will mount, spawn the shell,
+    // and execute the command stored on the tab
     useWorkspaceStore.getState().setActiveTabId(activeWorktreeId, tabId);
 
-    // Wait for TerminalView to mount and spawn the PTY, then write the command
-    const waitForSession = () => {
-      const session = sessionManager.getSession(tabId);
-      if (session?.sessionId) {
-        const cmd = runScript.command + "\n";
-        const bytes = Array.from(new TextEncoder().encode(cmd));
-        writePty(session.sessionId, bytes).catch(console.error);
-        setRunningServer({
-          worktreeId: activeWorktreeId,
-          sessionId: session.sessionId,
-          tabId,
-        });
-      } else {
-        // Session not ready yet, retry
-        setTimeout(waitForSession, 100);
-      }
-    };
-    setTimeout(waitForSession, 300);
+    // Set running server state (sessionId filled in by TerminalView after spawn)
+    setRunningServer({
+      worktreeId: activeWorktreeId,
+      sessionId: "",
+      tabId,
+    });
   }, [activeWorktreeId, runScript, repoPath, isServerRunningHere, runningServer, setRunningServer]);
 
   function handleAddTab(type: TabType) {

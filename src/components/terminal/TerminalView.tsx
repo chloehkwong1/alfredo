@@ -42,6 +42,13 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const sessionKey = tabId ?? activeWorktreeId ?? "";
   const mode = (tabType === "shell" || tabType === "server") ? "shell" : "claude";
 
+  // Read the tab's command field (used by server tabs to auto-execute a command)
+  const tabCommand = useWorkspaceStore((s) => {
+    if (!activeWorktreeId || !tabId) return undefined;
+    const tabs = s.tabs[activeWorktreeId] ?? [];
+    return tabs.find((t) => t.id === tabId)?.command;
+  });
+
   const { activeRepo: repoPath } = useAppConfig();
 
   const [reconnectKey, setReconnectKey] = useState(0);
@@ -72,6 +79,24 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     args: resolvedArgs,
     reconnectKey,
   });
+
+  // Auto-execute the tab's command after PTY spawns (used by server tabs)
+  const commandSentRef = useRef(false);
+  useEffect(() => {
+    if (!tabCommand || commandSentRef.current) return;
+    // Poll until the session is ready, then write the command
+    const interval = setInterval(() => {
+      const session = sessionManager.getSession(sessionKey);
+      if (session?.sessionId) {
+        commandSentRef.current = true;
+        clearInterval(interval);
+        const cmd = tabCommand + "\n";
+        const bytes = Array.from(new TextEncoder().encode(cmd));
+        writePty(session.sessionId, bytes).catch(console.error);
+      }
+    }, 200);
+    return () => clearInterval(interval);
+  }, [tabCommand, sessionKey]);
 
   const handleSendFeedback = useCallback(async () => {
     if (!activeWorktreeId || annotations.length === 0) return;
