@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Terminal } from "@xterm/xterm";
+import { WebglAddon } from "@xterm/addon-webgl";
+import type { SearchAddon } from "@xterm/addon-search";
 import type { AgentState } from "../types";
 import { writePty, resizePty } from "../api";
 import { sessionManager } from "../services/sessionManager";
@@ -23,6 +25,7 @@ interface UsePtyOptions {
 
 interface UsePtyReturn {
   terminal: Terminal | null;
+  searchAddon: SearchAddon | null;
   agentState: AgentState;
   isConnected: boolean;
   channelAlive: boolean;
@@ -43,6 +46,7 @@ export function usePty({
   reconnectKey,
 }: UsePtyOptions): UsePtyReturn {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
+  const [searchAddon, setSearchAddon] = useState<SearchAddon | null>(null);
   const [agentState, setAgentState] = useState<AgentState>("notRunning");
   const [isConnected, setIsConnected] = useState(false);
   const [channelAlive, setChannelAlive] = useState(true);
@@ -83,6 +87,18 @@ export function usePty({
         term.open(container);
       }
 
+      // Load WebGL renderer once (needs terminal in DOM)
+      if (!session.webglLoaded) {
+        session.webglLoaded = true;
+        try {
+          const webgl = new WebglAddon();
+          webgl.onContextLoss(() => webgl.dispose());
+          term.loadAddon(webgl);
+        } catch {
+          // WebGL unavailable — canvas renderer is fine
+        }
+      }
+
       // Wire up input/resize forwarding BEFORE fit() so the initial resize
       // event propagates to the backend PTY (which starts at 80×24).
       if (session.sessionId) {
@@ -117,6 +133,7 @@ export function usePty({
       resizeObserver.observe(container);
 
       setTerminal(term);
+      setSearchAddon(session.searchAddon);
       setAgentState(session.agentState);
       setIsConnected(true);
     }
@@ -160,9 +177,10 @@ export function usePty({
 
       sessionRef.current = null;
       setTerminal(null);
+      setSearchAddon(null);
       setIsConnected(false);
     };
   }, [sessionKey, worktreeId, worktreePath, mode, containerRef, reconnectKey]);
 
-  return { terminal, agentState, isConnected, channelAlive };
+  return { terminal, searchAddon, agentState, isConnected, channelAlive };
 }
