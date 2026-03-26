@@ -5,10 +5,17 @@ import "@xterm/xterm/css/xterm.css";
 import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { sessionManager } from "../../services/sessionManager";
-import { writePty } from "../../api";
+import { writePty, getConfig } from "../../api";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { loadSession } from "../../services/SessionPersistence";
 import { Button } from "../ui/Button";
+import { SessionResumeOverlay } from "./SessionResumeOverlay";
+import {
+  resolveSettings,
+  buildClaudeArgs,
+  settingsSnapshot,
+  diffSettings,
+} from "../../services/claudeSettingsResolver";
 import type { Annotation, TabType } from "../../types";
 
 interface TerminalViewProps {
@@ -48,6 +55,38 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }).catch(() => {});
   }, [repoPath, activeWorktreeId, tabId]);
 
+  const isDisconnected = useWorkspaceStore((s) =>
+    tabId ? s.disconnectedTabs.has(tabId) : false,
+  );
+  const removeDisconnectedTab = useWorkspaceStore((s) => s.removeDisconnectedTab);
+
+  // Get the current tab's saved settings for change detection
+  const currentTab = useWorkspaceStore((s) => {
+    if (!activeWorktreeId || !tabId) return undefined;
+    return s.tabs[activeWorktreeId]?.find((t) => t.id === tabId);
+  });
+
+  const [resolvedArgs, setResolvedArgs] = useState<string[]>([]);
+  const [currentSnapshot, setCurrentSnapshot] = useState<{
+    model?: string; effort?: string; permissionMode?: string; outputStyle?: string;
+  }>({});
+
+  // Resolve settings when component mounts
+  useEffect(() => {
+    if (mode !== "claude" || !repoPath) return;
+    getConfig(repoPath).then((config) => {
+      const branch = worktree?.branch ?? "";
+      const resolved = resolveSettings(
+        config.claudeDefaults,
+        config.worktreeOverrides?.[branch],
+      );
+      setResolvedArgs(buildClaudeArgs(resolved));
+      setCurrentSnapshot(settingsSnapshot(resolved));
+    }).catch(() => {});
+  }, [repoPath, worktree?.branch, mode]);
+
+  const settingsChangedText = diffSettings(currentTab?.claudeSettings, currentSnapshot);
+
   const { agentState } = usePty({
     sessionKey,
     worktreeId: activeWorktreeId ?? "",
@@ -55,6 +94,8 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     containerRef,
     mode,
     initialScrollback: savedScrollback,
+    args: resolvedArgs,
+    disconnected: isDisconnected,
   });
 
   const handleSendFeedback = useCallback(async () => {
@@ -82,6 +123,64 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       clearAnnotations(activeWorktreeId);
     }
   }, [activeWorktreeId, clearAnnotations]);
+
+  const handleResume = useCallback(async () => {
+    if (!tabId || !activeWorktreeId || !worktree) return;
+    removeDisconnectedTab(tabId);
+
+    // Spawn with --continue plus current settings
+    const resumeArgs = ["--continue", ...resolvedArgs];
+    await sessionManager.spawnForExisting(
+      sessionKey,
+      activeWorktreeId,
+      worktree.path,
+      "claude",
+      resumeArgs,
+    );
+
+    // Wire up input forwarding after spawn
+    const session = sessionManager.getSession(sessionKey);
+    if (session?.sessionId && containerRef.current) {
+      session.terminal.onData((data: string) => {
+        const bytes = Array.from(new TextEncoder().encode(data));
+        writePty(session.sessionId, bytes).catch(console.error);
+      });
+    }
+  }, [tabId, activeWorktreeId, worktree, sessionKey, resolvedArgs, removeDisconnectedTab]);
+
+  const handleStartFresh = useCallback(async () => {
+    if (!tabId || !activeWorktreeId || !worktree) return;
+    removeDisconnectedTab(tabId);
+
+    // Close the scrollback-only session and clear the terminal
+    await sessionManager.closeSession(sessionKey);
+
+    // getOrSpawn will create a fresh session (no scrollback, no --continue)
+    await sessionManager.getOrSpawn(
+      sessionKey,
+      activeWorktreeId,
+      worktree.path,
+      "claude",
+      undefined,
+      resolvedArgs,
+    );
+
+    // Wire up input forwarding
+    const session = sessionManager.getSession(sessionKey);
+    if (session?.sessionId && containerRef.current) {
+      const term = session.terminal;
+      // Re-attach to DOM
+      if (term.element && containerRef.current) {
+        containerRef.current.appendChild(term.element);
+      } else if (containerRef.current) {
+        term.open(containerRef.current);
+      }
+      term.onData((data: string) => {
+        const bytes = Array.from(new TextEncoder().encode(data));
+        writePty(session.sessionId, bytes).catch(console.error);
+      });
+    }
+  }, [tabId, activeWorktreeId, worktree, sessionKey, resolvedArgs, removeDisconnectedTab]);
 
   // Mark as seen when user is viewing a terminal that's idle or waiting
   useEffect(() => {
@@ -141,7 +240,16 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           </div>
         </div>
       )}
-      <div ref={containerRef} className="flex-1 min-h-0 p-1" />
+      <div className="relative flex-1 min-h-0">
+        <div ref={containerRef} className="h-full p-1" />
+        {isDisconnected && (
+          <SessionResumeOverlay
+            settingsChangedText={settingsChangedText}
+            onResume={handleResume}
+            onStartFresh={handleStartFresh}
+          />
+        )}
+      </div>
     </div>
   );
 }
