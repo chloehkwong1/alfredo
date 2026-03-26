@@ -1,5 +1,6 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import type { AgentState } from "../types";
 import { spawnPty, closePty, createPtyChannel, resizePty } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -29,6 +30,37 @@ export interface ManagedSession {
   outputBufferTotal: number;
 }
 
+/**
+ * Create a Terminal instance with the kitty keyboard protocol Shift+Enter
+ * sequence wired up.  By default xterm.js sends the same `\r` for both
+ * Enter and Shift+Enter, so Claude Code (and other TUI apps that rely on
+ * the kitty keyboard protocol) can't tell them apart.  We intercept
+ * Shift+Enter and write `\x1b[13;2u` instead, which Claude Code interprets
+ * as "insert newline" rather than "submit prompt".
+ */
+function createTerminal(): Terminal {
+  const terminal = new Terminal({
+    allowProposedApi: true,
+    scrollback: 10_000,
+  });
+
+  const unicodeAddon = new Unicode11Addon();
+  terminal.loadAddon(unicodeAddon);
+  terminal.unicode.activeVersion = "11";
+
+  terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+    if (event.type === "keydown" && event.key === "Enter" && event.shiftKey) {
+      // Write the kitty-protocol Shift+Enter sequence directly.
+      // Returning false tells xterm NOT to process the key itself.
+      terminal.input("\x1b[13;2u", false);
+      return false;
+    }
+    return true;
+  });
+
+  return terminal;
+}
+
 // ── SessionManager ─────────────────────────────────────────────
 
 export class SessionManager {
@@ -56,10 +88,7 @@ export class SessionManager {
     if (existing) return existing;
 
     // Create xterm instance (headless — not attached to DOM yet)
-    const terminal = new Terminal({
-      allowProposedApi: true,
-      scrollback: 10_000,
-    });
+    const terminal = createTerminal();
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
@@ -151,10 +180,7 @@ export class SessionManager {
     const existing = this.sessions.get(sessionKey);
     if (existing) return existing;
 
-    const terminal = new Terminal({
-      allowProposedApi: true,
-      scrollback: 10_000,
-    });
+    const terminal = createTerminal();
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
