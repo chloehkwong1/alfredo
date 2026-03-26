@@ -8,7 +8,8 @@ import { sessionManager } from "../../services/sessionManager";
 import { writePty, getConfig } from "../../api";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { Button } from "../ui/Button";
-import { AgentSettingsPopover } from "./AgentSettingsPopover";
+import { SettingsStatusBar } from "./SettingsStatusBar";
+import { TerminalSearchBar } from "./TerminalSearchBar";
 import {
   resolveSettings,
   buildClaudeArgs,
@@ -60,7 +61,9 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }).catch(() => {});
   }, [repoPath, worktree?.branch, mode]);
 
-  const { agentState, channelAlive } = usePty({
+  const [showSearch, setShowSearch] = useState(false);
+
+  const { agentState, channelAlive, searchAddon } = usePty({
     sessionKey,
     worktreeId: activeWorktreeId ?? "",
     worktreePath: worktree?.path ?? "",
@@ -116,6 +119,21 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     await sessionManager.closeSession(sessionKey);
     setReconnectKey((k) => k + 1);
   }, [tabId, activeWorktreeId, worktree, sessionKey, repoPath]);
+
+  // Cmd+F to toggle terminal search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        // Only handle if our terminal container has focus
+        if (containerRef.current?.contains(document.activeElement) || showSearch) {
+          e.preventDefault();
+          setShowSearch((s) => !s);
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showSearch]);
 
   // Mark as seen when user is viewing a terminal that's idle or waiting
   useEffect(() => {
@@ -182,16 +200,20 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
             <Button size="sm" variant="secondary" onClick={handleRestartSession}>Restart session</Button>
           </div>
         )}
+        {showSearch && searchAddon && (
+          <TerminalSearchBar
+            searchAddon={searchAddon}
+            onClose={() => setShowSearch(false)}
+          />
+        )}
         <div ref={containerRef} className="h-full p-1" />
       </div>
       {/* Status bar */}
       {mode === "claude" && worktree && (
-        <div className="relative flex items-center justify-end px-2 py-1 border-t border-border-default flex-shrink-0">
-          <AgentSettingsPopover
-            branch={worktree.branch ?? ""}
-            onRestartSession={handleRestartSession}
-          />
-        </div>
+        <SettingsStatusBar
+          branch={worktree.branch ?? ""}
+          onRestartSession={handleRestartSession}
+        />
       )}
     </div>
   );
