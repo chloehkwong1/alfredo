@@ -408,6 +408,9 @@ fn write_hooks_config(
         ("Stop", serde_json::json!({
             "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/idle") }]
         })),
+        ("PreToolUse", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
+        })),
         ("Notification", serde_json::json!({
             "matcher": "permission_prompt",
             "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/waitingForInput") }]
