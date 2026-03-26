@@ -21,6 +21,8 @@ interface UsePtyOptions {
   args?: string[];
   /** Increment to force the hook to re-run and re-wire the session. */
   reconnectKey?: number;
+  /** Command to write to stdin after the shell spawns (used by server tabs). */
+  startupCommand?: string;
 }
 
 interface UsePtyReturn {
@@ -44,6 +46,7 @@ export function usePty({
   mode = "claude",
   args,
   reconnectKey,
+  startupCommand,
 }: UsePtyOptions): UsePtyReturn {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [searchAddon, setSearchAddon] = useState<SearchAddon | null>(null);
@@ -52,10 +55,11 @@ export function usePty({
   const [channelAlive, setChannelAlive] = useState(true);
   const sessionRef = useRef<ManagedSession | null>(null);
 
-  // Use a ref for args so it doesn't trigger re-attach cycles.
-  // getOrSpawn returns existing sessions without re-reading args.
+  // Use refs for args and startupCommand so they don't trigger re-attach cycles.
   const argsRef = useRef(args);
   argsRef.current = args;
+  const startupCommandRef = useRef(startupCommand);
+  startupCommandRef.current = startupCommand;
 
   useEffect(() => {
     if (!sessionKey || !worktreeId || !worktreePath || !containerRef.current) return;
@@ -139,6 +143,15 @@ export function usePty({
       setSearchAddon(session.searchAddon);
       setAgentState(session.agentState);
       setIsConnected(true);
+
+      // Write startup command to stdin after a brief delay for shell init
+      if (startupCommandRef.current && session.sessionId) {
+        setTimeout(() => {
+          const cmd = startupCommandRef.current + "\n";
+          const bytes = Array.from(new TextEncoder().encode(cmd));
+          writePty(session.sessionId, bytes).catch(console.error);
+        }, 500);
+      }
     }
 
     attach().catch((err) => {

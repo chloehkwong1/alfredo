@@ -78,25 +78,8 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     mode,
     args: resolvedArgs,
     reconnectKey,
+    startupCommand: tabCommand,
   });
-
-  // Auto-execute the tab's command after PTY spawns (used by server tabs)
-  const commandSentRef = useRef(false);
-  useEffect(() => {
-    if (!tabCommand || commandSentRef.current) return;
-    // Poll until the session is ready, then write the command
-    const interval = setInterval(() => {
-      const session = sessionManager.getSession(sessionKey);
-      if (session?.sessionId) {
-        commandSentRef.current = true;
-        clearInterval(interval);
-        const cmd = tabCommand + "\n";
-        const bytes = Array.from(new TextEncoder().encode(cmd));
-        writePty(session.sessionId, bytes).catch(console.error);
-      }
-    }, 200);
-    return () => clearInterval(interval);
-  }, [tabCommand, sessionKey]);
 
   const handleSendFeedback = useCallback(async () => {
     if (!activeWorktreeId || annotations.length === 0) return;
