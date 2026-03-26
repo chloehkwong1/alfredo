@@ -42,10 +42,11 @@ export function buildClaudeArgs(settings: ResolvedClaudeSettings): string[] {
     args.push("--effort", settings.effort);
   }
   if (settings.permissionMode && settings.permissionMode !== "default") {
-    args.push("--permission-mode", settings.permissionMode);
-  }
-  if (settings.dangerouslySkipPermissions) {
-    args.push("--dangerously-skip-permissions");
+    if (settings.permissionMode === "bypassPermissions") {
+      args.push("--dangerously-skip-permissions");
+    } else {
+      args.push("--permission-mode", settings.permissionMode);
+    }
   }
   if (settings.verbose) {
     args.push("--verbose");

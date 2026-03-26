@@ -19,6 +19,7 @@ const PERMISSION_OPTIONS = [
   { value: "accept-edits", label: "Accept Edits" },
   { value: "plan", label: "Plan" },
   { value: "auto", label: "Auto" },
+  { value: "bypassPermissions", label: "Bypass" },
 ];
 const OUTPUT_OPTIONS = ["Default", "Explanatory", "Learning"] as const;
 

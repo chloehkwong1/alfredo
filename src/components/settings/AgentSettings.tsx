@@ -9,10 +9,11 @@ const MODEL_OPTIONS = [
 const EFFORT_OPTIONS = ["low", "medium", "high", "max"] as const;
 
 const PERMISSION_OPTIONS = [
-  { value: "default", label: "Default" },
-  { value: "accept-edits", label: "Accept Edits" },
-  { value: "plan", label: "Plan" },
-  { value: "auto", label: "Auto" },
+  { value: "default", label: "Default", hint: "Asks before edits and commands" },
+  { value: "accept-edits", label: "Accept Edits", hint: "Auto-accepts file edits" },
+  { value: "plan", label: "Plan", hint: "Read-only exploration" },
+  { value: "auto", label: "Auto", hint: "Autonomous with AI safety checks" },
+  { value: "bypassPermissions", label: "Bypass Permissions", hint: "No checks — sandboxed environments only" },
 ];
 
 const OUTPUT_OPTIONS = ["Default", "Explanatory", "Learning"] as const;
@@ -89,6 +90,8 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
               update({
                 permissionMode:
                   e.target.value === "default" ? undefined : e.target.value,
+                dangerouslySkipPermissions:
+                  e.target.value === "bypassPermissions" ? true : undefined,
               })
             }
             className="w-full px-3 py-1.5 text-sm bg-bg-hover text-text-primary border border-border-default rounded-[var(--radius-md)] focus:outline-none focus:ring-1 focus:ring-accent-primary"
@@ -99,41 +102,9 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="text-xs text-text-secondary">
-              Skip Permissions
-            </label>
-            <p className="text-xs text-text-tertiary">
-              Dangerously skip all permission prompts
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              update({
-                dangerouslySkipPermissions:
-                  !settings.dangerouslySkipPermissions,
-              })
-            }
-            className={[
-              "relative w-9 h-5 rounded-full transition-colors cursor-pointer",
-              settings.dangerouslySkipPermissions
-                ? "bg-accent-primary"
-                : "bg-bg-hover border border-border-default",
-            ].join(" ")}
-          >
-            <span
-              className={[
-                "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform",
-                settings.dangerouslySkipPermissions
-                  ? "translate-x-4"
-                  : "translate-x-0",
-              ].join(" ")}
-            />
-          </button>
+          <p className="text-xs text-text-tertiary">
+            {PERMISSION_OPTIONS.find((o) => o.value === (settings.permissionMode ?? "default"))?.hint}
+          </p>
         </div>
       </div>
 
