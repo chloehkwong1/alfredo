@@ -68,9 +68,12 @@ export function usePty({
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Reset channelAlive immediately so the disconnect banner disappears
-    // while we spin up the new session.
+    // while we spin up the new session. Only claude tabs should update the
+    // worktree's channelAlive — shell/server tabs are independent processes.
     setChannelAlive(true);
-    useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: true });
+    if (mode === "claude") {
+      useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: true });
+    }
 
     async function attach() {
       const session = await sessionManager.getOrSpawn(
@@ -144,18 +147,24 @@ export function usePty({
       // the disconnect banner and can retry.
       if (!disposed) {
         setChannelAlive(false);
-        useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: false });
+        if (mode === "claude") {
+          useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: false });
+        }
       }
     });
 
-    // Poll agent state so the UI stays current while attached
+    // Poll agent state so the UI stays current while attached.
+    // Only claude tabs should update the worktree's channelAlive and agentStatus —
+    // shell/server tabs are independent processes that shouldn't affect agent state.
     const stateInterval = setInterval(() => {
       const session = sessionRef.current;
       if (session) {
         setAgentState(session.agentState);
         const alive = !session.sessionId || Date.now() - session.lastHeartbeat < 6000;
         setChannelAlive(alive);
-        useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: alive });
+        if (mode === "claude") {
+          useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: alive });
+        }
       }
     }, 500);
 
