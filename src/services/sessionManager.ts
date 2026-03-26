@@ -25,10 +25,9 @@ export interface ManagedSession {
    *  suppressed for HOOK_AUTHORITY_MS after this to avoid false overrides. */
   lastHookUpdate: number;
   /** True once at least one hook event has been received. When hooks are
-   *  active, the detector is only allowed to transition *away from* busy
-   *  (e.g. idle, waitingForInput) — never *to* busy. Only the
-   *  UserPromptSubmit hook should set busy to avoid false flips from
-   *  status-bar redraws arriving in chunks. */
+   *  active, the detector is blocked from transitioning *to* busy (only
+   *  UserPromptSubmit / PreToolUse hooks should set busy). The detector
+   *  CAN still set idle and waitingForInput as a fallback. */
   hooksActive: boolean;
   /** Circular buffer of recent output bytes for replay when re-attaching a UI. */
   outputBuffer: Uint8Array;
@@ -38,6 +37,10 @@ export interface ManagedSession {
   outputBufferTotal: number;
   /** Timestamp of the last heartbeat received from the PTY channel. */
   lastHeartbeat: number;
+  /** Pending output chunks awaiting the next animation frame flush. */
+  pendingOutput: Uint8Array[];
+  /** Whether a requestAnimationFrame flush is already scheduled. */
+  writeScheduled: boolean;
 }
 
 /**
@@ -130,6 +133,8 @@ export class SessionManager {
       outputBufferPos: 0,
       outputBufferTotal: 0,
       lastHeartbeat: Date.now(),
+      pendingOutput: [],
+      writeScheduled: false,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -137,7 +142,7 @@ export class SessionManager {
       switch (event.event) {
         case "output": {
           const bytes = new Uint8Array(event.data);
-          terminal.write(bytes);
+          this.scheduleWrite(session, bytes);
           this.appendToBuffer(session, bytes);
           break;
         }
@@ -162,10 +167,9 @@ export class SessionManager {
           // Only the UserPromptSubmit hook should set busy — the detector's
           // "busy" signal is too noisy (status-bar redraws in chunks trigger
           // false positives after the suppression window expires).
-          if (
-            session.hooksActive &&
-            (event.data === "busy" || event.data === "waitingForInput")
-          ) {
+          // The detector CAN still set waitingForInput (permission prompts)
+          // as a fallback when the Notification hook doesn't fire.
+          if (session.hooksActive && event.data === "busy") {
             break;
           }
           session.agentState = event.data;
@@ -238,6 +242,8 @@ export class SessionManager {
       outputBufferPos: 0,
       outputBufferTotal: 0,
       lastHeartbeat: 0,
+      pendingOutput: [],
+      writeScheduled: false,
     };
 
     this.sessions.set(sessionKey, session);
@@ -263,7 +269,7 @@ export class SessionManager {
       switch (event.event) {
         case "output": {
           const bytes = new Uint8Array(event.data);
-          session.terminal.write(bytes);
+          this.scheduleWrite(session, bytes);
           this.appendToBuffer(session, bytes);
           break;
         }
@@ -284,10 +290,7 @@ export class SessionManager {
           if (Date.now() - session.lastHookUpdate < HOOK_AUTHORITY_MS) {
             break;
           }
-          if (
-            session.hooksActive &&
-            (event.data === "busy" || event.data === "waitingForInput")
-          ) {
+          if (session.hooksActive && event.data === "busy") {
             break;
           }
           session.agentState = event.data;
@@ -358,6 +361,34 @@ export class SessionManager {
   }
 
   // ── Internal helpers ───────────────────────────────────────────
+
+  /**
+   * Batch terminal writes via requestAnimationFrame so the browser's event
+   * loop can process click/input events between frames. Without this, rapid
+   * PTY output (hundreds of IPC events/sec) can starve the main thread.
+   */
+  private scheduleWrite(session: ManagedSession, bytes: Uint8Array): void {
+    session.pendingOutput.push(bytes);
+    if (session.writeScheduled) return;
+    session.writeScheduled = true;
+    requestAnimationFrame(() => {
+      const chunks = session.pendingOutput;
+      session.pendingOutput = [];
+      session.writeScheduled = false;
+      if (chunks.length === 1) {
+        session.terminal.write(chunks[0]);
+      } else if (chunks.length > 1) {
+        const total = chunks.reduce((sum, c) => sum + c.length, 0);
+        const merged = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) {
+          merged.set(chunk, offset);
+          offset += chunk.length;
+        }
+        session.terminal.write(merged);
+      }
+    });
+  }
 
   /** Append bytes to the circular output buffer for later replay. */
   private appendToBuffer(session: ManagedSession, bytes: Uint8Array): void {
