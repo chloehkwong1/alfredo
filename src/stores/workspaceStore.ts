@@ -151,7 +151,25 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   setActiveWorktree: (id) => set({ activeWorktreeId: id }),
 
-  setWorktrees: (worktrees) => set({ worktrees }),
+  setWorktrees: (freshWorktrees) =>
+    set((state) => {
+      // Merge fresh git data with existing enriched state (PR status, column, etc.)
+      const existing = new Map(state.worktrees.map((wt) => [wt.id, wt]));
+      const worktrees = freshWorktrees.map((fresh) => {
+        const old = existing.get(fresh.id);
+        if (old) {
+          return {
+            ...fresh,
+            prStatus: old.prStatus,
+            column: old.column,
+            agentStatus: old.agentStatus,
+            archived: old.archived,
+          };
+        }
+        return fresh;
+      });
+      return { worktrees };
+    }),
 
   /**
    * Apply PR status updates from the background sync loop.
@@ -241,20 +259,43 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   ensureDefaultTabs: (worktreeId) => {
     const state = get();
-    if (state.tabs[worktreeId]?.length) return; // already initialized
-    const claudeTab: WorkspaceTab = {
-      id: `${worktreeId}:claude:${crypto.randomUUID().slice(0, 8)}`,
-      type: "claude",
-      label: "Claude",
-    };
-    const changesTab: WorkspaceTab = {
-      id: `${worktreeId}:changes`,
-      type: "changes",
-      label: "Changes",
-    };
+    const existing = state.tabs[worktreeId] ?? [];
+    const hasClaude = existing.some((t) => t.type === "claude");
+    const hasChanges = existing.some((t) => t.type === "changes");
+
+    if (hasClaude && hasChanges) return; // already has required tabs
+
+    const tabs = [...existing];
+    let claudeTabId = state.activeTabId[worktreeId];
+
+    if (!hasClaude) {
+      const claudeTab: WorkspaceTab = {
+        id: `${worktreeId}:claude:${crypto.randomUUID().slice(0, 8)}`,
+        type: "claude",
+        label: "Claude",
+      };
+      // Insert Claude tab at the beginning
+      tabs.unshift(claudeTab);
+      claudeTabId = claudeTab.id;
+    }
+
+    if (!hasChanges) {
+      const changesTab: WorkspaceTab = {
+        id: `${worktreeId}:changes`,
+        type: "changes",
+        label: "Changes",
+      };
+      // Changes tab always goes last
+      tabs.push(changesTab);
+    }
+
     set({
-      tabs: { ...state.tabs, [worktreeId]: [claudeTab, changesTab] },
-      activeTabId: { ...state.activeTabId, [worktreeId]: claudeTab.id },
+      tabs: { ...state.tabs, [worktreeId]: tabs },
+      // Set active tab to Claude if no active tab was set
+      activeTabId: {
+        ...state.activeTabId,
+        [worktreeId]: state.activeTabId[worktreeId] ?? claudeTabId,
+      },
     });
   },
 

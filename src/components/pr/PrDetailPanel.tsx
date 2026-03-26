@@ -25,12 +25,16 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
     }
   }, [repoPath, worktree.branch, worktree.id, setCheckRuns]);
 
+  // Track whether a PR exists, not the full prStatus object, to avoid
+  // restarting the polling interval on every PR metadata update.
+  const hasPr = !!worktree.prStatus;
+
   useEffect(() => {
-    if (!worktree.prStatus) return;
+    if (!hasPr) return;
     fetchChecks();
     const interval = setInterval(fetchChecks, 30_000);
     return () => clearInterval(interval);
-  }, [worktree.prStatus, fetchChecks]);
+  }, [hasPr, fetchChecks]);
 
   if (!worktree.prStatus) {
     return (
