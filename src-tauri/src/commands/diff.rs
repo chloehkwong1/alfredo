@@ -308,6 +308,7 @@ pub async fn get_commits(repo_path: String) -> Result<Vec<CommitInfo>> {
             });
         }
 
+        commits.reverse(); // chronological order: oldest first
         Ok(commits)
     })
     .await
