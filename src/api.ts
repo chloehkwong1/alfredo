@@ -157,24 +157,18 @@ export function getPrForBranch(
 
 // ── GitHub Auth ─────────────────────────────────────────────────
 
-export interface DeviceCodeResponse {
-  deviceCode: string;
-  userCode: string;
-  verificationUri: string;
-  expiresIn: number;
-  interval: number;
+export interface GhCliStatus {
+  installed: boolean;
+  authenticated: boolean;
+  username: string | null;
 }
 
-export function githubAuthStart(): Promise<DeviceCodeResponse> {
-  return invoke("github_auth_start");
+export function githubAuthStatus(): Promise<GhCliStatus> {
+  return invoke("github_auth_status");
 }
 
-export function githubAuthPoll(deviceCode: string, initialInterval: number): Promise<string> {
-  return invoke("github_auth_poll", { deviceCode, initialInterval });
-}
-
-export function githubAuthUser(token: string): Promise<string> {
-  return invoke("github_auth_user", { token });
+export function githubAuthToken(): Promise<string> {
+  return invoke("github_auth_token");
 }
 
 export function githubAuthDisconnect(repoPath: string): Promise<void> {

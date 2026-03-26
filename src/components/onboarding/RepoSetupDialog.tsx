@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { FolderOpen, Terminal, Check, Github, Loader2, ExternalLink, Key } from "lucide-react";
+import { FolderOpen, Terminal, Check, Github, Loader2, Key } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
@@ -12,7 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "../ui/Dialog";
-import { getConfig, saveConfig, githubAuthStart, githubAuthPoll, githubAuthUser } from "../../api";
+import { getConfig, saveConfig, githubAuthStatus, githubAuthToken } from "../../api";
 
 interface RepoSetupDialogProps {
   open: boolean;
@@ -42,8 +41,7 @@ function RepoSetupDialog({
   const [githubConnected, setGithubConnected] = useState<string | null>(null);
   const [githubAuthState, setGithubAuthState] = useState<
     | { step: "idle" }
-    | { step: "loading" }
-    | { step: "waiting"; userCode: string; deviceCode: string; verificationUri: string }
+    | { step: "checking" }
   >({ step: "idle" });
   const [githubToken, setGithubToken] = useState("");
   const [githubError, setGithubError] = useState<string | null>(null);
@@ -81,8 +79,12 @@ function RepoSetupDialog({
       .then((config) => {
         if (config.githubToken) {
           setGithubToken(config.githubToken);
-          githubAuthUser(config.githubToken)
-            .then((username) => setGithubConnected(username))
+          githubAuthStatus()
+            .then((status) => {
+              if (status.authenticated && status.username) {
+                setGithubConnected(status.username);
+              }
+            })
             .catch(() => { /* token invalid */ });
         }
         if (config.setupScripts?.length > 0) {
@@ -101,8 +103,12 @@ function RepoSetupDialog({
 
     // Resolve username for the passed-in existing token (from another repo)
     if (existingGithubToken) {
-      githubAuthUser(existingGithubToken)
-        .then((username) => setExistingGithubUsername(username))
+      githubAuthStatus()
+        .then((status) => {
+          if (status.authenticated && status.username) {
+            setExistingGithubUsername(status.username);
+          }
+        })
         .catch(() => { /* token invalid — hide the offer */ });
     }
   }, [isOpen, repoPath, existingGithubToken, existingLinearKey]);
@@ -110,22 +116,23 @@ function RepoSetupDialog({
   const startGithubAuth = useCallback(async () => {
     setGithubError(null);
     setUsingExistingGithub(false);
-    setGithubAuthState({ step: "loading" });
+    setGithubAuthState({ step: "checking" });
     try {
-      const device = await githubAuthStart();
-      setGithubAuthState({
-        step: "waiting",
-        userCode: device.userCode,
-        deviceCode: device.deviceCode,
-        verificationUri: device.verificationUri,
-      });
+      const status = await githubAuthStatus();
+      if (!status.installed) {
+        setGithubError("GitHub CLI (gh) is not installed. Install it with: brew install gh");
+        setGithubAuthState({ step: "idle" });
+        return;
+      }
+      if (!status.authenticated) {
+        setGithubError("GitHub CLI is not authenticated. Run: gh auth login");
+        setGithubAuthState({ step: "idle" });
+        return;
+      }
 
-      await openUrl(device.verificationUri);
-
-      const token = await githubAuthPoll(device.deviceCode, device.interval);
+      const token = await githubAuthToken();
       setGithubToken(token);
-      const username = await githubAuthUser(token);
-      setGithubConnected(username);
+      setGithubConnected(status.username ?? "unknown");
       setGithubAuthState({ step: "idle" });
     } catch (e) {
       setGithubError(e instanceof Error ? e.message : String(e));
@@ -207,26 +214,10 @@ function RepoSetupDialog({
                   <span className="text-micro text-text-tertiary">(from another repository)</span>
                 )}
               </div>
-            ) : githubAuthState.step === "waiting" ? (
-              <div className="space-y-2">
-                <p className="text-caption text-text-secondary">Enter this code on GitHub:</p>
-                <div className="flex items-center gap-2">
-                  <code className="font-mono font-bold text-text-primary tracking-widest bg-bg-primary px-2.5 py-1 rounded-[var(--radius-sm)] border border-border-default select-all">
-                    {githubAuthState.userCode}
-                  </code>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => openUrl(githubAuthState.verificationUri)}
-                  >
-                    <ExternalLink className="h-3 w-3 mr-1" />
-                    Open GitHub
-                  </Button>
-                </div>
-                <div className="flex items-center gap-1.5 text-micro text-text-tertiary">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Waiting for authorization...
-                </div>
+            ) : githubAuthState.step === "checking" ? (
+              <div className="flex items-center gap-1.5 text-micro text-text-tertiary">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Checking GitHub CLI...
               </div>
             ) : showExistingGithubOffer ? (
               <div className="space-y-2">
@@ -257,13 +248,8 @@ function RepoSetupDialog({
                   variant="secondary"
                   size="sm"
                   onClick={startGithubAuth}
-                  disabled={githubAuthState.step === "loading"}
                 >
-                  {githubAuthState.step === "loading" ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                  ) : (
-                    <Github className="h-3.5 w-3.5 mr-1.5" />
-                  )}
+                  <Github className="h-3.5 w-3.5 mr-1.5" />
                   Connect to GitHub
                 </Button>
                 <p className="text-micro text-text-tertiary">

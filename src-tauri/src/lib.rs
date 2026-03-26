@@ -77,9 +77,8 @@ pub fn run() {
             checks::get_check_runs,
             github_sync::set_sync_repo_path,
             // GitHub Auth
-            github_auth::github_auth_start,
-            github_auth::github_auth_poll,
-            github_auth::github_auth_user,
+            github_auth::github_auth_status,
+            github_auth::github_auth_token,
             github_auth::github_auth_disconnect,
             // Config
             config::get_config,
