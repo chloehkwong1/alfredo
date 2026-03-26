@@ -1,6 +1,6 @@
-# Agent Settings & CI Integration
+# Agent Settings, Session Resume & CI Integration
 
-Two features to improve the daily workflow: configurable Claude CLI settings with global defaults and per-worktree overrides, and GitHub Actions CI integration with sidebar status badges and an actionable detail popover.
+Three features to improve the daily workflow: configurable Claude CLI settings with global defaults and per-worktree overrides, auto-resume of Claude conversations on app restart, and GitHub Actions CI integration with sidebar status badges and an actionable detail popover.
 
 ## Feature 1: Agent Settings
 
@@ -102,6 +102,102 @@ Only overridden fields are stored in `worktreeOverrides`. When spawning a sessio
 
 - Global defaults: Global Settings dialog → new "Agent" tab (after Shortcuts)
 - Per-worktree: Gear icon in the status bar → popover
+
+### Session Restart via Settings
+
+When the user changes per-worktree settings and clicks "Restart now" in the override popover, the session is killed and respawned immediately with the new resolved settings. No confirmation banner — the user explicitly requested the restart.
+
+---
+
+## Feature 1b: Session Auto-Resume
+
+### Overview
+
+When Alfredo restarts, Claude tabs are restored with their saved scrollback and a compact overlay prompting the user to resume or start fresh. This bridges the gap between session persistence (already implemented) and conversation continuity (new).
+
+### Restore Flow
+
+On app startup, when restoring Claude tabs from saved session data:
+
+1. Load saved scrollback into the xterm buffer (existing behavior)
+2. Do NOT spawn a PTY process — leave the terminal in a "disconnected" state
+3. Render a `SessionResumeOverlay` component anchored to the bottom of the terminal viewport
+4. Wait for user interaction before spawning
+
+Shell tabs (`type: "shell"`) continue to spawn immediately as today — auto-resume only applies to Claude tabs.
+
+### Resume Overlay
+
+A React component (`SessionResumeOverlay`) rendered as an absolute-positioned bar at the bottom of the `TerminalView` container. It appears only when the tab is in disconnected state.
+
+**Layout:** Compact bar (~60px), full width, semi-transparent background with backdrop blur and a subtle purple top border.
+- Left side: "Previous session ended" text
+- Right side: Two buttons — "Resume conversation" (primary/purple) and "Start fresh" (secondary/ghost)
+
+**Keyboard:** Enter triggers "Resume conversation" for quick restart. Escape dismisses the overlay without spawning (leaves scrollback visible). The overlay can be re-shown by clicking a small "Session options" link that appears in the terminal's status area after dismissal, or by closing and reopening the tab.
+
+**Settings changed detection:** The overlay compares the saved `claudeSettings` snapshot against the current resolved settings (global defaults + worktree overrides). If they differ, the bar shows an additional note: "Settings changed (model: Opus → Sonnet)" so the user is informed before resuming.
+
+### Resume Actions
+
+**"Resume conversation":**
+1. Remove the tab from `disconnectedTabs` in the workspace store
+2. Spawn `claude --continue` with the current resolved settings (global defaults + worktree overrides, NOT the saved snapshot — if settings changed, the new settings are used)
+3. Terminal already has scrollback loaded, so Claude's resumed output appears seamlessly below the existing history
+
+**"Start fresh":**
+1. Remove the tab from `disconnectedTabs`
+2. Clear the terminal buffer
+3. Spawn `claude` (no `--continue`) with the current resolved settings
+
+### Data Model Changes
+
+`WorkspaceTab` gains new optional fields to support restore:
+
+```typescript
+export interface WorkspaceTab {
+  id: string;
+  type: TabType;
+  label: string;
+  // New fields for session restore:
+  command?: string;          // "claude" or "/bin/zsh"
+  args?: string[];           // CLI args at spawn time (e.g., ["--model", "claude-sonnet-4-6"])
+  claudeSettings?: {         // Resolved settings snapshot at spawn time
+    model?: string;
+    effort?: string;
+    permissionMode?: string;
+    outputStyle?: string;
+  };
+}
+```
+
+These fields are persisted via the existing `SessionPersistence` system (which already writes `tabs: WorkspaceTab[]` to `.alfredo/sessions/{worktreeId}.json`). No changes to `SessionData` itself are needed.
+
+`command` and `args` record what was running so we can distinguish Claude tabs from shell tabs at restore time (beyond just `type`). `claudeSettings` captures the resolved settings at spawn time for change detection in the overlay.
+
+### State Management
+
+New field in the workspace store:
+
+```typescript
+disconnectedTabs: Set<string>;  // Tab IDs awaiting resume/fresh decision
+addDisconnectedTab: (tabId: string) => void;
+removeDisconnectedTab: (tabId: string) => void;
+```
+
+On app restore, all Claude tabs are added to `disconnectedTabs`. The overlay renders when `disconnectedTabs.has(tab.id)` is true. Clicking either button removes the tab from the set and spawns the PTY.
+
+### Implementation Touchpoints
+
+**Frontend changes:**
+- `WorkspaceTab` type in `types.ts` — add `command`, `args`, `claudeSettings`
+- `sessionManager.ts` — accept args in `getOrSpawn()`, build CLI flags from resolved settings, support disconnected mode (load scrollback without spawning PTY)
+- New `SessionResumeOverlay` component — compact bar with Resume/Start fresh buttons
+- `TerminalView.tsx` — render overlay when tab is in disconnected state
+- `workspaceStore.ts` — add `disconnectedTabs` set
+- `AppShell.tsx` — on restore, mark Claude tabs as disconnected instead of immediately spawning
+
+**No Rust/backend changes needed** — `pty_manager.rs` already accepts `args: Vec<String>`, and session persistence already handles the `WorkspaceTab` structure.
 
 ---
 
@@ -242,6 +338,7 @@ Visual mockups are saved in `.superpowers/brainstorm/` from the design session:
 - `agent-settings-v3.html` — Global settings dialog + per-worktree popover
 - `ci-integration-v2.html` — Sidebar with CI chips + GitHub Actions popover
 - `ci-badges-comparison.html` — Badge style comparison (chips selected)
+- `resume-overlay.html` — Session resume overlay options (compact bar selected)
 
 ---
 
