@@ -23,7 +23,8 @@ function SettingsChip({ label, options, value, isOpen, onToggle, onChange }: Set
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [isOpen, onToggle]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Close on Escape
   useEffect(() => {
@@ -33,7 +34,8 @@ function SettingsChip({ label, options, value, isOpen, onToggle, onChange }: Set
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [isOpen, onToggle]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   return (
     <div ref={dropdownRef} className="relative">

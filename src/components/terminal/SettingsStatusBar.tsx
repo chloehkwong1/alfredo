@@ -8,12 +8,14 @@ import { resolveSettings } from "../../services/claudeSettingsResolver";
 import type { ClaudeOverrides } from "../../types";
 
 const MODEL_OPTIONS = [
+  { value: "", label: "Default" },
   { value: "claude-opus-4-6", label: "Opus 4.6" },
   { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
   { value: "claude-haiku-4-5", label: "Haiku 4.5" },
 ];
 
 const EFFORT_OPTIONS = [
+  { value: "", label: "Default" },
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
@@ -21,6 +23,7 @@ const EFFORT_OPTIONS = [
 ];
 
 const PERMISSION_OPTIONS = [
+  { value: "", label: "Default" },
   { value: "acceptEdits", label: "Accept Edits" },
   { value: "plan", label: "Plan" },
   { value: "auto", label: "Auto" },
@@ -34,20 +37,8 @@ const OUTPUT_OPTIONS = [
   { value: "Learning", label: "Learning" },
 ];
 
-function displayModel(value?: string): string {
-  return MODEL_OPTIONS.find((o) => o.value === value)?.label ?? "Default";
-}
-
-function displayEffort(value?: string): string {
-  return EFFORT_OPTIONS.find((o) => o.value === value)?.label ?? "Default";
-}
-
-function displayPermission(value?: string): string {
-  return PERMISSION_OPTIONS.find((o) => o.value === value)?.label ?? "Default";
-}
-
-function displayOutput(value?: string): string {
-  return OUTPUT_OPTIONS.find((o) => o.value === value)?.label ?? "Default";
+function displayLabel(options: { value: string; label: string }[], value?: string): string {
+  return options.find((o) => o.value === value)?.label ?? "Default";
 }
 
 interface SettingsStatusBarProps {
@@ -82,40 +73,47 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
         permissionMode: merged.permissionMode,
         outputStyle: merged.outputStyle,
       });
-    }).catch(() => {});
+    }).catch((err) => { console.error("Failed to load settings:", err); });
   }, [repoPath, branch]);
 
   const handleChange = useCallback(async (field: keyof ClaudeOverrides, value: string) => {
     if (!repoPath) return;
 
     // Update local state immediately
-    setResolved((prev) => ({ ...prev, [field]: value }));
+    const prev = { ...resolved };  // capture for rollback
+    setResolved((r) => ({ ...r, [field]: value }));
     setHasChanges(true);
 
-    // Save to worktreeOverrides
-    const config = await getConfig(repoPath);
-    const allOverrides = { ...config.worktreeOverrides };
-    const current = allOverrides[branch] ?? {};
-    const next = { ...current, [field]: value };
+    try {
+      // Save to worktreeOverrides
+      const config = await getConfig(repoPath);
+      const allOverrides = { ...config.worktreeOverrides };
+      const current = allOverrides[branch] ?? {};
+      const next = { ...current, [field]: value || undefined };
 
-    // Clean out values that match defaults (store only true overrides)
-    const cleaned: ClaudeOverrides = {};
-    if (next.model) cleaned.model = next.model;
-    if (next.effort) cleaned.effort = next.effort;
-    if (next.permissionMode) cleaned.permissionMode = next.permissionMode;
-    if (next.outputStyle && next.outputStyle !== "Default") cleaned.outputStyle = next.outputStyle;
+      // Clean out undefined/falsy values
+      const cleaned: ClaudeOverrides = {};
+      if (next.model) cleaned.model = next.model;
+      if (next.effort) cleaned.effort = next.effort;
+      if (next.permissionMode) cleaned.permissionMode = next.permissionMode;
+      if (next.outputStyle && next.outputStyle !== "Default") cleaned.outputStyle = next.outputStyle;
 
-    if (Object.keys(cleaned).length > 0) {
-      allOverrides[branch] = cleaned;
-    } else {
-      delete allOverrides[branch];
+      if (Object.keys(cleaned).length > 0) {
+        allOverrides[branch] = cleaned;
+      } else {
+        delete allOverrides[branch];
+      }
+
+      await saveConfig(repoPath, {
+        ...config,
+        worktreeOverrides: Object.keys(allOverrides).length > 0 ? allOverrides : undefined,
+      });
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+      setResolved(prev);
+      setHasChanges(false);
     }
-
-    await saveConfig(repoPath, {
-      ...config,
-      worktreeOverrides: Object.keys(allOverrides).length > 0 ? allOverrides : undefined,
-    });
-  }, [repoPath, branch]);
+  }, [repoPath, branch, resolved]);
 
   const toggleDropdown = useCallback((name: string) => {
     setOpenDropdown((prev) => (prev === name ? null : name));
@@ -130,7 +128,7 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
     <div className="flex items-center justify-between px-2 py-1 border-t border-border-default flex-shrink-0">
       <div className="flex items-center gap-1.5">
         <SettingsChip
-          label={displayModel(resolved.model)}
+          label={displayLabel(MODEL_OPTIONS, resolved.model)}
           options={MODEL_OPTIONS}
           value={resolved.model ?? ""}
           isOpen={openDropdown === "model"}
@@ -138,7 +136,7 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
           onChange={(v) => handleChange("model", v)}
         />
         <SettingsChip
-          label={displayEffort(resolved.effort)}
+          label={displayLabel(EFFORT_OPTIONS, resolved.effort)}
           options={EFFORT_OPTIONS}
           value={resolved.effort ?? ""}
           isOpen={openDropdown === "effort"}
@@ -146,7 +144,7 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
           onChange={(v) => handleChange("effort", v)}
         />
         <SettingsChip
-          label={displayPermission(resolved.permissionMode)}
+          label={displayLabel(PERMISSION_OPTIONS, resolved.permissionMode)}
           options={PERMISSION_OPTIONS}
           value={resolved.permissionMode ?? ""}
           isOpen={openDropdown === "permissionMode"}
@@ -154,7 +152,7 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
           onChange={(v) => handleChange("permissionMode", v)}
         />
         <SettingsChip
-          label={displayOutput(resolved.outputStyle)}
+          label={displayLabel(OUTPUT_OPTIONS, resolved.outputStyle)}
           options={OUTPUT_OPTIONS}
           value={resolved.outputStyle ?? ""}
           isOpen={openDropdown === "outputStyle"}
