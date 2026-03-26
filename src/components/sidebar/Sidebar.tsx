@@ -175,9 +175,7 @@ function Sidebar({
       {/* Header */}
       <div className="flex items-center justify-between h-10 px-4 border-b border-border-subtle flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-[22px] h-[22px] rounded-[6px] bg-gradient-to-br from-[#9333ea] to-[#7e22ce] flex items-center justify-center flex-shrink-0">
-            <img src={logoSvg} alt="Alfredo" width={14} height={14} />
-          </div>
+          <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
           <span className="text-sm font-semibold tracking-[-0.3px] text-text-primary">
             {displayName}
           </span>
