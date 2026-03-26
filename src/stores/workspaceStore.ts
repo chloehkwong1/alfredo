@@ -30,6 +30,8 @@ interface WorkspaceState {
   archiveAfterDays: number;
   /** Tab IDs awaiting resume/fresh decision after app restart. */
   disconnectedTabs: Set<string>;
+  /** Tracks the currently running dev server, if any. */
+  runningServer: { worktreeId: string; sessionId: string; tabId: string } | null;
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
@@ -59,6 +61,7 @@ interface WorkspaceState {
   isTabDisconnected: (tabId: string) => boolean;
   updateTab: (worktreeId: string, tabId: string, patch: Partial<WorkspaceTab>) => void;
   clearStore: () => void;
+  setRunningServer: (server: { worktreeId: string; sessionId: string; tabId: string } | null) => void;
 }
 
 /**
@@ -84,6 +87,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   archiveAfterDays: 2,
   checkRuns: {},
   disconnectedTabs: new Set<string>(),
+  runningServer: null,
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -108,6 +112,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         columnOverrides: restOverrides,
         lastPrState: restPrState,
         seenWorktrees: newSeen,
+        runningServer: state.runningServer?.worktreeId === id ? null : state.runningServer,
       };
     }),
 
@@ -261,9 +266,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const state = get();
     const existing = state.tabs[worktreeId] ?? [];
     const hasClaude = existing.some((t) => t.type === "claude");
+    const hasShell = existing.some((t) => t.type === "shell");
     const hasChanges = existing.some((t) => t.type === "changes");
 
-    if (hasClaude && hasChanges) return; // already has required tabs
+    if (hasClaude && hasShell && hasChanges) return; // already has required tabs
 
     const tabs = [...existing];
     let claudeTabId = state.activeTabId[worktreeId];
@@ -277,6 +283,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       // Insert Claude tab at the beginning
       tabs.unshift(claudeTab);
       claudeTabId = claudeTab.id;
+    }
+
+    if (!hasShell) {
+      const shellTab: WorkspaceTab = {
+        id: `${worktreeId}:shell:${crypto.randomUUID().slice(0, 8)}`,
+        type: "shell",
+        label: "Terminal",
+      };
+      // Insert shell tab after claude tabs
+      const lastClaudeIdx = tabs.reduce((acc, t, i) => (t.type === "claude" ? i : acc), -1);
+      tabs.splice(lastClaudeIdx + 1, 0, shellTab);
     }
 
     if (!hasChanges) {
@@ -332,9 +349,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   removeTab: (worktreeId, tabId) =>
     set((state) => {
       const existing = state.tabs[worktreeId] ?? [];
+      const tabToRemove = existing.find((t) => t.id === tabId);
+      if (!tabToRemove) return state;
       const filtered = existing.filter((t) => t.id !== tabId);
       // Don't allow removing the last non-changes tab
       if (filtered.filter((t) => t.type !== "changes").length === 0) return state;
+      // Don't allow removing the last claude or last shell tab
+      if (
+        (tabToRemove.type === "claude" && filtered.filter((t) => t.type === "claude").length === 0) ||
+        (tabToRemove.type === "shell" && filtered.filter((t) => t.type === "shell").length === 0)
+      )
+        return state;
       const newActiveId =
         state.activeTabId[worktreeId] === tabId
           ? (filtered.find((t) => t.type !== "changes")?.id ?? filtered[0]?.id ?? "")
@@ -434,5 +459,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       archiveAfterDays: 2,
       checkRuns: {},
       disconnectedTabs: new Set<string>(),
+      runningServer: null,
     }),
+
+  setRunningServer: (server) => set({ runningServer: server }),
 }));
