@@ -247,6 +247,12 @@ function AppShell() {
           const session = await loadSession(repoPath, wt.id);
           if (session) {
             restoreTabs(wt.id, session.tabs, session.activeTabId);
+            // Mark Claude tabs as disconnected — user decides resume/fresh
+            for (const tab of session.tabs) {
+              if (tab.type === "claude") {
+                useWorkspaceStore.getState().addDisconnectedTab(tab.id);
+              }
+            }
           }
         }
 
