@@ -94,6 +94,11 @@ export interface SetupScript {
   runOn: string;
 }
 
+export interface RunScript {
+  name: string;
+  command: string;
+}
+
 export interface NotificationConfig {
   enabled: boolean;
   sound: string; // sound ID
@@ -121,6 +126,7 @@ export interface ClaudeOverrides {
 export interface AppConfig {
   repoPath: string;
   setupScripts: SetupScript[];
+  runScript?: RunScript | null;
   githubToken: string | null;
   linearApiKey: string | null;
   branchMode: boolean;

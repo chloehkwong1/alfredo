@@ -3,7 +3,7 @@ use std::path::Path;
 
 use tokio::process::Command;
 
-use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, NotificationConfig, SetupScript};
+use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, NotificationConfig, RunScript, SetupScript};
 
 const CONFIG_FILE: &str = ".alfredo.json";
 
@@ -36,6 +36,8 @@ struct ConfigFile {
     pub claude_defaults: Option<ClaudeDefaults>,
     #[serde(default)]
     pub worktree_overrides: Option<HashMap<String, ClaudeOverrides>>,
+    #[serde(default)]
+    pub run_script: Option<RunScript>,
 }
 
 /// Load the `.alfredo.json` config from a repo root.
@@ -57,6 +59,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
             archive_after_days: Some(2),
             claude_defaults: None,
             worktree_overrides: None,
+            run_script: None,
         });
     }
 
@@ -80,6 +83,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
         archive_after_days: file.archive_after_days,
         claude_defaults: file.claude_defaults,
         worktree_overrides: file.worktree_overrides,
+        run_script: file.run_script,
     })
 }
 
@@ -99,6 +103,7 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
         archive_after_days: config.archive_after_days,
         claude_defaults: config.claude_defaults.clone(),
         worktree_overrides: config.worktree_overrides.clone(),
+        run_script: config.run_script.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)

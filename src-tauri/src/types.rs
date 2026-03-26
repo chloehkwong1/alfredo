@@ -136,6 +136,13 @@ pub struct SetupScript {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RunScript {
+    pub name: String,
+    pub command: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NotificationConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -187,6 +194,8 @@ pub struct ClaudeOverrides {
 pub struct AppConfig {
     pub repo_path: String,
     pub setup_scripts: Vec<SetupScript>,
+    #[serde(default)]
+    pub run_script: Option<RunScript>,
     pub github_token: Option<String>,
     pub linear_api_key: Option<String>,
     pub branch_mode: bool,
