@@ -313,8 +313,13 @@ impl PtyManager {
     }
 }
 
-/// Write `.claude/settings.local.json` into the worktree directory with hooks
-/// that call back to Alfredo's state server on agent lifecycle events.
+/// Marker substring embedded in Alfredo hook URLs so we can identify and
+/// replace our own hooks without disturbing user-defined ones.
+const ALFREDO_HOOK_MARKER: &str = "/agent-state/";
+
+/// Write Alfredo's hooks into `.claude/settings.local.json` in the worktree
+/// directory. Merges with any existing content so user settings are preserved.
+/// Stale Alfredo hooks (from previous sessions) are replaced, not accumulated.
 fn write_hooks_config(
     worktree_path: &str,
     base_url: &str,
@@ -323,40 +328,69 @@ fn write_hooks_config(
     let claude_dir = std::path::Path::new(worktree_path).join(".claude");
     std::fs::create_dir_all(&claude_dir)?;
 
-    let config = serde_json::json!({
-        "hooks": {
-            "SessionStart": [{
-                "hooks": [{
-                    "type": "http",
-                    "url": format!("{base_url}/agent-state/{worktree_id}/idle")
-                }]
-            }],
-            "UserPromptSubmit": [{
-                "hooks": [{
-                    "type": "http",
-                    "url": format!("{base_url}/agent-state/{worktree_id}/busy")
-                }]
-            }],
-            "Stop": [{
-                "hooks": [{
-                    "type": "http",
-                    "url": format!("{base_url}/agent-state/{worktree_id}/idle")
-                }]
-            }],
-            "Notification": [{
-                "matcher": "permission_prompt",
-                "hooks": [{
-                    "type": "http",
-                    "url": format!("{base_url}/agent-state/{worktree_id}/waitingForInput")
-                }]
-            }]
-        }
-    });
-
     let path = claude_dir.join("settings.local.json");
+
+    // Read existing config, or start with an empty object
+    let mut config: serde_json::Value = if path.exists() {
+        let contents = std::fs::read_to_string(&path)?;
+        serde_json::from_str(&contents).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    // Ensure config.hooks exists as an object
+    if !config.get("hooks").is_some_and(|h| h.is_object()) {
+        config["hooks"] = serde_json::json!({});
+    }
+    let hooks = config["hooks"].as_object_mut().unwrap();
+
+    // Our hook entries to merge in
+    let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
+        ("SessionStart", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/idle") }]
+        })),
+        ("UserPromptSubmit", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/busy") }]
+        })),
+        ("Stop", serde_json::json!({
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/idle") }]
+        })),
+        ("Notification", serde_json::json!({
+            "matcher": "permission_prompt",
+            "hooks": [{ "type": "http", "url": format!("{base_url}/agent-state/{worktree_id}/waitingForInput") }]
+        })),
+    ];
+
+    for (hook_name, entry) in alfredo_hooks {
+        let arr = hooks
+            .entry(hook_name)
+            .or_insert_with(|| serde_json::json!([]))
+            .as_array_mut();
+
+        if let Some(arr) = arr {
+            // Remove any previous Alfredo entries (stale ports / worktree IDs)
+            arr.retain(|item| !is_alfredo_hook_entry(item));
+            // Append our fresh entry
+            arr.push(entry);
+        }
+    }
+
     std::fs::write(&path, serde_json::to_string_pretty(&config).unwrap())?;
 
     Ok(())
+}
+
+/// Returns true if a hook entry was created by Alfredo (contains our marker URL).
+fn is_alfredo_hook_entry(entry: &serde_json::Value) -> bool {
+    if let Some(hooks) = entry.get("hooks").and_then(|h| h.as_array()) {
+        hooks.iter().any(|h| {
+            h.get("url")
+                .and_then(|u| u.as_str())
+                .map_or(false, |u| u.contains(ALFREDO_HOOK_MARKER))
+        })
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]

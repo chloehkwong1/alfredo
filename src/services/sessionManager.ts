@@ -4,13 +4,15 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import type { AgentState } from "../types";
 import { spawnPty, closePty, createPtyChannel, resizePty } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { loadTerminalPreferences } from "./terminalPreferences";
+import type { TerminalPreferences } from "./terminalPreferences";
 
 // ── Types ──────────────────────────────────────────────────────
 
 /** Maximum bytes retained in the circular output buffer for replay on re-attach. */
 const OUTPUT_BUFFER_CAPACITY = 50_000;
 
-/** Duration (ms) during which detector-sourced state changes are suppressed
+/** Duration (ms) during which ALL detector-sourced state changes are suppressed
  *  after an authoritative hook update arrives. */
 const HOOK_AUTHORITY_MS = 5_000;
 
@@ -22,6 +24,12 @@ export interface ManagedSession {
   /** Timestamp of the last hook-sourced state update. Detector updates are
    *  suppressed for HOOK_AUTHORITY_MS after this to avoid false overrides. */
   lastHookUpdate: number;
+  /** True once at least one hook event has been received. When hooks are
+   *  active, the detector is only allowed to transition *away from* busy
+   *  (e.g. idle, waitingForInput) — never *to* busy. Only the
+   *  UserPromptSubmit hook should set busy to avoid false flips from
+   *  status-bar redraws arriving in chunks. */
+  hooksActive: boolean;
   /** Circular buffer of recent output bytes for replay when re-attaching a UI. */
   outputBuffer: Uint8Array;
   /** Current write position in the circular buffer. */
@@ -39,9 +47,16 @@ export interface ManagedSession {
  * as "insert newline" rather than "submit prompt".
  */
 function createTerminal(): Terminal {
+  const prefs = loadTerminalPreferences();
   const terminal = new Terminal({
     allowProposedApi: true,
     scrollback: 10_000,
+    fontFamily: `"${prefs.fontFamily}", monospace`,
+    fontSize: prefs.fontSize,
+    lineHeight: prefs.lineHeight,
+    letterSpacing: prefs.letterSpacing,
+    cursorStyle: prefs.cursorStyle,
+    cursorBlink: prefs.cursorBlink,
   });
 
   const unicodeAddon = new Unicode11Addon();
@@ -108,6 +123,7 @@ export class SessionManager {
       fitAddon,
       agentState: mode === "shell" ? "notRunning" : "idle",
       lastHookUpdate: Date.now(),
+      hooksActive: false,
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
       outputBufferTotal: 0,
@@ -125,6 +141,7 @@ export class SessionManager {
         case "hookAgentState": {
           session.agentState = event.data;
           session.lastHookUpdate = Date.now();
+          session.hooksActive = true;
           useWorkspaceStore
             .getState()
             .updateWorktree(worktreeId, { agentStatus: event.data });
@@ -132,6 +149,16 @@ export class SessionManager {
         }
         case "agentState": {
           if (Date.now() - session.lastHookUpdate < HOOK_AUTHORITY_MS) {
+            break;
+          }
+          // Once hooks are established, the detector must not flip to "busy".
+          // Only the UserPromptSubmit hook should set busy — the detector's
+          // "busy" signal is too noisy (status-bar redraws in chunks trigger
+          // false positives after the suppression window expires).
+          if (
+            session.hooksActive &&
+            (event.data === "busy" || event.data === "waitingForInput")
+          ) {
             break;
           }
           session.agentState = event.data;
@@ -199,6 +226,7 @@ export class SessionManager {
       fitAddon,
       agentState: "notRunning",
       lastHookUpdate: 0,
+      hooksActive: false,
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
       outputBufferTotal: 0,
@@ -234,6 +262,7 @@ export class SessionManager {
         case "hookAgentState": {
           session.agentState = event.data;
           session.lastHookUpdate = Date.now();
+          session.hooksActive = true;
           useWorkspaceStore
             .getState()
             .updateWorktree(worktreeId, { agentStatus: event.data });
@@ -241,6 +270,12 @@ export class SessionManager {
         }
         case "agentState": {
           if (Date.now() - session.lastHookUpdate < HOOK_AUTHORITY_MS) {
+            break;
+          }
+          if (
+            session.hooksActive &&
+            (event.data === "busy" || event.data === "waitingForInput")
+          ) {
             break;
           }
           session.agentState = event.data;
@@ -323,6 +358,24 @@ export class SessionManager {
     session.outputBufferTotal += bytes.length;
   }
 
+  /** Apply terminal preferences to all existing sessions. */
+  applyPreferences(prefs: TerminalPreferences): void {
+    for (const session of this.sessions.values()) {
+      const { terminal } = session;
+      terminal.options.fontFamily = `"${prefs.fontFamily}", monospace`;
+      terminal.options.fontSize = prefs.fontSize;
+      terminal.options.lineHeight = prefs.lineHeight;
+      terminal.options.letterSpacing = prefs.letterSpacing;
+      terminal.options.cursorStyle = prefs.cursorStyle;
+      terminal.options.cursorBlink = prefs.cursorBlink;
+      try {
+        session.fitAddon.fit();
+      } catch {
+        // Terminal may not be attached to DOM
+      }
+    }
+  }
+
   /** Get all active session keys. */
   getSessionKeys(): string[] {
     return [...this.sessions.keys()];
@@ -362,3 +415,8 @@ export class SessionManager {
 // ── Singleton ──────────────────────────────────────────────────
 
 export const sessionManager = new SessionManager();
+
+// Live-update all terminals when preferences change in settings
+window.addEventListener("terminal-preferences-changed", ((e: CustomEvent<TerminalPreferences>) => {
+  sessionManager.applyPreferences(e.detail);
+}) as EventListener);
