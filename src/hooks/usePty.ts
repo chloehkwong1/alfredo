@@ -20,6 +20,8 @@ interface UsePtyOptions {
   args?: string[];
   /** If true, load scrollback but don't spawn a PTY process. */
   disconnected?: boolean;
+  /** Increment to force the hook to re-run and re-wire the session. */
+  reconnectKey?: number;
 }
 
 interface UsePtyReturn {
@@ -42,6 +44,7 @@ export function usePty({
   initialScrollback,
   args,
   disconnected = false,
+  reconnectKey,
 }: UsePtyOptions): UsePtyReturn {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [agentState, setAgentState] = useState<AgentState>("notRunning");
@@ -147,7 +150,7 @@ export function usePty({
       setTerminal(null);
       setIsConnected(false);
     };
-  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, initialScrollback, args, disconnected]);
+  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, initialScrollback, args, disconnected, reconnectKey]);
 
   return { terminal, agentState, isConnected };
 }

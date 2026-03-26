@@ -6,22 +6,28 @@ interface SessionResumeOverlayProps {
   settingsChangedText: string | null;
   onResume: () => void;
   onStartFresh: () => void;
+  onDismiss: () => void;
 }
 
 function SessionResumeOverlay({
   settingsChangedText,
   onResume,
   onStartFresh,
+  onDismiss,
 }: SessionResumeOverlayProps) {
-  // Enter → Resume, Escape → dismiss (handled by parent)
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Enter") {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         e.preventDefault();
         onResume();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        onDismiss();
       }
     },
-    [onResume],
+    [onResume, onDismiss],
   );
 
   useEffect(() => {
