@@ -68,6 +68,7 @@ function WorkspaceSettingsDialog({
     try {
       await saveConfig(repoPath, config);
       setDirty(false);
+      window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
     } catch {
       // Backend not available — close anyway during dev

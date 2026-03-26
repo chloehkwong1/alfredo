@@ -59,13 +59,20 @@ function TabBar() {
   const { activeRepo: repoPath } = useAppConfig();
   const [runScript, setRunScript] = useState<RunScript | null>(null);
 
-  // Load run script config
+  // Load run script config (and refresh when settings are saved)
+  const [configVersion, setConfigVersion] = useState(0);
+  useEffect(() => {
+    const handler = () => setConfigVersion((v) => v + 1);
+    window.addEventListener("config-changed", handler);
+    return () => window.removeEventListener("config-changed", handler);
+  }, []);
+
   useEffect(() => {
     if (!repoPath) return;
     getConfig(repoPath).then((config) => {
       setRunScript(config.runScript ?? null);
     }).catch(() => {});
-  }, [repoPath]);
+  }, [repoPath, configVersion]);
 
   const isServerRunningHere = runningServer?.worktreeId === activeWorktreeId;
 
@@ -101,6 +108,8 @@ function TabBar() {
 
     if (serverTab) {
       tabId = serverTab.id;
+      // Close any stale session so getOrSpawn creates a fresh PTY
+      await sessionManager.closeSession(tabId);
     } else {
       // Create a new server tab — insert before Changes
       tabId = `${activeWorktreeId}:server:${crypto.randomUUID().slice(0, 8)}`;
