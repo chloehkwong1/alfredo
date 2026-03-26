@@ -21,7 +21,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath, getConfig } from "../../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath, getConfig, writePty } from "../../api";
 import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -129,15 +129,21 @@ function TabBar() {
     // Switch to the server tab
     useWorkspaceStore.getState().setActiveTabId(activeWorktreeId, tabId);
 
-    // Spawn PTY with the run script command
+    // Spawn an interactive shell, then write the command to stdin.
+    // Using -c would create a non-interactive shell that misses direnv/profile setup.
     const session = await sessionManager.getOrSpawn(
       tabId,
       activeWorktreeId,
       worktree.path,
       "shell",
-      undefined,
-      ["-c", runScript.command],
     );
+
+    // Give the shell a moment to initialize, then send the command
+    setTimeout(() => {
+      const cmd = runScript.command + "\n";
+      const bytes = Array.from(new TextEncoder().encode(cmd));
+      writePty(session.sessionId, bytes).catch(console.error);
+    }, 500);
 
     setRunningServer({
       worktreeId: activeWorktreeId,
