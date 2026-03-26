@@ -150,6 +150,36 @@ pub struct NotificationConfig {
 fn default_sound() -> String { "chime".to_string() }
 fn default_true() -> bool { true }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeDefaults {
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
+    #[serde(default)]
+    pub permission_mode: Option<String>,
+    #[serde(default)]
+    pub dangerously_skip_permissions: Option<bool>,
+    #[serde(default)]
+    pub output_style: Option<String>,
+    #[serde(default)]
+    pub verbose: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeOverrides {
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
+    #[serde(default)]
+    pub permission_mode: Option<String>,
+    #[serde(default)]
+    pub output_style: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
@@ -168,6 +198,10 @@ pub struct AppConfig {
     pub worktree_base_path: Option<String>,
     #[serde(default = "default_archive_days")]
     pub archive_after_days: Option<u32>,
+    #[serde(default)]
+    pub claude_defaults: Option<ClaudeDefaults>,
+    #[serde(default)]
+    pub worktree_overrides: Option<HashMap<String, ClaudeOverrides>>,
 }
 
 fn default_archive_days() -> Option<u32> { Some(2) }

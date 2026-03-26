@@ -100,6 +100,22 @@ export interface NotificationConfig {
   notifyOnError: boolean;
 }
 
+export interface ClaudeDefaults {
+  model?: string;
+  effort?: string;
+  permissionMode?: string;
+  dangerouslySkipPermissions?: boolean;
+  outputStyle?: string;
+  verbose?: boolean;
+}
+
+export interface ClaudeOverrides {
+  model?: string;
+  effort?: string;
+  permissionMode?: string;
+  outputStyle?: string;
+}
+
 export interface AppConfig {
   repoPath: string;
   setupScripts: SetupScript[];
@@ -111,6 +127,8 @@ export interface AppConfig {
   notifications?: NotificationConfig;
   worktreeBasePath?: string | null;
   archiveAfterDays?: number;
+  claudeDefaults?: ClaudeDefaults;
+  worktreeOverrides?: Record<string, ClaudeOverrides>;
 }
 
 // ── Linear ──────────────────────────────────────────────────────
@@ -182,6 +200,14 @@ export interface WorkspaceTab {
   id: string;
   type: TabType;
   label: string;
+  command?: string;
+  args?: string[];
+  claudeSettings?: {
+    model?: string;
+    effort?: string;
+    permissionMode?: string;
+    outputStyle?: string;
+  };
 }
 
 // ── App Config (multi-repo) ──────────────────────────────────────
