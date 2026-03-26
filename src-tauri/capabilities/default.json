@@ -9,6 +9,7 @@
     "shell:allow-execute",
     "shell:allow-open",
     "dialog:default",
-    "store:default"
+    "store:default",
+    "notification:default"
   ]
 }

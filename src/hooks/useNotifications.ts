@@ -1,4 +1,9 @@
 import { useEffect, useRef } from "react";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification as tauriNotify,
+} from "@tauri-apps/plugin-notification";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { getConfig } from "../api";
 import type { AgentState, NotificationConfig } from "../types";
@@ -41,14 +46,25 @@ export function playSoundById(soundId: string) {
 
 export { SOUNDS };
 
-// ── Browser notification helper ────────────────────────────────
+// ── Native notification helper (Tauri plugin) ──────────────────
 
-function sendNotification(message: string) {
-  if (typeof Notification === "undefined") return;
-  if (Notification.permission === "granted") {
-    new Notification("Alfredo", { body: message });
-  } else if (Notification.permission !== "denied") {
-    Notification.requestPermission();
+let permissionChecked = false;
+let permitted = false;
+
+async function ensurePermission(): Promise<boolean> {
+  if (permissionChecked) return permitted;
+  permitted = await isPermissionGranted();
+  if (!permitted) {
+    const result = await requestPermission();
+    permitted = result === "granted";
+  }
+  permissionChecked = true;
+  return permitted;
+}
+
+async function sendNotification(message: string) {
+  if (await ensurePermission()) {
+    tauriNotify({ title: "Alfredo", body: message });
   }
 }
 
