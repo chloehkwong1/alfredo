@@ -550,7 +550,13 @@ function AppShell() {
   useEffect(() => {
     if (!runningServer) return;
 
+    // Grace period: don't check for the first 5s so TerminalView has time
+    // to mount and spawn the PTY session.
+    const startTime = Date.now();
+
     const interval = setInterval(() => {
+      if (Date.now() - startTime < 5_000) return;
+
       const session = sessionManager.getSession(runningServer.tabId);
       if (!session || !session.sessionId) {
         // Session was closed externally
