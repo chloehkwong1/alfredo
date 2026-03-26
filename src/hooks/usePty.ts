@@ -63,6 +63,11 @@ export function usePty({
     let resizeObserver: ResizeObserver | null = null;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
+    // Reset channelAlive immediately so the disconnect banner disappears
+    // while we spin up the new session.
+    setChannelAlive(true);
+    useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: true });
+
     async function attach() {
       const session = await sessionManager.getOrSpawn(
         sessionKey, worktreeId, worktreePath, mode, undefined, argsRef.current,
@@ -116,7 +121,15 @@ export function usePty({
       setIsConnected(true);
     }
 
-    attach().catch(console.error);
+    attach().catch((err) => {
+      console.error("[usePty] attach failed:", err);
+      // Session failed to spawn — mark channel as dead so the user sees
+      // the disconnect banner and can retry.
+      if (!disposed) {
+        setChannelAlive(false);
+        useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: false });
+      }
+    });
 
     // Poll agent state so the UI stays current while attached
     const stateInterval = setInterval(() => {
