@@ -189,7 +189,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
         let branch = get_branch_for_path(&wt_path).unwrap_or_else(|| name.to_string());
 
         worktrees.push(Worktree {
-            id: branch.clone(),
+            id: name.to_string(),
             name: name.to_string(),
             path: wt_path.to_string_lossy().to_string(),
             branch,
