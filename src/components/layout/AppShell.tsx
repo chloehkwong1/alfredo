@@ -101,55 +101,50 @@ function TabBar() {
       setRunningServer(null);
     }
 
-    // Check if there's an existing server tab on this worktree we can reuse
+    // Remove any existing server tab (and its session) so we get a clean mount
     const existingTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
-    let serverTab = existingTabs.find((t) => t.type === "server");
-    let tabId: string;
-
-    if (serverTab) {
-      tabId = serverTab.id;
-      // Close any stale session so getOrSpawn creates a fresh PTY
-      await sessionManager.closeSession(tabId);
-    } else {
-      // Create a new server tab — insert before Changes
-      tabId = `${activeWorktreeId}:server:${crypto.randomUUID().slice(0, 8)}`;
-      const newTab = { id: tabId, type: "server" as const, label: "Server" };
-      const tabs = [...existingTabs];
-      const changesIdx = tabs.findIndex((t) => t.type === "changes");
-      if (changesIdx >= 0) {
-        tabs.splice(changesIdx, 0, newTab);
-      } else {
-        tabs.push(newTab);
-      }
-      useWorkspaceStore.setState((state) => ({
-        tabs: { ...state.tabs, [activeWorktreeId]: tabs },
-      }));
+    const oldServerTab = existingTabs.find((t) => t.type === "server");
+    if (oldServerTab) {
+      await sessionManager.closeSession(oldServerTab.id);
+      useWorkspaceStore.getState().removeTab(activeWorktreeId, oldServerTab.id);
     }
 
-    // Switch to the server tab
+    // Create a fresh server tab with a new ID (forces React to remount TerminalView)
+    const tabId = `${activeWorktreeId}:server:${crypto.randomUUID().slice(0, 8)}`;
+    const newTab = { id: tabId, type: "server" as const, label: "Server" };
+    const currentTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
+    const tabs = [...currentTabs];
+    const changesIdx = tabs.findIndex((t) => t.type === "changes");
+    if (changesIdx >= 0) {
+      tabs.splice(changesIdx, 0, newTab);
+    } else {
+      tabs.push(newTab);
+    }
+    useWorkspaceStore.setState((state) => ({
+      tabs: { ...state.tabs, [activeWorktreeId]: tabs },
+    }));
+
+    // Switch to the server tab — TerminalView will mount and spawn the shell via usePty
     useWorkspaceStore.getState().setActiveTabId(activeWorktreeId, tabId);
 
-    // Spawn an interactive shell, then write the command to stdin.
-    // Using -c would create a non-interactive shell that misses direnv/profile setup.
-    const session = await sessionManager.getOrSpawn(
-      tabId,
-      activeWorktreeId,
-      worktree.path,
-      "shell",
-    );
-
-    // Give the shell a moment to initialize, then send the command
-    setTimeout(() => {
-      const cmd = runScript.command + "\n";
-      const bytes = Array.from(new TextEncoder().encode(cmd));
-      writePty(session.sessionId, bytes).catch(console.error);
-    }, 500);
-
-    setRunningServer({
-      worktreeId: activeWorktreeId,
-      sessionId: session.sessionId,
-      tabId,
-    });
+    // Wait for TerminalView to mount and spawn the PTY, then write the command
+    const waitForSession = () => {
+      const session = sessionManager.getSession(tabId);
+      if (session?.sessionId) {
+        const cmd = runScript.command + "\n";
+        const bytes = Array.from(new TextEncoder().encode(cmd));
+        writePty(session.sessionId, bytes).catch(console.error);
+        setRunningServer({
+          worktreeId: activeWorktreeId,
+          sessionId: session.sessionId,
+          tabId,
+        });
+      } else {
+        // Session not ready yet, retry
+        setTimeout(waitForSession, 100);
+      }
+    };
+    setTimeout(waitForSession, 300);
   }, [activeWorktreeId, runScript, repoPath, isServerRunningHere, runningServer, setRunningServer]);
 
   function handleAddTab(type: TabType) {
