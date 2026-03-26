@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { FolderOpen, Terminal, Check, Github, Loader2, Key } from "lucide-react";
+import { FolderOpen, Terminal, Check, Github, Loader2, ExternalLink, Key } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
@@ -12,8 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "../ui/Dialog";
-import { listen } from "@tauri-apps/api/event";
-import { getConfig, saveConfig, githubAuthExchange, githubAuthUser } from "../../api";
+import { getConfig, saveConfig, githubAuthStart, githubAuthPoll, githubAuthUser } from "../../api";
 
 interface RepoSetupDialogProps {
   open: boolean;
@@ -43,7 +42,8 @@ function RepoSetupDialog({
   const [githubConnected, setGithubConnected] = useState<string | null>(null);
   const [githubAuthState, setGithubAuthState] = useState<
     | { step: "idle" }
-    | { step: "waiting" }
+    | { step: "loading" }
+    | { step: "waiting"; userCode: string; deviceCode: string; verificationUri: string }
   >({ step: "idle" });
   const [githubToken, setGithubToken] = useState("");
   const [githubError, setGithubError] = useState<string | null>(null);
@@ -110,29 +110,23 @@ function RepoSetupDialog({
   const startGithubAuth = useCallback(async () => {
     setGithubError(null);
     setUsingExistingGithub(false);
-    setGithubAuthState({ step: "waiting" });
-
+    setGithubAuthState({ step: "loading" });
     try {
-      const unlisten = await listen<{ code: string; installationId?: string }>(
-        "github-auth-callback",
-        async (event) => {
-          try {
-            const { code } = event.payload;
-            const token = await githubAuthExchange(code);
-            setGithubToken(token);
-            const username = await githubAuthUser(token);
-            setGithubConnected(username);
-            setGithubAuthState({ step: "idle" });
-          } catch (e) {
-            setGithubError(e instanceof Error ? e.message : String(e));
-            setGithubAuthState({ step: "idle" });
-          } finally {
-            unlisten();
-          }
-        }
-      );
+      const device = await githubAuthStart();
+      setGithubAuthState({
+        step: "waiting",
+        userCode: device.userCode,
+        deviceCode: device.deviceCode,
+        verificationUri: device.verificationUri,
+      });
 
-      await openUrl("https://github.com/apps/alfredo-desktop/installations/new");
+      await openUrl(device.verificationUri);
+
+      const token = await githubAuthPoll(device.deviceCode, device.interval);
+      setGithubToken(token);
+      const username = await githubAuthUser(token);
+      setGithubConnected(username);
+      setGithubAuthState({ step: "idle" });
     } catch (e) {
       setGithubError(e instanceof Error ? e.message : String(e));
       setGithubAuthState({ step: "idle" });
@@ -200,23 +194,39 @@ function RepoSetupDialog({
                 <Github className="h-3.5 w-3.5 text-text-tertiary" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium text-text-primary">Connect GitHub</div>
-                <div className="text-2xs text-text-tertiary">PR status, check runs, and branch management</div>
+                <div className="text-caption font-medium text-text-primary">Connect GitHub</div>
+                <div className="text-micro text-text-tertiary">PR status, check runs, and branch management</div>
               </div>
             </div>
 
             {githubConnected ? (
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-body">
                 <Check className="h-3.5 w-3.5 text-green-400" />
                 <span className="text-text-primary font-medium">@{githubConnected}</span>
                 {usingExistingGithub && (
-                  <span className="text-2xs text-text-tertiary">(from another repository)</span>
+                  <span className="text-micro text-text-tertiary">(from another repository)</span>
                 )}
               </div>
             ) : githubAuthState.step === "waiting" ? (
-              <div className="flex items-center gap-1.5 text-2xs text-text-tertiary">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Waiting for GitHub authorization...
+              <div className="space-y-2">
+                <p className="text-caption text-text-secondary">Enter this code on GitHub:</p>
+                <div className="flex items-center gap-2">
+                  <code className="font-mono font-bold text-text-primary tracking-widest bg-bg-primary px-2.5 py-1 rounded-[var(--radius-sm)] border border-border-default select-all">
+                    {githubAuthState.userCode}
+                  </code>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => openUrl(githubAuthState.verificationUri)}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Open GitHub
+                  </Button>
+                </div>
+                <div className="flex items-center gap-1.5 text-micro text-text-tertiary">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Waiting for authorization...
+                </div>
               </div>
             ) : showExistingGithubOffer ? (
               <div className="space-y-2">
@@ -231,13 +241,13 @@ function RepoSetupDialog({
                   </Button>
                   <button
                     type="button"
-                    className="text-2xs text-accent-primary hover:underline cursor-pointer"
+                    className="text-micro text-accent-primary hover:underline cursor-pointer"
                     onClick={startGithubAuth}
                   >
                     Connect different account
                   </button>
                 </div>
-                <p className="text-2xs text-text-tertiary">
+                <p className="text-micro text-text-tertiary">
                   Connected as @{existingGithubUsername} — use this account?
                 </p>
               </div>
@@ -247,15 +257,20 @@ function RepoSetupDialog({
                   variant="secondary"
                   size="sm"
                   onClick={startGithubAuth}
+                  disabled={githubAuthState.step === "loading"}
                 >
-                  <Github className="h-3.5 w-3.5 mr-1.5" />
+                  {githubAuthState.step === "loading" ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  ) : (
+                    <Github className="h-3.5 w-3.5 mr-1.5" />
+                  )}
                   Connect to GitHub
                 </Button>
-                <p className="text-2xs text-text-tertiary">
+                <p className="text-micro text-text-tertiary">
                   Optional — you can add this later in settings
                 </p>
                 {githubError && (
-                  <p className="text-2xs text-red-400">{githubError}</p>
+                  <p className="text-micro text-red-400">{githubError}</p>
                 )}
               </div>
             )}
@@ -268,8 +283,8 @@ function RepoSetupDialog({
                 <Key className="h-3.5 w-3.5 text-text-tertiary" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium text-text-primary">Connect Linear</div>
-                <div className="text-2xs text-text-tertiary">Link tickets and track progress</div>
+                <div className="text-caption font-medium text-text-primary">Connect Linear</div>
+                <div className="text-micro text-text-tertiary">Link tickets and track progress</div>
               </div>
             </div>
             <Input
@@ -279,12 +294,12 @@ function RepoSetupDialog({
               onChange={(e) => setLinearKey(e.target.value)}
             />
             {existingLinearKey && linearKey === existingLinearKey && (
-              <p className="text-2xs text-text-tertiary mt-1.5">
+              <p className="text-micro text-text-tertiary mt-1.5">
                 Using key from another repository
               </p>
             )}
             {!existingLinearKey && (
-              <p className="text-2xs text-text-tertiary mt-1.5">
+              <p className="text-micro text-text-tertiary mt-1.5">
                 Optional — you can add this later in settings
               </p>
             )}
@@ -297,8 +312,8 @@ function RepoSetupDialog({
                 <FolderOpen className="h-3.5 w-3.5 text-text-tertiary" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium text-text-primary">Worktree location</div>
-                <div className="text-2xs text-text-tertiary">Where new worktrees are created on disk</div>
+                <div className="text-caption font-medium text-text-primary">Worktree location</div>
+                <div className="text-micro text-text-tertiary">Where new worktrees are created on disk</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -318,7 +333,7 @@ function RepoSetupDialog({
                 <FolderOpen className="h-3.5 w-3.5" />
               </Button>
             </div>
-            <p className="text-2xs text-text-tertiary mt-1.5">
+            <p className="text-micro text-text-tertiary mt-1.5">
               Default: sibling directories of the repository
             </p>
           </div>
@@ -330,8 +345,8 @@ function RepoSetupDialog({
                 <Terminal className="h-3.5 w-3.5 text-text-tertiary" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium text-text-primary">Setup scripts</div>
-                <div className="text-2xs text-text-tertiary">Run automatically when creating new worktrees</div>
+                <div className="text-caption font-medium text-text-primary">Setup scripts</div>
+                <div className="text-micro text-text-tertiary">Run automatically when creating new worktrees</div>
               </div>
             </div>
             <Input
@@ -346,7 +361,7 @@ function RepoSetupDialog({
         <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
           <button
             type="button"
-            className="text-xs text-text-tertiary hover:text-text-secondary cursor-pointer hover:underline"
+            className="text-caption text-text-tertiary hover:text-text-secondary cursor-pointer hover:underline"
             onClick={() => handleSave("branch")}
           >
             Skip — just use branches

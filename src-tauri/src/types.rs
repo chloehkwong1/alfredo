@@ -156,7 +156,6 @@ pub struct AppConfig {
     pub repo_path: String,
     pub setup_scripts: Vec<SetupScript>,
     pub github_token: Option<String>,
-    pub github_installation_id: Option<u64>,
     pub linear_api_key: Option<String>,
     pub branch_mode: bool,
     #[serde(default)]

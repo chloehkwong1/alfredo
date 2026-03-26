@@ -23,13 +23,6 @@
       "csp": null
     }
   },
-  "plugins": {
-    "deep-link": {
-      "desktop": {
-        "schemes": ["alfredo"]
-      }
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",

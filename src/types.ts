@@ -104,7 +104,6 @@ export interface AppConfig {
   repoPath: string;
   setupScripts: SetupScript[];
   githubToken: string | null;
-  githubInstallationId?: number | null;
   linearApiKey: string | null;
   branchMode: boolean;
   columnOverrides?: Record<string, KanbanColumn>;
