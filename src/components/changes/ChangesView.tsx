@@ -283,19 +283,26 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           onScrollComplete={handleScrollComplete}
         />
 
-        {/* Right sidebar */}
-        {fileTreeOpen && (
-          <FileTreeSidebar
-            files={files}
-            visibleFilePath={visibleFilePath}
-            onSelectFile={handleFileTreeSelect}
-            commits={mode === "commit" ? commits : undefined}
-            selectedCommitIndex={
-              mode === "commit" ? currentCommitIndex : undefined
-            }
-            onSelectCommit={mode === "commit" ? handleCommitStep : undefined}
-          />
-        )}
+        {/* Right sidebar with slide transition */}
+        <div
+          className={[
+            "transition-all duration-200 ease-in-out overflow-hidden flex-shrink-0",
+            fileTreeOpen ? "w-[220px]" : "w-0",
+          ].join(" ")}
+        >
+          {fileTreeOpen && (
+            <FileTreeSidebar
+              files={files}
+              visibleFilePath={visibleFilePath}
+              onSelectFile={handleFileTreeSelect}
+              commits={mode === "commit" ? commits : undefined}
+              selectedCommitIndex={
+                mode === "commit" ? currentCommitIndex : undefined
+              }
+              onSelectCommit={mode === "commit" ? handleCommitStep : undefined}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
