@@ -57,6 +57,7 @@ interface WorkspaceState {
   addDisconnectedTab: (tabId: string) => void;
   removeDisconnectedTab: (tabId: string) => void;
   isTabDisconnected: (tabId: string) => boolean;
+  updateTab: (worktreeId: string, tabId: string, patch: Partial<WorkspaceTab>) => void;
   clearStore: () => void;
 }
 
@@ -367,6 +368,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }),
 
   isTabDisconnected: (tabId) => get().disconnectedTabs.has(tabId),
+
+  updateTab: (worktreeId, tabId, patch) =>
+    set((state) => ({
+      tabs: {
+        ...state.tabs,
+        [worktreeId]: (state.tabs[worktreeId] ?? []).map((t) =>
+          t.id === tabId ? { ...t, ...patch } : t,
+        ),
+      },
+    })),
 
   clearStore: () =>
     set({

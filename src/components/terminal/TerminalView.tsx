@@ -146,7 +146,16 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         writePty(session.sessionId, bytes).catch(console.error);
       });
     }
-  }, [tabId, activeWorktreeId, worktree, sessionKey, resolvedArgs, removeDisconnectedTab]);
+
+    // Save settings snapshot to tab for future change detection
+    if (activeWorktreeId && tabId) {
+      useWorkspaceStore.getState().updateTab(activeWorktreeId, tabId, {
+        command: "claude",
+        args: resumeArgs,
+        claudeSettings: currentSnapshot,
+      });
+    }
+  }, [tabId, activeWorktreeId, worktree, sessionKey, resolvedArgs, removeDisconnectedTab, currentSnapshot]);
 
   const handleStartFresh = useCallback(async () => {
     if (!tabId || !activeWorktreeId || !worktree) return;
@@ -180,7 +189,16 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         writePty(session.sessionId, bytes).catch(console.error);
       });
     }
-  }, [tabId, activeWorktreeId, worktree, sessionKey, resolvedArgs, removeDisconnectedTab]);
+
+    // Save settings snapshot to tab for future change detection
+    if (activeWorktreeId && tabId) {
+      useWorkspaceStore.getState().updateTab(activeWorktreeId, tabId, {
+        command: "claude",
+        args: resolvedArgs,
+        claudeSettings: currentSnapshot,
+      });
+    }
+  }, [tabId, activeWorktreeId, worktree, sessionKey, resolvedArgs, removeDisconnectedTab, currentSnapshot]);
 
   // Mark as seen when user is viewing a terminal that's idle or waiting
   useEffect(() => {
