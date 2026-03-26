@@ -3,7 +3,7 @@ use std::path::Path;
 
 use tokio::process::Command;
 
-use crate::types::{AppConfig, AppError, KanbanColumn, NotificationConfig, SetupScript};
+use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, NotificationConfig, SetupScript};
 
 const CONFIG_FILE: &str = ".alfredo.json";
 
@@ -32,6 +32,10 @@ struct ConfigFile {
     pub worktree_base_path: Option<String>,
     #[serde(default = "default_archive_days")]
     pub archive_after_days: Option<u32>,
+    #[serde(default)]
+    pub claude_defaults: Option<ClaudeDefaults>,
+    #[serde(default)]
+    pub worktree_overrides: Option<HashMap<String, ClaudeOverrides>>,
 }
 
 /// Load the `.alfredo.json` config from a repo root.
@@ -51,6 +55,8 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
             notifications: None,
             worktree_base_path: None,
             archive_after_days: Some(2),
+            claude_defaults: None,
+            worktree_overrides: None,
         });
     }
 
@@ -72,6 +78,8 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
         notifications: file.notifications,
         worktree_base_path: file.worktree_base_path,
         archive_after_days: file.archive_after_days,
+        claude_defaults: file.claude_defaults,
+        worktree_overrides: file.worktree_overrides,
     })
 }
 
@@ -89,6 +97,8 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
         notifications: config.notifications.clone(),
         worktree_base_path: config.worktree_base_path.clone(),
         archive_after_days: config.archive_after_days,
+        claude_defaults: config.claude_defaults.clone(),
+        worktree_overrides: config.worktree_overrides.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -183,6 +193,12 @@ mod tests {
             notifications: None,
             worktree_base_path: None,
             archive_after_days: Some(2),
+            claude_defaults: Some(ClaudeDefaults {
+                model: Some("claude-sonnet-4-6".into()),
+                effort: Some("high".into()),
+                ..Default::default()
+            }),
+            worktree_overrides: None,
         };
         config
             .column_overrides
@@ -197,6 +213,10 @@ mod tests {
         assert_eq!(
             loaded.column_overrides.get("feat-x"),
             Some(&KanbanColumn::Blocked)
+        );
+        assert_eq!(
+            loaded.claude_defaults.as_ref().unwrap().model,
+            Some("claude-sonnet-4-6".to_string())
         );
     }
 
