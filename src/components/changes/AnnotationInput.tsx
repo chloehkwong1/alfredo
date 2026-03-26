@@ -33,7 +33,7 @@ function AnnotationInput({ onSubmit, onCancel }: AnnotationInputProps) {
         onKeyDown={handleKeyDown}
         onBlur={onCancel}
         placeholder="Add a comment..."
-        className="w-full px-3 py-1.5 rounded-md text-caption bg-accent-primary/8 border border-accent-primary/20 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20"
+        className="w-full px-3 py-1.5 rounded-md text-xs bg-accent-primary/8 border border-accent-primary/20 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20"
       />
     </div>
   );

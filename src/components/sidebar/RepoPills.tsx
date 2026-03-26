@@ -47,7 +47,7 @@ function RepoPills({
                   onClick={() => onSwitch(repo.path)}
                   className={[
                     "inline-flex items-center gap-1 px-3.5 py-1 rounded-[5px] cursor-pointer",
-                    "text-caption whitespace-nowrap flex-shrink-0",
+                    "text-xs whitespace-nowrap flex-shrink-0",
                     "transition-colors duration-[var(--transition-fast)]",
                     isActive
                       ? "bg-accent-primary/20 border border-accent-primary/35 text-accent-primary font-semibold"

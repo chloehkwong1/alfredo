@@ -34,7 +34,7 @@ const DialogContent = forwardRef<
       ref={ref}
       className={[
         "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
-        "w-full p-7",
+        "w-[540px] p-7",
         "border border-border-default",
         "rounded-[var(--radius-lg)] shadow-lg",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
@@ -104,7 +104,7 @@ function DialogDescription({
 }) {
   return (
     <RadixDialog.Description
-      className={["text-body text-text-tertiary", className].join(" ")}
+      className={["text-sm text-text-tertiary", className].join(" ")}
     >
       {children}
     </RadixDialog.Description>

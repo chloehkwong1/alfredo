@@ -37,7 +37,7 @@ const DropdownMenuItem = forwardRef<
     ref={ref}
     className={[
       "flex items-center gap-2 px-2 py-1.5",
-      "text-body text-text-primary",
+      "text-sm text-text-primary",
       "rounded-[var(--radius-sm)] cursor-pointer",
       "outline-none",
       "data-[highlighted]:bg-bg-hover data-[highlighted]:text-text-primary",
@@ -72,7 +72,7 @@ function DropdownMenuLabel({
   return (
     <RadixDropdownMenu.Label
       className={[
-        "px-2 py-1.5 text-caption font-medium text-text-tertiary",
+        "px-2 py-1.5 text-xs font-medium text-text-tertiary",
         className,
       ].join(" ")}
     >

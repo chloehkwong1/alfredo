@@ -98,7 +98,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bell className="h-4 w-4 text-text-secondary" />
-          <label className="text-body font-medium text-text-primary">
+          <label className="text-sm font-medium text-text-primary">
             Enable Notifications
           </label>
         </div>
@@ -106,14 +106,14 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
       </div>
 
       {permissionState === "denied" && (
-        <p className="text-caption text-status-error">
+        <p className="text-xs text-status-error">
           Notification permission was denied. Please enable it in your system
           settings.
         </p>
       )}
 
       {permissionState === "unsupported" && (
-        <p className="text-caption text-text-tertiary">
+        <p className="text-xs text-text-tertiary">
           Browser notifications are not supported in this environment.
         </p>
       )}
@@ -122,12 +122,12 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
       {config.enabled && (
         <>
           <div className="space-y-3">
-            <label className="text-body font-medium text-text-primary">
+            <label className="text-sm font-medium text-text-primary">
               Notify When
             </label>
 
             <div className="flex items-center justify-between">
-              <span className="text-body text-text-secondary">
+              <span className="text-sm text-text-secondary">
                 Agent waiting for input
               </span>
               <Toggle
@@ -139,7 +139,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-body text-text-secondary">
+              <span className="text-sm text-text-secondary">
                 Agent finished work
               </span>
               <Toggle
@@ -149,7 +149,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-body text-text-secondary">Agent error</span>
+              <span className="text-sm text-text-secondary">Agent error</span>
               <Toggle
                 checked={config.notifyOnError}
                 onToggle={() =>
@@ -163,7 +163,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Volume2 className="h-4 w-4 text-text-secondary" />
-              <label className="text-body font-medium text-text-primary">
+              <label className="text-sm font-medium text-text-primary">
                 Notification Sound
               </label>
             </div>
@@ -175,7 +175,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
                   type="button"
                   onClick={() => update("sound", opt.id)}
                   className={[
-                    "flex items-center justify-between gap-1 px-3 py-1.5 text-body rounded-[var(--radius-md)]",
+                    "flex items-center justify-between gap-1 px-3 py-1.5 text-sm rounded-[var(--radius-md)]",
                     "border transition-all duration-[var(--transition-fast)]",
                     "cursor-pointer",
                     config.sound === opt.id

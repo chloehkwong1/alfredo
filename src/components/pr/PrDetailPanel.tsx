@@ -34,7 +34,7 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
 
   if (!worktree.prStatus) {
     return (
-      <div className="flex items-center justify-center h-full text-text-tertiary text-body">
+      <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
         No pull request for this branch
       </div>
     );
@@ -51,11 +51,11 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
       {/* Checks section */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border-subtle">
         <div className="flex items-center gap-2">
-          <span className="text-caption font-semibold text-text-tertiary uppercase tracking-wider">
+          <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
             Checks
           </span>
           {checkRuns.length > 0 && (
-            <span className="text-micro text-text-tertiary">
+            <span className="text-2xs text-text-tertiary">
               {successCount} passed
               {failureCount > 0 && `, ${failureCount} failed`}
               {pendingCount > 0 && `, ${pendingCount} pending`}
@@ -69,7 +69,7 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
 
       <div className="flex-1 overflow-y-auto">
         {checkRuns.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-text-tertiary text-body">
+          <div className="flex items-center justify-center py-8 text-text-tertiary text-sm">
             No checks found
           </div>
         ) : (

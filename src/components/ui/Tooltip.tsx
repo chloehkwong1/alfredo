@@ -28,7 +28,7 @@ function Tooltip({
           side={side}
           sideOffset={6}
           className={[
-            "z-50 px-2.5 py-1.5 text-caption font-medium",
+            "z-50 px-2.5 py-1.5 text-xs font-medium",
             "bg-bg-elevated text-text-primary",
             "border border-border-default",
             "rounded-[var(--radius-md)] shadow-md",

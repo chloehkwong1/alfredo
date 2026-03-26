@@ -80,7 +80,7 @@ function TabBar() {
             type="button"
             onClick={() => activeWorktreeId && setActiveTabId(activeWorktreeId, tab.id)}
             className={[
-              "group h-full px-3 text-body font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
+              "group h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
               isActive
                 ? "text-text-primary"
                 : "text-text-tertiary hover:text-text-secondary",
@@ -477,8 +477,8 @@ function AppShell() {
           )}
           {!activeWorktreeId && (
             <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-2">
-              <span className="text-body">Select a worktree to get started</span>
-              <span className="text-caption">Each worktree gets its own branch, terminal, and agent</span>
+              <span className="text-sm">Select a worktree to get started</span>
+              <span className="text-xs">Each worktree gets its own branch, terminal, and agent</span>
             </div>
           )}
         </main>

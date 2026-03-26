@@ -35,7 +35,7 @@ function DiffToolbar({
           type="button"
           onClick={() => onModeChange("all")}
           className={[
-            "px-2.5 py-1 text-caption font-medium transition-colors cursor-pointer",
+            "px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
             mode === "all"
               ? "bg-accent-primary text-white"
               : "bg-bg-primary text-text-secondary hover:text-text-primary",
@@ -47,7 +47,7 @@ function DiffToolbar({
           type="button"
           onClick={() => onModeChange("commit")}
           className={[
-            "px-2.5 py-1 text-caption font-medium transition-colors cursor-pointer border-l border-border-default",
+            "px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer border-l border-border-default",
             mode === "commit"
               ? "bg-accent-primary text-white"
               : "bg-bg-primary text-text-secondary hover:text-text-primary",
@@ -68,7 +68,7 @@ function DiffToolbar({
           >
             <ChevronLeft />
           </IconButton>
-          <span className="text-caption text-text-secondary whitespace-nowrap">
+          <span className="text-xs text-text-secondary whitespace-nowrap">
             {currentCommitIndex + 1} of {commits.length}
           </span>
           <IconButton
@@ -80,7 +80,7 @@ function DiffToolbar({
             <ChevronRight />
           </IconButton>
           {currentCommit && (
-            <span className="text-caption text-text-tertiary truncate max-w-[200px]">
+            <span className="text-xs text-text-tertiary truncate max-w-[200px]">
               {currentCommit.message}
             </span>
           )}
@@ -91,7 +91,7 @@ function DiffToolbar({
       <div className="flex-1" />
 
       {/* Stats */}
-      <span className="text-caption text-text-tertiary whitespace-nowrap">
+      <span className="text-xs text-text-tertiary whitespace-nowrap">
         <span className="text-diff-added">+{totalAdditions}</span>
         {" "}
         <span className="text-diff-removed">-{totalDeletions}</span>

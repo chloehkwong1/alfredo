@@ -32,10 +32,10 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: Arc
         className="flex w-full items-center gap-2 px-4 pt-3 pb-2 cursor-pointer select-none text-text-tertiary"
       >
         <Archive className="h-3.5 w-3.5" />
-        <span className="text-caption font-semibold uppercase tracking-wider">
+        <span className="text-xs font-semibold uppercase tracking-wider">
           Archive
         </span>
-        <span className="ml-auto text-micro text-text-tertiary tabular-nums">
+        <span className="ml-auto text-2xs text-text-tertiary tabular-nums">
           {worktrees.length}
         </span>
         <ChevronRight
@@ -59,7 +59,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: Arc
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-red-400 hover:text-red-300 text-caption w-full"
+                className="text-red-400 hover:text-red-300 text-xs w-full"
                 onClick={() => setDeleteAllDialogOpen(true)}
                 disabled={!!deletingCount}
               >
@@ -74,7 +74,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: Arc
                 key={wt.id}
                 className="group w-full text-left px-3 py-2 mx-2 rounded-lg mb-1 flex items-center gap-2 bg-[rgba(255,255,255,0.02)]"
               >
-                <span className="text-body text-text-tertiary truncate flex-1">
+                <span className="text-sm text-text-tertiary truncate flex-1">
                   {wt.branch}
                 </span>
                 <button

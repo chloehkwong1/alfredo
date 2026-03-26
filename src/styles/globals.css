@@ -55,14 +55,6 @@
   /* Subtle border */
   --color-border-subtle: var(--border-subtle);
 
-  /* Typography scale — use direct values, NOT Tailwind's --text-* vars (TW4 overrides them) */
-  --font-size-micro: 10px;       /* diff stats, PR numbers, overflow counts */
-  --font-size-caption: 11px;     /* status text, metadata */
-  --font-size-body: 12px;        /* branch names, tab labels, body text */
-  --font-size-subheading: 15px;  /* dialog titles, section headings */
-  --font-size-heading: 20px;     /* onboarding step headings */
-  --font-size-display: 26px;     /* welcome headline */
-
   /* Spacing */
   --spacing-xs: var(--space-xs);
   --spacing-sm: var(--space-sm);

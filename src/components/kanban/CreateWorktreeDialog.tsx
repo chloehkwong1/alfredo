@@ -212,7 +212,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                 setActiveTab(tab.id);
               }}
               className={[
-                "flex items-center gap-1.5 px-[14px] py-2 text-body font-medium rounded-[6px]",
+                "flex items-center gap-1.5 px-[14px] py-2 text-sm font-medium rounded-[6px]",
                 "transition-all duration-[var(--transition-fast)] cursor-pointer",
                 activeTab === tab.id
                   ? "bg-bg-elevated text-text-primary shadow-sm border border-border-default"
@@ -230,7 +230,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
           {activeTab === "newBranch" && (
             <div className="space-y-5">
               <div>
-                <label className="block text-body font-medium text-text-secondary mb-2">
+                <label className="block text-sm font-medium text-text-secondary mb-2">
                   Branch name
                 </label>
                 <Input
@@ -241,7 +241,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                 />
               </div>
               <div>
-                <label className="block text-body font-medium text-text-secondary mb-2">
+                <label className="block text-sm font-medium text-text-secondary mb-2">
                   Base branch
                 </label>
                 <Input
@@ -268,12 +268,12 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                   </div>
                 )}
                 {branchesError && (
-                  <div className="text-caption text-danger text-center py-4">
+                  <div className="text-xs text-danger text-center py-4">
                     {branchesError}
                   </div>
                 )}
                 {!branchesLoading && !branchesError && branches.length === 0 && (
-                  <div className="text-caption text-text-tertiary text-center py-8">
+                  <div className="text-xs text-text-tertiary text-center py-8">
                     No branches found.
                   </div>
                 )}
@@ -294,7 +294,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                     >
                       <div className="flex items-center gap-2">
                         <GitBranch className="h-3.5 w-3.5 text-text-tertiary flex-shrink-0" />
-                        <span className="text-body text-text-primary truncate">
+                        <span className="text-sm text-text-primary truncate">
                           {b.branch}
                         </span>
                       </div>
@@ -319,12 +319,12 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                   </div>
                 )}
                 {prsError && (
-                  <div className="text-caption text-danger text-center py-4">
+                  <div className="text-xs text-danger text-center py-4">
                     {prsError}
                   </div>
                 )}
                 {!prsLoading && !prsError && prs.length === 0 && (
-                  <div className="text-caption text-text-tertiary text-center py-8">
+                  <div className="text-xs text-text-tertiary text-center py-8">
                     No pull requests found.
                   </div>
                 )}
@@ -344,20 +344,20 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                       ].join(" ")}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-caption font-mono text-text-tertiary flex-shrink-0">
+                        <span className="text-xs font-mono text-text-tertiary flex-shrink-0">
                           #{pr.number}
                         </span>
-                        <span className="text-body text-text-primary truncate">
+                        <span className="text-sm text-text-primary truncate">
                           {pr.title}
                         </span>
                         {pr.draft && (
-                          <span className="text-micro text-text-tertiary bg-bg-hover px-1.5 py-0.5 rounded flex-shrink-0">
+                          <span className="text-2xs text-text-tertiary bg-bg-hover px-1.5 py-0.5 rounded flex-shrink-0">
                             Draft
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-caption text-text-tertiary">
+                        <span className="text-xs text-text-tertiary">
                           {pr.branch}
                         </span>
                       </div>
@@ -382,17 +382,17 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                   </div>
                 )}
                 {linearError && (
-                  <div className="text-caption text-danger text-center py-4">
+                  <div className="text-xs text-danger text-center py-4">
                     {linearError}
                   </div>
                 )}
                 {!linearLoading && !linearError && linearResults.length === 0 && searchQuery.trim() && (
-                  <div className="text-caption text-text-tertiary text-center py-8">
+                  <div className="text-xs text-text-tertiary text-center py-8">
                     No issues found.
                   </div>
                 )}
                 {!linearLoading && !linearError && linearResults.length === 0 && !searchQuery.trim() && (
-                  <div className="text-caption text-text-tertiary text-center py-8">
+                  <div className="text-xs text-text-tertiary text-center py-8">
                     Type to search Linear issues.
                   </div>
                 )}
@@ -410,19 +410,19 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
                     ].join(" ")}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-caption font-mono text-text-tertiary flex-shrink-0">
+                      <span className="text-xs font-mono text-text-tertiary flex-shrink-0">
                         {issue.identifier}
                       </span>
-                      <span className="text-body text-text-primary truncate">
+                      <span className="text-sm text-text-primary truncate">
                         {issue.title}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 ml-0">
-                      <span className="text-caption text-text-tertiary">
+                      <span className="text-xs text-text-tertiary">
                         {issue.state}
                       </span>
                       {issue.assignee && (
-                        <span className="text-caption text-text-tertiary">
+                        <span className="text-xs text-text-tertiary">
                           &middot; {issue.assignee}
                         </span>
                       )}
@@ -436,7 +436,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
 
         {/* Auto-run setup scripts checkbox — only shown when scripts are configured */}
         {hasSetupScripts && (
-          <label className="flex items-center gap-2 text-caption text-text-secondary cursor-pointer mt-6">
+          <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer mt-6">
             <input
               type="checkbox"
               checked={runSetup}
@@ -448,7 +448,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath = "." }: CreateWork
         )}
 
         {error && (
-          <div className="text-caption text-danger bg-danger/10 rounded-[var(--radius-sm)] px-3 py-2">
+          <div className="text-xs text-danger bg-danger/10 rounded-[var(--radius-sm)] px-3 py-2">
             {error}
           </div>
         )}

@@ -31,10 +31,10 @@ function BranchModeView({
       <FolderOpen className="w-8 h-8 text-text-tertiary" />
 
       <div className="space-y-1.5">
-        <p className="text-body font-medium text-text-secondary">
+        <p className="text-sm font-medium text-text-secondary">
           Branch mode
         </p>
-        <p className="text-caption text-text-tertiary">
+        <p className="text-xs text-text-tertiary">
           This repo is using branches directly. Enable worktrees for parallel
           development.
         </p>
@@ -48,10 +48,10 @@ function BranchModeView({
 
       {activeBranch && (
         <div className="flex flex-col items-center gap-1">
-          <span className="text-micro uppercase tracking-wider text-text-tertiary">
+          <span className="text-2xs uppercase tracking-wider text-text-tertiary">
             Current branch
           </span>
-          <span className="text-caption text-text-secondary font-mono">
+          <span className="text-xs text-text-secondary font-mono">
             {activeBranch}
           </span>
         </div>
@@ -60,7 +60,7 @@ function BranchModeView({
       {onOpenWorkspaceSettings && (
         <button
           type="button"
-          className="text-caption text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer mt-2"
+          className="text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer mt-2"
           onClick={onOpenWorkspaceSettings}
         >
           Workspace settings

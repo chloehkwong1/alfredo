@@ -59,14 +59,14 @@ function TerminalSettings() {
     <div className="space-y-5">
       {/* Font Family */}
       <div className="space-y-1.5">
-        <label className="text-body font-medium text-text-primary">
+        <label className="text-sm font-medium text-text-primary">
           Font Family
         </label>
         <select
           value={prefs.fontFamily}
           onChange={(e) => update("fontFamily", e.target.value)}
           className={[
-            "h-8 w-full px-3 text-body",
+            "h-8 w-full px-3 text-sm",
             "bg-bg-secondary text-text-primary",
             "border border-border-default rounded-[var(--radius-md)]",
             "hover:border-border-hover",
@@ -85,7 +85,7 @@ function TerminalSettings() {
 
       {/* Font Size */}
       <div className="space-y-1.5">
-        <label className="text-body font-medium text-text-primary">
+        <label className="text-sm font-medium text-text-primary">
           Font Size:{" "}
           <span className="font-normal text-text-secondary">
             {prefs.fontSize}px
@@ -100,7 +100,7 @@ function TerminalSettings() {
           onChange={(e) => update("fontSize", Number(e.target.value))}
           className="w-full accent-accent-primary cursor-pointer"
         />
-        <div className="flex justify-between text-caption text-text-tertiary">
+        <div className="flex justify-between text-xs text-text-tertiary">
           <span>10px</span>
           <span>20px</span>
         </div>
@@ -108,7 +108,7 @@ function TerminalSettings() {
 
       {/* Cursor Style */}
       <div className="space-y-1.5">
-        <label className="text-body font-medium text-text-primary">
+        <label className="text-sm font-medium text-text-primary">
           Cursor Style
         </label>
         <div className="flex gap-2">
@@ -118,7 +118,7 @@ function TerminalSettings() {
               type="button"
               onClick={() => update("cursorStyle", style)}
               className={[
-                "flex-1 h-8 text-body rounded-[var(--radius-md)]",
+                "flex-1 h-8 text-sm rounded-[var(--radius-md)]",
                 "border transition-all duration-[var(--transition-fast)]",
                 "capitalize cursor-pointer",
                 prefs.cursorStyle === style
@@ -134,7 +134,7 @@ function TerminalSettings() {
 
       {/* Cursor Blink */}
       <div className="flex items-center justify-between">
-        <label className="text-body font-medium text-text-primary">
+        <label className="text-sm font-medium text-text-primary">
           Cursor Blink
         </label>
         <button
@@ -161,7 +161,7 @@ function TerminalSettings() {
 
       {/* Preview */}
       <div className="space-y-1.5">
-        <label className="text-body font-medium text-text-tertiary">
+        <label className="text-sm font-medium text-text-tertiary">
           Preview
         </label>
         <div

@@ -90,26 +90,26 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-body font-medium text-text-primary truncate">
+                <span className="text-sm font-medium text-text-primary truncate">
                   {worktree.branch}
                 </span>
                 {worktree.prStatus && (
-                  <span className="text-micro text-text-tertiary flex-shrink-0">
+                  <span className="text-2xs text-text-tertiary flex-shrink-0">
                     #{worktree.prStatus.number}
                   </span>
                 )}
               </div>
               {worktree.prStatus && (
-                <div className="text-caption text-text-tertiary truncate mt-1">
+                <div className="text-xs text-text-tertiary truncate mt-1">
                   {worktree.prStatus.title}
                 </div>
               )}
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-caption text-text-tertiary truncate">
+                <span className="text-xs text-text-tertiary truncate">
                   {getStatusText(worktree.agentStatus)}
                 </span>
                 {(worktree.additions != null || worktree.deletions != null) && (
-                  <span className="flex items-center gap-1 text-micro ml-auto flex-shrink-0">
+                  <span className="flex items-center gap-1 text-2xs ml-auto flex-shrink-0">
                     {worktree.additions != null && worktree.additions > 0 && (
                       <span className="text-diff-added">+{worktree.additions}</span>
                     )}
@@ -147,7 +147,7 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
           <DialogHeader>
             <DialogTitle>Delete worktree</DialogTitle>
             <DialogDescription>
-              Delete worktree and local branch <code className="text-text-secondary font-mono text-caption">{worktree.branch}</code>? This cannot be undone.
+              Delete worktree and local branch <code className="text-text-secondary font-mono text-xs">{worktree.branch}</code>? This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

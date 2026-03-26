@@ -93,17 +93,17 @@ function AddRepoModal({
               : "border-border-subtle",
           ].join(" ")}
         >
-          <Button size="lg" onClick={handleOpenPicker} className="py-3 px-6 text-body">
+          <Button size="lg" onClick={handleOpenPicker} className="py-3 px-6 text-sm">
             <FolderOpen className="h-[18px] w-[18px]" />
             Open a repository
           </Button>
-          <p className="text-body text-text-tertiary">
+          <p className="text-sm text-text-tertiary">
             or drag a folder here
           </p>
         </div>
 
         {error && (
-          <p className="text-caption text-status-error mt-3">{error}</p>
+          <p className="text-xs text-status-error mt-3">{error}</p>
         )}
       </DialogContent>
     </Dialog>

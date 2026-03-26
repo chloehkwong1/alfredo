@@ -41,7 +41,7 @@ function RemoveRepoDialog({
           </Button>
           <button
             type="button"
-            className="inline-flex items-center justify-center font-medium h-8 px-3 text-body gap-2 rounded-[var(--radius-md)] bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center font-medium h-8 px-3 text-sm gap-2 rounded-[var(--radius-md)] bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
             onClick={handleConfirm}
           >
             Remove

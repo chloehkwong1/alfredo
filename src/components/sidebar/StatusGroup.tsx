@@ -77,10 +77,10 @@ function StatusGroup({
         ].join(" ")}
       >
         <Icon className="h-3.5 w-3.5" />
-        <span className="text-caption font-semibold uppercase tracking-wider">
+        <span className="text-xs font-semibold uppercase tracking-wider">
           {label}
         </span>
-        <span className="ml-auto text-micro text-text-tertiary tabular-nums">
+        <span className="ml-auto text-2xs text-text-tertiary tabular-nums">
           {worktrees.length}
         </span>
         <ChevronRight

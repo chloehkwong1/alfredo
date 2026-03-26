@@ -20,9 +20,9 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: "h-7 px-2 text-caption gap-1.5 rounded-[var(--radius-sm)]",
-  md: "h-8 px-3 text-body gap-2 rounded-[var(--radius-md)]",
-  lg: "h-10 px-4 text-body gap-2 rounded-[var(--radius-md)]",
+  sm: "h-7 px-2 text-xs gap-1.5 rounded-[var(--radius-sm)]",
+  md: "h-8 px-3 text-sm gap-2 rounded-[var(--radius-md)]",
+  lg: "h-10 px-4 text-sm gap-2 rounded-[var(--radius-md)]",
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(

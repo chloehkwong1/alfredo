@@ -32,7 +32,7 @@ function Badge({
     <span
       className={[
         "inline-flex items-center gap-1.5",
-        "text-caption font-medium",
+        "text-xs font-medium",
         "px-2 py-0.5 rounded-full",
         "bg-bg-hover/50",
         textColorClasses[variant],

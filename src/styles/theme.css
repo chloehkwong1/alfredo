@@ -64,13 +64,8 @@
   --space-lg: 16px;
   --space-xl: 24px;
 
-  /* ── Typography ─────────────────────────────── */
+  /* ── Typography (custom sizes only — text-xs/text-sm/text-base use Tailwind defaults) ── */
   --text-2xs: 10px;
-  --text-xs: 11px;
-  --text-sm: 12px;
-  --text-base: 15px;
-  --text-lg: 20px;
-  --text-xl: 26px;
 
   /* ── Zone backgrounds ────────────────────────── */
   --bg-sidebar: #151413;

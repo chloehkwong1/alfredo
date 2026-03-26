@@ -36,7 +36,7 @@ const ContextMenuItem = forwardRef<
     ref={ref}
     className={[
       "flex items-center gap-2 px-2 py-1.5",
-      "text-body text-text-primary",
+      "text-sm text-text-primary",
       "rounded-[var(--radius-sm)] cursor-pointer",
       "outline-none",
       "data-[highlighted]:bg-bg-hover data-[highlighted]:text-text-primary",

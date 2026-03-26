@@ -15,7 +15,7 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
   const pr = worktree.prStatus;
 
   return (
-    <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-t border-border-subtle text-caption text-text-tertiary flex-shrink-0">
+    <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-t border-border-subtle text-xs text-text-tertiary flex-shrink-0">
       {/* Left side */}
       <div className="flex items-center gap-3">
         <span className="font-medium text-text-secondary max-w-[300px] truncate">{worktree.branch}</span>
@@ -42,8 +42,8 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
           </button>
         )}
         {annotationCount > 0 && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-accent-primary/15 text-accent-primary text-micro font-medium">
-            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent-primary text-text-on-accent text-micro font-semibold">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-accent-primary/15 text-accent-primary text-2xs font-medium">
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent-primary text-text-on-accent text-2xs font-semibold">
               {annotationCount}
             </span>
             {annotationCount === 1 ? "annotation" : "annotations"}

@@ -11,7 +11,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         autoCorrect="off"
         spellCheck={false}
         className={[
-          "h-8 w-full px-[14px] text-body",
+          "h-8 w-full px-[14px] text-sm",
           "bg-bg-secondary text-text-primary",
           "border border-border-default rounded-lg",
           "placeholder:text-text-tertiary",

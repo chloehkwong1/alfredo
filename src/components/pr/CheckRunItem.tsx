@@ -45,9 +45,9 @@ function CheckRunItem({ run }: CheckRunItemProps) {
       className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-bg-hover transition-colors cursor-pointer"
     >
       {getCheckIcon(run)}
-      <span className="text-body text-text-primary truncate flex-1">{run.name}</span>
+      <span className="text-sm text-text-primary truncate flex-1">{run.name}</span>
       {duration && (
-        <span className="text-micro text-text-tertiary flex-shrink-0">{duration}</span>
+        <span className="text-2xs text-text-tertiary flex-shrink-0">{duration}</span>
       )}
     </button>
   );
