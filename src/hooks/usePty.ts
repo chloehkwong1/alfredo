@@ -51,6 +51,14 @@ export function usePty({
   const [isConnected, setIsConnected] = useState(false);
   const sessionRef = useRef<ManagedSession | null>(null);
 
+  // Use refs for values that should NOT trigger re-attach cycles.
+  // Scrollback and args are only used when spawning a new session;
+  // getOrSpawn returns existing sessions without re-reading these.
+  const scrollbackRef = useRef(initialScrollback);
+  scrollbackRef.current = initialScrollback;
+  const argsRef = useRef(args);
+  argsRef.current = args;
+
   useEffect(() => {
     if (!sessionKey || !worktreeId || !worktreePath || !containerRef.current) return;
 
@@ -66,10 +74,10 @@ export function usePty({
 
       if (disconnected) {
         // Load scrollback without spawning — user will choose resume/fresh
-        session = sessionManager.loadScrollbackOnly(sessionKey, initialScrollback);
+        session = sessionManager.loadScrollbackOnly(sessionKey, scrollbackRef.current);
       } else {
         session = await sessionManager.getOrSpawn(
-          sessionKey, worktreeId, worktreePath, mode, initialScrollback, args,
+          sessionKey, worktreeId, worktreePath, mode, scrollbackRef.current, argsRef.current,
         );
       }
       if (disposed) return;
@@ -83,13 +91,8 @@ export function usePty({
         term.open(container);
       }
 
-      try {
-        fitAddon.fit();
-      } catch {
-        // Container might not be visible yet
-      }
-
-      // Only wire up input forwarding if we have a live PTY
+      // Wire up input/resize forwarding BEFORE fit() so the initial resize
+      // event propagates to the backend PTY (which starts at 80×24).
       if (session.sessionId) {
         onDataDisposable = term.onData((data: string) => {
           const bytes = Array.from(new TextEncoder().encode(data));
@@ -104,6 +107,12 @@ export function usePty({
             }, 100);
           },
         );
+      }
+
+      try {
+        fitAddon.fit();
+      } catch {
+        // Container might not be visible yet
       }
 
       resizeObserver = new ResizeObserver(() => {
@@ -150,7 +159,7 @@ export function usePty({
       setTerminal(null);
       setIsConnected(false);
     };
-  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, initialScrollback, args, disconnected, reconnectKey]);
+  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, disconnected, reconnectKey]);
 
   return { terminal, agentState, isConnected };
 }

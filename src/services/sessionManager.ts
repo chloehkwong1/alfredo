@@ -1,7 +1,7 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import type { AgentState } from "../types";
-import { spawnPty, closePty, createPtyChannel } from "../api";
+import { spawnPty, closePty, createPtyChannel, resizePty } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -240,6 +240,14 @@ export class SessionManager {
     session.sessionId = sessionId;
     session.agentState = mode === "shell" ? "notRunning" : "idle";
     session.lastHookUpdate = Date.now();
+
+    // Resize PTY immediately to match the terminal's current dimensions.
+    // The PTY starts at 80×24 but the terminal was already fitted to the
+    // container during the disconnected/scrollback phase.
+    const { rows, cols } = session.terminal;
+    if (rows > 0 && cols > 0) {
+      resizePty(sessionId, rows, cols).catch(() => {});
+    }
 
     if (mode === "claude") {
       useWorkspaceStore

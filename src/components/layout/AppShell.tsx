@@ -171,6 +171,7 @@ function AppShell() {
   const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const hasRestoredSessions = useRef(false);
 
   // Dialog state for multi-repo lifecycle
   const [addRepoModalOpen, setAddRepoModalOpen] = useState(false);
@@ -242,15 +243,20 @@ function AppShell() {
         // Only set up .alfredo once worktrees exist (don't modify repo during onboarding)
         ensureAlfredoGitignore(repoPath).catch(() => {});
 
-        // Restore saved sessions for each worktree
-        for (const wt of wts) {
-          const session = await loadSession(repoPath, wt.id);
-          if (session) {
-            restoreTabs(wt.id, session.tabs, session.activeTabId);
-            // Mark Claude tabs as disconnected — user decides resume/fresh
-            for (const tab of session.tabs) {
-              if (tab.type === "claude") {
-                useWorkspaceStore.getState().addDisconnectedTab(tab.id);
+        // Restore saved sessions for each worktree (only once per app lifecycle).
+        // The auto-save timer writes session files every 30s, so re-running
+        // this would incorrectly mark active sessions as disconnected.
+        if (!hasRestoredSessions.current) {
+          hasRestoredSessions.current = true;
+          for (const wt of wts) {
+            const session = await loadSession(repoPath, wt.id);
+            if (session) {
+              restoreTabs(wt.id, session.tabs, session.activeTabId);
+              // Mark Claude tabs as disconnected — user decides resume/fresh
+              for (const tab of session.tabs) {
+                if (tab.type === "claude" && !sessionManager.getSession(tab.id)) {
+                  useWorkspaceStore.getState().addDisconnectedTab(tab.id);
+                }
               }
             }
           }

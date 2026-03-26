@@ -48,13 +48,18 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const { activeRepo: repoPath } = useAppConfig();
   const [savedScrollback, setSavedScrollback] = useState<string | undefined>();
 
+  // Only load persisted scrollback for disconnected tabs (app restart).
+  // Active sessions already have their output in the SessionManager buffer.
+  const isDisconnectedForScrollback = useWorkspaceStore((s) =>
+    tabId ? s.disconnectedTabs.has(tabId) : false,
+  );
   useEffect(() => {
-    if (!repoPath || !activeWorktreeId || !tabId) return;
+    if (!repoPath || !activeWorktreeId || !tabId || !isDisconnectedForScrollback) return;
     loadSession(repoPath, activeWorktreeId).then((session) => {
       const scrollback = session?.terminals[tabId]?.scrollback;
       if (scrollback) setSavedScrollback(scrollback);
     }).catch(() => {});
-  }, [repoPath, activeWorktreeId, tabId]);
+  }, [repoPath, activeWorktreeId, tabId, isDisconnectedForScrollback]);
 
   const [reconnectKey, setReconnectKey] = useState(0);
   const [overlayDismissed, setOverlayDismissed] = useState(false);
