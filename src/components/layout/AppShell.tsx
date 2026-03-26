@@ -252,10 +252,13 @@ function AppShell() {
             const session = await loadSession(repoPath, wt.id);
             if (session) {
               restoreTabs(wt.id, session.tabs, session.activeTabId);
-              // Mark Claude tabs as disconnected — user decides resume/fresh
+              // Auto-resume Claude sessions with --continue (no scrollback replay).
+              // The session spawns headless now; TerminalView attaches the DOM later.
               for (const tab of session.tabs) {
                 if (tab.type === "claude" && !sessionManager.getSession(tab.id)) {
-                  useWorkspaceStore.getState().addDisconnectedTab(tab.id);
+                  sessionManager.getOrSpawn(
+                    tab.id, wt.id, wt.path, "claude", undefined, ["--continue"],
+                  ).catch(console.error);
                 }
               }
             }
@@ -474,6 +477,7 @@ function AppShell() {
         <main className="flex-1 min-h-0 relative">
           {(activeTab?.type === "claude" || activeTab?.type === "shell") && (
             <TerminalView
+              key={activeTab.id}
               tabId={activeTab.id}
               tabType={activeTab.type}
             />

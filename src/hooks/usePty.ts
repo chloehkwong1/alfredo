@@ -14,12 +14,8 @@ interface UsePtyOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** "claude" spawns Claude Code; "shell" spawns user's default shell. */
   mode?: "claude" | "shell";
-  /** Base64-encoded saved terminal output to replay before spawning the PTY. */
-  initialScrollback?: string;
   /** CLI args to pass to the spawned process. */
   args?: string[];
-  /** If true, load scrollback but don't spawn a PTY process. */
-  disconnected?: boolean;
   /** Increment to force the hook to re-run and re-wire the session. */
   reconnectKey?: number;
 }
@@ -41,9 +37,7 @@ export function usePty({
   worktreePath,
   containerRef,
   mode = "claude",
-  initialScrollback,
   args,
-  disconnected = false,
   reconnectKey,
 }: UsePtyOptions): UsePtyReturn {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
@@ -51,11 +45,8 @@ export function usePty({
   const [isConnected, setIsConnected] = useState(false);
   const sessionRef = useRef<ManagedSession | null>(null);
 
-  // Use refs for values that should NOT trigger re-attach cycles.
-  // Scrollback and args are only used when spawning a new session;
-  // getOrSpawn returns existing sessions without re-reading these.
-  const scrollbackRef = useRef(initialScrollback);
-  scrollbackRef.current = initialScrollback;
+  // Use a ref for args so it doesn't trigger re-attach cycles.
+  // getOrSpawn returns existing sessions without re-reading args.
   const argsRef = useRef(args);
   argsRef.current = args;
 
@@ -70,16 +61,9 @@ export function usePty({
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     async function attach() {
-      let session: ManagedSession;
-
-      if (disconnected) {
-        // Load scrollback without spawning — user will choose resume/fresh
-        session = sessionManager.loadScrollbackOnly(sessionKey, scrollbackRef.current);
-      } else {
-        session = await sessionManager.getOrSpawn(
-          sessionKey, worktreeId, worktreePath, mode, scrollbackRef.current, argsRef.current,
-        );
-      }
+      const session = await sessionManager.getOrSpawn(
+        sessionKey, worktreeId, worktreePath, mode, undefined, argsRef.current,
+      );
       if (disposed) return;
 
       sessionRef.current = session;
@@ -126,7 +110,7 @@ export function usePty({
 
       setTerminal(term);
       setAgentState(session.agentState);
-      setIsConnected(!disconnected);
+      setIsConnected(true);
     }
 
     attach().catch(console.error);
@@ -159,7 +143,7 @@ export function usePty({
       setTerminal(null);
       setIsConnected(false);
     };
-  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, disconnected, reconnectKey]);
+  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, reconnectKey]);
 
   return { terminal, agentState, isConnected };
 }

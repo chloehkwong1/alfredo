@@ -7,15 +7,11 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { sessionManager } from "../../services/sessionManager";
 import { writePty, getConfig } from "../../api";
 import { useAppConfig } from "../../hooks/useAppConfig";
-import { loadSession } from "../../services/SessionPersistence";
 import { Button } from "../ui/Button";
-import { SessionResumeOverlay } from "./SessionResumeOverlay";
 import { AgentSettingsPopover } from "./AgentSettingsPopover";
 import {
   resolveSettings,
   buildClaudeArgs,
-  settingsSnapshot,
-  diffSettings,
 } from "../../services/claudeSettingsResolver";
 import type { Annotation, TabType } from "../../types";
 
@@ -46,44 +42,10 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const mode = tabType === "shell" ? "shell" : "claude";
 
   const { activeRepo: repoPath } = useAppConfig();
-  const [savedScrollback, setSavedScrollback] = useState<string | undefined>();
-
-  // Only load persisted scrollback for disconnected tabs (app restart).
-  // Active sessions already have their output in the SessionManager buffer.
-  const isDisconnectedForScrollback = useWorkspaceStore((s) =>
-    tabId ? s.disconnectedTabs.has(tabId) : false,
-  );
-  useEffect(() => {
-    if (!repoPath || !activeWorktreeId || !tabId || !isDisconnectedForScrollback) return;
-    loadSession(repoPath, activeWorktreeId).then((session) => {
-      const scrollback = session?.terminals[tabId]?.scrollback;
-      if (scrollback) setSavedScrollback(scrollback);
-    }).catch(() => {});
-  }, [repoPath, activeWorktreeId, tabId, isDisconnectedForScrollback]);
 
   const [reconnectKey, setReconnectKey] = useState(0);
-  const [overlayDismissed, setOverlayDismissed] = useState(false);
-
-  const isDisconnected = useWorkspaceStore((s) =>
-    tabId ? s.disconnectedTabs.has(tabId) : false,
-  );
-  const removeDisconnectedTab = useWorkspaceStore((s) => s.removeDisconnectedTab);
-
-  // Reset dismissed state whenever the tab becomes disconnected again
-  useEffect(() => {
-    if (isDisconnected) setOverlayDismissed(false);
-  }, [isDisconnected]);
-
-  // Get the current tab's saved settings for change detection
-  const currentTab = useWorkspaceStore((s) => {
-    if (!activeWorktreeId || !tabId) return undefined;
-    return s.tabs[activeWorktreeId]?.find((t) => t.id === tabId);
-  });
 
   const [resolvedArgs, setResolvedArgs] = useState<string[]>([]);
-  const [currentSnapshot, setCurrentSnapshot] = useState<{
-    model?: string; effort?: string; permissionMode?: string; outputStyle?: string;
-  }>({});
 
   // Resolve settings when component mounts
   useEffect(() => {
@@ -95,11 +57,8 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         config.worktreeOverrides?.[branch],
       );
       setResolvedArgs(buildClaudeArgs(resolved));
-      setCurrentSnapshot(settingsSnapshot(resolved));
     }).catch(() => {});
   }, [repoPath, worktree?.branch, mode]);
-
-  const settingsChangedText = diffSettings(currentTab?.claudeSettings, currentSnapshot);
 
   const { agentState } = usePty({
     sessionKey,
@@ -107,9 +66,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     worktreePath: worktree?.path ?? "",
     containerRef,
     mode,
-    initialScrollback: savedScrollback,
     args: resolvedArgs,
-    disconnected: isDisconnected,
     reconnectKey,
   });
 
@@ -139,47 +96,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }
   }, [activeWorktreeId, clearAnnotations]);
 
-  const handleResume = useCallback(async () => {
-    if (!tabId || !activeWorktreeId || !worktree) return;
-
-    const resumeArgs = ["--continue", ...resolvedArgs];
-    await sessionManager.spawnForExisting(
-      sessionKey,
-      activeWorktreeId,
-      worktree.path,
-      "claude",
-      resumeArgs,
-    );
-
-    removeDisconnectedTab(tabId);
-    setReconnectKey((k) => k + 1);
-
-    if (activeWorktreeId && tabId) {
-      useWorkspaceStore.getState().updateTab(activeWorktreeId, tabId, {
-        command: "claude",
-        args: resumeArgs,
-        claudeSettings: currentSnapshot,
-      });
-    }
-  }, [tabId, activeWorktreeId, worktree, sessionKey, resolvedArgs, removeDisconnectedTab, currentSnapshot]);
-
-  const handleStartFresh = useCallback(async () => {
-    if (!tabId || !activeWorktreeId || !worktree) return;
-
-    await sessionManager.closeSession(sessionKey);
-    removeDisconnectedTab(tabId);
-    setSavedScrollback(undefined);
-    setReconnectKey((k) => k + 1);
-
-    if (activeWorktreeId && tabId) {
-      useWorkspaceStore.getState().updateTab(activeWorktreeId, tabId, {
-        command: "claude",
-        args: resolvedArgs,
-        claudeSettings: currentSnapshot,
-      });
-    }
-  }, [tabId, activeWorktreeId, worktree, sessionKey, resolvedArgs, removeDisconnectedTab, currentSnapshot]);
-
   const handleRestartSession = useCallback(async () => {
     if (!tabId || !activeWorktreeId || !worktree || !repoPath) return;
 
@@ -193,17 +109,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     );
     const newArgs = buildClaudeArgs(resolved);
     setResolvedArgs(newArgs);
-    setCurrentSnapshot(settingsSnapshot(resolved));
-    setSavedScrollback(undefined);
     setReconnectKey((k) => k + 1);
-
-    if (activeWorktreeId && tabId) {
-      useWorkspaceStore.getState().updateTab(activeWorktreeId, tabId, {
-        command: "claude",
-        args: newArgs,
-        claudeSettings: settingsSnapshot(resolved),
-      });
-    }
   }, [tabId, activeWorktreeId, worktree, sessionKey, repoPath]);
 
   // Mark as seen when user is viewing a terminal that's idle or waiting
@@ -266,14 +172,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       )}
       <div className="relative flex-1 min-h-0">
         <div ref={containerRef} className="h-full p-1" />
-        {isDisconnected && !overlayDismissed && (
-          <SessionResumeOverlay
-            settingsChangedText={settingsChangedText}
-            onResume={handleResume}
-            onStartFresh={handleStartFresh}
-            onDismiss={() => setOverlayDismissed(true)}
-          />
-        )}
       </div>
       {/* Status bar */}
       {mode === "claude" && worktree && (
