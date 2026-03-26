@@ -539,6 +539,29 @@ function AppShell() {
     return () => clearInterval(interval);
   }, [repoPath, hasWorktrees]);
 
+  // Detect server process exit via heartbeat timeout
+  const runningServer = useWorkspaceStore((s) => s.runningServer);
+  const setRunningServer = useWorkspaceStore((s) => s.setRunningServer);
+
+  useEffect(() => {
+    if (!runningServer) return;
+
+    const interval = setInterval(() => {
+      const session = sessionManager.getSession(runningServer.tabId);
+      if (!session || !session.sessionId) {
+        // Session was closed externally
+        setRunningServer(null);
+        return;
+      }
+      // Check if heartbeat is stale (>10s without heartbeat = dead)
+      if (session.lastHeartbeat > 0 && Date.now() - session.lastHeartbeat > 10_000) {
+        setRunningServer(null);
+      }
+    }, 3_000);
+
+    return () => clearInterval(interval);
+  }, [runningServer, setRunningServer]);
+
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)
     : 0;
