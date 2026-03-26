@@ -127,15 +127,18 @@ pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
     Ok((stats.insertions() as u32, stats.deletions() as u32))
 }
 
-/// List all worktrees using git2 for reads.
+/// List worktrees using git2 for reads.
+/// When `base_path` is provided, only worktrees whose path is under that directory are returned.
 /// Skips diff stats for speed — call `get_diff_stats` separately for the active worktree.
-pub fn list_worktrees(repo_path: &str) -> Result<Vec<Worktree>, AppError> {
+pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Worktree>, AppError> {
     let repo = Repository::open(repo_path)
         .map_err(|e| AppError::Git(format!("failed to open repo: {e}")))?;
 
     let worktree_names = repo
         .worktrees()
         .map_err(|e| AppError::Git(format!("failed to list worktrees: {e}")))?;
+
+    let base_filter = base_path.map(|p| std::path::Path::new(p).canonicalize().ok()).flatten();
 
     let mut worktrees = Vec::new();
 
@@ -148,6 +151,19 @@ pub fn list_worktrees(repo_path: &str) -> Result<Vec<Worktree>, AppError> {
         };
 
         let wt_path = wt.path().to_path_buf();
+
+        // Filter to only worktrees under the configured base path
+        if let Some(ref base) = base_filter {
+            if let Ok(canonical) = wt_path.canonicalize() {
+                if !canonical.starts_with(base) {
+                    continue;
+                }
+            } else {
+                // Path doesn't exist on disk — skip it
+                continue;
+            }
+        }
+
         let branch = get_branch_for_path(&wt_path).unwrap_or_else(|| name.to_string());
 
         worktrees.push(Worktree {
@@ -249,7 +265,7 @@ mod tests {
     #[test]
     fn test_list_worktrees_empty() {
         let dir = init_test_repo();
-        let result = list_worktrees(dir.path().to_str().unwrap());
+        let result = list_worktrees(dir.path().to_str().unwrap(), None);
         assert!(result.is_ok());
         // A fresh repo has no linked worktrees (only the main one, which isn't listed)
         assert!(result.unwrap().is_empty());
