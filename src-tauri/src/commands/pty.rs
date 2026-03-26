@@ -21,18 +21,20 @@ pub async fn spawn_pty(
     on_data: Channel<PtyEvent>,
     agent_type: Option<AgentType>,
 ) -> Result<String> {
-    // Register this session's channel with the state server so hooks can push state
-    state_server.register_channel(worktree_id.clone(), on_data.clone());
-
-    manager.spawn(
-        worktree_id,
+    let session_id = manager.spawn(
+        worktree_id.clone(),
         worktree_path,
         command,
         args,
-        on_data,
+        on_data.clone(),
         agent_type.unwrap_or(AgentType::Unknown),
         Some(state_server.port),
-    )
+    )?;
+
+    // Register this session's channel with the state server so hooks can push state
+    state_server.register_channel(session_id.clone(), worktree_id, on_data);
+
+    Ok(session_id)
 }
 
 /// Write raw input bytes to a PTY session.
@@ -54,7 +56,15 @@ pub async fn resize_pty(
 
 /// Close a PTY session and kill the child process.
 #[tauri::command]
-pub async fn close_pty(manager: State<'_, PtyManager>, session_id: String) -> Result<()> {
+pub async fn close_pty(
+    manager: State<'_, PtyManager>,
+    state_server: State<'_, StateServerHandle>,
+    session_id: String,
+) -> Result<()> {
+    // Look up worktree_id before closing so we can unregister the channel
+    if let Ok(worktree_id) = manager.get_worktree_id(&session_id) {
+        state_server.unregister_channel(&session_id, &worktree_id);
+    }
     manager.close(&session_id)
 }
 

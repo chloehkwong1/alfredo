@@ -33,6 +33,8 @@ pub enum PtyEvent {
     /// Authoritative agent state from hook callbacks (via state server).
     /// Takes priority over detector-sourced AgentState events.
     HookAgentState(AgentState),
+    /// Periodic heartbeat so the frontend can detect a dead PTY channel.
+    Heartbeat,
 }
 
 // ── Agent ───────────────────────────────────────────────────────

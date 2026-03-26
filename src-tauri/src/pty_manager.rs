@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use tauri::ipc::Channel;
@@ -24,9 +25,12 @@ struct PtySession {
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send + Sync>,
     command: String,
+    worktree_id: String,
     worktree_path: String,
     /// Set to true when the reader thread detects the child has exited.
     exited: Arc<Mutex<Option<i32>>>,
+    /// Shared flag to signal the reader thread to stop.
+    stop_flag: Arc<AtomicBool>,
     /// Shared signals for the agent detector in the reader thread.
     detector_signals: Arc<Mutex<DetectorSignals>>,
 }
@@ -100,22 +104,36 @@ impl PtyManager {
             last_input: None,
         }));
 
+        let stop_flag = Arc::new(AtomicBool::new(false));
+
+        // Wrap channel in Arc so it can be shared between reader and heartbeat threads.
+        let arc_channel = Arc::new(channel);
+
         // --- reader thread ---
         let reader_session_id = session_id.clone();
         let reader_exited = Arc::clone(&exited);
         let reader_signals = Arc::clone(&detector_signals);
+        let reader_stop_flag = Arc::clone(&stop_flag);
+        let reader_channel = Arc::clone(&arc_channel);
         let mut reader = pair
             .master
             .try_clone_reader()
             .map_err(|e| AppError::Pty(format!("failed to clone PTY reader: {e}")))?;
 
         thread::spawn(move || {
+            let id = &reader_session_id;
             let mut buf = [0u8; 4096];
             let mut detector = AgentDetector::with_agent_type(agent_type);
+            eprintln!("[pty-reader {id}] started");
             loop {
+                if reader_stop_flag.load(Ordering::Relaxed) {
+                    eprintln!("[pty-reader {id}] stop flag set, exiting");
+                    break;
+                }
+
                 match reader.read(&mut buf) {
                     Ok(0) => {
-                        // EOF – child closed its side.
+                        eprintln!("[pty-reader {id}] EOF — child closed PTY");
                         break;
                     }
                     Ok(n) => {
@@ -134,23 +152,23 @@ impl PtyManager {
                         // Run output through agent detector before forwarding
                         if let Some((_agent_type, agent_state)) = detector.feed(&data) {
                             // State changed — notify frontend
-                            let _ = channel.send(PtyEvent::AgentState(agent_state));
+                            if let Err(err) = reader_channel.send(PtyEvent::AgentState(agent_state)) {
+                                eprintln!("[pty-reader {id}] channel send failed (AgentState): {err}");
+                            }
                         }
 
-                        // If the channel send fails the frontend disconnected; stop reading.
-                        if channel.send(PtyEvent::Output(data)).is_err() {
-                            break;
+                        // On channel send failure, log but continue reading to
+                        // keep the child process alive.
+                        if let Err(err) = reader_channel.send(PtyEvent::Output(data)) {
+                            eprintln!("[pty-reader {id}] channel send failed (Output): {err}");
                         }
                     }
                     Err(e) => {
-                        // On macOS an EIO means the child closed the PTY.
                         if e.raw_os_error() == Some(libc::EIO) {
+                            eprintln!("[pty-reader {id}] EIO — child exited");
                             break;
                         }
-                        // Log but keep trying on transient errors.
-                        eprintln!(
-                            "[pty-reader {reader_session_id}] read error: {e}"
-                        );
+                        eprintln!("[pty-reader {id}] read error: {e}, stopping");
                         break;
                     }
                 }
@@ -166,6 +184,23 @@ impl PtyManager {
             }
         });
 
+        // --- heartbeat thread ---
+        let hb_channel = Arc::clone(&arc_channel);
+        let hb_stop = Arc::clone(&stop_flag);
+        let hb_session_id = session_id.clone();
+        thread::spawn(move || {
+            while !hb_stop.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_secs(2));
+                if hb_stop.load(Ordering::Relaxed) {
+                    break;
+                }
+                if hb_channel.send(PtyEvent::Heartbeat).is_err() {
+                    eprintln!("[pty-heartbeat {hb_session_id}] channel send failed, exiting");
+                    break;
+                }
+            }
+        });
+
         let writer = pair
             .master
             .take_writer()
@@ -176,8 +211,10 @@ impl PtyManager {
             writer,
             child,
             command: command.clone(),
+            worktree_id: worktree_id.clone(),
             worktree_path: worktree_path.clone(),
             exited,
+            stop_flag,
             detector_signals,
         };
 
@@ -248,6 +285,19 @@ impl PtyManager {
     }
 
     /// Close and clean up a PTY session.
+    /// Look up the worktree_id for a session.
+    pub fn get_worktree_id(&self, session_id: &str) -> Result<String, AppError> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+
+        sessions
+            .get(session_id)
+            .map(|s| s.worktree_id.clone())
+            .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))
+    }
+
     pub fn close(&self, session_id: &str) -> Result<(), AppError> {
         let mut sessions = self
             .sessions
@@ -257,6 +307,9 @@ impl PtyManager {
         let mut session = sessions
             .remove(session_id)
             .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?;
+
+        // Signal the reader thread to stop before killing the child.
+        session.stop_flag.store(true, Ordering::Relaxed);
 
         // Kill the child if it's still running.
         let _ = session.child.kill();
@@ -303,7 +356,7 @@ impl PtyManager {
 
             result.push(Session {
                 id: id.clone(),
-                worktree_id: session.worktree_path.clone(),
+                worktree_id: session.worktree_id.clone(),
                 command: session.command.clone(),
                 status,
             });
@@ -386,7 +439,7 @@ fn is_alfredo_hook_entry(entry: &serde_json::Value) -> bool {
         hooks.iter().any(|h| {
             h.get("url")
                 .and_then(|u| u.as_str())
-                .map_or(false, |u| u.contains(ALFREDO_HOOK_MARKER))
+                .is_some_and(|u| u.contains(ALFREDO_HOOK_MARKER))
         })
     } else {
         false
