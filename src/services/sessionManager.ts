@@ -1,8 +1,11 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import { SearchAddon } from "@xterm/addon-search";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AgentState } from "../types";
-import { spawnPty, closePty, createPtyChannel, resizePty } from "../api";
+import { spawnPty, closePty, createPtyChannel, resizePty, writePty } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { loadTerminalPreferences } from "./terminalPreferences";
 import type { TerminalPreferences } from "./terminalPreferences";
@@ -14,12 +17,15 @@ const OUTPUT_BUFFER_CAPACITY = 50_000;
 
 /** Duration (ms) during which ALL detector-sourced state changes are suppressed
  *  after an authoritative hook update arrives. */
-const HOOK_AUTHORITY_MS = 5_000;
+const HOOK_AUTHORITY_MS = 3_000;
 
 export interface ManagedSession {
   sessionId: string;
   terminal: Terminal;
   fitAddon: FitAddon;
+  searchAddon: SearchAddon;
+  /** True once the WebGL renderer has been loaded (or failed). */
+  webglLoaded: boolean;
   agentState: AgentState;
   /** Timestamp of the last hook-sourced state update. Detector updates are
    *  suppressed for HOOK_AUTHORITY_MS after this to avoid false overrides. */
@@ -44,14 +50,17 @@ export interface ManagedSession {
 }
 
 /**
- * Create a Terminal instance with the kitty keyboard protocol Shift+Enter
- * sequence wired up.  By default xterm.js sends the same `\r` for both
- * Enter and Shift+Enter, so Claude Code (and other TUI apps that rely on
- * the kitty keyboard protocol) can't tell them apart.  We intercept
- * Shift+Enter and write `\x1b[13;2u` instead, which Claude Code interprets
- * as "insert newline" rather than "submit prompt".
+ * Create a Terminal instance with:
+ * - Kitty keyboard protocol support (Shift+Enter for newline in Claude Code)
+ * - Clickable links via WebLinksAddon (Cmd+Click to open URLs and file paths)
+ *
+ * Kitty protocol: xterm.js doesn't natively support the kitty keyboard
+ * protocol. Claude Code queries for support via `CSI ? u` — we intercept
+ * this in the parser and respond affirmatively so Claude Code enables the
+ * protocol. Then our custom key handler sends `CSI 13;2 u` for Shift+Enter,
+ * which Claude Code interprets as "insert newline".
  */
-function createTerminal(): Terminal {
+function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon } {
   const prefs = loadTerminalPreferences();
   const terminal = new Terminal({
     allowProposedApi: true,
@@ -68,17 +77,59 @@ function createTerminal(): Terminal {
   terminal.loadAddon(unicodeAddon);
   terminal.unicode.activeVersion = "11";
 
+  // ── Clickable links ────────────────────────────────────────────
+  const webLinksAddon = new WebLinksAddon((_event, uri) => {
+    openUrl(uri).catch(console.error);
+  });
+  terminal.loadAddon(webLinksAddon);
+
+  // ── Search ─────────────────────────────────────────────────────
+  const searchAddon = new SearchAddon();
+  terminal.loadAddon(searchAddon);
+
+  // ── Shift+Enter → newline ──────────────────────────────────────
+  // Block ALL event types (keydown, keypress, keyup) for Shift+Enter.
+  // Only send the kitty sequence on keydown to avoid duplicates.
   terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-    if (event.type === "keydown" && event.key === "Enter" && event.shiftKey) {
-      // Write the kitty-protocol Shift+Enter sequence directly.
-      // Returning false tells xterm NOT to process the key itself.
-      terminal.input("\x1b[13;2u", false);
+    if (event.key === "Enter" && event.shiftKey) {
+      if (event.type === "keydown") {
+        terminal.input("\x1b[13;2u", false);
+      }
+      return false;
+    }
+    // Let Cmd+F bubble to the document handler for search
+    if ((event.metaKey || event.ctrlKey) && event.key === "f") {
       return false;
     }
     return true;
   });
 
-  return terminal;
+  return { terminal, searchAddon };
+}
+
+/**
+ * Register kitty keyboard protocol handlers on the terminal parser.
+ * Must be called after the PTY session is spawned so we have a session ID
+ * to send responses back to the PTY.
+ *
+ * Claude Code sends `CSI ? u` to query keyboard protocol support.
+ * We respond with `CSI ? 1 u` (flags=1: disambiguate escape codes).
+ * Claude Code then sends `CSI > flags u` to enable — we swallow that.
+ */
+function registerKittyProtocol(terminal: Terminal, sessionId: string): void {
+  // Query: CSI ? u → respond with current flags
+  terminal.parser.registerCsiHandler({ prefix: "?", final: "u" }, () => {
+    const response = "\x1b[?1u";
+    const bytes = Array.from(new TextEncoder().encode(response));
+    writePty(sessionId, bytes).catch(console.error);
+    return true;
+  });
+
+  // Push (enable): CSI > flags u → swallow (we handle keys in attachCustomKeyEventHandler)
+  terminal.parser.registerCsiHandler({ prefix: ">", final: "u" }, () => true);
+
+  // Pop (disable): CSI < flags u → swallow
+  terminal.parser.registerCsiHandler({ prefix: "<", final: "u" }, () => true);
 }
 
 // ── SessionManager ─────────────────────────────────────────────
@@ -108,7 +159,7 @@ export class SessionManager {
     if (existing) return existing;
 
     // Create xterm instance (headless — not attached to DOM yet)
-    const terminal = createTerminal();
+    const { terminal, searchAddon } = createTerminal();
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
@@ -126,6 +177,8 @@ export class SessionManager {
       sessionId: "", // filled after spawn
       terminal,
       fitAddon,
+      searchAddon,
+      webglLoaded: false,
       agentState: mode === "shell" ? "notRunning" : "idle",
       lastHookUpdate: Date.now(),
       hooksActive: false,
@@ -194,6 +247,7 @@ export class SessionManager {
       agentType,
     );
     session.sessionId = sessionId;
+    registerKittyProtocol(terminal, sessionId);
 
     this.sessions.set(sessionKey, session);
 
@@ -218,7 +272,7 @@ export class SessionManager {
     const existing = this.sessions.get(sessionKey);
     if (existing) return existing;
 
-    const terminal = createTerminal();
+    const { terminal, searchAddon } = createTerminal();
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
@@ -235,6 +289,8 @@ export class SessionManager {
       sessionId: "", // No PTY — filled when user chooses to spawn
       terminal,
       fitAddon,
+      searchAddon,
+      webglLoaded: false,
       agentState: "notRunning",
       lastHookUpdate: 0,
       hooksActive: false,
@@ -317,6 +373,7 @@ export class SessionManager {
     session.agentState = mode === "shell" ? "notRunning" : "idle";
     session.lastHookUpdate = Date.now();
     session.lastHeartbeat = Date.now();
+    registerKittyProtocol(session.terminal, sessionId);
 
     // Resize PTY immediately to match the terminal's current dimensions.
     // The PTY starts at 80×24 but the terminal was already fitted to the
