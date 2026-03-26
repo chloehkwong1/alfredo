@@ -2,13 +2,24 @@ use octocrab::Octocrab;
 
 use crate::types::{AppError, CheckRun, KanbanColumn, PrStatus};
 
+/// Format an octocrab error with useful detail (status code, message body).
+fn format_octocrab_error(context: &str, e: octocrab::Error) -> AppError {
+    let detail = match &e {
+        octocrab::Error::GitHub { source, .. } => {
+            format!("{context}: {} ({})", source.message, source.documentation_url.as_deref().unwrap_or(""))
+        }
+        _ => format!("{context}: {e:?}"),
+    };
+    AppError::Github(detail)
+}
+
 /// Manages GitHub API interactions via octocrab.
 pub struct GithubManager {
     client: Octocrab,
 }
 
 impl GithubManager {
-    /// Create a new GithubManager with a personal access token.
+    /// Create a new GithubManager with a GitHub token (PAT, OAuth, or gh CLI token).
     pub fn new(token: &str) -> Result<Self, AppError> {
         let client = Octocrab::builder()
             .personal_token(token.to_string())
@@ -27,7 +38,7 @@ impl GithubManager {
             .per_page(100)
             .send()
             .await
-            .map_err(|e| AppError::Github(format!("failed to fetch PRs: {e}")))?;
+            .map_err(|e| format_octocrab_error("failed to fetch PRs", e))?;
 
         let mut prs: Vec<PrStatus> = open_page
             .items
@@ -60,7 +71,7 @@ impl GithubManager {
             .per_page(30)
             .send()
             .await
-            .map_err(|e| AppError::Github(format!("failed to fetch closed PRs: {e}")))?;
+            .map_err(|e| format_octocrab_error("failed to fetch closed PRs", e))?;
 
         let merged_prs = closed_page
             .items
@@ -104,7 +115,7 @@ impl GithubManager {
             .per_page(1)
             .send()
             .await
-            .map_err(|e| AppError::Github(format!("failed to fetch PR for branch: {e}")))?;
+            .map_err(|e| format_octocrab_error("failed to fetch PR for branch", e))?;
 
         let pr = match page.items.into_iter().next() {
             Some(pr) => pr,
@@ -147,7 +158,7 @@ impl GithubManager {
             .client
             .get(url, None::<&()>)
             .await
-            .map_err(|e| AppError::Github(format!("failed to fetch check runs: {e}")))?;
+            .map_err(|e| format_octocrab_error("failed to fetch check runs", e))?;
 
         let check_runs = response
             .get("check_runs")
