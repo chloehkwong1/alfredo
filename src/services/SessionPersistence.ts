@@ -44,7 +44,8 @@ export async function saveAllSessions(
   getScrollback: (tabId: string) => string,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
-    const tabs = getTabs(wtId);
+    // Exclude server tabs — they shouldn't persist across restarts
+    const tabs = getTabs(wtId).filter((t) => t.type !== "server");
     const terminals: Record<string, { scrollback: string }> = {};
     for (const tab of tabs) {
       if (tab.type === "claude" || tab.type === "shell") {
