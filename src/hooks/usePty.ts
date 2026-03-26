@@ -16,6 +16,10 @@ interface UsePtyOptions {
   mode?: "claude" | "shell";
   /** Base64-encoded saved terminal output to replay before spawning the PTY. */
   initialScrollback?: string;
+  /** CLI args to pass to the spawned process. */
+  args?: string[];
+  /** If true, load scrollback but don't spawn a PTY process. */
+  disconnected?: boolean;
 }
 
 interface UsePtyReturn {
@@ -36,6 +40,8 @@ export function usePty({
   containerRef,
   mode = "claude",
   initialScrollback,
+  args,
+  disconnected = false,
 }: UsePtyOptions): UsePtyReturn {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [agentState, setAgentState] = useState<AgentState>("notRunning");
@@ -53,45 +59,50 @@ export function usePty({
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     async function attach() {
-      const session = await sessionManager.getOrSpawn(sessionKey, worktreeId, worktreePath, mode, initialScrollback);
+      let session: ManagedSession;
+
+      if (disconnected) {
+        // Load scrollback without spawning — user will choose resume/fresh
+        session = sessionManager.loadScrollbackOnly(sessionKey, initialScrollback);
+      } else {
+        session = await sessionManager.getOrSpawn(
+          sessionKey, worktreeId, worktreePath, mode, initialScrollback, args,
+        );
+      }
       if (disposed) return;
 
       sessionRef.current = session;
       const { terminal: term, fitAddon } = session;
 
-      // Attach xterm to the DOM. xterm doesn't support calling open() twice,
-      // so if the terminal already has a DOM element we reparent it; otherwise
-      // we call open() for the first time.
       if (term.element) {
         container.appendChild(term.element);
       } else {
         term.open(container);
       }
 
-      // Fit after attach so dimensions are correct
       try {
         fitAddon.fit();
       } catch {
-        // Container might not be visible yet — safe to ignore
+        // Container might not be visible yet
       }
 
-      // Forward user input to the PTY backend
-      onDataDisposable = term.onData((data: string) => {
-        const bytes = Array.from(new TextEncoder().encode(data));
-        writePty(session.sessionId, bytes).catch(console.error);
-      });
+      // Only wire up input forwarding if we have a live PTY
+      if (session.sessionId) {
+        onDataDisposable = term.onData((data: string) => {
+          const bytes = Array.from(new TextEncoder().encode(data));
+          writePty(session.sessionId, bytes).catch(console.error);
+        });
 
-      // Debounced resize forwarding
-      onResizeDisposable = term.onResize(
-        ({ rows, cols }: { rows: number; cols: number }) => {
-          if (resizeTimer) clearTimeout(resizeTimer);
-          resizeTimer = setTimeout(() => {
-            resizePty(session.sessionId, rows, cols).catch(console.error);
-          }, 100);
-        },
-      );
+        onResizeDisposable = term.onResize(
+          ({ rows, cols }: { rows: number; cols: number }) => {
+            if (resizeTimer) clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+              resizePty(session.sessionId, rows, cols).catch(console.error);
+            }, 100);
+          },
+        );
+      }
 
-      // ResizeObserver so fit runs when the container resizes (e.g. window resize)
       resizeObserver = new ResizeObserver(() => {
         try {
           fitAddon.fit();
@@ -103,7 +114,7 @@ export function usePty({
 
       setTerminal(term);
       setAgentState(session.agentState);
-      setIsConnected(true);
+      setIsConnected(!disconnected);
     }
 
     attach().catch(console.error);
@@ -136,7 +147,7 @@ export function usePty({
       setTerminal(null);
       setIsConnected(false);
     };
-  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, initialScrollback]);
+  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, initialScrollback, args, disconnected]);
 
   return { terminal, agentState, isConnected };
 }
