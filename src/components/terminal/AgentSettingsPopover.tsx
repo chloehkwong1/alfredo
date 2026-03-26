@@ -16,9 +16,10 @@ const MODEL_OPTIONS = [
 const EFFORT_OPTIONS = ["low", "medium", "high", "max"] as const;
 const PERMISSION_OPTIONS = [
   { value: "", label: "Default" },
-  { value: "accept-edits", label: "Accept Edits" },
+  { value: "acceptEdits", label: "Accept Edits" },
   { value: "plan", label: "Plan" },
   { value: "auto", label: "Auto" },
+  { value: "dontAsk", label: "Don't Ask" },
   { value: "bypassPermissions", label: "Bypass" },
 ];
 const OUTPUT_OPTIONS = ["Default", "Explanatory", "Learning"] as const;

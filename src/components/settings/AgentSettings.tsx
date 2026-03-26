@@ -10,10 +10,11 @@ const EFFORT_OPTIONS = ["low", "medium", "high", "max"] as const;
 
 const PERMISSION_OPTIONS = [
   { value: "default", label: "Default", hint: "Asks before edits and commands" },
-  { value: "accept-edits", label: "Accept Edits", hint: "Auto-accepts file edits" },
-  { value: "plan", label: "Plan", hint: "Read-only exploration" },
-  { value: "auto", label: "Auto", hint: "Autonomous with AI safety checks" },
-  { value: "bypassPermissions", label: "Bypass Permissions", hint: "No checks — sandboxed environments only" },
+  { value: "acceptEdits", label: "Accept Edits", hint: "Auto-accepts file edits, asks before commands" },
+  { value: "plan", label: "Plan", hint: "Read-only exploration, no edits or commands" },
+  { value: "auto", label: "Auto", hint: "AI decides which permissions to grant — may still ask" },
+  { value: "dontAsk", label: "Don't Ask", hint: "Runs all tools without asking — use with caution" },
+  { value: "bypassPermissions", label: "Bypass Permissions", hint: "No checks at all — sandboxed environments only" },
 ];
 
 const OUTPUT_OPTIONS = ["Default", "Explanatory", "Learning"] as const;
