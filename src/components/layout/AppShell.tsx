@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, X, Terminal, Sparkles, GitCompareArrows, GitPullRequest, Play } from "lucide-react";
+import { Plus, X, Terminal, Sparkles, GitCompareArrows, GitPullRequest, Play, Square } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -21,11 +21,11 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath } from "../../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath, getConfig } from "../../api";
 import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import logoSvg from "../../assets/logo-cat.svg";
-import type { TabType, WorkspaceTab } from "../../types";
+import type { TabType, WorkspaceTab, RunScript } from "../../types";
 
 const TAB_ICONS: Record<TabType, typeof Terminal> = {
   claude: Sparkles,
@@ -53,6 +53,89 @@ function TabBar() {
       ensureDefaultTabs(activeWorktreeId);
     }
   }, [activeWorktreeId, ensureDefaultTabs]);
+
+  const runningServer = useWorkspaceStore((s) => s.runningServer);
+  const setRunningServer = useWorkspaceStore((s) => s.setRunningServer);
+  const { activeRepo: repoPath } = useAppConfig();
+  const [runScript, setRunScript] = useState<RunScript | null>(null);
+
+  // Load run script config
+  useEffect(() => {
+    if (!repoPath) return;
+    getConfig(repoPath).then((config) => {
+      setRunScript(config.runScript ?? null);
+    }).catch(() => {});
+  }, [repoPath]);
+
+  const isServerRunningHere = runningServer?.worktreeId === activeWorktreeId;
+
+  const handleToggleServer = useCallback(async () => {
+    if (!activeWorktreeId || !runScript || !repoPath) return;
+
+    const worktree = useWorkspaceStore.getState().worktrees.find((wt) => wt.id === activeWorktreeId);
+    if (!worktree) return;
+
+    if (isServerRunningHere) {
+      // Stop server
+      await sessionManager.closeSession(runningServer!.tabId);
+      setRunningServer(null);
+      return;
+    }
+
+    // Stop existing server on another worktree if running
+    if (runningServer) {
+      await sessionManager.closeSession(runningServer.tabId);
+      // Remove the server tab from the old worktree
+      const oldTabs = useWorkspaceStore.getState().tabs[runningServer.worktreeId] ?? [];
+      const oldServerTab = oldTabs.find((t) => t.id === runningServer.tabId);
+      if (oldServerTab) {
+        useWorkspaceStore.getState().removeTab(runningServer.worktreeId, runningServer.tabId);
+      }
+      setRunningServer(null);
+    }
+
+    // Check if there's an existing server tab on this worktree we can reuse
+    const existingTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
+    let serverTab = existingTabs.find((t) => t.type === "server");
+    let tabId: string;
+
+    if (serverTab) {
+      tabId = serverTab.id;
+    } else {
+      // Create a new server tab — insert before Changes
+      tabId = `${activeWorktreeId}:server:${crypto.randomUUID().slice(0, 8)}`;
+      const newTab = { id: tabId, type: "server" as const, label: "Server" };
+      const tabs = [...existingTabs];
+      const changesIdx = tabs.findIndex((t) => t.type === "changes");
+      if (changesIdx >= 0) {
+        tabs.splice(changesIdx, 0, newTab);
+      } else {
+        tabs.push(newTab);
+      }
+      useWorkspaceStore.setState((state) => ({
+        tabs: { ...state.tabs, [activeWorktreeId]: tabs },
+      }));
+    }
+
+    // Switch to the server tab
+    useWorkspaceStore.getState().setActiveTabId(activeWorktreeId, tabId);
+
+    // Spawn PTY with the run script command
+    const session = await sessionManager.getOrSpawn(
+      tabId,
+      activeWorktreeId,
+      worktree.path,
+      "shell",
+      undefined,
+      ["-c", runScript.command],
+    );
+
+    setRunningServer({
+      worktreeId: activeWorktreeId,
+      sessionId: session.sessionId,
+      tabId,
+    });
+  }, [activeWorktreeId, runScript, repoPath, isServerRunningHere, runningServer, setRunningServer]);
 
   function handleAddTab(type: TabType) {
     if (activeWorktreeId) {
@@ -143,6 +226,23 @@ function TabBar() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Server play/stop button */}
+      {runScript && (
+        <button
+          type="button"
+          onClick={handleToggleServer}
+          title={isServerRunningHere ? `Stop ${runScript.name}` : `Start ${runScript.name}`}
+          className={[
+            "h-10 px-2 transition-colors cursor-pointer flex items-center",
+            isServerRunningHere
+              ? "text-green-400 hover:text-red-400"
+              : "text-text-tertiary hover:text-text-secondary",
+          ].join(" ")}
+        >
+          {isServerRunningHere ? <Square size={14} /> : <Play size={14} />}
+        </button>
+      )}
 
       {/* Spacer pushes Changes to far right */}
       <div className="flex-1" />
