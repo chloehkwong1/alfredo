@@ -1,6 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState } from "react";
-import { Archive, Trash2, CheckCircle, XCircle, RefreshCw, MessageCircle, Eye } from "lucide-react";
+import { Archive, Trash2 } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import {
@@ -20,6 +20,41 @@ import {
 } from "../ui/Dialog";
 import { Button } from "../ui";
 import { ServerIndicator } from "./ServerIndicator";
+import { RelativeTime } from "../ui/RelativeTime";
+import { RepoTag } from "./RepoTag";
+
+const ATTENTION_STATES = new Set(["waitingForInput", "done", "error"]);
+
+function isAttentionState(status: string): boolean {
+  return ATTENTION_STATES.has(status);
+}
+
+function getBleedClass(status: string): string {
+  switch (status) {
+    case "waitingForInput": return "bleed-waiting";
+    case "done": return "bleed-done";
+    case "error": return "bleed-error";
+    default: return "border-l-[3px] border-l-transparent";
+  }
+}
+
+function getDotGlowClass(status: string): string {
+  switch (status) {
+    case "waitingForInput": return "dot-glow-waiting";
+    case "done": return "dot-glow-done";
+    case "error": return "dot-glow-error";
+    case "disconnected":
+    case "stale": return "dot-glow-amber";
+    default: return "";
+  }
+}
+
+function formatDiffStat(n: number | null): string | null {
+  if (n == null || n === 0) return null;
+  if (n >= 100_000) return `${Math.round(n / 1000)}k`;
+  if (n >= 10_000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
 
 interface AgentItemProps {
   worktree: Worktree;
@@ -27,6 +62,10 @@ interface AgentItemProps {
   onClick: () => void;
   onDelete?: (worktreeId: string) => void;
   onArchive?: (worktreeId: string) => void;
+  repoPath?: string;
+  repoColors?: Record<string, string>;
+  repoIndex?: number;
+  showRepoTag?: boolean;
 }
 
 const statusDotColor: Record<string, string> = {
@@ -59,7 +98,10 @@ function getStatusText(status: AgentState | string): string {
   return statusText[status] ?? "Not running";
 }
 
-function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: AgentItemProps) {
+function AgentItem({
+  worktree, isSelected, onClick, onDelete, onArchive,
+  repoPath, repoColors, repoIndex = 0, showRepoTag = false,
+}: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
   const prSummary = useWorkspaceStore((s) => s.prSummary[worktree.id]);
@@ -69,7 +111,6 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
   const channelStatus = worktree.channelAlive === false ? "disconnected" : worktree.agentStatus;
   const baseStatus = channelStatus === "busy" && worktree.staleBusy ? "stale" : channelStatus;
   const effectiveStatus = baseStatus === "idle" && !isSeen ? "done" : baseStatus;
-  const isWaiting = effectiveStatus === "waitingForInput";
   const shouldPulse = effectiveStatus === "busy" || effectiveStatus === "waitingForInput";
   const isDone = worktree.column === "done";
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -87,89 +128,95 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
             {...attributes}
             {...listeners}
             className={[
-              "w-full text-left px-4 py-2.5 flex items-start gap-2",
-              "rounded-lg mb-0.5",
-              "transition-colors duration-[var(--transition-fast)]",
+              "w-full text-left py-2 px-3.5 flex items-start gap-2",
+              "transition-all duration-[var(--transition-fast)]",
               isDragging ? "opacity-50 cursor-grabbing" : "cursor-grab",
-              isSelected
-                ? "border-l-2 border-l-accent-primary bg-accent-muted"
-                : "border-l-2 border-l-transparent hover:bg-bg-hover",
-              isWaiting && !isSelected ? "bg-status-waiting/8" : "",
-              effectiveStatus === "done" && !isSelected ? "bg-blue-400/8" : "",
+              getBleedClass(effectiveStatus),
+              isSelected && !isAttentionState(effectiveStatus)
+                ? "bg-[rgba(255,255,255,0.05)]"
+                : "",
+              isSelected && isAttentionState(effectiveStatus)
+                ? "brightness-110"
+                : "",
+              !isSelected && !isAttentionState(effectiveStatus)
+                ? "hover:bg-[rgba(255,255,255,0.035)]"
+                : "",
             ].join(" ")}
           >
             <span
               className={[
-                "mt-1 h-[7px] w-[7px] rounded-full flex-shrink-0",
+                "mt-1 h-2 w-2 rounded-full flex-shrink-0",
                 getDotColor(effectiveStatus),
+                getDotGlowClass(effectiveStatus),
                 shouldPulse ? "animate-pulse-dot" : "",
               ].join(" ")}
             />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
+              {/* Line 1: branch name, PR number, server indicator, timestamp */}
+              <div className="flex items-center gap-2">
                 <span className={[
-                  "text-sm truncate",
-                  effectiveStatus === "waitingForInput" || effectiveStatus === "done"
+                  "text-xs truncate",
+                  isAttentionState(effectiveStatus)
                     ? "font-semibold text-text-primary"
                     : "font-medium text-text-primary",
                 ].join(" ")}>
                   {worktree.name}
                 </span>
                 {worktree.prStatus && (
-                  <span className="flex items-center gap-1.5 flex-shrink-0">
-                    {prSummary?.failingCheckCount != null && (
-                      prSummary.failingCheckCount === 0 ? (
-                        <CheckCircle className="h-3 w-3 text-diff-added" />
-                      ) : (
-                        <span className="flex items-center gap-0.5 text-status-error">
-                          <XCircle className="h-3 w-3" />
-                          <span className="text-2xs">{prSummary.failingCheckCount}</span>
-                        </span>
-                      )
-                    )}
-                    {prSummary?.reviewDecision === "changes_requested" && (
-                      <RefreshCw className="h-3 w-3 text-status-busy" />
-                    )}
-                    {prSummary?.reviewDecision == null && !worktree.prStatus.draft && (
-                      <Eye className="h-3 w-3 text-text-tertiary" />
-                    )}
-                    {prSummary?.unresolvedCommentCount != null && prSummary.unresolvedCommentCount > 0 && (
-                      <span className="flex items-center gap-0.5 text-text-tertiary">
-                        <MessageCircle className="h-3 w-3" />
-                        <span className="text-2xs">{prSummary.unresolvedCommentCount}</span>
-                      </span>
-                    )}
-                    <span className="text-2xs text-text-tertiary">#{worktree.prStatus.number}</span>
-                  </span>
+                  <span className="text-2xs text-text-tertiary flex-shrink-0">#{worktree.prStatus.number}</span>
                 )}
                 {isServerRunning && <ServerIndicator />}
+                <RelativeTime
+                  timestamp={worktree.lastActivityAt}
+                  className="text-[9px] text-text-tertiary ml-auto flex-shrink-0 tabular-nums"
+                />
               </div>
+              {/* Line 2: PR title (only if PR exists) */}
               {worktree.prStatus && (
-                <div className="text-xs text-text-tertiary truncate mt-1">
+                <div className="text-[11px] text-text-tertiary truncate mt-0.5">
                   {worktree.prStatus.title}
                 </div>
               )}
-              <div className="flex items-center gap-2 mt-1">
+              {/* Line 3: status text, diff stats, PR checks, repo tag */}
+              <div className="flex items-center gap-2 mt-0.5">
                 <span className={[
-                  "text-xs truncate",
-                  effectiveStatus === "waitingForInput"
+                  "text-[11px] truncate",
+                  (effectiveStatus as string) === "waitingForInput"
                     ? "text-status-waiting font-medium"
-                    : effectiveStatus === "done"
-                      ? "text-blue-400 font-medium"
-                      : "text-text-tertiary",
+                    : (effectiveStatus as string) === "done"
+                      ? "text-accent-primary font-medium"
+                      : (effectiveStatus as string) === "error"
+                        ? "text-status-error font-medium"
+                        : "text-text-tertiary",
                 ].join(" ")}>
                   {getStatusText(effectiveStatus)}
                 </span>
-                {worktree.column !== "done" && (worktree.additions != null || worktree.deletions != null) && (
-                  <span className="flex items-center gap-1 text-2xs ml-auto flex-shrink-0">
-                    {worktree.additions != null && worktree.additions > 0 && (
-                      <span className="text-diff-added">+{worktree.additions}</span>
-                    )}
-                    {worktree.deletions != null && worktree.deletions > 0 && (
-                      <span className="text-diff-removed">-{worktree.deletions}</span>
-                    )}
+                {prSummary?.failingCheckCount != null && prSummary.failingCheckCount > 0 && (
+                  <span className="text-2xs text-status-error flex-shrink-0">
+                    {prSummary.failingCheckCount} failing
                   </span>
                 )}
+                <span className="flex items-center gap-1 text-2xs ml-auto flex-shrink-0">
+                  {(() => {
+                    const add = formatDiffStat(worktree.additions);
+                    const del = formatDiffStat(worktree.deletions);
+                    if (!add && !del) return null;
+                    return (
+                      <>
+                        {add && <span className="text-diff-added">+{add}</span>}
+                        {del && <span className="text-diff-removed">-{del}</span>}
+                      </>
+                    );
+                  })()}
+                  {showRepoTag && repoPath && repoColors && (
+                    <RepoTag
+                      repoPath={repoPath}
+                      repoColors={repoColors}
+                      repoIndex={repoIndex}
+                      visible={showRepoTag}
+                    />
+                  )}
+                </span>
               </div>
             </div>
           </button>
