@@ -159,9 +159,43 @@ Please triage each failure:
     await sendToClaudeSession(worktree.id, prompt);
   };
 
-  const handleJumpToComment = (_comment: PrComment) => {
-    // Will be wired in Task 13
-    console.log("Jump to comment:", _comment);
+  const handleJumpToComment = (comment: PrComment) => {
+    const store = useWorkspaceStore.getState();
+    const tabs = store.tabs[worktree.id] ?? [];
+    const changesTab = tabs.find((t) => t.type === "changes");
+    if (!changesTab) return;
+
+    // Switch to the Changes tab
+    store.setActiveTabId(worktree.id, changesTab.id);
+
+    // After the tab renders, scroll to the relevant file (and line if possible)
+    setTimeout(() => {
+      if (comment.path) {
+        const fileEl = document.querySelector<HTMLElement>(
+          `[data-file-path="${CSS.escape(comment.path)}"]`,
+        );
+        if (fileEl) {
+          fileEl.scrollIntoView({ behavior: "smooth", block: "start" });
+
+          // If there's a target line, try to find the line row within the file card
+          if (comment.line != null) {
+            // Lines render their new/old line numbers in <span> siblings;
+            // the closest we can do is find the line by searching within the card.
+            // Each line row has two number spans — look for one whose text matches.
+            const lineEls = fileEl.querySelectorAll<HTMLElement>(".font-mono > div > div");
+            for (const row of lineEls) {
+              const spans = row.querySelectorAll<HTMLElement>("span.w-12");
+              for (const span of spans) {
+                if (span.textContent?.trim() === String(comment.line)) {
+                  row.scrollIntoView({ behavior: "smooth", block: "center" });
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    }, 150);
   };
 
   return (
