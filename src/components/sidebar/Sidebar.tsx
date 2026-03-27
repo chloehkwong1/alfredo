@@ -188,7 +188,7 @@ function Sidebar({
       </div>
 
       {/* Repo pills */}
-      {repos.length > 1 && (
+      {repos.length >= 1 && (
         <RepoPills
           repos={repos}
           activeRepo={activeRepo}
