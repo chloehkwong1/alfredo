@@ -141,9 +141,9 @@ function AppShell() {
               restoreTabs(wt.id, session.tabs, session.activeTabId);
 
               // Restore layout state if persisted, otherwise init from tabs
-              const sessionLayout = (session as any).layout;
-              const sessionPanes = (session as any).panes;
-              const sessionActivePaneId = (session as any).activePaneId;
+              const sessionLayout = session.layout;
+              const sessionPanes = session.panes;
+              const sessionActivePaneId = session.activePaneId;
               if (sessionLayout && sessionPanes) {
                 useLayoutStore.getState().restoreLayout(
                   wt.id, sessionLayout, sessionPanes, sessionActivePaneId ?? Object.keys(sessionPanes)[0],

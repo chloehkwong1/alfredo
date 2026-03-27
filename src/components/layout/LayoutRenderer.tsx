@@ -60,7 +60,10 @@ function RenderNode({
           isFirstLeaf={true}
         />
       </Panel>
-      <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary" />
+      <Separator className={[
+        node.direction === "horizontal" ? "w-px" : "h-px",
+        "bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary",
+      ].join(" ")} />
       <Panel defaultSize={100 - defaultSize} minSize={20}>
         <RenderNode
           node={node.children[1]}
