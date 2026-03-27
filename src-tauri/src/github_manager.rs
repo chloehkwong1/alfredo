@@ -345,6 +345,23 @@ impl GithubManager {
         Ok(comments)
     }
 
+    /// Fetch only the `mergeable` field for a PR (single API call).
+    /// Used by the sync loop to avoid the heavier `get_pr_detail`.
+    pub async fn get_pr_mergeable(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<Option<bool>, AppError> {
+        let url = format!("/repos/{owner}/{repo}/pulls/{pr_number}");
+        let response: serde_json::Value = self
+            .client
+            .get(url, None::<&()>)
+            .await
+            .map_err(|e| format_octocrab_error("failed to fetch PR for mergeable", e))?;
+        Ok(response.get("mergeable").and_then(|v| v.as_bool()))
+    }
+
     /// Fetch detailed PR info: reviews, comments, and mergeable status.
     pub async fn get_pr_detail(
         &self,
