@@ -11,9 +11,7 @@ import { BranchModeView } from "./BranchModeView";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
-import { deleteWorktree } from "../../api";
-import { sessionManager } from "../../services/sessionManager";
-import { deleteSession } from "../../services/SessionPersistence";
+import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 
 const COLUMNS: KanbanColumn[] = [
@@ -70,37 +68,13 @@ function Sidebar({
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
-  const removeWorktree = useWorkspaceStore((s) => s.removeWorktree);
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
-  const allTabs = useWorkspaceStore((s) => s.tabs);
   const repoPath = activeRepo;
 
   async function handleDeleteWorktree(id: string) {
     const wt = worktrees.find((w) => w.id === id);
     if (!wt || !repoPath) return;
-
-    // 1. Remove from store first (prevents sync loop race)
-    removeWorktree(id);
-
-    // 2. Close any PTY sessions for this worktree's tabs
-    const worktreeTabs = allTabs[id] ?? [];
-    for (const tab of worktreeTabs) {
-      await sessionManager.closeSession(tab.id);
-    }
-
-    // 3. Force-delete worktree + branch
-    try {
-      await deleteWorktree(repoPath, wt.name, true);
-    } catch (e) {
-      console.error("Failed to delete worktree:", e);
-    }
-
-    // 4. Delete session file
-    try {
-      await deleteSession(repoPath, id);
-    } catch {
-      // Non-critical — session file may not exist
-    }
+    await lifecycleManager.removeWorktree(id, repoPath, wt.name);
   }
 
   const activeWorktrees = worktrees.filter((wt) => !wt.archived);
