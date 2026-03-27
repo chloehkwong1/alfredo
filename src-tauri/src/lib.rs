@@ -40,13 +40,12 @@ pub fn run() {
             // Start the background GitHub PR sync loop
             github_sync::start_sync_loop(app.handle().clone());
 
-            // Start the agent state HTTP server for hook callbacks
-            let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                let state_handle = state_server::start().await;
-                eprintln!("[alfredo] state server listening on port {}", state_handle.port);
-                handle.manage(state_handle);
-            });
+            // Start the agent state HTTP server for hook callbacks.
+            // block_on ensures the port is bound and StateServerHandle is managed
+            // before any PTY commands can run — prevents race with session restore.
+            let state_handle = tauri::async_runtime::block_on(state_server::start());
+            eprintln!("[alfredo] state server listening on port {}", state_handle.port);
+            app.manage(state_handle);
 
             Ok(())
         })
