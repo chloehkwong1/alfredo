@@ -201,6 +201,22 @@ export interface CommitInfo {
 
 export type TabType = "claude" | "shell" | "server" | "changes" | "pr";
 
+// ── Layout (split panes) ────────────────────────────────────────
+
+export type LayoutNode =
+  | { type: "leaf"; paneId: string }
+  | {
+      type: "split";
+      direction: "horizontal" | "vertical";
+      ratio: number;
+      children: [LayoutNode, LayoutNode];
+    };
+
+export interface Pane {
+  tabIds: string[];
+  activeTabId: string;
+}
+
 export interface CheckRun {
   id: number;
   name: string;
