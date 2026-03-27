@@ -1,7 +1,7 @@
 use crate::config_manager;
 use crate::git_manager;
 use crate::git_manager::get_diff_stats;
-use crate::github_manager::GithubManager;
+use crate::github_manager::{self, GithubManager};
 use crate::linear_manager;
 use crate::types::{AgentState, AppError, KanbanColumn, Worktree, WorktreeSource};
 
@@ -225,20 +225,7 @@ async fn create_worktree_from_pr(repo_path: String, pr_number: u64) -> Result<Wo
     let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await?;
 
     // 2. Resolve owner/repo from git remote
-    let output = tokio::process::Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .current_dir(&repo_path)
-        .output()
-        .await
-        .map_err(|e| AppError::Github(format!("failed to get remote URL: {e}")))?;
-
-    if !output.status.success() {
-        return Err(AppError::Github("no origin remote found".into()));
-    }
-
-    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let (owner, repo) = parse_github_owner_repo(&url)
-        .ok_or_else(|| AppError::Github(format!("could not parse owner/repo from: {url}")))?;
+    let (owner, repo) = github_manager::resolve_owner_repo(&repo_path).await?;
 
     // 3. Fetch the PR to get the head branch name
     let manager = GithubManager::new(&token)?;
@@ -265,20 +252,3 @@ async fn create_worktree_from_pr(repo_path: String, pr_number: u64) -> Result<Wo
     create_worktree(repo_path, branch_name.clone(), branch_name).await
 }
 
-/// Extract owner and repo from a GitHub URL (HTTPS or SSH).
-fn parse_github_owner_repo(url: &str) -> Option<(String, String)> {
-    let path = url
-        .strip_prefix("git@github.com:")
-        .or_else(|| url.strip_prefix("https://github.com/"))?;
-
-    let path = path.strip_suffix(".git").unwrap_or(path);
-    let mut parts = path.splitn(2, '/');
-    let owner = parts.next()?.to_string();
-    let repo = parts.next()?.to_string();
-
-    if owner.is_empty() || repo.is_empty() {
-        return None;
-    }
-
-    Some((owner, repo))
-}

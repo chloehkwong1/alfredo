@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::time;
 
 use crate::config_manager;
-use crate::github_manager::{determine_column, GithubManager};
+use crate::github_manager::{determine_column, parse_github_owner_repo, GithubManager};
 use crate::types::PrStatus;
 
 /// Payload emitted on the `github:pr-update` Tauri event.
@@ -154,24 +154,6 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
         .map_err(|e| format!("failed to emit event: {e}"))?;
 
     Ok(())
-}
-
-/// Extract owner and repo from a GitHub URL (HTTPS or SSH).
-fn parse_github_owner_repo(url: &str) -> Option<(String, String)> {
-    let path = url
-        .strip_prefix("git@github.com:")
-        .or_else(|| url.strip_prefix("https://github.com/"))?;
-
-    let path = path.strip_suffix(".git").unwrap_or(path);
-    let mut parts = path.splitn(2, '/');
-    let owner = parts.next()?.to_string();
-    let repo = parts.next()?.to_string();
-
-    if owner.is_empty() || repo.is_empty() {
-        return None;
-    }
-
-    Some((owner, repo))
 }
 
 #[cfg(test)]

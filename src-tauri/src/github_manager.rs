@@ -218,6 +218,42 @@ impl GithubManager {
     }
 }
 
+/// Extract owner and repo from a GitHub URL (HTTPS or SSH).
+pub fn parse_github_owner_repo(url: &str) -> Option<(String, String)> {
+    let path = url
+        .strip_prefix("git@github.com:")
+        .or_else(|| url.strip_prefix("https://github.com/"))?;
+
+    let path = path.strip_suffix(".git").unwrap_or(path);
+    let mut parts = path.splitn(2, '/');
+    let owner = parts.next()?.to_string();
+    let repo = parts.next()?.to_string();
+
+    if owner.is_empty() || repo.is_empty() {
+        return None;
+    }
+
+    Some((owner, repo))
+}
+
+/// Resolve owner/repo from a repo path by reading the git remote URL.
+pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), AppError> {
+    let output = tokio::process::Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(repo_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Github(format!("failed to get remote URL: {e}")))?;
+
+    if !output.status.success() {
+        return Err(AppError::Github("no origin remote found".into()));
+    }
+
+    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    parse_github_owner_repo(&url)
+        .ok_or_else(|| AppError::Github(format!("could not parse owner/repo from: {url}")))
+}
+
 /// Determine the kanban column for a worktree based on its PR status.
 pub fn determine_column(pr: Option<&PrStatus>) -> KanbanColumn {
     match pr {
@@ -231,6 +267,29 @@ pub fn determine_column(pr: Option<&PrStatus>) -> KanbanColumn {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_ssh_url() {
+        let result = parse_github_owner_repo("git@github.com:acme/alfredo.git");
+        assert_eq!(result, Some(("acme".into(), "alfredo".into())));
+    }
+
+    #[test]
+    fn test_parse_https_url() {
+        let result = parse_github_owner_repo("https://github.com/acme/alfredo.git");
+        assert_eq!(result, Some(("acme".into(), "alfredo".into())));
+    }
+
+    #[test]
+    fn test_parse_https_no_git_suffix() {
+        let result = parse_github_owner_repo("https://github.com/acme/alfredo");
+        assert_eq!(result, Some(("acme".into(), "alfredo".into())));
+    }
+
+    #[test]
+    fn test_parse_invalid_url() {
+        assert!(parse_github_owner_repo("not-a-url").is_none());
+    }
 
     #[test]
     fn test_determine_column_no_pr() {
