@@ -161,9 +161,16 @@ Please triage each failure:
 
   const handleJumpToComment = (comment: PrComment) => {
     const store = useWorkspaceStore.getState();
-    const tabs = store.tabs[worktree.id] ?? [];
-    const changesTab = tabs.find((t) => t.type === "changes");
-    if (!changesTab) return;
+    let tabs = store.tabs[worktree.id] ?? [];
+    let changesTab = tabs.find((t) => t.type === "changes");
+
+    // Create a Changes tab if one doesn't exist
+    if (!changesTab) {
+      store.addTab(worktree.id, "changes");
+      tabs = useWorkspaceStore.getState().tabs[worktree.id] ?? [];
+      changesTab = tabs.find((t) => t.type === "changes");
+      if (!changesTab) return;
+    }
 
     // Switch to the Changes tab
     store.setActiveTabId(worktree.id, changesTab.id);
