@@ -4,13 +4,6 @@ import { Button } from "../ui/Button";
 import type { NotificationConfig } from "../../types";
 import { SOUNDS, playSoundById } from "../../hooks/useNotifications";
 
-const DEFAULT_CONFIG: NotificationConfig = {
-  enabled: false,
-  sound: "chime",
-  notifyOnWaiting: true,
-  notifyOnIdle: true,
-  notifyOnError: false,
-};
 
 const SOUND_OPTIONS = Object.keys(SOUNDS).map((id) => ({
   id,
@@ -215,4 +208,4 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
   );
 }
 
-export { NotificationSettings, DEFAULT_CONFIG as DEFAULT_NOTIFICATION_CONFIG };
+export { NotificationSettings };

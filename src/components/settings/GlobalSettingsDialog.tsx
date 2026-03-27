@@ -11,7 +11,8 @@ import {
 } from "../ui/Dialog";
 import { AgentSettings } from "./AgentSettings";
 import { GithubSettings } from "./GithubSettings";
-import { NotificationSettings, DEFAULT_NOTIFICATION_CONFIG } from "./NotificationSettings";
+import { NotificationSettings } from "./NotificationSettings";
+import { DEFAULT_NOTIFICATION_CONFIG } from "./notificationConfig";
 import { TerminalSettings } from "./TerminalSettings";
 import { ThemeSelector } from "./ThemeSelector";
 
