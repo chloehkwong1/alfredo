@@ -17,8 +17,8 @@ interface UsePtyOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** "claude" spawns Claude Code; "shell" spawns user's default shell. */
   mode?: "claude" | "shell";
-  /** CLI args to pass to the spawned process. */
-  args?: string[];
+  /** CLI args to pass to the spawned process. Null means settings are still loading — defer spawn. */
+  args?: string[] | null;
   /** Increment to force the hook to re-run and re-wire the session. */
   reconnectKey?: number;
   /** Command to write to stdin after the shell spawns (used by server tabs). */
@@ -56,12 +56,16 @@ export function usePty({
   const sessionRef = useRef<ManagedSession | null>(null);
 
   // Use refs for args and startupCommand so they don't trigger re-attach cycles.
+  // Track whether args have resolved (null → array) so the effect re-fires.
+  const argsResolved = args !== null;
   const argsRef = useRef(args);
   argsRef.current = args;
   const startupCommandRef = useRef(startupCommand);
   startupCommandRef.current = startupCommand;
 
   useEffect(() => {
+    // Wait for settings to resolve before spawning (args === null means still loading)
+    if (args === null) return;
     if (!sessionKey || !worktreeId || !worktreePath || !containerRef.current) return;
 
     const container = containerRef.current;
@@ -81,7 +85,7 @@ export function usePty({
 
     async function attach() {
       const session = await sessionManager.getOrSpawn(
-        sessionKey, worktreeId, worktreePath, mode, undefined, argsRef.current,
+        sessionKey, worktreeId, worktreePath, mode, undefined, argsRef.current ?? undefined,
       );
       if (disposed) return;
 
@@ -214,7 +218,7 @@ export function usePty({
       setSearchAddon(null);
       setIsConnected(false);
     };
-  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, reconnectKey]);
+  }, [sessionKey, worktreeId, worktreePath, mode, containerRef, reconnectKey, argsResolved]);
 
   return { terminal, searchAddon, agentState, isConnected, channelAlive };
 }

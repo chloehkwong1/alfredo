@@ -53,11 +53,15 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const [reconnectKey, setReconnectKey] = useState(0);
 
-  const [resolvedArgs, setResolvedArgs] = useState<string[]>([]);
+  const [resolvedArgs, setResolvedArgs] = useState<string[] | null>(null);
 
-  // Resolve settings when component mounts
+  // Resolve settings when component mounts — must complete before PTY spawns
   useEffect(() => {
-    if (mode !== "claude" || !repoPath) return;
+    if (mode !== "claude") {
+      setResolvedArgs([]);
+      return;
+    }
+    if (!repoPath) return;
     getConfig(repoPath).then((config) => {
       const branch = worktree?.branch ?? "";
       const resolved = resolveSettings(
@@ -65,7 +69,9 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         config.worktreeOverrides?.[branch],
       );
       setResolvedArgs(buildClaudeArgs(resolved));
-    }).catch(() => {});
+    }).catch(() => {
+      setResolvedArgs([]);
+    });
   }, [repoPath, worktree?.branch, mode]);
 
   const [showSearch, setShowSearch] = useState(false);
