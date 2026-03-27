@@ -169,3 +169,63 @@ body {
   font-size: var(--text-2xs, 10px);
   line-height: 1;
 }
+
+/* ── Sidebar visual system ───────────────────────────── */
+
+.sidebar-bg {
+  background: linear-gradient(180deg, var(--bg-sidebar) 0%, color-mix(in srgb, var(--bg-sidebar) 85%, black) 100%);
+  box-shadow: 1px 0 20px -4px rgba(0, 0, 0, 0.6);
+  position: relative;
+}
+
+.sidebar-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.012;
+  background: repeating-conic-gradient(#fff 0% 25%, transparent 0% 50%) 0 0 / 2px 2px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sidebar-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Attention: gradient bleed from left border */
+.bleed-waiting {
+  border-left: 3px solid var(--status-waiting);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--status-waiting) 6%, transparent) 0%, transparent 60%);
+}
+.bleed-done {
+  border-left: 3px solid var(--accent-primary);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-primary) 6%, transparent) 0%, transparent 60%);
+}
+.bleed-error {
+  border-left: 3px solid var(--status-error);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--status-error) 6%, transparent) 0%, transparent 60%);
+}
+
+/* Light theme: higher opacity for bleed visibility */
+html[data-theme="light"] .bleed-waiting {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--status-waiting) 10%, transparent) 0%, transparent 60%);
+}
+html[data-theme="light"] .bleed-done {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-primary) 10%, transparent) 0%, transparent 60%);
+}
+html[data-theme="light"] .bleed-error {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--status-error) 10%, transparent) 0%, transparent 60%);
+}
+
+/* Status dot glow — color-matched ambient light */
+.dot-glow-waiting { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-waiting) 45%, transparent); }
+.dot-glow-done    { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-primary) 40%, transparent); }
+.dot-glow-error   { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-error) 45%, transparent); }
+.dot-glow-amber   { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-busy) 35%, transparent); }
+
+/* Light theme: reduce glow intensity */
+html[data-theme="light"] .dot-glow-waiting { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--status-waiting) 35%, transparent); }
+html[data-theme="light"] .dot-glow-done    { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--accent-primary) 30%, transparent); }
+html[data-theme="light"] .dot-glow-error   { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--status-error) 35%, transparent); }
+html[data-theme="light"] .dot-glow-amber   { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--status-busy) 25%, transparent); }
