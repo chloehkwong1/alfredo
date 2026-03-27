@@ -6,6 +6,8 @@
 @theme {
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
 
+  --font-size-2xs: 10px;
+
   --color-bg-primary: var(--bg-primary);
   --color-bg-secondary: var(--bg-secondary);
   --color-bg-elevated: var(--bg-elevated);
@@ -160,4 +162,10 @@ body {
 }
 .focus-ring:focus-visible {
   outline-color: var(--accent-primary);
+}
+
+/* ── text-2xs utility (Tailwind v4 fallback) ──── */
+.text-2xs {
+  font-size: var(--text-2xs, 10px);
+  line-height: 1;
 }
