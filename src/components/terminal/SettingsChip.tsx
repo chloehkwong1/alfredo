@@ -1,4 +1,3 @@
-// src/components/terminal/SettingsChip.tsx
 import { useRef, useEffect } from "react";
 
 interface SettingsChipProps {

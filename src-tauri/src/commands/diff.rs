@@ -146,7 +146,9 @@ fn diff_to_files(diff: &git2::Diff<'_>) -> Result<Vec<DiffFile>> {
             });
         }
 
-        let file = files.last_mut().unwrap();
+        let Some(file) = files.last_mut() else {
+            return true; // skip line if no file entry (shouldn't happen)
+        };
 
         match line.origin() {
             'H' | 'F' => {

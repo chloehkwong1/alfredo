@@ -1,4 +1,3 @@
-// src/components/changes/DiffToolbar.tsx
 import { FolderTree } from "lucide-react";
 
 type DiffMode = "all" | "commit";

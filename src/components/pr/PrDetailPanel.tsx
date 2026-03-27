@@ -23,17 +23,11 @@ async function sendToClaudeSession(
 
   // Find the first claude tab
   const claudeTab = tabs.find((t) => t.type === "claude");
-  if (!claudeTab) {
-    console.warn("No Claude session found for worktree", worktreeId);
-    return;
-  }
+  if (!claudeTab) return;
 
   // Sessions are keyed by tab ID in SessionManager
   const session = sessionManager.getSession(claudeTab.id);
-  if (!session || !session.sessionId) {
-    console.warn("Claude session not yet spawned for tab", claudeTab.id);
-    return;
-  }
+  if (!session || !session.sessionId) return;
 
   // Encode the prompt + newline as bytes and write to the PTY
   const bytes = Array.from(new TextEncoder().encode(prompt + "\n"));
@@ -102,7 +96,7 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
     );
   }
 
-  // Calculate blocker counts
+  // Calculate blocker counts per category
   const failingChecks = checkRuns.filter(
     (r) => r.conclusion === "failure" || r.conclusion === "timed_out",
   ).length;
@@ -112,6 +106,8 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
   const unresolvedComments = prDetail?.comments?.length ?? 0;
   const hasConflicts = prDetail?.mergeable === false;
 
+  // Total blocker categories = checks + reviews + comments + conflicts
+  const blockerCount = 4;
   const unresolvedCount =
     (failingChecks > 0 ? 1 : 0) +
     (hasChangesRequested ? 1 : 0) +
@@ -134,10 +130,7 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
       allLogs = results.flat();
     }
 
-    if (allLogs.length === 0) {
-      console.warn("No failure logs to send to Claude");
-      return;
-    }
+    if (allLogs.length === 0) return;
 
     const logSection = allLogs
       .map(
@@ -211,8 +204,8 @@ Please triage each failure:
         <div className="flex-1">
           <PrHeader
             pr={worktree.prStatus}
-            blockerCount={4}
-            resolvedCount={4 - unresolvedCount}
+            blockerCount={blockerCount}
+            resolvedCount={blockerCount - unresolvedCount}
           />
         </div>
         <div className="px-2 border-b border-border-subtle flex items-center">

@@ -58,16 +58,16 @@ pub async fn has_active_sessions(app: AppHandle, repo_path: String) -> Result<bo
     let pty_manager = app.state::<PtyManager>();
     let sessions = pty_manager.list().unwrap_or_default();
 
-    // Build the set of worktree paths that belong to this repo.
-    // Note: Session.worktree_id is populated from worktree_path at spawn time,
-    // so we match against wt.path (not wt.id/name).
+    // Build the set of worktree IDs that belong to this repo.
+    // Session.worktree_id stores the short name (e.g. "feat-my-feature"),
+    // which matches Worktree.id — not the full filesystem path.
     let worktrees = crate::git_manager::list_worktrees(&repo_path, None)
         .unwrap_or_default();
-    let repo_worktree_paths: std::collections::HashSet<String> =
-        worktrees.iter().map(|wt| wt.path.clone()).collect();
+    let repo_worktree_ids: std::collections::HashSet<String> =
+        worktrees.iter().map(|wt| wt.id.clone()).collect();
 
     Ok(sessions.iter().any(|s| {
-        repo_worktree_paths.contains(&s.worktree_id)
+        repo_worktree_ids.contains(&s.worktree_id)
             && matches!(
                 s.status,
                 crate::types::SessionStatus::Running

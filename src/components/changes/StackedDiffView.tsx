@@ -1,4 +1,3 @@
-// src/components/changes/StackedDiffView.tsx
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { FileCard } from "./FileCard";
 import type { Annotation, DiffFile, PrComment } from "../../types";

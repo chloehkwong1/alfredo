@@ -1,4 +1,3 @@
-// src/components/changes/DiffCommentThread.tsx
 import { ExternalLink } from "lucide-react";
 import type { PrComment } from "../../types";
 

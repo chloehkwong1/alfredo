@@ -416,7 +416,9 @@ fn write_hooks_config(
     if !config.get("hooks").is_some_and(|h| h.is_object()) {
         config["hooks"] = serde_json::json!({});
     }
-    let hooks = config["hooks"].as_object_mut().unwrap();
+    let hooks = config["hooks"]
+        .as_object_mut()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "hooks is not an object after guard"))?;
 
     // Build hook entries using command hooks with env var interpolation.
     // Each PTY process has ALFREDO_STATE_URL and ALFREDO_WORKTREE_ID set,
@@ -479,7 +481,9 @@ fn write_hooks_config(
         }
     }
 
-    std::fs::write(&path, serde_json::to_string_pretty(&config).unwrap())?;
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    std::fs::write(&path, json)?;
 
     Ok(())
 }

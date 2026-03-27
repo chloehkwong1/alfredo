@@ -35,7 +35,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath }: CreateWorktreeDi
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const [activeTab, setActiveTab] = useState<Tab>("newBranch");
   const [branchName, setBranchName] = useState("");
-  const [baseBranch, setBaseBranch] = useState("main");
+  const [baseBranch, setBaseBranch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [runSetup, setRunSetup] = useState(true);
   const [hasSetupScripts, setHasSetupScripts] = useState(false);
@@ -59,6 +59,15 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath }: CreateWorktreeDi
         .then((result) => {
           setBranches(result);
           setBranchesError(null);
+          // Auto-detect default branch from available branches
+          if (!baseBranch) {
+            const names = result.map((b) => b.branch);
+            const defaultBranch = names.find((n) => n === "main")
+              ?? names.find((n) => n === "master")
+              ?? names[0]
+              ?? "main";
+            setBaseBranch(defaultBranch);
+          }
         })
         .catch((err) => setBranchesError(err instanceof Error ? err.message : String(err)))
         .finally(() => setBranchesLoading(false));
@@ -160,7 +169,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath }: CreateWorktreeDi
         worktree = await createWorktreeFrom(repoPath, {
           kind: "newBranch",
           name: branchName.trim(),
-          base: baseBranch || "main",
+          base: baseBranch || "main", // baseBranch auto-detected from branches list
         });
       } else if (activeTab === "branches" && selectedBranch) {
         worktree = await createWorktreeFrom(repoPath, {

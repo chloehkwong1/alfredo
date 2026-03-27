@@ -69,13 +69,8 @@ impl StateServerHandle {
 
 /// Start the state HTTP server on a random port.
 /// Returns a handle containing the port and channel registry.
-pub async fn start() -> StateServerHandle {
+pub async fn start() -> Result<StateServerHandle, std::io::Error> {
     let registry = Arc::new(Mutex::new(ChannelRegistry::default()));
-
-    let handle = StateServerHandle {
-        port: 0, // filled after bind
-        registry: Arc::clone(&registry),
-    };
 
     let app = Router::new()
         .route(
@@ -84,22 +79,19 @@ pub async fn start() -> StateServerHandle {
         )
         .with_state(Arc::clone(&registry));
 
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("failed to bind state server");
-
-    let port = listener.local_addr().unwrap().port();
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let port = listener.local_addr()?.port();
 
     tokio::spawn(async move {
-        axum::serve(listener, app)
-            .await
-            .expect("state server crashed");
+        if let Err(e) = axum::serve(listener, app).await {
+            eprintln!("[state-server] server error: {e}");
+        }
     });
 
-    StateServerHandle {
+    Ok(StateServerHandle {
         port,
-        registry: handle.registry,
-    }
+        registry,
+    })
 }
 
 /// Parse a state string from the URL path into an AgentState.

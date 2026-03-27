@@ -1,4 +1,3 @@
-// src/components/changes/FileCard.tsx
 import { forwardRef, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { AnnotationBubble } from "./AnnotationBubble";

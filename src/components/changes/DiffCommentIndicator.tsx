@@ -1,4 +1,3 @@
-// src/components/changes/DiffCommentIndicator.tsx
 import { MessageCircle } from "lucide-react";
 
 interface DiffCommentIndicatorProps {

@@ -21,6 +21,26 @@ import logoSvg from "../../assets/logo-cat.svg";
 import type { WorkspaceTab, RunScript } from "../../types";
 
 const EMPTY_TABS: WorkspaceTab[] = [];
+const AUTO_SAVE_INTERVAL_MS = 30_000;
+const SERVER_GRACE_PERIOD_MS = 5_000;
+const SERVER_HEARTBEAT_STALE_MS = 10_000;
+const SERVER_POLL_INTERVAL_MS = 3_000;
+
+/** Snapshot current workspace + layout state and persist all sessions to disk. */
+function collectAndSaveAllSessions(repoPath: string) {
+  const state = useWorkspaceStore.getState();
+  const worktreeIds = state.worktrees.map((wt) => wt.id);
+  return saveAllSessions(
+    repoPath,
+    worktreeIds,
+    (wtId) => state.tabs[wtId] ?? [],
+    (wtId) => state.activeTabId[wtId] ?? "",
+    (tabId) => sessionManager.getBufferedOutputBase64(tabId),
+    (wtId) => useLayoutStore.getState().layout[wtId],
+    (wtId) => useLayoutStore.getState().panes[wtId],
+    (wtId) => useLayoutStore.getState().activePaneId[wtId],
+  );
+}
 
 function AppShell() {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
@@ -38,7 +58,6 @@ function AppShell() {
   useDensity();
 
   const {
-    config: _appConfig,
     loading,
     error,
     clearError,
@@ -72,17 +91,7 @@ function AppShell() {
     setSwitching(true);
     try {
       if (repoPath && hasWorktrees) {
-        const state = useWorkspaceStore.getState();
-        await saveAllSessions(
-          repoPath,
-          state.worktrees.map((wt) => wt.id),
-          (wtId) => state.tabs[wtId] ?? [],
-          (wtId) => state.activeTabId[wtId] ?? "",
-          (tabId) => sessionManager.getBufferedOutputBase64(tabId),
-          (wtId) => useLayoutStore.getState().layout[wtId],
-          (wtId) => useLayoutStore.getState().panes[wtId],
-          (wtId) => useLayoutStore.getState().activePaneId[wtId],
-        );
+        await collectAndSaveAllSessions(repoPath);
       }
       clearStore();
       await switchRepo(path);
@@ -297,15 +306,12 @@ function AppShell() {
     } else if (wasOnboarding.current) {
       shouldAnimateSidebar.current = true;
       wasOnboarding.current = false;
+      // Clear flag after current render consumes it
+      requestAnimationFrame(() => {
+        shouldAnimateSidebar.current = false;
+      });
     }
   }, [loading, worktrees.length]);
-
-  // Clear animation flag after it's been consumed
-  useEffect(() => {
-    if (shouldAnimateSidebar.current) {
-      shouldAnimateSidebar.current = false;
-    }
-  });
 
   // Save sessions on app quit (only when worktrees exist — not during onboarding)
   useEffect(() => {
@@ -314,20 +320,7 @@ function AppShell() {
     const currentWindow = getCurrentWindow();
     const unlisten = currentWindow.onCloseRequested(async (event) => {
       event.preventDefault();
-      const state = useWorkspaceStore.getState();
-      const worktreeIds = state.worktrees.map((wt) => wt.id);
-
-      await saveAllSessions(
-        repoPath,
-        worktreeIds,
-        (wtId) => state.tabs[wtId] ?? [],
-        (wtId) => state.activeTabId[wtId] ?? "",
-        (tabId) => sessionManager.getBufferedOutputBase64(tabId),
-        (wtId) => useLayoutStore.getState().layout[wtId],
-        (wtId) => useLayoutStore.getState().panes[wtId],
-        (wtId) => useLayoutStore.getState().activePaneId[wtId],
-      );
-
+      await collectAndSaveAllSessions(repoPath);
       await currentWindow.destroy();
     });
 
@@ -341,20 +334,9 @@ function AppShell() {
     if (!repoPath || !hasWorktrees) return;
 
     const interval = setInterval(() => {
-      const state = useWorkspaceStore.getState();
-      const worktreeIds = state.worktrees.map((wt) => wt.id);
-
-      saveAllSessions(
-        repoPath,
-        worktreeIds,
-        (wtId) => state.tabs[wtId] ?? [],
-        (wtId) => state.activeTabId[wtId] ?? "",
-        (tabId) => sessionManager.getBufferedOutputBase64(tabId),
-        (wtId) => useLayoutStore.getState().layout[wtId],
-        (wtId) => useLayoutStore.getState().panes[wtId],
-        (wtId) => useLayoutStore.getState().activePaneId[wtId],
-      ).catch((err) => console.error("Auto-save failed:", err));
-    }, 30_000);
+      collectAndSaveAllSessions(repoPath)
+        .catch((err) => console.error("Auto-save failed:", err));
+    }, AUTO_SAVE_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [repoPath, hasWorktrees]);
@@ -376,7 +358,7 @@ function AppShell() {
     if (!repoPath) return;
     getConfig(repoPath).then((config) => {
       setRunScript(config.runScript ?? null);
-    }).catch(() => {});
+    }).catch((err) => console.error("Failed to load run script config:", err));
   }, [repoPath, configVersion]);
 
   const isServerRunningHere = runningServer?.worktreeId === activeWorktreeId;
@@ -440,7 +422,7 @@ function AppShell() {
     const startTime = Date.now();
 
     const interval = setInterval(() => {
-      if (Date.now() - startTime < 5_000) return;
+      if (Date.now() - startTime < SERVER_GRACE_PERIOD_MS) return;
 
       const session = sessionManager.getSession(runningServer.tabId);
       if (!session || !session.sessionId) {
@@ -449,10 +431,10 @@ function AppShell() {
         return;
       }
       // Check if heartbeat is stale (>10s without heartbeat = dead)
-      if (session.lastHeartbeat > 0 && Date.now() - session.lastHeartbeat > 10_000) {
+      if (session.lastHeartbeat > 0 && Date.now() - session.lastHeartbeat > SERVER_HEARTBEAT_STALE_MS) {
         setRunningServer(null);
       }
-    }, 3_000);
+    }, SERVER_POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [runningServer, setRunningServer]);
@@ -466,7 +448,7 @@ function AppShell() {
         layoutState.removeLayout(wtId);
       }
     }
-  }, [worktreeIds.join(",")]);
+  }, [JSON.stringify(worktreeIds)]);
 
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)

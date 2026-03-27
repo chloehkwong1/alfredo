@@ -1,4 +1,3 @@
-// src/components/changes/ChangesView.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Send, Trash2, MessageSquare } from "lucide-react";
 import { DiffToolbar } from "./DiffToolbar";

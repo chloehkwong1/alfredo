@@ -578,6 +578,16 @@ pub fn parse_github_owner_repo(url: &str) -> Option<(String, String)> {
 }
 
 /// Resolve owner/repo from a repo path by reading the git remote URL.
+/// Resolve a GithubManager + owner/repo from a repo path in one call.
+/// Loads the per-repo config, resolves the token, and parses the remote URL.
+pub async fn github_context(repo_path: &str) -> Result<(GithubManager, String, String), AppError> {
+    let config = crate::config_manager::load_config(repo_path).await?;
+    let token = resolve_token(config.github_token.as_deref()).await?;
+    let manager = GithubManager::new(&token)?;
+    let (owner, repo) = resolve_owner_repo(repo_path).await?;
+    Ok((manager, owner, repo))
+}
+
 pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), AppError> {
     let output = tokio::process::Command::new("git")
         .args(["remote", "get-url", "origin"])

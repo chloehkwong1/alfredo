@@ -31,7 +31,8 @@ pub fn run() {
         })
         .setup(|app| {
             // Migrate legacy single-repo config to app.json
-            let app_data = app.path().app_data_dir().expect("app data dir");
+            let app_data = app.path().app_data_dir()
+                .map_err(|e| format!("failed to resolve app data dir: {e}"))?;
             let store_path = app_data.clone();
             tauri::async_runtime::block_on(async {
                 app_config_manager::migrate_if_needed(&app_data, &store_path).await.ok();
@@ -43,7 +44,8 @@ pub fn run() {
             // Start the agent state HTTP server for hook callbacks.
             // block_on ensures the port is bound and StateServerHandle is managed
             // before any PTY commands can run — prevents race with session restore.
-            let state_handle = tauri::async_runtime::block_on(state_server::start());
+            let state_handle = tauri::async_runtime::block_on(state_server::start())
+                .map_err(|e| format!("failed to start state server: {e}"))?;
             eprintln!("[alfredo] state server listening on port {}", state_handle.port);
             app.manage(state_handle);
 
