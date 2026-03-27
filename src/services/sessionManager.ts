@@ -158,7 +158,15 @@ export class SessionManager {
     args?: string[],
   ): Promise<ManagedSession> {
     const existing = this.sessions.get(sessionKey);
-    if (existing) return existing;
+    if (existing) {
+      // Zombie detection: session exists but PTY never spawned or died
+      const isZombie = !existing.sessionId && existing.lastHeartbeat > 0 &&
+        Date.now() - existing.lastHeartbeat > 10_000;
+      if (!isZombie) return existing;
+      // Clean up the zombie so we can spawn fresh
+      existing.terminal.dispose();
+      this.sessions.delete(sessionKey);
+    }
 
     // Create xterm instance (headless — not attached to DOM yet)
     const { terminal, searchAddon } = createTerminal();
@@ -242,18 +250,26 @@ export class SessionManager {
     const command = mode === "shell" ? "/bin/zsh" : "claude";
     const agentType = mode === "claude" ? "claudeCode" : undefined;
 
-    const sessionId = await spawnPty(
-      worktreeId,
-      worktreePath,
-      command,
-      args ?? [],
-      channel,
-      agentType,
-    );
+    this.sessions.set(sessionKey, session);
+
+    let sessionId: string;
+    try {
+      sessionId = await spawnPty(
+        worktreeId,
+        worktreePath,
+        command,
+        args ?? [],
+        channel,
+        agentType,
+      );
+    } catch (err) {
+      // Spawn failed — remove session from map to prevent zombie
+      session.terminal.dispose();
+      this.sessions.delete(sessionKey);
+      throw err;
+    }
     session.sessionId = sessionId;
     registerKittyProtocol(terminal, sessionId);
-
-    this.sessions.set(sessionKey, session);
 
     // Push initial state for Claude sessions
     if (mode === "claude") {

@@ -158,9 +158,13 @@ function AppShell() {
               // The session spawns headless now; TerminalView attaches the DOM later.
               for (const tab of session.tabs) {
                 if (tab.type === "claude" && !sessionManager.getSession(tab.id)) {
-                  sessionManager.getOrSpawn(
-                    tab.id, wt.id, wt.path, "claude", undefined, ["--continue"],
-                  ).catch(console.error);
+                  try {
+                    await sessionManager.getOrSpawn(
+                      tab.id, wt.id, wt.path, "claude", undefined, ["--continue"],
+                    );
+                  } catch (err) {
+                    console.warn(`[session-restore] Failed to resume session ${tab.id}:`, err);
+                  }
                 }
               }
             }
