@@ -5,7 +5,7 @@ import {
   sendNotification as tauriNotify,
 } from "@tauri-apps/plugin-notification";
 import { useWorkspaceStore } from "../stores/workspaceStore";
-import { getConfig } from "../api";
+import { getAppConfig } from "../api";
 import type { AgentState, NotificationConfig } from "../types";
 
 // ── Sound generation via Web Audio API ─────────────────────────
@@ -81,22 +81,8 @@ const DEFAULT_CONFIG: NotificationConfig = {
 // ── Hook ───────────────────────────────────────────────────────
 
 export function useNotifications() {
-  const configRef = useRef<NotificationConfig>(DEFAULT_CONFIG);
   const prevStatesRef = useRef<Record<string, AgentState>>({});
   const initialRenderRef = useRef(true);
-
-  // Load notification config once on mount
-  useEffect(() => {
-    getConfig(".")
-      .then((appConfig) => {
-        if (appConfig.notifications) {
-          configRef.current = appConfig.notifications;
-        }
-      })
-      .catch(() => {
-        // Backend not available — keep defaults
-      });
-  }, []);
 
   // Watch worktree agent status changes
   const worktrees = useWorkspaceStore((s) => s.worktrees);
@@ -104,7 +90,6 @@ export function useNotifications() {
   useEffect(() => {
     // Skip initial render to avoid notifying on load
     if (initialRenderRef.current) {
-      // Seed previous states from current worktrees
       const states: Record<string, AgentState> = {};
       for (const wt of worktrees) {
         states[wt.id] = wt.agentStatus;
@@ -114,39 +99,45 @@ export function useNotifications() {
       return;
     }
 
-    const config = configRef.current;
-    if (!config.enabled) {
-      // Still track states so we don't fire stale transitions when re-enabled
-      const states: Record<string, AgentState> = {};
-      for (const wt of worktrees) {
-        states[wt.id] = wt.agentStatus;
-      }
-      prevStatesRef.current = states;
-      return;
-    }
-
+    // Check for any state transitions before fetching config
     const prevStates = prevStatesRef.current;
-    const nextStates: Record<string, AgentState> = {};
+    const hasTransition = worktrees.some(
+      (wt) => prevStates[wt.id] && prevStates[wt.id] !== wt.agentStatus,
+    );
 
+    // Always update tracked states
+    const nextStates: Record<string, AgentState> = {};
     for (const wt of worktrees) {
       nextStates[wt.id] = wt.agentStatus;
-      const prev = prevStates[wt.id];
-
-      // Only notify on transitions (prev exists and changed)
-      if (!prev || prev === wt.agentStatus) continue;
-
-      if (wt.agentStatus === "waitingForInput" && config.notifyOnWaiting) {
-        sendNotification(`${wt.branch} needs your input`);
-        playSoundById(config.sound);
-      } else if (wt.agentStatus === "idle" && config.notifyOnIdle) {
-        sendNotification(`${wt.branch} finished`);
-        playSoundById(config.sound);
-      } else if ((wt.agentStatus as string) === "error" && config.notifyOnError) {
-        sendNotification(`${wt.branch} encountered an error`);
-        playSoundById(config.sound);
-      }
     }
-
     prevStatesRef.current = nextStates;
+
+    if (!hasTransition) return;
+
+    // Fetch fresh config so settings changes take effect immediately
+    getAppConfig()
+      .then((appConfig) => {
+        const config = appConfig.notifications ?? DEFAULT_CONFIG;
+        if (!config.enabled) return;
+
+        for (const wt of worktrees) {
+          const prev = prevStates[wt.id];
+          if (!prev || prev === wt.agentStatus) continue;
+
+          if (wt.agentStatus === "waitingForInput" && config.notifyOnWaiting) {
+            sendNotification(`${wt.branch} needs your input`);
+            playSoundById(config.sound);
+          } else if (wt.agentStatus === "idle" && config.notifyOnIdle) {
+            sendNotification(`${wt.branch} finished`);
+            playSoundById(config.sound);
+          } else if ((wt.agentStatus as string) === "error" && config.notifyOnError) {
+            sendNotification(`${wt.branch} encountered an error`);
+            playSoundById(config.sound);
+          }
+        }
+      })
+      .catch(() => {
+        // Backend not available — skip notification
+      });
   }, [worktrees]);
 }
