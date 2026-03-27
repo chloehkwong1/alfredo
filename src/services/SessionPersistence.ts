@@ -1,11 +1,17 @@
 import { saveSessionFile, loadSessionFile, deleteSessionFile } from "../api";
-import type { WorkspaceTab } from "../types";
+import type { WorkspaceTab, LayoutNode, Pane } from "../types";
 
 export interface SessionData {
   tabs: WorkspaceTab[];
   activeTabId: string;
   terminals: Record<string, { scrollback: string }>;
   savedAt: string;
+  /** Layout tree (added in split-view feature). */
+  layout?: LayoutNode;
+  /** Pane state (added in split-view feature). */
+  panes?: Record<string, Pane>;
+  /** Active pane ID (added in split-view feature). */
+  activePaneId?: string;
 }
 
 export async function saveSession(
@@ -42,9 +48,11 @@ export async function saveAllSessions(
   getTabs: (worktreeId: string) => WorkspaceTab[],
   getActiveTabId: (worktreeId: string) => string,
   getScrollback: (tabId: string) => string,
+  getLayout?: (worktreeId: string) => LayoutNode | undefined,
+  getPanes?: (worktreeId: string) => Record<string, Pane> | undefined,
+  getActivePaneId?: (worktreeId: string) => string | undefined,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
-    // Exclude server tabs — they shouldn't persist across restarts
     const tabs = getTabs(wtId).filter((t) => t.type !== "server");
     const terminals: Record<string, { scrollback: string }> = {};
     for (const tab of tabs) {
@@ -55,11 +63,29 @@ export async function saveAllSessions(
         }
       }
     }
+
+    // Filter server tabs from pane state too
+    const rawPanes = getPanes?.(wtId);
+    const panes = rawPanes
+      ? Object.fromEntries(
+          Object.entries(rawPanes).map(([paneId, pane]) => [
+            paneId,
+            {
+              ...pane,
+              tabIds: pane.tabIds.filter((id) => tabs.some((t) => t.id === id)),
+            },
+          ]),
+        )
+      : undefined;
+
     const data: SessionData = {
       tabs,
       activeTabId: getActiveTabId(wtId),
       terminals,
       savedAt: new Date().toISOString(),
+      layout: getLayout?.(wtId),
+      panes,
+      activePaneId: getActivePaneId?.(wtId),
     };
     return saveSession(repoPath, wtId, data);
   });

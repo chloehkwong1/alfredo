@@ -78,6 +78,9 @@ function AppShell() {
           (wtId) => state.tabs[wtId] ?? [],
           (wtId) => state.activeTabId[wtId] ?? "",
           (tabId) => sessionManager.getBufferedOutputBase64(tabId),
+          (wtId) => useLayoutStore.getState().layout[wtId],
+          (wtId) => useLayoutStore.getState().panes[wtId],
+          (wtId) => useLayoutStore.getState().activePaneId[wtId],
         );
       }
       clearStore();
@@ -335,6 +338,9 @@ function AppShell() {
         (wtId) => state.tabs[wtId] ?? [],
         (wtId) => state.activeTabId[wtId] ?? "",
         (tabId) => sessionManager.getBufferedOutputBase64(tabId),
+        (wtId) => useLayoutStore.getState().layout[wtId],
+        (wtId) => useLayoutStore.getState().panes[wtId],
+        (wtId) => useLayoutStore.getState().activePaneId[wtId],
       );
 
       await currentWindow.destroy();
@@ -359,6 +365,9 @@ function AppShell() {
         (wtId) => state.tabs[wtId] ?? [],
         (wtId) => state.activeTabId[wtId] ?? "",
         (tabId) => sessionManager.getBufferedOutputBase64(tabId),
+        (wtId) => useLayoutStore.getState().layout[wtId],
+        (wtId) => useLayoutStore.getState().panes[wtId],
+        (wtId) => useLayoutStore.getState().activePaneId[wtId],
       ).catch((err) => console.error("Auto-save failed:", err));
     }, 30_000);
 
