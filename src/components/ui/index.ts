@@ -43,3 +43,5 @@ export {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "./ContextMenu";
+
+export { RelativeTime } from "./RelativeTime";
