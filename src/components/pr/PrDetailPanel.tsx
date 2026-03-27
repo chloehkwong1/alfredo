@@ -5,9 +5,43 @@ import { PrChecksSection } from "./PrChecksSection";
 import { PrReviewsSection } from "./PrReviewsSection";
 import { PrCommentsSection } from "./PrCommentsSection";
 import { PrConflictsSection } from "./PrConflictsSection";
-import { getCheckRuns, getPrDetail } from "../../api";
+import { getCheckRuns, getPrDetail, getWorkflowLog, writePty } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { sessionManager } from "../../services/sessionManager";
 import type { Worktree, WorkflowRunLog, PrComment } from "../../types";
+
+/**
+ * Find the first Claude tab for a worktree, look up its session in the
+ * SessionManager, write a prompt to the PTY, then switch to that tab.
+ */
+async function sendToClaudeSession(
+  worktreeId: string,
+  prompt: string,
+): Promise<void> {
+  const store = useWorkspaceStore.getState();
+  const tabs = store.tabs[worktreeId] ?? [];
+
+  // Find the first claude tab
+  const claudeTab = tabs.find((t) => t.type === "claude");
+  if (!claudeTab) {
+    console.warn("No Claude session found for worktree", worktreeId);
+    return;
+  }
+
+  // Sessions are keyed by tab ID in SessionManager
+  const session = sessionManager.getSession(claudeTab.id);
+  if (!session || !session.sessionId) {
+    console.warn("Claude session not yet spawned for tab", claudeTab.id);
+    return;
+  }
+
+  // Encode the prompt + newline as bytes and write to the PTY
+  const bytes = Array.from(new TextEncoder().encode(prompt + "\n"));
+  await writePty(session.sessionId, bytes);
+
+  // Switch to the Claude tab
+  store.setActiveTabId(worktreeId, claudeTab.id);
+}
 
 interface PrDetailPanelProps {
   worktree: Worktree;
@@ -89,9 +123,45 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
     (unresolvedComments === 0 ? 1 : 0) +
     (!hasConflicts ? 1 : 0);
 
-  const handleAskClaudeFix = (_logs: WorkflowRunLog[]) => {
-    // Will be wired in Task 12
-    console.log("Ask Claude to fix:", _logs);
+  const handleAskClaudeFix = async (logs: WorkflowRunLog[]) => {
+    // If no logs provided (from "fix all" button), fetch them for all failing checks
+    let allLogs = logs;
+    if (allLogs.length === 0) {
+      const failingRuns = checkRuns.filter(
+        (r) =>
+          (r.conclusion === "failure" || r.conclusion === "timed_out") &&
+          r.checkSuiteId,
+      );
+      const logPromises = failingRuns.map((r) =>
+        getWorkflowLog(repoPath, r.checkSuiteId!).catch(() => []),
+      );
+      const results = await Promise.all(logPromises);
+      allLogs = results.flat();
+    }
+
+    if (allLogs.length === 0) {
+      console.warn("No failure logs to send to Claude");
+      return;
+    }
+
+    const logSection = allLogs
+      .map(
+        (log) =>
+          `### ${log.jobName} / ${log.stepName}\n\`\`\`\n${log.logExcerpt}\n\`\`\``,
+      )
+      .join("\n\n");
+
+    const prompt = `CI is failing on this branch. Here are the failure logs:
+
+${logSection}
+
+Please triage each failure:
+1. Is this a real bug in my code, a flaky test, or a test that needs updating?
+2. Skip flaky tests (timing issues, network flakes) — just flag them
+3. If the test is correct and code is wrong, fix the code. If code is correct and test is wrong, fix the test.
+4. Report back what you found and what you're fixing before pushing`;
+
+    await sendToClaudeSession(worktree.id, prompt);
   };
 
   const handleJumpToComment = (_comment: PrComment) => {
