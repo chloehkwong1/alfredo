@@ -28,6 +28,7 @@ pub struct AgentDetector {
     line_buf: String,
 }
 
+#[allow(dead_code)]
 impl AgentDetector {
     pub fn new() -> Self {
         Self::with_agent_type(AgentType::Unknown)
@@ -60,7 +61,7 @@ impl AgentDetector {
     /// Set resize timestamp from an external source (cross-thread signalling).
     pub fn notify_resize_at(&mut self, ts: Instant) {
         // Only update if this timestamp is newer
-        if self.last_resize.map_or(true, |prev| ts > prev) {
+        if self.last_resize.is_none_or(|prev| ts > prev) {
             self.last_resize = Some(ts);
         }
     }
@@ -73,7 +74,7 @@ impl AgentDetector {
 
     /// Set input timestamp from an external source (cross-thread signalling).
     pub fn notify_input_at(&mut self, ts: Instant) {
-        if self.last_input.map_or(true, |prev| ts > prev) {
+        if self.last_input.is_none_or(|prev| ts > prev) {
             self.last_input = Some(ts);
         }
     }

@@ -214,7 +214,7 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
 
         // 3. Check runs using head_sha for precise results.
         if let Some(ref sha) = pr_with_col.head_sha.clone() {
-            if let Some(check_runs) = manager.get_check_runs(&owner, &repo, sha).await.ok() {
+            if let Ok(check_runs) = manager.get_check_runs(&owner, &repo, sha).await {
                 let failing = check_runs.iter().filter(|cr| {
                     matches!(
                         cr.conclusion.as_deref(),
@@ -248,7 +248,7 @@ mod tests {
             number: 1,
             state: "open".into(),
             title: "test".into(),
-            url: "".into(),
+            url: String::new(),
             draft: true,
             merged: false,
             branch: "feat/test".into(),
@@ -265,7 +265,7 @@ mod tests {
             number: 2,
             state: "open".into(),
             title: "test".into(),
-            url: "".into(),
+            url: String::new(),
             draft: false,
             merged: false,
             branch: "feat/open".into(),
@@ -282,7 +282,7 @@ mod tests {
             number: 3,
             state: "closed".into(),
             title: "test".into(),
-            url: "".into(),
+            url: String::new(),
             draft: false,
             merged: true,
             branch: "feat/done".into(),

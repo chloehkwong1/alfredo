@@ -235,7 +235,7 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
     let description = node
         .get("description")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        .map(std::string::ToString::to_string);
 
     let url = node
         .get("url")
@@ -254,7 +254,7 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
-                .filter_map(|l| l.get("name")?.as_str().map(|s| s.to_string()))
+                .filter_map(|l| l.get("name")?.as_str().map(std::string::ToString::to_string))
                 .collect()
         })
         .unwrap_or_default();
@@ -262,7 +262,7 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
     let assignee = node
         .pointer("/assignee/name")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        .map(std::string::ToString::to_string);
 
     Ok(LinearTicket {
         id,
@@ -292,7 +292,7 @@ pub fn generate_context_md(ticket: &LinearTicket) -> String {
     }
 
     if let Some(assignee) = &ticket.assignee {
-        content.push_str(&format!("**Assignee:** {}\n", assignee));
+        content.push_str(&format!("**Assignee:** {assignee}\n"));
     }
 
     content.push('\n');

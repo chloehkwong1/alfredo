@@ -2,6 +2,7 @@ use std::path::Path;
 
 /// Check if a directory is a git repository (has .git dir or .git file).
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub fn validate_git_repo(path: String) -> Result<bool, String> {
     let p = Path::new(&path);
     if !p.is_dir() {
