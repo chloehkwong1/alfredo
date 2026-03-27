@@ -21,6 +21,9 @@ interface StatusGroupProps {
   onDeleteWorktree?: (id: string) => void;
   onArchiveWorktree?: (id: string) => void;
   forceVisible?: boolean;
+  repoColors?: Record<string, string>;
+  showRepoTags?: boolean;
+  repoIndexMap?: Record<string, number>;
 }
 
 const columnIcon: Record<KanbanColumn, LucideIcon> = {
@@ -47,6 +50,9 @@ function StatusGroup({
   onDeleteWorktree,
   onArchiveWorktree,
   forceVisible,
+  repoColors,
+  showRepoTags,
+  repoIndexMap,
 }: StatusGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isOver, setNodeRef } = useDroppable({ id: column });
@@ -71,17 +77,18 @@ function StatusGroup({
       <button
         onClick={() => setIsCollapsed((prev) => !prev)}
         className={[
-          "flex w-full items-center justify-between px-4 pt-3 pb-2",
+          "flex w-full items-center px-3.5 pt-3 pb-2",
           "cursor-pointer select-none",
-          "text-text-tertiary",
+          "text-text-tertiary hover:text-text-secondary transition-colors",
         ].join(" ")}
       >
         <span className="flex items-center gap-2">
           <Icon className="h-3.5 w-3.5" />
-          <span className="text-xs font-semibold uppercase tracking-wider">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em]">
             {label}
           </span>
         </span>
+        <span className="flex-1 h-px bg-gradient-to-r from-border-subtle to-transparent mx-3" />
         <span className="flex items-center gap-2">
           <span className="text-2xs text-text-tertiary tabular-nums">
             {worktrees.length}
@@ -113,6 +120,10 @@ function StatusGroup({
                 onClick={() => onSelectWorktree(wt.id)}
                 onDelete={onDeleteWorktree}
                 onArchive={onArchiveWorktree}
+                repoPath={wt.repoPath}
+                repoColors={repoColors}
+                repoIndex={repoIndexMap?.[wt.repoPath ?? ""] ?? 0}
+                showRepoTag={showRepoTags ?? false}
               />
             ))}
           </motion.div>
