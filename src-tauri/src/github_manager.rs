@@ -1,6 +1,6 @@
 use octocrab::Octocrab;
 
-use crate::types::{AppError, CheckRun, KanbanColumn, PrStatus};
+use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus};
 
 /// Get a GitHub token: tries `gh auth token` first, falls back to the provided config token.
 pub async fn resolve_token(config_token: Option<&str>) -> Result<String, AppError> {
@@ -218,6 +218,185 @@ impl GithubManager {
             .unwrap_or_default();
 
         Ok(check_runs)
+    }
+
+    /// Fetch reviews for a PR.
+    pub async fn get_pr_reviews(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<Vec<PrReview>, AppError> {
+        let url = format!("/repos/{owner}/{repo}/pulls/{pr_number}/reviews");
+        let response: serde_json::Value = self
+            .client
+            .get(url, None::<&()>)
+            .await
+            .map_err(|e| format_octocrab_error("failed to fetch PR reviews", e))?;
+
+        let reviews = response
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|review| {
+                        Some(PrReview {
+                            reviewer: review.get("user")?.get("login")?.as_str()?.to_string(),
+                            state: review.get("state")?.as_str()?.to_lowercase(),
+                            submitted_at: review.get("submitted_at").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(reviews)
+    }
+
+    /// Fetch line-level review comments for a PR.
+    pub async fn get_pr_comments(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<Vec<PrComment>, AppError> {
+        let url = format!("/repos/{owner}/{repo}/pulls/{pr_number}/comments");
+        let response: serde_json::Value = self
+            .client
+            .get(url, None::<&()>)
+            .await
+            .map_err(|e| format_octocrab_error("failed to fetch PR comments", e))?;
+
+        let comments = response
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|c| {
+                        Some(PrComment {
+                            id: c.get("id")?.as_u64()?,
+                            author: c.get("user")?.get("login")?.as_str()?.to_string(),
+                            body: c.get("body")?.as_str()?.to_string(),
+                            path: c.get("path").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                            line: c.get("line").and_then(|v| v.as_u64()).map(|n| n as u32),
+                            resolved: false,
+                            created_at: c.get("created_at")?.as_str()?.to_string(),
+                            updated_at: c.get("updated_at")?.as_str()?.to_string(),
+                            html_url: c.get("html_url")?.as_str()?.to_string(),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(comments)
+    }
+
+    /// Fetch general (non-line-level) comments on a PR.
+    pub async fn get_pr_issue_comments(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<Vec<PrComment>, AppError> {
+        let url = format!("/repos/{owner}/{repo}/issues/{pr_number}/comments");
+        let response: serde_json::Value = self
+            .client
+            .get(url, None::<&()>)
+            .await
+            .map_err(|e| format_octocrab_error("failed to fetch issue comments", e))?;
+
+        let comments = response
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|c| {
+                        Some(PrComment {
+                            id: c.get("id")?.as_u64()?,
+                            author: c.get("user")?.get("login")?.as_str()?.to_string(),
+                            body: c.get("body")?.as_str()?.to_string(),
+                            path: None,
+                            line: None,
+                            resolved: false,
+                            created_at: c.get("created_at")?.as_str()?.to_string(),
+                            updated_at: c.get("updated_at")?.as_str()?.to_string(),
+                            html_url: c.get("html_url")?.as_str()?.to_string(),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(comments)
+    }
+
+    /// Fetch detailed PR info: reviews, comments, and mergeable status.
+    pub async fn get_pr_detail(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<PrDetailedStatus, AppError> {
+        // Fetch PR for mergeable status
+        let pr_url = format!("/repos/{owner}/{repo}/pulls/{pr_number}");
+        let pr_response: serde_json::Value = self
+            .client
+            .get(pr_url, None::<&()>)
+            .await
+            .map_err(|e| format_octocrab_error("failed to fetch PR detail", e))?;
+
+        let mergeable = pr_response.get("mergeable").and_then(|v| v.as_bool());
+
+        // Fetch reviews, line comments, and issue comments concurrently
+        let (reviews, line_comments, issue_comments) = tokio::join!(
+            self.get_pr_reviews(owner, repo, pr_number),
+            self.get_pr_comments(owner, repo, pr_number),
+            self.get_pr_issue_comments(owner, repo, pr_number),
+        );
+
+        let reviews = reviews?;
+        let mut comments = line_comments?;
+        comments.extend(issue_comments?);
+
+        // Deduplicate reviews: keep only the latest review per reviewer
+        let mut latest_reviews: std::collections::HashMap<String, PrReview> =
+            std::collections::HashMap::new();
+        for review in reviews {
+            latest_reviews
+                .entry(review.reviewer.clone())
+                .and_modify(|existing| {
+                    if review.submitted_at > existing.submitted_at {
+                        *existing = review.clone();
+                    }
+                })
+                .or_insert(review);
+        }
+        let deduped_reviews: Vec<PrReview> = latest_reviews.into_values().collect();
+
+        // Derive review decision from individual reviews
+        let review_decision = if deduped_reviews.iter().any(|r| r.state == "changes_requested") {
+            Some("changes_requested".to_string())
+        } else if deduped_reviews.iter().any(|r| r.state == "approved") {
+            Some("approved".to_string())
+        } else {
+            Some("review_required".to_string())
+        };
+
+        Ok(PrDetailedStatus {
+            reviews: deduped_reviews,
+            comments,
+            mergeable,
+            review_decision,
+        })
+    }
+
+    /// Generic GET returning parsed JSON.
+    pub async fn client_get_json<T: serde::de::DeserializeOwned>(
+        &self,
+        url: &str,
+    ) -> Result<T, AppError> {
+        self.client
+            .get(url, None::<&()>)
+            .await
+            .map_err(|e| format_octocrab_error("GitHub API request failed", e))
     }
 }
 
