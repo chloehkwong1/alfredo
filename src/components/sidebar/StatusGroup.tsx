@@ -63,7 +63,7 @@ function StatusGroup({
     <div
       ref={setNodeRef}
       className={[
-        "mt-2 first:mt-0 rounded-md transition-colors",
+        "w-full mt-2 first:mt-0 rounded-md transition-colors",
         isOver ? "bg-accent-muted ring-1 ring-accent-primary" : "",
       ].join(" ")}
     >
@@ -71,24 +71,28 @@ function StatusGroup({
       <button
         onClick={() => setIsCollapsed((prev) => !prev)}
         className={[
-          "flex w-full items-center gap-2 px-4 pt-3 pb-2",
+          "flex w-full items-center justify-between px-4 pt-3 pb-2",
           "cursor-pointer select-none",
           "text-text-tertiary",
         ].join(" ")}
       >
-        <Icon className="h-3.5 w-3.5" />
-        <span className="text-xs font-semibold uppercase tracking-wider">
-          {label}
+        <span className="flex items-center gap-2">
+          <Icon className="h-3.5 w-3.5" />
+          <span className="text-xs font-semibold uppercase tracking-wider">
+            {label}
+          </span>
         </span>
-        <span className="ml-auto text-2xs text-text-tertiary tabular-nums">
-          {worktrees.length}
+        <span className="flex items-center gap-2">
+          <span className="text-2xs text-text-tertiary tabular-nums">
+            {worktrees.length}
+          </span>
+          <ChevronRight
+            className={[
+              "h-3.5 w-3.5 transition-transform duration-150",
+              isCollapsed ? "rotate-0" : "rotate-90",
+            ].join(" ")}
+          />
         </span>
-        <ChevronRight
-          className={[
-            "h-3.5 w-3.5 transition-transform duration-150",
-            isCollapsed ? "rotate-0" : "rotate-90",
-          ].join(" ")}
-        />
       </button>
 
       {/* Agent items */}
