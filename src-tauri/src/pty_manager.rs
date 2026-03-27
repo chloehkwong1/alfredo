@@ -443,6 +443,20 @@ fn write_hooks_config(
                 "command": "curl -s -o /dev/null -X POST $ALFREDO_STATE_URL/agent-state/$ALFREDO_WORKTREE_ID/waitingForInput"
             }]
         })),
+        ("Notification", serde_json::json!({
+            "matcher": "elicitation_dialog",
+            "hooks": [{
+                "type": "command",
+                "command": "curl -s -o /dev/null -X POST $ALFREDO_STATE_URL/agent-state/$ALFREDO_WORKTREE_ID/waitingForInput"
+            }]
+        })),
+        ("Notification", serde_json::json!({
+            "matcher": "idle_prompt",
+            "hooks": [{
+                "type": "command",
+                "command": "curl -s -o /dev/null -X POST $ALFREDO_STATE_URL/agent-state/$ALFREDO_WORKTREE_ID/idle"
+            }]
+        })),
         ("SubagentStart",   cmd("busy")),
         ("SubagentStop",    cmd("busy")),
         ("PostToolUse",     cmd("busy")),
