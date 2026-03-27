@@ -77,7 +77,7 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
             No checks found
           </div>
         ) : (
-          checkRuns.map((run) => <CheckRunItem key={run.id} run={run} />)
+          checkRuns.map((run) => <CheckRunItem key={run.id} run={run} repoPath={repoPath} />)
         )}
       </div>
     </div>
