@@ -162,13 +162,19 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
     // Build the initial payload from PrStatus, then enrich open PRs with summary data.
     let mut payload_prs: Vec<PrStatusWithColumn> = prs.iter().map(PrStatusWithColumn::from).collect();
 
-    // Enrich non-merged PRs with sidebar indicator data (best-effort; errors are silently skipped).
-    // API budget per PR: 3 calls (was 5).
+    // Phase 1: Emit basic PR data immediately so worktrees move to the correct
+    // kanban column without waiting for the per-PR enrichment API calls.
+    let early_payload = PrUpdatePayload {
+        prs: payload_prs.clone(),
+    };
+    let _ = app_handle.emit("github:pr-update", &early_payload);
+
+    // Phase 2: Enrich non-merged PRs with sidebar indicator data (best-effort).
+    // API budget per PR: 3 calls.
     //   1. GET /repos/{owner}/{repo}/pulls/{number}  — mergeable field
     //   2. GET /repos/{owner}/{repo}/pulls/{number}/reviews — review decision
     //   3. GET /repos/{owner}/{repo}/checks/runs/{sha} — failing check count
-    // Skipped vs. old approach: issue comments (not needed for sidebar badges).
-    // Line comments are also skipped; unresolved_comment_count is omitted for now
+    // Line comments are skipped; unresolved_comment_count is omitted for now
     // because the REST API cannot report resolved status anyway (would need GraphQL).
     for pr_with_col in payload_prs.iter_mut() {
         if pr_with_col.merged {
