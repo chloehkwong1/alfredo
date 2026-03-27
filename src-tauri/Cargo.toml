@@ -32,5 +32,16 @@ axum = "0.8"
 thiserror = "2"
 libc = "0.2"
 
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+needless_pass_by_value = "warn"
+redundant_closure_for_method_calls = "warn"
+cloned_instead_of_copied = "warn"
+manual_string_new = "warn"
+implicit_clone = "warn"
+uninlined_format_args = "warn"
+
 [dev-dependencies]
 tempfile = "3"
