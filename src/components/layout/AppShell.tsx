@@ -451,6 +451,17 @@ function AppShell() {
     return () => clearInterval(interval);
   }, [runningServer, setRunningServer]);
 
+  // Clean up layout state for removed worktrees
+  const worktreeIds = worktrees.map((wt) => wt.id);
+  useEffect(() => {
+    const layoutState = useLayoutStore.getState();
+    for (const wtId of Object.keys(layoutState.layout)) {
+      if (!worktreeIds.includes(wtId)) {
+        layoutState.removeLayout(wtId);
+      }
+    }
+  }, [worktreeIds.join(",")]);
+
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)
     : 0;
