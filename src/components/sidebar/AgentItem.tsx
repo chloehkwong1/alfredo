@@ -37,6 +37,7 @@ const statusDotColor: Record<string, string> = {
   error: "bg-status-error",
   notRunning: "bg-text-tertiary",
   disconnected: "bg-amber-400",
+  stale: "bg-amber-400",
 };
 
 const statusText: Record<string, string> = {
@@ -47,6 +48,7 @@ const statusText: Record<string, string> = {
   error: "Error",
   notRunning: "Not running",
   disconnected: "Disconnected",
+  stale: "Unresponsive",
 };
 
 function getDotColor(status: AgentState | string): string {
@@ -64,7 +66,8 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
   const isServerRunning = useWorkspaceStore(
     (s) => s.runningServer?.worktreeId === worktree.id,
   );
-  const baseStatus = worktree.channelAlive === false ? "disconnected" : worktree.agentStatus;
+  const channelStatus = worktree.channelAlive === false ? "disconnected" : worktree.agentStatus;
+  const baseStatus = channelStatus === "busy" && worktree.staleBusy ? "stale" : channelStatus;
   const effectiveStatus = baseStatus === "idle" && !isSeen ? "done" : baseStatus;
   const isWaiting = effectiveStatus === "waitingForInput";
   const shouldPulse = effectiveStatus === "busy" || effectiveStatus === "waitingForInput";
@@ -92,6 +95,7 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
                 ? "border-l-2 border-l-accent-primary bg-accent-muted"
                 : "border-l-2 border-l-transparent hover:bg-bg-hover",
               isWaiting && !isSelected ? "bg-status-waiting/8" : "",
+              effectiveStatus === "done" && !isSelected ? "bg-blue-400/8" : "",
             ].join(" ")}
           >
             <span
@@ -103,7 +107,12 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-text-primary truncate">
+                <span className={[
+                  "text-sm truncate",
+                  effectiveStatus === "waitingForInput" || effectiveStatus === "done"
+                    ? "font-semibold text-text-primary"
+                    : "font-medium text-text-primary",
+                ].join(" ")}>
                   {worktree.name}
                 </span>
                 {worktree.prStatus && (
@@ -141,7 +150,14 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
                 </div>
               )}
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-text-tertiary truncate">
+                <span className={[
+                  "text-xs truncate",
+                  effectiveStatus === "waitingForInput"
+                    ? "text-status-waiting font-medium"
+                    : effectiveStatus === "done"
+                      ? "text-blue-400 font-medium"
+                      : "text-text-tertiary",
+                ].join(" ")}>
                   {getStatusText(effectiveStatus)}
                 </span>
                 {worktree.column !== "done" && (worktree.additions != null || worktree.deletions != null) && (

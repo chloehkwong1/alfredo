@@ -43,6 +43,8 @@ export interface ManagedSession {
   outputBufferTotal: number;
   /** Timestamp of the last heartbeat received from the PTY channel. */
   lastHeartbeat: number;
+  /** Timestamp of the last PTY output received. Used to detect stale busy state. */
+  lastOutputAt: number;
   /** Pending output chunks awaiting the next animation frame flush. */
   pendingOutput: Uint8Array[];
   /** Whether a requestAnimationFrame flush is already scheduled. */
@@ -186,6 +188,7 @@ export class SessionManager {
       outputBufferPos: 0,
       outputBufferTotal: 0,
       lastHeartbeat: Date.now(),
+      lastOutputAt: Date.now(),
       pendingOutput: [],
       writeScheduled: false,
     };
@@ -195,6 +198,7 @@ export class SessionManager {
       switch (event.event) {
         case "output": {
           const bytes = new Uint8Array(event.data);
+          session.lastOutputAt = Date.now();
           this.scheduleWrite(session, bytes);
           this.appendToBuffer(session, bytes);
           break;
@@ -221,7 +225,7 @@ export class SessionManager {
           // "busy" signal is too noisy (status-bar redraws in chunks trigger
           // false positives after the suppression window expires).
           // The detector CAN still set waitingForInput (permission prompts)
-          // as a fallback when the Notification hook doesn't fire.
+          // and idle as a fallback when hooks don't fire.
           if (session.hooksActive && event.data === "busy") {
             break;
           }
@@ -298,6 +302,7 @@ export class SessionManager {
       outputBufferPos: 0,
       outputBufferTotal: 0,
       lastHeartbeat: 0,
+      lastOutputAt: 0,
       pendingOutput: [],
       writeScheduled: false,
     };
@@ -325,6 +330,7 @@ export class SessionManager {
       switch (event.event) {
         case "output": {
           const bytes = new Uint8Array(event.data);
+          session.lastOutputAt = Date.now();
           this.scheduleWrite(session, bytes);
           this.appendToBuffer(session, bytes);
           break;
@@ -373,6 +379,7 @@ export class SessionManager {
     session.agentState = mode === "shell" ? "notRunning" : "idle";
     session.lastHookUpdate = Date.now();
     session.lastHeartbeat = Date.now();
+    session.lastOutputAt = Date.now();
     registerKittyProtocol(session.terminal, sessionId);
 
     // Resize PTY immediately to match the terminal's current dimensions.

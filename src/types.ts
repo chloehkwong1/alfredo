@@ -35,6 +35,7 @@ export interface Worktree {
   prStatus: PrStatus | null;
   agentStatus: AgentState;
   channelAlive?: boolean;
+  staleBusy?: boolean;
   column: KanbanColumn;
   isBranchMode: boolean;
   additions: number | null;

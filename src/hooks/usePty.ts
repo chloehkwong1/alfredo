@@ -169,14 +169,26 @@ export function usePty({
     // Poll agent state so the UI stays current while attached.
     // Only claude tabs should update the worktree's channelAlive and agentStatus —
     // shell/server tabs are independent processes that shouldn't affect agent state.
+    // If busy with no output for this long, mark as stale/unresponsive.
+    const STALE_BUSY_MS = 30_000;
+
     const stateInterval = setInterval(() => {
       const session = sessionRef.current;
       if (session) {
         setAgentState(session.agentState);
         const alive = !session.sessionId || Date.now() - session.lastHeartbeat < 6000;
         setChannelAlive(alive);
+
+        // Detect stale busy: process alive but no output for STALE_BUSY_MS
+        const staleBusy = alive && session.agentState === "busy"
+          && session.lastOutputAt > 0
+          && Date.now() - session.lastOutputAt > STALE_BUSY_MS;
+
         if (mode === "claude") {
-          useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: alive });
+          useWorkspaceStore.getState().updateWorktree(worktreeId, {
+            channelAlive: alive,
+            staleBusy,
+          });
         }
       }
     }, 500);
