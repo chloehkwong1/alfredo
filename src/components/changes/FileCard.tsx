@@ -1,9 +1,11 @@
 // src/components/changes/FileCard.tsx
-import { forwardRef, useMemo } from "react";
+import { forwardRef, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { AnnotationBubble } from "./AnnotationBubble";
 import { AnnotationInput } from "./AnnotationInput";
-import type { Annotation, DiffFile } from "../../types";
+import { DiffCommentIndicator } from "./DiffCommentIndicator";
+import { DiffCommentThread } from "./DiffCommentThread";
+import type { Annotation, DiffFile, PrComment } from "../../types";
 
 interface FileCardProps {
   file: DiffFile;
@@ -14,6 +16,7 @@ interface FileCardProps {
   onAddAnnotation: (filePath: string, lineNumber: number) => void;
   onSubmitAnnotation: (filePath: string, lineNumber: number, text: string) => void;
   onDeleteAnnotation: (id: string) => void;
+  comments?: PrComment[];
 }
 
 const statusConfig: Record<
@@ -54,6 +57,7 @@ const FileCard = forwardRef<HTMLDivElement, FileCardProps>(function FileCard(
     onAddAnnotation,
     onSubmitAnnotation,
     onDeleteAnnotation,
+    comments,
   },
   ref,
 ) {
@@ -71,6 +75,19 @@ const FileCard = forwardRef<HTMLDivElement, FileCardProps>(function FileCard(
     }
     return map;
   }, [annotations, file.path]);
+
+  // Index PR comments by line number
+  const commentsByLine = useMemo(() => {
+    if (!comments?.length) return {} as Record<number, PrComment[]>;
+    return comments.reduce<Record<number, PrComment[]>>((acc, c) => {
+      if (c.line != null) {
+        (acc[c.line] ??= []).push(c);
+      }
+      return acc;
+    }, {});
+  }, [comments]);
+
+  const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set());
 
   return (
     <div
@@ -139,6 +156,8 @@ const FileCard = forwardRef<HTMLDivElement, FileCardProps>(function FileCard(
                   line.newLineNumber ?? line.oldLineNumber ?? 0;
                 const lineAnnotations = annotationsByLine.get(lineNum);
                 const isActiveLine = activeAnnotationLine === lineNum;
+                const lineComments = commentsByLine[lineNum];
+                const isThreadExpanded = expandedLines.has(lineNum);
 
                 return (
                   <div key={`${hunkIdx}-${lineIdx}`}>
@@ -174,7 +193,33 @@ const FileCard = forwardRef<HTMLDivElement, FileCardProps>(function FileCard(
                         {lt === "context" && " "}
                         {line.content}
                       </span>
+                      {lineComments && (
+                        <span
+                          className="flex-shrink-0 px-2 flex items-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedLines((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(lineNum)) {
+                                next.delete(lineNum);
+                              } else {
+                                next.add(lineNum);
+                              }
+                              return next;
+                            });
+                          }}
+                        >
+                          <DiffCommentIndicator
+                            count={lineComments.length}
+                            onClick={() => {}}
+                          />
+                        </span>
+                      )}
                     </div>
+
+                    {lineComments && isThreadExpanded && (
+                      <DiffCommentThread comments={lineComments} />
+                    )}
 
                     {lineAnnotations?.map((ann) => (
                       <AnnotationBubble
