@@ -28,6 +28,15 @@ pub struct PrStatusWithColumn {
     pub branch: String,
     pub auto_column: String,
     pub merged_at: Option<String>,
+    pub head_sha: Option<String>,
+    /// Number of check runs with a failing conclusion.
+    pub failing_check_count: Option<u32>,
+    /// Number of unresolved line-level review comments.
+    pub unresolved_comment_count: Option<u32>,
+    /// Derived review decision: "approved", "changes_requested", or "review_required".
+    pub review_decision: Option<String>,
+    /// Whether the PR is mergeable per GitHub's assessment.
+    pub mergeable: Option<bool>,
 }
 
 impl From<&PrStatus> for PrStatusWithColumn {
@@ -46,6 +55,11 @@ impl From<&PrStatus> for PrStatusWithColumn {
                 .and_then(|v| v.as_str().map(String::from))
                 .unwrap_or_else(|| "inProgress".to_string()),
             merged_at: pr.merged_at.clone(),
+            head_sha: pr.head_sha.clone(),
+            failing_check_count: None,
+            unresolved_comment_count: None,
+            review_decision: None,
+            mergeable: None,
         }
     }
 }
@@ -145,8 +159,40 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| format!("{e}"))?;
 
+    // Build the initial payload from PrStatus, then enrich open PRs with summary data.
+    let mut payload_prs: Vec<PrStatusWithColumn> = prs.iter().map(PrStatusWithColumn::from).collect();
+
+    // Enrich non-merged PRs with sidebar indicator data (best-effort; errors are silently skipped).
+    for pr_with_col in payload_prs.iter_mut() {
+        if pr_with_col.merged {
+            continue;
+        }
+
+        let pr_number = pr_with_col.number;
+
+        // Fetch mergeable status and review decision from the single-PR endpoint.
+        if let Some(detail) = manager.get_pr_detail(&owner, &repo, pr_number).await.ok() {
+            pr_with_col.mergeable = detail.mergeable;
+            pr_with_col.review_decision = detail.review_decision;
+            pr_with_col.unresolved_comment_count = Some(detail.comments.len() as u32);
+        }
+
+        // Fetch check runs using head_sha for precise results.
+        if let Some(ref sha) = pr_with_col.head_sha.clone() {
+            if let Some(check_runs) = manager.get_check_runs(&owner, &repo, sha).await.ok() {
+                let failing = check_runs.iter().filter(|cr| {
+                    matches!(
+                        cr.conclusion.as_deref(),
+                        Some("failure") | Some("timed_out") | Some("action_required")
+                    )
+                }).count() as u32;
+                pr_with_col.failing_check_count = Some(failing);
+            }
+        }
+    }
+
     let payload = PrUpdatePayload {
-        prs: prs.iter().map(PrStatusWithColumn::from).collect(),
+        prs: payload_prs,
     };
 
     app_handle
@@ -172,6 +218,7 @@ mod tests {
             merged: false,
             branch: "feat/test".into(),
             merged_at: None,
+            head_sha: None,
         };
         let with_col = PrStatusWithColumn::from(&pr);
         assert_eq!(with_col.auto_column, "draftPr");
@@ -188,6 +235,7 @@ mod tests {
             merged: false,
             branch: "feat/open".into(),
             merged_at: None,
+            head_sha: None,
         };
         let with_col = PrStatusWithColumn::from(&pr);
         assert_eq!(with_col.auto_column, "openPr");
@@ -204,6 +252,7 @@ mod tests {
             merged: true,
             branch: "feat/done".into(),
             merged_at: None,
+            head_sha: None,
         };
         let with_col = PrStatusWithColumn::from(&pr);
         assert_eq!(with_col.auto_column, "done");

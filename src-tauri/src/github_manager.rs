@@ -88,7 +88,7 @@ impl GithubManager {
                 merged: false, // open PRs aren't merged
                 branch: pr.head.ref_field,
                 merged_at: None,
-                head_sha: None,
+                head_sha: Some(pr.head.sha),
             })
             .collect();
 
@@ -123,7 +123,7 @@ impl GithubManager {
                 merged: true,
                 branch: pr.head.ref_field,
                 merged_at: pr.merged_at.map(|dt| dt.to_rfc3339()),
-                head_sha: None,
+                head_sha: Some(pr.head.sha),
             });
 
         prs.extend(merged_prs);
@@ -159,6 +159,7 @@ impl GithubManager {
         let draft = pr.draft.unwrap_or(false);
 
         let branch = pr.head.ref_field.clone();
+        let head_sha = pr.head.sha.clone();
 
         Ok(Some(PrStatus {
             number: pr.number,
@@ -175,7 +176,7 @@ impl GithubManager {
             merged,
             branch,
             merged_at,
-            head_sha: None,
+            head_sha: Some(head_sha),
         }))
     }
 
@@ -632,6 +633,7 @@ mod tests {
             merged: false,
             branch: "feat/test".into(),
             merged_at: None,
+            head_sha: None,
         };
         assert_eq!(determine_column(Some(&pr)), KanbanColumn::DraftPr);
     }
@@ -647,6 +649,7 @@ mod tests {
             merged: false,
             branch: "feat/test".into(),
             merged_at: None,
+            head_sha: None,
         };
         assert_eq!(determine_column(Some(&pr)), KanbanColumn::OpenPr);
     }
@@ -662,6 +665,7 @@ mod tests {
             merged: true,
             branch: "feat/test".into(),
             merged_at: None,
+            head_sha: None,
         };
         assert_eq!(determine_column(Some(&pr)), KanbanColumn::Done);
     }

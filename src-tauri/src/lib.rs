@@ -13,7 +13,7 @@ mod types;
 
 use tauri::Manager;
 
-use commands::{app_config, branch, checks, config, diff, github, github_auth, linear, pty, repo, session, worktree};
+use commands::{app_config, branch, checks, config, diff, github, github_auth, linear, pr_detail, pty, repo, session, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 
@@ -79,6 +79,8 @@ pub fn run() {
             checks::rerun_failed_checks,
             checks::get_workflow_log,
             github_sync::set_sync_repo_path,
+            // PR Detail
+            pr_detail::get_pr_detail,
             // GitHub Auth
             github_auth::github_auth_status,
             github_auth::github_auth_token,
