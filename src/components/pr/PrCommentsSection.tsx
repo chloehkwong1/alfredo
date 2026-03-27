@@ -12,7 +12,7 @@ function PrCommentsSection({ comments, onJumpToComment }: PrCommentsSectionProps
   const lineComments = comments.filter((c) => c.path);
 
   const badge = comments.length > 0 ? (
-    <span className="text-2xs text-text-tertiary">{comments.length} unresolved</span>
+    <span className="text-2xs text-text-tertiary">{comments.length} {comments.length === 1 ? "comment" : "comments"}</span>
   ) : null;
 
   return (

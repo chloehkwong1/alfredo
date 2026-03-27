@@ -286,6 +286,11 @@ impl GithubManager {
                             body: c.get("body")?.as_str()?.to_string(),
                             path: c.get("path").and_then(|v| v.as_str()).map(|s| s.to_string()),
                             line: c.get("line").and_then(|v| v.as_u64()).map(|n| n as u32),
+                            // GitHub's REST API for pull request review comments does not expose a
+                            // "resolved" field. The resolved/unresolved state of a review thread is
+                            // only available via the GraphQL API (`pullRequest.reviewThreads.isResolved`).
+                            // Until we add a GraphQL call, all comments are treated as unresolved so
+                            // none are accidentally hidden from the user.
                             resolved: false,
                             created_at: c.get("created_at")?.as_str()?.to_string(),
                             updated_at: c.get("updated_at")?.as_str()?.to_string(),
@@ -324,6 +329,9 @@ impl GithubManager {
                             body: c.get("body")?.as_str()?.to_string(),
                             path: None,
                             line: None,
+                            // Issue comments on a PR (general discussion) have no "resolved"
+                            // concept in the REST API; always false. See the note in
+                            // `get_pr_comments` for full context.
                             resolved: false,
                             created_at: c.get("created_at")?.as_str()?.to_string(),
                             updated_at: c.get("updated_at")?.as_str()?.to_string(),
