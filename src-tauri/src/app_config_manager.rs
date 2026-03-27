@@ -18,6 +18,9 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             active_repo: None,
             theme: None,
             notifications: None,
+            selected_repos: vec![],
+            display_name: None,
+            repo_colors: std::collections::HashMap::new(),
         });
     }
 
@@ -25,8 +28,17 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
         .await
         .map_err(|e| AppError::Config(format!("failed to read app.json: {e}")))?;
 
-    serde_json::from_str(&contents)
-        .map_err(|e| AppError::Config(format!("failed to parse app.json: {e}")))
+    let mut config: GlobalAppConfig = serde_json::from_str(&contents)
+        .map_err(|e| AppError::Config(format!("failed to parse app.json: {e}")))?;
+
+    // Migration: if selected_repos is empty but active_repo is set, seed it.
+    if config.selected_repos.is_empty() {
+        if let Some(ref active) = config.active_repo {
+            config.selected_repos = vec![active.clone()];
+        }
+    }
+
+    Ok(config)
 }
 
 /// Save the global app config to `app.json`.
@@ -114,9 +126,12 @@ pub async fn migrate_if_needed(
 
     let global = GlobalAppConfig {
         repos: vec![RepoEntry { path: repo_path.clone(), mode }],
-        active_repo: Some(repo_path),
+        active_repo: Some(repo_path.clone()),
         theme: repo_config.as_ref().and_then(|c| c.theme.clone()),
         notifications: repo_config.as_ref().and_then(|c| c.notifications.clone()),
+        selected_repos: vec![repo_path],
+        display_name: None,
+        repo_colors: std::collections::HashMap::new(),
     };
 
     save(app_data_dir, &global).await?;
@@ -147,6 +162,9 @@ mod tests {
             active_repo: Some("/tmp/test-repo".into()),
             theme: Some("warm-dark".into()),
             notifications: None,
+            selected_repos: vec![],
+            display_name: None,
+            repo_colors: std::collections::HashMap::new(),
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -165,6 +183,9 @@ mod tests {
             active_repo: Some("/tmp/repo".into()),
             theme: None,
             notifications: None,
+            selected_repos: vec![],
+            display_name: None,
+            repo_colors: std::collections::HashMap::new(),
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -180,6 +201,9 @@ mod tests {
             active_repo: Some("/tmp/a".into()),
             theme: None,
             notifications: None,
+            selected_repos: vec![],
+            display_name: None,
+            repo_colors: std::collections::HashMap::new(),
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);

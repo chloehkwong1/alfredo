@@ -52,6 +52,33 @@ pub async fn set_active_repo(app: AppHandle, path: String) -> Result<(), AppErro
     app_config_manager::save(&dir, &config).await
 }
 
+#[tauri::command]
+pub async fn set_selected_repos(app: AppHandle, paths: Vec<String>) -> Result<GlobalAppConfig, AppError> {
+    let dir = app_data_dir(&app)?;
+    let mut config = app_config_manager::load(&dir).await?;
+    config.selected_repos = paths;
+    app_config_manager::save(&dir, &config).await?;
+    Ok(config)
+}
+
+#[tauri::command]
+pub async fn set_display_name(app: AppHandle, name: Option<String>) -> Result<GlobalAppConfig, AppError> {
+    let dir = app_data_dir(&app)?;
+    let mut config = app_config_manager::load(&dir).await?;
+    config.display_name = name;
+    app_config_manager::save(&dir, &config).await?;
+    Ok(config)
+}
+
+#[tauri::command]
+pub async fn set_repo_color(app: AppHandle, repo_path: String, color: String) -> Result<GlobalAppConfig, AppError> {
+    let dir = app_data_dir(&app)?;
+    let mut config = app_config_manager::load(&dir).await?;
+    config.repo_colors.insert(repo_path, color);
+    app_config_manager::save(&dir, &config).await?;
+    Ok(config)
+}
+
 /// Check if any PTY sessions are running for worktrees under a given repo.
 #[tauri::command]
 pub async fn has_active_sessions(app: AppHandle, repo_path: String) -> Result<bool, AppError> {

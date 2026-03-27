@@ -289,6 +289,12 @@ pub struct GlobalAppConfig {
     pub theme: Option<String>,
     #[serde(default)]
     pub notifications: Option<NotificationConfig>,
+    #[serde(default)]
+    pub selected_repos: Vec<String>,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub repo_colors: HashMap<String, String>,
 }
 
 // ── Linear ──────────────────────────────────────────────────────
