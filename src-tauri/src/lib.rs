@@ -113,5 +113,8 @@ pub fn run() {
             session::ensure_alfredo_gitignore,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            eprintln!("error while running tauri application: {e}");
+            std::process::exit(1);
+        });
 }

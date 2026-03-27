@@ -191,7 +191,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
         .worktrees()
         .map_err(|e| AppError::Git(format!("failed to list worktrees: {e}")))?;
 
-    let base_filter = base_path.map(|p| std::path::Path::new(p).canonicalize().ok()).flatten();
+    let base_filter = base_path.and_then(|p| std::path::Path::new(p).canonicalize().ok());
 
     let mut worktrees = Vec::new();
 
@@ -282,7 +282,9 @@ pub fn get_status(worktree_path: &str) -> Result<WorktreeStatus, AppError> {
 #[derive(Debug)]
 pub struct WorktreeStatus {
     pub branch: String,
+    #[allow(dead_code)]
     pub changed_files: HashMap<String, String>,
+    #[allow(dead_code)]
     pub is_clean: bool,
 }
 
@@ -290,69 +292,73 @@ pub struct WorktreeStatus {
 fn get_branch_for_path(path: &Path) -> Option<String> {
     let repo = Repository::open(path).ok()?;
     let head = repo.head().ok()?;
-    head.shorthand().map(|s| s.to_string())
+    head.shorthand().map(std::string::ToString::to_string)
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use std::process::Command as StdCommand;
     use tempfile::TempDir;
 
     fn init_test_repo() -> TempDir {
-        let dir = TempDir::new().unwrap();
+        let dir = TempDir::new().expect("create temp dir");
         let path = dir.path();
         StdCommand::new("git")
             .args(["init"])
             .current_dir(path)
             .output()
-            .unwrap();
+            .expect("git init");
         StdCommand::new("git")
             .args(["commit", "--allow-empty", "-m", "init"])
             .current_dir(path)
             .output()
-            .unwrap();
+            .expect("git initial commit");
         dir
     }
 
     #[test]
     fn test_list_worktrees_empty() {
         let dir = init_test_repo();
-        let result = list_worktrees(dir.path().to_str().unwrap(), None);
-        assert!(result.is_ok());
+        let path_str = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        let worktrees = list_worktrees(path_str, None).expect("list_worktrees should succeed");
         // A fresh repo has no linked worktrees (only the main one, which isn't listed)
-        assert!(result.unwrap().is_empty());
+        assert!(worktrees.is_empty());
     }
 
     #[test]
     fn test_get_status_on_repo() {
         let dir = init_test_repo();
-        let result = get_status(dir.path().to_str().unwrap());
-        assert!(result.is_ok());
-        let status = result.unwrap();
+        let path_str = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        let status = get_status(path_str).expect("get_status should succeed");
         assert!(status.is_clean);
     }
 
     #[tokio::test]
     async fn test_delete_worktree_force_and_branch() {
         let dir = init_test_repo();
-        let repo_path = dir.path().to_str().unwrap();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
 
         // Create a worktree
-        let wt_path = create_worktree(repo_path, "test-branch", "main", None).await.unwrap();
+        let wt_path = create_worktree(repo_path, "test-branch", "main", None)
+            .await
+            .expect("create_worktree should succeed");
         assert!(wt_path.exists());
 
         // Make it dirty so non-force would fail
-        std::fs::write(wt_path.join("dirty.txt"), "dirty").unwrap();
+        std::fs::write(wt_path.join("dirty.txt"), "dirty").expect("write dirty file");
 
         // Force delete should succeed and also remove the branch
-        delete_worktree(repo_path, "test-branch", true, None).await.unwrap();
+        delete_worktree(repo_path, "test-branch", true, None)
+            .await
+            .expect("delete_worktree should succeed");
 
         // Worktree directory should be gone
         assert!(!wt_path.exists());
 
         // Branch should also be gone
-        let repo = Repository::open(repo_path).unwrap();
+        let repo = Repository::open(repo_path).expect("open repo");
         let branch = repo.find_branch("test-branch", git2::BranchType::Local);
         assert!(branch.is_err());
     }

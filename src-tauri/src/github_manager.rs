@@ -28,8 +28,8 @@ pub async fn resolve_token(config_token: Option<&str>) -> Result<String, AppErro
 }
 
 /// Format an octocrab error with useful detail (status code, message body).
-fn format_octocrab_error(context: &str, e: octocrab::Error) -> AppError {
-    let detail = match &e {
+fn format_octocrab_error(context: &str, e: &octocrab::Error) -> AppError {
+    let detail = match e {
         octocrab::Error::GitHub { source, .. } => {
             format!("{context}: {} ({})", source.message, source.documentation_url.as_deref().unwrap_or(""))
         }
@@ -68,7 +68,7 @@ impl GithubManager {
             .per_page(100)
             .send()
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch PRs", e))?;
+            .map_err(|e| format_octocrab_error("failed to fetch PRs", &e))?;
 
         let mut prs: Vec<PrStatus> = open_page
             .items
@@ -102,7 +102,7 @@ impl GithubManager {
             .per_page(30)
             .send()
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch closed PRs", e))?;
+            .map_err(|e| format_octocrab_error("failed to fetch closed PRs", &e))?;
 
         let merged_prs = closed_page
             .items
@@ -147,7 +147,7 @@ impl GithubManager {
             .per_page(1)
             .send()
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch PR for branch", e))?;
+            .map_err(|e| format_octocrab_error("failed to fetch PR for branch", &e))?;
 
         let pr = match page.items.into_iter().next() {
             Some(pr) => pr,
@@ -192,7 +192,7 @@ impl GithubManager {
             .client
             .get(url, None::<&()>)
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch check runs", e))?;
+            .map_err(|e| format_octocrab_error("failed to fetch check runs", &e))?;
 
         let check_runs = response
             .get("check_runs")
@@ -207,19 +207,19 @@ impl GithubManager {
                             conclusion: run
                                 .get("conclusion")
                                 .and_then(|v| v.as_str())
-                                .map(|s| s.to_string()),
+                                .map(std::string::ToString::to_string),
                             html_url: run.get("html_url")?.as_str()?.to_string(),
                             started_at: run
                                 .get("started_at")
                                 .and_then(|v| v.as_str())
-                                .map(|s| s.to_string()),
+                                .map(std::string::ToString::to_string),
                             completed_at: run
                                 .get("completed_at")
                                 .and_then(|v| v.as_str())
-                                .map(|s| s.to_string()),
+                                .map(std::string::ToString::to_string),
                             check_suite_id: run
                                 .pointer("/check_suite/id")
-                                .and_then(|v| v.as_u64()),
+                                .and_then(serde_json::Value::as_u64),
                         })
                     })
                     .collect()
@@ -241,7 +241,7 @@ impl GithubManager {
             .client
             .get(url, None::<&()>)
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch PR reviews", e))?;
+            .map_err(|e| format_octocrab_error("failed to fetch PR reviews", &e))?;
 
         let reviews = response
             .as_array()
@@ -251,7 +251,7 @@ impl GithubManager {
                         Some(PrReview {
                             reviewer: review.get("user")?.get("login")?.as_str()?.to_string(),
                             state: review.get("state")?.as_str()?.to_lowercase(),
-                            submitted_at: review.get("submitted_at").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                            submitted_at: review.get("submitted_at").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
                         })
                     })
                     .collect()
@@ -273,7 +273,7 @@ impl GithubManager {
             .client
             .get(url, None::<&()>)
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch PR comments", e))?;
+            .map_err(|e| format_octocrab_error("failed to fetch PR comments", &e))?;
 
         let comments = response
             .as_array()
@@ -284,8 +284,8 @@ impl GithubManager {
                             id: c.get("id")?.as_u64()?,
                             author: c.get("user")?.get("login")?.as_str()?.to_string(),
                             body: c.get("body")?.as_str()?.to_string(),
-                            path: c.get("path").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                            line: c.get("line").and_then(|v| v.as_u64()).map(|n| n as u32),
+                            path: c.get("path").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
+                            line: c.get("line").and_then(serde_json::Value::as_u64).map(|n| n as u32),
                             // GitHub's REST API for pull request review comments does not expose a
                             // "resolved" field. The resolved/unresolved state of a review thread is
                             // only available via the GraphQL API (`pullRequest.reviewThreads.isResolved`).
@@ -316,7 +316,7 @@ impl GithubManager {
             .client
             .get(url, None::<&()>)
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch issue comments", e))?;
+            .map_err(|e| format_octocrab_error("failed to fetch issue comments", &e))?;
 
         let comments = response
             .as_array()
@@ -358,8 +358,8 @@ impl GithubManager {
             .client
             .get(url, None::<&()>)
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch PR for mergeable", e))?;
-        Ok(response.get("mergeable").and_then(|v| v.as_bool()))
+            .map_err(|e| format_octocrab_error("failed to fetch PR for mergeable", &e))?;
+        Ok(response.get("mergeable").and_then(serde_json::Value::as_bool))
     }
 
     /// Fetch detailed PR info: reviews, comments, and mergeable status.
@@ -375,9 +375,9 @@ impl GithubManager {
             .client
             .get(pr_url, None::<&()>)
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch PR detail", e))?;
+            .map_err(|e| format_octocrab_error("failed to fetch PR detail", &e))?;
 
-        let mergeable = pr_response.get("mergeable").and_then(|v| v.as_bool());
+        let mergeable = pr_response.get("mergeable").and_then(serde_json::Value::as_bool);
 
         // Fetch reviews, line comments, and issue comments concurrently
         let (reviews, line_comments, issue_comments) = tokio::join!(
@@ -433,7 +433,7 @@ impl GithubManager {
         let _: serde_json::Value = self.client
             .post(url, None::<&()>)
             .await
-            .map_err(|e| format_octocrab_error("failed to re-run failed jobs", e))?;
+            .map_err(|e| format_octocrab_error("failed to re-run failed jobs", &e))?;
         Ok(())
     }
 
@@ -451,14 +451,14 @@ impl GithubManager {
             .client
             .get(url, None::<&()>)
             .await
-            .map_err(|e| format_octocrab_error("failed to fetch workflow runs", e))?;
+            .map_err(|e| format_octocrab_error("failed to fetch workflow runs", &e))?;
 
         let run_id = response
             .get("workflow_runs")
             .and_then(|v| v.as_array())
             .and_then(|runs| runs.first())
             .and_then(|run| run.get("id"))
-            .and_then(|v| v.as_u64());
+            .and_then(serde_json::Value::as_u64);
 
         Ok(run_id)
     }
@@ -653,7 +653,7 @@ mod tests {
             number: 1,
             state: "open".into(),
             title: "test".into(),
-            url: "".into(),
+            url: String::new(),
             draft: true,
             merged: false,
             branch: "feat/test".into(),
@@ -669,7 +669,7 @@ mod tests {
             number: 1,
             state: "open".into(),
             title: "test".into(),
-            url: "".into(),
+            url: String::new(),
             draft: false,
             merged: false,
             branch: "feat/test".into(),
@@ -685,7 +685,7 @@ mod tests {
             number: 1,
             state: "closed".into(),
             title: "test".into(),
-            url: "".into(),
+            url: String::new(),
             draft: false,
             merged: true,
             branch: "feat/test".into(),

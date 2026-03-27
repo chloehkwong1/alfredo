@@ -170,18 +170,19 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_load_missing_config_returns_defaults() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let config = load_config(dir.path().to_str().unwrap()).await.unwrap();
+    async fn test_load_missing_config_returns_defaults() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let config = load_config(dir.path().to_str().unwrap_or_default()).await?;
         assert!(config.setup_scripts.is_empty());
         assert!(config.github_token.is_none());
         assert!(!config.branch_mode);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_save_and_load_config() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let path = dir.path().to_str().unwrap();
+    async fn test_save_and_load_config() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let path = dir.path().to_str().unwrap_or_default();
 
         let mut config = AppConfig {
             repo_path: path.to_string(),
@@ -210,8 +211,8 @@ mod tests {
             .column_overrides
             .insert("feat-x".into(), KanbanColumn::Blocked);
 
-        save_config(path, &config).await.unwrap();
-        let loaded = load_config(path).await.unwrap();
+        save_config(path, &config).await?;
+        let loaded = load_config(path).await?;
 
         assert_eq!(loaded.setup_scripts.len(), 1);
         assert_eq!(loaded.github_token, Some("ghp_test".into()));
@@ -221,20 +222,22 @@ mod tests {
             Some(&KanbanColumn::Blocked)
         );
         assert_eq!(
-            loaded.claude_defaults.as_ref().unwrap().model,
-            Some("claude-sonnet-4-6".to_string())
+            loaded.claude_defaults.as_ref().map(|d| d.model.clone()),
+            Some(Some("claude-sonnet-4-6".to_string()))
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_run_setup_scripts_success() {
-        let dir = tempfile::TempDir::new().unwrap();
+    async fn test_run_setup_scripts_success() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
         let scripts = vec![SetupScript {
             name: "echo".into(),
             command: "echo hello".into(),
             run_on: "create".into(),
         }];
-        let result = run_setup_scripts(dir.path().to_str().unwrap(), &scripts).await;
+        let result = run_setup_scripts(dir.path().to_str().unwrap_or_default(), &scripts).await;
         assert!(result.is_ok());
+        Ok(())
     }
 }

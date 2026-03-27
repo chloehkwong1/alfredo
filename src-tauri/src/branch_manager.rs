@@ -17,7 +17,7 @@ pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>),
     let active_branch = repo
         .head()
         .ok()
-        .and_then(|h| h.shorthand().map(|s| s.to_string()));
+        .and_then(|h| h.shorthand().map(std::string::ToString::to_string));
 
     let mut worktrees = Vec::new();
 
@@ -144,28 +144,25 @@ mod tests {
     use std::process::Command as StdCommand;
     use tempfile::TempDir;
 
-    fn init_test_repo() -> TempDir {
-        let dir = TempDir::new().unwrap();
+    fn init_test_repo() -> Result<TempDir, Box<dyn std::error::Error>> {
+        let dir = TempDir::new()?;
         let path = dir.path();
         StdCommand::new("git")
             .args(["init"])
             .current_dir(path)
-            .output()
-            .unwrap();
+            .output()?;
         StdCommand::new("git")
             .args(["commit", "--allow-empty", "-m", "init"])
             .current_dir(path)
-            .output()
-            .unwrap();
-        dir
+            .output()?;
+        Ok(dir)
     }
 
     #[test]
-    fn test_list_branches() {
-        let dir = init_test_repo();
-        let result = list_branches(dir.path().to_str().unwrap());
-        assert!(result.is_ok());
-        let (branches, active) = result.unwrap();
+    fn test_list_branches() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = init_test_repo()?;
+        let path = dir.path().to_str().ok_or("non-UTF-8 temp path")?;
+        let (branches, active) = list_branches(path)?;
         // Should have at least one branch (main/master)
         assert!(!branches.is_empty());
         assert!(active.is_some());
@@ -173,26 +170,27 @@ mod tests {
         for b in &branches {
             assert!(b.is_branch_mode);
         }
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_create_and_delete_branch() {
-        let dir = init_test_repo();
-        let path = dir.path().to_str().unwrap();
+    async fn test_create_and_delete_branch() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = init_test_repo()?;
+        let path = dir.path().to_str().ok_or("non-UTF-8 temp path")?;
 
-        let wt = create_branch(path, "feat-test", "HEAD").await.unwrap();
+        let wt = create_branch(path, "feat-test", "HEAD").await?;
         assert_eq!(wt.branch, "feat-test");
         assert!(wt.is_branch_mode);
 
         // Switch back to default branch so we can delete feat-test
-        let (branches, _) = list_branches(path).unwrap();
+        let (branches, _) = list_branches(path)?;
         let default_branch = branches
             .iter()
             .find(|b| b.branch != "feat-test")
-            .expect("should have default branch");
-        switch_branch(path, &default_branch.branch).await.unwrap();
+            .ok_or("should have default branch")?;
+        switch_branch(path, &default_branch.branch).await?;
 
-        let result = delete_branch(path, "feat-test").await;
-        assert!(result.is_ok());
+        delete_branch(path, "feat-test").await?;
+        Ok(())
     }
 }

@@ -37,7 +37,10 @@ impl StateServerHandle {
         worktree_id: String,
         channel: Channel<PtyEvent>,
     ) {
-        let mut reg = self.registry.lock().expect("state server registry lock poisoned");
+        let Ok(mut reg) = self.registry.lock() else {
+            eprintln!("[state-server] registry lock poisoned in register_channel");
+            return;
+        };
         reg.channels.insert(session_id.clone(), channel);
         reg.worktree_sessions
             .entry(worktree_id)
@@ -56,7 +59,10 @@ impl StateServerHandle {
 
     /// Remove a channel when a session is closed.
     pub fn unregister_channel(&self, session_id: &str, worktree_id: &str) {
-        let mut reg = self.registry.lock().expect("state server registry lock poisoned");
+        let Ok(mut reg) = self.registry.lock() else {
+            eprintln!("[state-server] registry lock poisoned in unregister_channel");
+            return;
+        };
         reg.channels.remove(session_id);
         if let Some(ids) = reg.worktree_sessions.get_mut(worktree_id) {
             ids.retain(|id| id != session_id);
@@ -128,7 +134,10 @@ async fn handle_state_update(
         None => return StatusCode::BAD_REQUEST,
     };
 
-    let reg = registry.lock().expect("registry lock poisoned");
+    let Ok(reg) = registry.lock() else {
+        eprintln!("[state-server] registry lock poisoned in handle_state_update");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    };
     if let Some(session_ids) = reg.worktree_sessions.get(worktree_id) {
         for session_id in session_ids {
             if let Some(channel) = reg.channels.get(session_id) {
@@ -145,6 +154,7 @@ async fn handle_state_update(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -98,7 +98,7 @@ pub async fn migrate_if_needed(
 
     let repo_path = store.get("repoPath")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        .map(std::string::ToString::to_string);
 
     let Some(repo_path) = repo_path else {
         return Ok(None);
@@ -128,16 +128,17 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_load_missing_returns_defaults() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let config = load(dir.path()).await.unwrap();
+    async fn test_load_missing_returns_defaults() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let config = load(dir.path()).await?;
         assert!(config.repos.is_empty());
         assert!(config.active_repo.is_none());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_save_and_load() {
-        let dir = tempfile::TempDir::new().unwrap();
+    async fn test_save_and_load() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
         let config = GlobalAppConfig {
             repos: vec![RepoEntry {
                 path: "/tmp/test-repo".into(),
@@ -147,10 +148,11 @@ mod tests {
             theme: Some("warm-dark".into()),
             notifications: None,
         };
-        save(dir.path(), &config).await.unwrap();
-        let loaded = load(dir.path()).await.unwrap();
+        save(dir.path(), &config).await?;
+        let loaded = load(dir.path()).await?;
         assert_eq!(loaded.repos.len(), 1);
         assert_eq!(loaded.active_repo, Some("/tmp/test-repo".into()));
+        Ok(())
     }
 
     #[tokio::test]
