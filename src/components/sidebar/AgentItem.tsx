@@ -118,7 +118,7 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
                         </span>
                       )
                     )}
-                    {prSummary?.reviewDecision === "CHANGES_REQUESTED" && (
+                    {prSummary?.reviewDecision === "changes_requested" && (
                       <RefreshCw className="h-3 w-3 text-status-busy" />
                     )}
                     {prSummary?.reviewDecision == null && !worktree.prStatus.draft && (

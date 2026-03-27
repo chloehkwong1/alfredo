@@ -34,7 +34,7 @@ function PrHeader({ pr, blockerCount, resolvedCount }: PrHeaderProps) {
           <ExternalLink size={11} />
         </button>
       </div>
-      {blockerCount != null && resolvedCount != null && blockerCount > 0 && (
+      {blockerCount != null && resolvedCount != null && resolvedCount < blockerCount && (
         <div className="text-xs text-text-tertiary mt-1">
           {resolvedCount} of {blockerCount} blockers resolved
         </div>

@@ -57,12 +57,13 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
 
   const fetchChecks = useCallback(async () => {
     try {
-      const runs = await getCheckRuns(repoPath, worktree.branch);
+      const ref = worktree.prStatus?.headSha ?? worktree.branch;
+      const runs = await getCheckRuns(repoPath, ref);
       setCheckRuns(worktree.id, runs);
     } catch (err) {
       console.error("Failed to fetch check runs:", err);
     }
-  }, [repoPath, worktree.branch, worktree.id, setCheckRuns]);
+  }, [repoPath, worktree.branch, worktree.prStatus?.headSha, worktree.id, setCheckRuns]);
 
   const fetchDetail = useCallback(async () => {
     if (!worktree.prStatus) return;
@@ -111,17 +112,11 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
   const unresolvedComments = prDetail?.comments?.length ?? 0;
   const hasConflicts = prDetail?.mergeable === false;
 
-  const blockerCount =
+  const unresolvedCount =
     (failingChecks > 0 ? 1 : 0) +
     (hasChangesRequested ? 1 : 0) +
     (unresolvedComments > 0 ? 1 : 0) +
     (hasConflicts ? 1 : 0);
-
-  const resolvedCount =
-    (failingChecks === 0 ? 1 : 0) +
-    (!hasChangesRequested ? 1 : 0) +
-    (unresolvedComments === 0 ? 1 : 0) +
-    (!hasConflicts ? 1 : 0);
 
   const handleAskClaudeFix = async (logs: WorkflowRunLog[]) => {
     // If no logs provided (from "fix all" button), fetch them for all failing checks
@@ -175,8 +170,8 @@ Please triage each failure:
         <div className="flex-1">
           <PrHeader
             pr={worktree.prStatus}
-            blockerCount={blockerCount}
-            resolvedCount={resolvedCount}
+            blockerCount={4}
+            resolvedCount={4 - unresolvedCount}
           />
         </div>
         <div className="px-2 border-b border-border-subtle flex items-center">
