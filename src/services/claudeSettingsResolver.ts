@@ -29,8 +29,6 @@ export function resolveSettings(
 
 /**
  * Convert resolved settings to an array of CLI flags for claude.
- * Note: outputStyle requires a temp settings file — call buildOutputStyleFileContent()
- * separately and pass the path via --settings. This function handles all other flags.
  */
 export function buildClaudeArgs(settings: ResolvedClaudeSettings): string[] {
   const args: string[] = [];
@@ -48,27 +46,14 @@ export function buildClaudeArgs(settings: ResolvedClaudeSettings): string[] {
       args.push("--permission-mode", settings.permissionMode);
     }
   }
+  if (settings.outputStyle && settings.outputStyle !== "Default") {
+    args.push("--settings", JSON.stringify({ outputStyle: settings.outputStyle }));
+  }
   if (settings.verbose) {
     args.push("--verbose");
   }
 
   return args;
-}
-
-/**
- * If outputStyle is set and not "Default", returns the JSON content for a
- * temporary settings file. The caller is responsible for writing this to disk
- * and appending `--settings <path>` to the args array.
- *
- * Returns null if no settings file is needed.
- *
- * TODO: Not yet wired — needs Tauri command to write temp file.
- */
-export function buildOutputStyleFileContent(
-  settings: ResolvedClaudeSettings,
-): string | null {
-  if (!settings.outputStyle || settings.outputStyle === "Default") return null;
-  return JSON.stringify({ outputStyle: settings.outputStyle }, null, 2);
 }
 
 /**

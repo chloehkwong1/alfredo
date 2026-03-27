@@ -7,13 +7,6 @@ import { useAppConfig } from "../../hooks/useAppConfig";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
 import type { ClaudeOverrides } from "../../types";
 
-const MODEL_OPTIONS = [
-  { value: "", label: "Default" },
-  { value: "claude-opus-4-6", label: "Opus 4.6" },
-  { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
-  { value: "claude-haiku-4-5", label: "Haiku 4.5" },
-];
-
 const EFFORT_OPTIONS = [
   { value: "", label: "Default" },
   { value: "low", label: "Low" },
@@ -53,7 +46,6 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
 
   // Resolved settings (defaults merged with overrides)
   const [resolved, setResolved] = useState<{
-    model?: string;
     effort?: string;
     permissionMode?: string;
     outputStyle?: string;
@@ -68,7 +60,6 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
         config.worktreeOverrides?.[branch],
       );
       setResolved({
-        model: merged.model,
         effort: merged.effort,
         permissionMode: merged.permissionMode,
         outputStyle: merged.outputStyle,
@@ -93,7 +84,6 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
 
       // Clean out undefined/falsy values
       const cleaned: ClaudeOverrides = {};
-      if (next.model) cleaned.model = next.model;
       if (next.effort) cleaned.effort = next.effort;
       if (next.permissionMode) cleaned.permissionMode = next.permissionMode;
       if (next.outputStyle && next.outputStyle !== "Default") cleaned.outputStyle = next.outputStyle;
@@ -127,14 +117,6 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
   return (
     <div className="flex items-center justify-between px-2 py-1 border-t border-border-default flex-shrink-0">
       <div className="flex items-center gap-1.5">
-        <SettingsChip
-          label={displayLabel(MODEL_OPTIONS, resolved.model, "Model")}
-          options={MODEL_OPTIONS}
-          value={resolved.model ?? ""}
-          isOpen={openDropdown === "model"}
-          onToggle={() => toggleDropdown("model")}
-          onChange={(v) => handleChange("model", v)}
-        />
         <SettingsChip
           label={displayLabel(EFFORT_OPTIONS, resolved.effort, "Effort")}
           options={EFFORT_OPTIONS}
