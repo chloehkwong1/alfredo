@@ -6,6 +6,8 @@ import {
   removeRepo as removeRepoApi,
   setActiveRepo as setActiveRepoApi,
   validateGitRepo,
+  setSelectedRepos as setSelectedReposApi,
+  setDisplayName as setDisplayNameApi,
 } from "../api";
 import type { GlobalAppConfig, RepoMode } from "../types";
 
@@ -86,6 +88,22 @@ export function useAppConfig() {
 
   const clearError = useCallback(() => setError(null), []);
 
+  const toggleRepo = useCallback(async (path: string) => {
+    if (!config) return;
+    const current = config.selectedRepos ?? [];
+    const next = current.includes(path)
+      ? current.filter((p) => p !== path)
+      : [...current, path];
+    if (next.length === 0) return; // Don't allow deselecting all
+    const updated = await setSelectedReposApi(next);
+    setConfig(updated);
+  }, [config]);
+
+  const setWorkspaceName = useCallback(async (name: string | null) => {
+    const updated = await setDisplayNameApi(name);
+    setConfig(updated);
+  }, []);
+
   return {
     config,
     loading,
@@ -98,5 +116,10 @@ export function useAppConfig() {
     switchRepo,
     updateRepoMode,
     updateGlobalSettings,
+    selectedRepos: config?.selectedRepos ?? [],
+    displayName: config?.displayName ?? null,
+    repoColors: config?.repoColors ?? {},
+    toggleRepo,
+    setWorkspaceName,
   } as const;
 }

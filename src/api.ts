@@ -323,3 +323,15 @@ export function setActiveRepo(path: string): Promise<void> {
 export function hasActiveSessions(repoPath: string): Promise<boolean> {
   return invoke("has_active_sessions", { repoPath });
 }
+
+export async function setSelectedRepos(paths: string[]): Promise<GlobalAppConfig> {
+  return invoke<GlobalAppConfig>("set_selected_repos", { paths });
+}
+
+export async function setDisplayName(name: string | null): Promise<GlobalAppConfig> {
+  return invoke<GlobalAppConfig>("set_display_name", { name });
+}
+
+export async function setRepoColor(repoPath: string, color: string): Promise<GlobalAppConfig> {
+  return invoke<GlobalAppConfig>("set_repo_color", { repoPath, color });
+}

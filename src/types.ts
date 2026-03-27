@@ -290,6 +290,9 @@ export interface GlobalAppConfig {
   activeRepo: string | null;
   theme: string | null;
   notifications: NotificationConfig | null;
+  selectedRepos: string[];
+  displayName: string | null;
+  repoColors: Record<string, string>;
 }
 
 // ── Inline annotation ────────────────────────────────────────────
