@@ -3,6 +3,7 @@ import type {
   Annotation,
   CheckRun,
   KanbanColumn,
+  PrDetailedStatus,
   PrStatusWithColumn,
   TabType,
   Worktree,
@@ -56,6 +57,16 @@ interface WorkspaceState {
   /** Check runs per worktree. Keyed by worktreeId. */
   checkRuns: Record<string, CheckRun[]>;
   setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
+  /** Detailed PR data per worktree. Keyed by worktreeId. */
+  prDetail: Record<string, PrDetailedStatus>;
+  setPrDetail: (worktreeId: string, detail: PrDetailedStatus) => void;
+  /** PR summary indicators per worktree (from sync loop). Keyed by worktreeId. */
+  prSummary: Record<string, {
+    failingCheckCount?: number;
+    unresolvedCommentCount?: number;
+    reviewDecision?: string | null;
+    mergeable?: boolean | null;
+  }>;
   addDisconnectedTab: (tabId: string) => void;
   removeDisconnectedTab: (tabId: string) => void;
   isTabDisconnected: (tabId: string) => boolean;
@@ -86,6 +97,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   sidebarCollapsed: false,
   archiveAfterDays: 2,
   checkRuns: {},
+  prDetail: {},
+  prSummary: {},
   disconnectedTabs: new Set<string>(),
   runningServer: null,
 
@@ -249,11 +262,26 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         }
       }
 
+      // Store summary data for sidebar indicators
+      const newSummary = { ...state.prSummary };
+      for (const pr of prs) {
+        const wt = worktrees.find((w) => w.branch === pr.branch);
+        if (wt) {
+          newSummary[wt.id] = {
+            failingCheckCount: pr.failingCheckCount,
+            unresolvedCommentCount: pr.unresolvedCommentCount,
+            reviewDecision: pr.reviewDecision,
+            mergeable: pr.mergeable,
+          };
+        }
+      }
+
       return {
         worktrees,
         tabs: newTabs,
         columnOverrides: newOverrides,
         lastPrState: newLastPrState,
+        prSummary: newSummary,
       };
     }),
 
@@ -421,6 +449,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       checkRuns: { ...state.checkRuns, [worktreeId]: runs },
     })),
 
+  setPrDetail: (worktreeId, detail) =>
+    set((s) => ({ prDetail: { ...s.prDetail, [worktreeId]: detail } })),
+
   addDisconnectedTab: (tabId) =>
     set((state) => ({
       disconnectedTabs: new Set(state.disconnectedTabs).add(tabId),
@@ -458,6 +489,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       sidebarCollapsed: false,
       archiveAfterDays: 2,
       checkRuns: {},
+      prDetail: {},
+      prSummary: {},
       disconnectedTabs: new Set<string>(),
       runningServer: null,
     }),

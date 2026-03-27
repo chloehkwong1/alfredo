@@ -8,12 +8,14 @@ import type {
   KanbanColumn,
   LinearTeam,
   LinearTicket,
+  PrDetailedStatus,
   PrStatus,
   PtyEvent,
   RepoMode,
   Session,
   SetupScript,
   Worktree,
+  WorkflowRunLog,
   WorktreeSource,
 } from "./types";
 
@@ -245,6 +247,27 @@ export function validateGitRepo(path: string): Promise<boolean> {
 
 export function getCheckRuns(repoPath: string, branch: string): Promise<CheckRun[]> {
   return invoke("get_check_runs", { repoPath, branch });
+}
+
+export function getPrDetail(
+  repoPath: string,
+  prNumber: number,
+): Promise<PrDetailedStatus> {
+  return invoke("get_pr_detail", { repoPath, prNumber });
+}
+
+export function rerunFailedChecks(
+  repoPath: string,
+  checkSuiteId: number,
+): Promise<void> {
+  return invoke("rerun_failed_checks", { repoPath, checkSuiteId });
+}
+
+export function getWorkflowLog(
+  repoPath: string,
+  checkSuiteId: number,
+): Promise<WorkflowRunLog[]> {
+  return invoke("get_workflow_log", { repoPath, checkSuiteId });
 }
 
 // ── Session Persistence ──────────────────────────────────────────────────────
