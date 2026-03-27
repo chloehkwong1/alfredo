@@ -16,6 +16,7 @@ import { useDensity } from "../../hooks/useDensity";
 import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath, getConfig } from "../../api";
 import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
+import { lifecycleManager } from "../../services/lifecycleManager";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { WorkspaceTab, RunScript } from "../../types";
 
@@ -31,7 +32,6 @@ function AppShell() {
   const allActiveTabIds = useWorkspaceStore((s) => s.activeTabId);
   const tabs = activeWorktreeId ? (allTabs[activeWorktreeId] ?? EMPTY_TABS) : EMPTY_TABS;
   const activeTabIdValue = activeWorktreeId ? allActiveTabIds[activeWorktreeId] : undefined;
-  const addTab = useWorkspaceStore((s) => s.addTab);
   const annotations = useWorkspaceStore((s) => s.annotations);
   const clearStore = useWorkspaceStore((s) => s.clearStore);
 
@@ -202,33 +202,11 @@ function AppShell() {
     });
   }, [repoPath, setWorktrees, updateWorktree, restoreTabs, ensureDefaultTabs]);
 
-  // Sync layout store when ensureDefaultTabs adds tabs not yet in a pane
+  // Sync layout when active worktree changes or tabs are added
   useEffect(() => {
     if (!activeWorktreeId) return;
-    // Guarantee default tabs exist before touching layout
     ensureDefaultTabs(activeWorktreeId);
-    const layoutState = useLayoutStore.getState();
-    const wtLayout = layoutState.layout[activeWorktreeId];
-    if (!wtLayout) {
-      // Layout not initialized yet — init it from current tabs
-      const wtTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
-      const wtActiveTabId = useWorkspaceStore.getState().activeTabId[activeWorktreeId] ?? "";
-      if (wtTabs.length > 0) {
-        layoutState.initLayout(activeWorktreeId, wtTabs.map((t) => t.id), wtActiveTabId);
-      }
-      return;
-    }
-    // Check for tabs not in any pane and add them to the active pane
-    const wtTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
-    const allPaneTabIds = new Set(
-      Object.values(layoutState.panes[activeWorktreeId] ?? {}).flatMap((p) => p.tabIds),
-    );
-    const activePaneId = layoutState.activePaneId[activeWorktreeId];
-    for (const tab of wtTabs) {
-      if (!allPaneTabIds.has(tab.id) && activePaneId) {
-        layoutState.addTabToPane(activeWorktreeId, activePaneId, tab.id);
-      }
-    }
+    lifecycleManager.syncTabsToLayout(activeWorktreeId);
   }, [activeWorktreeId, tabs, ensureDefaultTabs]);
 
   // Track whether we just transitioned from onboarding to animate sidebar
@@ -264,14 +242,7 @@ function AppShell() {
           const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
           const paneActiveTab = pane ? tabs.find((t) => t.id === pane.activeTabId) : activeTab;
           const type = (!paneActiveTab || paneActiveTab.type === "changes") ? "claude" : paneActiveTab.type;
-
-          const prevTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
-          addTab(activeWorktreeId, type);
-          const newTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
-          const newTab = newTabs.find((t) => !prevTabs.some((p) => p.id === t.id));
-          if (newTab && activePaneId) {
-            layoutState.addTabToPane(activeWorktreeId, activePaneId, newTab.id);
-          }
+          lifecycleManager.addTab(activeWorktreeId, type, activePaneId ?? undefined);
         }
         return;
       }
@@ -313,7 +284,7 @@ function AppShell() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeWorktreeId, activeTab, tabs, addTab]);
+  }, [activeWorktreeId, activeTab, tabs]);
 
   const hasNoRepos = !loading && repos.length === 0;
   const activeRepoEntry = repos.find((r) => r.path === repoPath);
@@ -439,36 +410,21 @@ function AppShell() {
       const existingTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
       const oldServerTab = existingTabs.find((t) => t.type === "server");
       if (oldServerTab) {
-        await sessionManager.closeSession(oldServerTab.id);
-        useWorkspaceStore.getState().removeTab(activeWorktreeId, oldServerTab.id);
+        await lifecycleManager.removeTab(activeWorktreeId, oldServerTab.id);
       }
 
       // Create a fresh server tab with the run command stored on it
-      const tabId = `${activeWorktreeId}:server:${crypto.randomUUID().slice(0, 8)}`;
-      const newTab = {
-        id: tabId,
-        type: "server" as const,
-        label: "Server",
-        command: runScript.command,
-      };
-      const currentTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
-      const serverTabs = [...currentTabs];
-      const changesIdx = serverTabs.findIndex((t) => t.type === "changes");
-      if (changesIdx >= 0) {
-        serverTabs.splice(changesIdx, 0, newTab);
-      } else {
-        serverTabs.push(newTab);
+      const tabId = lifecycleManager.addTab(activeWorktreeId, "server");
+      if (tabId) {
+        useWorkspaceStore.getState().updateTab(activeWorktreeId, tabId, {
+          command: runScript.command,
+        });
       }
-      useWorkspaceStore.setState((state) => ({
-        tabs: { ...state.tabs, [activeWorktreeId]: serverTabs },
-      }));
-
-      useWorkspaceStore.getState().setActiveTabId(activeWorktreeId, tabId);
 
       setRunningServer({
         worktreeId: activeWorktreeId,
         sessionId: "",
-        tabId,
+        tabId: tabId ?? "",
       });
     } catch (err) {
       console.error("[handleToggleServer] failed:", err);
