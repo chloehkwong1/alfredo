@@ -5,9 +5,11 @@ import type { PrStatus } from "../../types";
 
 interface PrHeaderProps {
   pr: PrStatus;
+  blockerCount?: number;
+  resolvedCount?: number;
 }
 
-function PrHeader({ pr }: PrHeaderProps) {
+function PrHeader({ pr, blockerCount, resolvedCount }: PrHeaderProps) {
   const Icon = pr.draft ? GitPullRequestDraft : GitPullRequest;
   const stateVariant = pr.merged ? "idle" : pr.draft ? "busy" : "waiting";
   const stateLabel = pr.merged ? "Merged" : pr.draft ? "Draft" : "Open";
@@ -32,6 +34,11 @@ function PrHeader({ pr }: PrHeaderProps) {
           <ExternalLink size={11} />
         </button>
       </div>
+      {blockerCount != null && resolvedCount != null && resolvedCount < blockerCount && (
+        <div className="text-xs text-text-tertiary mt-1">
+          {resolvedCount} of {blockerCount} blockers resolved
+        </div>
+      )}
     </div>
   );
 }

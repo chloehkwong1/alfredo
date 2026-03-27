@@ -37,6 +37,8 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
+  const prComments =
+    useWorkspaceStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
 
   // Expand all files by default when files change
   useEffect(() => {
@@ -280,6 +282,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           onVisibleFileChange={handleVisibleFileChange}
           scrollToFile={scrollToFile}
           onScrollComplete={handleScrollComplete}
+          prComments={prComments}
         />
 
         {/* Right sidebar with slide transition */}

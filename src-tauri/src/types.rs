@@ -110,6 +110,8 @@ pub struct PrStatus {
     pub branch: String,
     #[serde(default)]
     pub merged_at: Option<String>,
+    #[serde(default)]
+    pub head_sha: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +124,49 @@ pub struct CheckRun {
     pub html_url: String,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
+    #[serde(default)]
+    pub check_suite_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrReview {
+    pub reviewer: String,
+    pub state: String,       // "approved", "changes_requested", "pending", "dismissed"
+    pub submitted_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrComment {
+    pub id: u64,
+    pub author: String,
+    pub body: String,
+    pub path: Option<String>,
+    pub line: Option<u32>,
+    pub resolved: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub html_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowRunLog {
+    pub run_id: u64,
+    pub job_name: String,
+    pub step_name: String,
+    pub log_excerpt: String,
+}
+
+/// Detailed PR info fetched on-demand when the PR tab is opened.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrDetailedStatus {
+    pub reviews: Vec<PrReview>,
+    pub comments: Vec<PrComment>,
+    pub mergeable: Option<bool>,
+    pub review_decision: Option<String>,
 }
 
 // ── Config ──────────────────────────────────────────────────────

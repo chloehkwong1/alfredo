@@ -170,6 +170,11 @@ function TabBar() {
     return true;
   }
 
+  const prSummary = useWorkspaceStore((s) => s.prSummary);
+  const commentCount = activeWorktreeId
+    ? (prSummary[activeWorktreeId]?.unresolvedCommentCount ?? 0)
+    : 0;
+
   const sessionTabs = tabs.filter((t) => t.type !== "changes");
   const changesTab = tabs.find((t) => t.type === "changes");
   const isChangesActive = changesTab?.id === activeTabId;
@@ -273,6 +278,11 @@ function TabBar() {
           >
             <GitCompareArrows size={14} />
             <span>Changes</span>
+            {commentCount > 0 && (
+              <span className="text-2xs bg-accent-primary/20 text-accent-primary px-1 rounded-full leading-none py-0.5">
+                {commentCount}
+              </span>
+            )}
           </button>
         </div>
       )}

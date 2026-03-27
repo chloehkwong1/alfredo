@@ -204,6 +204,7 @@ mod tests {
                 ..Default::default()
             }),
             worktree_overrides: None,
+            run_script: None,
         };
         config
             .column_overrides

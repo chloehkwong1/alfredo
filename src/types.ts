@@ -66,6 +66,7 @@ export interface PrStatus {
   merged: boolean;
   branch: string;
   mergedAt?: string;
+  headSha?: string;
 }
 
 /** Payload emitted by the `github:pr-update` Tauri event. */
@@ -84,6 +85,11 @@ export interface PrStatusWithColumn {
   branch: string;
   autoColumn: KanbanColumn;
   mergedAt?: string;
+  headSha?: string;
+  failingCheckCount?: number;
+  unresolvedCommentCount?: number;
+  reviewDecision?: string | null;
+  mergeable?: boolean | null;
 }
 
 // ── Config ──────────────────────────────────────────────────────
@@ -202,6 +208,39 @@ export interface CheckRun {
   htmlUrl: string;
   startedAt: string | null;
   completedAt: string | null;
+  checkSuiteId?: number;
+}
+
+export interface PrReview {
+  reviewer: string;
+  state: string; // "approved" | "changes_requested" | "pending" | "dismissed"
+  submittedAt: string | null;
+}
+
+export interface PrComment {
+  id: number;
+  author: string;
+  body: string;
+  path: string | null;
+  line: number | null;
+  resolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+  htmlUrl: string;
+}
+
+export interface WorkflowRunLog {
+  runId: number;
+  jobName: string;
+  stepName: string;
+  logExcerpt: string;
+}
+
+export interface PrDetailedStatus {
+  reviews: PrReview[];
+  comments: PrComment[];
+  mergeable: boolean | null;
+  reviewDecision: string | null;
 }
 
 export interface WorkspaceTab {

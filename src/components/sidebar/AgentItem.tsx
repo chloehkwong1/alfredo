@@ -1,6 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState } from "react";
-import { Archive, Trash2 } from "lucide-react";
+import { Archive, Trash2, CheckCircle, XCircle, RefreshCw, MessageCircle, Eye } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import {
@@ -60,6 +60,7 @@ function getStatusText(status: AgentState | string): string {
 function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
+  const prSummary = useWorkspaceStore((s) => s.prSummary[worktree.id]);
   const isServerRunning = useWorkspaceStore(
     (s) => s.runningServer?.worktreeId === worktree.id,
   );
@@ -106,8 +107,30 @@ function AgentItem({ worktree, isSelected, onClick, onDelete, onArchive }: Agent
                   {worktree.name}
                 </span>
                 {worktree.prStatus && (
-                  <span className="text-2xs text-text-tertiary flex-shrink-0">
-                    #{worktree.prStatus.number}
+                  <span className="flex items-center gap-1.5 flex-shrink-0">
+                    {prSummary?.failingCheckCount != null && (
+                      prSummary.failingCheckCount === 0 ? (
+                        <CheckCircle className="h-3 w-3 text-diff-added" />
+                      ) : (
+                        <span className="flex items-center gap-0.5 text-status-error">
+                          <XCircle className="h-3 w-3" />
+                          <span className="text-2xs">{prSummary.failingCheckCount}</span>
+                        </span>
+                      )
+                    )}
+                    {prSummary?.reviewDecision === "changes_requested" && (
+                      <RefreshCw className="h-3 w-3 text-status-busy" />
+                    )}
+                    {prSummary?.reviewDecision == null && !worktree.prStatus.draft && (
+                      <Eye className="h-3 w-3 text-text-tertiary" />
+                    )}
+                    {prSummary?.unresolvedCommentCount != null && prSummary.unresolvedCommentCount > 0 && (
+                      <span className="flex items-center gap-0.5 text-text-tertiary">
+                        <MessageCircle className="h-3 w-3" />
+                        <span className="text-2xs">{prSummary.unresolvedCommentCount}</span>
+                      </span>
+                    )}
+                    <span className="text-2xs text-text-tertiary">#{worktree.prStatus.number}</span>
                   </span>
                 )}
                 {isServerRunning && <ServerIndicator />}

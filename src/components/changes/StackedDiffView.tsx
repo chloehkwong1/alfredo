@@ -1,7 +1,7 @@
 // src/components/changes/StackedDiffView.tsx
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { FileCard } from "./FileCard";
-import type { Annotation, DiffFile } from "../../types";
+import type { Annotation, DiffFile, PrComment } from "../../types";
 
 interface StackedDiffViewProps {
   files: DiffFile[];
@@ -15,6 +15,7 @@ interface StackedDiffViewProps {
   onVisibleFileChange: (path: string) => void;
   scrollToFile: string | null;
   onScrollComplete: () => void;
+  prComments?: PrComment[];
 }
 
 function StackedDiffView({
@@ -29,9 +30,21 @@ function StackedDiffView({
   onVisibleFileChange,
   scrollToFile,
   onScrollComplete,
+  prComments,
 }: StackedDiffViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Group inline PR comments by file path
+  const commentsByFile = useMemo(() => {
+    if (!prComments?.length) return {} as Record<string, PrComment[]>;
+    return prComments.reduce<Record<string, PrComment[]>>((acc, c) => {
+      if (c.path != null && c.line != null) {
+        (acc[c.path] ??= []).push(c);
+      }
+      return acc;
+    }, {});
+  }, [prComments]);
 
   const setCardRef = useCallback(
     (path: string) => (el: HTMLDivElement | null) => {
@@ -107,6 +120,7 @@ function StackedDiffView({
           onAddAnnotation={onAddAnnotation}
           onSubmitAnnotation={onSubmitAnnotation}
           onDeleteAnnotation={onDeleteAnnotation}
+          comments={commentsByFile[file.path]}
         />
       ))}
     </div>

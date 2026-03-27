@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::time;
 
 use crate::config_manager;
-use crate::github_manager::{determine_column, GithubManager};
+use crate::github_manager::{determine_column, parse_github_owner_repo, GithubManager};
 use crate::types::PrStatus;
 
 /// Payload emitted on the `github:pr-update` Tauri event.
@@ -28,6 +28,15 @@ pub struct PrStatusWithColumn {
     pub branch: String,
     pub auto_column: String,
     pub merged_at: Option<String>,
+    pub head_sha: Option<String>,
+    /// Number of check runs with a failing conclusion.
+    pub failing_check_count: Option<u32>,
+    /// Number of unresolved line-level review comments.
+    pub unresolved_comment_count: Option<u32>,
+    /// Derived review decision: "approved", "changes_requested", or "review_required".
+    pub review_decision: Option<String>,
+    /// Whether the PR is mergeable per GitHub's assessment.
+    pub mergeable: Option<bool>,
 }
 
 impl From<&PrStatus> for PrStatusWithColumn {
@@ -46,6 +55,11 @@ impl From<&PrStatus> for PrStatusWithColumn {
                 .and_then(|v| v.as_str().map(String::from))
                 .unwrap_or_else(|| "inProgress".to_string()),
             merged_at: pr.merged_at.clone(),
+            head_sha: pr.head_sha.clone(),
+            failing_check_count: None,
+            unresolved_comment_count: None,
+            review_decision: None,
+            mergeable: None,
         }
     }
 }
@@ -145,8 +159,69 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| format!("{e}"))?;
 
+    // Build the initial payload from PrStatus, then enrich open PRs with summary data.
+    let mut payload_prs: Vec<PrStatusWithColumn> = prs.iter().map(PrStatusWithColumn::from).collect();
+
+    // Enrich non-merged PRs with sidebar indicator data (best-effort; errors are silently skipped).
+    // API budget per PR: 3 calls (was 5).
+    //   1. GET /repos/{owner}/{repo}/pulls/{number}  — mergeable field
+    //   2. GET /repos/{owner}/{repo}/pulls/{number}/reviews — review decision
+    //   3. GET /repos/{owner}/{repo}/checks/runs/{sha} — failing check count
+    // Skipped vs. old approach: issue comments (not needed for sidebar badges).
+    // Line comments are also skipped; unresolved_comment_count is omitted for now
+    // because the REST API cannot report resolved status anyway (would need GraphQL).
+    for pr_with_col in payload_prs.iter_mut() {
+        if pr_with_col.merged {
+            continue;
+        }
+
+        let pr_number = pr_with_col.number;
+
+        // 1. Single PR GET — extract mergeable only.
+        if let Ok(mergeable) = manager.get_pr_mergeable(&owner, &repo, pr_number).await {
+            pr_with_col.mergeable = mergeable;
+        }
+
+        // 2. Reviews — derive decision (changes_requested > approved > review_required).
+        if let Ok(reviews) = manager.get_pr_reviews(&owner, &repo, pr_number).await {
+            // Deduplicate: keep the latest review per reviewer.
+            let mut latest: std::collections::HashMap<String, crate::types::PrReview> =
+                std::collections::HashMap::new();
+            for review in reviews {
+                latest
+                    .entry(review.reviewer.clone())
+                    .and_modify(|existing| {
+                        if review.submitted_at > existing.submitted_at {
+                            *existing = review.clone();
+                        }
+                    })
+                    .or_insert(review);
+            }
+            pr_with_col.review_decision = if latest.values().any(|r| r.state == "changes_requested") {
+                Some("changes_requested".to_string())
+            } else if latest.values().any(|r| r.state == "approved") {
+                Some("approved".to_string())
+            } else {
+                Some("review_required".to_string())
+            };
+        }
+
+        // 3. Check runs using head_sha for precise results.
+        if let Some(ref sha) = pr_with_col.head_sha.clone() {
+            if let Some(check_runs) = manager.get_check_runs(&owner, &repo, sha).await.ok() {
+                let failing = check_runs.iter().filter(|cr| {
+                    matches!(
+                        cr.conclusion.as_deref(),
+                        Some("failure") | Some("timed_out") | Some("action_required")
+                    )
+                }).count() as u32;
+                pr_with_col.failing_check_count = Some(failing);
+            }
+        }
+    }
+
     let payload = PrUpdatePayload {
-        prs: prs.iter().map(PrStatusWithColumn::from).collect(),
+        prs: payload_prs,
     };
 
     app_handle
@@ -154,24 +229,6 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
         .map_err(|e| format!("failed to emit event: {e}"))?;
 
     Ok(())
-}
-
-/// Extract owner and repo from a GitHub URL (HTTPS or SSH).
-fn parse_github_owner_repo(url: &str) -> Option<(String, String)> {
-    let path = url
-        .strip_prefix("git@github.com:")
-        .or_else(|| url.strip_prefix("https://github.com/"))?;
-
-    let path = path.strip_suffix(".git").unwrap_or(path);
-    let mut parts = path.splitn(2, '/');
-    let owner = parts.next()?.to_string();
-    let repo = parts.next()?.to_string();
-
-    if owner.is_empty() || repo.is_empty() {
-        return None;
-    }
-
-    Some((owner, repo))
 }
 
 #[cfg(test)]
@@ -190,6 +247,7 @@ mod tests {
             merged: false,
             branch: "feat/test".into(),
             merged_at: None,
+            head_sha: None,
         };
         let with_col = PrStatusWithColumn::from(&pr);
         assert_eq!(with_col.auto_column, "draftPr");
@@ -206,6 +264,7 @@ mod tests {
             merged: false,
             branch: "feat/open".into(),
             merged_at: None,
+            head_sha: None,
         };
         let with_col = PrStatusWithColumn::from(&pr);
         assert_eq!(with_col.auto_column, "openPr");
@@ -222,6 +281,7 @@ mod tests {
             merged: true,
             branch: "feat/done".into(),
             merged_at: None,
+            head_sha: None,
         };
         let with_col = PrStatusWithColumn::from(&pr);
         assert_eq!(with_col.auto_column, "done");
