@@ -15,10 +15,6 @@ import type { TerminalPreferences } from "./terminalPreferences";
 /** Maximum bytes retained in the circular output buffer for replay on re-attach. */
 const OUTPUT_BUFFER_CAPACITY = 50_000;
 
-/** Duration (ms) during which ALL detector-sourced state changes are suppressed
- *  after an authoritative hook update arrives. */
-const HOOK_AUTHORITY_MS = 3_000;
-
 export interface ManagedSession {
   sessionId: string;
   terminal: Terminal;
@@ -27,13 +23,9 @@ export interface ManagedSession {
   /** True once the WebGL renderer has been loaded (or failed). */
   webglLoaded: boolean;
   agentState: AgentState;
-  /** Timestamp of the last hook-sourced state update. Detector updates are
-   *  suppressed for HOOK_AUTHORITY_MS after this to avoid false overrides. */
-  lastHookUpdate: number;
-  /** True once at least one hook event has been received. When hooks are
-   *  active, the detector is blocked from transitioning *to* busy (only
-   *  UserPromptSubmit / PreToolUse hooks should set busy). The detector
-   *  CAN still set idle and waitingForInput as a fallback. */
+  /** True once at least one hook event has been received. When true,
+   *  ALL detector-sourced state updates are ignored — hooks are the
+   *  sole source of truth for agent state. */
   hooksActive: boolean;
   /** Circular buffer of recent output bytes for replay when re-attaching a UI. */
   outputBuffer: Uint8Array;
@@ -190,7 +182,6 @@ export class SessionManager {
       searchAddon,
       webglLoaded: false,
       agentState: mode === "shell" ? "notRunning" : "idle",
-      lastHookUpdate: Date.now(),
       hooksActive: false,
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
@@ -217,7 +208,6 @@ export class SessionManager {
         }
         case "hookAgentState": {
           session.agentState = event.data;
-          session.lastHookUpdate = Date.now();
           session.hooksActive = true;
           useWorkspaceStore
             .getState()
@@ -225,18 +215,9 @@ export class SessionManager {
           break;
         }
         case "agentState": {
-          if (Date.now() - session.lastHookUpdate < HOOK_AUTHORITY_MS) {
-            break;
-          }
-          // Once hooks are established, the detector must not flip to "busy".
-          // Only the UserPromptSubmit hook should set busy — the detector's
-          // "busy" signal is too noisy (status-bar redraws in chunks trigger
-          // false positives after the suppression window expires).
-          // The detector CAN still set waitingForInput (permission prompts)
-          // and idle as a fallback when hooks don't fire.
-          if (session.hooksActive && event.data === "busy") {
-            break;
-          }
+          // Once hooks are active, ignore ALL detector events.
+          // Detector is only the source of truth before the first hook fires.
+          if (session.hooksActive) break;
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
@@ -312,7 +293,6 @@ export class SessionManager {
       searchAddon,
       webglLoaded: false,
       agentState: "notRunning",
-      lastHookUpdate: 0,
       hooksActive: false,
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
@@ -357,7 +337,6 @@ export class SessionManager {
         }
         case "hookAgentState": {
           session.agentState = event.data;
-          session.lastHookUpdate = Date.now();
           session.hooksActive = true;
           useWorkspaceStore
             .getState()
@@ -365,12 +344,9 @@ export class SessionManager {
           break;
         }
         case "agentState": {
-          if (Date.now() - session.lastHookUpdate < HOOK_AUTHORITY_MS) {
-            break;
-          }
-          if (session.hooksActive && event.data === "busy") {
-            break;
-          }
+          // Once hooks are active, ignore ALL detector events.
+          // Detector is only the source of truth before the first hook fires.
+          if (session.hooksActive) break;
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
@@ -393,7 +369,6 @@ export class SessionManager {
     );
     session.sessionId = sessionId;
     session.agentState = mode === "shell" ? "notRunning" : "idle";
-    session.lastHookUpdate = Date.now();
     session.lastHeartbeat = Date.now();
     session.lastOutputAt = Date.now();
     registerKittyProtocol(session.terminal, sessionId);
