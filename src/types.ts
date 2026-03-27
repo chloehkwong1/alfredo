@@ -41,6 +41,8 @@ export interface Worktree {
   additions: number | null;
   deletions: number | null;
   archived?: boolean;
+  lastActivityAt?: number; // unix timestamp ms, updated on status/diff/pr changes
+  repoPath?: string;
 }
 
 export type KanbanColumn =

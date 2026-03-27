@@ -75,6 +75,27 @@ interface WorkspaceState {
   setRunningServer: (server: { worktreeId: string; sessionId: string; tabId: string } | null) => void;
 }
 
+function withActivityTimestamps(
+  incoming: Worktree[],
+  existing: Worktree[],
+): Worktree[] {
+  const existingMap = new Map(existing.map((w) => [w.id, w]));
+  return incoming.map((wt) => {
+    const prev = existingMap.get(wt.id);
+    if (!prev) return { ...wt, lastActivityAt: Date.now() };
+    const changed =
+      prev.agentStatus !== wt.agentStatus ||
+      prev.additions !== wt.additions ||
+      prev.deletions !== wt.deletions ||
+      prev.prStatus?.number !== wt.prStatus?.number ||
+      prev.prStatus?.state !== wt.prStatus?.state;
+    return {
+      ...wt,
+      lastActivityAt: changed ? Date.now() : (prev.lastActivityAt ?? Date.now()),
+    };
+  });
+}
+
 /**
  * Compute a stable key representing the PR "state" for override-clearing purposes.
  * When this key changes, manual overrides are cleared.
@@ -173,7 +194,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set((state) => {
       // Merge fresh git data with existing enriched state (PR status, column, etc.)
       const existing = new Map(state.worktrees.map((wt) => [wt.id, wt]));
-      const worktrees = freshWorktrees.map((fresh) => {
+      const merged = freshWorktrees.map((fresh) => {
         const old = existing.get(fresh.id);
         if (old) {
           return {
@@ -186,6 +207,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         }
         return fresh;
       });
+      const worktrees = withActivityTimestamps(merged, state.worktrees);
       return { worktrees };
     }),
 
@@ -240,7 +262,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         // Use manual override if still active, otherwise auto-assign
         const column = newOverrides[wt.id] ?? pr.autoColumn;
 
-        return { ...wt, prStatus, column };
+        const prChanged =
+          wt.prStatus?.number !== prStatus.number ||
+          wt.prStatus?.state !== prStatus.state;
+
+        return {
+          ...wt,
+          prStatus,
+          column,
+          lastActivityAt: prChanged ? Date.now() : (wt.lastActivityAt ?? Date.now()),
+        };
       });
 
       // Auto-create PR tabs for worktrees that gained a PR
