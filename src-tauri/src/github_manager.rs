@@ -532,16 +532,6 @@ impl GithubManager {
         Ok(logs)
     }
 
-    /// Generic GET returning parsed JSON.
-    pub async fn client_get_json<T: serde::de::DeserializeOwned>(
-        &self,
-        url: &str,
-    ) -> Result<T, AppError> {
-        self.client
-            .get(url, None::<&()>)
-            .await
-            .map_err(|e| format_octocrab_error("GitHub API request failed", e))
-    }
 }
 
 /// Extract owner and repo from a GitHub URL (HTTPS or SSH).
