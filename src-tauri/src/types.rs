@@ -124,6 +124,8 @@ pub struct CheckRun {
     pub html_url: String,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
+    #[serde(default)]
+    pub check_suite_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

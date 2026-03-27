@@ -76,6 +76,8 @@ pub fn run() {
             github::sync_pr_status,
             github::get_pr_for_branch,
             checks::get_check_runs,
+            checks::rerun_failed_checks,
+            checks::get_workflow_log,
             github_sync::set_sync_repo_path,
             // GitHub Auth
             github_auth::github_auth_status,

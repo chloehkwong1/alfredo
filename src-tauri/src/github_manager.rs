@@ -1,6 +1,6 @@
 use octocrab::Octocrab;
 
-use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus};
+use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
 /// Get a GitHub token: tries `gh auth token` first, falls back to the provided config token.
 pub async fn resolve_token(config_token: Option<&str>) -> Result<String, AppError> {
@@ -41,6 +41,7 @@ fn format_octocrab_error(context: &str, e: octocrab::Error) -> AppError {
 /// Manages GitHub API interactions via octocrab.
 pub struct GithubManager {
     client: Octocrab,
+    token: String,
 }
 
 impl GithubManager {
@@ -50,7 +51,11 @@ impl GithubManager {
             .personal_token(token.to_string())
             .build()
             .map_err(|e| AppError::Github(format!("failed to build octocrab client: {e}")))?;
-        Ok(Self { client })
+        Ok(Self { client, token: token.to_string() })
+    }
+
+    fn token(&self) -> &str {
+        &self.token
     }
 
     /// Fetch all open PRs and recently merged PRs for the given owner/repo.
@@ -211,6 +216,9 @@ impl GithubManager {
                                 .get("completed_at")
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string()),
+                            check_suite_id: run
+                                .pointer("/check_suite/id")
+                                .and_then(|v| v.as_u64()),
                         })
                     })
                     .collect()
@@ -386,6 +394,141 @@ impl GithubManager {
             mergeable,
             review_decision,
         })
+    }
+
+    /// Re-run only the failed jobs in a workflow run.
+    pub async fn rerun_failed_jobs(
+        &self,
+        owner: &str,
+        repo: &str,
+        run_id: u64,
+    ) -> Result<(), AppError> {
+        let url = format!("/repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs");
+        let _: serde_json::Value = self.client
+            .post(url, None::<&()>)
+            .await
+            .map_err(|e| format_octocrab_error("failed to re-run failed jobs", e))?;
+        Ok(())
+    }
+
+    /// Get the workflow run ID for a check run (needed for re-run/log download).
+    pub async fn get_workflow_run_id_for_check_suite(
+        &self,
+        owner: &str,
+        repo: &str,
+        check_suite_id: u64,
+    ) -> Result<Option<u64>, AppError> {
+        let url = format!(
+            "/repos/{owner}/{repo}/actions/runs?check_suite_id={check_suite_id}"
+        );
+        let response: serde_json::Value = self
+            .client
+            .get(url, None::<&()>)
+            .await
+            .map_err(|e| format_octocrab_error("failed to fetch workflow runs", e))?;
+
+        let run_id = response
+            .get("workflow_runs")
+            .and_then(|v| v.as_array())
+            .and_then(|runs| runs.first())
+            .and_then(|run| run.get("id"))
+            .and_then(|v| v.as_u64());
+
+        Ok(run_id)
+    }
+
+    /// Download and extract the failure log excerpt for a workflow run.
+    pub async fn download_workflow_log(
+        &self,
+        owner: &str,
+        repo: &str,
+        run_id: u64,
+    ) -> Result<Vec<WorkflowRunLog>, AppError> {
+        let url = format!("https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/logs");
+
+        let client = reqwest::Client::new();
+        let response = client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.token()))
+            .header("User-Agent", "alfredo")
+            .header("Accept", "application/vnd.github+json")
+            .send()
+            .await
+            .map_err(|e| AppError::Github(format!("failed to download workflow logs: {e}")))?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Github(format!(
+                "failed to download workflow logs: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| AppError::Github(format!("failed to read workflow log bytes: {e}")))?;
+
+        Self::parse_workflow_logs(run_id, &bytes)
+    }
+
+    /// Parse a zip of workflow logs and extract failure excerpts.
+    fn parse_workflow_logs(run_id: u64, zip_bytes: &[u8]) -> Result<Vec<WorkflowRunLog>, AppError> {
+        use std::io::Read;
+
+        let reader = std::io::Cursor::new(zip_bytes);
+        let mut archive = zip::ZipArchive::new(reader)
+            .map_err(|e| AppError::Github(format!("failed to read log zip: {e}")))?;
+
+        let mut logs = Vec::new();
+
+        for i in 0..archive.len() {
+            let mut file = archive
+                .by_index(i)
+                .map_err(|e| AppError::Github(format!("failed to read zip entry: {e}")))?;
+
+            let name = file.name().to_string();
+
+            // Log files are named like "job-name/step-number_step-name.txt"
+            let parts: Vec<&str> = name.splitn(2, '/').collect();
+            if parts.len() != 2 || !parts[1].ends_with(".txt") {
+                continue;
+            }
+
+            let job_name = parts[0].to_string();
+            let step_name = parts[1]
+                .trim_end_matches(".txt")
+                .split('_')
+                .skip(1)
+                .collect::<Vec<&str>>()
+                .join("_");
+
+            let mut content = String::new();
+            file.read_to_string(&mut content).ok();
+
+            // Check if this step contains failure indicators
+            let has_failure = content.contains("FAIL")
+                || content.contains("Error:")
+                || content.contains("error[")
+                || content.contains("FAILED")
+                || content.contains("AssertionError")
+                || content.contains("Process completed with exit code 1");
+
+            if has_failure {
+                // Extract the last 80 lines as the failure excerpt
+                let lines: Vec<&str> = content.lines().collect();
+                let start = lines.len().saturating_sub(80);
+                let excerpt = lines[start..].join("\n");
+
+                logs.push(WorkflowRunLog {
+                    run_id,
+                    job_name,
+                    step_name,
+                    log_excerpt: excerpt,
+                });
+            }
+        }
+
+        Ok(logs)
     }
 
     /// Generic GET returning parsed JSON.

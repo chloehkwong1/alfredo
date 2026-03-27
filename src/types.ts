@@ -208,6 +208,7 @@ export interface CheckRun {
   htmlUrl: string;
   startedAt: string | null;
   completedAt: string | null;
+  checkSuiteId?: number;
 }
 
 export interface PrReview {
