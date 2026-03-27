@@ -1,11 +1,13 @@
-import { useEffect, useCallback } from "react";
-import { PrHeader } from "./PrHeader";
-import { CheckRunItem } from "./CheckRunItem";
-import { getCheckRuns } from "../../api";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
-import type { Worktree } from "../../types";
+import { useEffect, useCallback, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { IconButton } from "../ui";
+import { PrHeader } from "./PrHeader";
+import { PrChecksSection } from "./PrChecksSection";
+import { PrReviewsSection } from "./PrReviewsSection";
+import { PrCommentsSection } from "./PrCommentsSection";
+import { PrConflictsSection } from "./PrConflictsSection";
+import { getCheckRuns, getPrDetail } from "../../api";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import type { Worktree, WorkflowRunLog, PrComment } from "../../types";
 
 interface PrDetailPanelProps {
   worktree: Worktree;
@@ -15,6 +17,9 @@ interface PrDetailPanelProps {
 function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
   const checkRuns = useWorkspaceStore((s) => s.checkRuns[worktree.id]) ?? [];
   const setCheckRuns = useWorkspaceStore((s) => s.setCheckRuns);
+  const prDetail = useWorkspaceStore((s) => s.prDetail[worktree.id]);
+  const setPrDetail = useWorkspaceStore((s) => s.setPrDetail);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchChecks = useCallback(async () => {
     try {
@@ -25,16 +30,34 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
     }
   }, [repoPath, worktree.branch, worktree.id, setCheckRuns]);
 
-  // Track whether a PR exists, not the full prStatus object, to avoid
-  // restarting the polling interval on every PR metadata update.
+  const fetchDetail = useCallback(async () => {
+    if (!worktree.prStatus) return;
+    try {
+      const detail = await getPrDetail(repoPath, worktree.prStatus.number);
+      setPrDetail(worktree.id, detail);
+    } catch (err) {
+      console.error("Failed to fetch PR detail:", err);
+    }
+  }, [repoPath, worktree.prStatus, worktree.id, setPrDetail]);
+
   const hasPr = !!worktree.prStatus;
 
   useEffect(() => {
     if (!hasPr) return;
     fetchChecks();
-    const interval = setInterval(fetchChecks, 30_000);
+    fetchDetail();
+    const interval = setInterval(() => {
+      fetchChecks();
+      fetchDetail();
+    }, 30_000);
     return () => clearInterval(interval);
-  }, [hasPr, fetchChecks]);
+  }, [hasPr, fetchChecks, fetchDetail]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchChecks(), fetchDetail()]);
+    setRefreshing(false);
+  };
 
   if (!worktree.prStatus) {
     return (
@@ -44,41 +67,71 @@ function PrDetailPanel({ worktree, repoPath }: PrDetailPanelProps) {
     );
   }
 
-  const successCount = checkRuns.filter((r) => r.conclusion === "success").length;
-  const failureCount = checkRuns.filter((r) => r.conclusion === "failure" || r.conclusion === "timed_out").length;
-  const pendingCount = checkRuns.filter((r) => r.status !== "completed").length;
+  // Calculate blocker counts
+  const failingChecks = checkRuns.filter(
+    (r) => r.conclusion === "failure" || r.conclusion === "timed_out",
+  ).length;
+  const hasChangesRequested = prDetail?.reviews?.some(
+    (r) => r.state === "changes_requested",
+  );
+  const unresolvedComments = prDetail?.comments?.length ?? 0;
+  const hasConflicts = prDetail?.mergeable === false;
+
+  const blockerCount =
+    (failingChecks > 0 ? 1 : 0) +
+    (hasChangesRequested ? 1 : 0) +
+    (unresolvedComments > 0 ? 1 : 0) +
+    (hasConflicts ? 1 : 0);
+
+  const resolvedCount =
+    (failingChecks === 0 ? 1 : 0) +
+    (!hasChangesRequested ? 1 : 0) +
+    (unresolvedComments === 0 ? 1 : 0) +
+    (!hasConflicts ? 1 : 0);
+
+  const handleAskClaudeFix = (_logs: WorkflowRunLog[]) => {
+    // Will be wired in Task 12
+    console.log("Ask Claude to fix:", _logs);
+  };
+
+  const handleJumpToComment = (_comment: PrComment) => {
+    // Will be wired in Task 13
+    console.log("Jump to comment:", _comment);
+  };
 
   return (
     <div className="flex flex-col h-full">
-      <PrHeader pr={worktree.prStatus} />
-
-      {/* Checks section */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border-subtle">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-            Checks
-          </span>
-          {checkRuns.length > 0 && (
-            <span className="text-2xs text-text-tertiary">
-              {successCount} passed
-              {failureCount > 0 && `, ${failureCount} failed`}
-              {pendingCount > 0 && `, ${pendingCount} pending`}
-            </span>
-          )}
+      <div className="flex items-center">
+        <div className="flex-1">
+          <PrHeader
+            pr={worktree.prStatus}
+            blockerCount={blockerCount}
+            resolvedCount={resolvedCount}
+          />
         </div>
-        <IconButton size="sm" label="Refresh checks" onClick={fetchChecks}>
-          <RefreshCw />
-        </IconButton>
+        <div className="px-2 border-b border-border-subtle flex items-center">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="p-1 text-text-tertiary hover:text-text-secondary"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {checkRuns.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-text-tertiary text-sm">
-            No checks found
-          </div>
-        ) : (
-          checkRuns.map((run) => <CheckRunItem key={run.id} run={run} repoPath={repoPath} />)
-        )}
+        <PrChecksSection
+          checkRuns={checkRuns}
+          repoPath={repoPath}
+          onAskClaudeFix={handleAskClaudeFix}
+        />
+        <PrReviewsSection reviews={prDetail?.reviews ?? []} />
+        <PrCommentsSection
+          comments={prDetail?.comments ?? []}
+          onJumpToComment={handleJumpToComment}
+        />
+        <PrConflictsSection mergeable={prDetail?.mergeable ?? null} />
       </div>
     </div>
   );
