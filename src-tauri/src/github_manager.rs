@@ -83,6 +83,7 @@ impl GithubManager {
                 merged: false, // open PRs aren't merged
                 branch: pr.head.ref_field,
                 merged_at: None,
+                head_sha: None,
             })
             .collect();
 
@@ -117,6 +118,7 @@ impl GithubManager {
                 merged: true,
                 branch: pr.head.ref_field,
                 merged_at: pr.merged_at.map(|dt| dt.to_rfc3339()),
+                head_sha: None,
             });
 
         prs.extend(merged_prs);
@@ -168,6 +170,7 @@ impl GithubManager {
             merged,
             branch,
             merged_at,
+            head_sha: None,
         }))
     }
 
