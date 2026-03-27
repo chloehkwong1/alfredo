@@ -55,9 +55,12 @@ pub async fn create_worktree(
         config_manager::run_setup_scripts(&path_str, &create_scripts).await?;
     }
 
+    // Use the sanitized directory name as the ID/name so it matches
+    // what list_worktrees returns (git uses the dir name internally).
+    let dir_name = branch_name.replace('/', "-");
     Ok(Worktree {
-        id: branch_name.clone(),
-        name: branch_name.clone(),
+        id: dir_name.clone(),
+        name: dir_name,
         path: path_str,
         branch: branch_name,
         pr_status: None,

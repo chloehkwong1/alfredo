@@ -14,6 +14,9 @@ pub async fn create_worktree(
     base_branch: &str,
     base_path: Option<&str>,
 ) -> Result<PathBuf, AppError> {
+    // Sanitize branch name for use as a directory name — branches like
+    // "chloe/feature-name" would otherwise create nested subdirectories.
+    let dir_name = branch_name.replace('/', "-");
     let worktree_dir = base_path
         .map(|p| Path::new(p).to_path_buf())
         .unwrap_or_else(|| {
@@ -22,7 +25,7 @@ pub async fn create_worktree(
                 .unwrap_or(Path::new(repo_path))
                 .to_path_buf()
         })
-        .join(branch_name);
+        .join(&dir_name);
 
     // Try creating with a new branch first; if the branch already exists,
     // fall back to using the existing branch.
@@ -77,6 +80,7 @@ pub async fn delete_worktree(
     force: bool,
     base_path: Option<&str>,
 ) -> Result<(), AppError> {
+    let dir_name = worktree_name.replace('/', "-");
     let worktree_path = base_path
         .map(|p| Path::new(p).to_path_buf())
         .unwrap_or_else(|| {
@@ -85,7 +89,14 @@ pub async fn delete_worktree(
                 .unwrap_or(Path::new(repo_path))
                 .to_path_buf()
         })
-        .join(worktree_name);
+        .join(&dir_name);
+
+    // Prune stale worktree entries first so a previous partial delete doesn't block us
+    let _ = Command::new("git")
+        .args(["worktree", "prune"])
+        .current_dir(repo_path)
+        .output()
+        .await;
 
     let mut args = vec!["worktree", "remove"];
     if force {
@@ -102,9 +113,19 @@ pub async fn delete_worktree(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AppError::Git(format!(
-            "git worktree remove failed: {stderr}"
-        )));
+        // If git no longer tracks this worktree, just clean up the directory
+        if !stderr.contains("not a working tree") {
+            // Try to remove the directory anyway before returning the error
+            let _ = tokio::fs::remove_dir_all(&worktree_path).await;
+            return Err(AppError::Git(format!(
+                "git worktree remove failed: {stderr}"
+            )));
+        }
+    }
+
+    // Ensure the directory is gone even if git left it behind
+    if worktree_path.exists() {
+        let _ = tokio::fs::remove_dir_all(&worktree_path).await;
     }
 
     if force {
