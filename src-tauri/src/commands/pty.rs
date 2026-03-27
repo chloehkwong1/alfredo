@@ -1,4 +1,4 @@
-use crate::pty_manager::PtyManager;
+use crate::pty_manager::{PtyManager, SpawnConfig};
 use crate::state_server::StateServerHandle;
 use crate::types::{AgentType, AppError, PtyEvent, Session};
 use tauri::ipc::Channel;
@@ -11,6 +11,7 @@ type Result<T> = std::result::Result<T, AppError>;
 /// `agent_type` tells the detector what agent is running so it can track
 /// state immediately without relying on banner/launch detection.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn spawn_pty(
     manager: State<'_, PtyManager>,
     state_server: State<'_, StateServerHandle>,
@@ -21,15 +22,15 @@ pub async fn spawn_pty(
     on_data: Channel<PtyEvent>,
     agent_type: Option<AgentType>,
 ) -> Result<String> {
-    let session_id = manager.spawn(
-        worktree_id.clone(),
+    let config = SpawnConfig {
+        worktree_id: worktree_id.clone(),
         worktree_path,
         command,
         args,
-        on_data.clone(),
-        agent_type.unwrap_or(AgentType::Unknown),
-        Some(state_server.port),
-    )?;
+        agent_type: agent_type.unwrap_or(AgentType::Unknown),
+        state_server_port: Some(state_server.port),
+    };
+    let session_id = manager.spawn(config, on_data.clone())?;
 
     // Register this session's channel with the state server so hooks can push state
     state_server.register_channel(session_id.clone(), worktree_id, on_data);

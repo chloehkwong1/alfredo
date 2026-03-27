@@ -26,13 +26,22 @@ struct PtySession {
     child: Box<dyn Child + Send + Sync>,
     command: String,
     worktree_id: String,
-    worktree_path: String,
     /// Set to true when the reader thread detects the child has exited.
     exited: Arc<Mutex<Option<i32>>>,
     /// Shared flag to signal the reader thread to stop.
     stop_flag: Arc<AtomicBool>,
     /// Shared signals for the agent detector in the reader thread.
     detector_signals: Arc<Mutex<DetectorSignals>>,
+}
+
+/// Configuration for spawning a new PTY session.
+pub struct SpawnConfig {
+    pub worktree_id: String,
+    pub worktree_path: String,
+    pub command: String,
+    pub args: Vec<String>,
+    pub agent_type: AgentType,
+    pub state_server_port: Option<u16>,
 }
 
 /// Manages all PTY sessions. Stored as Tauri managed state.
@@ -48,19 +57,23 @@ impl PtyManager {
     }
 
     /// Spawn a new PTY session, returning its UUID.
-    /// `agent_type` seeds the detector so it can track state immediately
+    /// `config.agent_type` seeds the detector so it can track state immediately
     /// without waiting for a shell launch pattern or startup banner.
-    /// `state_server_port` is set as an env var so hooks can call back.
+    /// `config.state_server_port` is set as an env var so hooks can call back.
     pub fn spawn(
         &self,
-        worktree_id: String,
-        worktree_path: String,
-        command: String,
-        args: Vec<String>,
+        config: SpawnConfig,
         channel: Channel<PtyEvent>,
-        agent_type: AgentType,
-        state_server_port: Option<u16>,
     ) -> Result<String, AppError> {
+        let SpawnConfig {
+            worktree_id,
+            worktree_path,
+            command,
+            args,
+            agent_type,
+            state_server_port,
+        } = config;
+
         let pty_system = native_pty_system();
 
         let pair = pty_system
@@ -210,9 +223,8 @@ impl PtyManager {
             master: pair.master,
             writer,
             child,
-            command: command.clone(),
-            worktree_id: worktree_id.clone(),
-            worktree_path: worktree_path.clone(),
+            command,
+            worktree_id,
             exited,
             stop_flag,
             detector_signals,
@@ -396,8 +408,8 @@ const ALFREDO_HOOK_MARKER: &str = "/agent-state/";
 /// Stale Alfredo hooks (from previous sessions) are replaced, not accumulated.
 fn write_hooks_config(
     worktree_path: &str,
-    base_url: &str,
-    worktree_id: &str,
+    _base_url: &str,
+    _worktree_id: &str,
 ) -> Result<(), std::io::Error> {
     let claude_dir = std::path::Path::new(worktree_path).join(".claude");
     std::fs::create_dir_all(&claude_dir)?;
@@ -413,7 +425,7 @@ fn write_hooks_config(
     };
 
     // Ensure config.hooks exists as an object
-    if !config.get("hooks").is_some_and(|h| h.is_object()) {
+    if !config.get("hooks").is_some_and(serde_json::Value::is_object) {
         config["hooks"] = serde_json::json!({});
     }
     let hooks = config["hooks"]
@@ -510,6 +522,7 @@ fn is_alfredo_hook_entry(entry: &serde_json::Value) -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -530,13 +543,15 @@ mod tests {
 
         let id = manager
             .spawn(
-                "test-worktree".to_string(),
-                "/tmp".to_string(),
-                "echo".to_string(),
-                vec!["hello".to_string()],
+                SpawnConfig {
+                    worktree_id: "test-worktree".to_string(),
+                    worktree_path: "/tmp".to_string(),
+                    command: "echo".to_string(),
+                    args: vec!["hello".to_string()],
+                    agent_type: AgentType::Unknown,
+                    state_server_port: None,
+                },
                 channel,
-                AgentType::Unknown,
-                None,
             )
             .expect("spawn should succeed");
 
