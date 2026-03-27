@@ -151,6 +151,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath }: CreateWorktreeDi
   }, [open]);
 
   async function handleCreate() {
+    if (!repoPath) return;
     setCreating(true);
     setError(null);
     try {
