@@ -41,6 +41,7 @@ import {
 } from "../ui/ContextMenu";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { lifecycleManager } from "../../services/lifecycleManager";
 import type { TabType, WorkspaceTab } from "../../types";
 import { useState } from "react";
 
@@ -185,9 +186,6 @@ function PaneTabBar({
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
   const reorderTabs = useLayoutStore((s) => s.reorderTabs);
   const splitPane = useLayoutStore((s) => s.splitPane);
-  const addTab = useWorkspaceStore((s) => s.addTab);
-  const removeTab = useWorkspaceStore((s) => s.removeTab);
-  const removeTabFromPane = useLayoutStore((s) => s.removeTabFromPane);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
@@ -214,18 +212,11 @@ function PaneTabBar({
 
   function handleCloseTab(e: React.MouseEvent | Event, tabId: string) {
     if ("stopPropagation" in e) e.stopPropagation();
-    removeTab(worktreeId, tabId);
-    removeTabFromPane(worktreeId, tabId);
+    lifecycleManager.removeTab(worktreeId, tabId);
   }
 
   function handleAddTab(type: TabType) {
-    const prevTabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
-    addTab(worktreeId, type);
-    const newTabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
-    const newTab = newTabs.find((t) => !prevTabs.some((p) => p.id === t.id));
-    if (newTab) {
-      useLayoutStore.getState().addTabToPane(worktreeId, paneId, newTab.id);
-    }
+    lifecycleManager.addTab(worktreeId, type, paneId);
   }
 
   function handleSplit(tabId: string, direction: "horizontal" | "vertical") {
