@@ -53,6 +53,7 @@ function AppShell() {
   const setWorktrees = useWorkspaceStore((s) => s.setWorktrees);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
+  const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const hasRestoredSessions = useRef(false);
@@ -165,6 +166,13 @@ function AppShell() {
             }
           }
 
+          // Ensure every worktree has default tabs (claude, shell, changes)
+          // — sessions may lack them, and existing worktrees loaded from git
+          // never go through CreateWorktreeDialog which normally calls this.
+          for (const wt of wts) {
+            ensureDefaultTabs(wt.id);
+          }
+
           // Init layout for worktrees without persisted sessions
           for (const wt of wts) {
             if (!useLayoutStore.getState().layout[wt.id]) {
@@ -188,11 +196,13 @@ function AppShell() {
     }).catch(() => {
       // Silently ignore — user may not have worktrees yet
     });
-  }, [repoPath, setWorktrees, updateWorktree, restoreTabs]);
+  }, [repoPath, setWorktrees, updateWorktree, restoreTabs, ensureDefaultTabs]);
 
   // Sync layout store when ensureDefaultTabs adds tabs not yet in a pane
   useEffect(() => {
     if (!activeWorktreeId) return;
+    // Guarantee default tabs exist before touching layout
+    ensureDefaultTabs(activeWorktreeId);
     const layoutState = useLayoutStore.getState();
     const wtLayout = layoutState.layout[activeWorktreeId];
     if (!wtLayout) {
@@ -215,7 +225,7 @@ function AppShell() {
         layoutState.addTabToPane(activeWorktreeId, activePaneId, tab.id);
       }
     }
-  }, [activeWorktreeId, tabs]);
+  }, [activeWorktreeId, tabs, ensureDefaultTabs]);
 
   // Track whether we just transitioned from onboarding to animate sidebar
   const wasOnboarding = useRef(true);

@@ -31,6 +31,8 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 function CreateWorktreeDialog({ open, onOpenChange, repoPath }: CreateWorktreeDialogProps) {
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
+  const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
+  const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const [activeTab, setActiveTab] = useState<Tab>("newBranch");
   const [branchName, setBranchName] = useState("");
   const [baseBranch, setBaseBranch] = useState("main");
@@ -177,6 +179,8 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath }: CreateWorktreeDi
       }
       if (worktree) {
         addWorktree(worktree);
+        ensureDefaultTabs(worktree.id);
+        setActiveWorktree(worktree.id);
         onOpenChange(false);
         setBranchName("");
         setSearchQuery("");
