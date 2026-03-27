@@ -187,6 +187,33 @@ function AppShell() {
     });
   }, [repoPath, setWorktrees, updateWorktree, restoreTabs]);
 
+  // Sync layout store when ensureDefaultTabs adds tabs not yet in a pane
+  useEffect(() => {
+    if (!activeWorktreeId) return;
+    const layoutState = useLayoutStore.getState();
+    const wtLayout = layoutState.layout[activeWorktreeId];
+    if (!wtLayout) {
+      // Layout not initialized yet — init it from current tabs
+      const wtTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
+      const wtActiveTabId = useWorkspaceStore.getState().activeTabId[activeWorktreeId] ?? "";
+      if (wtTabs.length > 0) {
+        layoutState.initLayout(activeWorktreeId, wtTabs.map((t) => t.id), wtActiveTabId);
+      }
+      return;
+    }
+    // Check for tabs not in any pane and add them to the active pane
+    const wtTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
+    const allPaneTabIds = new Set(
+      Object.values(layoutState.panes[activeWorktreeId] ?? {}).flatMap((p) => p.tabIds),
+    );
+    const activePaneId = layoutState.activePaneId[activeWorktreeId];
+    for (const tab of wtTabs) {
+      if (!allPaneTabIds.has(tab.id) && activePaneId) {
+        layoutState.addTabToPane(activeWorktreeId, activePaneId, tab.id);
+      }
+    }
+  }, [activeWorktreeId, tabs]);
+
   // Track whether we just transitioned from onboarding to animate sidebar
   const wasOnboarding = useRef(true);
   const shouldAnimateSidebar = useRef(false);
