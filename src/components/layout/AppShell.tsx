@@ -82,63 +82,70 @@ function TabBar() {
     const worktree = useWorkspaceStore.getState().worktrees.find((wt) => wt.id === activeWorktreeId);
     if (!worktree) return;
 
-    if (isServerRunningHere) {
-      // Stop server
-      await sessionManager.closeSession(runningServer!.tabId);
-      setRunningServer(null);
-      return;
-    }
-
-    // Stop existing server on another worktree if running
-    if (runningServer) {
-      await sessionManager.closeSession(runningServer.tabId);
-      // Remove the server tab from the old worktree
-      const oldTabs = useWorkspaceStore.getState().tabs[runningServer.worktreeId] ?? [];
-      const oldServerTab = oldTabs.find((t) => t.id === runningServer.tabId);
-      if (oldServerTab) {
-        useWorkspaceStore.getState().removeTab(runningServer.worktreeId, runningServer.tabId);
+    try {
+      if (isServerRunningHere) {
+        // Stop the server process but keep the terminal alive so logs remain
+        // visible. stopSession kills the PTY but keeps the session in the
+        // manager so the terminal re-attaches on worktree switch. Clear the
+        // command so re-mounting the tab doesn't re-execute the server command.
+        await sessionManager.stopSession(runningServer!.tabId);
+        useWorkspaceStore.getState().updateTab(
+          runningServer!.worktreeId, runningServer!.tabId, { command: undefined },
+        );
+        setRunningServer(null);
+        return;
       }
-      setRunningServer(null);
+
+      // Stop existing server on another worktree if running (keep tab & logs)
+      if (runningServer) {
+        await sessionManager.stopSession(runningServer.tabId);
+        useWorkspaceStore.getState().updateTab(
+          runningServer.worktreeId, runningServer.tabId, { command: undefined },
+        );
+        setRunningServer(null);
+      }
+
+      // Clean up any existing server tab on this worktree so we get a clean mount
+      const existingTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
+      const oldServerTab = existingTabs.find((t) => t.type === "server");
+      if (oldServerTab) {
+        await sessionManager.closeSession(oldServerTab.id);
+        useWorkspaceStore.getState().removeTab(activeWorktreeId, oldServerTab.id);
+      }
+
+      // Create a fresh server tab with the run command stored on it
+      const tabId = `${activeWorktreeId}:server:${crypto.randomUUID().slice(0, 8)}`;
+      const newTab = {
+        id: tabId,
+        type: "server" as const,
+        label: "Server",
+        command: runScript.command,
+      };
+      const currentTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
+      const tabs = [...currentTabs];
+      const changesIdx = tabs.findIndex((t) => t.type === "changes");
+      if (changesIdx >= 0) {
+        tabs.splice(changesIdx, 0, newTab);
+      } else {
+        tabs.push(newTab);
+      }
+      useWorkspaceStore.setState((state) => ({
+        tabs: { ...state.tabs, [activeWorktreeId]: tabs },
+      }));
+
+      // Switch to the server tab — TerminalView will mount, spawn the shell,
+      // and execute the command stored on the tab
+      useWorkspaceStore.getState().setActiveTabId(activeWorktreeId, tabId);
+
+      // Set running server state (sessionId filled in by TerminalView after spawn)
+      setRunningServer({
+        worktreeId: activeWorktreeId,
+        sessionId: "",
+        tabId,
+      });
+    } catch (err) {
+      console.error("[handleToggleServer] failed:", err);
     }
-
-    // Remove any existing server tab (and its session) so we get a clean mount
-    const existingTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
-    const oldServerTab = existingTabs.find((t) => t.type === "server");
-    if (oldServerTab) {
-      await sessionManager.closeSession(oldServerTab.id);
-      useWorkspaceStore.getState().removeTab(activeWorktreeId, oldServerTab.id);
-    }
-
-    // Create a fresh server tab with the run command stored on it
-    const tabId = `${activeWorktreeId}:server:${crypto.randomUUID().slice(0, 8)}`;
-    const newTab = {
-      id: tabId,
-      type: "server" as const,
-      label: "Server",
-      command: runScript.command,
-    };
-    const currentTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
-    const tabs = [...currentTabs];
-    const changesIdx = tabs.findIndex((t) => t.type === "changes");
-    if (changesIdx >= 0) {
-      tabs.splice(changesIdx, 0, newTab);
-    } else {
-      tabs.push(newTab);
-    }
-    useWorkspaceStore.setState((state) => ({
-      tabs: { ...state.tabs, [activeWorktreeId]: tabs },
-    }));
-
-    // Switch to the server tab — TerminalView will mount, spawn the shell,
-    // and execute the command stored on the tab
-    useWorkspaceStore.getState().setActiveTabId(activeWorktreeId, tabId);
-
-    // Set running server state (sessionId filled in by TerminalView after spawn)
-    setRunningServer({
-      worktreeId: activeWorktreeId,
-      sessionId: "",
-      tabId,
-    });
   }, [activeWorktreeId, runScript, repoPath, isServerRunningHere, runningServer, setRunningServer]);
 
   function handleAddTab(type: TabType) {

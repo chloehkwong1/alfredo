@@ -397,6 +397,20 @@ export class SessionManager {
     return this.sessions.get(sessionKey) ?? null;
   }
 
+  /** Kill the PTY process but keep the session and terminal alive so logs
+   *  remain visible. Clears sessionId so usePty won't wire up input/resize. */
+  async stopSession(sessionKey: string): Promise<void> {
+    const session = this.sessions.get(sessionKey);
+    if (!session) return;
+
+    try {
+      await closePty(session.sessionId);
+    } catch {
+      // Session may already be dead on the Rust side — that's fine.
+    }
+    session.sessionId = "";
+  }
+
   /** Close a single PTY session and dispose its terminal. */
   async closeSession(sessionKey: string): Promise<void> {
     const session = this.sessions.get(sessionKey);

@@ -311,13 +311,34 @@ impl PtyManager {
         // Signal the reader thread to stop before killing the child.
         session.stop_flag.store(true, Ordering::Relaxed);
 
-        // Kill the child if it's still running.
-        let _ = session.child.kill();
-        // Wait to reap zombie.
-        let _ = session.child.wait();
-        // Dropping the master will close the PTY fd, which unblocks the reader
-        // thread if it's stuck in read().
+        // Send SIGTERM to the entire process group so child processes (e.g. dev
+        // servers launched inside the shell) are terminated too, not just the
+        // shell. The shell called setsid() so its PID == PGID.
+        let pid = session.child.process_id();
+        if let Some(pid) = pid {
+            unsafe {
+                libc::kill(-(pid as i32), libc::SIGTERM);
+            }
+        } else {
+            let _ = session.child.kill();
+        }
+
+        // Drop the PTY master fd immediately — this unblocks any reader thread
+        // stuck in read() and signals hangup to the child.
         drop(session.master);
+
+        // Reap the process tree in a background thread so we never block the
+        // Tauri command thread (child.wait() can stall).
+        thread::spawn(move || {
+            if let Some(pid) = pid {
+                thread::sleep(Duration::from_millis(200));
+                // Force-kill any survivors.
+                unsafe {
+                    libc::kill(-(pid as i32), libc::SIGKILL);
+                }
+            }
+            let _ = session.child.wait();
+        });
 
         Ok(())
     }
