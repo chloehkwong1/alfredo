@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -e
+
+echo "── Pre-commit checks ──"
+
+# Frontend: TypeScript type checking
+echo "→ Running tsc..."
+npx tsc --noEmit
+echo "  ✓ TypeScript OK"
+
+# Backend: Clippy lints
+echo "→ Running cargo clippy..."
+cd src-tauri
+cargo clippy --all-targets -- -D warnings
+echo "  ✓ Clippy OK"
+
+echo "── All checks passed ──"
