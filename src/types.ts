@@ -68,6 +68,7 @@ export interface PrStatus {
   draft: boolean;
   merged: boolean;
   branch: string;
+  baseBranch?: string;
   mergedAt?: string;
   headSha?: string;
 }

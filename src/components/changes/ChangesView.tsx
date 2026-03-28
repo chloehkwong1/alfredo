@@ -52,18 +52,18 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
       .then((files) => { if (!cancelled) setUncommittedFiles(files); })
       .catch((err) => console.error("Failed to load uncommitted diff:", err));
 
-    getDiff(repoPath)
+    getDiff(repoPath, pr?.baseBranch)
       .then((files) => { if (!cancelled) setCommittedFiles(files); })
       .catch((err) => console.error("Failed to load committed diff:", err));
 
-    getCommits(repoPath)
+    getCommits(repoPath, pr?.baseBranch)
       .then((list) => { if (!cancelled) setCommits(list); })
       .catch((err) => console.error("Failed to load commits:", err));
 
     return () => {
       cancelled = true;
     };
-  }, [repoPath]);
+  }, [repoPath, pr?.baseBranch]);
 
   // Load commit diff when a commit is selected in commits mode
   useEffect(() => {

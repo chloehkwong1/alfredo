@@ -269,6 +269,7 @@ mod tests {
             draft: true,
             merged: false,
             branch: "feat/test".into(),
+            base_branch: None,
             merged_at: None,
             head_sha: None,
         };
@@ -286,6 +287,7 @@ mod tests {
             draft: false,
             merged: false,
             branch: "feat/open".into(),
+            base_branch: None,
             merged_at: None,
             head_sha: None,
         };
@@ -303,6 +305,7 @@ mod tests {
             draft: false,
             merged: true,
             branch: "feat/done".into(),
+            base_branch: None,
             merged_at: None,
             head_sha: None,
         };

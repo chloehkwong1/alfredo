@@ -87,6 +87,7 @@ impl GithubManager {
                 draft: pr.draft.unwrap_or(false),
                 merged: false, // open PRs aren't merged
                 branch: pr.head.ref_field,
+                base_branch: Some(pr.base.ref_field),
                 merged_at: None,
                 head_sha: Some(pr.head.sha),
             })
@@ -122,6 +123,7 @@ impl GithubManager {
                 draft: pr.draft.unwrap_or(false),
                 merged: true,
                 branch: pr.head.ref_field,
+                base_branch: Some(pr.base.ref_field),
                 merged_at: pr.merged_at.map(|dt| dt.to_rfc3339()),
                 head_sha: Some(pr.head.sha),
             });
@@ -159,6 +161,7 @@ impl GithubManager {
         let draft = pr.draft.unwrap_or(false);
 
         let branch = pr.head.ref_field.clone();
+        let base_branch = pr.base.ref_field.clone();
         let head_sha = pr.head.sha.clone();
 
         Ok(Some(PrStatus {
@@ -175,6 +178,7 @@ impl GithubManager {
             draft,
             merged,
             branch,
+            base_branch: Some(base_branch),
             merged_at,
             head_sha: Some(head_sha),
         }))
@@ -657,6 +661,7 @@ mod tests {
             draft: true,
             merged: false,
             branch: "feat/test".into(),
+            base_branch: None,
             merged_at: None,
             head_sha: None,
         };
@@ -673,6 +678,7 @@ mod tests {
             draft: false,
             merged: false,
             branch: "feat/test".into(),
+            base_branch: None,
             merged_at: None,
             head_sha: None,
         };
@@ -689,6 +695,7 @@ mod tests {
             draft: false,
             merged: true,
             branch: "feat/test".into(),
+            base_branch: None,
             merged_at: None,
             head_sha: None,
         };

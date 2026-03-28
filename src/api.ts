@@ -158,16 +158,20 @@ export function searchLinearIssues(
 
 // ── Diff ───────────────────────────────────────────────────────
 
-export function getDiff(repoPath: string): Promise<DiffFile[]> {
-  return invoke("get_diff", { repoPath });
+export function getDiff(repoPath: string, defaultBranch?: string): Promise<DiffFile[]> {
+  return invoke("get_diff", { repoPath, defaultBranch });
 }
 
 export function getUncommittedDiff(repoPath: string): Promise<DiffFile[]> {
   return invoke<DiffFile[]>("get_uncommitted_diff", { repoPath });
 }
 
-export function getCommits(repoPath: string): Promise<CommitInfo[]> {
-  return invoke("get_commits", { repoPath });
+export function getCommits(repoPath: string, defaultBranch?: string): Promise<CommitInfo[]> {
+  return invoke("get_commits", { repoPath, defaultBranch });
+}
+
+export function getDefaultBranch(repoPath: string): Promise<string> {
+  return invoke("get_default_branch", { repoPath });
 }
 
 export function getDiffForCommit(

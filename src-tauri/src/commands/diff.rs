@@ -300,7 +300,7 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
 
 /// Get commits from HEAD back to the merge base with the default branch.
 #[tauri::command]
-pub async fn get_commits(repo_path: String) -> Result<Vec<CommitInfo>> {
+pub async fn get_commits(repo_path: String, default_branch: Option<String>) -> Result<Vec<CommitInfo>> {
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
 
