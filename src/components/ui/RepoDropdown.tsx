@@ -17,6 +17,7 @@ interface RepoDropdownProps {
   repos: RepoEntry[];
   selectedRepos: string[];
   repoColors: Record<string, string>;
+  repoDisplayNames?: Record<string, string>;
   value: string;
   onChange: (repoPath: string) => void;
 }
@@ -37,6 +38,7 @@ function RepoDropdown({
   repos,
   selectedRepos,
   repoColors,
+  repoDisplayNames,
   value,
   onChange,
 }: RepoDropdownProps) {
@@ -64,7 +66,7 @@ function RepoDropdown({
               }}
             />
             <span className="flex-1 text-left truncate">
-              {repoDisplayName(value)}
+              {repoDisplayName(value, repoDisplayNames)}
             </span>
             <ChevronDown className="h-3.5 w-3.5 text-text-tertiary" />
           </button>
@@ -85,7 +87,7 @@ function RepoDropdown({
                   style={{ background: color.text }}
                 />
                 <span className="flex-1 truncate text-[13px]">
-                  {repoDisplayName(path)}
+                  {repoDisplayName(path, repoDisplayNames)}
                 </span>
                 {isSelected && (
                   <Check className="h-3.5 w-3.5 text-accent-primary flex-shrink-0" />

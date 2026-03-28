@@ -68,9 +68,10 @@ function AppShell() {
     switchRepo,
     updateRepoMode,
     selectedRepos,
-    displayName,
     repoColors,
+    repoDisplayNames,
     toggleRepo,
+    setRepoDisplayName,
   } = useAppConfig();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -273,8 +274,9 @@ function AppShell() {
           }}
           selectedRepos={selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : [])}
           onToggleRepo={toggleRepo}
-          displayName={displayName}
           repoColors={repoColors ?? {}}
+          repoDisplayNames={repoDisplayNames ?? {}}
+          onSetRepoDisplayName={setRepoDisplayName}
         />
       </motion.div>
       <div className="flex-1 flex flex-col min-w-0">

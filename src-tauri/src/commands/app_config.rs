@@ -71,6 +71,18 @@ pub async fn set_display_name(app: AppHandle, name: Option<String>) -> Result<Gl
 }
 
 #[tauri::command]
+pub async fn set_repo_display_name(app: AppHandle, repo_path: String, name: Option<String>) -> Result<GlobalAppConfig, AppError> {
+    let dir = app_data_dir(&app)?;
+    let mut config = app_config_manager::load(&dir).await?;
+    match name {
+        Some(n) if !n.is_empty() => { config.repo_display_names.insert(repo_path, n); }
+        _ => { config.repo_display_names.remove(&repo_path); }
+    }
+    app_config_manager::save(&dir, &config).await?;
+    Ok(config)
+}
+
+#[tauri::command]
 pub async fn set_repo_color(app: AppHandle, repo_path: String, color: String) -> Result<GlobalAppConfig, AppError> {
     let dir = app_data_dir(&app)?;
     let mut config = app_config_manager::load(&dir).await?;

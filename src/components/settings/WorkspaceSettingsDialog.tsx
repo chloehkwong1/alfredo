@@ -29,6 +29,8 @@ interface WorkspaceSettingsDialogProps {
   repos: RepoEntry[];
   selectedRepos: string[];
   repoColors: Record<string, string>;
+  repoDisplayNames: Record<string, string>;
+  onSetRepoDisplayName?: (repoPath: string, name: string | null) => void;
   defaultRepoPath?: string;
 }
 
@@ -39,6 +41,8 @@ function WorkspaceSettingsDialog({
   repos,
   selectedRepos,
   repoColors,
+  repoDisplayNames,
+  onSetRepoDisplayName,
   defaultRepoPath,
 }: WorkspaceSettingsDialogProps) {
   const [tab, setTab] = useState<WorkspaceTab>("repository");
@@ -48,15 +52,18 @@ function WorkspaceSettingsDialog({
   const [currentRepoPath, setCurrentRepoPath] = useState(
     defaultRepoPath ?? repoPath,
   );
+  const [displayNameDraft, setDisplayNameDraft] = useState("");
   const prevOpenRef = useRef(false);
 
-  // Reset currentRepoPath when dialog opens
+  // Reset currentRepoPath and display name draft when dialog opens
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      setCurrentRepoPath(defaultRepoPath ?? repoPath);
+      const initPath = defaultRepoPath ?? repoPath;
+      setCurrentRepoPath(initPath);
+      setDisplayNameDraft(repoDisplayNames[initPath] ?? "");
     }
     prevOpenRef.current = open;
-  }, [open, defaultRepoPath, repoPath]);
+  }, [open, defaultRepoPath, repoPath, repoDisplayNames]);
 
   // Load config when dialog opens or currentRepoPath changes
   useEffect(() => {
@@ -93,8 +100,9 @@ function WorkspaceSettingsDialog({
         if (!discard) return;
       }
       setCurrentRepoPath(newPath);
+      setDisplayNameDraft(repoDisplayNames[newPath] ?? "");
     },
-    [currentRepoPath, dirty],
+    [currentRepoPath, dirty, repoDisplayNames],
   );
 
   const handleSave = useCallback(async () => {
@@ -102,6 +110,11 @@ function WorkspaceSettingsDialog({
     setSaving(true);
     try {
       await saveConfig(currentRepoPath, config);
+      const newName = displayNameDraft.trim() || null;
+      const oldName = repoDisplayNames[currentRepoPath] ?? null;
+      if (newName !== oldName) {
+        await onSetRepoDisplayName?.(currentRepoPath, newName);
+      }
       setDirty(false);
       window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
@@ -128,6 +141,7 @@ function WorkspaceSettingsDialog({
             repos={repos}
             selectedRepos={selectedRepos}
             repoColors={repoColors}
+            repoDisplayNames={repoDisplayNames}
             value={currentRepoPath}
             onChange={handleRepoChange}
           />
@@ -170,6 +184,26 @@ function WorkspaceSettingsDialog({
                       {config.repoPath && config.repoPath !== "." ? config.repoPath : "No repository configured"}
                     </span>
                   </div>
+                </div>
+
+                {/* Display Name */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-text-primary">
+                    Display Name
+                  </label>
+                  <p className="text-xs text-text-tertiary">
+                    A short name shown in the sidebar repo chips. Defaults to the directory name.
+                  </p>
+                  <input
+                    type="text"
+                    className="w-full rounded-[var(--radius-md)] border border-border-default bg-bg-primary px-3 h-8 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                    placeholder={currentRepoPath.split("/").filter(Boolean).pop() ?? ""}
+                    value={displayNameDraft}
+                    onChange={(e) => {
+                      setDisplayNameDraft(e.target.value);
+                      setDirty(true);
+                    }}
+                  />
                 </div>
 
                 {/* Worktree Base Path */}

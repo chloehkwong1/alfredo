@@ -39,16 +39,6 @@ function groupByColumn(
   return groups;
 }
 
-function repoNameFromPath(path: string): string {
-  const parts = path.split("/").filter(Boolean);
-  return parts[parts.length - 1] ?? path;
-}
-
-function formatWorkspaceName(name: string): string {
-  return name
-    .replace(/[_-]/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 interface SidebarProps {
   hasRepo: boolean;
@@ -61,8 +51,9 @@ interface SidebarProps {
   onRemoveRepo: (path: string) => void;
   activeRepoMode: "worktree" | "branch";
   onEnableWorktrees: () => void;
-  displayName?: string | null;
   repoColors?: Record<string, string>;
+  repoDisplayNames?: Record<string, string>;
+  onSetRepoDisplayName?: (repoPath: string, name: string | null) => void;
 }
 
 function Sidebar({
@@ -76,8 +67,9 @@ function Sidebar({
   onRemoveRepo,
   activeRepoMode,
   onEnableWorktrees,
-  displayName,
   repoColors,
+  repoDisplayNames,
+  onSetRepoDisplayName,
 }: SidebarProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
@@ -167,11 +159,6 @@ function Sidebar({
       <div className="flex items-center justify-between h-10 px-4 border-b border-border-subtle flex-shrink-0">
         <div className="flex items-center gap-3">
           <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
-          <span className="text-sm font-semibold tracking-[-0.3px] text-text-primary truncate">
-            {displayName || (effectiveSelectedRepos.length > 1
-              ? `${effectiveSelectedRepos.length} repos`
-              : activeRepo ? formatWorkspaceName(repoNameFromPath(activeRepo)) : "alfredo")}
-          </span>
         </div>
         <div className="flex items-center gap-2">
           <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
@@ -186,6 +173,7 @@ function Sidebar({
           repos={repos}
           selectedRepos={effectiveSelectedRepos}
           repoColors={effectiveRepoColors}
+          repoDisplayNames={repoDisplayNames ?? {}}
           onToggleRepo={onToggleRepo ?? (() => {})}
           onAddRepo={onAddRepo}
           onRemoveRepo={onRemoveRepo}
@@ -219,6 +207,7 @@ function Sidebar({
                     onArchiveWorktree={archiveWorktree}
                     forceVisible={isDragging}
                     repoColors={effectiveRepoColors}
+                    repoDisplayNames={repoDisplayNames}
                     showRepoTags={showRepoTags}
                     repoIndexMap={repoIndexMap}
                   />
@@ -268,6 +257,8 @@ function Sidebar({
         repos={repos}
         selectedRepos={effectiveSelectedRepos}
         repoColors={effectiveRepoColors}
+        repoDisplayNames={repoDisplayNames ?? {}}
+        onSetRepoDisplayName={onSetRepoDisplayName}
         defaultRepoPath={
           worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
           ?? effectiveSelectedRepos[0]

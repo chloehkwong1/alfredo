@@ -257,3 +257,7 @@ export async function setDisplayName(name: string | null): Promise<GlobalAppConf
 export async function setRepoColor(repoPath: string, color: string): Promise<GlobalAppConfig> {
   return invoke<GlobalAppConfig>("set_repo_color", { repoPath, color });
 }
+
+export async function setRepoDisplayName(repoPath: string, name: string | null): Promise<GlobalAppConfig> {
+  return invoke<GlobalAppConfig>("set_repo_display_name", { repoPath, name });
+}

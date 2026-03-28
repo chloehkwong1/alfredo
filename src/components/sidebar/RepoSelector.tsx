@@ -15,23 +15,35 @@ function getRepoColor(index: number) {
   return REPO_COLOR_PALETTE[index % REPO_COLOR_PALETTE.length];
 }
 
-function repoDisplayName(path: string): string {
+function repoDisplayName(path: string, displayNames?: Record<string, string>): string {
+  if (displayNames?.[path]) return displayNames[path];
   const parts = path.split("/").filter(Boolean);
   return parts[parts.length - 1] ?? path;
 }
 
-function repoAbbrev(path: string): string {
-  const name = repoDisplayName(path);
+function repoAbbrev(path: string, displayNames?: Record<string, string>): string {
+  const name = repoDisplayName(path, displayNames);
   if (name.length <= 14) return name;
   const words = name.split(/[_-]/);
   if (words.length <= 1) return name.slice(0, 12) + "…";
   return words[0] + "_" + words[words.length - 1];
 }
 
+/** Two-letter initials from the repo display name, e.g. "Florence Go" → "FG" */
+function repoInitials(path: string, displayNames?: Record<string, string>): string {
+  const name = repoDisplayName(path, displayNames);
+  const words = name.split(/[\s_-]+/).filter(Boolean);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
 interface RepoSelectorProps {
   repos: RepoEntry[];
   selectedRepos: string[];
   repoColors: Record<string, string>;
+  repoDisplayNames: Record<string, string>;
   onToggleRepo: (path: string) => void;
   onAddRepo: () => void;
   onRemoveRepo?: (path: string) => void;
@@ -42,6 +54,7 @@ function RepoSelector({
   repos,
   selectedRepos,
   repoColors,
+  repoDisplayNames,
   onToggleRepo,
   onAddRepo,
   onRemoveRepo: _onRemoveRepo,
@@ -81,7 +94,7 @@ function RepoSelector({
         <span className="flex gap-1 flex-1 flex-wrap items-center">
           {selectedRepos.length === 1 ? (
             <span className="text-xs text-text-secondary font-medium">
-              {repoDisplayName(selectedRepos[0])}
+              {repoDisplayName(selectedRepos[0], repoDisplayNames)}
             </span>
           ) : (
             selectedRepos.map((path) => {
@@ -92,7 +105,7 @@ function RepoSelector({
                   className="text-[11px] font-medium px-1.5 py-px rounded-[3px]"
                   style={{ background: color.bg, color: color.text }}
                 >
-                  {repoAbbrev(path)}
+                  {repoAbbrev(path, repoDisplayNames)}
                 </span>
               );
             })
@@ -138,7 +151,7 @@ function RepoSelector({
                   {isSelected ? "✓" : ""}
                 </span>
                 <span className="text-xs text-text-primary font-medium flex-1 truncate">
-                  {repoDisplayName(repo.path)}
+                  {repoDisplayName(repo.path, repoDisplayNames)}
                 </span>
                 <span className="text-2xs text-text-tertiary flex-shrink-0">
                   {count} worktree{count !== 1 ? "s" : ""}
@@ -160,4 +173,4 @@ function RepoSelector({
   );
 }
 
-export { RepoSelector, REPO_COLOR_PALETTE, getRepoColor, repoDisplayName, repoAbbrev };
+export { RepoSelector, REPO_COLOR_PALETTE, getRepoColor, repoDisplayName, repoAbbrev, repoInitials };

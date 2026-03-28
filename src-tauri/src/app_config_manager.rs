@@ -21,6 +21,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             selected_repos: vec![],
             display_name: None,
             repo_colors: std::collections::HashMap::new(),
+            repo_display_names: std::collections::HashMap::new(),
         });
     }
 
@@ -132,6 +133,7 @@ pub async fn migrate_if_needed(
         selected_repos: vec![repo_path],
         display_name: None,
         repo_colors: std::collections::HashMap::new(),
+        repo_display_names: std::collections::HashMap::new(),
     };
 
     save(app_data_dir, &global).await?;
@@ -165,6 +167,7 @@ mod tests {
             selected_repos: vec![],
             display_name: None,
             repo_colors: std::collections::HashMap::new(),
+            repo_display_names: std::collections::HashMap::new(),
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -186,6 +189,7 @@ mod tests {
             selected_repos: vec![],
             display_name: None,
             repo_colors: std::collections::HashMap::new(),
+            repo_display_names: std::collections::HashMap::new(),
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -204,6 +208,7 @@ mod tests {
             selected_repos: vec![],
             display_name: None,
             repo_colors: std::collections::HashMap::new(),
+            repo_display_names: std::collections::HashMap::new(),
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);

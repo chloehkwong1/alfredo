@@ -61,6 +61,7 @@ pub fn run() {
             app_config::set_selected_repos,
             app_config::set_display_name,
             app_config::set_repo_color,
+            app_config::set_repo_display_name,
             app_config::has_active_sessions,
             // PTY
             pty::spawn_pty,

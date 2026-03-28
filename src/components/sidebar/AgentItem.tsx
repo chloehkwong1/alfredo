@@ -64,6 +64,7 @@ interface AgentItemProps {
   onArchive?: (worktreeId: string) => void;
   repoPath?: string;
   repoColors?: Record<string, string>;
+  repoDisplayNames?: Record<string, string>;
   repoIndex?: number;
   showRepoTag?: boolean;
 }
@@ -100,7 +101,7 @@ function getStatusText(status: AgentState | string): string {
 
 function AgentItem({
   worktree, isSelected, onClick, onDelete, onArchive,
-  repoPath, repoColors, repoIndex = 0, showRepoTag = false,
+  repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
@@ -212,6 +213,7 @@ function AgentItem({
                     <RepoTag
                       repoPath={repoPath}
                       repoColors={repoColors}
+                      repoDisplayNames={repoDisplayNames}
                       repoIndex={repoIndex}
                       visible={showRepoTag}
                     />

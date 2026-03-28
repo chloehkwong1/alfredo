@@ -296,6 +296,8 @@ pub struct GlobalAppConfig {
     pub display_name: Option<String>,
     #[serde(default)]
     pub repo_colors: HashMap<String, String>,
+    #[serde(default)]
+    pub repo_display_names: HashMap<String, String>,
 }
 
 // ── Linear ──────────────────────────────────────────────────────

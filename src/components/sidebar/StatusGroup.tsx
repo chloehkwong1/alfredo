@@ -22,6 +22,7 @@ interface StatusGroupProps {
   onArchiveWorktree?: (id: string) => void;
   forceVisible?: boolean;
   repoColors?: Record<string, string>;
+  repoDisplayNames?: Record<string, string>;
   showRepoTags?: boolean;
   repoIndexMap?: Record<string, number>;
 }
@@ -51,6 +52,7 @@ function StatusGroup({
   onArchiveWorktree,
   forceVisible,
   repoColors,
+  repoDisplayNames,
   showRepoTags,
   repoIndexMap,
 }: StatusGroupProps) {
@@ -122,6 +124,7 @@ function StatusGroup({
                 onArchive={onArchiveWorktree}
                 repoPath={wt.repoPath}
                 repoColors={repoColors}
+                repoDisplayNames={repoDisplayNames}
                 repoIndex={repoIndexMap?.[wt.repoPath ?? ""] ?? 0}
                 showRepoTag={showRepoTags ?? false}
               />

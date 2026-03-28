@@ -289,6 +289,7 @@ export interface GlobalAppConfig {
   selectedRepos: string[];
   displayName: string | null;
   repoColors: Record<string, string>;
+  repoDisplayNames: Record<string, string>;
 }
 
 // ── Inline annotation ────────────────────────────────────────────

@@ -76,6 +76,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
           selectedRepos: [],
           displayName: null,
           repoColors: {},
+          repoDisplayNames: {},
         });
       });
     getConfig(".")

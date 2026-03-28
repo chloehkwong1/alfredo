@@ -8,6 +8,7 @@ import {
   validateGitRepo,
   setSelectedRepos as setSelectedReposApi,
   setDisplayName as setDisplayNameApi,
+  setRepoDisplayName as setRepoDisplayNameApi,
 } from "../api";
 import type { GlobalAppConfig, RepoMode } from "../types";
 
@@ -104,6 +105,11 @@ export function useAppConfig() {
     setConfig(updated);
   }, []);
 
+  const setRepoDisplayName = useCallback(async (repoPath: string, name: string | null) => {
+    const updated = await setRepoDisplayNameApi(repoPath, name);
+    setConfig(updated);
+  }, []);
+
   return {
     config,
     loading,
@@ -119,7 +125,9 @@ export function useAppConfig() {
     selectedRepos: config?.selectedRepos ?? [],
     displayName: config?.displayName ?? null,
     repoColors: config?.repoColors ?? {},
+    repoDisplayNames: config?.repoDisplayNames ?? {},
     toggleRepo,
     setWorkspaceName,
+    setRepoDisplayName,
   } as const;
 }
