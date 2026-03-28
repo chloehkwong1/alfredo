@@ -5,7 +5,6 @@ import {
   Terminal,
   Sparkles,
   GitCompareArrows,
-  GitPullRequest,
   Play,
   Square,
   PanelRight,
@@ -50,7 +49,6 @@ const TAB_ICONS: Record<TabType, typeof Terminal> = {
   shell: Terminal,
   server: Play,
   changes: GitCompareArrows,
-  pr: GitPullRequest,
 };
 
 interface PaneTabBarProps {
@@ -302,9 +300,6 @@ function PaneTabBar({
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
             <Terminal size={14} /> New terminal tab
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => handleAddTab("pr")}>
-            <GitPullRequest size={14} /> PR & Checks
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

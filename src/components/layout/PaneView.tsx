@@ -1,7 +1,6 @@
 import { PaneTabBar } from "./PaneTabBar";
 import { TerminalView } from "../terminal";
 import { ChangesView } from "../changes/ChangesView";
-import { PrDetailPanel } from "../pr/PrDetailPanel";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import type { WorkspaceTab } from "../../types";
@@ -51,10 +50,7 @@ function PaneView({
             tabType={activeTab.type}
           />
         )}
-        {activeTab?.type === "pr" && worktree && (
-          <PrDetailPanel worktree={worktree} repoPath={worktree.path} />
-        )}
-        {activeTab?.type === "changes" && (
+{activeTab?.type === "changes" && (
           <ChangesView
             worktreeId={worktreeId}
             repoPath={worktree?.path ?? "."}
