@@ -312,10 +312,6 @@ pub async fn get_commits(repo_path: String) -> Result<Vec<CommitInfo>> {
             .target()
             .ok_or_else(|| AppError::Git("HEAD has no target".into()))?;
 
-        let _merge_base = repo
-            .merge_base(default_oid, head_oid)
-            .map_err(|e| AppError::Git(format!("failed to find merge base: {e}")))?;
-
         let mut revwalk = repo
             .revwalk()
             .map_err(|e| AppError::Git(format!("revwalk failed: {e}")))?;

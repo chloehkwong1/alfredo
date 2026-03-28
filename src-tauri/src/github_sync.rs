@@ -238,7 +238,7 @@ async fn poll_repo(
         }
 
         // 3. Check runs using head_sha for precise results.
-        if let Some(ref sha) = pr_with_col.head_sha.clone() {
+        if let Some(ref sha) = pr_with_col.head_sha {
             if let Ok(check_runs) = manager.get_check_runs(&owner, &repo, sha).await {
                 let failing = check_runs.iter().filter(|cr| {
                     matches!(
