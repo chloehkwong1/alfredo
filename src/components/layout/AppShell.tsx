@@ -13,7 +13,8 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath, getConfig } from "../../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath, getConfig, setRepoColor as setRepoColorApi } from "../../api";
+import { REPO_COLOR_PALETTE } from "../sidebar/RepoSelector";
 import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import { lifecycleManager } from "../../services/lifecycleManager";
@@ -67,6 +68,10 @@ function AppShell() {
     removeRepo,
     switchRepo,
     updateRepoMode,
+    selectedRepos,
+    displayName,
+    repoColors,
+    toggleRepo,
   } = useAppConfig();
 
   const setWorktrees = useWorkspaceStore((s) => s.setWorktrees);
@@ -107,8 +112,14 @@ function AppShell() {
       setAddRepoModalOpen(false);
       setSetupRepoPath(path);
       setSetupDialogOpen(true);
+      if (!repoColors?.[path]) {
+        const usedColors = Object.values(repoColors ?? {});
+        const available = REPO_COLOR_PALETTE.find((c) => !usedColors.includes(c.id));
+        const colorId = available?.id ?? REPO_COLOR_PALETTE[repos.length % REPO_COLOR_PALETTE.length].id;
+        await setRepoColorApi(path, colorId);
+      }
     }
-  }, [addRepo]);
+  }, [addRepo, repoColors, repos]);
 
   // When repo setup is configured
   const handleRepoConfigured = useCallback(async (mode: "worktree" | "branch") => {
@@ -515,6 +526,10 @@ function AppShell() {
               setSetupDialogOpen(true);
             }
           }}
+          selectedRepos={selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : [])}
+          onToggleRepo={toggleRepo}
+          displayName={displayName}
+          repoColors={repoColors ?? {}}
         />
       </motion.div>
       <div className="flex-1 flex flex-col min-w-0">
