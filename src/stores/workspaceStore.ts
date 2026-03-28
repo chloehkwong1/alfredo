@@ -318,9 +318,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const hasShell = existing.some((t) => t.type === "shell");
     const hasChanges = existing.some((t) => t.type === "changes");
 
-    if (hasClaude && hasShell && hasChanges) return; // already has required tabs
+    // Remove stale "pr" tabs from before the redesign
+    const validTypes = new Set(["claude", "shell", "server", "changes"]);
+    const cleaned = existing.filter((t) => validTypes.has(t.type));
+    const hadStale = cleaned.length !== existing.length;
 
-    const tabs = [...existing];
+    if (hasClaude && hasShell && hasChanges && !hadStale) return;
+
+    const tabs = [...cleaned];
     let claudeTabId = state.activeTabId[worktreeId];
 
     if (!hasClaude) {

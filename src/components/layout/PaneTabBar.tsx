@@ -241,7 +241,7 @@ function PaneTabBar({
 
   const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
 
-  const terminalTabs = paneTabs.filter((t) => t.type !== "changes");
+  const terminalTabs = paneTabs.filter((t) => t.type !== "changes" && t.type in TAB_ICONS);
   const changesTab = paneTabs.find((t) => t.type === "changes") ?? null;
   const terminalTabIds = terminalTabs.map((t) => t.id);
 
@@ -282,7 +282,7 @@ function PaneTabBar({
         </SortableContext>
 
         <DragOverlay>
-          {draggedTab ? (
+          {draggedTab && draggedTab.type in TAB_ICONS ? (
             <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
               {(() => { const Icon = TAB_ICONS[draggedTab.type]; return <Icon size={14} />; })()}
               <span>{draggedTab.label}</span>
