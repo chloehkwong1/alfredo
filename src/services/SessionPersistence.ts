@@ -1,5 +1,5 @@
 import { saveSessionFile, loadSessionFile, deleteSessionFile } from "../api";
-import type { WorkspaceTab, LayoutNode, Pane } from "../types";
+import type { WorkspaceTab, LayoutNode, Pane, KanbanColumn } from "../types";
 
 export interface SessionData {
   tabs: WorkspaceTab[];
@@ -12,6 +12,8 @@ export interface SessionData {
   panes?: Record<string, Pane>;
   /** Active pane ID (added in split-view feature). */
   activePaneId?: string;
+  /** Last-known kanban column so worktrees render in the correct group on restore. */
+  column?: KanbanColumn;
 }
 
 export async function saveSession(
@@ -51,6 +53,7 @@ export async function saveAllSessions(
   getLayout?: (worktreeId: string) => LayoutNode | undefined,
   getPanes?: (worktreeId: string) => Record<string, Pane> | undefined,
   getActivePaneId?: (worktreeId: string) => string | undefined,
+  getColumn?: (worktreeId: string) => KanbanColumn | undefined,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
     const tabs = getTabs(wtId).filter((t) => t.type !== "server");
@@ -86,6 +89,7 @@ export async function saveAllSessions(
       layout: getLayout?.(wtId),
       panes,
       activePaneId: getActivePaneId?.(wtId),
+      column: getColumn?.(wtId),
     };
     return saveSession(repoPath, wtId, data);
   });

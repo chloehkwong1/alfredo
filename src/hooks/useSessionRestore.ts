@@ -46,6 +46,12 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
             for (const wt of wts) {
               const session = await loadSession(repo, wt.id);
               if (session) {
+                // Restore saved column before any rendering so worktrees
+                // appear in the correct kanban group immediately.
+                if (session.column) {
+                  updateWorktree(wt.id, { column: session.column });
+                }
+
                 restoreTabs(wt.id, session.tabs, session.activeTabId);
 
                 const sessionLayout = session.layout;

@@ -40,6 +40,7 @@ function collectAndSaveAllSessions(repoPath: string) {
     (wtId) => useLayoutStore.getState().layout[wtId],
     (wtId) => useLayoutStore.getState().panes[wtId],
     (wtId) => useLayoutStore.getState().activePaneId[wtId],
+    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.column,
   );
 }
 
