@@ -27,7 +27,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .manage(PtyManager::new())
         .manage(SyncState {
-            repo_path: std::sync::Mutex::new(None),
+            repo_paths: std::sync::Mutex::new(Vec::new()),
         })
         .setup(|app| {
             // Migrate legacy single-repo config to app.json
@@ -82,7 +82,7 @@ pub fn run() {
             checks::get_check_runs,
             checks::rerun_failed_checks,
             checks::get_workflow_log,
-            github_sync::set_sync_repo_path,
+            github_sync::set_sync_repo_paths,
             // PR Detail
             pr_detail::get_pr_detail,
             // GitHub Auth

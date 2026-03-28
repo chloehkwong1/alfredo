@@ -224,6 +224,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             name: name.to_string(),
             path: wt_path.to_string_lossy().to_string(),
             branch,
+            repo_path: repo_path.to_string(),
             pr_status: None,
             agent_status: AgentState::NotRunning,
             column: KanbanColumn::InProgress,

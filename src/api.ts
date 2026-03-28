@@ -6,16 +6,12 @@ import type {
   DiffFile,
   GlobalAppConfig,
   KanbanColumn,
-  LinearTeam,
   LinearTicket,
   PrDetailedStatus,
   PrStatus,
   PtyEvent,
   RepoMode,
-  Session,
-  SetupScript,
   Worktree,
-  WorkflowRunLog,
   WorktreeSource,
 } from "./types";
 
@@ -46,10 +42,6 @@ export function resizePty(
 
 export function closePty(sessionId: string): Promise<void> {
   return invoke("close_pty", { sessionId });
-}
-
-export function listSessions(): Promise<Session[]> {
-  return invoke("list_sessions");
 }
 
 /** Helper: create a Channel for PTY events with a callback. */
@@ -96,13 +88,6 @@ export function getWorktreeDiffStats(
   return invoke("get_worktree_diff_stats", { worktreePath });
 }
 
-export function getWorktreeStatus(
-  repoPath: string,
-  worktreeName: string,
-): Promise<Worktree> {
-  return invoke("get_worktree_status", { repoPath, worktreeName });
-}
-
 export function setWorktreeColumn(
   repoPath: string,
   worktreeName: string,
@@ -121,40 +106,10 @@ export function getActiveBranch(repoPath: string): Promise<string | null> {
   return invoke("get_active_branch", { repoPath });
 }
 
-export function createBranch(
-  repoPath: string,
-  branchName: string,
-  baseBranch: string,
-): Promise<Worktree> {
-  return invoke("create_branch", { repoPath, branchName, baseBranch });
-}
-
-export function switchBranch(
-  repoPath: string,
-  branchName: string,
-): Promise<void> {
-  return invoke("switch_branch", { repoPath, branchName });
-}
-
-export function deleteBranch(
-  repoPath: string,
-  branchName: string,
-): Promise<void> {
-  return invoke("delete_branch", { repoPath, branchName });
-}
-
 // ── GitHub ──────────────────────────────────────────────────────
 
 export function syncPrStatus(repoPath: string): Promise<PrStatus[]> {
   return invoke("sync_pr_status", { repoPath });
-}
-
-export function getPrForBranch(
-  owner: string,
-  repo: string,
-  branch: string,
-): Promise<PrStatus | null> {
-  return invoke("get_pr_for_branch", { owner, repo, branch });
 }
 
 // ── GitHub Auth ─────────────────────────────────────────────────
@@ -173,14 +128,10 @@ export function githubAuthToken(): Promise<string> {
   return invoke("github_auth_token");
 }
 
-export function githubAuthDisconnect(repoPath: string): Promise<void> {
-  return invoke("github_auth_disconnect", { repoPath });
-}
-
 // ── GitHub Sync ─────────────────────────────────────────────────
 
-export function setSyncRepoPath(repoPath: string): Promise<void> {
-  return invoke("set_sync_repo_path", { repoPath });
+export function setSyncRepoPaths(repoPaths: string[]): Promise<void> {
+  return invoke("set_sync_repo_paths", { repoPaths });
 }
 
 // ── Config ──────────────────────────────────────────────────────
@@ -196,13 +147,6 @@ export function saveConfig(
   return invoke("save_config", { repoPath, config });
 }
 
-export function runSetupScripts(
-  worktreePath: string,
-  scripts: SetupScript[],
-): Promise<void> {
-  return invoke("run_setup_scripts", { worktreePath, scripts });
-}
-
 // ── Linear ──────────────────────────────────────────────────────
 
 export function searchLinearIssues(
@@ -210,14 +154,6 @@ export function searchLinearIssues(
   teamId?: string,
 ): Promise<LinearTicket[]> {
   return invoke("search_linear_issues", { query, teamId: teamId ?? null });
-}
-
-export function getLinearIssue(issueId: string): Promise<LinearTicket> {
-  return invoke("get_linear_issue", { issueId });
-}
-
-export function listLinearTeams(): Promise<LinearTeam[]> {
-  return invoke("list_linear_teams");
 }
 
 // ── Diff ───────────────────────────────────────────────────────
@@ -258,20 +194,6 @@ export function getPrDetail(
   prNumber: number,
 ): Promise<PrDetailedStatus> {
   return invoke("get_pr_detail", { repoPath, prNumber });
-}
-
-export function rerunFailedChecks(
-  repoPath: string,
-  checkSuiteId: number,
-): Promise<void> {
-  return invoke("rerun_failed_checks", { repoPath, checkSuiteId });
-}
-
-export function getWorkflowLog(
-  repoPath: string,
-  checkSuiteId: number,
-): Promise<WorkflowRunLog[]> {
-  return invoke("get_workflow_log", { repoPath, checkSuiteId });
 }
 
 // ── Session Persistence ──────────────────────────────────────────────────────
@@ -322,10 +244,6 @@ export function removeRepo(path: string): Promise<GlobalAppConfig> {
 
 export function setActiveRepo(path: string): Promise<void> {
   return invoke("set_active_repo", { path });
-}
-
-export function hasActiveSessions(repoPath: string): Promise<boolean> {
-  return invoke("has_active_sessions", { repoPath });
 }
 
 export async function setSelectedRepos(paths: string[]): Promise<GlobalAppConfig> {

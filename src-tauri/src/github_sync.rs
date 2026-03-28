@@ -37,10 +37,12 @@ pub struct PrStatusWithColumn {
     pub review_decision: Option<String>,
     /// Whether the PR is mergeable per GitHub's assessment.
     pub mergeable: Option<bool>,
+    /// The repo path this PR belongs to, for multi-repo disambiguation.
+    pub repo_path: String,
 }
 
-impl From<&PrStatus> for PrStatusWithColumn {
-    fn from(pr: &PrStatus) -> Self {
+impl PrStatusWithColumn {
+    fn from_pr(pr: &PrStatus, repo_path: &str) -> Self {
         let column = determine_column(Some(pr));
         Self {
             number: pr.number,
@@ -60,6 +62,7 @@ impl From<&PrStatus> for PrStatusWithColumn {
             unresolved_comment_count: None,
             review_decision: None,
             mergeable: None,
+            repo_path: repo_path.to_string(),
         }
     }
 }
@@ -85,55 +88,82 @@ pub fn start_sync_loop(app_handle: AppHandle) {
     });
 }
 
-/// Resolve the repo path from managed state or a well-known location.
-/// For now, we read it from the config by checking the first worktree's parent.
-/// The app stores the repo path when the user opens a project.
-fn get_repo_path(app_handle: &AppHandle) -> Option<String> {
-    // The repo path is stored in Tauri managed state if set
-    let state = app_handle.try_state::<SyncState>()?;
-    let path = state.repo_path.lock().ok()?;
-    path.clone()
+/// Resolve the repo paths from managed state.
+fn get_repo_paths(app_handle: &AppHandle) -> Vec<String> {
+    let Some(state) = app_handle.try_state::<SyncState>() else {
+        return Vec::new();
+    };
+    let Ok(paths) = state.repo_paths.lock() else {
+        return Vec::new();
+    };
+    paths.clone()
 }
 
-/// Managed state to hold the current repo path for the sync loop.
+/// Managed state to hold the repo paths for the sync loop.
 pub struct SyncState {
-    pub repo_path: std::sync::Mutex<Option<String>>,
+    pub repo_paths: std::sync::Mutex<Vec<String>>,
 }
 
-/// Set the repo path so the sync loop knows what to poll.
+/// Set the repo paths so the sync loop knows what to poll.
 /// Also triggers an immediate poll so worktrees get correct PR status on startup
 /// without waiting for the next 30-second tick.
 #[tauri::command]
-pub async fn set_sync_repo_path(
+pub async fn set_sync_repo_paths(
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, SyncState>,
-    repo_path: String,
+    repo_paths: Vec<String>,
 ) -> Result<(), String> {
     {
-        let mut path = state.repo_path.lock().map_err(|e| e.to_string())?;
-        *path = Some(repo_path);
+        let mut paths = state.repo_paths.lock().map_err(|e| e.to_string())?;
+        *paths = repo_paths;
     }
     // Fire an immediate poll so the frontend doesn't wait 30s for PR status
     if let Err(e) = poll_once(&app_handle).await {
-        eprintln!("[github_sync] immediate poll after set_sync_repo_path: {e}");
+        eprintln!("[github_sync] immediate poll after set_sync_repo_paths: {e}");
     }
     Ok(())
 }
 
-/// Single poll iteration: fetch PRs and emit event.
+/// Single poll iteration: fetch PRs for all repos and emit event.
 async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
-    let repo_path = match get_repo_path(app_handle) {
-        Some(p) => p,
-        None => return Ok(()), // No repo configured yet — silently skip
-    };
+    let repo_paths = get_repo_paths(app_handle);
+    if repo_paths.is_empty() {
+        return Ok(()); // No repos configured yet — silently skip
+    }
 
-    let config = config_manager::load_config(&repo_path)
+    let mut all_prs: Vec<PrStatusWithColumn> = Vec::new();
+
+    for repo_path in &repo_paths {
+        match poll_repo(app_handle, repo_path).await {
+            Ok(prs) => all_prs.extend(prs),
+            Err(e) => {
+                eprintln!("[github_sync] error syncing {repo_path}: {e}");
+                // Continue with other repos
+            }
+        }
+    }
+
+    if !all_prs.is_empty() {
+        app_handle
+            .emit("github:pr-update", &PrUpdatePayload { prs: all_prs })
+            .map_err(|e| format!("failed to emit event: {e}"))?;
+    }
+
+    Ok(())
+}
+
+/// Fetch and enrich PRs for a single repo. Returns the enriched PR list.
+async fn poll_repo(
+    app_handle: &AppHandle,
+    repo_path: &str,
+) -> Result<Vec<PrStatusWithColumn>, String> {
+    let config = config_manager::load_config(repo_path)
         .await
         .map_err(|e| format!("{e}"))?;
 
     let token = match crate::github_manager::resolve_token(config.github_token.as_deref()).await {
         Ok(t) => t,
-        Err(_) => return Ok(()), // No token available — silently skip
+        Err(_) => return Ok(Vec::new()), // No token available — silently skip
     };
 
     let manager = GithubManager::new(&token).map_err(|e| format!("{e}"))?;
@@ -141,7 +171,7 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
     // Resolve owner/repo from git remote
     let output = tokio::process::Command::new("git")
         .args(["remote", "get-url", "origin"])
-        .current_dir(&repo_path)
+        .current_dir(repo_path)
         .output()
         .await
         .map_err(|e| format!("failed to get remote URL: {e}"))?;
@@ -160,7 +190,8 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
         .map_err(|e| format!("{e}"))?;
 
     // Build the initial payload from PrStatus, then enrich open PRs with summary data.
-    let mut payload_prs: Vec<PrStatusWithColumn> = prs.iter().map(PrStatusWithColumn::from).collect();
+    let mut payload_prs: Vec<PrStatusWithColumn> =
+        prs.iter().map(|pr| PrStatusWithColumn::from_pr(pr, repo_path)).collect();
 
     // Phase 1: Emit basic PR data immediately so worktrees move to the correct
     // kanban column without waiting for the per-PR enrichment API calls.
@@ -170,12 +201,6 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
     let _ = app_handle.emit("github:pr-update", &early_payload);
 
     // Phase 2: Enrich non-merged PRs with sidebar indicator data (best-effort).
-    // API budget per PR: 3 calls.
-    //   1. GET /repos/{owner}/{repo}/pulls/{number}  — mergeable field
-    //   2. GET /repos/{owner}/{repo}/pulls/{number}/reviews — review decision
-    //   3. GET /repos/{owner}/{repo}/checks/runs/{sha} — failing check count
-    // Line comments are skipped; unresolved_comment_count is omitted for now
-    // because the REST API cannot report resolved status anyway (would need GraphQL).
     for pr_with_col in payload_prs.iter_mut() {
         if pr_with_col.merged {
             continue;
@@ -226,15 +251,7 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
         }
     }
 
-    let payload = PrUpdatePayload {
-        prs: payload_prs,
-    };
-
-    app_handle
-        .emit("github:pr-update", &payload)
-        .map_err(|e| format!("failed to emit event: {e}"))?;
-
-    Ok(())
+    Ok(payload_prs)
 }
 
 #[cfg(test)]
@@ -255,7 +272,7 @@ mod tests {
             merged_at: None,
             head_sha: None,
         };
-        let with_col = PrStatusWithColumn::from(&pr);
+        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
         assert_eq!(with_col.auto_column, "draftPr");
     }
 
@@ -272,7 +289,7 @@ mod tests {
             merged_at: None,
             head_sha: None,
         };
-        let with_col = PrStatusWithColumn::from(&pr);
+        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
         assert_eq!(with_col.auto_column, "openPr");
     }
 
@@ -289,7 +306,7 @@ mod tests {
             merged_at: None,
             head_sha: None,
         };
-        let with_col = PrStatusWithColumn::from(&pr);
+        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
         assert_eq!(with_col.auto_column, "done");
     }
 }

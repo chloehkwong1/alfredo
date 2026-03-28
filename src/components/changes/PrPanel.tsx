@@ -50,7 +50,7 @@ export function PrPanel({
   async function fetchData() {
     try {
       const [runs, detail] = await Promise.all([
-        getCheckRuns(repoPath, pr.branch),
+        getCheckRuns(repoPath, pr.headSha ?? pr.branch),
         getPrDetail(repoPath, pr.number),
       ]);
       setCheckRuns(worktreeId, runs);

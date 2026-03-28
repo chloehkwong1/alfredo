@@ -13,7 +13,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPath, getConfig, setRepoColor as setRepoColorApi } from "../../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, getConfig, setRepoColor as setRepoColorApi } from "../../api";
 import { REPO_COLOR_PALETTE } from "../sidebar/RepoSelector";
 import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
@@ -54,8 +54,6 @@ function AppShell() {
   const tabs = activeWorktreeId ? (allTabs[activeWorktreeId] ?? EMPTY_TABS) : EMPTY_TABS;
   const activeTabIdValue = activeWorktreeId ? allActiveTabIds[activeWorktreeId] : undefined;
   const annotations = useWorkspaceStore((s) => s.annotations);
-  const clearStore = useWorkspaceStore((s) => s.clearStore);
-
   useDensity();
 
   const {
@@ -74,7 +72,8 @@ function AppShell() {
     toggleRepo,
   } = useAppConfig();
 
-  const setWorktrees = useWorkspaceStore((s) => s.setWorktrees);
+  const setWorktreesForRepo = useWorkspaceStore((s) => s.setWorktreesForRepo);
+  const clearWorktreesForRepo = useWorkspaceStore((s) => s.clearWorktreesForRepo);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
   const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
@@ -91,19 +90,18 @@ function AppShell() {
 
   const hasWorktrees = worktrees.length > 0;
 
-  // Repo switching handler — save sessions, clear store, switch
+  // Repo switching handler — save sessions, switch active repo (worktrees persist)
   const handleSwitchRepo = useCallback(async (path: string) => {
     setSwitching(true);
     try {
       if (repoPath && hasWorktrees) {
         await collectAndSaveAllSessions(repoPath);
       }
-      clearStore();
       await switchRepo(path);
     } finally {
       setSwitching(false);
     }
-  }, [repoPath, hasWorktrees, switchRepo, clearStore]);
+  }, [repoPath, hasWorktrees, switchRepo]);
 
   // When a new repo is selected (from welcome screen or add modal)
   const handleRepoSelected = useCallback(async (path: string) => {
@@ -140,87 +138,104 @@ function AppShell() {
     setRemoveRepoPath(null);
   }, [removeRepoPath, removeRepo]);
 
-  // Load worktrees from git when repo path is available
+  // Load worktrees from all selected repos
+  const selectedReposKey = selectedRepos.join(",");
   useEffect(() => {
     if (!repoPath) return;
-    setSyncRepoPath(repoPath).catch(() => {});
-    listWorktrees(repoPath).then(async (wts) => {
-      if (wts.length > 0) {
-        // Show sidebar immediately (diff stats load in background)
-        setWorktrees(wts);
-        // Only set up .alfredo once worktrees exist (don't modify repo during onboarding)
-        ensureAlfredoGitignore(repoPath).catch(() => {});
+    const reposToSync = selectedRepos.length > 0 ? selectedRepos : [repoPath];
+    setSyncRepoPaths(reposToSync).catch(e => console.warn('[AppShell] Failed to sync repo paths:', e));
 
-        // Restore saved sessions for each worktree (only once per app lifecycle).
-        // The auto-save timer writes session files every 30s, so re-running
-        // this would incorrectly mark active sessions as disconnected.
-        if (!hasRestoredSessions.current) {
-          hasRestoredSessions.current = true;
-          for (const wt of wts) {
-            const session = await loadSession(repoPath, wt.id);
-            if (session) {
-              restoreTabs(wt.id, session.tabs, session.activeTabId);
+    const reposToLoad = selectedRepos.length > 0 ? selectedRepos : [repoPath];
 
-              // Restore layout state if persisted, otherwise init from tabs
-              const sessionLayout = session.layout;
-              const sessionPanes = session.panes;
-              const sessionActivePaneId = session.activePaneId;
-              if (sessionLayout && sessionPanes) {
-                useLayoutStore.getState().restoreLayout(
-                  wt.id, sessionLayout, sessionPanes, sessionActivePaneId ?? Object.keys(sessionPanes)[0],
-                );
-              } else {
-                const tabIds = session.tabs.map((t) => t.id);
-                useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
-              }
+    // Clean up worktrees for repos that were deselected
+    const currentWorktrees = useWorkspaceStore.getState().worktrees;
+    const loadedRepoPaths = new Set(currentWorktrees.map((wt) => wt.repoPath));
+    const reposToLoadSet = new Set(reposToLoad);
+    for (const loadedRepo of loadedRepoPaths) {
+      if (!reposToLoadSet.has(loadedRepo)) {
+        clearWorktreesForRepo(loadedRepo);
+      }
+    }
 
-              // Auto-resume Claude sessions with --continue (no scrollback replay).
-              // The session spawns headless now; TerminalView attaches the DOM later.
-              for (const tab of session.tabs) {
-                if (tab.type === "claude" && !sessionManager.getSession(tab.id)) {
-                  try {
-                    await sessionManager.getOrSpawn(
-                      tab.id, wt.id, wt.path, "claude", undefined, ["--continue"],
-                    );
-                  } catch (err) {
-                    console.warn(`[session-restore] Failed to resume session ${tab.id}:`, err);
+    for (const repo of reposToLoad) {
+      listWorktrees(repo).then(async (wts) => {
+        if (wts.length > 0) {
+          // Show sidebar immediately (diff stats load in background)
+          setWorktreesForRepo(repo, wts);
+          // Only set up .alfredo once worktrees exist (don't modify repo during onboarding)
+          ensureAlfredoGitignore(repo).catch(e => console.warn('[AppShell] Failed to ensure .alfredo gitignore:', e));
+
+          // Restore saved sessions for each worktree (only once per app lifecycle).
+          // The auto-save timer writes session files every 30s, so re-running
+          // this would incorrectly mark active sessions as disconnected.
+          if (!hasRestoredSessions.current) {
+            hasRestoredSessions.current = true;
+            for (const wt of wts) {
+              const session = await loadSession(repo, wt.id);
+              if (session) {
+                restoreTabs(wt.id, session.tabs, session.activeTabId);
+
+                // Restore layout state if persisted, otherwise init from tabs
+                const sessionLayout = session.layout;
+                const sessionPanes = session.panes;
+                const sessionActivePaneId = session.activePaneId;
+                if (sessionLayout && sessionPanes) {
+                  useLayoutStore.getState().restoreLayout(
+                    wt.id, sessionLayout, sessionPanes, sessionActivePaneId ?? Object.keys(sessionPanes)[0],
+                  );
+                } else {
+                  const tabIds = session.tabs.map((t) => t.id);
+                  useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
+                }
+
+                // Auto-resume Claude sessions with --continue (no scrollback replay).
+                // The session spawns headless now; TerminalView attaches the DOM later.
+                for (const tab of session.tabs) {
+                  if (tab.type === "claude" && !sessionManager.getSession(tab.id)) {
+                    try {
+                      await sessionManager.getOrSpawn(
+                        tab.id, wt.id, wt.path, "claude", undefined, ["--continue"],
+                      );
+                    } catch (err) {
+                      console.warn(`[session-restore] Failed to resume session ${tab.id}:`, err);
+                    }
                   }
                 }
               }
             }
-          }
 
-          // Ensure every worktree has default tabs (claude, shell, changes)
-          // — sessions may lack them, and existing worktrees loaded from git
-          // never go through CreateWorktreeDialog which normally calls this.
-          for (const wt of wts) {
-            ensureDefaultTabs(wt.id);
-          }
+            // Ensure every worktree has default tabs (claude, shell, changes)
+            // — sessions may lack them, and existing worktrees loaded from git
+            // never go through CreateWorktreeDialog which normally calls this.
+            for (const wt of wts) {
+              ensureDefaultTabs(wt.id);
+            }
 
-          // Init layout for worktrees without persisted sessions
-          for (const wt of wts) {
-            if (!useLayoutStore.getState().layout[wt.id]) {
-              const wtTabs = useWorkspaceStore.getState().tabs[wt.id] ?? [];
-              const wtActiveTabId = useWorkspaceStore.getState().activeTabId[wt.id] ?? "";
-              useLayoutStore.getState().initLayout(wt.id, wtTabs.map((t) => t.id), wtActiveTabId);
+            // Init layout for worktrees without persisted sessions
+            for (const wt of wts) {
+              if (!useLayoutStore.getState().layout[wt.id]) {
+                const wtTabs = useWorkspaceStore.getState().tabs[wt.id] ?? [];
+                const wtActiveTabId = useWorkspaceStore.getState().activeTabId[wt.id] ?? "";
+                useLayoutStore.getState().initLayout(wt.id, wtTabs.map((t) => t.id), wtActiveTabId);
+              }
             }
           }
-        }
 
-        // Background: load diff stats per worktree (non-blocking), skip "done" worktrees
-        for (const wt of wts) {
-          if (wt.column === "done") continue;
-          getWorktreeDiffStats(wt.path)
-            .then(([additions, deletions]) => {
-              updateWorktree(wt.id, { additions, deletions });
-            })
-            .catch(() => {}); // Worktree path may not exist
+          // Background: load diff stats per worktree (non-blocking), skip "done" worktrees
+          for (const wt of wts) {
+            if (wt.column === "done") continue;
+            getWorktreeDiffStats(wt.path)
+              .then(([additions, deletions]) => {
+                updateWorktree(wt.id, { additions, deletions });
+              })
+              .catch(e => console.warn(`[AppShell] Failed to load diff stats for ${wt.path}:`, e));
+          }
         }
-      }
-    }).catch(() => {
-      // Silently ignore — user may not have worktrees yet
-    });
-  }, [repoPath, setWorktrees, updateWorktree, restoreTabs, ensureDefaultTabs]);
+      }).catch(e => {
+        console.warn(`[AppShell] Failed to list worktrees for ${repo}:`, e);
+      });
+    }
+  }, [repoPath, selectedReposKey, setWorktreesForRepo, clearWorktreesForRepo, updateWorktree, restoreTabs, ensureDefaultTabs]);
 
   // Sync layout when active worktree changes or tabs are added
   useEffect(() => {

@@ -168,7 +168,9 @@ function Sidebar({
         <div className="flex items-center gap-3">
           <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
           <span className="text-sm font-semibold tracking-[-0.3px] text-text-primary truncate">
-            {displayName || (activeRepo ? formatWorkspaceName(repoNameFromPath(activeRepo)) : "alfredo")}
+            {displayName || (effectiveSelectedRepos.length > 1
+              ? `${effectiveSelectedRepos.length} repos`
+              : activeRepo ? formatWorkspaceName(repoNameFromPath(activeRepo)) : "alfredo")}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -188,7 +190,7 @@ function Sidebar({
           onAddRepo={onAddRepo}
           onRemoveRepo={onRemoveRepo}
           worktreeCountByRepo={Object.fromEntries(
-            repos.map((r) => [r.path, r.path === activeRepo ? activeWorktrees.length : 0])
+            repos.map((r) => [r.path, activeWorktrees.filter((wt) => wt.repoPath === r.path).length])
           )}
         />
       )}

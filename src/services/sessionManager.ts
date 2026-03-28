@@ -378,7 +378,7 @@ export class SessionManager {
     // container during the disconnected/scrollback phase.
     const { rows, cols } = session.terminal;
     if (rows > 0 && cols > 0) {
-      resizePty(sessionId, rows, cols).catch(() => {});
+      resizePty(sessionId, rows, cols).catch(e => console.warn(`[sessionManager] Failed to resize PTY for ${sessionId}:`, e));
     }
 
     if (mode === "claude") {

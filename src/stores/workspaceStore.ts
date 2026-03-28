@@ -83,6 +83,8 @@ interface WorkspaceState {
   updateTab: (worktreeId: string, tabId: string, patch: Partial<WorkspaceTab>) => void;
   toggleReviewedFile: (worktreeId: string, filePath: string) => void;
   clearReviewedFiles: (worktreeId: string) => void;
+  setWorktreesForRepo: (repoPath: string, worktrees: Worktree[]) => void;
+  clearWorktreesForRepo: (repoPath: string) => void;
   clearStore: () => void;
   setRunningServer: (server: { worktreeId: string; sessionId: string; tabId: string } | null) => void;
 }
@@ -234,17 +236,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
    */
   applyPrUpdates: (prs) =>
     set((state) => {
-      // Index PRs by branch for quick lookup
-      const prByBranch = new Map<string, PrStatusWithColumn>();
+      // Index PRs by repoPath+branch for multi-repo disambiguation
+      const prByKey = new Map<string, PrStatusWithColumn>();
       for (const pr of prs) {
-        prByBranch.set(pr.branch, pr);
+        prByKey.set(`${pr.repoPath}::${pr.branch}`, pr);
       }
 
       const newOverrides = { ...state.columnOverrides };
       const newLastPrState = { ...state.lastPrState };
 
       const worktrees = state.worktrees.map((wt) => {
-        const pr = prByBranch.get(wt.branch);
+        const pr = prByKey.get(`${wt.repoPath}::${wt.branch}`);
 
         if (!pr) {
           // No PR for this branch — keep existing state
@@ -292,7 +294,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       // Store summary data for sidebar indicators
       const newSummary = { ...state.prSummary };
       for (const pr of prs) {
-        const wt = worktrees.find((w) => w.branch === pr.branch);
+        const wt = worktrees.find((w) => w.repoPath === pr.repoPath && w.branch === pr.branch);
         if (wt) {
           newSummary[wt.id] = {
             failingCheckCount: pr.failingCheckCount,
@@ -531,6 +533,37 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   clearReviewedFiles: (worktreeId) =>
     set((state) => ({
       reviewedFiles: { ...state.reviewedFiles, [worktreeId]: new Set<string>() },
+    })),
+
+  setWorktreesForRepo: (repoPath, freshWorktrees) =>
+    set((state) => {
+      // Remove existing worktrees for this repo, keep others
+      const otherRepoWorktrees = state.worktrees.filter((wt) => wt.repoPath !== repoPath);
+      const existingForRepo = state.worktrees.filter((wt) => wt.repoPath === repoPath);
+
+      // Merge fresh git data with existing enriched state (same logic as setWorktrees)
+      const existingMap = new Map(existingForRepo.map((wt) => [wt.id, wt]));
+      const merged = freshWorktrees.map((fresh) => {
+        const old = existingMap.get(fresh.id);
+        if (old) {
+          return {
+            ...fresh,
+            prStatus: old.prStatus,
+            column: old.column,
+            agentStatus: old.agentStatus,
+            archived: old.archived,
+          };
+        }
+        return fresh;
+      });
+      const timestamped = withActivityTimestamps(merged, existingForRepo);
+
+      return { worktrees: [...otherRepoWorktrees, ...timestamped] };
+    }),
+
+  clearWorktreesForRepo: (repoPath) =>
+    set((state) => ({
+      worktrees: state.worktrees.filter((wt) => wt.repoPath !== repoPath),
     })),
 
   clearStore: () =>

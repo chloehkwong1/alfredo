@@ -42,7 +42,7 @@ export interface Worktree {
   deletions: number | null;
   archived?: boolean;
   lastActivityAt?: number; // unix timestamp ms, updated on status/diff/pr changes
-  repoPath?: string;
+  repoPath: string;
 }
 
 export type KanbanColumn =
@@ -78,21 +78,14 @@ export interface PrUpdatePayload {
 }
 
 /** A PR status annotated with the auto-determined kanban column. */
-export interface PrStatusWithColumn {
-  number: number;
-  state: string;
-  title: string;
-  url: string;
-  draft: boolean;
-  merged: boolean;
-  branch: string;
+export interface PrStatusWithColumn extends PrStatus {
   autoColumn: KanbanColumn;
-  mergedAt?: string;
-  headSha?: string;
   failingCheckCount?: number;
   unresolvedCommentCount?: number;
   reviewDecision?: string | null;
   mergeable?: boolean | null;
+  /** The repo path this PR belongs to, for multi-repo disambiguation. */
+  repoPath: string;
 }
 
 // ── Config ──────────────────────────────────────────────────────

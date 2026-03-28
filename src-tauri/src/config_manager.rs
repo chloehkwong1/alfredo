@@ -3,11 +3,9 @@ use std::path::Path;
 
 use tokio::process::Command;
 
-use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, NotificationConfig, RunScript, SetupScript};
+use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, NotificationConfig, RunScript, SetupScript, default_archive_days};
 
 const CONFIG_FILE: &str = ".alfredo.json";
-
-fn default_archive_days() -> Option<u32> { Some(2) }
 
 /// On-disk representation of `.alfredo.json`.
 /// Slightly different from AppConfig to include column overrides.

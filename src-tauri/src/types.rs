@@ -66,6 +66,7 @@ pub struct Worktree {
     pub name: String,
     pub path: String,
     pub branch: String,
+    pub repo_path: String,
     pub pr_status: Option<PrStatus>,
     pub agent_status: AgentState,
     pub column: KanbanColumn,
@@ -260,7 +261,7 @@ pub struct AppConfig {
     pub worktree_overrides: Option<HashMap<String, ClaudeOverrides>>,
 }
 
-fn default_archive_days() -> Option<u32> { Some(2) }
+pub fn default_archive_days() -> Option<u32> { Some(2) }
 
 // ── App-Level Config ────────────────────────────────────────────
 

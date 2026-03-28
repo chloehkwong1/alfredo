@@ -95,7 +95,7 @@ async function sendNotification(message: string) {
 function requestDockBounce() {
   getCurrentWindow()
     .requestUserAttention(1) // Critical — bounces dock icon until focused
-    .catch(() => {});
+    .catch(e => console.warn('[useNotifications] Failed to request dock bounce:', e));
 }
 
 // ── Default config ─────────────────────────────────────────────
