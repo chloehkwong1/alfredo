@@ -42,12 +42,20 @@ impl AgentDetector {
             AgentType::Unknown => AgentState::NotRunning,
             _ => AgentState::Idle, // agent is loading; hooks handle busy/idle from here
         };
+        // Seed last_idle so the cooldown window applies to startup output.
+        // Without this, the very first chunk of agent output would immediately
+        // flip the seeded Idle state to Busy before hooks have a chance to fire.
+        let last_idle = if state == AgentState::Idle {
+            Some(Instant::now())
+        } else {
+            None
+        };
         Self {
             agent_type,
             state,
             last_resize: None,
             last_input: None,
-            last_idle: None,
+            last_idle,
             line_buf: String::new(),
         }
     }
@@ -563,6 +571,19 @@ mod tests {
         let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
         // Seeded as ClaudeCode/Idle — feeding an idle prompt should not emit a change
         let result = det.feed(b"\xe2\x9d\xaf \n");
+        assert_eq!(result, None);
+        assert_eq!(det.state(), &AgentState::Idle);
+    }
+
+    #[test]
+    fn with_agent_type_suppresses_startup_busy_during_cooldown() {
+        let det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        // Seeded as Idle — last_idle should be set so the cooldown applies
+        assert!(det.last_idle.is_some(), "last_idle should be set when seeded as Idle");
+
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        // Startup output during cooldown should NOT flip to Busy
+        let result = det.feed(b"Loading previous conversation...\n");
         assert_eq!(result, None);
         assert_eq!(det.state(), &AgentState::Idle);
     }

@@ -56,12 +56,20 @@ impl PtyManager {
         }
     }
 
-    /// Spawn a new PTY session, returning its UUID.
+    /// Generate a session ID that can be pre-registered with the state server
+    /// before spawning, eliminating the race where hooks fire before the
+    /// channel is registered.
+    pub fn generate_session_id() -> String {
+        Uuid::new_v4().to_string()
+    }
+
+    /// Spawn a new PTY session with a pre-generated session ID.
     /// `config.agent_type` seeds the detector so it can track state immediately
     /// without waiting for a shell launch pattern or startup banner.
     /// `config.state_server_port` is set as an env var so hooks can call back.
     pub fn spawn(
         &self,
+        session_id: String,
         config: SpawnConfig,
         channel: Channel<PtyEvent>,
     ) -> Result<String, AppError> {
@@ -109,8 +117,6 @@ impl PtyManager {
 
         // We no longer need the slave side after spawning.
         drop(pair.slave);
-
-        let session_id = Uuid::new_v4().to_string();
         let exited: Arc<Mutex<Option<i32>>> = Arc::new(Mutex::new(None));
         let detector_signals = Arc::new(Mutex::new(DetectorSignals {
             last_resize: None,
@@ -541,8 +547,10 @@ mod tests {
             Ok(())
         });
 
+        let session_id = PtyManager::generate_session_id();
         let id = manager
             .spawn(
+                session_id,
                 SpawnConfig {
                     worktree_id: "test-worktree".to_string(),
                     worktree_path: "/tmp".to_string(),

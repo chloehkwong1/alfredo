@@ -22,6 +22,12 @@ pub async fn spawn_pty(
     on_data: Channel<PtyEvent>,
     agent_type: Option<AgentType>,
 ) -> Result<String> {
+    let session_id = PtyManager::generate_session_id();
+
+    // Register the channel with the state server BEFORE spawning so that
+    // early hook callbacks (e.g. SessionStart) are not silently dropped.
+    state_server.register_channel(session_id.clone(), worktree_id.clone(), on_data.clone());
+
     let config = SpawnConfig {
         worktree_id: worktree_id.clone(),
         worktree_path,
@@ -30,12 +36,15 @@ pub async fn spawn_pty(
         agent_type: agent_type.unwrap_or(AgentType::Unknown),
         state_server_port: Some(state_server.port),
     };
-    let session_id = manager.spawn(config, on_data.clone())?;
 
-    // Register this session's channel with the state server so hooks can push state
-    state_server.register_channel(session_id.clone(), worktree_id, on_data);
-
-    Ok(session_id)
+    match manager.spawn(session_id.clone(), config, on_data) {
+        Ok(id) => Ok(id),
+        Err(e) => {
+            // Spawn failed — clean up the pre-registered channel
+            state_server.unregister_channel(&session_id, &worktree_id);
+            Err(e)
+        }
+    }
 }
 
 /// Write raw input bytes to a PTY session.
