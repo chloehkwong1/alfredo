@@ -41,7 +41,7 @@ function SidebarDragContext({ children }: SidebarDragContextProps) {
       setManualColumn(worktreeId, targetColumn);
 
       // Persist column override via Tauri command (fire-and-forget)
-      setWorktreeColumn(".", worktree.name, targetColumn).catch(() => {
+      setWorktreeColumn(worktree.repoPath, worktree.name, targetColumn).catch(() => {
         // Tauri backend not available during development — ignore silently
       });
     },
