@@ -29,7 +29,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: Arc
     <div className="mt-4 border-t border-border-subtle pt-2">
       <button
         onClick={() => setIsCollapsed((prev) => !prev)}
-        className="flex w-full items-center gap-2 px-4 pt-3 pb-2 cursor-pointer select-none text-text-tertiary"
+        className="flex w-full items-center gap-2 px-3.5 pt-3 pb-2 cursor-pointer select-none text-text-tertiary hover:text-text-secondary transition-colors"
       >
         <Archive className="h-3.5 w-3.5" />
         <span className="text-xs font-semibold uppercase tracking-wider">
@@ -72,7 +72,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: Arc
             {worktrees.map((wt) => (
               <div
                 key={wt.id}
-                className="group w-full text-left px-3 py-2 mx-2 rounded-lg mb-1 flex items-center gap-2 bg-[rgba(255,255,255,0.02)]"
+                className="group w-full text-left px-3.5 py-2 flex items-center gap-2 border-l-[3px] border-l-transparent"
               >
                 <span className="text-sm text-text-tertiary truncate flex-1">
                   {wt.branch}
