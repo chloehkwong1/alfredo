@@ -149,9 +149,36 @@ pub async fn delete_worktree(
     Ok(())
 }
 
-/// Get diff stats (additions, deletions) for uncommitted changes in a worktree.
+/// Get diff stats (additions, deletions) for a worktree's branch changes.
+/// Shows committed changes vs the default branch (main/master), which is
+/// what users expect the badge to represent — the scope of work on the branch.
 /// Uses git CLI instead of git2, which has known issues with worktree diff accuracy.
 pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
+    // Try three-dot diff against common default branch names.
+    // `git diff --shortstat main...HEAD` = diff between merge-base(main, HEAD) and HEAD.
+    for branch in &["main", "master", "origin/main", "origin/master"] {
+        let output = std::process::Command::new("git")
+            .args(["diff", "--shortstat", &format!("{branch}...HEAD")])
+            .current_dir(worktree_path)
+            .output();
+
+        if let Ok(output) = output {
+            if output.status.success() {
+                let stats = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
+                if stats != (0, 0) {
+                    return Ok(stats);
+                }
+                // (0, 0) might mean the branch ref exists but there are no
+                // committed changes — fall through to try the next candidate
+                // only if this was a remote ref (local hits are authoritative).
+                if !branch.starts_with("origin/") {
+                    return Ok(stats);
+                }
+            }
+        }
+    }
+
+    // Fallback: show uncommitted changes if no default branch found
     let output = std::process::Command::new("git")
         .args(["diff", "--shortstat", "HEAD"])
         .current_dir(worktree_path)
@@ -162,9 +189,12 @@ pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
         return Ok((0, 0));
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let (mut insertions, mut deletions) = (0u32, 0u32);
+    Ok(parse_shortstat(&String::from_utf8_lossy(&output.stdout)))
+}
 
+/// Parse the output of `git diff --shortstat`.
+fn parse_shortstat(stdout: &str) -> (u32, u32) {
+    let (mut insertions, mut deletions) = (0u32, 0u32);
     // Parse: " 3 files changed, 10 insertions(+), 5 deletions(-)"
     for part in stdout.split(',') {
         let part = part.trim();
@@ -176,8 +206,7 @@ pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
             }
         }
     }
-
-    Ok((insertions, deletions))
+    (insertions, deletions)
 }
 
 /// List worktrees using git2 for reads.
