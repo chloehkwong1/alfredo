@@ -13,14 +13,14 @@ interface SyntaxDiffLineProps {
 }
 
 const LINE_BG: Record<string, string> = {
-  addition: "bg-diff-added/6",
-  deletion: "bg-diff-removed/6",
+  addition: "bg-diff-added/10",
+  deletion: "bg-diff-removed/10",
   context: "",
 };
 
 const GUTTER_BG: Record<string, string> = {
-  addition: "bg-diff-added/10",
-  deletion: "bg-diff-removed/10",
+  addition: "bg-diff-added/15",
+  deletion: "bg-diff-removed/15",
   context: "",
 };
 
@@ -60,7 +60,7 @@ function SyntaxDiffLine({
     <>
       <div
         className={[
-          "flex font-mono text-[11px] leading-[20px] group",
+          "flex font-mono text-xs leading-5 group",
           LINE_BG[lineType],
           onClickLine ? "cursor-pointer hover:bg-bg-hover/50" : "",
         ].join(" ")}
@@ -94,7 +94,7 @@ function SyntaxDiffLine({
               </span>
             ))
           ) : (
-            <span className="text-text-secondary">{content.slice(1)}</span>
+            <span className="text-text-primary">{content.slice(1)}</span>
           )}
         </span>
       </div>
