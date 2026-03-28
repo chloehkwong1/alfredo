@@ -10,7 +10,7 @@ use tauri::ipc::Channel;
 use uuid::Uuid;
 
 use crate::agent_detector::AgentDetector;
-use crate::types::{AgentType, AppError, PtyEvent, Session, SessionStatus};
+use crate::types::{AgentState, AgentType, AppError, PtyEvent, Session, SessionStatus};
 
 /// Shared timestamps for signalling resize/input events to the reader thread's
 /// agent detector. The main thread writes; the reader thread reads.
@@ -192,6 +192,14 @@ impl PtyManager {
                     }
                 }
             }
+
+            // Notify the frontend that the agent is no longer running.
+            if let Err(e) = reader_channel.send(PtyEvent::AgentState(AgentState::NotRunning)) {
+                eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");
+            }
+
+            // Stop the heartbeat thread so the frontend sees channelAlive go stale.
+            reader_stop_flag.store(true, Ordering::Relaxed);
 
             // Mark session as exited. We don't know the exit code from the
             // reader thread, so store a sentinel (-1). The real code is
