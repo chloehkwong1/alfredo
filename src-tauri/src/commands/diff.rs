@@ -298,13 +298,47 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
 
+/// Return the name of the default branch for the given repo.
+///
+/// Checks `origin/HEAD` first (the remote's declared default), then falls back
+/// to looking for a local `main` or `master` branch.
+#[tauri::command]
+pub async fn get_default_branch(repo_path: String) -> Result<String> {
+    tokio::task::spawn_blocking(move || {
+        let repo = open_repo(&repo_path)?;
+
+        // Best signal: origin/HEAD symbolic ref (e.g. refs/remotes/origin/develop)
+        if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
+            if let Ok(resolved) = reference.resolve() {
+                if let Some(name) = resolved.name() {
+                    // "refs/remotes/origin/develop" → "develop"
+                    if let Some(short) = name.strip_prefix("refs/remotes/origin/") {
+                        return Ok(short.to_string());
+                    }
+                }
+            }
+        }
+
+        // Fallback: first local branch that exists
+        for name in &["main", "master"] {
+            if repo.find_branch(name, git2::BranchType::Local).is_ok() {
+                return Ok(name.to_string());
+            }
+        }
+
+        Ok("main".to_string())
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
 /// Get commits from HEAD back to the merge base with the default branch.
 #[tauri::command]
 pub async fn get_commits(repo_path: String, default_branch: Option<String>) -> Result<Vec<CommitInfo>> {
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
 
-        let default_oid = resolve_default_branch(&repo, None)?;
+        let default_oid = resolve_default_branch(&repo, default_branch.as_deref())?;
         let head_oid = repo
             .head()
             .and_then(|h| h.resolve())

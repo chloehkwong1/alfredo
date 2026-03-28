@@ -11,7 +11,7 @@ import {
 import { Button } from "../ui/Button";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { createWorktreeFrom, getConfig } from "../../api";
+import { createWorktreeFrom, getConfig, getDefaultBranch } from "../../api";
 import type { RepoEntry, WorktreeSource } from "../../types";
 import { NewBranchTab, getNewBranchSource } from "./create-worktree/NewBranchTab";
 import { BranchesTab } from "./create-worktree/BranchesTab";
@@ -68,6 +68,15 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
       setCurrentRepoPath(defaultRepoPath ?? repoPath);
     }
   }, [open, defaultRepoPath, repoPath]);
+
+  // Detect default branch for the selected repo
+  useEffect(() => {
+    if (open && currentRepoPath) {
+      getDefaultBranch(currentRepoPath)
+        .then((branch) => setBaseBranch(branch))
+        .catch(() => {});
+    }
+  }, [open, currentRepoPath]);
 
   // Load config to check for setup scripts
   useEffect(() => {

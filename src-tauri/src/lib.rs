@@ -110,6 +110,7 @@ pub fn run() {
             diff::get_diff,
             diff::get_uncommitted_diff,
             diff::get_commits,
+            diff::get_default_branch,
             diff::get_diff_for_commit,
             // Session persistence
             session::save_session_file,

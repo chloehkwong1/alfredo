@@ -27,7 +27,7 @@ function NewBranchTab({ branchName, baseBranch, onBranchNameChange, onBaseBranch
           Base branch
         </label>
         <Input
-          placeholder="main"
+          placeholder="e.g. main, develop"
           value={baseBranch}
           onChange={(e) => onBaseBranchChange(e.target.value)}
         />
@@ -38,7 +38,8 @@ function NewBranchTab({ branchName, baseBranch, onBranchNameChange, onBaseBranch
 
 function getNewBranchSource(branchName: string, baseBranch: string): WorktreeSource | null {
   if (!branchName.trim()) return null;
-  return { kind: "newBranch", name: branchName.trim(), base: baseBranch || "main" };
+  if (!baseBranch.trim()) return null;
+  return { kind: "newBranch", name: branchName.trim(), base: baseBranch.trim() };
 }
 
 export { NewBranchTab, getNewBranchSource };
