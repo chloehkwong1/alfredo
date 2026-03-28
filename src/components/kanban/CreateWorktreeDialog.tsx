@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { GitBranch, GitPullRequest, Ticket, Plus, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { GitBranch, GitPullRequest, Ticket, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,11 +9,14 @@ import {
   DialogFooter,
 } from "../ui/Dialog";
 import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { searchLinearIssues, createWorktreeFrom, getConfig, listBranches, syncPrStatus } from "../../api";
-import type { LinearTicket, Worktree, PrStatus, RepoEntry } from "../../types";
+import { createWorktreeFrom, getConfig } from "../../api";
+import type { RepoEntry, WorktreeSource } from "../../types";
+import { NewBranchTab, getNewBranchSource } from "./create-worktree/NewBranchTab";
+import { BranchesTab } from "./create-worktree/BranchesTab";
+import { PullRequestsTab } from "./create-worktree/PullRequestsTab";
+import { LinearIssuesTab } from "./create-worktree/LinearIssuesTab";
 
 type Tab = "newBranch" | "branches" | "pullRequests" | "linearIssues";
 
@@ -27,7 +30,7 @@ interface CreateWorktreeDialogProps {
   defaultRepoPath?: string;
 }
 
-const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+const tabDefs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "newBranch", label: "New Branch", icon: <Plus className="h-3.5 w-3.5" /> },
   { id: "branches", label: "Branches", icon: <GitBranch className="h-3.5 w-3.5" /> },
   { id: "pullRequests", label: "PRs", icon: <GitPullRequest className="h-3.5 w-3.5" /> },
@@ -38,27 +41,35 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
   const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
+
   const [currentRepoPath, setCurrentRepoPath] = useState<string | undefined>(
     defaultRepoPath ?? repoPath,
   );
+  const [activeTab, setActiveTab] = useState<Tab>("newBranch");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Reset currentRepoPath when dialog opens so it picks up the latest default
+  // New branch state (lifted because it's needed for Create button + handleCreate)
+  const [branchName, setBranchName] = useState("");
+  const [baseBranch, setBaseBranch] = useState("");
+
+  // Selection state for list tabs
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+
+  // Setup scripts
+  const [runSetup, setRunSetup] = useState(true);
+  const [hasSetupScripts, setHasSetupScripts] = useState(false);
+
+  // Reset currentRepoPath when dialog opens
   useEffect(() => {
     if (open) {
       setCurrentRepoPath(defaultRepoPath ?? repoPath);
     }
   }, [open, defaultRepoPath, repoPath]);
 
-  const [activeTab, setActiveTab] = useState<Tab>("newBranch");
-  const [branchName, setBranchName] = useState("");
-  const [baseBranch, setBaseBranch] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [runSetup, setRunSetup] = useState(true);
-  const [hasSetupScripts, setHasSetupScripts] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Load config to check for setup scripts when dialog opens
+  // Load config to check for setup scripts
   useEffect(() => {
     if (open && currentRepoPath) {
       getConfig(currentRepoPath)
@@ -67,158 +78,44 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
     }
   }, [open, currentRepoPath]);
 
-  // Fetch branches when dialog opens or repo changes
-  useEffect(() => {
-    if (open && currentRepoPath) {
-      setBranchesLoading(true);
-      setSelectedBranch(null);
-      listBranches(currentRepoPath)
-        .then((result) => {
-          setBranches(result);
-          setBranchesError(null);
-          // Auto-detect default branch from available branches
-          const names = result.map((b) => b.branch);
-          const defaultBranch = names.find((n) => n === "main")
-            ?? names.find((n) => n === "master")
-            ?? names[0]
-            ?? "main";
-          setBaseBranch(defaultBranch);
-        })
-        .catch((err) => setBranchesError(err instanceof Error ? err.message : String(err)))
-        .finally(() => setBranchesLoading(false));
-    }
-  }, [open, currentRepoPath]);
-
-  // Fetch PRs lazily when the PR tab is first opened, or when repo changes while on PR tab
-  const [prsFetched, setPrsFetched] = useState(false);
-  const [prsFetchedForRepo, setPrsFetchedForRepo] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    const repoChanged = currentRepoPath !== prsFetchedForRepo;
-    if (open && currentRepoPath && activeTab === "pullRequests" && (!prsFetched || repoChanged)) {
-      setPrsLoading(true);
-      setPrsFetched(true);
-      setPrsFetchedForRepo(currentRepoPath);
-      setSelectedPrNumber(null);
-      syncPrStatus(currentRepoPath)
-        .then((result) => {
-          setPrs(result);
-          setPrsError(null);
-        })
-        .catch((err) => setPrsError(err instanceof Error ? err.message : String(err)))
-        .finally(() => setPrsLoading(false));
-    }
-    if (!open) {
-      setPrsFetched(false);
-      setPrsFetchedForRepo(undefined);
-    }
-  }, [open, currentRepoPath, activeTab, prsFetched, prsFetchedForRepo]);
-
-  // Branch list state
-  const [branches, setBranches] = useState<Worktree[]>([]);
-  const [branchesLoading, setBranchesLoading] = useState(false);
-  const [branchesError, setBranchesError] = useState<string | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-
-  // PR list state
-  const [prs, setPrs] = useState<PrStatus[]>([]);
-  const [prsLoading, setPrsLoading] = useState(false);
-  const [prsError, setPrsError] = useState<string | null>(null);
-  const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
-
-  // Linear search state
-  const [linearResults, setLinearResults] = useState<LinearTicket[]>([]);
-  const [linearLoading, setLinearLoading] = useState(false);
-  const [linearError, setLinearError] = useState<string | null>(null);
-  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Debounced search for Linear issues
-  const searchLinear = useCallback((query: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (!query.trim()) {
-      setLinearResults([]);
-      setLinearError(null);
-      setLinearLoading(false);
-      return;
-    }
-
-    setLinearLoading(true);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const results = await searchLinearIssues(query);
-        setLinearResults(results);
-        setLinearError(null);
-      } catch (err) {
-        setLinearError(err instanceof Error ? err.message : String(err));
-        setLinearResults([]);
-      } finally {
-        setLinearLoading(false);
-      }
-    }, 300);
-  }, []);
-
-  // Trigger search when query changes on the Linear tab
-  useEffect(() => {
-    if (activeTab === "linearIssues") {
-      searchLinear(searchQuery);
-    }
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchQuery, activeTab, searchLinear]);
-
-  // Reset state when dialog closes
+  // Reset selection state when dialog closes
   useEffect(() => {
     if (!open) {
       setSelectedBranch(null);
       setSelectedPrNumber(null);
       setSelectedIssueId(null);
-      setLinearResults([]);
-      setLinearError(null);
       setCreating(false);
       setError(null);
     }
   }, [open]);
 
+  function getSource(): WorktreeSource | null {
+    switch (activeTab) {
+      case "newBranch":
+        return getNewBranchSource(branchName, baseBranch);
+      case "branches":
+        return selectedBranch ? { kind: "existingBranch", name: selectedBranch } : null;
+      case "pullRequests":
+        return selectedPrNumber ? { kind: "pullRequest", number: selectedPrNumber } : null;
+      case "linearIssues":
+        return selectedIssueId ? { kind: "linearTicket", id: selectedIssueId } : null;
+    }
+  }
+
   async function handleCreate() {
-    if (!currentRepoPath) return;
+    const source = getSource();
+    if (!currentRepoPath || !source) return;
+
     setCreating(true);
     setError(null);
     try {
-      let worktree;
-      if (activeTab === "newBranch" && branchName.trim()) {
-        worktree = await createWorktreeFrom(currentRepoPath, {
-          kind: "newBranch",
-          name: branchName.trim(),
-          base: baseBranch || "main", // baseBranch auto-detected from branches list
-        });
-      } else if (activeTab === "branches" && selectedBranch) {
-        worktree = await createWorktreeFrom(currentRepoPath, {
-          kind: "existingBranch",
-          name: selectedBranch,
-        });
-      } else if (activeTab === "pullRequests" && selectedPrNumber) {
-        worktree = await createWorktreeFrom(currentRepoPath, {
-          kind: "pullRequest",
-          number: selectedPrNumber,
-        });
-      } else if (activeTab === "linearIssues" && selectedIssueId) {
-        worktree = await createWorktreeFrom(currentRepoPath, {
-          kind: "linearTicket",
-          id: selectedIssueId,
-        });
-      }
+      const worktree = await createWorktreeFrom(currentRepoPath, source);
       if (worktree) {
         addWorktree(worktree);
         ensureDefaultTabs(worktree.id);
         setActiveWorktree(worktree.id);
         onOpenChange(false);
         setBranchName("");
-        setSearchQuery("");
-        setSelectedBranch(null);
-        setSelectedPrNumber(null);
-        setSelectedIssueId(null);
       } else {
         setError("Failed to create worktree. Please try again.");
       }
@@ -240,7 +137,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
             </DialogDescription>
           </DialogHeader>
 
-          {/* Repo selector — only visible when multiple repos are selected */}
           {repos && selectedRepos && repoColors && currentRepoPath && (
             <RepoDropdown
               repos={repos}
@@ -253,12 +149,10 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
 
           {/* Tab bar */}
           <div className="flex gap-1 p-1 bg-bg-sidebar rounded-lg">
-            {tabs.map((tab) => (
+            {tabDefs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                }}
+                onClick={() => setActiveTab(tab.id)}
                 className={[
                   "flex items-center gap-1.5 px-[14px] py-2 text-sm font-medium rounded-[6px]",
                   "transition-all duration-[var(--transition-fast)] cursor-pointer",
@@ -276,213 +170,42 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
           {/* Tab content */}
           <div className="min-h-[200px]">
             {activeTab === "newBranch" && (
-              <div className="flex flex-col gap-5">
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">
-                    Branch name
-                  </label>
-                  <Input
-                    placeholder="feat/my-feature"
-                    value={branchName}
-                    onChange={(e) => setBranchName(e.target.value)}
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-2">
-                    Base branch
-                  </label>
-                <Input
-                  placeholder="main"
-                  value={baseBranch}
-                  onChange={(e) => setBaseBranch(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-
-          {activeTab === "branches" && (
-            <div className="flex flex-col gap-3">
-              <Input
-                placeholder="Filter branches..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
+              <NewBranchTab
+                branchName={branchName}
+                baseBranch={baseBranch}
+                onBranchNameChange={setBranchName}
+                onBaseBranchChange={setBaseBranch}
               />
-              <div className="max-h-[240px] overflow-y-auto rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-1">
-                {branchesLoading && (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-4 w-4 animate-spin text-text-tertiary" />
-                  </div>
-                )}
-                {branchesError && (
-                  <div className="text-xs text-danger text-center py-4">
-                    {branchesError}
-                  </div>
-                )}
-                {!branchesLoading && !branchesError && branches.length === 0 && (
-                  <div className="text-xs text-text-tertiary text-center py-8">
-                    No branches found.
-                  </div>
-                )}
-                {!branchesLoading && branches
-                  .filter((b) => !searchQuery.trim() || b.branch.toLowerCase().includes(searchQuery.toLowerCase()))
-                  .map((b) => (
-                    <button
-                      key={b.branch}
-                      type="button"
-                      onClick={() => setSelectedBranch(b.branch === selectedBranch ? null : b.branch)}
-                      className={[
-                        "w-full text-left px-3 py-2.5 rounded-[var(--radius-sm)] cursor-pointer",
-                        "transition-colors duration-[var(--transition-fast)]",
-                        b.branch === selectedBranch
-                          ? "bg-accent-muted text-text-primary"
-                          : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <GitBranch className="h-3.5 w-3.5 flex-shrink-0 opacity-50" />
-                        <span className="text-[13px] font-medium truncate">
-                          {b.branch}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
+            )}
 
-          {activeTab === "pullRequests" && (
-            <div className="flex flex-col gap-3">
-              <Input
-                placeholder="Filter pull requests..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
+            {activeTab === "branches" && currentRepoPath && (
+              <BranchesTab
+                repoPath={currentRepoPath}
+                open={open}
+                selectedBranch={selectedBranch}
+                onSelectBranch={setSelectedBranch}
+                onDefaultBranchDetected={setBaseBranch}
               />
-              <div className="max-h-[240px] overflow-y-auto rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-1">
-                {prsLoading && (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-4 w-4 animate-spin text-text-tertiary" />
-                  </div>
-                )}
-                {prsError && (
-                  <div className="text-xs text-danger text-center py-4">
-                    {prsError}
-                  </div>
-                )}
-                {!prsLoading && !prsError && prs.length === 0 && (
-                  <div className="text-xs text-text-tertiary text-center py-8">
-                    No pull requests found.
-                  </div>
-                )}
-                {!prsLoading && prs
-                  .filter((pr) => !searchQuery.trim() || pr.title.toLowerCase().includes(searchQuery.toLowerCase()) || `#${pr.number}`.includes(searchQuery))
-                  .map((pr) => (
-                    <button
-                      key={pr.number}
-                      type="button"
-                      onClick={() => setSelectedPrNumber(pr.number === selectedPrNumber ? null : pr.number)}
-                      className={[
-                        "w-full text-left px-3 py-2.5 rounded-[var(--radius-sm)] cursor-pointer",
-                        "transition-colors duration-[var(--transition-fast)]",
-                        pr.number === selectedPrNumber
-                          ? "bg-accent-muted text-text-primary"
-                          : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-xs font-mono text-text-tertiary flex-shrink-0">
-                          #{pr.number}
-                        </span>
-                        <span className="text-[13px] font-medium text-text-primary truncate">
-                          {pr.title}
-                        </span>
-                        {pr.draft && (
-                          <span className="text-2xs text-text-tertiary bg-bg-hover px-1.5 py-0.5 rounded flex-shrink-0">
-                            Draft
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 ml-[30px]">
-                        <span className="text-xs text-text-tertiary truncate">
-                          {pr.branch}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
+            )}
 
-          {activeTab === "linearIssues" && (
-            <div className="flex flex-col gap-3">
-              <Input
-                placeholder="Search Linear issues..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
+            {activeTab === "pullRequests" && currentRepoPath && (
+              <PullRequestsTab
+                repoPath={currentRepoPath}
+                open={open}
+                selectedPrNumber={selectedPrNumber}
+                onSelectPr={setSelectedPrNumber}
               />
-              <div className="max-h-[240px] overflow-y-auto rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-1">
-                {linearLoading && (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-4 w-4 animate-spin text-text-tertiary" />
-                  </div>
-                )}
-                {linearError && (
-                  <div className="text-xs text-danger text-center py-4">
-                    {linearError}
-                  </div>
-                )}
-                {!linearLoading && !linearError && linearResults.length === 0 && searchQuery.trim() && (
-                  <div className="text-xs text-text-tertiary text-center py-8">
-                    No issues found.
-                  </div>
-                )}
-                {!linearLoading && !linearError && linearResults.length === 0 && !searchQuery.trim() && (
-                  <div className="text-xs text-text-tertiary text-center py-8">
-                    Type to search Linear issues.
-                  </div>
-                )}
-                {!linearLoading && linearResults.map((issue) => (
-                  <button
-                    key={issue.id}
-                    type="button"
-                    onClick={() => setSelectedIssueId(issue.id === selectedIssueId ? null : issue.id)}
-                    className={[
-                      "w-full text-left px-3 py-2.5 rounded-[var(--radius-sm)] cursor-pointer",
-                      "transition-colors duration-[var(--transition-fast)]",
-                      issue.id === selectedIssueId
-                        ? "bg-accent-muted text-text-primary"
-                        : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",
-                    ].join(" ")}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xs font-mono text-text-tertiary flex-shrink-0">
-                        {issue.identifier}
-                      </span>
-                      <span className="text-[13px] font-medium text-text-primary truncate">
-                        {issue.title}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 ml-[42px]">
-                      <span className="text-xs text-text-tertiary">
-                        {issue.state}
-                      </span>
-                      {issue.assignee && (
-                        <span className="text-xs text-text-tertiary">
-                          &middot; {issue.assignee}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+            )}
 
-          {/* Auto-run setup scripts checkbox — only shown when scripts are configured */}
+            {activeTab === "linearIssues" && (
+              <LinearIssuesTab
+                open={open}
+                selectedIssueId={selectedIssueId}
+                onSelectIssue={setSelectedIssueId}
+              />
+            )}
+          </div>
+
           {hasSetupScripts && (
             <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
               <input
@@ -508,13 +231,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={
-              creating ||
-              (activeTab === "newBranch" && !branchName.trim()) ||
-              (activeTab === "branches" && !selectedBranch) ||
-              (activeTab === "pullRequests" && !selectedPrNumber) ||
-              (activeTab === "linearIssues" && !selectedIssueId)
-            }
+            disabled={creating || !getSource()}
           >
             {creating ? "Creating..." : "Create Worktree"}
           </Button>
