@@ -13,19 +13,19 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, getConfig, setRepoColor as setRepoColorApi } from "../../api";
+import { useSessionRestore } from "../../hooks/useSessionRestore";
+import { useServer } from "../../hooks/useServer";
+import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+import { setRepoColor as setRepoColorApi } from "../../api";
 import { REPO_COLOR_PALETTE } from "../sidebar/RepoSelector";
-import { saveAllSessions, loadSession } from "../../services/SessionPersistence";
+import { saveAllSessions } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import logoSvg from "../../assets/logo-cat.svg";
-import type { WorkspaceTab, RunScript } from "../../types";
+import type { WorkspaceTab } from "../../types";
 
 const EMPTY_TABS: WorkspaceTab[] = [];
 const AUTO_SAVE_INTERVAL_MS = 30_000;
-const SERVER_GRACE_PERIOD_MS = 5_000;
-const SERVER_HEARTBEAT_STALE_MS = 10_000;
-const SERVER_POLL_INTERVAL_MS = 3_000;
 
 /** Snapshot current workspace + layout state and persist all sessions to disk. */
 function collectAndSaveAllSessions(repoPath: string) {
@@ -54,6 +54,7 @@ function AppShell() {
   const tabs = activeWorktreeId ? (allTabs[activeWorktreeId] ?? EMPTY_TABS) : EMPTY_TABS;
   const activeTabIdValue = activeWorktreeId ? allActiveTabIds[activeWorktreeId] : undefined;
   const annotations = useWorkspaceStore((s) => s.annotations);
+  const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
   useDensity();
 
   const {
@@ -72,14 +73,8 @@ function AppShell() {
     toggleRepo,
   } = useAppConfig();
 
-  const setWorktreesForRepo = useWorkspaceStore((s) => s.setWorktreesForRepo);
-  const clearWorktreesForRepo = useWorkspaceStore((s) => s.clearWorktreesForRepo);
-  const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
-  const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
-  const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
-  const hasRestoredSessions = useRef(false);
 
   // Dialog state for multi-repo lifecycle
   const [addRepoModalOpen, setAddRepoModalOpen] = useState(false);
@@ -89,6 +84,13 @@ function AppShell() {
   const [removeRepoPath, setRemoveRepoPath] = useState<string | null>(null);
 
   const hasWorktrees = worktrees.length > 0;
+
+  // Extracted hooks
+  useSessionRestore(repoPath, selectedRepos);
+  const { runScript, isServerRunningHere, handleToggleServer } = useServer(activeWorktreeId, repoPath);
+
+  const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabIdValue);
+  useKeyboardShortcuts(activeWorktreeId, activeTab, tabs, () => setCreateDialogOpen(true));
 
   // Repo switching handler — save sessions, switch active repo (worktrees persist)
   const handleSwitchRepo = useCallback(async (path: string) => {
@@ -138,105 +140,6 @@ function AppShell() {
     setRemoveRepoPath(null);
   }, [removeRepoPath, removeRepo]);
 
-  // Load worktrees from all selected repos
-  const selectedReposKey = selectedRepos.join(",");
-  useEffect(() => {
-    if (!repoPath) return;
-    const reposToSync = selectedRepos.length > 0 ? selectedRepos : [repoPath];
-    setSyncRepoPaths(reposToSync).catch(e => console.warn('[AppShell] Failed to sync repo paths:', e));
-
-    const reposToLoad = selectedRepos.length > 0 ? selectedRepos : [repoPath];
-
-    // Clean up worktrees for repos that were deselected
-    const currentWorktrees = useWorkspaceStore.getState().worktrees;
-    const loadedRepoPaths = new Set(currentWorktrees.map((wt) => wt.repoPath));
-    const reposToLoadSet = new Set(reposToLoad);
-    for (const loadedRepo of loadedRepoPaths) {
-      if (!reposToLoadSet.has(loadedRepo)) {
-        clearWorktreesForRepo(loadedRepo);
-      }
-    }
-
-    for (const repo of reposToLoad) {
-      listWorktrees(repo).then(async (wts) => {
-        if (wts.length > 0) {
-          // Show sidebar immediately (diff stats load in background)
-          setWorktreesForRepo(repo, wts);
-          // Only set up .alfredo once worktrees exist (don't modify repo during onboarding)
-          ensureAlfredoGitignore(repo).catch(e => console.warn('[AppShell] Failed to ensure .alfredo gitignore:', e));
-
-          // Restore saved sessions for each worktree (only once per app lifecycle).
-          // The auto-save timer writes session files every 30s, so re-running
-          // this would incorrectly mark active sessions as disconnected.
-          if (!hasRestoredSessions.current) {
-            hasRestoredSessions.current = true;
-            for (const wt of wts) {
-              const session = await loadSession(repo, wt.id);
-              if (session) {
-                restoreTabs(wt.id, session.tabs, session.activeTabId);
-
-                // Restore layout state if persisted, otherwise init from tabs
-                const sessionLayout = session.layout;
-                const sessionPanes = session.panes;
-                const sessionActivePaneId = session.activePaneId;
-                if (sessionLayout && sessionPanes) {
-                  useLayoutStore.getState().restoreLayout(
-                    wt.id, sessionLayout, sessionPanes, sessionActivePaneId ?? Object.keys(sessionPanes)[0],
-                  );
-                } else {
-                  const tabIds = session.tabs.map((t) => t.id);
-                  useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
-                }
-
-                // Auto-resume Claude sessions with --continue (no scrollback replay).
-                // The session spawns headless now; TerminalView attaches the DOM later.
-                for (const tab of session.tabs) {
-                  if (tab.type === "claude" && !sessionManager.getSession(tab.id)) {
-                    try {
-                      await sessionManager.getOrSpawn(
-                        tab.id, wt.id, wt.path, "claude", undefined, ["--continue"],
-                      );
-                    } catch (err) {
-                      console.warn(`[session-restore] Failed to resume session ${tab.id}:`, err);
-                    }
-                  }
-                }
-              }
-            }
-
-            // Ensure every worktree has default tabs (claude, shell, changes)
-            // — sessions may lack them, and existing worktrees loaded from git
-            // never go through CreateWorktreeDialog which normally calls this.
-            for (const wt of wts) {
-              ensureDefaultTabs(wt.id);
-            }
-
-            // Init layout for worktrees without persisted sessions
-            for (const wt of wts) {
-              if (!useLayoutStore.getState().layout[wt.id]) {
-                const wtTabs = useWorkspaceStore.getState().tabs[wt.id] ?? [];
-                const wtActiveTabId = useWorkspaceStore.getState().activeTabId[wt.id] ?? "";
-                useLayoutStore.getState().initLayout(wt.id, wtTabs.map((t) => t.id), wtActiveTabId);
-              }
-            }
-          }
-
-          // Background: load diff stats per worktree (non-blocking), skip "done" worktrees
-          for (const wt of wts) {
-            if (wt.column === "done") continue;
-            getWorktreeDiffStats(wt.path)
-              .then(([additions, deletions]) => {
-                updateWorktree(wt.id, { additions, deletions });
-              })
-              .catch(e => console.warn(`[AppShell] Failed to load diff stats for ${wt.path}:`, e));
-          }
-        }
-      }).catch(e => {
-        console.warn(`[AppShell] Failed to list worktrees for ${repo}:`, e);
-      });
-    }
-  }, [repoPath, selectedReposKey, setWorktreesForRepo, clearWorktreesForRepo, updateWorktree, restoreTabs, ensureDefaultTabs]);
-
   // Sync layout when active worktree changes or tabs are added
   useEffect(() => {
     if (!activeWorktreeId) return;
@@ -248,83 +151,6 @@ function AppShell() {
   const wasOnboarding = useRef(true);
   const shouldAnimateSidebar = useRef(false);
 
-  // Resolve the active tab object
-  const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabIdValue);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      const tag = (document.activeElement as HTMLElement)?.tagName;
-      if (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        (document.activeElement as HTMLElement)?.isContentEditable
-      )
-        return;
-
-      // Cmd+N: open Create Worktree dialog
-      if (event.metaKey && !event.shiftKey && event.key === "n") {
-        event.preventDefault();
-        setCreateDialogOpen(true);
-        return;
-      }
-
-      // Cmd+T: new tab of same type as active pane's current tab
-      if (event.metaKey && !event.shiftKey && event.key === "t") {
-        event.preventDefault();
-        if (activeWorktreeId) {
-          const layoutState = useLayoutStore.getState();
-          const activePaneId = layoutState.activePaneId[activeWorktreeId];
-          const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
-          const paneActiveTab = pane ? tabs.find((t) => t.id === pane.activeTabId) : activeTab;
-          const type = (!paneActiveTab || paneActiveTab.type === "changes") ? "claude" : paneActiveTab.type;
-          lifecycleManager.addTab(activeWorktreeId, type, activePaneId ?? undefined);
-        }
-        return;
-      }
-
-      // Cmd+Shift+C: switch to Changes tab in active pane
-      if (event.metaKey && event.shiftKey && event.key === "C") {
-        event.preventDefault();
-        if (activeWorktreeId) {
-          const layoutState = useLayoutStore.getState();
-          const activePaneId = layoutState.activePaneId[activeWorktreeId];
-          if (activePaneId) {
-            const pane = layoutState.panes[activeWorktreeId]?.[activePaneId];
-            const changesTabId = pane?.tabIds.find((id) => tabs.find((t) => t.id === id && t.type === "changes"));
-            if (changesTabId) {
-              layoutState.setPaneActiveTab(activeWorktreeId, activePaneId, changesTabId);
-            }
-          }
-        }
-        return;
-      }
-
-      // Cmd+Shift+T: switch to first terminal/claude tab in active pane
-      if (event.metaKey && event.shiftKey && event.key === "T") {
-        event.preventDefault();
-        if (activeWorktreeId) {
-          const layoutState = useLayoutStore.getState();
-          const activePaneId = layoutState.activePaneId[activeWorktreeId];
-          if (activePaneId) {
-            const pane = layoutState.panes[activeWorktreeId]?.[activePaneId];
-            const termTabId = pane?.tabIds.find((id) => tabs.find((t) => t.id === id && t.type !== "changes"));
-            if (termTabId) {
-              layoutState.setPaneActiveTab(activeWorktreeId, activePaneId, termTabId);
-            }
-          }
-        }
-        return;
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeWorktreeId, activeTab, tabs]);
-
-  const hasNoRepos = !loading && repos.length === 0;
-  const activeRepoEntry = repos.find((r) => r.path === repoPath);
-
-  // Track onboarding → normal transition for sidebar animation
   useEffect(() => {
     if (loading) return;
     if (worktrees.length === 0) {
@@ -332,7 +158,6 @@ function AppShell() {
     } else if (wasOnboarding.current) {
       shouldAnimateSidebar.current = true;
       wasOnboarding.current = false;
-      // Clear flag after current render consumes it
       requestAnimationFrame(() => {
         shouldAnimateSidebar.current = false;
       });
@@ -367,104 +192,6 @@ function AppShell() {
     return () => clearInterval(interval);
   }, [repoPath, hasWorktrees]);
 
-  // Server toggle logic (moved from deleted TabBar)
-  const runningServer = useWorkspaceStore((s) => s.runningServer);
-  const setRunningServer = useWorkspaceStore((s) => s.setRunningServer);
-  const [runScript, setRunScript] = useState<RunScript | null>(null);
-
-  // Load run script config (and refresh when settings are saved)
-  const [configVersion, setConfigVersion] = useState(0);
-  useEffect(() => {
-    const handler = () => setConfigVersion((v) => v + 1);
-    window.addEventListener("config-changed", handler);
-    return () => window.removeEventListener("config-changed", handler);
-  }, []);
-
-  useEffect(() => {
-    if (!repoPath) return;
-    getConfig(repoPath).then((config) => {
-      setRunScript(config.runScript ?? null);
-    }).catch((err) => console.error("Failed to load run script config:", err));
-  }, [repoPath, configVersion]);
-
-  const isServerRunningHere = runningServer?.worktreeId === activeWorktreeId;
-
-  const handleToggleServer = useCallback(async () => {
-    if (!activeWorktreeId || !runScript || !repoPath) return;
-
-    const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === activeWorktreeId);
-    if (!wt) return;
-
-    try {
-      if (isServerRunningHere) {
-        await sessionManager.stopSession(runningServer!.tabId);
-        useWorkspaceStore.getState().updateTab(
-          runningServer!.worktreeId, runningServer!.tabId, { command: undefined },
-        );
-        setRunningServer(null);
-        return;
-      }
-
-      // Stop existing server on another worktree if running (keep tab & logs)
-      if (runningServer) {
-        await sessionManager.stopSession(runningServer.tabId);
-        useWorkspaceStore.getState().updateTab(
-          runningServer.worktreeId, runningServer.tabId, { command: undefined },
-        );
-        setRunningServer(null);
-      }
-
-      // Clean up any existing server tab on this worktree so we get a clean mount
-      const existingTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
-      const oldServerTab = existingTabs.find((t) => t.type === "server");
-      if (oldServerTab) {
-        await lifecycleManager.removeTab(activeWorktreeId, oldServerTab.id);
-      }
-
-      // Create a fresh server tab with the run command stored on it
-      const tabId = lifecycleManager.addTab(activeWorktreeId, "server");
-      if (tabId) {
-        useWorkspaceStore.getState().updateTab(activeWorktreeId, tabId, {
-          command: runScript.command,
-        });
-      }
-
-      setRunningServer({
-        worktreeId: activeWorktreeId,
-        sessionId: "",
-        tabId: tabId ?? "",
-      });
-    } catch (err) {
-      console.error("[handleToggleServer] failed:", err);
-    }
-  }, [activeWorktreeId, runScript, repoPath, isServerRunningHere, runningServer, setRunningServer]);
-
-  // Detect server process exit via heartbeat timeout
-  useEffect(() => {
-    if (!runningServer) return;
-
-    // Grace period: don't check for the first 5s so TerminalView has time
-    // to mount and spawn the PTY session.
-    const startTime = Date.now();
-
-    const interval = setInterval(() => {
-      if (Date.now() - startTime < SERVER_GRACE_PERIOD_MS) return;
-
-      const session = sessionManager.getSession(runningServer.tabId);
-      if (!session || !session.sessionId) {
-        // Session was closed externally
-        setRunningServer(null);
-        return;
-      }
-      // Check if heartbeat is stale (>10s without heartbeat = dead)
-      if (session.lastHeartbeat > 0 && Date.now() - session.lastHeartbeat > SERVER_HEARTBEAT_STALE_MS) {
-        setRunningServer(null);
-      }
-    }, SERVER_POLL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [runningServer, setRunningServer]);
-
   // Clean up layout state for removed worktrees
   const worktreeIds = worktrees.map((wt) => wt.id);
   useEffect(() => {
@@ -479,6 +206,9 @@ function AppShell() {
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)
     : 0;
+
+  const hasNoRepos = !loading && repos.length === 0;
+  const activeRepoEntry = repos.find((r) => r.path === repoPath);
 
   // Show cat logo while loading persisted repo path
   if (loading) {
