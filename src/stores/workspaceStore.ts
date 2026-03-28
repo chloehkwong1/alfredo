@@ -39,6 +39,8 @@ interface WorkspaceState {
   disconnectedTabs: Set<string>;
   /** Tracks the currently running dev server, if any. */
   runningServer: { worktreeId: string; sessionId: string; tabId: string } | null;
+  /** Tracks reviewed files per worktree. Keyed by worktreeId. */
+  reviewedFiles: Record<string, Set<string>>;
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
@@ -79,6 +81,8 @@ interface WorkspaceState {
   removeDisconnectedTab: (tabId: string) => void;
   isTabDisconnected: (tabId: string) => boolean;
   updateTab: (worktreeId: string, tabId: string, patch: Partial<WorkspaceTab>) => void;
+  toggleReviewedFile: (worktreeId: string, filePath: string) => void;
+  clearReviewedFiles: (worktreeId: string) => void;
   clearStore: () => void;
   setRunningServer: (server: { worktreeId: string; sessionId: string; tabId: string } | null) => void;
 }
@@ -132,6 +136,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   prSummary: {},
   disconnectedTabs: new Set<string>(),
   runningServer: null,
+  reviewedFiles: {},
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -511,6 +516,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       },
     })),
 
+  toggleReviewedFile: (worktreeId, filePath) =>
+    set((state) => {
+      const current = state.reviewedFiles[worktreeId] ?? new Set<string>();
+      const next = new Set(current);
+      if (next.has(filePath)) {
+        next.delete(filePath);
+      } else {
+        next.add(filePath);
+      }
+      return { reviewedFiles: { ...state.reviewedFiles, [worktreeId]: next } };
+    }),
+
+  clearReviewedFiles: (worktreeId) =>
+    set((state) => ({
+      reviewedFiles: { ...state.reviewedFiles, [worktreeId]: new Set<string>() },
+    })),
+
   clearStore: () =>
     set({
       worktrees: [],
@@ -530,6 +552,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       prSummary: {},
       disconnectedTabs: new Set<string>(),
       runningServer: null,
+      reviewedFiles: {},
     }),
 
   setRunningServer: (server) => set({ runningServer: server }),

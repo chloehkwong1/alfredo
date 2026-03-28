@@ -36,6 +36,8 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const prPanelState = useWorkspaceStore((s) => s.prPanelState[worktreeId]);
   const setPrPanelState = useWorkspaceStore((s) => s.setPrPanelState);
   const prComments = useWorkspaceStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
+  const reviewedFiles = useWorkspaceStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
+  const toggleReviewedFile = useWorkspaceStore((s) => s.toggleReviewedFile);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
 
@@ -120,6 +122,81 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pr, worktreeId, effectivePrPanelState, setPrPanelState]);
 
+  const handleToggleExpanded = useCallback((path: string) => {
+    setCollapsedFiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
+  // Keyboard shortcuts: ]/n next file, [/p prev file, x toggle collapse
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      if (e.key === "]" || e.key === "n") {
+        e.preventDefault();
+        const idx = displayFiles.findIndex((f) => f.path === activeFilePath);
+        const next = idx < displayFiles.length - 1 ? idx + 1 : 0;
+        const file = displayFiles[next];
+        if (file) {
+          setActiveFilePath(file.path);
+          setCollapsedFiles((prev) => {
+            if (!prev.has(file.path)) return prev;
+            const s = new Set(prev);
+            s.delete(file.path);
+            return s;
+          });
+          fileRefs.current.get(file.path)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      } else if (e.key === "[" || e.key === "p") {
+        e.preventDefault();
+        const idx = displayFiles.findIndex((f) => f.path === activeFilePath);
+        const prev = idx > 0 ? idx - 1 : displayFiles.length - 1;
+        const file = displayFiles[prev];
+        if (file) {
+          setActiveFilePath(file.path);
+          setCollapsedFiles((p) => {
+            if (!p.has(file.path)) return p;
+            const s = new Set(p);
+            s.delete(file.path);
+            return s;
+          });
+          fileRefs.current.get(file.path)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      } else if (e.key === "x" && activeFilePath) {
+        e.preventDefault();
+        handleToggleExpanded(activeFilePath);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [displayFiles, activeFilePath, handleToggleExpanded]);
+
+  const expandAll = useCallback(() => {
+    setCollapsedFiles(new Set());
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    setCollapsedFiles(new Set(displayFiles.map((f) => f.path)));
+  }, [displayFiles]);
+
+  const reviewedCount = displayFiles.filter((f) => reviewedFiles.has(f.path)).length;
+
+  const handleToggleReviewed = useCallback(
+    (filePath: string) => {
+      toggleReviewedFile(worktreeId, filePath);
+    },
+    [worktreeId, toggleReviewedFile],
+  );
+
   const handleSelectFile = useCallback((path: string) => {
     setActiveFilePath(path);
     // Uncollapse if collapsed
@@ -162,18 +239,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     setViewMode(mode);
     setSelectedCommitIndex(null);
     setActiveAnnotationLine(null);
-  }, []);
-
-  const handleToggleExpanded = useCallback((path: string) => {
-    setCollapsedFiles((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
   }, []);
 
   const handleAddAnnotation = useCallback(
@@ -273,10 +338,27 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           activeFilePath={activeFilePath}
           collapsedFiles={collapsedFiles}
           onSelectFile={handleSelectFile}
+          reviewedFiles={reviewedFiles}
+          onToggleReviewed={handleToggleReviewed}
         />
 
         {/* Center: Diff file cards */}
-        <div className="flex-1 overflow-y-auto min-w-0">
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
+            <span className="text-[10px] text-text-tertiary">
+              {reviewedCount}/{displayFiles.length} reviewed
+            </span>
+            <div className="flex items-center gap-1.5 ml-auto">
+              <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
+                Expand all
+              </button>
+              <span className="text-text-tertiary/50">|</span>
+              <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
+                Collapse all
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto min-w-0">
           {displayFiles.map((file) => (
             <DiffFileCard
               key={file.path}
@@ -305,6 +387,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
               No changes to display
             </div>
           )}
+          </div>
         </div>
 
         {/* Right: PR panel */}
