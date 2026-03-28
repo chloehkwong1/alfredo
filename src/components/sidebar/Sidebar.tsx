@@ -6,7 +6,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
 import { SidebarDragContext } from "./SidebarDragContext";
 import { ArchiveSection } from "./ArchiveSection";
-import { RepoPills } from "./RepoPills";
+import { RepoSelector } from "./RepoSelector";
 import { BranchModeView } from "./BranchModeView";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
@@ -44,26 +44,40 @@ function repoNameFromPath(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
+function formatWorkspaceName(name: string): string {
+  return name
+    .replace(/[_-]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 interface SidebarProps {
   hasRepo: boolean;
   repos: RepoEntry[];
   activeRepo: string | null;
+  selectedRepos?: string[];
+  onToggleRepo?: (path: string) => void;
   onSwitchRepo: (path: string) => void;
   onAddRepo: () => void;
   onRemoveRepo: (path: string) => void;
   activeRepoMode: "worktree" | "branch";
   onEnableWorktrees: () => void;
+  displayName?: string | null;
+  repoColors?: Record<string, string>;
 }
 
 function Sidebar({
   hasRepo = false,
   repos,
   activeRepo,
-  onSwitchRepo,
+  selectedRepos,
+  onToggleRepo,
+  onSwitchRepo: _onSwitchRepo,
   onAddRepo,
   onRemoveRepo,
   activeRepoMode,
   onEnableWorktrees,
+  displayName,
+  repoColors,
 }: SidebarProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
@@ -142,16 +156,19 @@ function Sidebar({
     setDeletingCount(null);
   }
 
-  const displayName = activeRepo ? repoNameFromPath(activeRepo) : "alfredo";
+  const effectiveSelectedRepos = selectedRepos ?? (activeRepo ? [activeRepo] : []);
+  const effectiveRepoColors = repoColors ?? {};
+  const repoIndexMap = Object.fromEntries(repos.map((r, i) => [r.path, i]));
+  const showRepoTags = effectiveSelectedRepos.length > 1;
 
   return (
-    <div className="flex flex-col w-[260px] h-full bg-bg-sidebar border-r border-border-subtle flex-shrink-0">
+    <div className="relative flex flex-col w-[260px] h-full sidebar-bg border-r border-border-subtle flex-shrink-0">
       {/* Header */}
       <div className="flex items-center justify-between h-10 px-4 border-b border-border-subtle flex-shrink-0">
         <div className="flex items-center gap-3">
           <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
           <span className="text-sm font-semibold tracking-[-0.3px] text-text-primary">
-            {displayName}
+            {displayName || (activeRepo ? formatWorkspaceName(repoNameFromPath(activeRepo)) : "alfredo")}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -161,15 +178,18 @@ function Sidebar({
         </div>
       </div>
 
-      {/* Repo pills */}
-      {repos.length >= 1 && (
-        <RepoPills
+      {/* Repo selector */}
+      {repos.length >= 2 && (
+        <RepoSelector
           repos={repos}
-          activeRepo={activeRepo}
-          activeSessions={{}}
-          onSwitch={onSwitchRepo}
+          selectedRepos={effectiveSelectedRepos}
+          repoColors={effectiveRepoColors}
+          onToggleRepo={onToggleRepo ?? (() => {})}
           onAddRepo={onAddRepo}
           onRemoveRepo={onRemoveRepo}
+          worktreeCountByRepo={Object.fromEntries(
+            repos.map((r) => [r.path, r.path === activeRepo ? activeWorktrees.length : 0])
+          )}
         />
       )}
 
@@ -196,6 +216,9 @@ function Sidebar({
                     onDeleteWorktree={handleDeleteWorktree}
                     onArchiveWorktree={archiveWorktree}
                     forceVisible={isDragging}
+                    repoColors={effectiveRepoColors}
+                    showRepoTags={showRepoTags}
+                    repoIndexMap={repoIndexMap}
                   />
                 ))
               }
@@ -213,7 +236,7 @@ function Sidebar({
             <div className="p-4 border-t border-border-subtle flex-shrink-0">
               <button
                 type="button"
-                className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] bg-accent-muted text-accent-primary text-sm font-medium hover:bg-accent-primary/25 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] border border-dashed border-accent-primary/25 text-accent-primary/70 text-sm font-medium hover:bg-accent-muted hover:border-accent-primary/40 hover:text-accent-primary transition-all cursor-pointer"
                 onClick={() => setCreateWorktreeOpen(true)}
               >
                 <Plus className="h-4 w-4" />
