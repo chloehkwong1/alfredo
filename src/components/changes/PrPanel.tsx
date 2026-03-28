@@ -71,24 +71,12 @@ export function PrPanel({
   if (panelState === "collapsed") {
     return (
       <div
-        style={{
-          width: 36,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          paddingTop: 8,
-          paddingBottom: 8,
-          gap: 16,
-          background: "var(--color-surface-raised, #1e1e2e)",
-          borderLeft: "1px solid var(--color-border, rgba(255,255,255,0.08))",
-          cursor: "pointer",
-        }}
+        className="w-9 shrink-0 flex flex-col items-center pt-2 pb-2 gap-4 bg-bg-primary border-l border-border-default cursor-pointer"
         onClick={onTogglePanel}
         title="Expand PR panel"
       >
         {/* Expand arrow */}
-        <div style={{ color: "var(--color-text-muted, #888)", marginBottom: 4 }}>
+        <div className="text-text-tertiary mb-1">
           <ChevronLeft size={16} />
         </div>
 
@@ -121,180 +109,85 @@ export function PrPanel({
 
   // ── Expanded panel ─────────────────────────────────────────────
   return (
-    <div
-      style={{
-        width: 296, // 260px panel + 36px rail
-        flexShrink: 0,
-        display: "flex",
-        flexDirection: "row",
-        background: "var(--color-surface-raised, #1e1e2e)",
-        borderLeft: "1px solid var(--color-border, rgba(255,255,255,0.08))",
-        overflow: "hidden",
-      }}
-    >
-      {/* Main panel content (260px) */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 10px",
-            borderBottom: "1px solid var(--color-border, rgba(255,255,255,0.08))",
-            flexShrink: 0,
-          }}
+    <div className="w-[260px] shrink-0 flex flex-col bg-bg-primary border-l border-border-default overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-border-default shrink-0">
+        <span className="text-[13px] font-semibold text-text-primary flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+          PR #{pr.number}
+        </span>
+        <a
+          href={pr.url}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-text-tertiary leading-none"
+          title="Open on GitHub"
         >
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: "var(--color-text, #e0e0e0)",
-              flex: 1,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            PR #{pr.number}
-          </span>
-          <a
-            href={pr.url}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            style={{ color: "var(--color-text-muted, #888)", lineHeight: 0 }}
-            title="Open on GitHub"
-          >
-            <ExternalLink size={13} />
-          </a>
-          <button
-            onClick={onTogglePanel}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--color-text-muted, #888)",
-              padding: 0,
-              lineHeight: 0,
-            }}
-            title="Collapse panel"
-          >
-            <ChevronRight size={15} />
-          </button>
-        </div>
-
-        {/* Scrollable content */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "8px 0",
-            display: "flex",
-            flexDirection: "column",
-            gap: 0,
-          }}
+          <ExternalLink size={13} />
+        </a>
+        <button
+          onClick={onTogglePanel}
+          className="bg-transparent border-none cursor-pointer text-text-tertiary p-0 leading-none"
+          title="Collapse panel"
         >
-          {/* Checks section */}
-          <Section title="Checks" count={checkRuns.length}>
-            {checkRuns.length === 0 ? (
-              <EmptyRow text="No checks" />
-            ) : (
-              checkRuns.map((run) => <CheckRunRow key={run.id} run={run} />)
-            )}
-          </Section>
-
-          {/* Reviews section */}
-          <Section title="Reviews" count={reviews.length}>
-            {reviews.length === 0 ? (
-              <EmptyRow text="No reviews yet" />
-            ) : (
-              reviews.map((r) => (
-                <ReviewRow key={`${r.reviewer}-${r.submittedAt}`} reviewer={r.reviewer} state={r.state} submittedAt={r.submittedAt} />
-              ))
-            )}
-          </Section>
-
-          {/* Comments section */}
-          <Section title="Comments" count={unresolvedComments > 0 ? unresolvedComments : comments.length}>
-            {comments.length === 0 ? (
-              <EmptyRow text="No comments" />
-            ) : (
-              comments.map((c) => (
-                <CommentCard
-                  key={c.id}
-                  author={c.author}
-                  body={c.body}
-                  path={c.path}
-                  line={c.line}
-                  createdAt={c.createdAt}
-                  resolved={c.resolved}
-                  htmlUrl={c.htmlUrl}
-                  onJump={
-                    c.path && c.line != null
-                      ? () => onJumpToComment(c.path!, c.line!)
-                      : undefined
-                  }
-                />
-              ))
-            )}
-          </Section>
-        </div>
-
-        {/* Merge status banner */}
-        <MergeStatusBanner
-          pr={pr}
-          mergeable={mergeable}
-          reviewDecision={reviewDecision}
-        />
+          <ChevronRight size={15} />
+        </button>
       </div>
 
-      {/* Thin right rail (36px) with collapse arrow */}
-      <div
-        style={{
-          width: 36,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          paddingTop: 8,
-          paddingBottom: 8,
-          gap: 16,
-          borderLeft: "1px solid var(--color-border, rgba(255,255,255,0.08))",
-          cursor: "pointer",
-        }}
-        onClick={onTogglePanel}
-        title="Collapse PR panel"
-      >
-        <div style={{ color: "var(--color-text-muted, #888)", marginBottom: 4 }}>
-          <ChevronRight size={16} />
-        </div>
-        <RailIcon
-          icon={<CircleCheck size={16} />}
-          count={failingChecks > 0 ? failingChecks : pendingChecks > 0 ? pendingChecks : checkRuns.length}
-          badgeVariant={failingChecks > 0 ? "error" : pendingChecks > 0 ? "pending" : "ok"}
-          title="Check runs"
-        />
-        <RailIcon
-          icon={<Eye size={16} />}
-          count={approvals}
-          badgeVariant={reviewDecision === "APPROVED" ? "ok" : reviewDecision === "CHANGES_REQUESTED" ? "error" : "neutral"}
-          title="Reviews"
-        />
-        <RailIcon
-          icon={<MessageCircle size={16} />}
-          count={unresolvedComments}
-          badgeVariant="info"
-          title="Comments"
-        />
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto py-2 flex flex-col">
+        {/* Checks section */}
+        <Section title="Checks" count={checkRuns.length}>
+          {checkRuns.length === 0 ? (
+            <EmptyRow text="No checks" />
+          ) : (
+            checkRuns.map((run) => <CheckRunRow key={run.id} run={run} />)
+          )}
+        </Section>
+
+        {/* Reviews section */}
+        <Section title="Reviews" count={reviews.length}>
+          {reviews.length === 0 ? (
+            <EmptyRow text="No reviews yet" />
+          ) : (
+            reviews.map((r) => (
+              <ReviewRow key={`${r.reviewer}-${r.submittedAt}`} reviewer={r.reviewer} state={r.state} submittedAt={r.submittedAt} />
+            ))
+          )}
+        </Section>
+
+        {/* Comments section */}
+        <Section title="Comments" count={unresolvedComments > 0 ? unresolvedComments : comments.length}>
+          {comments.length === 0 ? (
+            <EmptyRow text="No comments" />
+          ) : (
+            comments.map((c) => (
+              <CommentCard
+                key={c.id}
+                author={c.author}
+                body={c.body}
+                path={c.path}
+                line={c.line}
+                createdAt={c.createdAt}
+                resolved={c.resolved}
+                htmlUrl={c.htmlUrl}
+                onJump={
+                  c.path && c.line != null
+                    ? () => onJumpToComment(c.path!, c.line!)
+                    : undefined
+                }
+              />
+            ))
+          )}
+        </Section>
       </div>
+
+      {/* Merge status banner */}
+      <MergeStatusBanner
+        pr={pr}
+        mergeable={mergeable}
+        reviewDecision={reviewDecision}
+      />
     </div>
   );
 }
@@ -303,13 +196,13 @@ export function PrPanel({
 
 type BadgeVariant = "error" | "ok" | "pending" | "info" | "neutral";
 
-function badgeColor(variant: BadgeVariant): string {
+function badgeBgClass(variant: BadgeVariant): string {
   switch (variant) {
-    case "error": return "#ef4444";
-    case "ok": return "#22c55e";
-    case "pending": return "#f59e0b";
-    case "info": return "#3b82f6";
-    case "neutral": return "#6b7280";
+    case "error": return "bg-diff-removed";
+    case "ok": return "bg-diff-added";
+    case "pending": return "bg-status-busy";
+    case "info": return "bg-accent-primary";
+    case "neutral": return "bg-text-tertiary";
   }
 }
 
@@ -326,29 +219,16 @@ function RailIcon({
 }) {
   return (
     <div
-      style={{ position: "relative", color: "var(--color-text-muted, #888)", lineHeight: 0 }}
+      className="relative text-text-tertiary leading-none"
       title={title}
     >
       {icon}
       {count > 0 && (
         <span
-          style={{
-            position: "absolute",
-            top: -5,
-            right: -6,
-            background: badgeColor(badgeVariant),
-            color: "#fff",
-            fontSize: 9,
-            fontWeight: 700,
-            borderRadius: 6,
-            minWidth: 13,
-            height: 13,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "0 2px",
-            lineHeight: 1,
-          }}
+          className={[
+            "absolute -top-[5px] -right-[6px] flex items-center justify-center text-[9px] font-bold text-white rounded-md min-w-[13px] h-[13px] px-0.5 leading-none",
+            badgeBgClass(badgeVariant),
+          ].join(" ")}
         >
           {count > 99 ? "99+" : count}
         </span>
@@ -367,36 +247,13 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ marginBottom: 4 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "4px 10px 4px",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            color: "var(--color-text-muted, #888)",
-          }}
-        >
+    <div className="mb-1">
+      <div className="flex items-center gap-1.5 px-2.5 py-1">
+        <span className="text-[9px] uppercase tracking-wider text-text-tertiary font-semibold">
           {title}
         </span>
         {count > 0 && (
-          <span
-            style={{
-              fontSize: 10,
-              background: "var(--color-surface, rgba(255,255,255,0.06))",
-              color: "var(--color-text-muted, #888)",
-              borderRadius: 9,
-              padding: "1px 5px",
-            }}
-          >
+          <span className="text-[10px] bg-bg-secondary text-text-tertiary rounded-full px-1.5 py-px">
             {count}
           </span>
         )}
@@ -408,14 +265,7 @@ function Section({
 
 function EmptyRow({ text }: { text: string }) {
   return (
-    <div
-      style={{
-        padding: "4px 10px",
-        fontSize: 12,
-        color: "var(--color-text-muted, #888)",
-        fontStyle: "italic",
-      }}
-    >
+    <div className="px-2.5 py-1 text-xs text-text-tertiary italic">
       {text}
     </div>
   );
@@ -427,7 +277,17 @@ function CheckRunRow({ run }: { run: CheckRun }) {
   const isFailed = isCompleted && !isSuccess && run.conclusion !== null;
   const isPending = !isCompleted;
 
-  const dotColor = isFailed ? "#ef4444" : isPending ? "#f59e0b" : "#22c55e";
+  const dotColorClass = isFailed
+    ? "text-diff-removed"
+    : isPending
+      ? "text-status-busy"
+      : "text-diff-added";
+
+  const bgColorClass = isFailed
+    ? "bg-diff-removed"
+    : isPending
+      ? "bg-status-busy"
+      : "bg-diff-added";
 
   const duration =
     run.startedAt && run.completedAt
@@ -437,46 +297,25 @@ function CheckRunRow({ run }: { run: CheckRun }) {
       : null;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "3px 10px",
-        fontSize: 12,
-      }}
-    >
+    <div className="flex items-center gap-1.5 px-2.5 py-[3px] text-xs">
       {isPending ? (
         <RefreshCw
           size={10}
-          style={{ color: dotColor, flexShrink: 0, animation: "spin 1.5s linear infinite" }}
+          className={`${dotColorClass} shrink-0 animate-spin`}
         />
       ) : (
         <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: dotColor,
-            flexShrink: 0,
-            display: "inline-block",
-          }}
+          className={`w-2 h-2 rounded-full ${bgColorClass} shrink-0 inline-block`}
         />
       )}
       <span
-        style={{
-          flex: 1,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          color: "var(--color-text, #e0e0e0)",
-        }}
+        className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-text-primary"
         title={run.name}
       >
         {run.name}
       </span>
       {duration && (
-        <span style={{ color: "var(--color-text-muted, #888)", flexShrink: 0 }}>
+        <span className="text-text-tertiary shrink-0">
           {duration}
         </span>
       )}
@@ -485,7 +324,7 @@ function CheckRunRow({ run }: { run: CheckRun }) {
           href={run.htmlUrl}
           target="_blank"
           rel="noreferrer"
-          style={{ color: "#ef4444", lineHeight: 0, flexShrink: 0 }}
+          className="text-diff-removed leading-none shrink-0"
           title="View logs"
           onClick={(e) => e.stopPropagation()}
         >
@@ -505,12 +344,12 @@ function ReviewRow({
   state: string;
   submittedAt: string | null;
 }) {
-  const stateColor =
+  const stateColorClass =
     state === "APPROVED"
-      ? "#22c55e"
+      ? "text-diff-added"
       : state === "CHANGES_REQUESTED"
-        ? "#ef4444"
-        : "#6b7280";
+        ? "text-diff-removed"
+        : "text-text-tertiary";
 
   const stateLabel =
     state === "APPROVED"
@@ -524,49 +363,19 @@ function ReviewRow({
   const initial = reviewer.charAt(0).toUpperCase();
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 7,
-        padding: "4px 10px",
-        fontSize: 12,
-      }}
-    >
+    <div className="flex items-center gap-[7px] px-2.5 py-1 text-xs">
       {/* Avatar */}
-      <div
-        style={{
-          width: 20,
-          height: 20,
-          borderRadius: "50%",
-          background: "var(--color-surface, rgba(255,255,255,0.1))",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 10,
-          fontWeight: 700,
-          color: "var(--color-text, #e0e0e0)",
-          flexShrink: 0,
-        }}
-      >
+      <div className="w-5 h-5 rounded-full bg-bg-hover flex items-center justify-center text-[10px] font-bold text-text-primary shrink-0">
         {initial}
       </div>
-      <span
-        style={{
-          flex: 1,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          color: "var(--color-text, #e0e0e0)",
-        }}
-      >
+      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-text-primary">
         {reviewer}
       </span>
-      <span style={{ color: stateColor, flexShrink: 0, fontSize: 11 }}>
+      <span className={`${stateColorClass} shrink-0 text-[11px]`}>
         {stateLabel}
       </span>
       {submittedAt && (
-        <span style={{ color: "var(--color-text-muted, #888)", flexShrink: 0, fontSize: 10 }}>
+        <span className="text-text-tertiary shrink-0 text-[10px]">
           {formatTimeAgo(submittedAt)}
         </span>
       )}
@@ -596,55 +405,32 @@ function CommentCard({
   return (
     <div
       onClick={onJump}
-      style={{
-        margin: "2px 6px",
-        padding: "6px 8px",
-        background: "var(--color-surface, rgba(255,255,255,0.04))",
-        borderRadius: 6,
-        border: resolved
-          ? "1px solid rgba(255,255,255,0.04)"
-          : "1px solid rgba(255,255,255,0.08)",
-        cursor: onJump ? "pointer" : "default",
-        opacity: resolved ? 0.5 : 1,
-        fontSize: 12,
-      }}
+      className={`mx-1.5 px-2 py-1.5 bg-bg-secondary rounded-md text-xs hover:bg-bg-hover ${
+        resolved ? "border border-border-subtle opacity-50" : "border border-border-default"
+      } ${onJump ? "cursor-pointer" : "cursor-default"}`}
     >
       {/* Author row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 5,
-          marginBottom: 3,
-        }}
-      >
-        <span style={{ fontWeight: 600, color: "var(--color-text, #e0e0e0)" }}>
+      <div className="flex items-center gap-[5px] mb-[3px]">
+        <span className="font-semibold text-text-primary">
           {author}
         </span>
         {path && (
           <span
-            style={{
-              flex: 1,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              color: "var(--color-text-muted, #888)",
-              fontSize: 11,
-            }}
+            className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-text-tertiary text-[11px]"
             title={line != null ? `${path}:${line}` : path}
           >
             {path.split("/").pop()}
             {line != null ? `:${line}` : ""}
           </span>
         )}
-        <span style={{ color: "var(--color-text-muted, #888)", fontSize: 10, flexShrink: 0 }}>
+        <span className="text-text-tertiary text-[10px] shrink-0">
           {formatTimeAgo(createdAt)}
         </span>
         <a
           href={htmlUrl}
           target="_blank"
           rel="noreferrer"
-          style={{ color: "var(--color-text-muted, #888)", lineHeight: 0, flexShrink: 0 }}
+          className="text-text-tertiary leading-none shrink-0"
           title="Open on GitHub"
           onClick={(e) => e.stopPropagation()}
         >
@@ -653,17 +439,7 @@ function CommentCard({
       </div>
 
       {/* Body */}
-      <p
-        style={{
-          margin: 0,
-          color: "var(--color-text, #e0e0e0)",
-          lineHeight: 1.4,
-          display: "-webkit-box",
-          WebkitLineClamp: 3,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-        }}
-      >
+      <p className="m-0 text-text-primary leading-[1.4] line-clamp-3">
         {body}
       </p>
     </div>
@@ -681,17 +457,7 @@ function MergeStatusBanner({
 }) {
   if (pr.merged) {
     return (
-      <div
-        style={{
-          padding: "6px 10px",
-          background: "rgba(139,92,246,0.15)",
-          borderTop: "1px solid rgba(139,92,246,0.3)",
-          fontSize: 12,
-          color: "#a78bfa",
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
+      <div className="px-2.5 py-1.5 bg-accent-primary/10 border-t border-accent-primary/20 text-xs text-accent-primary font-semibold shrink-0">
         Merged{pr.mergedAt ? ` · ${formatTimeAgo(pr.mergedAt)}` : ""}
       </div>
     );
@@ -699,17 +465,7 @@ function MergeStatusBanner({
 
   if (pr.state === "closed") {
     return (
-      <div
-        style={{
-          padding: "6px 10px",
-          background: "rgba(239,68,68,0.10)",
-          borderTop: "1px solid rgba(239,68,68,0.2)",
-          fontSize: 12,
-          color: "#f87171",
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
+      <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0">
         Closed
       </div>
     );
@@ -717,17 +473,7 @@ function MergeStatusBanner({
 
   if (mergeable === true && reviewDecision === "APPROVED") {
     return (
-      <div
-        style={{
-          padding: "6px 10px",
-          background: "rgba(34,197,94,0.10)",
-          borderTop: "1px solid rgba(34,197,94,0.2)",
-          fontSize: 12,
-          color: "#4ade80",
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
+      <div className="px-2.5 py-1.5 bg-diff-added/10 border-t border-diff-added/20 text-xs text-diff-added font-semibold shrink-0">
         Ready to merge
       </div>
     );
@@ -735,17 +481,7 @@ function MergeStatusBanner({
 
   if (mergeable === false) {
     return (
-      <div
-        style={{
-          padding: "6px 10px",
-          background: "rgba(239,68,68,0.10)",
-          borderTop: "1px solid rgba(239,68,68,0.2)",
-          fontSize: 12,
-          color: "#f87171",
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
+      <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0">
         Merge conflict
       </div>
     );
@@ -753,17 +489,7 @@ function MergeStatusBanner({
 
   if (reviewDecision === "CHANGES_REQUESTED") {
     return (
-      <div
-        style={{
-          padding: "6px 10px",
-          background: "rgba(239,68,68,0.10)",
-          borderTop: "1px solid rgba(239,68,68,0.2)",
-          fontSize: 12,
-          color: "#f87171",
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
+      <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0">
         Changes requested
       </div>
     );
@@ -771,34 +497,14 @@ function MergeStatusBanner({
 
   if (pr.draft) {
     return (
-      <div
-        style={{
-          padding: "6px 10px",
-          background: "rgba(107,114,128,0.10)",
-          borderTop: "1px solid rgba(107,114,128,0.2)",
-          fontSize: 12,
-          color: "#9ca3af",
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
+      <div className="px-2.5 py-1.5 bg-text-tertiary/10 border-t border-text-tertiary/20 text-xs text-text-tertiary font-semibold shrink-0">
         Draft
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        padding: "6px 10px",
-        background: "rgba(59,130,246,0.10)",
-        borderTop: "1px solid rgba(59,130,246,0.2)",
-        fontSize: 12,
-        color: "#60a5fa",
-        fontWeight: 600,
-        flexShrink: 0,
-      }}
-    >
+    <div className="px-2.5 py-1.5 bg-status-waiting/10 border-t border-status-waiting/20 text-xs text-status-waiting font-semibold shrink-0">
       Open
     </div>
   );
