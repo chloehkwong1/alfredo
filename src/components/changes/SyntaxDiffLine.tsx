@@ -13,14 +13,14 @@ interface SyntaxDiffLineProps {
 }
 
 const LINE_BG: Record<string, string> = {
-  addition: "bg-diff-added/10",
-  deletion: "bg-diff-removed/10",
+  addition: "bg-diff-added/15",
+  deletion: "bg-diff-removed/15",
   context: "",
 };
 
 const GUTTER_BG: Record<string, string> = {
-  addition: "bg-diff-added/15",
-  deletion: "bg-diff-removed/15",
+  addition: "bg-diff-added/25",
+  deletion: "bg-diff-removed/25",
   context: "",
 };
 
@@ -67,7 +67,7 @@ function SyntaxDiffLine({
       >
         <span
           className={[
-            "w-[44px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px]",
+            "w-[36px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px]",
             GUTTER_BG[lineType],
           ].join(" ")}
           onClick={onClickLine}
@@ -76,15 +76,22 @@ function SyntaxDiffLine({
         </span>
         <span
           className={[
-            "w-[44px] text-right pr-3 text-text-tertiary select-none flex-shrink-0 text-[10px]",
+            "w-[36px] text-right pr-2 text-text-tertiary select-none flex-shrink-0 text-[10px]",
             GUTTER_BG[lineType],
           ].join(" ")}
           onClick={onClickLine}
         >
           {newLineNumber ?? ""}
         </span>
-        <span className="w-4 text-center text-text-tertiary select-none flex-shrink-0">
-          {prefix}
+        <span className="w-4 text-center select-none flex-shrink-0 relative" onClick={onClickLine}>
+          <span className={onClickLine ? "text-text-tertiary group-hover:invisible" : "text-text-tertiary"}>
+            {prefix}
+          </span>
+          {onClickLine && (
+            <span className="absolute inset-0 flex items-center justify-center text-accent-primary font-bold invisible group-hover:visible">
+              +
+            </span>
+          )}
         </span>
         <span className="flex-1 px-2 whitespace-pre overflow-x-auto">
           {tokens ? (

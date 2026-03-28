@@ -160,7 +160,7 @@ const DiffFileCard = forwardRef<HTMLDivElement, DiffFileCardProps>(
             {file.hunks.map((hunk, hunkIndex) => (
               <div key={hunkIndex}>
                 {/* Hunk separator */}
-                <div className="flex items-center gap-2 px-3 py-0.5 bg-bg-secondary/50 border-y border-border-subtle/50 font-mono text-[10px] text-text-tertiary select-none">
+                <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-y border-border-default font-mono text-[10px] text-text-tertiary select-none">
                   <span>{hunk.header}</span>
                 </div>
 
