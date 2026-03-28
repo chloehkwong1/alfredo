@@ -239,6 +239,12 @@ function PaneTabBar({
   const prSummary = useWorkspaceStore((s) => s.prSummary);
   const commentCount = prSummary[worktreeId]?.unresolvedCommentCount ?? 0;
 
+  const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
+
+  const terminalTabs = paneTabs.filter((t) => t.type !== "changes");
+  const changesTab = paneTabs.find((t) => t.type === "changes") ?? null;
+  const terminalTabIds = terminalTabs.map((t) => t.id);
+
   return (
     <div
       className={[
@@ -255,10 +261,10 @@ function PaneTabBar({
         onDragCancel={() => setDragActiveId(null)}
       >
         <SortableContext
-          items={pane?.tabIds ?? []}
+          items={terminalTabIds}
           strategy={horizontalListSortingStrategy}
         >
-          {paneTabs.map((tab) => {
+          {terminalTabs.map((tab) => {
             const isActive = tab.id === activeTabId;
             return (
               <SortableTab
@@ -322,11 +328,36 @@ function PaneTabBar({
 
       <div className="flex-1" />
 
-      {commentCount > 0 && paneTabs.some((t) => t.type === "changes") && (
-        <span className="mr-2 text-2xs bg-accent-primary/20 text-accent-primary px-1 rounded-full leading-none py-0.5">
-          {commentCount}
-        </span>
-      )}
+      {changesTab && (() => {
+        const isActive = changesTab.id === activeTabId;
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPaneActiveTab(worktreeId, paneId, changesTab.id);
+              setActivePaneId(worktreeId, paneId);
+            }}
+            className={[
+              "ml-auto h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
+              isActive
+                ? "bg-gradient-to-t from-accent-primary/6 to-transparent border-b-2 border-accent-primary text-text-primary"
+                : "text-text-tertiary border-b-2 border-transparent hover:text-text-secondary",
+            ].join(" ")}
+          >
+            <GitCompareArrows
+              size={14}
+              className={isActive ? "text-accent-primary" : undefined}
+            />
+            <span>{changesTab.label}</span>
+            {commentCount > 0 && (
+              <span className="text-2xs bg-accent-primary/20 text-accent-primary px-1 rounded-full leading-none py-0.5">
+                {commentCount}
+              </span>
+            )}
+          </button>
+        );
+      })()}
     </div>
   );
 }
