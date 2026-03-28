@@ -726,3 +726,55 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+
+/* ══════════════════════════════════════════════════
+   SIDEBAR REDESIGN (gradient bleed + flat rows)
+   ══════════════════════════════════════════════════ */
+
+.sidebar-bg {
+  background: linear-gradient(180deg, var(--bg-sidebar) 0%, color-mix(in srgb, var(--bg-sidebar) 85%, black) 100%);
+  box-shadow: 1px 0 20px -4px rgba(0, 0, 0, 0.6);
+  position: relative;
+}
+
+/* Attention: gradient bleed from left border */
+.bleed-waiting {
+  border-left: 3px solid var(--status-waiting);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--status-waiting) 6%, transparent) 0%, transparent 60%);
+}
+.bleed-done {
+  border-left: 3px solid var(--accent-primary);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-primary) 6%, transparent) 0%, transparent 60%);
+}
+.bleed-error {
+  border-left: 3px solid var(--status-error);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--status-error) 6%, transparent) 0%, transparent 60%);
+}
+
+/* Status dot glow */
+.dot-glow-waiting { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-waiting) 45%, transparent); }
+.dot-glow-done    { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-primary) 40%, transparent); }
+.dot-glow-error   { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-error) 45%, transparent); }
+
+/* Flat agent item (no rounded corners, no margin) */
+.agent-item-flat {
+  width: 100%;
+  text-align: left;
+  padding: 8px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-left: 3px solid transparent;
+  transition: background var(--transition-fast);
+  cursor: grab;
+}
+.agent-item-flat:hover { background: rgba(255, 255, 255, 0.035); }
+.agent-item-flat.selected { background: rgba(255, 255, 255, 0.05); }
+
+/* Agent dot (8px, up from 7px) */
+.agent-dot {
+  margin-top: 4px;
+  height: 8px;
+  width: 8px;
+}
