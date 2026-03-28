@@ -44,27 +44,22 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   // Default prPanelState to "open" when PR exists and state is not set yet
   const effectivePrPanelState = prPanelState ?? (pr ? "open" : "collapsed");
 
-  // Load data on mount
+  // Load data on mount — each call is independent so one failure doesn't blank everything
   useEffect(() => {
     let cancelled = false;
 
-    async function loadAll() {
-      try {
-        const [uncommitted, committed, commitList] = await Promise.all([
-          getUncommittedDiff(repoPath),
-          getDiff(repoPath),
-          getCommits(repoPath),
-        ]);
-        if (cancelled) return;
-        setUncommittedFiles(uncommitted);
-        setCommittedFiles(committed);
-        setCommits(commitList);
-      } catch (err) {
-        console.error("Failed to load diff data:", err);
-      }
-    }
+    getUncommittedDiff(repoPath)
+      .then((files) => { if (!cancelled) setUncommittedFiles(files); })
+      .catch((err) => console.error("Failed to load uncommitted diff:", err));
 
-    loadAll();
+    getDiff(repoPath)
+      .then((files) => { if (!cancelled) setCommittedFiles(files); })
+      .catch((err) => console.error("Failed to load committed diff:", err));
+
+    getCommits(repoPath)
+      .then((list) => { if (!cancelled) setCommits(list); })
+      .catch((err) => console.error("Failed to load commits:", err));
+
     return () => {
       cancelled = true;
     };
