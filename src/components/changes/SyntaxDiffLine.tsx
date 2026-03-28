@@ -59,14 +59,18 @@ function SyntaxDiffLine({
   return (
     <>
       <div
-        className={["flex font-mono text-[11px] leading-[20px] group", LINE_BG[lineType]].join(" ")}
-        onClick={onClickLine}
+        className={[
+          "flex font-mono text-[11px] leading-[20px] group",
+          LINE_BG[lineType],
+          onClickLine ? "cursor-pointer hover:bg-bg-hover/50" : "",
+        ].join(" ")}
       >
         <span
           className={[
             "w-[44px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px]",
             GUTTER_BG[lineType],
           ].join(" ")}
+          onClick={onClickLine}
         >
           {oldLineNumber ?? ""}
         </span>
@@ -75,6 +79,7 @@ function SyntaxDiffLine({
             "w-[44px] text-right pr-3 text-text-tertiary select-none flex-shrink-0 text-[10px]",
             GUTTER_BG[lineType],
           ].join(" ")}
+          onClick={onClickLine}
         >
           {newLineNumber ?? ""}
         </span>

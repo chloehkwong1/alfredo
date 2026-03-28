@@ -162,24 +162,52 @@ function FileSidebar({
         </>
       ) : (
         <>
-          {commits.map((commit, index) => (
-            <button
-              key={commit.hash}
-              onClick={() => onSelectCommit(index)}
-              className={[
-                "flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-xs",
-                "hover:bg-bg-hover transition-colors",
-                selectedCommitIndex === index
-                  ? "bg-bg-hover text-text-primary"
-                  : "text-text-secondary",
-              ].join(" ")}
-            >
-              <span className="text-[10px] font-mono text-text-tertiary flex-shrink-0">
-                {commit.shortHash}
-              </span>
-              <span className="truncate">{commit.message.split("\n")[0]}</span>
-            </button>
-          ))}
+          <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
+            <span className="text-[9px] uppercase tracking-wider text-text-tertiary">
+              Commits
+            </span>
+            <span className="text-[9px] bg-bg-hover px-1.5 rounded-full text-text-tertiary">
+              {commits.length}
+            </span>
+          </div>
+          <div className="text-[8px] uppercase tracking-wider text-text-tertiary px-2.5 pb-1">
+            newest first
+          </div>
+          {commits.map((commit, index) => {
+            const subject = commit.message.split("\n")[0];
+            const body = commit.message.split("\n").slice(1).join("\n").trim();
+
+            return (
+              <button
+                key={commit.hash}
+                onClick={() => onSelectCommit(index)}
+                className={[
+                  "flex flex-col w-full px-2.5 py-1.5 text-left",
+                  "hover:bg-bg-hover transition-colors",
+                  selectedCommitIndex === index
+                    ? "bg-bg-hover"
+                    : "",
+                ].join(" ")}
+              >
+                <div className="flex items-center gap-1.5 w-full">
+                  <span className="text-[10px] font-mono text-text-tertiary flex-shrink-0">
+                    {commit.shortHash}
+                  </span>
+                  <span className={[
+                    "text-xs truncate flex-1",
+                    selectedCommitIndex === index ? "text-text-primary" : "text-text-secondary",
+                  ].join(" ")}>
+                    {subject}
+                  </span>
+                </div>
+                {body && (
+                  <span className="text-[10px] text-text-tertiary mt-0.5 pl-[52px] line-clamp-2">
+                    {body}
+                  </span>
+                )}
+              </button>
+            );
+          })}
 
           {commits.length === 0 && (
             <div className="px-2.5 py-4 text-xs text-text-tertiary text-center">

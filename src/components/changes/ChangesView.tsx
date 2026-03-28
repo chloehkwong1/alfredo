@@ -276,7 +276,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
         />
 
         {/* Center: Diff file cards */}
-        <div className="flex-1 overflow-y-auto min-w-0 p-3 flex flex-col gap-2">
+        <div className="flex-1 overflow-y-auto min-w-0">
           {displayFiles.map((file) => (
             <DiffFileCard
               key={file.path}

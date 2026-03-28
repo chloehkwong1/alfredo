@@ -111,10 +111,10 @@ const DiffFileCard = forwardRef<HTMLDivElement, DiffFileCardProps>(
     const statusColor = STATUS_COLOR[file.status];
 
     return (
-      <div ref={ref} className="rounded-lg border border-border-subtle overflow-hidden">
+      <div ref={ref} className="border-b border-border-default">
         {/* Sticky header */}
         <div
-          className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2 bg-bg-surface border-b border-border-subtle cursor-pointer select-none hover:bg-bg-hover transition-colors"
+          className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default cursor-pointer select-none hover:bg-bg-hover transition-colors"
           onClick={onToggleExpanded}
         >
           {/* Chevron */}
@@ -160,7 +160,7 @@ const DiffFileCard = forwardRef<HTMLDivElement, DiffFileCardProps>(
             {file.hunks.map((hunk, hunkIndex) => (
               <div key={hunkIndex}>
                 {/* Hunk separator */}
-                <div className="flex items-center gap-2 px-3 py-0.5 bg-bg-surface/50 border-y border-border-subtle/50 font-mono text-[10px] text-text-tertiary select-none">
+                <div className="flex items-center gap-2 px-3 py-0.5 bg-bg-secondary/50 border-y border-border-subtle/50 font-mono text-[10px] text-text-tertiary select-none">
                   <span>{hunk.header}</span>
                 </div>
 
