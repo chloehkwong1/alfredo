@@ -1,0 +1,347 @@
+<style>
+  * { box-sizing: border-box; }
+  .window {
+    background: #1a1918;
+    border: 1px solid #3d3a37;
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    color: #f5f2ef;
+  }
+  .titlebar {
+    height: 32px; background: #151413;
+    display: flex; align-items: center; padding: 0 14px; gap: 8px;
+    border-bottom: 1px solid #3d3a37;
+  }
+  .tl { width: 10px; height: 10px; border-radius: 50%; }
+  .tl-r { background: #ff5f57; } .tl-y { background: #febc2e; } .tl-g { background: #28c840; }
+
+  .sb { width: 160px; background: #151413; border-right: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; display: flex; flex-direction: column; }
+  .sb-hd { height: 36px; display: flex; align-items: center; padding: 0 10px; gap: 7px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .sb-logo { width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(135deg,#9333ea,#7e22ce); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: white; }
+  .sb-name { font-size: 12px; font-weight: 600; }
+  .sb-ct { flex: 1; padding: 8px 0; }
+  .sg-lbl { padding: 3px 10px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #78716c; }
+  .ag { padding: 5px 10px; display: flex; flex-direction: column; gap: 1px; }
+  .ag.sel { background: #232220; }
+  .ag-n { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; }
+  .ag-n .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .ag-b { font-size: 9px; color: #78716c; padding-left: 11px; }
+
+  .stbar { height: 24px; background: #1e1d1c; border-bottom: 1px solid #3d3a37; display: flex; align-items: center; padding: 0 10px; font-size: 10px; color: #78716c; gap: 6px; }
+  .stbar .br { font-family: 'SF Mono', monospace; font-size: 9px; }
+  .stbar .sa { color: #4ade80; } .stbar .sd { color: #f87171; }
+
+  .tbar { height: 32px; background: #1e1d1c; border-bottom: 1px solid #3d3a37; display: flex; align-items: end; padding: 0 6px; }
+  .tb { padding: 6px 10px; font-size: 10px; color: #78716c; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 4px; }
+  .tbar .term-tabs { display: flex; }
+  .tbar .changes-tab {
+    margin-left: auto; display: flex; align-items: center; gap: 5px;
+    padding: 6px 10px; font-size: 10px; font-weight: 500;
+    color: #f5f2ef; border-bottom: 2px solid #9333ea;
+    background: linear-gradient(180deg, transparent 0%, rgba(147,51,234,0.06) 100%);
+  }
+  .tbar .changes-tab .ch-icon { color: #9333ea; }
+
+  .fsb { width: 150px; background: #1a1918; border-right: 1px solid #3d3a37; flex-shrink: 0; overflow-y: auto; }
+  .fsl { padding: 6px 8px 3px; font-size: 8px; text-transform: uppercase; letter-spacing: 0.5px; color: #78716c; display: flex; align-items: center; justify-content: space-between; }
+  .fsl .cnt { background: #333231; padding: 0px 4px; border-radius: 5px; font-size: 8px; }
+  .fr { padding: 3px 8px; display: flex; align-items: center; gap: 5px; font-size: 9px; color: #a8a29e; }
+  .fr.af { background: #333231; color: #f5f2ef; }
+  .fr .fb { font-size: 7px; padding: 1px 3px; border-radius: 2px; font-weight: 600; }
+  .fb-m { background: rgba(251,191,36,0.15); color: #fbbf24; }
+  .fb-a { background: rgba(74,222,128,0.15); color: #4ade80; }
+  .view-toggle { display: flex; padding: 4px 8px; gap: 0; }
+  .vt-btn { padding: 3px 8px; font-size: 8px; border: 1px solid #3d3a37; color: #78716c; }
+  .vt-btn:first-child { border-radius: 4px 0 0 4px; }
+  .vt-btn:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+  .vt-btn.vt-act { background: rgba(147,51,234,0.15); color: #9333ea; border-color: rgba(147,51,234,0.4); }
+
+  .dp { flex: 1; overflow: auto; display: flex; flex-direction: column; min-width: 0; }
+  .dfh { position: sticky; top: 0; z-index: 2; background: #232220; padding: 5px 12px; border-bottom: 1px solid #3d3a37; display: flex; align-items: center; justify-content: space-between; }
+  .dfh .fn { font-weight: 600; font-size: 10px; }
+  .dfh .dc { display: flex; gap: 4px; align-items: center; }
+  .dfh .mb { padding: 2px 6px; border-radius: 3px; font-size: 8px; background: #333231; color: #a8a29e; border: 1px solid #3d3a37; }
+  .dfh .mb.am { background: rgba(147,51,234,0.15); color: #9333ea; border-color: rgba(147,51,234,0.4); }
+  .dfh .ds { font-size: 9px; color: #78716c; } .dfh .ds .da { color: #4ade80; } .dfh .ds .dd { color: #f87171; }
+  .dl { display: flex; font-family: 'SF Mono','Fira Code',monospace; font-size: 9.5px; line-height: 17px; }
+  .dl .g { width: 32px; text-align: right; padding-right: 8px; color: #57534e; user-select: none; flex-shrink: 0; }
+  .dl .c { flex: 1; white-space: pre; padding: 0 12px; }
+  .dl.d-a { background: rgba(74,222,128,0.05); } .dl.d-a .c { color: #c8f0d0; }
+  .dl.d-d { background: rgba(248,113,113,0.05); } .dl.d-d .c { color: #fcc; }
+  .dl.d-c .c { color: #a8a29e; }
+  .tk { color: #c084fc; } .ts { color: #86efac; } .tf { color: #60a5fa; } .tt { color: #fbbf24; } .tp { color: #f5f2ef; }
+
+  /* Activity bar */
+  .panel-toolbar {
+    width: 36px; background: #1a1918;
+    border-left: 1px solid #3d3a37;
+    flex-shrink: 0;
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 6px 0; gap: 2px;
+  }
+  .pt-btn {
+    width: 28px; height: 28px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; cursor: default; position: relative;
+    color: #78716c;
+  }
+  .pt-btn:hover { background: #333231; }
+  .pt-btn.pt-active { background: rgba(147,51,234,0.12); color: #c084fc; }
+  .pt-btn .pt-badge {
+    position: absolute; top: -2px; right: -2px;
+    min-width: 14px; height: 14px; border-radius: 7px;
+    font-size: 7px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; padding: 0 3px;
+  }
+  .pb-fl { background: #f87171; color: #fff; }
+  .pb-ok { background: #4ade80; color: #1a1918; }
+  .pb-cnt { background: #60a5fa; color: #fff; }
+
+  /* Expand button on rail */
+  .rail-expand {
+    width: 28px; height: 28px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: #78716c; cursor: default; font-size: 13px;
+    margin-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    padding-top: 6px;
+  }
+  .rail-expand:hover { background: #333231; color: #f5f2ef; }
+
+  /* Panel */
+  .pr-panel {
+    width: 260px; background: #1a1918;
+    border-left: 1px solid #3d3a37;
+    flex-shrink: 0; overflow-y: auto;
+    display: flex; flex-direction: column;
+  }
+  .pr-panel .pp-header {
+    padding: 8px 14px;
+    border-bottom: 1px solid #3d3a37;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pr-panel .pp-title { font-size: 13px; font-weight: 600; }
+  .pr-panel .pp-num { color: #78716c; font-size: 12px; }
+  .pr-panel .pp-gh { color: #78716c; font-size: 10px; }
+  /* Collapse button */
+  .pp-collapse {
+    margin-left: auto;
+    width: 24px; height: 24px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    color: #78716c; cursor: default; font-size: 13px;
+  }
+  .pp-collapse:hover { background: #333231; color: #f5f2ef; }
+
+  .pr-panel .pp-section { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .pr-panel .pp-section:last-child { border-bottom: none; }
+  .pr-panel .pp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #57534e; margin-bottom: 8px; font-weight: 600; }
+  .pr-panel .ck-row { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 11px; color: #a8a29e; }
+  .pr-panel .ck-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .ck-ok { background: #4ade80; } .ck-fl { background: #f87171; }
+  .pr-panel .ck-row .ck-name { flex: 1; }
+  .pr-panel .ck-row .ck-time { color: #57534e; font-size: 10px; }
+  .pr-panel .ck-row .ck-action { color: #9333ea; font-size: 10px; }
+  .pr-panel .rv-row { display: flex; align-items: center; gap: 6px; padding: 5px 0; font-size: 11px; color: #a8a29e; }
+  .pr-panel .rv-avatar { width: 20px; height: 20px; border-radius: 50%; background: #333231; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; color: #a8a29e; flex-shrink: 0; }
+  .pr-panel .rv-name { font-weight: 500; color: #f5f2ef; font-size: 11px; }
+  .pr-panel .cm-card { padding: 8px 10px; margin-bottom: 6px; background: #232220; border-radius: 6px; cursor: default; }
+  .pr-panel .cm-card:hover { background: #2a2928; }
+  .pr-panel .cm-card .cm-top { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+  .pr-panel .cm-card .cm-author { font-weight: 600; color: #f5f2ef; font-size: 10px; }
+  .pr-panel .cm-card .cm-file { color: #9333ea; font-size: 9px; }
+  .pr-panel .cm-card .cm-time { margin-left: auto; color: #57534e; font-size: 9px; }
+  .pr-panel .cm-card .cm-body { color: #a8a29e; font-size: 11px; line-height: 1.4; }
+  .merge-status { padding: 8px 10px; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 11px; }
+  .merge-blocked { background: rgba(248,113,113,0.08); color: #f87171; }
+
+  .state-label {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  }
+  .state-open { background: rgba(147,51,234,0.12); color: #c084fc; }
+  .state-closed { background: rgba(96,165,250,0.12); color: #60a5fa; }
+
+  /* Callout arrow */
+  .callout {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px; margin: 6px 0;
+    background: rgba(147,51,234,0.08); border-radius: 6px;
+    font-size: 10px; color: #c084fc;
+  }
+  .callout .arrow { font-size: 14px; }
+</style>
+
+<h2>Panel Open / Close Interaction</h2>
+<p class="subtitle">Clear affordances for both states</p>
+
+<!-- Expanded state -->
+<div class="section" style="margin-bottom: 24px;">
+  <h3><span class="state-label state-open">Panel Open</span></h3>
+  <div class="callout"><span class="arrow">→</span> Click the <strong>▸</strong> chevron in the panel header to collapse. Rail icons also work as toggles.</div>
+  <div class="window">
+    <div class="titlebar"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span style="flex:1;text-align:center;font-size:11px;color:#78716c;">Alfredo</span></div>
+    <div style="display:flex;height:420px;">
+      <div class="sb">
+        <div class="sb-hd"><div class="sb-logo">A</div><span class="sb-name">alfredo</span></div>
+        <div class="sb-ct">
+          <div class="sg-lbl">● In Progress</div>
+          <div class="ag sel"><div class="ag-n"><span class="dot" style="background:#fbbf24;"></span> claude-1</div><div class="ag-b">feat/kanban-selection</div></div>
+          <div class="ag"><div class="ag-n"><span class="dot" style="background:#4ade80;"></span> claude-2</div><div class="ag-b">fix/pr-polling</div></div>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+        <div class="stbar"><span class="br">feat/kanban-selection</span><span><span class="sa">+48</span> <span class="sd">-12</span></span></div>
+        <div class="tbar">
+          <div class="term-tabs"><span class="tb">✦ Claude</span><span class="tb">▸ Shell</span></div>
+          <div class="changes-tab"><span class="ch-icon">⇄</span> Changes</div>
+        </div>
+        <div style="flex:1;display:flex;min-height:0;overflow:hidden;">
+          <div class="fsb">
+            <div class="view-toggle"><span class="vt-btn vt-act">All</span><span class="vt-btn">Commits</span></div>
+            <div class="fsl">Uncommitted <span class="cnt">2</span></div>
+            <div class="fr"><span class="fb fb-m">M</span> KanbanCard.tsx</div>
+            <div class="fr"><span class="fb fb-m">M</span> styles.css</div>
+            <div class="fsl" style="margin-top:3px;">Committed <span class="cnt">4</span></div>
+            <div class="fr af"><span class="fb fb-m">M</span> KanbanCard.tsx</div>
+            <div class="fr"><span class="fb fb-m">M</span> KanbanBoard.tsx</div>
+            <div class="fr"><span class="fb fb-m">M</span> types.ts</div>
+            <div class="fr"><span class="fb fb-a">A</span> useSelect.ts</div>
+          </div>
+          <div class="dp">
+            <div class="dfh"><span class="fn">src/components/kanban/KanbanCard.tsx</span><span class="dc"><span class="mb am">Unified</span><span class="mb">Split</span><span class="ds"><span class="da">+24</span> <span class="dd">-8</span></span></span></div>
+            <div class="dl d-c"><span class="g">14</span><span class="c"><span class="tk">import</span> { <span class="tt">Badge</span> } <span class="tk">from</span> <span class="ts">'../ui/Badge'</span>;</span></div>
+            <div class="dl d-c"><span class="g">15</span><span class="c"></span></div>
+            <div class="dl d-d"><span class="g">16</span><span class="c"><span class="tk">export const</span> <span class="tf">KanbanCard</span> = ({ <span class="tp">worktree</span> }) =&gt; {</span></div>
+            <div class="dl d-a"><span class="g">16</span><span class="c"><span class="tk">export const</span> <span class="tf">KanbanCard</span> = ({ <span class="tp">worktree</span>, <span class="tp">onSelect</span> }) =&gt; {</span></div>
+            <div class="dl d-c"><span class="g">17</span><span class="c">  <span class="tk">const</span> <span class="tp">pr</span> = <span class="tf">usePrStatus</span>(<span class="tp">worktree</span>.<span class="tp">id</span>);</span></div>
+            <div class="dl d-a"><span class="g">18</span><span class="c">  <span class="tk">const</span> <span class="tp">checks</span> = <span class="tf">useCheckRuns</span>(<span class="tp">pr</span>?.<span class="tp">number</span>);</span></div>
+            <div class="dl d-a"><span class="g">19</span><span class="c">  <span class="tk">const</span> <span class="tp">failing</span> = <span class="tp">checks</span>.<span class="tf">filter</span>(<span class="tp">c</span> =&gt; <span class="tp">c</span>.<span class="tp">conclusion</span> === <span class="ts">'failure'</span>);</span></div>
+            <div class="dl d-c"><span class="g">20</span><span class="c"></span></div>
+            <div class="dl d-c"><span class="g">21</span><span class="c">  <span class="tk">return</span> (</span></div>
+          </div>
+
+          <!-- Panel with collapse chevron -->
+          <div class="pr-panel">
+            <div class="pp-header">
+              <span class="pp-title">PR</span><span class="pp-num">#42</span>
+              <span class="pp-gh">↗ GitHub</span>
+              <span class="pp-collapse" title="Collapse panel (Cmd+I)">▸</span>
+            </div>
+            <div class="pp-section">
+              <div class="pp-label">Checks</div>
+              <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">Build</span><span class="ck-time">42s</span></div>
+              <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">Lint</span><span class="ck-time">18s</span></div>
+              <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">Tests</span><span class="ck-time">1m 12s</span></div>
+              <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">Type Check</span><span class="ck-time">24s</span></div>
+              <div class="ck-row"><span class="ck-dot ck-fl"></span><span class="ck-name" style="color:#f87171;">Deploy Preview</span><span class="ck-action">logs ↗</span></div>
+            </div>
+            <div class="pp-section">
+              <div class="pp-label">Reviews</div>
+              <div class="rv-row"><span class="rv-avatar">A</span><span class="rv-name">alice</span><span style="color:#4ade80;font-size:10px;">Approved</span></div>
+              <div class="rv-row"><span class="rv-avatar">B</span><span class="rv-name">bob</span><span style="color:#fbbf24;font-size:10px;">Changes requested</span></div>
+            </div>
+            <div class="pp-section">
+              <div class="pp-label">Comments</div>
+              <div class="cm-card"><div class="cm-top"><span class="cm-author">bob</span><span class="cm-file">KanbanCard.tsx:18</span><span class="cm-time">2h ago</span></div><div class="cm-body">Should we memoize this hook call? It re-runs on every render.</div></div>
+              <div class="cm-card"><div class="cm-top"><span class="cm-author">alice</span><span class="cm-file">api.ts:42</span><span class="cm-time">1h ago</span></div><div class="cm-body">Looks good 👍</div></div>
+            </div>
+            <div class="pp-section">
+              <div class="merge-status merge-blocked">⚠ Blocked: 1 failing check</div>
+            </div>
+          </div>
+
+          <!-- Activity bar (icons highlighted) -->
+          <div class="panel-toolbar">
+            <div class="pt-btn pt-active" title="Checks">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              <span class="pt-badge pb-fl">1</span>
+            </div>
+            <div class="pt-btn pt-active" title="Reviews">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span class="pt-badge pb-ok">1</span>
+            </div>
+            <div class="pt-btn pt-active" title="Comments">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+              <span class="pt-badge pb-cnt">2</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Collapsed state -->
+<div class="section">
+  <h3><span class="state-label state-closed">Panel Collapsed</span></h3>
+  <div class="callout"><span class="arrow">→</span> Click the <strong>◂</strong> expand arrow at top of rail, or click any icon. Badges still show status at a glance.</div>
+  <div class="window">
+    <div class="titlebar"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span style="flex:1;text-align:center;font-size:11px;color:#78716c;">Alfredo</span></div>
+    <div style="display:flex;height:420px;">
+      <div class="sb">
+        <div class="sb-hd"><div class="sb-logo">A</div><span class="sb-name">alfredo</span></div>
+        <div class="sb-ct">
+          <div class="sg-lbl">● In Progress</div>
+          <div class="ag sel"><div class="ag-n"><span class="dot" style="background:#fbbf24;"></span> claude-1</div><div class="ag-b">feat/kanban-selection</div></div>
+          <div class="ag"><div class="ag-n"><span class="dot" style="background:#4ade80;"></span> claude-2</div><div class="ag-b">fix/pr-polling</div></div>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+        <div class="stbar"><span class="br">feat/kanban-selection</span><span><span class="sa">+48</span> <span class="sd">-12</span></span></div>
+        <div class="tbar">
+          <div class="term-tabs"><span class="tb">✦ Claude</span><span class="tb">▸ Shell</span></div>
+          <div class="changes-tab"><span class="ch-icon">⇄</span> Changes</div>
+        </div>
+        <div style="flex:1;display:flex;min-height:0;overflow:hidden;">
+          <div class="fsb">
+            <div class="view-toggle"><span class="vt-btn vt-act">All</span><span class="vt-btn">Commits</span></div>
+            <div class="fsl">Uncommitted <span class="cnt">2</span></div>
+            <div class="fr"><span class="fb fb-m">M</span> KanbanCard.tsx</div>
+            <div class="fr"><span class="fb fb-m">M</span> styles.css</div>
+            <div class="fsl" style="margin-top:3px;">Committed <span class="cnt">4</span></div>
+            <div class="fr af"><span class="fb fb-m">M</span> KanbanCard.tsx</div>
+            <div class="fr"><span class="fb fb-m">M</span> KanbanBoard.tsx</div>
+            <div class="fr"><span class="fb fb-m">M</span> types.ts</div>
+            <div class="fr"><span class="fb fb-a">A</span> useSelect.ts</div>
+          </div>
+          <div class="dp">
+            <div class="dfh"><span class="fn">src/components/kanban/KanbanCard.tsx</span><span class="dc"><span class="mb am">Unified</span><span class="mb">Split</span><span class="ds"><span class="da">+24</span> <span class="dd">-8</span></span></span></div>
+            <div class="dl d-c"><span class="g">14</span><span class="c"><span class="tk">import</span> { <span class="tt">Badge</span> } <span class="tk">from</span> <span class="ts">'../ui/Badge'</span>;</span></div>
+            <div class="dl d-c"><span class="g">15</span><span class="c"></span></div>
+            <div class="dl d-d"><span class="g">16</span><span class="c"><span class="tk">export const</span> <span class="tf">KanbanCard</span> = ({ <span class="tp">worktree</span> }) =&gt; {</span></div>
+            <div class="dl d-a"><span class="g">16</span><span class="c"><span class="tk">export const</span> <span class="tf">KanbanCard</span> = ({ <span class="tp">worktree</span>, <span class="tp">onSelect</span> }) =&gt; {</span></div>
+            <div class="dl d-c"><span class="g">17</span><span class="c">  <span class="tk">const</span> <span class="tp">pr</span> = <span class="tf">usePrStatus</span>(<span class="tp">worktree</span>.<span class="tp">id</span>);</span></div>
+            <div class="dl d-a"><span class="g">18</span><span class="c">  <span class="tk">const</span> <span class="tp">checks</span> = <span class="tf">useCheckRuns</span>(<span class="tp">pr</span>?.<span class="tp">number</span>);</span></div>
+            <div class="dl d-a"><span class="g">19</span><span class="c">  <span class="tk">const</span> <span class="tp">failing</span> = <span class="tp">checks</span>.<span class="tf">filter</span>(<span class="tp">c</span> =&gt; <span class="tp">c</span>.<span class="tp">conclusion</span> === <span class="ts">'failure'</span>);</span></div>
+            <div class="dl d-c"><span class="g">20</span><span class="c"></span></div>
+            <div class="dl d-c"><span class="g">21</span><span class="c">  <span class="tk">return</span> (</span></div>
+            <div class="dl d-c"><span class="g">22</span><span class="c">    &lt;<span class="tf">div</span> <span class="tp">className</span>=<span class="ts">"card"</span>&gt;</span></div>
+            <div class="dl d-c"><span class="g">23</span><span class="c">      &lt;<span class="tf">Badge</span> <span class="tp">status</span>={<span class="tp">pr</span>?.<span class="tp">state</span>} /&gt;</span></div>
+            <div class="dl d-a"><span class="g">24</span><span class="c">      &lt;<span class="tf">span</span> <span class="tp">onClick</span>={<span class="tp">onSelect</span>}&gt;{<span class="tp">worktree</span>.<span class="tp">name</span>}&lt;/<span class="tf">span</span>&gt;</span></div>
+            <div class="dl d-c"><span class="g">25</span><span class="c">    &lt;/<span class="tf">div</span>&gt;</span></div>
+          </div>
+
+          <!-- Collapsed rail with expand arrow -->
+          <div class="panel-toolbar">
+            <div class="rail-expand" title="Expand PR panel (Cmd+I)">◂</div>
+            <div class="pt-btn" title="Checks" style="margin-top:4px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              <span class="pt-badge pb-fl">1</span>
+            </div>
+            <div class="pt-btn" title="Reviews">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span class="pt-badge pb-ok">1</span>
+            </div>
+            <div class="pt-btn" title="Comments">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+              <span class="pt-badge pb-cnt">2</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
