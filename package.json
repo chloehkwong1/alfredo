@@ -35,6 +35,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-resizable-panels": "^4.7.6",
+    "shiki": "^4.0.2",
     "tailwindcss": "^4.2.2",
     "zustand": "^5.0.12"
   },
