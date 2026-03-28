@@ -185,12 +185,7 @@ body {
   opacity: 0.012;
   background: repeating-conic-gradient(#fff 0% 25%, transparent 0% 50%) 0 0 / 2px 2px;
   pointer-events: none;
-  z-index: 0;
-}
-
-.sidebar-bg > * {
-  position: relative;
-  z-index: 1;
+  z-index: -1;
 }
 
 /* Attention: gradient bleed from left border */

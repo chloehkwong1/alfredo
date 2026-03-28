@@ -162,12 +162,12 @@ function Sidebar({
   const showRepoTags = effectiveSelectedRepos.length > 1;
 
   return (
-    <div className="relative flex flex-col w-[260px] h-full sidebar-bg border-r border-border-subtle flex-shrink-0">
+    <div className="relative flex flex-col w-[280px] h-full sidebar-bg border-r border-border-subtle flex-shrink-0">
       {/* Header */}
       <div className="flex items-center justify-between h-10 px-4 border-b border-border-subtle flex-shrink-0">
         <div className="flex items-center gap-3">
           <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
-          <span className="text-sm font-semibold tracking-[-0.3px] text-text-primary">
+          <span className="text-sm font-semibold tracking-[-0.3px] text-text-primary truncate">
             {displayName || (activeRepo ? formatWorkspaceName(repoNameFromPath(activeRepo)) : "alfredo")}
           </span>
         </div>
@@ -247,7 +247,7 @@ function Sidebar({
                 className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary hover:underline mt-2 cursor-pointer transition-colors"
                 onClick={() => setWorkspaceSettingsOpen(true)}
               >
-                Workspace settings
+                Worktree configuration
               </button>
             </div>
           )}
