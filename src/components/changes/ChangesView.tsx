@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Send, Trash2, MessageSquare } from "lucide-react";
-import { DiffToolbar } from "./DiffToolbar";
-import { CommitDetailBar } from "./CommitDetailBar";
-import { StackedDiffView } from "./StackedDiffView";
-import { FileTreeSidebar } from "./FileTreeSidebar";
-import { getDiff, getCommits, getDiffForCommit, writePty } from "../../api";
+import { FileSidebar } from "./FileSidebar";
+import { DiffFileCard } from "./DiffFileCard";
+import { PrPanel } from "./PrPanel";
+import { getDiff, getUncommittedDiff, getCommits, getDiffForCommit, writePty } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { sessionManager } from "../../services/sessionManager";
 import { Button } from "../ui/Button";
 import type { DiffFile, CommitInfo } from "../../types";
-import type { DiffMode } from "./DiffToolbar";
+import type { ViewMode } from "./FileSidebar";
 
 interface ChangesViewProps {
   worktreeId: string;
@@ -17,91 +16,74 @@ interface ChangesViewProps {
 }
 
 function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
-  const [mode, setMode] = useState<DiffMode>("all");
-  const [files, setFiles] = useState<DiffFile[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("all");
+  const [uncommittedFiles, setUncommittedFiles] = useState<DiffFile[]>([]);
+  const [committedFiles, setCommittedFiles] = useState<DiffFile[]>([]);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
-  const [currentCommitIndex, setCurrentCommitIndex] = useState(0);
-  const [activeAnnotationLine, setActiveAnnotationLine] = useState<
-    number | null
-  >(null);
+  const [commitFiles, setCommitFiles] = useState<DiffFile[]>([]);
+  const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
+  const [activeAnnotationLine, setActiveAnnotationLine] = useState<number | null>(null);
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
-  // New state for redesigned layout
-  const [fileTreeOpen, setFileTreeOpen] = useState(false);
-  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
-  const [visibleFilePath, setVisibleFilePath] = useState<string | null>(null);
-  const [scrollToFile, setScrollToFile] = useState<string | null>(null);
+  const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const annotations =
-    useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
+  const annotations = useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
   const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
-  const prComments =
-    useWorkspaceStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
+  const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? "unified";
+  const prPanelState = useWorkspaceStore((s) => s.prPanelState[worktreeId]);
+  const setPrPanelState = useWorkspaceStore((s) => s.setPrPanelState);
+  const prComments = useWorkspaceStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
+  const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
+  const pr = worktree?.prStatus ?? null;
 
-  // Expand all files by default when files change
-  useEffect(() => {
-    setExpandedFiles(new Set(files.map((f) => f.path)));
-  }, [files]);
+  // Default prPanelState to "open" when PR exists and state is not set yet
+  const effectivePrPanelState = prPanelState ?? (pr ? "open" : "collapsed");
 
-  // Load diff data based on mode
+  // Load data on mount
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    async function loadAll() {
       try {
-        if (mode === "all") {
-          const diffFiles = await getDiff(repoPath);
-          if (!cancelled) {
-            setFiles(diffFiles);
-          }
-        } else {
-          const commitList = await getCommits(repoPath);
-          if (cancelled) return;
-          setCommits(commitList);
-
-          if (commitList.length > 0) {
-            const idx = Math.min(currentCommitIndex, commitList.length - 1);
-            setCurrentCommitIndex(idx);
-            const diffFiles = await getDiffForCommit(
-              repoPath,
-              commitList[idx].hash,
-            );
-            if (!cancelled) {
-              setFiles(diffFiles);
-            }
-          } else {
-            setFiles([]);
-          }
-        }
+        const [uncommitted, committed, commitList] = await Promise.all([
+          getUncommittedDiff(repoPath),
+          getDiff(repoPath),
+          getCommits(repoPath),
+        ]);
+        if (cancelled) return;
+        setUncommittedFiles(uncommitted);
+        setCommittedFiles(committed);
+        setCommits(commitList);
       } catch (err) {
         console.error("Failed to load diff data:", err);
-        if (!cancelled) {
-          setFiles([]);
-        }
       }
     }
 
-    load();
+    loadAll();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, repoPath]);
+  }, [repoPath]);
 
-  // Load diff when stepping through commits
+  // Load commit diff when a commit is selected in commits mode
   useEffect(() => {
-    if (mode !== "commit" || commits.length === 0) return;
+    if (viewMode !== "commits" || selectedCommitIndex === null || commits.length === 0) {
+      setCommitFiles([]);
+      return;
+    }
 
     let cancelled = false;
+    const commit = commits[selectedCommitIndex];
+    if (!commit) return;
+
     async function loadCommitDiff() {
       try {
-        const diffFiles = await getDiffForCommit(
-          repoPath,
-          commits[currentCommitIndex].hash,
-        );
+        const files = await getDiffForCommit(repoPath, commit.hash);
         if (!cancelled) {
-          setFiles(diffFiles);
+          setCommitFiles(files);
         }
       } catch (err) {
         console.error("Failed to load commit diff:", err);
@@ -112,21 +94,78 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [mode, commits, currentCommitIndex, repoPath]);
+  }, [viewMode, selectedCommitIndex, commits, repoPath]);
 
-  const handleModeChange = useCallback((newMode: DiffMode) => {
-    setMode(newMode);
-    setCurrentCommitIndex(0);
+  // Computed display files
+  const displayFiles =
+    viewMode === "commits" && selectedCommitIndex !== null
+      ? commitFiles
+      : [...uncommittedFiles, ...committedFiles];
+
+  // Cmd+I toggles PR panel
+  useEffect(() => {
+    if (!pr) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "i" && e.metaKey) {
+        e.preventDefault();
+        setPrPanelState(
+          worktreeId,
+          effectivePrPanelState === "open" ? "collapsed" : "open",
+        );
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pr, worktreeId, effectivePrPanelState, setPrPanelState]);
+
+  const handleSelectFile = useCallback((path: string) => {
+    setActiveFilePath(path);
+    // Uncollapse if collapsed
+    setCollapsedFiles((prev) => {
+      if (!prev.has(path)) return prev;
+      const next = new Set(prev);
+      next.delete(path);
+      return next;
+    });
+    // Scroll to file via ref
+    const el = fileRefs.current.get(path);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
+  const handleJumpToComment = useCallback(
+    (filePath: string, line: number) => {
+      handleSelectFile(filePath);
+      setTimeout(() => {
+        setActiveAnnotationLine(line);
+      }, 150);
+    },
+    [handleSelectFile],
+  );
+
+  const handleTogglePrPanel = useCallback(() => {
+    setPrPanelState(
+      worktreeId,
+      effectivePrPanelState === "open" ? "collapsed" : "open",
+    );
+  }, [worktreeId, effectivePrPanelState, setPrPanelState]);
+
+  const handleSelectCommit = useCallback((index: number) => {
+    setSelectedCommitIndex(index);
     setActiveAnnotationLine(null);
   }, []);
 
-  const handleCommitStep = useCallback((index: number) => {
-    setCurrentCommitIndex(index);
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    setSelectedCommitIndex(null);
     setActiveAnnotationLine(null);
   }, []);
 
   const handleToggleExpanded = useCallback((path: string) => {
-    setExpandedFiles((prev) => {
+    setCollapsedFiles((prev) => {
       const next = new Set(prev);
       if (next.has(path)) {
         next.delete(path);
@@ -137,30 +176,19 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     });
   }, []);
 
-  const handleFileTreeSelect = useCallback((path: string) => {
-    setScrollToFile(path);
-  }, []);
-
-  const handleScrollComplete = useCallback(() => {
-    setScrollToFile(null);
-  }, []);
-
-  const handleVisibleFileChange = useCallback((path: string) => {
-    setVisibleFilePath(path);
-  }, []);
-
-  const handleAddAnnotation = useCallback((filePath: string, lineNumber: number) => {
-    void filePath; // filePath is passed through to FileCard callbacks; tracked per-click in handleSubmitAnnotation
-    setActiveAnnotationLine((prev) =>
-      prev === lineNumber ? null : lineNumber,
-    );
-  }, []);
+  const handleAddAnnotation = useCallback(
+    (filePath: string, lineNumber: number) => {
+      void filePath;
+      setActiveAnnotationLine((prev) => (prev === lineNumber ? null : lineNumber));
+    },
+    [],
+  );
 
   const handleSubmitAnnotation = useCallback(
     (filePath: string, lineNumber: number, text: string) => {
       const commitHash =
-        mode === "commit" && commits.length > 0
-          ? commits[currentCommitIndex].hash
+        viewMode === "commits" && selectedCommitIndex !== null && commits.length > 0
+          ? commits[selectedCommitIndex].hash
           : null;
       addAnnotation({
         id: crypto.randomUUID(),
@@ -173,13 +201,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
       });
       setActiveAnnotationLine(null);
     },
-    [
-      worktreeId,
-      mode,
-      commits,
-      currentCommitIndex,
-      addAnnotation,
-    ],
+    [worktreeId, viewMode, selectedCommitIndex, commits, addAnnotation],
   );
 
   const handleDeleteAnnotation = useCallback(
@@ -207,20 +229,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     await writePty(session.sessionId, bytes);
     clearAnnotations(worktreeId);
   }, [worktreeId, annotations, clearAnnotations]);
-
-  const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
-  const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
-
-  // Filter annotations to current commit when in commit-by-commit mode
-  const filteredAnnotations = useMemo(
-    () =>
-      mode === "commit" && commits.length > 0
-        ? annotations.filter(
-            (a) => a.commitHash === commits[currentCommitIndex].hash,
-          )
-        : annotations,
-    [mode, commits, currentCommitIndex, annotations],
-  );
 
   return (
     <div className="flex flex-col h-full">
@@ -251,57 +259,65 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
         </div>
       )}
 
-      {/* Toolbar */}
-      <DiffToolbar
-        mode={mode}
-        onModeChange={handleModeChange}
-        totalAdditions={totalAdditions}
-        totalDeletions={totalDeletions}
-        fileCount={files.length}
-        fileTreeOpen={fileTreeOpen}
-        onToggleFileTree={() => setFileTreeOpen((prev) => !prev)}
-      />
-
-      {/* Commit detail bar (commit mode only) */}
-      {mode === "commit" && commits.length > 0 && (
-        <CommitDetailBar commit={commits[currentCommitIndex]} />
-      )}
-
-      {/* Main content: stacked diffs + optional file tree */}
+      {/* Three-zone layout */}
       <div className="flex flex-1 min-h-0">
-        <StackedDiffView
-          files={files}
-          expandedFiles={expandedFiles}
-          onToggleExpanded={handleToggleExpanded}
-          annotations={filteredAnnotations}
-          activeAnnotationLine={activeAnnotationLine}
-          onAddAnnotation={handleAddAnnotation}
-          onSubmitAnnotation={handleSubmitAnnotation}
-          onDeleteAnnotation={handleDeleteAnnotation}
-          onVisibleFileChange={handleVisibleFileChange}
-          scrollToFile={scrollToFile}
-          onScrollComplete={handleScrollComplete}
-          prComments={prComments}
+        {/* Left: File sidebar */}
+        <FileSidebar
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+          uncommittedFiles={uncommittedFiles}
+          committedFiles={committedFiles}
+          commits={commits}
+          selectedCommitIndex={selectedCommitIndex}
+          onSelectCommit={handleSelectCommit}
+          activeFilePath={activeFilePath}
+          collapsedFiles={collapsedFiles}
+          onSelectFile={handleSelectFile}
         />
 
-        {/* Right sidebar with slide transition */}
-        <div
-          className={[
-            "transition-all duration-200 ease-in-out overflow-hidden flex-shrink-0",
-            fileTreeOpen ? "w-[220px]" : "w-0",
-          ].join(" ")}
-        >
-          <FileTreeSidebar
-            files={files}
-            visibleFilePath={visibleFilePath}
-            onSelectFile={handleFileTreeSelect}
-            commits={mode === "commit" ? commits : undefined}
-            selectedCommitIndex={
-              mode === "commit" ? currentCommitIndex : undefined
-            }
-            onSelectCommit={mode === "commit" ? handleCommitStep : undefined}
-          />
+        {/* Center: Diff file cards */}
+        <div className="flex-1 overflow-y-auto min-w-0 p-3 flex flex-col gap-2">
+          {displayFiles.map((file) => (
+            <DiffFileCard
+              key={file.path}
+              ref={(el) => {
+                if (el) {
+                  fileRefs.current.set(file.path, el);
+                } else {
+                  fileRefs.current.delete(file.path);
+                }
+              }}
+              file={file}
+              expanded={!collapsedFiles.has(file.path)}
+              onToggleExpanded={() => handleToggleExpanded(file.path)}
+              viewMode={diffViewMode}
+              annotations={annotations}
+              activeAnnotationLine={activeAnnotationLine}
+              onAddAnnotation={handleAddAnnotation}
+              onSubmitAnnotation={handleSubmitAnnotation}
+              onDeleteAnnotation={handleDeleteAnnotation}
+              prComments={prComments}
+            />
+          ))}
+
+          {displayFiles.length === 0 && (
+            <div className="flex flex-col items-center justify-center flex-1 text-text-tertiary text-sm">
+              No changes to display
+            </div>
+          )}
         </div>
+
+        {/* Right: PR panel */}
+        {pr && (
+          <PrPanel
+            worktreeId={worktreeId}
+            repoPath={repoPath}
+            pr={pr}
+            panelState={effectivePrPanelState}
+            onTogglePanel={handleTogglePrPanel}
+            onJumpToComment={handleJumpToComment}
+          />
+        )}
       </div>
     </div>
   );
