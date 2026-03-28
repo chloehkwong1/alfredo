@@ -505,8 +505,8 @@ function AppShell() {
     <div className="flex h-screen">
       <motion.div
         className={["flex-shrink-0 h-full overflow-hidden", switching ? "opacity-50 pointer-events-none" : ""].join(" ")}
-        initial={shouldAnimateSidebar.current ? { x: -280, opacity: 0 } : false}
-        animate={{ x: 0, opacity: 1, width: 280 }}
+        initial={shouldAnimateSidebar.current ? { x: -320, opacity: 0 } : false}
+        animate={{ x: 0, opacity: 1, width: 320 }}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
       >
         <Sidebar

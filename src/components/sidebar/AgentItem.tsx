@@ -155,7 +155,7 @@ function AgentItem({
               {/* Line 1: branch name, PR number, server indicator, timestamp */}
               <div className="flex items-center gap-2">
                 <span className={[
-                  "text-xs truncate",
+                  "text-sm truncate",
                   isAttentionState(effectiveStatus)
                     ? "font-semibold text-text-primary"
                     : "font-medium text-text-primary",
@@ -163,24 +163,24 @@ function AgentItem({
                   {worktree.name}
                 </span>
                 {worktree.prStatus && (
-                  <span className="text-2xs text-text-tertiary flex-shrink-0">#{worktree.prStatus.number}</span>
+                  <span className="text-xs text-text-tertiary flex-shrink-0">#{worktree.prStatus.number}</span>
                 )}
                 {isServerRunning && <ServerIndicator />}
                 <RelativeTime
                   timestamp={worktree.lastActivityAt}
-                  className="text-[9px] text-text-tertiary ml-auto flex-shrink-0 tabular-nums"
+                  className="text-2xs text-text-tertiary ml-auto flex-shrink-0 tabular-nums"
                 />
               </div>
               {/* Line 2: PR title (only if PR exists) */}
               {worktree.prStatus && (
-                <div className="text-[11px] text-text-tertiary truncate mt-0.5">
+                <div className="text-xs text-text-tertiary truncate mt-0.5">
                   {worktree.prStatus.title}
                 </div>
               )}
               {/* Line 3: status text, diff stats, PR checks, repo tag */}
               <div className="flex items-center gap-2 mt-0.5">
                 <span className={[
-                  "text-[11px] truncate",
+                  "text-xs truncate",
                   (effectiveStatus as string) === "waitingForInput"
                     ? "text-status-waiting font-medium"
                     : (effectiveStatus as string) === "done"

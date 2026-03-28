@@ -83,8 +83,8 @@ function StatusGroup({
         ].join(" ")}
       >
         <span className="flex items-center gap-2">
-          <Icon className="h-3.5 w-3.5" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em]">
+          <Icon className="h-4 w-4" />
+          <span className="text-xs font-semibold uppercase tracking-[0.08em]">
             {label}
           </span>
         </span>
