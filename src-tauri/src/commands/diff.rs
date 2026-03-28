@@ -263,6 +263,41 @@ pub async fn get_diff(
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
 
+/// Get the diff of uncommitted changes (working tree + index vs HEAD).
+#[tauri::command]
+pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
+    tokio::task::spawn_blocking(move || {
+        let repo = open_repo(&repo_path)?;
+
+        let head_tree = repo
+            .head()
+            .and_then(|h| h.peel_to_tree())
+            .map_err(|e| AppError::Git(format!("failed to get HEAD tree: {e}")))?;
+
+        // Staged changes: index vs HEAD
+        let mut opts = DiffOptions::new();
+        let staged = repo
+            .diff_tree_to_index(Some(&head_tree), None, Some(&mut opts))
+            .map_err(|e| AppError::Git(format!("staged diff failed: {e}")))?;
+
+        // Unstaged changes: workdir vs index
+        let mut opts2 = DiffOptions::new();
+        let unstaged = repo
+            .diff_index_to_workdir(None, Some(&mut opts2))
+            .map_err(|e| AppError::Git(format!("unstaged diff failed: {e}")))?;
+
+        // Merge both diffs
+        let mut merged = staged;
+        merged
+            .merge(&unstaged)
+            .map_err(|e| AppError::Git(format!("diff merge failed: {e}")))?;
+
+        diff_to_files(&merged)
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
 /// Get commits from HEAD back to the merge base with the default branch.
 #[tauri::command]
 pub async fn get_commits(repo_path: String) -> Result<Vec<CommitInfo>> {

@@ -107,6 +107,7 @@ pub fn run() {
             linear::list_linear_teams,
             // Diff
             diff::get_diff,
+            diff::get_uncommitted_diff,
             diff::get_commits,
             diff::get_diff_for_commit,
             // Session persistence

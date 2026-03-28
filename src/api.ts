@@ -226,6 +226,10 @@ export function getDiff(repoPath: string): Promise<DiffFile[]> {
   return invoke("get_diff", { repoPath });
 }
 
+export async function getUncommittedDiff(repoPath: string): Promise<DiffFile[]> {
+  return invoke<DiffFile[]>("get_uncommitted_diff", { repoPath });
+}
+
 export function getCommits(repoPath: string): Promise<CommitInfo[]> {
   return invoke("get_commits", { repoPath });
 }
