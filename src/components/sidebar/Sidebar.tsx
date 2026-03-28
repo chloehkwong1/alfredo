@@ -247,7 +247,7 @@ function Sidebar({
                 className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary hover:underline mt-2 cursor-pointer transition-colors"
                 onClick={() => setWorkspaceSettingsOpen(true)}
               >
-                Worktree configuration
+                Repository settings
               </button>
             </div>
           )}
@@ -263,12 +263,30 @@ function Sidebar({
         open={workspaceSettingsOpen}
         onOpenChange={setWorkspaceSettingsOpen}
         repoPath={repoPath || "."}
+        repos={repos}
+        selectedRepos={effectiveSelectedRepos}
+        repoColors={effectiveRepoColors}
+        defaultRepoPath={
+          worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
+          ?? effectiveSelectedRepos[0]
+          ?? activeRepo
+          ?? undefined
+        }
       />
       {hasRepo && (
         <CreateWorktreeDialog
           open={createWorktreeOpen}
           onOpenChange={setCreateWorktreeOpen}
           repoPath={repoPath ?? undefined}
+          repos={repos}
+          selectedRepos={effectiveSelectedRepos}
+          repoColors={effectiveRepoColors}
+          defaultRepoPath={
+            worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
+            ?? effectiveSelectedRepos[0]
+            ?? activeRepo
+            ?? undefined
+          }
         />
       )}
     </div>

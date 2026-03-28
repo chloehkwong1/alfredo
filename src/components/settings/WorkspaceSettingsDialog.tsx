@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FolderOpen } from "lucide-react";
-import type { AppConfig, SetupScript } from "../../types";
+import type { AppConfig, RepoEntry, SetupScript } from "../../types";
 import { getConfig, saveConfig } from "../../api";
 import { Button } from "../ui/Button";
 import {
@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "../ui/Dialog";
 import { Input } from "../ui/Input";
+import { RepoDropdown } from "../ui/RepoDropdown";
 import { ScriptEditor } from "./ScriptEditor";
 
 type WorkspaceTab = "repository" | "scripts" | "display";
@@ -25,29 +26,49 @@ interface WorkspaceSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   repoPath: string;
+  repos: RepoEntry[];
+  selectedRepos: string[];
+  repoColors: Record<string, string>;
+  defaultRepoPath?: string;
 }
 
 function WorkspaceSettingsDialog({
   open,
   onOpenChange,
   repoPath,
+  repos,
+  selectedRepos,
+  repoColors,
+  defaultRepoPath,
 }: WorkspaceSettingsDialogProps) {
   const [tab, setTab] = useState<WorkspaceTab>("repository");
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [currentRepoPath, setCurrentRepoPath] = useState(
+    defaultRepoPath ?? repoPath,
+  );
+  const prevOpenRef = useRef(false);
 
-  // Load config when dialog opens
+  // Reset currentRepoPath when dialog opens
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setCurrentRepoPath(defaultRepoPath ?? repoPath);
+    }
+    prevOpenRef.current = open;
+  }, [open, defaultRepoPath, repoPath]);
+
+  // Load config when dialog opens or currentRepoPath changes
   useEffect(() => {
     if (!open) return;
-    getConfig(repoPath)
+    getConfig(currentRepoPath)
       .then((c) => {
         setConfig(c);
         setDirty(false);
       })
       .catch(() => {
         setConfig({
-          repoPath,
+          repoPath: currentRepoPath,
           setupScripts: [],
           githubToken: null,
           linearApiKey: null,
@@ -55,18 +76,32 @@ function WorkspaceSettingsDialog({
           worktreeBasePath: null,
         });
       });
-  }, [open, repoPath]);
+  }, [open, currentRepoPath]);
 
   const updateConfig = useCallback((patch: Partial<AppConfig>) => {
     setConfig((prev) => (prev ? { ...prev, ...patch } : prev));
     setDirty(true);
   }, []);
 
+  const handleRepoChange = useCallback(
+    (newPath: string) => {
+      if (newPath === currentRepoPath) return;
+      if (dirty) {
+        const discard = window.confirm(
+          "You have unsaved changes. Discard and switch repository?",
+        );
+        if (!discard) return;
+      }
+      setCurrentRepoPath(newPath);
+    },
+    [currentRepoPath, dirty],
+  );
+
   const handleSave = useCallback(async () => {
     if (!config) return;
     setSaving(true);
     try {
-      await saveConfig(repoPath, config);
+      await saveConfig(currentRepoPath, config);
       setDirty(false);
       window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
@@ -77,19 +112,28 @@ function WorkspaceSettingsDialog({
     } finally {
       setSaving(false);
     }
-  }, [config, onOpenChange]);
+  }, [config, currentRepoPath, onOpenChange]);
 
   if (!config) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[720px]">
-        <DialogHeader>
-          <DialogTitle>Workspace Settings</DialogTitle>
-        </DialogHeader>
+        <div className="flex flex-col gap-6">
+          <DialogHeader className="!mb-0">
+            <DialogTitle>Repository Settings</DialogTitle>
+          </DialogHeader>
 
-        {/* Vertical tab layout */}
-        <div className="flex gap-6 min-h-[280px]">
+          <RepoDropdown
+            repos={repos}
+            selectedRepos={selectedRepos}
+            repoColors={repoColors}
+            value={currentRepoPath}
+            onChange={handleRepoChange}
+          />
+
+          {/* Vertical tab layout */}
+          <div className="flex gap-6 min-h-[280px]">
           {/* Tab rail */}
           <nav className="flex flex-col gap-0.5 w-36 flex-shrink-0 border-r border-border-default pr-4">
             {TABS.map((t) => (
@@ -221,6 +265,7 @@ function WorkspaceSettingsDialog({
               </div>
             )}
           </div>
+        </div>
         </div>
 
         <DialogFooter>

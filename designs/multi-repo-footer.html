@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — Multi-Repo Footer & Create Dialog</title>
+  <link rel="stylesheet" href="kit.css">
+  <style>
+    body {
+      display: flex;
+      gap: 48px;
+      padding: 40px;
+      align-items: flex-start;
+      overflow: auto;
+      height: auto;
+    }
+
+    .scene-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      margin-bottom: 12px;
+    }
+
+    /* ── Sidebar mockup ────────────────────────────── */
+    .sidebar-mock {
+      width: 320px;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 40px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .sidebar-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sidebar-header-logo {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: var(--accent-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+    .sidebar-header-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: var(--text-primary);
+    }
+
+    /* ── Repo selector bar ─────────────────────────── */
+    .repo-selector-bar {
+      padding: 8px 14px;
+    }
+    .repo-selector-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 6px 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      background: rgba(255,255,255,0.02);
+      cursor: pointer;
+    }
+    .repo-badges {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+      flex-wrap: wrap;
+    }
+    .repo-badge {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+    .repo-badge-purple {
+      background: rgba(147,51,234,0.12);
+      color: #a78bfa;
+    }
+    .repo-badge-blue {
+      background: rgba(96,165,250,0.12);
+      color: #60a5fa;
+    }
+    .chevron-icon {
+      width: 12px;
+      height: 12px;
+      color: var(--text-tertiary);
+    }
+
+    /* ── Status groups ─────────────────────────────── */
+    .sidebar-body {
+      flex: 1;
+      padding: 12px 0;
+    }
+
+    /* ── Footer (the focus of this mockup) ─────────── */
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .new-wt-btn {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      height: auto;
+      padding: 8px 0;
+      border-radius: var(--radius-md);
+      border: 1px dashed rgba(147,51,234,0.25);
+      color: rgba(147,51,234,0.7);
+      font-size: 14px;
+      font-weight: 500;
+      background: transparent;
+      cursor: pointer;
+      transition: all 200ms;
+      font-family: inherit;
+    }
+    .new-wt-btn:hover {
+      background: var(--accent-muted);
+      border-color: rgba(147,51,234,0.4);
+      color: var(--accent-primary);
+    }
+    .new-wt-btn .btn-main-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .new-wt-btn .repo-context {
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--text-tertiary);
+      margin-top: 1px;
+    }
+    .new-wt-btn .repo-context .repo-name {
+      color: #a78bfa;
+    }
+
+    .config-link {
+      width: 100%;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 8px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: color 200ms;
+    }
+    .config-link:hover {
+      color: var(--text-secondary);
+      text-decoration: underline;
+    }
+
+    /* ── Repo dropdown (for dialog) ───────────────── */
+    .repo-dropdown {
+      margin-bottom: 20px;
+    }
+    .repo-dropdown-trigger {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 7px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+      background: var(--bg-elevated);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      transition: border-color var(--transition-fast);
+    }
+    .repo-dropdown-trigger:hover {
+      border-color: var(--border-hover);
+    }
+    .repo-dropdown-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .repo-dropdown-name {
+      flex: 1;
+      text-align: left;
+    }
+    .repo-dropdown-chevron {
+      width: 14px;
+      height: 14px;
+      color: var(--text-tertiary);
+    }
+    .dot-purple { background: #a78bfa; }
+    .dot-blue { background: #60a5fa; }
+    .dot-green { background: #4ade80; }
+    .dot-amber { background: #fbbf24; }
+    .dot-pink { background: #f472b6; }
+    .dot-muted { background: var(--text-tertiary); }
+
+    /* ── Dialog tab bar ────────────────────────────── */
+    .dialog-tabs {
+      display: flex;
+      gap: 2px;
+      padding: 3px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,0.03);
+      margin-bottom: 20px;
+    }
+    .dialog-tab {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all var(--transition-fast);
+      background: transparent;
+      color: var(--text-tertiary);
+    }
+    .dialog-tab.active {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+    .dialog-tab:hover:not(.active) {
+      color: var(--text-secondary);
+    }
+    .dialog-tab svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ── Form field ─────────────────────────────────── */
+    .form-field {
+      margin-bottom: 16px;
+    }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    /* ── Scene containers ──────────────────────────── */
+    .scene {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── SVG icons ─────────────────────────────────── */
+    .icon-sm {
+      width: 14px;
+      height: 14px;
+    }
+    .icon-md {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ── Comparison layout ─────────────────────────── */
+    .comparison {
+      display: flex;
+      gap: 32px;
+      align-items: flex-start;
+    }
+    .comparison-divider {
+      width: 1px;
+      align-self: stretch;
+      background: var(--border-default);
+      flex-shrink: 0;
+    }
+
+    /* ── Annotation ────────────────────────────────── */
+    .annotation {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      background: rgba(147,51,234,0.08);
+      border: 1px solid rgba(147,51,234,0.15);
+    }
+    .annotation-arrow {
+      color: var(--accent-primary);
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .annotation-text {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .annotation-text strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    /* Single-repo footer (no context line) */
+    .new-wt-btn-simple {
+      height: 36px;
+      padding: 0;
+      flex-direction: row;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════
+       SCENE 1: Sidebar footer — before vs after
+       ═══════════════════════════════════════════════ -->
+  <div class="scene">
+    <div class="scene-label">Sidebar Footer</div>
+
+    <div class="comparison">
+      <!-- BEFORE: single-repo (no change) -->
+      <div>
+        <div class="scene-label" style="color: var(--status-idle); font-size: 10px;">Single repo — no change</div>
+        <div class="sidebar-mock">
+          <div class="sidebar-header">
+            <div class="sidebar-header-left">
+              <div class="sidebar-header-logo">🐱</div>
+              <span class="sidebar-header-title">Florence App</span>
+            </div>
+            <button class="icon-btn icon-btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            </button>
+          </div>
+
+          <div class="sidebar-body">
+            <!-- Status groups placeholder -->
+            <div class="status-group">
+              <button class="status-group-header">
+                <span class="status-group-label" style="color: var(--status-busy);">● In Progress</span>
+                <span class="status-group-count">2</span>
+              </button>
+              <div class="agent-item-flat" style="padding-left: 16px;">
+                <span class="agent-dot agent-dot-busy"></span>
+                <div class="agent-info">
+                  <div class="agent-name">feature/auth-flow</div>
+                  <div class="agent-status-row"><span class="agent-status-text">Working on auth...</span></div>
+                </div>
+              </div>
+              <div class="agent-item-flat" style="padding-left: 16px;">
+                <span class="agent-dot agent-dot-idle"></span>
+                <div class="agent-info">
+                  <div class="agent-name">fix/header-layout</div>
+                  <div class="agent-status-row"><span class="agent-status-text">Idle</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-footer">
+            <button class="new-wt-btn new-wt-btn-simple">
+              <svg class="icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New worktree
+            </button>
+            <button class="config-link">Repository settings</button>
+          </div>
+        </div>
+        <div class="annotation">
+          <span class="annotation-arrow">→</span>
+          <span class="annotation-text">Single repo: identical to current UI.<br>Only rename "Worktree configuration" → <strong>"Repository settings"</strong></span>
+        </div>
+      </div>
+
+      <div class="comparison-divider"></div>
+
+      <!-- AFTER: multi-repo -->
+      <div>
+        <div class="scene-label" style="color: var(--status-waiting); font-size: 10px;">Multiple repos — new context line</div>
+        <div class="sidebar-mock">
+          <div class="sidebar-header">
+            <div class="sidebar-header-left">
+              <div class="sidebar-header-logo">🐱</div>
+              <span class="sidebar-header-title">Florence Client Worker App</span>
+            </div>
+            <button class="icon-btn icon-btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            </button>
+          </div>
+
+          <!-- Repo selector with two repos -->
+          <div class="repo-selector-bar">
+            <div class="repo-selector-btn">
+              <div class="repo-badges">
+                <span class="repo-badge repo-badge-purple">florence_app</span>
+                <span class="repo-badge repo-badge-blue">florence</span>
+              </div>
+              <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+          </div>
+
+          <div class="sidebar-body">
+            <div class="status-group">
+              <button class="status-group-header">
+                <span class="status-group-label" style="color: var(--status-busy);">● In Progress</span>
+                <span class="status-group-count">1</span>
+              </button>
+              <div class="agent-item-flat" style="padding-left: 16px;">
+                <span class="agent-dot agent-dot-busy"></span>
+                <div class="agent-info">
+                  <div class="agent-name-row">
+                    <span class="agent-name">feature/auth-flow</span>
+                    <span class="repo-badge repo-badge-purple" style="font-size: 9px; padding: 0 4px;">florence_app</span>
+                  </div>
+                  <div class="agent-status-row"><span class="agent-status-text">Working on auth...</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="status-group">
+              <button class="status-group-header">
+                <span class="status-group-label" style="color: #60a5fa;">⊙ Open PR</span>
+                <span class="status-group-count">1</span>
+              </button>
+              <div class="agent-item-flat" style="padding-left: 16px;">
+                <span class="agent-dot agent-dot-done"></span>
+                <div class="agent-info">
+                  <div class="agent-name-row">
+                    <span class="agent-name">ros-1856-working-pref…</span>
+                    <span class="repo-badge repo-badge-blue" style="font-size: 9px; padding: 0 4px;">florence</span>
+                  </div>
+                  <div class="agent-pr-title">#72 Add leave requests and unavailability…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-footer">
+            <button class="new-wt-btn new-wt-btn-simple">
+              <svg class="icon-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New worktree
+            </button>
+            <button class="config-link">Repository settings</button>
+          </div>
+        </div>
+        <div class="annotation">
+          <span class="annotation-arrow">→</span>
+          <span class="annotation-text">Button stays clean — <strong>same as single-repo</strong>.<br>Repo selection happens inside the dialog via the toggle strip.<br>Rename "Worktree configuration" → <strong>"Repository settings"</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       SCENE 2: CreateWorktreeDialog with repo strip
+       ═══════════════════════════════════════════════ -->
+  <div class="scene" style="margin-top: 48px;">
+    <div class="scene-label">Create Worktree Dialog — with repo toggle strip</div>
+
+    <div style="position: relative; display: inline-block;">
+      <!-- Dimmed background to simulate overlay -->
+      <div style="width: 600px; height: 520px; background: rgba(0,0,0,0.3); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center;">
+
+        <div class="dialog-content" style="position: relative; transform: none; left: auto; top: auto; width: 500px;">
+          <button class="dialog-close">✕</button>
+
+          <div class="dialog-header">
+            <div class="dialog-title">Create worktree</div>
+            <div class="dialog-description">Create a new worktree from a branch, pull request, or Linear issue.</div>
+          </div>
+
+          <!-- NEW: Repo dropdown -->
+          <div class="repo-dropdown">
+            <label class="form-label">Repository</label>
+            <button class="repo-dropdown-trigger">
+              <span class="repo-dropdown-dot dot-purple"></span>
+              <span class="repo-dropdown-name">florence_app</span>
+              <svg class="repo-dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+
+          <!-- Existing tab bar -->
+          <div class="dialog-tabs">
+            <button class="dialog-tab active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New Branch
+            </button>
+            <button class="dialog-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+              Branches
+            </button>
+            <button class="dialog-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+              Pull Requests
+            </button>
+            <button class="dialog-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5H9a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
+              Linear
+            </button>
+          </div>
+
+          <!-- Form content -->
+          <div class="form-field">
+            <label class="form-label">Branch name</label>
+            <input class="input" placeholder="feature/my-new-branch" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Base branch</label>
+            <input class="input" value="main" />
+          </div>
+
+          <div class="dialog-footer">
+            <button class="btn btn-secondary">Cancel</button>
+            <button class="btn btn-primary">Create worktree</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annotation" style="max-width: 500px;">
+      <span class="annotation-arrow">→</span>
+      <span class="annotation-text">
+        <strong>Repo dropdown</strong> appears only when 2+ repos are selected.<br>
+        Pre-selects the active repo. Switching reloads branches/PRs.<br>
+        Scales to any number of repos. Color dot matches sidebar badges.<br>
+        Single-repo users see no change — dropdown is hidden.
+      </span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       SCENE 3: Dialog with second repo selected
+       ═══════════════════════════════════════════════ -->
+  <div class="scene" style="margin-top: 48px;">
+    <div class="scene-label">Create Worktree Dialog — after switching repo</div>
+
+    <div style="position: relative; display: inline-block;">
+      <div style="width: 600px; height: 520px; background: rgba(0,0,0,0.3); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center;">
+
+        <div class="dialog-content" style="position: relative; transform: none; left: auto; top: auto; width: 500px;">
+          <button class="dialog-close">✕</button>
+
+          <div class="dialog-header">
+            <div class="dialog-title">Create worktree</div>
+            <div class="dialog-description">Create a new worktree from a branch, pull request, or Linear issue.</div>
+          </div>
+
+          <!-- Repo dropdown — florence selected -->
+          <div class="repo-dropdown">
+            <label class="form-label">Repository</label>
+            <button class="repo-dropdown-trigger">
+              <span class="repo-dropdown-dot dot-blue"></span>
+              <span class="repo-dropdown-name">florence</span>
+              <svg class="repo-dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+
+          <!-- Tab bar -->
+          <div class="dialog-tabs">
+            <button class="dialog-tab active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New Branch
+            </button>
+            <button class="dialog-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+              Branches
+            </button>
+            <button class="dialog-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+              Pull Requests
+            </button>
+            <button class="dialog-tab">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5H9a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
+              Linear
+            </button>
+          </div>
+
+          <!-- Form — different branch context for florence -->
+          <div class="form-field">
+            <label class="form-label">Branch name</label>
+            <input class="input" placeholder="feature/my-new-branch" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Base branch</label>
+            <input class="input" value="develop" />
+          </div>
+
+          <div class="dialog-footer">
+            <button class="btn btn-secondary">Cancel</button>
+            <button class="btn btn-primary">Create worktree</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annotation" style="max-width: 500px;">
+      <span class="annotation-arrow">→</span>
+      <span class="annotation-text">
+        Switched to <strong>florence</strong> — dot changes to blue.<br>
+        Base branch reloaded (shows "develop" instead of "main").<br>
+        Branches, PRs, and Linear issues would all reload for this repo.
+      </span>
+    </div>
+  </div>
+
+</body>
+</html>
