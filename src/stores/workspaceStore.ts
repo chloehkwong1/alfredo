@@ -114,6 +114,28 @@ function withActivityTimestamps(
  * Compute a stable key representing the PR "state" for override-clearing purposes.
  * When this key changes, manual overrides are cleared.
  */
+/**
+ * Merge fresh git worktree data with existing enriched state (PR status, column, agent status, archived).
+ * Used by both setWorktrees and setWorktreesForRepo to avoid duplicating this logic.
+ */
+function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[] {
+  const existingMap = new Map(existing.map((wt) => [wt.id, wt]));
+  const merged = fresh.map((wt) => {
+    const old = existingMap.get(wt.id);
+    if (old) {
+      return {
+        ...wt,
+        prStatus: old.prStatus,
+        column: old.column,
+        agentStatus: old.agentStatus,
+        archived: old.archived,
+      };
+    }
+    return wt;
+  });
+  return withActivityTimestamps(merged, existing);
+}
+
 function prStateKey(pr: PrStatusWithColumn): string {
   if (pr.merged) return "merged";
   if (pr.draft) return "draft";
@@ -208,25 +230,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setActiveWorktree: (id) => set({ activeWorktreeId: id }),
 
   setWorktrees: (freshWorktrees) =>
-    set((state) => {
-      // Merge fresh git data with existing enriched state (PR status, column, etc.)
-      const existing = new Map(state.worktrees.map((wt) => [wt.id, wt]));
-      const merged = freshWorktrees.map((fresh) => {
-        const old = existing.get(fresh.id);
-        if (old) {
-          return {
-            ...fresh,
-            prStatus: old.prStatus,
-            column: old.column,
-            agentStatus: old.agentStatus,
-            archived: old.archived,
-          };
-        }
-        return fresh;
-      });
-      const worktrees = withActivityTimestamps(merged, state.worktrees);
-      return { worktrees };
-    }),
+    set((state) => ({
+      worktrees: mergeWorktreeState(freshWorktrees, state.worktrees),
+    })),
 
   /**
    * Apply PR status updates from the background sync loop.
@@ -537,28 +543,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   setWorktreesForRepo: (repoPath, freshWorktrees) =>
     set((state) => {
-      // Remove existing worktrees for this repo, keep others
       const otherRepoWorktrees = state.worktrees.filter((wt) => wt.repoPath !== repoPath);
       const existingForRepo = state.worktrees.filter((wt) => wt.repoPath === repoPath);
-
-      // Merge fresh git data with existing enriched state (same logic as setWorktrees)
-      const existingMap = new Map(existingForRepo.map((wt) => [wt.id, wt]));
-      const merged = freshWorktrees.map((fresh) => {
-        const old = existingMap.get(fresh.id);
-        if (old) {
-          return {
-            ...fresh,
-            prStatus: old.prStatus,
-            column: old.column,
-            agentStatus: old.agentStatus,
-            archived: old.archived,
-          };
-        }
-        return fresh;
-      });
-      const timestamped = withActivityTimestamps(merged, existingForRepo);
-
-      return { worktrees: [...otherRepoWorktrees, ...timestamped] };
+      return { worktrees: [...otherRepoWorktrees, ...mergeWorktreeState(freshWorktrees, existingForRepo)] };
     }),
 
   clearWorktreesForRepo: (repoPath) =>
