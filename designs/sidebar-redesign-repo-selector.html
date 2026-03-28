@@ -1,0 +1,184 @@
+<h2>Repo Selector — Detailed Options</h2>
+<p class="subtitle">How do you pick which repos to view? All options support multi-select.</p>
+
+<div class="cards">
+
+  <!-- A: Dropdown with chips -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 0; overflow: hidden;">
+      <div style="background: #131316; font-family: -apple-system, system-ui, sans-serif; min-height: 320px;">
+        <!-- Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 5px; background: linear-gradient(135deg, #9333ea, #7e22ce);"></div>
+            <span style="color: #eee; font-weight: 600; font-size: 13px;">Florence</span>
+          </div>
+          <div style="color: #555; font-size: 14px;">⚙</div>
+        </div>
+
+        <!-- Closed state -->
+        <div style="padding: 6px 14px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #333; margin-bottom: 4px;">Closed state ↓</div>
+          <button style="display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); color: #999; font-size: 12px; cursor: pointer; font-family: inherit; text-align: left;">
+            <span style="display: flex; gap: 4px; flex: 1; align-items: center; flex-wrap: wrap;">
+              <span style="background: rgba(147,51,234,0.12); color: #a78bfa; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 500;">florence</span>
+              <span style="background: rgba(96,165,250,0.12); color: #60a5fa; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 500;">client_worker</span>
+            </span>
+            <span style="color: #555; font-size: 10px;">▾</span>
+          </button>
+        </div>
+
+        <!-- Open state -->
+        <div style="padding: 6px 14px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #333; margin-bottom: 4px;">Open state ↓</div>
+          <div style="border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: #1a1a1e; overflow: hidden;">
+            <div style="padding: 6px 10px; display: flex; align-items: center; gap: 8px; background: rgba(147,51,234,0.06); cursor: pointer;">
+              <span style="width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(147,51,234,0.4); background: rgba(147,51,234,0.15); display: flex; align-items: center; justify-content: center; font-size: 9px; color: #a78bfa;">✓</span>
+              <span style="color: #ccc; font-size: 12px; font-weight: 500; flex: 1;">florence</span>
+              <span style="font-size: 10px; color: #444;">3 worktrees</span>
+            </div>
+            <div style="padding: 6px 10px; display: flex; align-items: center; gap: 8px; background: rgba(96,165,250,0.04); cursor: pointer;">
+              <span style="width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(96,165,250,0.4); background: rgba(96,165,250,0.15); display: flex; align-items: center; justify-content: center; font-size: 9px; color: #60a5fa;">✓</span>
+              <span style="color: #ccc; font-size: 12px; font-weight: 500; flex: 1;">florence_client_worker_app</span>
+              <span style="font-size: 10px; color: #444;">1 worktree</span>
+            </div>
+            <div style="border-top: 1px solid rgba(255,255,255,0.06); padding: 6px 10px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <span style="color: #555; font-size: 12px;">+ Add repository</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Single-repo state -->
+        <div style="padding: 10px 14px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #333; margin-bottom: 4px;">With 1 repo selected ↓</div>
+          <button style="display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); color: #999; font-size: 12px; cursor: pointer; font-family: inherit; text-align: left;">
+            <span style="color: #ccc; font-weight: 500; flex: 1;">florence</span>
+            <span style="font-size: 9px; color: #444;">1 of 2</span>
+            <span style="color: #555; font-size: 10px;">▾</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Dropdown + Chips</h3>
+      <p>Compact trigger shows selected repos as colored chips. Click to open multi-select list with checkboxes. Full repo names visible when open. Collapses to one line when closed.</p>
+    </div>
+  </div>
+
+  <!-- B: Toggle pills -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 0; overflow: hidden;">
+      <div style="background: #131316; font-family: -apple-system, system-ui, sans-serif; min-height: 320px;">
+        <!-- Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 5px; background: linear-gradient(135deg, #9333ea, #7e22ce);"></div>
+            <span style="color: #eee; font-weight: 600; font-size: 13px;">Florence</span>
+          </div>
+          <div style="color: #555; font-size: 14px;">⚙</div>
+        </div>
+
+        <!-- Both selected -->
+        <div style="padding: 6px 14px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #333; margin-bottom: 4px;">Both selected ↓</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(147,51,234,0.15); color: #a78bfa; font-weight: 600; border: 1px solid rgba(147,51,234,0.25); cursor: pointer;">florence</span>
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(96,165,250,0.12); color: #60a5fa; font-weight: 600; border: 1px solid rgba(96,165,250,0.2); cursor: pointer;">client_worker_app</span>
+            <span style="font-size: 11px; padding: 4px 6px; border-radius: 4px; color: #333; cursor: pointer;">+</span>
+          </div>
+        </div>
+
+        <!-- One selected -->
+        <div style="padding: 10px 14px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #333; margin-bottom: 4px;">One selected (click to toggle) ↓</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(147,51,234,0.15); color: #a78bfa; font-weight: 600; border: 1px solid rgba(147,51,234,0.25); cursor: pointer;">florence</span>
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,0.03); color: #444; border: 1px solid transparent; cursor: pointer;">client_worker_app</span>
+            <span style="font-size: 11px; padding: 4px 6px; border-radius: 4px; color: #333; cursor: pointer;">+</span>
+          </div>
+        </div>
+
+        <!-- Many repos -->
+        <div style="padding: 10px 14px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #333; margin-bottom: 4px;">With 4 repos (wraps) ↓</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(147,51,234,0.15); color: #a78bfa; font-weight: 600; border: 1px solid rgba(147,51,234,0.25); cursor: pointer;">florence</span>
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(96,165,250,0.12); color: #60a5fa; font-weight: 600; border: 1px solid rgba(96,165,250,0.2); cursor: pointer;">client_worker</span>
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,0.03); color: #444; border: 1px solid transparent; cursor: pointer;">admin_panel</span>
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,0.03); color: #444; border: 1px solid transparent; cursor: pointer;">shared_libs</span>
+            <span style="font-size: 11px; padding: 4px 6px; border-radius: 4px; color: #333; cursor: pointer;">+</span>
+          </div>
+        </div>
+
+        <!-- Select all shortcut -->
+        <div style="padding: 10px 14px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #333; margin-bottom: 4px;">All selected ↓</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(147,51,234,0.15); color: #a78bfa; font-weight: 600; border: 1px solid rgba(147,51,234,0.25); cursor: pointer;">florence</span>
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(96,165,250,0.12); color: #60a5fa; font-weight: 600; border: 1px solid rgba(96,165,250,0.2); cursor: pointer;">client_worker</span>
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(74,222,128,0.12); color: #4ade80; font-weight: 600; border: 1px solid rgba(74,222,128,0.2); cursor: pointer;">admin_panel</span>
+            <span style="font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(251,191,36,0.12); color: #fbbf24; font-weight: 600; border: 1px solid rgba(251,191,36,0.2); cursor: pointer;">shared_libs</span>
+            <span style="font-size: 11px; padding: 4px 6px; border-radius: 4px; color: #333; cursor: pointer;">+</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Toggle Pills</h3>
+      <p>Like current pills but <strong>click toggles on/off</strong> instead of switching. Active pills are colored, inactive are dimmed. Wraps when needed. Always visible — no dropdown to open. Each repo gets a unique color.</p>
+    </div>
+  </div>
+
+  <!-- C: Header-integrated switcher -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 0; overflow: hidden;">
+      <div style="background: #131316; font-family: -apple-system, system-ui, sans-serif; min-height: 320px;">
+
+        <!-- State 1: Normal header, all repos -->
+        <div style="padding: 6px 14px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #333; margin-bottom: 4px;">Header with repo count ↓</div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 5px; background: linear-gradient(135deg, #9333ea, #7e22ce);"></div>
+            <span style="color: #eee; font-weight: 600; font-size: 13px;">Florence</span>
+            <span style="font-size: 10px; color: #444; background: rgba(255,255,255,0.04); padding: 1px 6px; border-radius: 3px;">2 repos</span>
+          </div>
+          <div style="color: #555; font-size: 14px;">⚙</div>
+        </div>
+
+        <!-- Expanded: shows repo filter below header -->
+        <div style="padding: 10px 14px;">
+          <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #333; margin-bottom: 4px;">Click "2 repos" to expand filter ↓</div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 5px; background: linear-gradient(135deg, #9333ea, #7e22ce);"></div>
+            <span style="color: #eee; font-weight: 600; font-size: 13px;">Florence</span>
+            <span style="font-size: 10px; color: #a78bfa; background: rgba(147,51,234,0.1); padding: 1px 6px; border-radius: 3px; cursor: pointer;">2 repos ▴</span>
+          </div>
+          <div style="color: #555; font-size: 14px;">⚙</div>
+        </div>
+        <div style="padding: 4px 14px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.01);">
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            <span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(147,51,234,0.15); color: #a78bfa; font-weight: 600; border: 1px solid rgba(147,51,234,0.2); cursor: pointer;">florence</span>
+            <span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(96,165,250,0.12); color: #60a5fa; font-weight: 600; border: 1px solid rgba(96,165,250,0.2); cursor: pointer;">client_worker_app</span>
+            <span style="font-size: 11px; padding: 3px 6px; border-radius: 4px; color: #333; cursor: pointer;">+</span>
+          </div>
+        </div>
+
+        <!-- Just status groups below -->
+        <div style="padding: 8px 14px 4px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #444;">In Progress</span>
+          <span style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent);"></span>
+          <span style="font-size: 10px; color: #444;">3</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Collapsible Filter</h3>
+      <p>Header shows "2 repos" badge. Click it to <strong>expand the repo filter</strong> below the header. Toggle pills on/off. Collapse when done. <strong>Zero space when you don't need it</strong>, full control when you do.</p>
+    </div>
+  </div>
+
+</div>

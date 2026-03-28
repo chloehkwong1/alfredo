@@ -1,0 +1,398 @@
+<h2>Attention Strip — Refined</h2>
+<p class="subtitle">Three variations on how attention states break out of the list. Which feels most natural?</p>
+
+<div class="cards">
+
+  <!-- V1: Subtle glow, no border -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 0; overflow: hidden;">
+      <div style="
+        background: #131316;
+        font-family: -apple-system, system-ui, sans-serif;
+        font-size: 13px;
+        color: #888;
+        min-height: 480px;
+        display: flex;
+        flex-direction: column;
+      ">
+        <!-- Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 5px; background: linear-gradient(135deg, #9333ea, #7e22ce);"></div>
+            <span style="color: #eee; font-weight: 600; font-size: 13px;">florence</span>
+          </div>
+          <div style="color: #555; font-size: 14px;">⚙</div>
+        </div>
+
+        <!-- Repo pills -->
+        <div style="display: flex; gap: 4px; padding: 8px 14px;">
+          <span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(147,51,234,0.15); color: #a78bfa; font-weight: 600; border: 1px solid rgba(147,51,234,0.2);">florence</span>
+          <span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(255,255,255,0.03); color: #555;">florence_client</span>
+        </div>
+
+        <div style="flex: 1; padding: 4px 0;">
+
+          <!-- In Progress -->
+          <div style="padding: 8px 14px 4px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #444;">In Progress</span>
+            <span style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent);"></span>
+            <span style="font-size: 10px; color: #444;">3</span>
+          </div>
+
+          <!-- Waiting: just a brighter dot glow + bold name, same row style -->
+          <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; background: rgba(96,165,250,0.04);">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #60a5fa; box-shadow: 0 0 10px rgba(96,165,250,0.6); margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #eee; font-size: 12px; font-weight: 600;">spike-shifts-within-shifts</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">2m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #60a5fa; font-weight: 500;">Waiting for input</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+142</span> <span style="color: #f87171;">-38</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Done -->
+          <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; background: rgba(129,140,248,0.04);">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #818cf8; box-shadow: 0 0 10px rgba(129,140,248,0.5); margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #eee; font-size: 12px; font-weight: 600;">ros-1858-printing-shifts-ca...</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">8m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #818cf8; font-weight: 500;">Done</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+89</span> <span style="color: #f87171;">-4</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Normal: busy -->
+          <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #ccc; font-size: 12px; font-weight: 500;">ros-1862-fix-overtime-calc</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">1m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #fbbf24;">Thinking...</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+67</span> <span style="color: #f87171;">-12</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Open PR -->
+          <div style="padding: 12px 14px 4px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #444;">Open PR</span>
+            <span style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent);"></span>
+            <span style="font-size: 10px; color: #444;">1</span>
+          </div>
+
+          <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #555; margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #999; font-size: 12px; font-weight: 500;">ros-1854-remove-old</span>
+                <span style="font-size: 10px; color: #444;">#21340</span>
+                <span style="margin-left: auto; display: flex; align-items: flex-end; gap: 1.5px; height: 12px; flex-shrink: 0;">
+                  <span style="width: 2px; height: 4px; border-radius: 1px; background: #4ade80;"></span>
+                  <span style="width: 2px; height: 8px; border-radius: 1px; background: #4ade80;"></span>
+                  <span style="width: 2px; height: 5px; border-radius: 1px; background: #4ade80;"></span>
+                  <span style="width: 2px; height: 10px; border-radius: 1px; background: #4ade80;"></span>
+                </span>
+              </div>
+              <div style="font-size: 11px; color: #555; margin-top: 2px;">ROS-1854: Remove deprecated pa...</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #555;">Not running</span>
+                <span style="margin-left: auto; display: flex; align-items: center; gap: 4px;">
+                  <span style="font-size: 10px; color: #f87171;">2 failing</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding: 12px 14px; border-top: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 6px; height: 32px; border-radius: 6px; border: 1px dashed rgba(147,51,234,0.25); color: rgba(147,51,234,0.6); font-size: 12px; font-weight: 500;">+ New worktree</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Glow Only</h3>
+      <p>Attention rows get a <strong>barely-there tinted background + glowing dot</strong>. No borders. The glow is the signal. Everything else stays uniform. Most subtle option.</p>
+    </div>
+  </div>
+
+  <!-- V2: Left accent bar, no bg tint -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 0; overflow: hidden;">
+      <div style="
+        background: #131316;
+        font-family: -apple-system, system-ui, sans-serif;
+        font-size: 13px;
+        color: #888;
+        min-height: 480px;
+        display: flex;
+        flex-direction: column;
+      ">
+        <!-- Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 5px; background: linear-gradient(135deg, #9333ea, #7e22ce);"></div>
+            <span style="color: #eee; font-weight: 600; font-size: 13px;">florence</span>
+          </div>
+          <div style="color: #555; font-size: 14px;">⚙</div>
+        </div>
+
+        <!-- Repo pills -->
+        <div style="display: flex; gap: 4px; padding: 8px 14px;">
+          <span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(147,51,234,0.15); color: #a78bfa; font-weight: 600; border: 1px solid rgba(147,51,234,0.2);">florence</span>
+          <span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(255,255,255,0.03); color: #555;">florence_client</span>
+        </div>
+
+        <div style="flex: 1; padding: 4px 0;">
+
+          <!-- In Progress -->
+          <div style="padding: 8px 14px 4px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #444;">In Progress</span>
+            <span style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent);"></span>
+            <span style="font-size: 10px; color: #444;">3</span>
+          </div>
+
+          <!-- Waiting: left bar accent -->
+          <div style="padding: 8px 11px 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid #60a5fa;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #60a5fa; box-shadow: 0 0 10px rgba(96,165,250,0.6); margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #eee; font-size: 12px; font-weight: 600;">spike-shifts-within-shifts</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">2m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #60a5fa; font-weight: 500;">Waiting for input</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+142</span> <span style="color: #f87171;">-38</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Done: left bar accent -->
+          <div style="padding: 8px 11px 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid #818cf8;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #818cf8; box-shadow: 0 0 10px rgba(129,140,248,0.5); margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #eee; font-size: 12px; font-weight: 600;">ros-1858-printing-shifts-ca...</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">8m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #818cf8; font-weight: 500;">Done</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+89</span> <span style="color: #f87171;">-4</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Normal: busy (no border) -->
+          <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid transparent;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #ccc; font-size: 12px; font-weight: 500;">ros-1862-fix-overtime-calc</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">1m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #fbbf24;">Thinking...</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+67</span> <span style="color: #f87171;">-12</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Open PR -->
+          <div style="padding: 12px 14px 4px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #444;">Open PR</span>
+            <span style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent);"></span>
+            <span style="font-size: 10px; color: #444;">1</span>
+          </div>
+
+          <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid transparent;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #555; margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #999; font-size: 12px; font-weight: 500;">ros-1854-remove-old</span>
+                <span style="font-size: 10px; color: #444;">#21340</span>
+                <span style="margin-left: auto; display: flex; align-items: flex-end; gap: 1.5px; height: 12px; flex-shrink: 0;">
+                  <span style="width: 2px; height: 4px; border-radius: 1px; background: #4ade80;"></span>
+                  <span style="width: 2px; height: 8px; border-radius: 1px; background: #4ade80;"></span>
+                  <span style="width: 2px; height: 5px; border-radius: 1px; background: #4ade80;"></span>
+                  <span style="width: 2px; height: 10px; border-radius: 1px; background: #4ade80;"></span>
+                </span>
+              </div>
+              <div style="font-size: 11px; color: #555; margin-top: 2px;">ROS-1854: Remove deprecated pa...</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #555;">Not running</span>
+                <span style="margin-left: auto; font-size: 10px; color: #f87171;">2 failing</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding: 12px 14px; border-top: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 6px; height: 32px; border-radius: 6px; border: 1px dashed rgba(147,51,234,0.25); color: rgba(147,51,234,0.6); font-size: 12px; font-weight: 500;">+ New worktree</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Left Bar Only</h3>
+      <p>Attention rows get a <strong>colored left border + glowing dot</strong>. No background tint — the bar is the only differentiation. Clean edge, scannable. The bar color matches the status.</p>
+    </div>
+  </div>
+
+  <!-- V3: Both combined subtly -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 0; overflow: hidden;">
+      <div style="
+        background: #131316;
+        font-family: -apple-system, system-ui, sans-serif;
+        font-size: 13px;
+        color: #888;
+        min-height: 480px;
+        display: flex;
+        flex-direction: column;
+      ">
+        <!-- Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 5px; background: linear-gradient(135deg, #9333ea, #7e22ce);"></div>
+            <span style="color: #eee; font-weight: 600; font-size: 13px;">florence</span>
+          </div>
+          <div style="color: #555; font-size: 14px;">⚙</div>
+        </div>
+
+        <!-- Repo pills -->
+        <div style="display: flex; gap: 4px; padding: 8px 14px;">
+          <span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(147,51,234,0.15); color: #a78bfa; font-weight: 600; border: 1px solid rgba(147,51,234,0.2);">florence</span>
+          <span style="font-size: 11px; padding: 3px 10px; border-radius: 4px; background: rgba(255,255,255,0.03); color: #555;">florence_client</span>
+        </div>
+
+        <div style="flex: 1; padding: 4px 0;">
+
+          <!-- In Progress -->
+          <div style="padding: 8px 14px 4px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #444;">In Progress</span>
+            <span style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent);"></span>
+            <span style="font-size: 10px; color: #444;">3</span>
+          </div>
+
+          <!-- Waiting: left bar + gradient bleed from left edge -->
+          <div style="padding: 8px 14px 8px 11px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid #60a5fa; background: linear-gradient(90deg, rgba(96,165,250,0.06) 0%, transparent 60%);">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #60a5fa; box-shadow: 0 0 10px rgba(96,165,250,0.6); margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #eee; font-size: 12px; font-weight: 600;">spike-shifts-within-shifts</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">2m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #60a5fa; font-weight: 500;">Waiting for input</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+142</span> <span style="color: #f87171;">-38</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Done: left bar + gradient bleed -->
+          <div style="padding: 8px 14px 8px 11px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid #818cf8; background: linear-gradient(90deg, rgba(129,140,248,0.05) 0%, transparent 60%);">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #818cf8; box-shadow: 0 0 10px rgba(129,140,248,0.5); margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #eee; font-size: 12px; font-weight: 600;">ros-1858-printing-shifts-ca...</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">8m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #818cf8; font-weight: 500;">Done</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+89</span> <span style="color: #f87171;">-4</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Normal: busy -->
+          <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid transparent;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #ccc; font-size: 12px; font-weight: 500;">ros-1862-fix-overtime-calc</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">1m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #fbbf24;">Thinking...</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+67</span> <span style="color: #f87171;">-12</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error: left bar + gradient bleed -->
+          <div style="padding: 8px 14px 8px 11px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid #f87171; background: linear-gradient(90deg, rgba(248,113,113,0.05) 0%, transparent 60%);">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #f87171; box-shadow: 0 0 10px rgba(248,113,113,0.5); margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #eee; font-size: 12px; font-weight: 600;">ros-1863-payroll-export</span>
+                <span style="margin-left: auto; font-size: 9px; color: #444;">5m</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #f87171; font-weight: 500;">Error</span>
+                <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+23</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Open PR -->
+          <div style="padding: 12px 14px 4px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #444;">Open PR</span>
+            <span style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent);"></span>
+            <span style="font-size: 10px; color: #444;">1</span>
+          </div>
+
+          <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid transparent;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #555; margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #999; font-size: 12px; font-weight: 500;">ros-1854-remove-old</span>
+                <span style="font-size: 10px; color: #444;">#21340</span>
+                <span style="margin-left: auto; display: flex; align-items: flex-end; gap: 1.5px; height: 12px; flex-shrink: 0;">
+                  <span style="width: 2px; height: 4px; border-radius: 1px; background: #4ade80;"></span>
+                  <span style="width: 2px; height: 8px; border-radius: 1px; background: #4ade80;"></span>
+                  <span style="width: 2px; height: 5px; border-radius: 1px; background: #4ade80;"></span>
+                  <span style="width: 2px; height: 10px; border-radius: 1px; background: #4ade80;"></span>
+                </span>
+              </div>
+              <div style="font-size: 11px; color: #555; margin-top: 2px;">ROS-1854: Remove deprecated pa...</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px;">
+                <span style="font-size: 11px; color: #555;">Not running</span>
+                <span style="margin-left: auto; font-size: 10px; color: #f87171;">2 failing</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding: 12px 14px; border-top: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 6px; height: 32px; border-radius: 6px; border: 1px dashed rgba(147,51,234,0.25); color: rgba(147,51,234,0.6); font-size: 12px; font-weight: 500;">+ New worktree</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Gradient Bleed</h3>
+      <p>Left border + <strong>color gradient that bleeds from the bar into the row and fades out</strong>. Combines the scannable left edge with atmospheric depth. Also shows an error state in red.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>Fixed from v1</h3>
+  <ul style="color: rgba(255,255,255,0.5); font-size: 13px; line-height: 1.8;">
+    <li><strong>Diff stats</strong> — no more raw "-695662". Check runs shown as "2 failing" text instead of ✓/✗ symbols</li>
+    <li><strong>Consistent row padding</strong> — all items use the same vertical space whether attention or not</li>
+    <li><strong>Selection vs attention</strong> — left border is only for attention states, not selection (selection will be a different treatment like a subtle bg highlight)</li>
+  </ul>
+</div>

@@ -1,0 +1,382 @@
+<h2>Gradient Bleed Across All Themes</h2>
+<p class="subtitle">Same sidebar design rendered in each theme. Click any you'd cut.</p>
+
+<style>
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .theme-card {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .theme-card:hover {
+    border-color: rgba(255,255,255,0.15);
+  }
+  .theme-card.selected-option {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 1px #f87171;
+  }
+  .theme-label {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: rgba(255,255,255,0.03);
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .mini-sidebar {
+    font-family: -apple-system, system-ui, sans-serif;
+    padding: 8px 0;
+    min-height: 220px;
+  }
+  .mini-header {
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px 8px; font-size: 11px; font-weight: 600;
+  }
+  .mini-logo {
+    width: 14px; height: 14px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 8px; color: white; font-weight: 700;
+  }
+  .mini-section {
+    padding: 6px 10px 2px; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .mini-item {
+    padding: 6px 10px; display: flex; align-items: flex-start; gap: 6px; border-left: 3px solid transparent;
+  }
+  .mini-dot {
+    width: 6px; height: 6px; border-radius: 50%; margin-top: 3px; flex-shrink: 0;
+  }
+  .mini-name { font-size: 11px; font-weight: 500; }
+  .mini-status { font-size: 9px; margin-top: 2px; font-weight: 500; }
+</style>
+
+<div class="theme-grid" data-multiselect>
+
+  <!-- Warm Dark (default) -->
+  <div class="theme-card" data-choice="warm-dark" onclick="toggleSelect(this)">
+    <div class="mini-sidebar" style="background: #151413;">
+      <div class="mini-header" style="color: #f5f2ef;">
+        <div class="mini-logo" style="background: linear-gradient(135deg, #9333ea, #7e22ce);">A</div>
+        florence
+      </div>
+      <div class="mini-section" style="color: #78716c;">In Progress</div>
+      <div class="mini-item" style="border-left-color: #60a5fa; background: linear-gradient(90deg, rgba(96,165,250,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #60a5fa; box-shadow: 0 0 8px rgba(96,165,250,0.5);"></div>
+        <div>
+          <div class="mini-name" style="color: #f5f2ef;">spike-shifts-within</div>
+          <div class="mini-status" style="color: #60a5fa;">Waiting for input</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #818cf8; background: linear-gradient(90deg, rgba(129,140,248,0.05), transparent 60%);">
+        <div class="mini-dot" style="background: #818cf8; box-shadow: 0 0 8px rgba(129,140,248,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #f5f2ef;">ros-1858-printing</div>
+          <div class="mini-status" style="color: #818cf8;">Done</div>
+        </div>
+      </div>
+      <div class="mini-item">
+        <div class="mini-dot" style="background: #fbbf24;"></div>
+        <div>
+          <div class="mini-name" style="color: #a8a29e;">ros-1862-overtime</div>
+          <div class="mini-status" style="color: #fbbf24;">Thinking...</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #f87171; background: linear-gradient(90deg, rgba(248,113,113,0.05), transparent 60%);">
+        <div class="mini-dot" style="background: #f87171; box-shadow: 0 0 8px rgba(248,113,113,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #f5f2ef;">ros-1863-payroll</div>
+          <div class="mini-status" style="color: #f87171;">Error</div>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label" style="color: #a8a29e;">Warm Dark <span style="opacity:0.5">(default)</span></div>
+  </div>
+
+  <!-- Light -->
+  <div class="theme-card" data-choice="light" onclick="toggleSelect(this)">
+    <div class="mini-sidebar" style="background: #eeeeec;">
+      <div class="mini-header" style="color: #1c1917;">
+        <div class="mini-logo" style="background: linear-gradient(135deg, #7c3aed, #6d28d9);">A</div>
+        florence
+      </div>
+      <div class="mini-section" style="color: #a8a29e;">In Progress</div>
+      <div class="mini-item" style="border-left-color: #3b82f6; background: linear-gradient(90deg, rgba(59,130,246,0.08), transparent 60%);">
+        <div class="mini-dot" style="background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #1c1917;">spike-shifts-within</div>
+          <div class="mini-status" style="color: #3b82f6;">Waiting for input</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #7c3aed; background: linear-gradient(90deg, rgba(124,58,237,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #7c3aed; box-shadow: 0 0 6px rgba(124,58,237,0.35);"></div>
+        <div>
+          <div class="mini-name" style="color: #1c1917;">ros-1858-printing</div>
+          <div class="mini-status" style="color: #7c3aed;">Done</div>
+        </div>
+      </div>
+      <div class="mini-item">
+        <div class="mini-dot" style="background: #f59e0b;"></div>
+        <div>
+          <div class="mini-name" style="color: #57534e;">ros-1862-overtime</div>
+          <div class="mini-status" style="color: #f59e0b;">Thinking...</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #ef4444; background: linear-gradient(90deg, rgba(239,68,68,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.35);"></div>
+        <div>
+          <div class="mini-name" style="color: #1c1917;">ros-1863-payroll</div>
+          <div class="mini-status" style="color: #ef4444;">Error</div>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label" style="color: #57534e;">Light</div>
+  </div>
+
+  <!-- Synthwave -->
+  <div class="theme-card" data-choice="synthwave" onclick="toggleSelect(this)">
+    <div class="mini-sidebar" style="background: #140c20;">
+      <div class="mini-header" style="color: #f0e6ff;">
+        <div class="mini-logo" style="background: linear-gradient(135deg, #ff2975, #e0175f);">A</div>
+        florence
+      </div>
+      <div class="mini-section" style="color: #7c5aad;">In Progress</div>
+      <div class="mini-item" style="border-left-color: #00d4ff; background: linear-gradient(90deg, rgba(0,212,255,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #00d4ff; box-shadow: 0 0 8px rgba(0,212,255,0.5);"></div>
+        <div>
+          <div class="mini-name" style="color: #f0e6ff;">spike-shifts-within</div>
+          <div class="mini-status" style="color: #00d4ff;">Waiting for input</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #b794e6; background: linear-gradient(90deg, rgba(183,148,230,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #b794e6; box-shadow: 0 0 8px rgba(183,148,230,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #f0e6ff;">ros-1858-printing</div>
+          <div class="mini-status" style="color: #b794e6;">Done</div>
+        </div>
+      </div>
+      <div class="mini-item">
+        <div class="mini-dot" style="background: #ffe600;"></div>
+        <div>
+          <div class="mini-name" style="color: #b794e6;">ros-1862-overtime</div>
+          <div class="mini-status" style="color: #ffe600;">Thinking...</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #ff3860; background: linear-gradient(90deg, rgba(255,56,96,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #ff3860; box-shadow: 0 0 8px rgba(255,56,96,0.5);"></div>
+        <div>
+          <div class="mini-name" style="color: #f0e6ff;">ros-1863-payroll</div>
+          <div class="mini-status" style="color: #ff3860;">Error</div>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label" style="color: #7c5aad;">Synthwave</div>
+  </div>
+
+  <!-- Catppuccin -->
+  <div class="theme-card" data-choice="catppuccin" onclick="toggleSelect(this)">
+    <div class="mini-sidebar" style="background: #181826;">
+      <div class="mini-header" style="color: #cdd6f4;">
+        <div class="mini-logo" style="background: linear-gradient(135deg, #cba6f7, #b48cee);">A</div>
+        florence
+      </div>
+      <div class="mini-section" style="color: #6c7086;">In Progress</div>
+      <div class="mini-item" style="border-left-color: #89b4fa; background: linear-gradient(90deg, rgba(137,180,250,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #89b4fa; box-shadow: 0 0 8px rgba(137,180,250,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #cdd6f4;">spike-shifts-within</div>
+          <div class="mini-status" style="color: #89b4fa;">Waiting for input</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #cba6f7; background: linear-gradient(90deg, rgba(203,166,247,0.05), transparent 60%);">
+        <div class="mini-dot" style="background: #cba6f7; box-shadow: 0 0 8px rgba(203,166,247,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #cdd6f4;">ros-1858-printing</div>
+          <div class="mini-status" style="color: #cba6f7;">Done</div>
+        </div>
+      </div>
+      <div class="mini-item">
+        <div class="mini-dot" style="background: #f9e2af;"></div>
+        <div>
+          <div class="mini-name" style="color: #a6adc8;">ros-1862-overtime</div>
+          <div class="mini-status" style="color: #f9e2af;">Thinking...</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #f38ba8; background: linear-gradient(90deg, rgba(243,139,168,0.05), transparent 60%);">
+        <div class="mini-dot" style="background: #f38ba8; box-shadow: 0 0 8px rgba(243,139,168,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #cdd6f4;">ros-1863-payroll</div>
+          <div class="mini-status" style="color: #f38ba8;">Error</div>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label" style="color: #6c7086;">Catppuccin</div>
+  </div>
+
+  <!-- Sunset -->
+  <div class="theme-card" data-choice="sunset" onclick="toggleSelect(this)">
+    <div class="mini-sidebar" style="background: #180f18;">
+      <div class="mini-header" style="color: #f5e6f0;">
+        <div class="mini-logo" style="background: linear-gradient(135deg, #f472b6, #e05aa0);">A</div>
+        florence
+      </div>
+      <div class="mini-section" style="color: #8a6280;">In Progress</div>
+      <div class="mini-item" style="border-left-color: #60a5fa; background: linear-gradient(90deg, rgba(96,165,250,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #60a5fa; box-shadow: 0 0 8px rgba(96,165,250,0.5);"></div>
+        <div>
+          <div class="mini-name" style="color: #f5e6f0;">spike-shifts-within</div>
+          <div class="mini-status" style="color: #60a5fa;">Waiting for input</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #c9a0bc; background: linear-gradient(90deg, rgba(201,160,188,0.05), transparent 60%);">
+        <div class="mini-dot" style="background: #c9a0bc; box-shadow: 0 0 8px rgba(201,160,188,0.3);"></div>
+        <div>
+          <div class="mini-name" style="color: #f5e6f0;">ros-1858-printing</div>
+          <div class="mini-status" style="color: #c9a0bc;">Done</div>
+        </div>
+      </div>
+      <div class="mini-item">
+        <div class="mini-dot" style="background: #fbbf24;"></div>
+        <div>
+          <div class="mini-name" style="color: #c9a0bc;">ros-1862-overtime</div>
+          <div class="mini-status" style="color: #fbbf24;">Thinking...</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #fb7185; background: linear-gradient(90deg, rgba(251,113,133,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #fb7185; box-shadow: 0 0 8px rgba(251,113,133,0.5);"></div>
+        <div>
+          <div class="mini-name" style="color: #f5e6f0;">ros-1863-payroll</div>
+          <div class="mini-status" style="color: #fb7185;">Error</div>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label" style="color: #8a6280;">Sunset</div>
+  </div>
+
+  <!-- Tokyo Night -->
+  <div class="theme-card" data-choice="tokyo-night" onclick="toggleSelect(this)">
+    <div class="mini-sidebar" style="background: #15161f;">
+      <div class="mini-header" style="color: #c0caf5;">
+        <div class="mini-logo" style="background: linear-gradient(135deg, #7aa2f7, #6189e0);">A</div>
+        florence
+      </div>
+      <div class="mini-section" style="color: #565f89;">In Progress</div>
+      <div class="mini-item" style="border-left-color: #7dcfff; background: linear-gradient(90deg, rgba(125,207,255,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #7dcfff; box-shadow: 0 0 8px rgba(125,207,255,0.5);"></div>
+        <div>
+          <div class="mini-name" style="color: #c0caf5;">spike-shifts-within</div>
+          <div class="mini-status" style="color: #7dcfff;">Waiting for input</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #7aa2f7; background: linear-gradient(90deg, rgba(122,162,247,0.05), transparent 60%);">
+        <div class="mini-dot" style="background: #7aa2f7; box-shadow: 0 0 8px rgba(122,162,247,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #c0caf5;">ros-1858-printing</div>
+          <div class="mini-status" style="color: #7aa2f7;">Done</div>
+        </div>
+      </div>
+      <div class="mini-item">
+        <div class="mini-dot" style="background: #e0af68;"></div>
+        <div>
+          <div class="mini-name" style="color: #9aa5ce;">ros-1862-overtime</div>
+          <div class="mini-status" style="color: #e0af68;">Thinking...</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #f7768e; background: linear-gradient(90deg, rgba(247,118,142,0.05), transparent 60%);">
+        <div class="mini-dot" style="background: #f7768e; box-shadow: 0 0 8px rgba(247,118,142,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #c0caf5;">ros-1863-payroll</div>
+          <div class="mini-status" style="color: #f7768e;">Error</div>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label" style="color: #565f89;">Tokyo Night</div>
+  </div>
+
+  <!-- Solarized -->
+  <div class="theme-card" data-choice="solarized" onclick="toggleSelect(this)">
+    <div class="mini-sidebar" style="background: #00232d;">
+      <div class="mini-header" style="color: #fdf6e3;">
+        <div class="mini-logo" style="background: linear-gradient(135deg, #268bd2, #1e78b8);">A</div>
+        florence
+      </div>
+      <div class="mini-section" style="color: #657b83;">In Progress</div>
+      <div class="mini-item" style="border-left-color: #268bd2; background: linear-gradient(90deg, rgba(38,139,210,0.08), transparent 60%);">
+        <div class="mini-dot" style="background: #268bd2; box-shadow: 0 0 8px rgba(38,139,210,0.5);"></div>
+        <div>
+          <div class="mini-name" style="color: #fdf6e3;">spike-shifts-within</div>
+          <div class="mini-status" style="color: #268bd2;">Waiting for input</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #93a1a1; background: linear-gradient(90deg, rgba(147,161,161,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #93a1a1; box-shadow: 0 0 8px rgba(147,161,161,0.3);"></div>
+        <div>
+          <div class="mini-name" style="color: #fdf6e3;">ros-1858-printing</div>
+          <div class="mini-status" style="color: #93a1a1;">Done</div>
+        </div>
+      </div>
+      <div class="mini-item">
+        <div class="mini-dot" style="background: #b58900;"></div>
+        <div>
+          <div class="mini-name" style="color: #93a1a1;">ros-1862-overtime</div>
+          <div class="mini-status" style="color: #b58900;">Thinking...</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #dc322f; background: linear-gradient(90deg, rgba(220,50,47,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #dc322f; box-shadow: 0 0 8px rgba(220,50,47,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #fdf6e3;">ros-1863-payroll</div>
+          <div class="mini-status" style="color: #dc322f;">Error</div>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label" style="color: #657b83;">Solarized</div>
+  </div>
+
+  <!-- Honeycomb -->
+  <div class="theme-card" data-choice="honeycomb" onclick="toggleSelect(this)">
+    <div class="mini-sidebar" style="background: #161411;">
+      <div class="mini-header" style="color: #f5f0e6;">
+        <div class="mini-logo" style="background: linear-gradient(135deg, #eab308, #d19e06);">A</div>
+        florence
+      </div>
+      <div class="mini-section" style="color: #7d7260;">In Progress</div>
+      <div class="mini-item" style="border-left-color: #60a5fa; background: linear-gradient(90deg, rgba(96,165,250,0.06), transparent 60%);">
+        <div class="mini-dot" style="background: #60a5fa; box-shadow: 0 0 8px rgba(96,165,250,0.5);"></div>
+        <div>
+          <div class="mini-name" style="color: #f5f0e6;">spike-shifts-within</div>
+          <div class="mini-status" style="color: #60a5fa;">Waiting for input</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #b5a88e; background: linear-gradient(90deg, rgba(181,168,142,0.05), transparent 60%);">
+        <div class="mini-dot" style="background: #b5a88e; box-shadow: 0 0 8px rgba(181,168,142,0.3);"></div>
+        <div>
+          <div class="mini-name" style="color: #f5f0e6;">ros-1858-printing</div>
+          <div class="mini-status" style="color: #b5a88e;">Done</div>
+        </div>
+      </div>
+      <div class="mini-item">
+        <div class="mini-dot" style="background: #fb923c;"></div>
+        <div>
+          <div class="mini-name" style="color: #b5a88e;">ros-1862-overtime</div>
+          <div class="mini-status" style="color: #fb923c;">Thinking...</div>
+        </div>
+      </div>
+      <div class="mini-item" style="border-left-color: #f87171; background: linear-gradient(90deg, rgba(248,113,113,0.05), transparent 60%);">
+        <div class="mini-dot" style="background: #f87171; box-shadow: 0 0 8px rgba(248,113,113,0.4);"></div>
+        <div>
+          <div class="mini-name" style="color: #f5f0e6;">ros-1863-payroll</div>
+          <div class="mini-status" style="color: #f87171;">Error</div>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label" style="color: #7d7260;">Honeycomb</div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top: 20px;">Click themes you want to <strong>remove</strong>. Unclicked ones stay. The gradient bleed works on all dark themes — Light is the only one that needs special treatment.</p>
