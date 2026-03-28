@@ -2,8 +2,10 @@ import { create } from "zustand";
 import type {
   Annotation,
   CheckRun,
+  DiffViewMode,
   KanbanColumn,
   PrDetailedStatus,
+  PrPanelState,
   PrStatusWithColumn,
   TabType,
   Worktree,
@@ -25,6 +27,10 @@ interface WorkspaceState {
   activeTabId: Record<string, string>;
   /** Inline annotations per worktree. Keyed by worktreeId. */
   annotations: Record<string, Annotation[]>;
+  /** Diff view mode per worktree. Keyed by worktreeId. */
+  diffViewMode: Record<string, DiffViewMode>;
+  /** PR panel state per worktree. Keyed by worktreeId. */
+  prPanelState: Record<string, PrPanelState>;
   /** Whether the sidebar is collapsed. */
   sidebarCollapsed: boolean;
   /** Number of days after merging before a worktree is auto-archived. */
@@ -51,6 +57,8 @@ interface WorkspaceState {
   addAnnotation: (annotation: Annotation) => void;
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
   clearAnnotations: (worktreeId: string) => void;
+  setDiffViewMode: (worktreeId: string, mode: DiffViewMode) => void;
+  setPrPanelState: (worktreeId: string, panelState: PrPanelState) => void;
   restoreTabs: (worktreeId: string, tabs: WorkspaceTab[], activeTabId: string) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -115,6 +123,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   tabs: {},
   activeTabId: {},
   annotations: {},
+  diffViewMode: {},
+  prPanelState: {},
   sidebarCollapsed: false,
   archiveAfterDays: 2,
   checkRuns: {},
@@ -442,6 +452,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       },
     })),
 
+  setDiffViewMode: (worktreeId, mode) =>
+    set((state) => ({
+      diffViewMode: { ...state.diffViewMode, [worktreeId]: mode },
+    })),
+
+  setPrPanelState: (worktreeId, panelState) =>
+    set((state) => ({
+      prPanelState: { ...state.prPanelState, [worktreeId]: panelState },
+    })),
+
   restoreTabs: (worktreeId, tabs, activeTabId) =>
     set((state) => ({
       tabs: { ...state.tabs, [worktreeId]: tabs },
@@ -496,6 +516,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       tabs: {},
       activeTabId: {},
       annotations: {},
+      diffViewMode: {},
+      prPanelState: {},
       sidebarCollapsed: false,
       archiveAfterDays: 2,
       checkRuns: {},
