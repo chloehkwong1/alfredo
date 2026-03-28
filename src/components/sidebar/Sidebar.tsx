@@ -46,7 +46,6 @@ interface SidebarProps {
   activeRepo: string | null;
   selectedRepos?: string[];
   onToggleRepo?: (path: string) => void;
-  onSwitchRepo: (path: string) => void;
   onAddRepo: () => void;
   onRemoveRepo: (path: string) => void;
   activeRepoMode: "worktree" | "branch";
@@ -62,7 +61,6 @@ function Sidebar({
   activeRepo,
   selectedRepos,
   onToggleRepo,
-  onSwitchRepo: _onSwitchRepo,
   onAddRepo,
   onRemoveRepo,
   activeRepoMode,

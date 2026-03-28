@@ -66,7 +66,6 @@ function AppShell() {
     repos,
     addRepo,
     removeRepo,
-    switchRepo,
     updateRepoMode,
     selectedRepos,
     repoColors,
@@ -76,7 +75,6 @@ function AppShell() {
   } = useAppConfig();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [switching, setSwitching] = useState(false);
 
   // Dialog state for multi-repo lifecycle
   const [addRepoModalOpen, setAddRepoModalOpen] = useState(false);
@@ -94,18 +92,6 @@ function AppShell() {
   const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabIdValue);
   useKeyboardShortcuts(activeWorktreeId, activeTab, tabs, () => setCreateDialogOpen(true));
 
-  // Repo switching handler — save sessions, switch active repo (worktrees persist)
-  const handleSwitchRepo = useCallback(async (path: string) => {
-    setSwitching(true);
-    try {
-      if (repoPath && hasWorktrees) {
-        await collectAndSaveAllSessions(repoPath);
-      }
-      await switchRepo(path);
-    } finally {
-      setSwitching(false);
-    }
-  }, [repoPath, hasWorktrees, switchRepo]);
 
   // When a new repo is selected (from welcome screen or add modal)
   const handleRepoSelected = useCallback(async (path: string) => {
@@ -251,7 +237,7 @@ function AppShell() {
   return (
     <div className="flex h-screen">
       <motion.div
-        className={["flex-shrink-0 h-full overflow-hidden", switching ? "opacity-50 pointer-events-none" : ""].join(" ")}
+        className="flex-shrink-0 h-full overflow-hidden"
         initial={shouldAnimateSidebar.current ? { x: -320, opacity: 0 } : false}
         animate={{ x: 0, opacity: 1, width: 320 }}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
@@ -260,7 +246,6 @@ function AppShell() {
           hasRepo={!!repoPath}
           repos={repos}
           activeRepo={repoPath}
-          onSwitchRepo={handleSwitchRepo}
           onAddRepo={() => setAddRepoModalOpen(true)}
           onRemoveRepo={(path: string) => {
             setRemoveRepoPath(path);
