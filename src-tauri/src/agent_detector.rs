@@ -28,12 +28,7 @@ pub struct AgentDetector {
     line_buf: String,
 }
 
-#[allow(dead_code)]
 impl AgentDetector {
-    pub fn new() -> Self {
-        Self::with_agent_type(AgentType::Unknown)
-    }
-
     /// Create a detector pre-seeded with a known agent type.
     /// Use this when the agent is spawned directly (not launched from a shell),
     /// so we skip banner/launch detection and go straight to state tracking.
@@ -60,12 +55,6 @@ impl AgentDetector {
         }
     }
 
-    /// Call when the terminal is resized. Starts a grace period during which
-    /// state changes are suppressed to avoid false detections from reflow.
-    pub fn notify_resize(&mut self) {
-        self.last_resize = Some(Instant::now());
-    }
-
     /// Set resize timestamp from an external source (cross-thread signalling).
     pub fn notify_resize_at(&mut self, ts: Instant) {
         // Only update if this timestamp is newer
@@ -74,27 +63,11 @@ impl AgentDetector {
         }
     }
 
-    /// Call when user input is sent to the PTY. Starts an echo suppression
-    /// window to avoid misdetecting echoed commands as agent output.
-    pub fn notify_input(&mut self) {
-        self.last_input = Some(Instant::now());
-    }
-
     /// Set input timestamp from an external source (cross-thread signalling).
     pub fn notify_input_at(&mut self, ts: Instant) {
         if self.last_input.is_none_or(|prev| ts > prev) {
             self.last_input = Some(ts);
         }
-    }
-
-    /// Current detected agent type.
-    pub fn agent_type(&self) -> &AgentType {
-        &self.agent_type
-    }
-
-    /// Current detected state.
-    pub fn state(&self) -> &AgentState {
-        &self.state
     }
 
     /// Feed raw PTY output bytes into the detector. Returns `Some(...)` only
@@ -396,6 +369,29 @@ fn strip_ansi(input: &str) -> String {
     }
 
     result
+}
+
+#[cfg(test)]
+impl AgentDetector {
+    pub fn new() -> Self {
+        Self::with_agent_type(AgentType::Unknown)
+    }
+
+    pub fn notify_resize(&mut self) {
+        self.last_resize = Some(Instant::now());
+    }
+
+    pub fn notify_input(&mut self) {
+        self.last_input = Some(Instant::now());
+    }
+
+    pub fn agent_type(&self) -> &AgentType {
+        &self.agent_type
+    }
+
+    pub fn state(&self) -> &AgentState {
+        &self.state
+    }
 }
 
 #[cfg(test)]

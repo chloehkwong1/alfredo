@@ -162,7 +162,7 @@ export function getDiff(repoPath: string): Promise<DiffFile[]> {
   return invoke("get_diff", { repoPath });
 }
 
-export async function getUncommittedDiff(repoPath: string): Promise<DiffFile[]> {
+export function getUncommittedDiff(repoPath: string): Promise<DiffFile[]> {
   return invoke<DiffFile[]>("get_uncommitted_diff", { repoPath });
 }
 
@@ -246,18 +246,18 @@ export function setActiveRepo(path: string): Promise<void> {
   return invoke("set_active_repo", { path });
 }
 
-export async function setSelectedRepos(paths: string[]): Promise<GlobalAppConfig> {
+export function setSelectedRepos(paths: string[]): Promise<GlobalAppConfig> {
   return invoke<GlobalAppConfig>("set_selected_repos", { paths });
 }
 
-export async function setDisplayName(name: string | null): Promise<GlobalAppConfig> {
+export function setDisplayName(name: string | null): Promise<GlobalAppConfig> {
   return invoke<GlobalAppConfig>("set_display_name", { name });
 }
 
-export async function setRepoColor(repoPath: string, color: string): Promise<GlobalAppConfig> {
+export function setRepoColor(repoPath: string, color: string): Promise<GlobalAppConfig> {
   return invoke<GlobalAppConfig>("set_repo_color", { repoPath, color });
 }
 
-export async function setRepoDisplayName(repoPath: string, name: string | null): Promise<GlobalAppConfig> {
+export function setRepoDisplayName(repoPath: string, name: string | null): Promise<GlobalAppConfig> {
   return invoke<GlobalAppConfig>("set_repo_display_name", { repoPath, name });
 }
