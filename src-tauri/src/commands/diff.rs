@@ -428,3 +428,65 @@ pub async fn get_diff_for_commit(
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileLine {
+    pub line_number: u32,
+    pub content: String,
+}
+
+/// Read a range of lines from a file, either from the working tree or a specific commit.
+///
+/// - `start_line` and `end_line` are 1-based, inclusive.
+/// - If `commit_hash` is None, reads from the working tree.
+/// - If `commit_hash` is Some, reads the file as it existed in that commit.
+#[tauri::command]
+pub async fn get_file_lines(
+    repo_path: String,
+    file_path: String,
+    start_line: u32,
+    end_line: u32,
+    commit_hash: Option<String>,
+) -> Result<Vec<FileLine>> {
+    tokio::task::spawn_blocking(move || {
+        let content = if let Some(hash) = commit_hash {
+            let output = std::process::Command::new("git")
+                .args(["show", &format!("{hash}:{file_path}")])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| AppError::Git(format!("failed to run git show: {e}")))?;
+
+            if !output.status.success() {
+                let err = String::from_utf8_lossy(&output.stderr);
+                return Err(AppError::Git(format!("git show failed: {err}")));
+            }
+
+            String::from_utf8_lossy(&output.stdout).to_string()
+        } else {
+            let full_path = std::path::Path::new(&repo_path).join(&file_path);
+            std::fs::read_to_string(&full_path)
+                .map_err(|e| AppError::Git(format!("failed to read file: {e}")))?
+        };
+
+        let lines: Vec<FileLine> = content
+            .lines()
+            .enumerate()
+            .filter_map(|(i, line)| {
+                let line_num = (i as u32) + 1;
+                if line_num >= start_line && line_num <= end_line {
+                    Some(FileLine {
+                        line_number: line_num,
+                        content: format!(" {line}"),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(lines)
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
