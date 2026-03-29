@@ -251,8 +251,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                         />
                       ))}
 
-                      {/* Active annotation input */}
-                      {isActiveAnnotationLine && lineNumber !== null && (
+                      {/* Active annotation input (only on additions/context, not deletions — avoids duplicates on modified lines) */}
+                      {isActiveAnnotationLine && lineNumber !== null && line.lineType !== "deletion" && (
                         <AnnotationInput
                           onSubmit={(text) =>
                             onSubmitAnnotation(file.path, lineNumber, text)
