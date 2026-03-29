@@ -10,10 +10,36 @@ import { sessionManager } from "../../services/sessionManager";
 import { Button } from "../ui/Button";
 import { useChangesData } from "../../hooks/useChangesData";
 import type { ViewMode } from "./FileSidebar";
+import type { CommitInfo } from "../../types";
+import { formatRelativeTime } from "./formatRelativeTime";
 
 interface ChangesViewProps {
   worktreeId: string;
   repoPath: string;
+}
+
+function CommitHeader({ commit }: { commit: CommitInfo }) {
+  const firstNewline = commit.message.indexOf("\n");
+  const subject = firstNewline === -1 ? commit.message : commit.message.slice(0, firstNewline);
+  const body = firstNewline === -1 ? "" : commit.message.slice(firstNewline + 1).trim();
+
+  return (
+    <div className="px-4 py-3 border-b border-border-default bg-bg-secondary">
+      <div className="text-sm font-semibold text-text-primary leading-snug">
+        {subject}
+      </div>
+      {body && (
+        <div className="text-xs text-text-secondary mt-1.5 whitespace-pre-wrap leading-relaxed">
+          {body}
+        </div>
+      )}
+      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-text-tertiary">
+        <span className="font-mono">{commit.shortHash}</span>
+        <span>·</span>
+        <span>{formatRelativeTime(commit.timestamp)}</span>
+      </div>
+    </div>
+  );
 }
 
 function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
@@ -301,6 +327,9 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
             )}
           </div>
           <div className="flex-1 overflow-y-auto min-w-0">
+          {viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex] && (
+            <CommitHeader commit={commits[selectedCommitIndex]} />
+          )}
           {displayFiles.map((file) => (
             <DiffFileCard
               key={file.path}
