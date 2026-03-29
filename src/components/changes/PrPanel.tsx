@@ -11,9 +11,12 @@ import {
 import { usePrStore } from "../../stores/prStore";
 import type { CheckRun, PrPanelState, PrStatus } from "../../types";
 import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
+import { rerunFailedChecks, fixFailingChecks, fixMergeConflicts } from "../../services/prActions";
+import { useTabStore } from "../../stores/tabStore";
 
 interface PrPanelProps {
   worktreeId: string;
+  repoPath: string;
   pr: PrStatus;
   panelState: PrPanelState;
   onTogglePanel: () => void;
@@ -22,6 +25,7 @@ interface PrPanelProps {
 
 export function PrPanel({
   worktreeId,
+  repoPath,
   pr,
   panelState,
   onTogglePanel,
@@ -157,9 +161,12 @@ export function PrPanel({
 
       {/* Merge status banner */}
       <MergeStatusBanner
+        worktreeId={worktreeId}
         pr={pr}
+        checkRuns={checkRuns}
         mergeable={mergeable}
         reviewDecision={reviewDecision}
+        repoPath={repoPath}
       />
     </div>
   );
@@ -518,14 +525,64 @@ function CommentCard({
 }
 
 function MergeStatusBanner({
+  worktreeId,
   pr,
+  checkRuns,
   mergeable,
   reviewDecision,
+  repoPath,
 }: {
+  worktreeId: string;
   pr: PrStatus;
+  checkRuns: CheckRun[];
   mergeable: boolean | null;
   reviewDecision: string | null;
+  repoPath: string;
 }) {
+  const [loading, setLoading] = useState<"rerun" | "fix" | "conflicts" | null>(null);
+
+  const failedChecks = checkRuns.filter(
+    (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
+  );
+
+  const switchToClaudeTab = () => {
+    const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
+    const claudeTab = tabs.find((t) => t.type === "claude");
+    if (claudeTab) {
+      useTabStore.getState().setActiveTabId(worktreeId, claudeTab.id);
+    }
+  };
+
+  const handleRerun = async () => {
+    setLoading("rerun");
+    try {
+      await rerunFailedChecks(repoPath, failedChecks);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleFixChecks = async () => {
+    setLoading("fix");
+    try {
+      const sent = await fixFailingChecks(worktreeId, repoPath, failedChecks);
+      if (sent) switchToClaudeTab();
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleFixConflicts = async () => {
+    setLoading("conflicts");
+    try {
+      const sent = await fixMergeConflicts(worktreeId, pr.baseBranch ?? "main");
+      if (sent) switchToClaudeTab();
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // ── Merged ──
   if (pr.merged) {
     return (
       <div className="px-2.5 py-1.5 bg-accent-primary/10 border-t border-accent-primary/20 text-xs text-accent-primary font-semibold shrink-0">
@@ -534,6 +591,7 @@ function MergeStatusBanner({
     );
   }
 
+  // ── Closed ──
   if (pr.state === "closed") {
     return (
       <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0">
@@ -542,6 +600,46 @@ function MergeStatusBanner({
     );
   }
 
+  // ── Priority 1: Merge conflict ──
+  if (mergeable === false) {
+    return (
+      <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0 flex items-center gap-2">
+        <span className="flex-1">Merge conflict</span>
+        <button
+          onClick={handleFixConflicts}
+          disabled={loading !== null}
+          className="text-[10px] px-2 py-0.5 rounded bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 transition-colors disabled:opacity-50 font-medium"
+        >
+          {loading === "conflicts" ? "Sending…" : "Fix conflicts"}
+        </button>
+      </div>
+    );
+  }
+
+  // ── Priority 2: Failing checks ──
+  if (failedChecks.length > 0) {
+    return (
+      <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0 flex items-center gap-2">
+        <span className="flex-1">{failedChecks.length} check{failedChecks.length !== 1 ? "s" : ""} failing</span>
+        <button
+          onClick={handleRerun}
+          disabled={loading !== null}
+          className="text-[10px] px-2 py-0.5 rounded bg-bg-secondary border border-border-default text-text-secondary hover:bg-bg-hover transition-colors disabled:opacity-50 font-medium"
+        >
+          {loading === "rerun" ? "Rerunning…" : "Rerun"}
+        </button>
+        <button
+          onClick={handleFixChecks}
+          disabled={loading !== null}
+          className="text-[10px] px-2 py-0.5 rounded bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 transition-colors disabled:opacity-50 font-medium"
+        >
+          {loading === "fix" ? "Sending…" : "Fix with agent"}
+        </button>
+      </div>
+    );
+  }
+
+  // ── Ready to merge ──
   if (mergeable === true && reviewDecision === "APPROVED") {
     return (
       <div className="px-2.5 py-1.5 bg-diff-added/10 border-t border-diff-added/20 text-xs text-diff-added font-semibold shrink-0">
@@ -550,14 +648,7 @@ function MergeStatusBanner({
     );
   }
 
-  if (mergeable === false) {
-    return (
-      <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0">
-        Merge conflict
-      </div>
-    );
-  }
-
+  // ── Changes requested ──
   if (reviewDecision === "CHANGES_REQUESTED") {
     return (
       <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0">
@@ -566,6 +657,5 @@ function MergeStatusBanner({
     );
   }
 
-  // Draft and Open states — not shown (redundant)
   return null;
 }

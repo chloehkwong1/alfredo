@@ -16,6 +16,7 @@ interface PaneViewProps {
   onToggleServer?: () => void;
   isServerRunning?: boolean;
   runScriptName?: string;
+  runScriptUrl?: string;
 }
 
 function PaneView({
@@ -24,6 +25,7 @@ function PaneView({
   onToggleServer,
   isServerRunning,
   runScriptName,
+  runScriptUrl,
 }: PaneViewProps) {
   const worktree = useWorkspaceStore((s) =>
     s.worktrees.find((wt) => wt.id === worktreeId),
@@ -112,6 +114,7 @@ function PaneView({
         onToggleServer={onToggleServer}
         isServerRunning={isServerRunning}
         runScriptName={runScriptName}
+        runScriptUrl={runScriptUrl}
       />
       {pr && effectivePrPanelState === "open" ? (
         <Group
@@ -141,6 +144,7 @@ function PaneView({
           <Panel defaultSize="260px" minSize="200px" maxSize="400px">
             <PrPanel
               worktreeId={worktreeId}
+              repoPath={repoPath}
               pr={pr}
               panelState={effectivePrPanelState}
               onTogglePanel={handleTogglePrPanel}
@@ -168,6 +172,7 @@ function PaneView({
           {pr && (
             <PrPanel
               worktreeId={worktreeId}
+              repoPath={repoPath}
               pr={pr}
               panelState={effectivePrPanelState}
               onTogglePanel={handleTogglePrPanel}
