@@ -88,14 +88,15 @@ function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon } {
   // Block ALL event types (keydown, keypress, keyup) for Shift+Enter.
   // Only send the kitty sequence on keydown to avoid duplicates.
   terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+    // Shift+Enter → send kitty protocol sequence for newline
     if (event.key === "Enter" && event.shiftKey) {
       if (event.type === "keydown") {
         terminal.input("\x1b[13;2u", false);
       }
       return false;
     }
-    // Let Cmd+F bubble to the document handler for search
-    if ((event.metaKey || event.ctrlKey) && event.key === "f") {
+    // Let all Cmd+ shortcuts bubble to app-level handlers
+    if (event.metaKey) {
       return false;
     }
     return true;
