@@ -1,4 +1,5 @@
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { usePrStore } from "../stores/prStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { sessionManager } from "./sessionManager";
 import { deleteWorktree as deleteWorktreeApi } from "../api";
@@ -57,8 +58,9 @@ class LifecycleManager {
     // Snapshot tabs before removing from store
     const tabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
 
-    // 1. Remove from both stores atomically (synchronous)
+    // 1. Remove from all stores atomically (synchronous)
     useWorkspaceStore.getState().removeWorktree(worktreeId);
+    usePrStore.getState().removeWorktreeState(worktreeId);
     useLayoutStore.getState().removeLayout(worktreeId);
 
     // 2. Close PTY sessions (async, best-effort)

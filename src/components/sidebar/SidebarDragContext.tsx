@@ -8,6 +8,7 @@ import {
 } from "@dnd-kit/core";
 import type { KanbanColumn } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { usePrStore } from "../../stores/prStore";
 import { setWorktreeColumn } from "../../api";
 
 interface SidebarDragContextProps {
@@ -38,6 +39,7 @@ function SidebarDragContext({ children }: SidebarDragContextProps) {
       const worktree = worktrees.find((wt) => wt.id === worktreeId);
       if (!worktree || worktree.column === targetColumn) return;
 
+      usePrStore.getState().setManualColumn(worktreeId, targetColumn);
       setManualColumn(worktreeId, targetColumn);
 
       // Persist column override via Tauri command (fire-and-forget)

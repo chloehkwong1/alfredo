@@ -4,6 +4,7 @@ import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
 import { getDiff, getUncommittedDiff, getCommits, getDiffForCommit, writePty } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { usePrStore } from "../../stores/prStore";
 import { sessionManager } from "../../services/sessionManager";
 import { Button } from "../ui/Button";
 import type { DiffFile, CommitInfo } from "../../types";
@@ -32,13 +33,13 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
   const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? "unified";
-  const prComments = useWorkspaceStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
-  const reviewedFiles = useWorkspaceStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
-  const toggleReviewedFile = useWorkspaceStore((s) => s.toggleReviewedFile);
+  const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
+  const reviewedFiles = usePrStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
+  const toggleReviewedFile = usePrStore((s) => s.toggleReviewedFile);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
-  const setJumpToComment = useWorkspaceStore((s) => s.setJumpToComment);
-  const clearJumpToComment = useWorkspaceStore((s) => s.clearJumpToComment);
+  const setJumpToComment = usePrStore((s) => s.setJumpToComment);
+  const clearJumpToComment = usePrStore((s) => s.clearJumpToComment);
 
   // Lazy-load uncommitted diff only when Changes tab is active
   useEffect(() => {

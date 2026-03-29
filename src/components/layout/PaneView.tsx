@@ -4,6 +4,7 @@ import { TerminalView } from "../terminal";
 import { ChangesView } from "../changes/ChangesView";
 import { PrPanel } from "../changes/PrPanel";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { usePrStore } from "../../stores/prStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import type { PrPanelState, WorkspaceTab } from "../../types";
 
@@ -35,9 +36,9 @@ function PaneView({
   const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabId);
 
   const pr = worktree?.prStatus ?? null;
-  const prPanelState = useWorkspaceStore((s) => s.prPanelState[worktreeId]);
-  const setPrPanelState = useWorkspaceStore((s) => s.setPrPanelState);
-  const jumpToComment = useWorkspaceStore((s) => s.jumpToComment[worktreeId]);
+  const prPanelState = usePrStore((s) => s.prPanelState[worktreeId]);
+  const setPrPanelState = usePrStore((s) => s.setPrPanelState);
+  const jumpToComment = usePrStore((s) => s.jumpToComment[worktreeId]);
   const repoPath = worktree?.path ?? ".";
 
   const effectivePrPanelState: PrPanelState = prPanelState ?? (pr ? "open" : "collapsed");
@@ -59,7 +60,7 @@ function PaneView({
         setPaneActiveTab(worktreeId, paneId, changesTab.id);
         // Delay jump slightly to let ChangesView mount and register its callback
         setTimeout(() => {
-          const fn = useWorkspaceStore.getState().jumpToComment[worktreeId];
+          const fn = usePrStore.getState().jumpToComment[worktreeId];
           if (fn) fn(filePath, line);
         }, 300);
       } else if (jumpToComment) {

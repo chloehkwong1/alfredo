@@ -1,12 +1,8 @@
 import { create } from "zustand";
 import type {
   Annotation,
-  CheckRun,
   DiffViewMode,
   KanbanColumn,
-  PrDetailedStatus,
-  PrPanelState,
-  PrStatusWithColumn,
   TabType,
   Worktree,
   WorkspaceTab,
@@ -15,10 +11,6 @@ import type {
 interface WorkspaceState {
   worktrees: Worktree[];
   activeWorktreeId: string | null;
-  /** Tracks manual column overrides (from drag). Keyed by worktree id. */
-  columnOverrides: Record<string, KanbanColumn>;
-  /** Tracks the last-known PR state per worktree, so we can detect state changes. */
-  lastPrState: Record<string, string>;
   /** Tracks which worktrees the user has "seen" while idle/waiting. */
   seenWorktrees: Set<string>;
   /** Tabs per worktree. Keyed by worktreeId. */
@@ -29,8 +21,6 @@ interface WorkspaceState {
   annotations: Record<string, Annotation[]>;
   /** Diff view mode per worktree. Keyed by worktreeId. */
   diffViewMode: Record<string, DiffViewMode>;
-  /** PR panel state per worktree. Keyed by worktreeId. */
-  prPanelState: Record<string, PrPanelState>;
   /** Whether the sidebar is collapsed. */
   sidebarCollapsed: boolean;
   /** Number of days after merging before a worktree is auto-archived. */
@@ -39,10 +29,6 @@ interface WorkspaceState {
   disconnectedTabs: Set<string>;
   /** Tracks the currently running dev server, if any. */
   runningServer: { worktreeId: string; sessionId: string; tabId: string } | null;
-  /** Tracks reviewed files per worktree. Keyed by worktreeId. */
-  reviewedFiles: Record<string, Set<string>>;
-  /** Jump-to-comment callback registered by ChangesView when active. Keyed by worktreeId. */
-  jumpToComment: Record<string, ((path: string, line: number) => void) | null>;
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
@@ -52,7 +38,7 @@ interface WorkspaceState {
   setManualColumn: (id: string, column: KanbanColumn) => void;
   setActiveWorktree: (id: string | null) => void;
   setWorktrees: (worktrees: Worktree[]) => void;
-  applyPrUpdates: (prs: PrStatusWithColumn[]) => void;
+  applyWorktreePatches: (patches: Map<string, Partial<Worktree>>) => void;
   markWorktreeSeen: (id: string) => void;
   addTab: (worktreeId: string, type: TabType) => void;
   removeTab: (worktreeId: string, tabId: string) => void;
@@ -62,31 +48,13 @@ interface WorkspaceState {
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
   clearAnnotations: (worktreeId: string) => void;
   setDiffViewMode: (worktreeId: string, mode: DiffViewMode) => void;
-  setPrPanelState: (worktreeId: string, panelState: PrPanelState) => void;
   restoreTabs: (worktreeId: string, tabs: WorkspaceTab[], activeTabId: string) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
-  /** Check runs per worktree. Keyed by worktreeId. */
-  checkRuns: Record<string, CheckRun[]>;
-  setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
-  /** Detailed PR data per worktree. Keyed by worktreeId. */
-  prDetail: Record<string, PrDetailedStatus>;
-  setPrDetail: (worktreeId: string, detail: PrDetailedStatus) => void;
-  /** PR summary indicators per worktree (from sync loop). Keyed by worktreeId. */
-  prSummary: Record<string, {
-    failingCheckCount?: number;
-    unresolvedCommentCount?: number;
-    reviewDecision?: string | null;
-    mergeable?: boolean | null;
-  }>;
   addDisconnectedTab: (tabId: string) => void;
   removeDisconnectedTab: (tabId: string) => void;
   isTabDisconnected: (tabId: string) => boolean;
   updateTab: (worktreeId: string, tabId: string, patch: Partial<WorkspaceTab>) => void;
-  toggleReviewedFile: (worktreeId: string, filePath: string) => void;
-  clearReviewedFiles: (worktreeId: string) => void;
-  setJumpToComment: (worktreeId: string, fn: (path: string, line: number) => void) => void;
-  clearJumpToComment: (worktreeId: string) => void;
   setWorktreesForRepo: (repoPath: string, worktrees: Worktree[]) => void;
   clearWorktreesForRepo: (repoPath: string) => void;
   clearStore: () => void;
@@ -115,10 +83,6 @@ function withActivityTimestamps(
 }
 
 /**
- * Compute a stable key representing the PR "state" for override-clearing purposes.
- * When this key changes, manual overrides are cleared.
- */
-/**
  * Merge fresh git worktree data with existing enriched state (PR status, column, agent status, archived).
  * Used by both setWorktrees and setWorktreesForRepo to avoid duplicating this logic.
  */
@@ -140,32 +104,18 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
   return withActivityTimestamps(merged, existing);
 }
 
-function prStateKey(pr: PrStatusWithColumn): string {
-  if (pr.merged) return "merged";
-  if (pr.draft) return "draft";
-  return "open";
-}
-
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   worktrees: [],
   activeWorktreeId: null,
-  columnOverrides: {},
-  lastPrState: {},
   seenWorktrees: new Set<string>(),
   tabs: {},
   activeTabId: {},
   annotations: {},
   diffViewMode: {},
-  prPanelState: {},
   sidebarCollapsed: false,
   archiveAfterDays: 2,
-  checkRuns: {},
-  prDetail: {},
-  prSummary: {},
   disconnectedTabs: new Set<string>(),
   runningServer: null,
-  reviewedFiles: {},
-  jumpToComment: {},
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -175,9 +125,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       const { [id]: _tabs, ...restTabs } = state.tabs;
       const { [id]: _activeTab, ...restActiveTabId } = state.activeTabId;
       const { [id]: _annotations, ...restAnnotations } = state.annotations;
-      const { [id]: _checkRuns, ...restCheckRuns } = state.checkRuns;
-      const { [id]: _override, ...restOverrides } = state.columnOverrides;
-      const { [id]: _prState, ...restPrState } = state.lastPrState;
       const newSeen = new Set(state.seenWorktrees);
       newSeen.delete(id);
       return {
@@ -186,9 +133,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         tabs: restTabs,
         activeTabId: restActiveTabId,
         annotations: restAnnotations,
-        checkRuns: restCheckRuns,
-        columnOverrides: restOverrides,
-        lastPrState: restPrState,
         seenWorktrees: newSeen,
         runningServer: state.runningServer?.worktreeId === id ? null : state.runningServer,
       };
@@ -223,10 +167,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       ),
     })),
 
-  /** Manual column override from drag-and-drop. Persisted until PR state changes. */
   setManualColumn: (id, column) =>
     set((state) => ({
-      columnOverrides: { ...state.columnOverrides, [id]: column },
       worktrees: state.worktrees.map((wt) =>
         wt.id === id ? { ...wt, column } : wt,
       ),
@@ -239,91 +181,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       worktrees: mergeWorktreeState(freshWorktrees, state.worktrees),
     })),
 
-  /**
-   * Apply PR status updates from the background sync loop.
-   * Matches PRs to worktrees by branch name.
-   * Auto-assigns columns unless a manual override is active.
-   * Clears manual overrides when the PR state changes.
-   */
-  applyPrUpdates: (prs) =>
-    set((state) => {
-      // Index PRs by repoPath+branch for multi-repo disambiguation
-      const prByKey = new Map<string, PrStatusWithColumn>();
-      for (const pr of prs) {
-        prByKey.set(`${pr.repoPath}::${pr.branch}`, pr);
-      }
-
-      const newOverrides = { ...state.columnOverrides };
-      const newLastPrState = { ...state.lastPrState };
-
-      const worktrees = state.worktrees.map((wt) => {
-        const pr = prByKey.get(`${wt.repoPath}::${wt.branch}`);
-
-        if (!pr) {
-          // No PR for this branch — keep existing state
-          return wt;
-        }
-
-        const currentStateKey = prStateKey(pr);
-        const previousStateKey = state.lastPrState[wt.id];
-
-        // If PR state changed, clear any manual override
-        if (previousStateKey && previousStateKey !== currentStateKey) {
-          delete newOverrides[wt.id];
-        }
-
-        newLastPrState[wt.id] = currentStateKey;
-
-        // Build updated PR status (without autoColumn, which is store-only)
-        const prStatus = {
-          number: pr.number,
-          state: pr.state,
-          title: pr.title,
-          url: pr.url,
-          draft: pr.draft,
-          merged: pr.merged,
-          branch: pr.branch,
-          mergedAt: pr.mergedAt,
-          headSha: pr.headSha,
-          body: pr.body,
-        };
-
-        // Use manual override if still active, otherwise auto-assign
-        const column = newOverrides[wt.id] ?? pr.autoColumn;
-
-        const prChanged =
-          wt.prStatus?.number !== prStatus.number ||
-          wt.prStatus?.state !== prStatus.state;
-
-        return {
-          ...wt,
-          prStatus,
-          column,
-          lastActivityAt: prChanged ? Date.now() : (wt.lastActivityAt ?? Date.now()),
-        };
-      });
-
-      // Store summary data for sidebar indicators
-      const newSummary = { ...state.prSummary };
-      for (const pr of prs) {
-        const wt = worktrees.find((w) => w.repoPath === pr.repoPath && w.branch === pr.branch);
-        if (wt) {
-          newSummary[wt.id] = {
-            failingCheckCount: pr.failingCheckCount,
-            unresolvedCommentCount: pr.unresolvedCommentCount,
-            reviewDecision: pr.reviewDecision,
-            mergeable: pr.mergeable,
-          };
-        }
-      }
-
-      return {
-        worktrees,
-        columnOverrides: newOverrides,
-        lastPrState: newLastPrState,
-        prSummary: newSummary,
-      };
-    }),
+  applyWorktreePatches: (patches) =>
+    set((state) => ({
+      worktrees: state.worktrees.map((wt) => {
+        const patch = patches.get(wt.id);
+        return patch ? { ...wt, ...patch } : wt;
+      }),
+    })),
 
   markWorktreeSeen: (id) =>
     set((state) => ({
@@ -481,11 +345,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       diffViewMode: { ...state.diffViewMode, [worktreeId]: mode },
     })),
 
-  setPrPanelState: (worktreeId, panelState) =>
-    set((state) => ({
-      prPanelState: { ...state.prPanelState, [worktreeId]: panelState },
-    })),
-
   restoreTabs: (worktreeId, tabs, activeTabId) =>
     set((state) => ({
       tabs: { ...state.tabs, [worktreeId]: tabs },
@@ -497,14 +356,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   setSidebarCollapsed: (collapsed) =>
     set({ sidebarCollapsed: collapsed }),
-
-  setCheckRuns: (worktreeId, runs) =>
-    set((state) => ({
-      checkRuns: { ...state.checkRuns, [worktreeId]: runs },
-    })),
-
-  setPrDetail: (worktreeId, detail) =>
-    set((s) => ({ prDetail: { ...s.prDetail, [worktreeId]: detail } })),
 
   addDisconnectedTab: (tabId) =>
     set((state) => ({
@@ -530,33 +381,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       },
     })),
 
-  toggleReviewedFile: (worktreeId, filePath) =>
-    set((state) => {
-      const current = state.reviewedFiles[worktreeId] ?? new Set<string>();
-      const next = new Set(current);
-      if (next.has(filePath)) {
-        next.delete(filePath);
-      } else {
-        next.add(filePath);
-      }
-      return { reviewedFiles: { ...state.reviewedFiles, [worktreeId]: next } };
-    }),
-
-  clearReviewedFiles: (worktreeId) =>
-    set((state) => ({
-      reviewedFiles: { ...state.reviewedFiles, [worktreeId]: new Set<string>() },
-    })),
-
-  setJumpToComment: (worktreeId, fn) =>
-    set((state) => ({
-      jumpToComment: { ...state.jumpToComment, [worktreeId]: fn },
-    })),
-
-  clearJumpToComment: (worktreeId) =>
-    set((state) => ({
-      jumpToComment: { ...state.jumpToComment, [worktreeId]: null },
-    })),
-
   setWorktreesForRepo: (repoPath, freshWorktrees) =>
     set((state) => {
       const otherRepoWorktrees = state.worktrees.filter((wt) => wt.repoPath !== repoPath);
@@ -573,23 +397,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set({
       worktrees: [],
       activeWorktreeId: null,
-      columnOverrides: {},
-      lastPrState: {},
       seenWorktrees: new Set<string>(),
       tabs: {},
       activeTabId: {},
       annotations: {},
       diffViewMode: {},
-      prPanelState: {},
       sidebarCollapsed: false,
       archiveAfterDays: 2,
-      checkRuns: {},
-      prDetail: {},
-      prSummary: {},
       disconnectedTabs: new Set<string>(),
       runningServer: null,
-      reviewedFiles: {},
-      jumpToComment: {},
     }),
 
   setRunningServer: (server) => set({ runningServer: server }),

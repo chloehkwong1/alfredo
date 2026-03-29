@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { usePrStore } from "../../stores/prStore";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -105,7 +106,7 @@ function AgentItem({
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
-  const prSummary = useWorkspaceStore((s) => s.prSummary[worktree.id]);
+  const prSummary = usePrStore((s) => s.prSummary[worktree.id]);
   const isServerRunning = useWorkspaceStore(
     (s) => s.runningServer?.worktreeId === worktree.id,
   );

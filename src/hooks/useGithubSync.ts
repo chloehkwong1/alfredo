@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type { PrUpdatePayload } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { usePrStore } from "../stores/prStore";
 
 /**
  * Listens for `github:pr-update` events from the Rust background sync loop
@@ -10,11 +11,13 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
  * `archiveAfterDays` ago.
  */
 export function useGithubSync() {
-  const applyPrUpdates = useWorkspaceStore((s) => s.applyPrUpdates);
-
   useEffect(() => {
     const unlisten = listen<PrUpdatePayload>("github:pr-update", (event) => {
-      applyPrUpdates(event.payload.prs);
+      const patches = usePrStore.getState().applyPrUpdates(
+        event.payload.prs,
+        useWorkspaceStore.getState().worktrees,
+      );
+      useWorkspaceStore.getState().applyWorktreePatches(patches);
 
       // Auto-archive check: batch-archive Done worktrees with expired mergedAt
       const state = useWorkspaceStore.getState();
@@ -42,5 +45,5 @@ export function useGithubSync() {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [applyPrUpdates]);
+  }, []);
 }

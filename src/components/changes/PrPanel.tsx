@@ -9,7 +9,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getCheckRuns, getPrDetail } from "../../api";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { usePrStore } from "../../stores/prStore";
 import type { CheckRun, PrPanelState, PrStatus } from "../../types";
 
 interface PrPanelProps {
@@ -29,10 +29,10 @@ export function PrPanel({
   onTogglePanel,
   onJumpToComment,
 }: PrPanelProps) {
-  const checkRuns = useWorkspaceStore((s) => s.checkRuns[worktreeId]) ?? [];
-  const prDetail = useWorkspaceStore((s) => s.prDetail[worktreeId]);
-  const setCheckRuns = useWorkspaceStore((s) => s.setCheckRuns);
-  const setPrDetail = useWorkspaceStore((s) => s.setPrDetail);
+  const checkRuns = usePrStore((s) => s.checkRuns[worktreeId]) ?? [];
+  const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
+  const setCheckRuns = usePrStore((s) => s.setCheckRuns);
+  const setPrDetail = usePrStore((s) => s.setPrDetail);
 
   const [descExpanded, setDescExpanded] = useState(true);
 

@@ -39,6 +39,7 @@ import {
   ContextMenuSeparator,
 } from "../ui/ContextMenu";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { usePrStore } from "../../stores/prStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { TabType, WorkspaceTab } from "../../types";
@@ -236,7 +237,7 @@ function PaneTabBar({
 
   const draggedTab = dragActiveId ? paneTabs.find((t) => t.id === dragActiveId) : null;
 
-  const prSummary = useWorkspaceStore((s) => s.prSummary);
+  const prSummary = usePrStore((s) => s.prSummary);
   const commentCount = prSummary[worktreeId]?.unresolvedCommentCount ?? 0;
 
   const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
