@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   CircleCheck,
   Eye,
@@ -33,6 +33,8 @@ export function PrPanel({
   const prDetail = useWorkspaceStore((s) => s.prDetail[worktreeId]);
   const setCheckRuns = useWorkspaceStore((s) => s.setCheckRuns);
   const setPrDetail = useWorkspaceStore((s) => s.setPrDetail);
+
+  const [descExpanded, setDescExpanded] = useState(false);
 
   const reviews = prDetail?.reviews ?? [];
   const comments = prDetail?.comments ?? [];
@@ -133,6 +135,23 @@ export function PrPanel({
           <ChevronRight size={15} />
         </button>
       </div>
+
+      {/* Description */}
+      {pr.body && (
+        <div className="px-2.5 py-2 border-b border-border-subtle text-xs text-text-secondary leading-[1.5]">
+          <p className={descExpanded ? "" : "line-clamp-3"}>
+            {pr.body}
+          </p>
+          {pr.body.length > 120 && (
+            <button
+              onClick={() => setDescExpanded(!descExpanded)}
+              className="text-accent-primary text-[10px] mt-0.5 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
+            >
+              {descExpanded ? "Show less" : "Show more"}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto py-2 flex flex-col">
