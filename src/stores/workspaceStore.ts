@@ -285,6 +285,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           branch: pr.branch,
           mergedAt: pr.mergedAt,
           headSha: pr.headSha,
+          body: pr.body,
         };
 
         // Use manual override if still active, otherwise auto-assign

@@ -37,6 +37,8 @@ pub struct PrStatusWithColumn {
     pub review_decision: Option<String>,
     /// Whether the PR is mergeable per GitHub's assessment.
     pub mergeable: Option<bool>,
+    /// PR description body text.
+    pub body: Option<String>,
     /// The repo path this PR belongs to, for multi-repo disambiguation.
     pub repo_path: String,
 }
@@ -58,6 +60,7 @@ impl PrStatusWithColumn {
                 .unwrap_or_else(|| "inProgress".to_string()),
             merged_at: pr.merged_at.clone(),
             head_sha: pr.head_sha.clone(),
+            body: pr.body.clone(),
             failing_check_count: None,
             unresolved_comment_count: None,
             review_decision: None,
