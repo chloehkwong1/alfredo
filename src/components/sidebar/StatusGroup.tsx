@@ -20,7 +20,6 @@ interface StatusGroupProps {
   onSelectWorktree: (id: string) => void;
   onDeleteWorktree?: (id: string) => void;
   onArchiveWorktree?: (id: string) => void;
-  onToggleRemoteControl?: (worktreeId: string) => void;
   forceVisible?: boolean;
   dragActiveId?: string | null;
   dragHeight?: number | null;
@@ -53,7 +52,6 @@ function StatusGroup({
   onSelectWorktree,
   onDeleteWorktree,
   onArchiveWorktree,
-  onToggleRemoteControl,
   forceVisible,
   dragActiveId,
   dragHeight,
@@ -129,7 +127,6 @@ function StatusGroup({
                 onClick={() => onSelectWorktree(wt.id)}
                 onDelete={onDeleteWorktree}
                 onArchive={onArchiveWorktree}
-                onToggleRemoteControl={onToggleRemoteControl}
                 repoPath={wt.repoPath}
                 repoColors={repoColors}
                 repoDisplayNames={repoDisplayNames}

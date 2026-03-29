@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { RotateCcw, SquarePen, TerminalSquare } from "lucide-react";
+import { RotateCcw, SquarePen, TerminalSquare, Smartphone } from "lucide-react";
 import { Button } from "../ui/Button";
 import { SettingsChip } from "./SettingsChip";
 import { getConfig, saveConfig, openInEditor, openInTerminal, getAppConfig } from "../../api";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
+import { toggleRemoteControl } from "../../services/remoteControl";
+import { useRemoteControlStore } from "../../stores/remoteControlStore";
 import type { ClaudeOverrides } from "../../types";
 
 const CLAUDE_DEFAULTS = {
@@ -43,10 +45,12 @@ function displayLabel(options: { value: string; label: string }[], value: string
 interface SettingsStatusBarProps {
   branch: string;
   worktreePath: string;
+  worktreeId: string;
+  sessionKey: string;
   onRestartSession: () => void;
 }
 
-function SettingsStatusBar({ branch, worktreePath, onRestartSession }: SettingsStatusBarProps) {
+function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRestartSession }: SettingsStatusBarProps) {
   const { activeRepo: repoPath } = useAppConfig();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -142,6 +146,14 @@ function SettingsStatusBar({ branch, worktreePath, onRestartSession }: SettingsS
     }
   }, [worktreePath]);
 
+  const isRcActive = useRemoteControlStore(
+    useCallback((s) => worktreeId in s.sessions, [worktreeId]),
+  );
+
+  const handleToggleRemote = useCallback(() => {
+    toggleRemoteControl(worktreeId, sessionKey);
+  }, [worktreeId, sessionKey]);
+
   return (
     <div className="flex items-center justify-between px-2 py-1 border-t border-border-default flex-shrink-0">
       <div className="flex items-center gap-1.5">
@@ -181,6 +193,20 @@ function SettingsStatusBar({ branch, worktreePath, onRestartSession }: SettingsS
             </Button>
           </>
         )}
+        <button
+          type="button"
+          onClick={handleToggleRemote}
+          className={[
+            "flex items-center gap-1 text-xs transition-all cursor-pointer",
+            isRcActive
+              ? "text-accent-primary drop-shadow-[0_0_4px_var(--accent-primary)]"
+              : "text-text-tertiary hover:text-text-secondary",
+          ].join(" ")}
+          title={isRcActive ? "Remote Control: On" : "Remote Control: Off"}
+        >
+          <Smartphone size={13} />
+          Remote
+        </button>
         <button
           type="button"
           onClick={handleOpenEditor}

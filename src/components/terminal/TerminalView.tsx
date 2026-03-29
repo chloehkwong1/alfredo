@@ -9,6 +9,7 @@ import { sessionManager } from "../../services/sessionManager";
 import { writePty, getConfig, getAppConfig } from "../../api";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { Button } from "../ui/Button";
+import logoSvg from "../../assets/logo-cat.svg";
 import { SettingsStatusBar } from "./SettingsStatusBar";
 import { TerminalSearchBar } from "./TerminalSearchBar";
 import {
@@ -165,8 +166,9 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   if (!activeWorktreeId) {
     return (
-      <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
-        Select a worktree to get started
+      <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-3">
+        <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
+        <span className="text-sm">Select a worktree to get started</span>
       </div>
     );
   }
@@ -234,6 +236,8 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         <SettingsStatusBar
           branch={worktree.branch ?? ""}
           worktreePath={worktree.path ?? ""}
+          worktreeId={activeWorktreeId ?? ""}
+          sessionKey={sessionKey}
           onRestartSession={handleRestartSession}
         />
       )}

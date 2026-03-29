@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Settings, Plus, HelpCircle } from "lucide-react";
 import { IconButton } from "../ui";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -13,8 +13,6 @@ import { ShortcutsOverlay } from "../settings/ShortcutsOverlay";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { lifecycleManager } from "../../services/lifecycleManager";
-import { toggleRemoteControl } from "../../services/remoteControl";
-import { useTabStore } from "../../stores/tabStore";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 
 const COLUMNS: KanbanColumn[] = [
@@ -76,16 +74,8 @@ function Sidebar({
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
-  const tabs = useTabStore((s) => s.tabs);
   const repoPath = activeRepo;
 
-  const handleToggleRemoteControl = useCallback((worktreeId: string) => {
-    const worktreeTabs = tabs[worktreeId] ?? [];
-    const claudeTab = worktreeTabs.find((t) => t.type === "claude");
-    if (!claudeTab) return;
-    const sessionKey = `${worktreeId}:${claudeTab.id}`;
-    toggleRemoteControl(worktreeId, sessionKey);
-  }, [tabs]);
 
   async function handleDeleteWorktree(id: string) {
     const wt = worktrees.find((w) => w.id === id);
@@ -225,7 +215,6 @@ function Sidebar({
                     onSelectWorktree={setActiveWorktree}
                     onDeleteWorktree={handleDeleteWorktree}
                     onArchiveWorktree={archiveWorktree}
-                    onToggleRemoteControl={handleToggleRemoteControl}
                     forceVisible={isDragging}
                     dragActiveId={dragActiveId}
                     dragHeight={dragHeight}

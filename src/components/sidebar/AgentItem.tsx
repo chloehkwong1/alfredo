@@ -24,7 +24,6 @@ import { Button } from "../ui";
 import { ServerIndicator } from "./ServerIndicator";
 import { RelativeTime } from "../ui/RelativeTime";
 import { RepoTag } from "./RepoTag";
-import { RemoteControlIcon } from "./RemoteControlIcon";
 
 const ATTENTION_STATES = new Set(["waitingForInput", "done", "error"]);
 
@@ -65,7 +64,6 @@ interface AgentItemProps {
   onClick: () => void;
   onDelete?: (worktreeId: string) => void;
   onArchive?: (worktreeId: string) => void;
-  onToggleRemoteControl?: (worktreeId: string) => void;
   repoPath?: string;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
@@ -129,13 +127,11 @@ interface AgentItemContentProps {
   repoDisplayNames?: Record<string, string>;
   repoIndex?: number;
   showRepoTag?: boolean;
-  onToggleRemoteControl?: (worktreeId: string) => void;
 }
 
 function AgentItemContent({
   worktree, effectiveStatus, shouldPulse, isServerRunning, prSummary,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
-  onToggleRemoteControl,
 }: AgentItemContentProps) {
   return (
     <>
@@ -162,13 +158,6 @@ function AgentItemContent({
             <span className="text-xs text-text-tertiary flex-shrink-0">#{worktree.prStatus.number}</span>
           )}
           {isServerRunning && <ServerIndicator />}
-          {onToggleRemoteControl && (
-            <RemoteControlIcon
-              worktreeId={worktree.id}
-              hasActiveSession={worktree.agentStatus !== "notRunning"}
-              onToggle={onToggleRemoteControl}
-            />
-          )}
           <RelativeTime
             timestamp={worktree.lastActivityAt}
             className="text-2xs text-text-tertiary ml-auto flex-shrink-0 tabular-nums"
@@ -230,7 +219,7 @@ function AgentItemContent({
 }
 
 function AgentItem({
-  worktree, isSelected, onClick, onDelete, onArchive, onToggleRemoteControl,
+  worktree, isSelected, onClick, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -295,7 +284,6 @@ function AgentItem({
               repoDisplayNames={repoDisplayNames}
               repoIndex={repoIndex}
               showRepoTag={showRepoTag}
-              onToggleRemoteControl={onToggleRemoteControl}
             />
           </button>
         </ContextMenuTrigger>
