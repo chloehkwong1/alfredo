@@ -157,7 +157,7 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
 
 /// Fetch and enrich PRs for a single repo. Returns the enriched PR list.
 async fn poll_repo(
-    app_handle: &AppHandle,
+    _app_handle: &AppHandle,
     repo_path: &str,
 ) -> Result<Vec<PrStatusWithColumn>, String> {
     let config = config_manager::load_config(repo_path)
@@ -196,14 +196,7 @@ async fn poll_repo(
     let mut payload_prs: Vec<PrStatusWithColumn> =
         prs.iter().map(|pr| PrStatusWithColumn::from_pr(pr, repo_path)).collect();
 
-    // Phase 1: Emit basic PR data immediately so worktrees move to the correct
-    // kanban column without waiting for the per-PR enrichment API calls.
-    let early_payload = PrUpdatePayload {
-        prs: payload_prs.clone(),
-    };
-    let _ = app_handle.emit("github:pr-update", &early_payload);
-
-    // Phase 2: Enrich non-merged PRs with sidebar indicator data (best-effort).
+    // Enrich non-merged PRs with sidebar indicator data (best-effort).
     // Enrich each PR's 3 API calls concurrently (mergeable + reviews + checks in parallel).
     for pr_with_col in payload_prs.iter_mut() {
         if pr_with_col.merged {
