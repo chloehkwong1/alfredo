@@ -67,6 +67,9 @@ function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon } {
     cursorBlink: prefs.cursorBlink,
   });
 
+  // Suppress terminal bell sound (BEL character from agent output)
+  terminal.onBell(() => { /* noop — suppress system notification */ });
+
   const unicodeAddon = new Unicode11Addon();
   terminal.loadAddon(unicodeAddon);
   terminal.unicode.activeVersion = "11";

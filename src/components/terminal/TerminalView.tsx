@@ -76,7 +76,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const [showSearch, setShowSearch] = useState(false);
 
-  const { agentState, channelAlive, searchAddon } = usePty({
+  const { agentState, channelAlive, isConnected, searchAddon } = usePty({
     sessionKey,
     worktreeId: activeWorktreeId ?? "",
     worktreePath: worktree?.path ?? "",
@@ -210,8 +210,12 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       <div className="relative flex-1 min-h-0">
         {!channelAlive && (
           <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-3 py-2 bg-bg-secondary/90 border-b border-border-default">
-            <span className="text-xs text-text-secondary">Terminal disconnected</span>
-            <Button size="sm" variant="secondary" onClick={handleRestartSession}>Restart session</Button>
+            <span className="text-xs text-text-secondary">
+              {isConnected ? "Terminal disconnected" : "Failed to start session"}
+            </span>
+            <Button size="sm" variant="secondary" onClick={handleRestartSession}>
+              {isConnected ? "Restart session" : "Retry"}
+            </Button>
           </div>
         )}
         {showSearch && searchAddon && (
