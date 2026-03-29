@@ -15,7 +15,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
   const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
-  const hasRestoredSessions = useRef(false);
+  const restoredRepos = useRef(new Set<string>());
 
   const selectedReposKey = selectedRepos.join(",");
   useEffect(() => {
@@ -41,8 +41,8 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
           setWorktreesForRepo(repo, wts);
           ensureAlfredoGitignore(repo).catch(e => console.warn('[AppShell] Failed to ensure .alfredo gitignore:', e));
 
-          if (!hasRestoredSessions.current) {
-            hasRestoredSessions.current = true;
+          if (!restoredRepos.current.has(repo)) {
+            restoredRepos.current.add(repo);
             for (const wt of wts) {
               const session = await loadSession(repo, wt.id);
               if (session) {
