@@ -9,11 +9,14 @@ export function usePrData(
   repoPath: string,
   prNumber: number,
   ref: string,
+  enabled = true,
 ) {
   const setCheckRuns = usePrStore((s) => s.setCheckRuns);
   const setPrDetail = usePrStore((s) => s.setPrDetail);
 
   useEffect(() => {
+    if (!enabled || !prNumber || !ref) return;
+
     let cancelled = false;
 
     async function fetchData() {
@@ -44,5 +47,5 @@ export function usePrData(
       cancelled = true;
       clearInterval(interval);
     };
-  }, [worktreeId, repoPath, prNumber, ref, setCheckRuns, setPrDetail]);
+  }, [worktreeId, repoPath, prNumber, ref, enabled, setCheckRuns, setPrDetail]);
 }

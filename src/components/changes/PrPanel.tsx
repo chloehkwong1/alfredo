@@ -8,7 +8,6 @@ import {
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
-import { usePrData } from "../../hooks/usePrData";
 import { usePrStore } from "../../stores/prStore";
 import type { CheckRun, PrPanelState, PrStatus } from "../../types";
 import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
@@ -24,14 +23,12 @@ interface PrPanelProps {
 
 export function PrPanel({
   worktreeId,
-  repoPath,
+  repoPath: _repoPath,
   pr,
   panelState,
   onTogglePanel,
   onJumpToComment,
 }: PrPanelProps) {
-  usePrData(worktreeId, repoPath, pr.number, pr.headSha ?? pr.branch);
-
   const checkRuns = usePrStore((s) => s.checkRuns[worktreeId]) ?? [];
   const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
 
@@ -92,7 +89,7 @@ export function PrPanel({
 
   // ── Expanded panel ─────────────────────────────────────────────
   return (
-    <div className="w-[260px] shrink-0 flex flex-col bg-bg-primary border-l border-border-default overflow-hidden">
+    <div className="w-full h-full flex flex-col bg-bg-primary border-l border-border-default overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-border-default shrink-0">
         <span className="text-[13px] font-semibold text-text-primary flex-1 overflow-hidden text-ellipsis whitespace-nowrap">

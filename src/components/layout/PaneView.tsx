@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { PaneTabBar } from "./PaneTabBar";
 import { TerminalView } from "../terminal";
 import { ChangesView } from "../changes/ChangesView";
@@ -7,6 +8,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { usePrStore } from "../../stores/prStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { usePrData } from "../../hooks/usePrData";
 import type { PrPanelState, WorkspaceTab } from "../../types";
 
 interface PaneViewProps {
@@ -42,6 +44,9 @@ function PaneView({
   const repoPath = worktree?.path ?? ".";
 
   const effectivePrPanelState: PrPanelState = prPanelState ?? (pr ? "open" : "collapsed");
+
+  // Fetch PR data here (not in PrPanel) so it survives panel open/collapse remounts
+  usePrData(worktreeId, repoPath, pr?.number ?? 0, pr?.headSha ?? pr?.branch ?? "", !!pr);
 
   const handleTogglePrPanel = useCallback(() => {
     setPrPanelState(
@@ -82,6 +87,11 @@ function PaneView({
     [tabs, activeTab, worktreeId, paneId, setPaneActiveTab],
   );
 
+  const prPanelLayout = useDefaultLayout({
+    id: "pr-panel",
+    storage: localStorage,
+  });
+
   useEffect(() => {
     if (!pr) return;
     function handleKeyDown(e: KeyboardEvent) {
@@ -107,33 +117,71 @@ function PaneView({
         isServerRunning={isServerRunning}
         runScriptName={runScriptName}
       />
-      <div className="flex flex-1 min-h-0">
-        <div className="flex-1 min-h-0 min-w-0 relative">
-          {(activeTab?.type === "claude" || activeTab?.type === "shell" || activeTab?.type === "server") && (
-            <TerminalView
-              key={activeTab.id}
-              tabId={activeTab.id}
-              tabType={activeTab.type}
-            />
-          )}
-          {activeTab?.type === "changes" && (
-            <ChangesView
+      {pr && effectivePrPanelState === "open" ? (
+        <Group
+          orientation="horizontal"
+          defaultLayout={prPanelLayout.defaultLayout}
+          onLayoutChanged={prPanelLayout.onLayoutChanged}
+          className="flex-1 min-h-0"
+        >
+          <Panel minSize="40%">
+            <div className="h-full min-h-0 min-w-0 relative">
+              {(activeTab?.type === "claude" || activeTab?.type === "shell" || activeTab?.type === "server") && (
+                <TerminalView
+                  key={activeTab.id}
+                  tabId={activeTab.id}
+                  tabType={activeTab.type}
+                />
+              )}
+              {activeTab?.type === "changes" && (
+                <ChangesView
+                  worktreeId={worktreeId}
+                  repoPath={repoPath}
+                />
+              )}
+            </div>
+          </Panel>
+          <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
+          <Panel defaultSize="260px" minSize="200px" maxSize="400px">
+            <PrPanel
               worktreeId={worktreeId}
               repoPath={repoPath}
+              pr={pr}
+              panelState={effectivePrPanelState}
+              onTogglePanel={handleTogglePrPanel}
+              onJumpToComment={handleJumpToComment}
+            />
+          </Panel>
+        </Group>
+      ) : (
+        <div className="flex flex-1 min-h-0">
+          <div className="flex-1 min-h-0 min-w-0 relative">
+            {(activeTab?.type === "claude" || activeTab?.type === "shell" || activeTab?.type === "server") && (
+              <TerminalView
+                key={activeTab.id}
+                tabId={activeTab.id}
+                tabType={activeTab.type}
+              />
+            )}
+            {activeTab?.type === "changes" && (
+              <ChangesView
+                worktreeId={worktreeId}
+                repoPath={repoPath}
+              />
+            )}
+          </div>
+          {pr && (
+            <PrPanel
+              worktreeId={worktreeId}
+              repoPath={repoPath}
+              pr={pr}
+              panelState={effectivePrPanelState}
+              onTogglePanel={handleTogglePrPanel}
+              onJumpToComment={handleJumpToComment}
             />
           )}
         </div>
-        {pr && (
-          <PrPanel
-            worktreeId={worktreeId}
-            repoPath={repoPath}
-            pr={pr}
-            panelState={effectivePrPanelState}
-            onTogglePanel={handleTogglePrPanel}
-            onJumpToComment={handleJumpToComment}
-          />
-        )}
-      </div>
+      )}
     </div>
   );
 }
