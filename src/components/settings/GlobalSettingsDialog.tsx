@@ -14,6 +14,7 @@ import { GithubSettings } from "./GithubSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { DEFAULT_NOTIFICATION_CONFIG } from "./notificationConfig";
 import { TerminalSettings } from "./TerminalSettings";
+import { ExternalToolsSettings } from "./ExternalToolsSettings";
 import { ThemeSelector } from "./ThemeSelector";
 
 type GlobalTab =
@@ -22,7 +23,8 @@ type GlobalTab =
   | "agent"
   | "notifications"
   | "integrations"
-  | "shortcuts";
+  | "shortcuts"
+  | "tools";
 
 const TABS: { id: GlobalTab; label: string }[] = [
   { id: "appearance", label: "Appearance" },
@@ -30,6 +32,7 @@ const TABS: { id: GlobalTab; label: string }[] = [
   { id: "agent", label: "Agent" },
   { id: "notifications", label: "Notifications" },
   { id: "integrations", label: "Integrations" },
+  { id: "tools", label: "External Tools" },
   { id: "shortcuts", label: "Shortcuts" },
 ];
 
@@ -210,6 +213,16 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                 onLinearApiKeyChange={(v) =>
                   updateRepoConfig({ linearApiKey: v || null })
                 }
+              />
+            )}
+
+            {tab === "tools" && appConfig && (
+              <ExternalToolsSettings
+                config={appConfig}
+                onChange={(patch) => {
+                  setAppConfig((prev) => prev ? { ...prev, ...patch } : prev);
+                  setDirty(true);
+                }}
               />
             )}
 
