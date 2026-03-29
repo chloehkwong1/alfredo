@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Send, Trash2, MessageSquare } from "lucide-react";
 import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
 import { writePty } from "../../api";
@@ -247,44 +246,31 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     const session = sessionManager.getSession(targetKey);
     if (!session) return;
 
-    const lines = annotations.map(
-      (a) => `Feedback on ${a.filePath}:${a.lineNumber} — ${a.text}`,
-    );
-    const message = "\n" + lines.join("\n") + "\n";
+    // Group annotations by file
+    const byFile = new Map<string, typeof annotations>();
+    for (const a of annotations) {
+      const list = byFile.get(a.filePath) ?? [];
+      list.push(a);
+      byFile.set(a.filePath, list);
+    }
+
+    // Format as markdown grouped by file
+    let message = "\nCode review comments:\n";
+    for (const [filePath, fileAnnotations] of byFile) {
+      message += `\n## ${filePath}\n\n`;
+      const sorted = [...fileAnnotations].sort((a, b) => a.lineNumber - b.lineNumber);
+      for (const a of sorted) {
+        message += `Line ${a.lineNumber}: ${a.text}\n\n`;
+      }
+    }
+
     const bytes = Array.from(new TextEncoder().encode(message));
     await writePty(session.sessionId, bytes);
     clearAnnotations(worktreeId);
   }, [worktreeId, annotations, clearAnnotations]);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Annotation status bar */}
-      {annotations.length > 0 && (
-        <div className="flex items-center gap-3 px-3 py-1.5 bg-accent-primary/8 border-b border-accent-primary/20 flex-shrink-0">
-          <div className="flex items-center gap-1.5 text-xs text-accent-primary font-medium">
-            <MessageSquare size={14} />
-            <span>
-              {annotations.length}{" "}
-              {annotations.length === 1 ? "annotation" : "annotations"}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 ml-auto">
-            <Button size="sm" variant="primary" onClick={handleSendToClaude}>
-              <Send size={12} />
-              Send to Claude
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => clearAnnotations(worktreeId)}
-            >
-              <Trash2 size={12} />
-              Clear
-            </Button>
-          </div>
-        </div>
-      )}
-
+    <div className="flex flex-col h-full relative">
       {/* Three-zone layout */}
       <div className="flex flex-1 min-h-0">
         {/* Left: File sidebar */}
@@ -366,6 +352,28 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
         </div>
 
       </div>
+
+      {/* Floating review comment bar */}
+      {annotations.length > 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 bg-bg-primary border border-accent-primary/30 rounded-lg shadow-lg">
+          <div className="flex items-center gap-2">
+            <span className="bg-accent-primary text-text-on-accent text-[11px] font-bold px-2 py-0.5 rounded-full">
+              {annotations.length}
+            </span>
+            <span className="text-xs text-text-secondary">
+              review comment{annotations.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="ghost" onClick={() => clearAnnotations(worktreeId)}>
+              Clear all
+            </Button>
+            <Button size="sm" variant="primary" onClick={handleSendToClaude}>
+              Send to agent ⏎
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
