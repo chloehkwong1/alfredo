@@ -1,15 +1,14 @@
-import { useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import type { DiffFile, CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 
-type ViewMode = "all" | "commits";
+type ViewMode = "changes" | "pr" | "commits";
 
 interface FileSidebarProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
-  uncommittedFiles: DiffFile[];
-  committedFiles: DiffFile[];
+  files: DiffFile[];
   commits: CommitInfo[];
   selectedCommitIndex: number | null;
   onSelectCommit: (index: number) => void;
@@ -34,11 +33,12 @@ const STATUS_LETTER: Record<string, string> = {
   renamed: "R",
 };
 
-function FileRow({
+const FileRow = memo(function FileRow({
   file,
   isActive,
   isCollapsed,
   isReviewed,
+  hideReviewCheckbox,
   onSelect,
   onToggleReviewed,
 }: {
@@ -46,6 +46,7 @@ function FileRow({
   isActive: boolean;
   isCollapsed: boolean;
   isReviewed: boolean;
+  hideReviewCheckbox?: boolean;
   onSelect: () => void;
   onToggleReviewed: () => void;
 }) {
@@ -75,26 +76,35 @@ function FileRow({
         {file.additions > 0 && <span className="text-diff-added">+{file.additions}</span>}
         {file.deletions > 0 && <span className="text-diff-removed ml-1">-{file.deletions}</span>}
       </span>
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggleReviewed(); }}
-        className={[
-          "flex-shrink-0 w-3.5 h-3.5 rounded-sm border flex items-center justify-center",
-          isReviewed
-            ? "bg-accent-primary/20 border-accent-primary/40 text-accent-primary"
-            : "border-border-subtle text-transparent hover:border-border-hover hover:text-text-tertiary",
-        ].join(" ")}
-      >
-        <Check size={8} />
-      </button>
+      {!hideReviewCheckbox && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleReviewed(); }}
+          className={[
+            "flex-shrink-0 w-3.5 h-3.5 rounded-sm border flex items-center justify-center",
+            isReviewed
+              ? "bg-accent-primary/20 border-accent-primary/40 text-accent-primary"
+              : "border-border-subtle text-transparent hover:border-border-hover hover:text-text-tertiary",
+          ].join(" ")}
+        >
+          <Check size={8} />
+        </button>
+      )}
     </button>
   );
-}
+}, (prev, next) =>
+  prev.file.path === next.file.path &&
+  prev.isActive === next.isActive &&
+  prev.isCollapsed === next.isCollapsed &&
+  prev.isReviewed === next.isReviewed &&
+  prev.hideReviewCheckbox === next.hideReviewCheckbox &&
+  prev.onSelect === next.onSelect &&
+  prev.onToggleReviewed === next.onToggleReviewed
+);
 
 function FileSidebar({
   viewMode,
   onViewModeChange,
-  uncommittedFiles,
-  committedFiles,
+  files,
   commits,
   selectedCommitIndex,
   onSelectCommit,
@@ -120,13 +130,9 @@ function FileSidebar({
     [filter],
   );
 
-  const filteredUncommitted = useMemo(
-    () => uncommittedFiles.filter(filterFile),
-    [uncommittedFiles, filterFile],
-  );
-  const filteredCommitted = useMemo(
-    () => committedFiles.filter(filterFile),
-    [committedFiles, filterFile],
+  const filteredFiles = useMemo(
+    () => files.filter(filterFile),
+    [files, filterFile],
   );
   const filteredCommits = useMemo(
     () =>
@@ -138,41 +144,50 @@ function FileSidebar({
     [commits, filter],
   );
 
-  const totalItems =
-    viewMode === "all"
-      ? uncommittedFiles.length + committedFiles.length
-      : commits.length;
+  const totalItems = viewMode === "commits" ? commits.length : files.length;
 
   const renderFileList = useCallback(
-    (files: DiffFile[]) =>
-      files.map((file) => (
+    (filesToRender: DiffFile[]) =>
+      filesToRender.map((file) => (
         <FileRow
           key={file.path}
           file={file}
           isActive={activeFilePath === file.path}
           isCollapsed={collapsedFiles.has(file.path)}
           isReviewed={reviewedFiles.has(file.path)}
+          hideReviewCheckbox={viewMode === "changes"}
           onSelect={() => onSelectFile(file.path)}
           onToggleReviewed={() => onToggleReviewed(file.path)}
         />
       )),
-    [activeFilePath, collapsedFiles, reviewedFiles, onSelectFile, onToggleReviewed],
+    [activeFilePath, collapsedFiles, reviewedFiles, viewMode, onSelectFile, onToggleReviewed],
   );
 
   return (
     <div className="w-[200px] bg-bg-primary border-r border-border-default flex-shrink-0 flex flex-col overflow-y-auto">
-      {/* All / Commits toggle */}
+      {/* Changes / PR / Commits toggle */}
       <div className="flex p-1.5 gap-0">
         <button
-          onClick={() => handleViewModeChange("all")}
+          onClick={() => handleViewModeChange("changes")}
           className={[
             "flex-1 px-2 py-1 text-[10px] border border-border-default rounded-l-md",
-            viewMode === "all"
+            viewMode === "changes"
               ? "bg-accent-muted text-accent-primary border-accent-primary/40"
               : "text-text-tertiary",
           ].join(" ")}
         >
-          All
+          Changes
+        </button>
+        <button
+          onClick={() => handleViewModeChange("pr")}
+          className={[
+            "flex-1 px-2 py-1 text-[10px] border border-l-0 border-border-default",
+            viewMode === "pr"
+              ? "bg-accent-muted text-accent-primary border-accent-primary/40"
+              : "text-text-tertiary",
+          ].join(" ")}
+        >
+          PR
         </button>
         <button
           onClick={() => handleViewModeChange("commits")}
@@ -199,43 +214,7 @@ function FileSidebar({
         </div>
       )}
 
-      {viewMode === "all" ? (
-        <>
-          {filteredUncommitted.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
-                <span className="text-[9px] uppercase tracking-wider text-text-tertiary">
-                  Uncommitted
-                </span>
-                <span className="text-[9px] bg-bg-hover px-1.5 rounded-full text-text-tertiary">
-                  {filteredUncommitted.length}
-                </span>
-              </div>
-              {renderFileList(filteredUncommitted)}
-            </div>
-          )}
-
-          {filteredCommitted.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
-                <span className="text-[9px] uppercase tracking-wider text-text-tertiary">
-                  Committed
-                </span>
-                <span className="text-[9px] bg-bg-hover px-1.5 rounded-full text-text-tertiary">
-                  {filteredCommitted.length}
-                </span>
-              </div>
-              {renderFileList(filteredCommitted)}
-            </div>
-          )}
-
-          {filteredUncommitted.length === 0 && filteredCommitted.length === 0 && (
-            <div className="px-2.5 py-4 text-xs text-text-tertiary text-center">
-              No changes
-            </div>
-          )}
-        </>
-      ) : (
+      {viewMode === "commits" ? (
         <>
           {filteredCommits.map((commit) => {
             const subject = commit.message.split("\n")[0];
@@ -275,6 +254,34 @@ function FileSidebar({
           {filteredCommits.length === 0 && (
             <div className="px-2.5 py-4 text-xs text-text-tertiary text-center">
               No commits
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {filteredFiles.length > 0 ? (
+            <div>
+              <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
+                <span className="text-[9px] uppercase tracking-wider text-text-tertiary">
+                  {viewMode === "changes" ? "Uncommitted" : "Committed"}
+                </span>
+                <span className="text-[9px] bg-bg-hover px-1.5 rounded-full text-text-tertiary">
+                  {filteredFiles.length}
+                </span>
+              </div>
+              {renderFileList(filteredFiles)}
+            </div>
+          ) : viewMode === "changes" ? (
+            <div className="flex flex-col items-center justify-center flex-1 px-4 py-8 text-center">
+              <span className="text-lg text-text-tertiary/30 mb-2">✓</span>
+              <span className="text-xs text-text-tertiary">No local changes</span>
+              <span className="text-[10px] text-text-tertiary/60 mt-1">
+                Edits you make on this branch will appear here
+              </span>
+            </div>
+          ) : (
+            <div className="px-2.5 py-4 text-xs text-text-tertiary text-center">
+              No changes
             </div>
           )}
         </>

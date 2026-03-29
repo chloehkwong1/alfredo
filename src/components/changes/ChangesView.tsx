@@ -15,7 +15,7 @@ interface ChangesViewProps {
 }
 
 function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("pr");
   const [uncommittedFiles, setUncommittedFiles] = useState<DiffFile[]>([]);
   const [committedFiles, setCommittedFiles] = useState<DiffFile[]>([]);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
@@ -40,13 +40,19 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const setJumpToComment = useWorkspaceStore((s) => s.setJumpToComment);
   const clearJumpToComment = useWorkspaceStore((s) => s.clearJumpToComment);
 
-  // Load data on mount — each call is independent so one failure doesn't blank everything
+  // Lazy-load uncommitted diff only when Changes tab is active
   useEffect(() => {
+    if (viewMode !== "changes") return;
     let cancelled = false;
-
     getUncommittedDiff(repoPath)
       .then((files) => { if (!cancelled) setUncommittedFiles(files); })
       .catch((err) => console.error("Failed to load uncommitted diff:", err));
+    return () => { cancelled = true; };
+  }, [viewMode, repoPath]);
+
+  // Load committed diff and commits on mount
+  useEffect(() => {
+    let cancelled = false;
 
     getDiff(repoPath, pr?.baseBranch)
       .then((files) => { if (!cancelled) setCommittedFiles(files); })
@@ -89,11 +95,33 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     };
   }, [viewMode, selectedCommitIndex, commits, repoPath]);
 
-  // Computed display files
-  const displayFiles =
-    viewMode === "commits" && selectedCommitIndex !== null
-      ? commitFiles
-      : [...uncommittedFiles, ...committedFiles];
+  // Computed display files — tab-driven
+  const displayFiles = (() => {
+    switch (viewMode) {
+      case "changes":
+        return uncommittedFiles;
+      case "pr":
+        return committedFiles;
+      case "commits":
+        return selectedCommitIndex !== null ? commitFiles : [];
+    }
+  })();
+
+  // Auto-collapse all files when the diff is large to prevent UI freeze
+  const AUTO_COLLAPSE_THRESHOLD = 15;
+  const hasAutoCollapsed = useRef(false);
+  useEffect(() => {
+    if (!hasAutoCollapsed.current && displayFiles.length > AUTO_COLLAPSE_THRESHOLD) {
+      hasAutoCollapsed.current = true;
+      setCollapsedFiles(new Set(displayFiles.map((f) => f.path)));
+    }
+  }, [displayFiles]);
+
+  // Reset auto-collapse when switching tabs
+  useEffect(() => {
+    hasAutoCollapsed.current = false;
+    setCollapsedFiles(new Set());
+  }, [viewMode]);
 
   const handleToggleExpanded = useCallback((path: string) => {
     setCollapsedFiles((prev) => {
@@ -210,6 +238,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     setViewMode(mode);
     setSelectedCommitIndex(null);
     setActiveAnnotationLine(null);
+    setActiveFilePath(null);
   }, []);
 
   const handleAddAnnotation = useCallback(
@@ -301,8 +330,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
         <FileSidebar
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
-          uncommittedFiles={uncommittedFiles}
-          committedFiles={committedFiles}
+          files={viewMode === "changes" ? uncommittedFiles : committedFiles}
           commits={commits}
           selectedCommitIndex={selectedCommitIndex}
           onSelectCommit={handleSelectCommit}
@@ -317,17 +345,25 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
             <span className="text-[10px] text-text-tertiary">
-              {reviewedCount}/{displayFiles.length} reviewed
+              {viewMode === "changes"
+                ? `${displayFiles.length} uncommitted file${displayFiles.length !== 1 ? "s" : ""}`
+                : viewMode === "pr"
+                  ? `${reviewedCount}/${displayFiles.length} reviewed`
+                  : selectedCommitIndex !== null
+                    ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""} in commit`
+                    : "Select a commit"}
             </span>
-            <div className="flex items-center gap-1.5 ml-auto">
-              <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
-                Expand all
-              </button>
-              <span className="text-text-tertiary/50">|</span>
-              <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
-                Collapse all
-              </button>
-            </div>
+            {displayFiles.length > 0 && (
+              <div className="flex items-center gap-1.5 ml-auto">
+                <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
+                  Expand all
+                </button>
+                <span className="text-text-tertiary/50">|</span>
+                <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
+                  Collapse all
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto min-w-0">
           {displayFiles.map((file) => (
@@ -342,7 +378,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
               }}
               file={file}
               expanded={!collapsedFiles.has(file.path)}
-              onToggleExpanded={() => handleToggleExpanded(file.path)}
+              onToggleExpanded={handleToggleExpanded}
               viewMode={diffViewMode}
               annotations={annotations}
               activeAnnotationLine={activeAnnotationLine}
@@ -354,8 +390,19 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           ))}
 
           {displayFiles.length === 0 && (
-            <div className="flex flex-col items-center justify-center flex-1 text-text-tertiary text-sm">
-              No changes to display
+            <div className="flex flex-col items-center justify-center flex-1 text-text-tertiary text-sm gap-1">
+              {viewMode === "changes" ? (
+                <>
+                  <span>No local changes to display</span>
+                  <span className="text-[11px] text-text-tertiary/60">
+                    Switch to the PR tab to review committed changes
+                  </span>
+                </>
+              ) : viewMode === "commits" && selectedCommitIndex === null ? (
+                <span>Select a commit to view its changes</span>
+              ) : (
+                <span>No changes to display</span>
+              )}
             </div>
           )}
           </div>
