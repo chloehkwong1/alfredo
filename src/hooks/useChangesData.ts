@@ -47,6 +47,7 @@ export function useChangesData(
           if (truncated.length > 0) {
             try {
               const localFiles = await getDiff(repoPath, baseBranch);
+              if (cancelled) return;
               const localByPath = new Map(localFiles.map((f) => [f.path, f]));
               const merged = files.map((f) => {
                 if (f.truncated) {
@@ -56,6 +57,7 @@ export function useChangesData(
               });
               setCommittedFiles(merged);
             } catch {
+              if (cancelled) return;
               // If local fallback fails, show what GitHub gave us (empty hunks for truncated)
               setCommittedFiles(files);
             }
