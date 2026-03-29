@@ -61,7 +61,7 @@ function SectionTitle({ children, first }: { children: React.ReactNode; first?: 
     <div
       className={[
         "text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3",
-        first ? "" : "mt-6",
+        first ? "" : "mt-8",
       ].join(" ")}
     >
       {children}
@@ -191,7 +191,10 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[680px] p-0 overflow-hidden">
-        <div className="flex min-h-[440px]">
+        <div className="px-6 pt-6 pb-4">
+          <h2 className="text-base font-semibold text-text-primary">Settings</h2>
+        </div>
+        <div className="flex min-h-[400px]">
           {/* Tab rail */}
           <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 p-5 pr-3 border-r border-border-default bg-bg-primary">
             {TABS.map((t) => (
@@ -217,7 +220,6 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
           <div className="flex-1 min-w-0 p-6 overflow-y-auto max-h-[480px]">
             {tab === "general" && (
               <>
-                <SectionTitle first>Appearance</SectionTitle>
                 <Field label="Theme">
                   <ThemeSelector currentTheme={currentTheme} onSelect={handleThemeSelect} />
                 </Field>

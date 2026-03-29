@@ -74,7 +74,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
               onClick={() => update({ effort: level })}
               className={[
                 "flex-1 px-3 py-1.5 text-xs font-medium capitalize transition-colors cursor-pointer",
-                settings.effort === level
+                (settings.effort ?? "high") === level
                   ? "bg-accent-primary text-white"
                   : "bg-bg-primary text-text-secondary hover:text-text-primary",
               ].join(" ")}

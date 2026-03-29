@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Bell, Play, Volume2 } from "lucide-react";
+import { Play } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Toggle } from "../ui/Toggle";
 import type { NotificationConfig } from "../../types";
@@ -58,13 +58,8 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
   return (
     <div className="space-y-5">
       {/* Master toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bell className="h-4 w-4 text-text-secondary" />
-          <label className="text-sm font-medium text-text-primary">
-            Enable Notifications
-          </label>
-        </div>
+      <div className="flex items-center justify-between pb-5 mb-0 border-b border-border-default">
+        <span className="text-sm font-medium text-text-primary">Enable Notifications</span>
         <Toggle checked={config.enabled} onChange={() => handleEnableToggle()} />
       </div>
 
@@ -85,7 +80,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
       {config.enabled && (
         <>
           <div className="space-y-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Notify When</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-5">Notify When</div>
 
             <div className="flex items-center justify-between py-1.5">
               <span className="text-sm text-text-secondary">
@@ -118,10 +113,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
 
           {/* Sound picker */}
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Volume2 className="h-4 w-4 text-text-secondary" />
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Sound</div>
-            </div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Sound</div>
 
             <div className="grid grid-cols-3 gap-1.5">
               {SOUND_OPTIONS.map((opt) => (
