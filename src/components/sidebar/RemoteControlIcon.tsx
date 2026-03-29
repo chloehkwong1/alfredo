@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { Smartphone } from "lucide-react";
 import { useRemoteControlStore } from "../../stores/remoteControlStore";
 
@@ -8,7 +9,9 @@ interface RemoteControlIconProps {
 }
 
 function RemoteControlIcon({ worktreeId, hasActiveSession, onToggle }: RemoteControlIconProps) {
-  const isActive = useRemoteControlStore((s) => worktreeId in s.sessions);
+  const isActive = useRemoteControlStore(
+    useCallback((s) => worktreeId in s.sessions, [worktreeId]),
+  );
   const disabled = !hasActiveSession && !isActive;
 
   return (

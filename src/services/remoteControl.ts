@@ -4,6 +4,17 @@ import { sessionManager } from "./sessionManager";
 
 const SESSION_URL_RE = /https:\/\/claude\.ai\/code\/[^\s\x1b]+/;
 
+/** Active polling intervals per worktreeId — cleared on re-toggle or disable. */
+const activePolls = new Map<string, ReturnType<typeof setInterval>>();
+
+function clearPoll(worktreeId: string) {
+  const existing = activePolls.get(worktreeId);
+  if (existing) {
+    clearInterval(existing);
+    activePolls.delete(worktreeId);
+  }
+}
+
 async function toggleRemoteControl(
   worktreeId: string,
   sessionKey: string,
@@ -13,9 +24,13 @@ async function toggleRemoteControl(
   if (!session || !session.sessionId) return;
 
   if (store.isActive(worktreeId)) {
+    clearPoll(worktreeId);
     store.disable(worktreeId);
     return;
   }
+
+  // Clear any stale poll from a previous attempt
+  clearPoll(worktreeId);
 
   const bytes = Array.from(new TextEncoder().encode("/remote-control\n"));
   await writePty(session.sessionId, bytes);
@@ -24,7 +39,7 @@ async function toggleRemoteControl(
   const pollInterval = setInterval(() => {
     const current = sessionManager.getSession(sessionKey);
     if (!current) {
-      clearInterval(pollInterval);
+      clearPoll(worktreeId);
       return;
     }
 
@@ -46,15 +61,17 @@ async function toggleRemoteControl(
     const match = recentText.match(SESSION_URL_RE);
     if (match) {
       store.enable(worktreeId, match[0]);
-      clearInterval(pollInterval);
+      clearPoll(worktreeId);
       return;
     }
 
     if (Date.now() - startTime > 10_000) {
-      clearInterval(pollInterval);
+      clearPoll(worktreeId);
       console.warn("[RemoteControl] Timed out waiting for session URL");
     }
   }, 500);
+
+  activePolls.set(worktreeId, pollInterval);
 }
 
 export { toggleRemoteControl };
