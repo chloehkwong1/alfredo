@@ -195,6 +195,11 @@ export interface DiffLine {
   newLineNumber: number | null;
 }
 
+export interface FileLine {
+  lineNumber: number;
+  content: string;
+}
+
 export interface CommitInfo {
   hash: string;
   shortHash: string;

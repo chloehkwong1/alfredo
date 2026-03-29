@@ -4,6 +4,7 @@ import type {
   CheckRun,
   CommitInfo,
   DiffFile,
+  FileLine,
   GlobalAppConfig,
   KanbanColumn,
   LinearTicket,
@@ -179,6 +180,22 @@ export function getDiffForCommit(
   commitHash: string,
 ): Promise<DiffFile[]> {
   return invoke("get_diff_for_commit", { repoPath, commitHash });
+}
+
+export function getFileLines(
+  repoPath: string,
+  filePath: string,
+  startLine: number,
+  endLine: number,
+  commitHash?: string,
+): Promise<FileLine[]> {
+  return invoke("get_file_lines", {
+    repoPath,
+    filePath,
+    startLine,
+    endLine,
+    commitHash: commitHash ?? null,
+  });
 }
 
 // ── Repo ───────────────────────────────────────────────────────
