@@ -231,26 +231,70 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                 <h3 className="text-sm font-medium text-text-primary">
                   Keyboard Shortcuts
                 </h3>
-                <div className="space-y-1">
-                  {[
-                    { keys: "↑ / ↓", description: "Navigate between worktrees" },
-                    { keys: "⌘ 1–9", description: "Jump to worktree by position" },
-                    { keys: "⌘ ⇧ T", description: "Toggle terminal / changes view" },
-                    { keys: "⌘ ⇧ C", description: "Toggle changes view" },
-                  ].map((shortcut) => (
-                    <div
-                      key={shortcut.keys}
-                      className="flex items-center justify-between gap-4 py-1.5"
-                    >
-                      <span className="text-sm text-text-secondary truncate min-w-0">
-                        {shortcut.description}
-                      </span>
-                      <kbd className="px-2 py-0.5 text-xs font-mono bg-bg-hover text-text-primary rounded-[var(--radius-sm)] border border-border-default whitespace-nowrap flex-shrink-0">
-                        {shortcut.keys}
-                      </kbd>
+
+                {[
+                  {
+                    label: "Navigation",
+                    shortcuts: [
+                      { keys: "↑ / ↓", description: "Navigate between worktrees" },
+                      { keys: "⌘ 1–9", description: "Jump to worktree by position" },
+                    ],
+                  },
+                  {
+                    label: "Tabs & Panes",
+                    shortcuts: [
+                      { keys: "⌘ N", description: "New worktree" },
+                      { keys: "⌘ T", description: "New tab" },
+                      { keys: "⌘ W", description: "Close tab" },
+                      { keys: "⌘ \\", description: "Split pane right" },
+                      { keys: "⌘ ⇧ \\", description: "Split pane down" },
+                      { keys: "⌘ ⇧ C", description: "Switch to Changes tab" },
+                      { keys: "⌘ ⇧ T", description: "Switch to terminal tab" },
+                    ],
+                  },
+                  {
+                    label: "Panels",
+                    shortcuts: [
+                      { keys: "⌘ B", description: "Toggle sidebar" },
+                      { keys: "⌘ I", description: "Toggle PR panel" },
+                    ],
+                  },
+                  {
+                    label: "Search",
+                    shortcuts: [
+                      { keys: "⌘ F", description: "Search (terminal or file filter)" },
+                    ],
+                  },
+                  {
+                    label: "Changes View",
+                    shortcuts: [
+                      { keys: "] / n", description: "Next file" },
+                      { keys: "[ / p", description: "Previous file" },
+                      { keys: "x", description: "Toggle file collapse" },
+                    ],
+                  },
+                ].map((group) => (
+                  <div key={group.label}>
+                    <div className="text-[10px] uppercase tracking-wider text-text-tertiary mb-1.5">
+                      {group.label}
                     </div>
-                  ))}
-                </div>
+                    <div className="space-y-1 mb-3">
+                      {group.shortcuts.map((shortcut) => (
+                        <div
+                          key={shortcut.keys}
+                          className="flex items-center justify-between gap-4 py-1.5"
+                        >
+                          <span className="text-sm text-text-secondary truncate min-w-0">
+                            {shortcut.description}
+                          </span>
+                          <kbd className="px-2 py-0.5 text-xs font-mono bg-bg-hover text-text-primary rounded-[var(--radius-sm)] border border-border-default whitespace-nowrap flex-shrink-0">
+                            {shortcut.keys}
+                          </kbd>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
