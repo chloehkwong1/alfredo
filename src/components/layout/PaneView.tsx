@@ -49,13 +49,24 @@ function PaneView({
     );
   }, [worktreeId, effectivePrPanelState, setPrPanelState]);
 
+  const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
+
   const handleJumpToComment = useCallback(
     (filePath: string, line: number) => {
-      if (jumpToComment) {
+      // If Changes tab isn't active, switch to it first
+      const changesTab = tabs.find((t) => t.type === "changes");
+      if (changesTab && activeTab?.type !== "changes") {
+        setPaneActiveTab(worktreeId, paneId, changesTab.id);
+        // Delay jump slightly to let ChangesView mount and register its callback
+        setTimeout(() => {
+          const fn = useWorkspaceStore.getState().jumpToComment[worktreeId];
+          if (fn) fn(filePath, line);
+        }, 300);
+      } else if (jumpToComment) {
         jumpToComment(filePath, line);
       }
     },
-    [jumpToComment],
+    [jumpToComment, tabs, activeTab, worktreeId, paneId, setPaneActiveTab],
   );
 
   useEffect(() => {

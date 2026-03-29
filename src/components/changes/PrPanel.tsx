@@ -142,14 +142,12 @@ export function PrPanel({
           <p className={descExpanded ? "" : "line-clamp-3"}>
             {pr.body}
           </p>
-          {pr.body.length > 120 && (
-            <button
-              onClick={() => setDescExpanded(!descExpanded)}
-              className="text-accent-primary text-[10px] mt-0.5 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
-            >
-              {descExpanded ? "Show less" : "Show more"}
-            </button>
-          )}
+          <button
+            onClick={() => setDescExpanded(!descExpanded)}
+            className="text-accent-primary text-[10px] mt-0.5 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
+          >
+            {descExpanded ? "Show less" : "Show more"}
+          </button>
         </div>
       )}
 
