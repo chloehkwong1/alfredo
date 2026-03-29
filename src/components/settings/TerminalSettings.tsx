@@ -27,159 +27,163 @@ function TerminalSettings() {
 
   return (
     <div className="space-y-5">
-      {/* Font Family */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-text-primary">
-          Font Family
-        </label>
-        <select
-          value={prefs.fontFamily}
-          onChange={(e) => update("fontFamily", e.target.value)}
-          className={[
-            "h-8 w-full px-3 text-sm",
-            "bg-bg-secondary text-text-primary",
-            "border border-border-default rounded-[var(--radius-md)]",
-            "hover:border-border-hover",
-            "focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50",
-            "transition-all duration-[var(--transition-fast)]",
-            "cursor-pointer",
-          ].join(" ")}
-        >
-          {FONT_FAMILIES.map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
-      </div>
+      <p className="text-xs text-text-tertiary mb-5">Terminal changes apply immediately to all sessions.</p>
 
-      {/* Font Size */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-text-primary">
-          Font Size:{" "}
-          <span className="font-normal text-text-secondary">
-            {prefs.fontSize}px
-          </span>
-        </label>
-        <input
-          type="range"
-          min={10}
-          max={20}
-          step={1}
-          value={prefs.fontSize}
-          onChange={(e) => update("fontSize", Number(e.target.value))}
-          className="w-full accent-accent-primary cursor-pointer"
-        />
-        <div className="flex justify-between text-xs text-text-tertiary">
-          <span>10px</span>
-          <span>20px</span>
-        </div>
-      </div>
+      {/* Font section */}
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3">Font</div>
 
-      {/* Line Height */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-text-primary">
-          Line Height:{" "}
-          <span className="font-normal text-text-secondary">
-            {prefs.lineHeight.toFixed(1)}
-          </span>
-        </label>
-        <input
-          type="range"
-          min={1.0}
-          max={1.8}
-          step={0.1}
-          value={prefs.lineHeight}
-          onChange={(e) => update("lineHeight", Number(e.target.value))}
-          className="w-full accent-accent-primary cursor-pointer"
-        />
-        <div className="flex justify-between text-xs text-text-tertiary">
-          <span>Tight</span>
-          <span>Relaxed</span>
-        </div>
-      </div>
-
-      {/* Letter Spacing */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-text-primary">
-          Letter Spacing:{" "}
-          <span className="font-normal text-text-secondary">
-            {prefs.letterSpacing}px
-          </span>
-        </label>
-        <input
-          type="range"
-          min={-1}
-          max={3}
-          step={0.5}
-          value={prefs.letterSpacing}
-          onChange={(e) => update("letterSpacing", Number(e.target.value))}
-          className="w-full accent-accent-primary cursor-pointer"
-        />
-        <div className="flex justify-between text-xs text-text-tertiary">
-          <span>Tight</span>
-          <span>Wide</span>
-        </div>
-      </div>
-
-      {/* Cursor Style */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-text-primary">
-          Cursor Style
-        </label>
-        <div className="flex gap-2">
-          {(["block", "underline", "bar"] as const).map((style) => (
-            <button
-              key={style}
-              type="button"
-              onClick={() => update("cursorStyle", style)}
-              className={[
-                "flex-1 h-8 text-sm rounded-[var(--radius-md)]",
-                "border transition-all duration-[var(--transition-fast)]",
-                "capitalize cursor-pointer",
-                prefs.cursorStyle === style
-                  ? "border-accent-primary bg-accent-muted text-text-primary"
-                  : "border-border-default bg-bg-secondary text-text-secondary hover:border-border-hover",
-              ].join(" ")}
-            >
-              {style}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Cursor Blink */}
-      <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-text-primary">
-          Cursor Blink
-        </label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={prefs.cursorBlink}
-          onClick={() => update("cursorBlink", !prefs.cursorBlink)}
-          className={[
-            "relative inline-flex h-5 w-9 items-center rounded-full",
-            "transition-colors duration-[var(--transition-fast)]",
-            "cursor-pointer",
-            prefs.cursorBlink ? "bg-accent-primary" : "bg-bg-active",
-          ].join(" ")}
-        >
-          <span
+        {/* Family */}
+        <div className="space-y-1.5 mb-4">
+          <div className="text-sm font-medium text-text-primary mb-1.5">Family</div>
+          <select
+            value={prefs.fontFamily}
+            onChange={(e) => update("fontFamily", e.target.value)}
             className={[
-              "inline-block h-3.5 w-3.5 rounded-full bg-white",
-              "transition-transform duration-[var(--transition-fast)]",
-              prefs.cursorBlink ? "translate-x-[18px]" : "translate-x-[3px]",
+              "h-8 w-full px-3 text-sm",
+              "bg-bg-primary text-text-primary",
+              "border border-border-default rounded-[var(--radius-md)]",
+              "hover:border-border-hover",
+              "focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50",
+              "transition-all duration-[var(--transition-fast)]",
+              "cursor-pointer",
             ].join(" ")}
+          >
+            {FONT_FAMILIES.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Size */}
+        <div className="space-y-1.5 mb-4">
+          <div className="text-sm font-medium text-text-primary mb-1.5">
+            Size{" "}
+            <span className="font-normal text-text-secondary">
+              {prefs.fontSize}px
+            </span>
+          </div>
+          <input
+            type="range"
+            min={10}
+            max={20}
+            step={1}
+            value={prefs.fontSize}
+            onChange={(e) => update("fontSize", Number(e.target.value))}
+            className="w-full accent-accent-primary cursor-pointer"
           />
-        </button>
+          <div className="flex justify-between text-xs text-text-tertiary">
+            <span>10px</span>
+            <span>20px</span>
+          </div>
+        </div>
+
+        {/* Line Height */}
+        <div className="space-y-1.5 mb-4">
+          <div className="text-sm font-medium text-text-primary mb-1.5">
+            Line Height{" "}
+            <span className="font-normal text-text-secondary">
+              {prefs.lineHeight.toFixed(1)}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={1.0}
+            max={1.8}
+            step={0.1}
+            value={prefs.lineHeight}
+            onChange={(e) => update("lineHeight", Number(e.target.value))}
+            className="w-full accent-accent-primary cursor-pointer"
+          />
+          <div className="flex justify-between text-xs text-text-tertiary">
+            <span>Tight</span>
+            <span>Relaxed</span>
+          </div>
+        </div>
+
+        {/* Letter Spacing */}
+        <div className="space-y-1.5">
+          <div className="text-sm font-medium text-text-primary mb-1.5">
+            Letter Spacing{" "}
+            <span className="font-normal text-text-secondary">
+              {prefs.letterSpacing}px
+            </span>
+          </div>
+          <input
+            type="range"
+            min={-1}
+            max={3}
+            step={0.5}
+            value={prefs.letterSpacing}
+            onChange={(e) => update("letterSpacing", Number(e.target.value))}
+            className="w-full accent-accent-primary cursor-pointer"
+          />
+          <div className="flex justify-between text-xs text-text-tertiary">
+            <span>Tight</span>
+            <span>Wide</span>
+          </div>
+        </div>
       </div>
 
-      {/* Preview */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium text-text-tertiary">
-          Preview
-        </label>
+      {/* Cursor section */}
+      <div className="mt-6">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Cursor</div>
+
+        {/* Style */}
+        <div className="space-y-1.5 mb-4">
+          <div className="text-sm font-medium text-text-primary mb-1.5">Style</div>
+          <div className="flex gap-2">
+            {(["block", "underline", "bar"] as const).map((style) => (
+              <button
+                key={style}
+                type="button"
+                onClick={() => update("cursorStyle", style)}
+                className={[
+                  "flex-1 h-8 text-sm rounded-[var(--radius-md)]",
+                  "border transition-all duration-[var(--transition-fast)]",
+                  "capitalize cursor-pointer",
+                  prefs.cursorStyle === style
+                    ? "border-accent-primary bg-accent-muted text-text-primary"
+                    : "border-border-default bg-bg-primary text-text-secondary hover:border-border-hover",
+                ].join(" ")}
+              >
+                {style}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Blink */}
+        <div className="flex items-center justify-between py-1.5">
+          <span className="text-sm text-text-secondary">Blink</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={prefs.cursorBlink}
+            onClick={() => update("cursorBlink", !prefs.cursorBlink)}
+            className={[
+              "relative inline-flex h-5 w-9 items-center rounded-full",
+              "transition-colors duration-[var(--transition-fast)]",
+              "cursor-pointer",
+              prefs.cursorBlink ? "bg-accent-primary" : "bg-bg-active",
+            ].join(" ")}
+          >
+            <span
+              className={[
+                "inline-block h-3.5 w-3.5 rounded-full bg-white",
+                "transition-transform duration-[var(--transition-fast)]",
+                prefs.cursorBlink ? "translate-x-[18px]" : "translate-x-[3px]",
+              ].join(" ")}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Preview section */}
+      <div className="mt-6">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Preview</div>
         <div
           className="rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3"
           style={{

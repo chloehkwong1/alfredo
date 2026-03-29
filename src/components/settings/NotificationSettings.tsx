@@ -85,11 +85,9 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
       {config.enabled && (
         <>
           <div className="space-y-3">
-            <label className="text-sm font-medium text-text-primary">
-              Notify When
-            </label>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Notify When</div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between py-1.5">
               <span className="text-sm text-text-secondary">
                 Agent waiting for input
               </span>
@@ -99,7 +97,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between py-1.5">
               <span className="text-sm text-text-secondary">
                 Agent finished work
               </span>
@@ -109,7 +107,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between py-1.5">
               <span className="text-sm text-text-secondary">Agent error</span>
               <Toggle
                 checked={config.notifyOnError}
@@ -122,9 +120,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Volume2 className="h-4 w-4 text-text-secondary" />
-              <label className="text-sm font-medium text-text-primary">
-                Notification Sound
-              </label>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Sound</div>
             </div>
 
             <div className="grid grid-cols-3 gap-1.5">
@@ -139,7 +135,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
                     "cursor-pointer",
                     config.sound === opt.id
                       ? "border-accent-primary bg-accent-muted text-text-primary"
-                      : "border-border-default bg-bg-secondary text-text-secondary hover:border-border-hover",
+                      : "border-border-default bg-bg-primary text-text-secondary hover:border-border-hover",
                   ].join(" ")}
                 >
                   <span>{opt.label}</span>
