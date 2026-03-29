@@ -32,6 +32,7 @@
     "@xterm/xterm": "^6.0.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.577.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-resizable-panels": "^4.7.6",
