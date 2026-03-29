@@ -276,6 +276,11 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     clearAnnotations(worktreeId);
   }, [worktreeId, annotations, clearAnnotations]);
 
+  const activeCommitHash =
+    viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex]
+      ? commits[selectedCommitIndex].hash
+      : undefined;
+
   return (
     <div className="flex flex-col h-full relative">
       {/* Three-zone layout */}
@@ -376,6 +381,8 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
               onSubmitAnnotation={handleSubmitAnnotation}
               onDeleteAnnotation={handleDeleteAnnotation}
               prComments={prComments}
+              repoPath={repoPath}
+              commitHash={activeCommitHash}
             />
             ))}
 
