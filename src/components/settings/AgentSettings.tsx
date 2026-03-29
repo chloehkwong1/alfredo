@@ -1,6 +1,7 @@
 import type { ClaudeDefaults } from "../../types";
 
 const MODEL_OPTIONS = [
+  { value: "", label: "Default" },
   { value: "claude-opus-4-6", label: "Opus 4.6 (1M context)" },
   { value: "claude-sonnet-4-6", label: "Sonnet 4.6 (200K context)" },
   { value: "claude-haiku-4-5", label: "Haiku 4.5 (200K context)" },
@@ -19,6 +20,16 @@ const PERMISSION_OPTIONS = [
 
 const OUTPUT_OPTIONS = ["Default", "Explanatory", "Learning"] as const;
 
+const selectClass = [
+  "h-8 w-full px-3 text-sm font-normal",
+  "bg-bg-primary text-text-primary",
+  "border border-border-default rounded-[var(--radius-md)]",
+  "hover:border-border-hover",
+  "focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50",
+  "transition-all duration-[var(--transition-fast)]",
+  "cursor-pointer",
+].join(" ");
+
 interface AgentSettingsProps {
   settings: ClaudeDefaults;
   onChange: (settings: ClaudeDefaults) => void;
@@ -28,135 +39,127 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
   const update = (patch: Partial<ClaudeDefaults>) =>
     onChange({ ...settings, ...patch });
 
+  const permissionValue = settings.permissionMode ?? "default";
+
   return (
-    <div className="space-y-6">
-      <p className="text-xs text-text-tertiary">
-        Default settings for all new sessions — Override per worktree using the
-        gear icon in the status bar.
+    <div>
+      <p className="text-xs text-text-tertiary mb-5">
+        Defaults for all new sessions. Override per worktree via the status bar.
       </p>
 
-      {/* Model & Performance */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">
-          Model & Performance
-        </h3>
-
-        <div className="space-y-1.5">
-          <label className="text-xs text-text-secondary">Model</label>
-          <select
-            value={settings.model ?? ""}
-            onChange={(e) => update({ model: e.target.value || undefined })}
-            className="w-full px-3 py-1.5 text-sm bg-bg-hover text-text-primary border border-border-default rounded-[var(--radius-md)] focus:outline-none focus:ring-1 focus:ring-accent-primary"
-          >
-            <option value="">Default</option>
-            {MODEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs text-text-secondary">Effort</label>
-          <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
-            {EFFORT_OPTIONS.map((level) => (
-              <button
-                key={level}
-                type="button"
-                onClick={() => update({ effort: level })}
-                className={[
-                  "flex-1 px-3 py-1.5 text-xs font-medium capitalize transition-colors cursor-pointer",
-                  settings.effort === level
-                    ? "bg-accent-primary text-white"
-                    : "bg-bg-hover text-text-secondary hover:text-text-primary",
-                ].join(" ")}
-              >
-                {level}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3">
+        Model & Performance
       </div>
 
-      {/* Permissions */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">Permissions</h3>
-
-        <div className="space-y-1.5">
-          <label className="text-xs text-text-secondary">Permission Mode</label>
-          <select
-            value={settings.permissionMode ?? "default"}
-            onChange={(e) =>
-              update({
-                permissionMode:
-                  e.target.value === "default" ? undefined : e.target.value,
-                dangerouslySkipPermissions:
-                  e.target.value === "bypassPermissions" ? true : undefined,
-              })
-            }
-            className="w-full px-3 py-1.5 text-sm bg-bg-hover text-text-primary border border-border-default rounded-[var(--radius-md)] focus:outline-none focus:ring-1 focus:ring-accent-primary"
-          >
-            {PERMISSION_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-text-tertiary">
-            {PERMISSION_OPTIONS.find((o) => o.value === (settings.permissionMode ?? "default"))?.hint}
-          </p>
-        </div>
+      <div className="mb-4">
+        <div className="text-sm font-medium text-text-primary mb-1.5">Model</div>
+        <select
+          value={settings.model ?? ""}
+          onChange={(e) => update({ model: e.target.value || undefined })}
+          className={selectClass}
+        >
+          {MODEL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
 
-      {/* Output */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-text-primary">Output</h3>
-
-        <div className="space-y-1.5">
-          <label className="text-xs text-text-secondary">Output Style</label>
-          <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
-            {OUTPUT_OPTIONS.map((style) => (
-              <button
-                key={style}
-                type="button"
-                onClick={() => update({ outputStyle: style })}
-                className={[
-                  "flex-1 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
-                  (settings.outputStyle ?? "Default") === style
-                    ? "bg-accent-primary text-white"
-                    : "bg-bg-hover text-text-secondary hover:text-text-primary",
-                ].join(" ")}
-              >
-                {style}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-text-secondary">Verbose output</label>
-          <button
-            type="button"
-            onClick={() => update({ verbose: !settings.verbose })}
-            className={[
-              "relative w-9 h-5 rounded-full transition-colors cursor-pointer",
-              settings.verbose
-                ? "bg-accent-primary"
-                : "bg-bg-hover border border-border-default",
-            ].join(" ")}
-          >
-            <span
+      <div className="mb-4">
+        <div className="text-sm font-medium text-text-primary mb-1.5">Effort</div>
+        <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
+          {EFFORT_OPTIONS.map((level) => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => update({ effort: level })}
               className={[
-                "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform",
-                settings.verbose ? "translate-x-4" : "translate-x-0",
+                "flex-1 px-3 py-1.5 text-xs font-medium capitalize transition-colors cursor-pointer",
+                settings.effort === level
+                  ? "bg-accent-primary text-white"
+                  : "bg-bg-primary text-text-secondary hover:text-text-primary",
               ].join(" ")}
-            />
-          </button>
+            >
+              {level}
+            </button>
+          ))}
         </div>
       </div>
 
-      <p className="text-xs text-text-tertiary pt-2 border-t border-border-default">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">
+        Permissions
+      </div>
+
+      <div className="mb-4">
+        <div className="text-sm font-medium text-text-primary mb-1.5">Permission Mode</div>
+        <select
+          value={permissionValue}
+          onChange={(e) => {
+            const v = e.target.value;
+            update({
+              permissionMode: v === "default" ? undefined : v,
+              dangerouslySkipPermissions: v === "bypassPermissions" ? true : undefined,
+            });
+          }}
+          className={selectClass}
+        >
+          {PERMISSION_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <p className="text-xs text-text-tertiary mt-1">
+          {PERMISSION_OPTIONS.find((o) => o.value === permissionValue)?.hint}
+        </p>
+      </div>
+
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">
+        Output
+      </div>
+
+      <div className="mb-4">
+        <div className="text-sm font-medium text-text-primary mb-1.5">Style</div>
+        <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
+          {OUTPUT_OPTIONS.map((style) => (
+            <button
+              key={style}
+              type="button"
+              onClick={() => update({ outputStyle: style })}
+              className={[
+                "flex-1 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                (settings.outputStyle ?? "Default") === style
+                  ? "bg-accent-primary text-white"
+                  : "bg-bg-primary text-text-secondary hover:text-text-primary",
+              ].join(" ")}
+            >
+              {style}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between py-1.5">
+        <span className="text-sm text-text-secondary">Verbose output</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!!settings.verbose}
+          onClick={() => update({ verbose: !settings.verbose })}
+          className={[
+            "relative inline-flex h-5 w-9 items-center rounded-full",
+            "transition-colors duration-[var(--transition-fast)] cursor-pointer",
+            settings.verbose ? "bg-accent-primary" : "bg-bg-active",
+          ].join(" ")}
+        >
+          <span
+            className={[
+              "inline-block h-3.5 w-3.5 rounded-full bg-white",
+              "transition-transform duration-[var(--transition-fast)]",
+              settings.verbose ? "translate-x-[18px]" : "translate-x-[3px]",
+            ].join(" ")}
+          />
+        </button>
+      </div>
+
+      <p className="text-xs text-text-tertiary pt-4 mt-4 border-t border-border-default">
         Applies to new sessions — existing sessions keep their settings.
       </p>
     </div>
