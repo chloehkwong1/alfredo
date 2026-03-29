@@ -199,7 +199,7 @@ function FileSidebar({
               : "text-text-tertiary",
           ].join(" ")}
         >
-          Changes
+          Changes{uncommittedFiles.length + committedFiles.length > 0 ? ` (${uncommittedFiles.length + committedFiles.length})` : ""}
         </button>
         <button
           onClick={() => handleViewModeChange("commits")}
@@ -210,7 +210,7 @@ function FileSidebar({
               : "text-text-tertiary",
           ].join(" ")}
         >
-          Commits
+          Commits{commits.length > 0 ? ` (${commits.length})` : ""}
         </button>
       </div>
 
