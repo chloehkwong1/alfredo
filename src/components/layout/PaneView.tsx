@@ -39,7 +39,6 @@ function PaneView({
   const pr = worktree?.prStatus ?? null;
   const prPanelState = usePrStore((s) => s.prPanelState[worktreeId]);
   const setPrPanelState = usePrStore((s) => s.setPrPanelState);
-  const jumpToComment = usePrStore((s) => s.jumpToComment[worktreeId]);
   const repoPath = worktree?.path ?? ".";
 
   const effectivePrPanelState: PrPanelState = prPanelState ?? (pr ? "open" : "collapsed");
@@ -72,11 +71,15 @@ function PaneView({
             console.warn("[PaneView] jumpToComment callback not registered after 2s");
           }
         }, 100);
-      } else if (jumpToComment) {
-        jumpToComment(filePath, line);
+      } else {
+        // Read fresh from store — not from the stale closure
+        const fn = usePrStore.getState().jumpToComment[worktreeId];
+        if (fn) {
+          fn(filePath, line);
+        }
       }
     },
-    [jumpToComment, tabs, activeTab, worktreeId, paneId, setPaneActiveTab],
+    [tabs, activeTab, worktreeId, paneId, setPaneActiveTab],
   );
 
   useEffect(() => {
