@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Send, Trash2, MessageSquare } from "lucide-react";
 import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
@@ -96,7 +96,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   }, [viewMode, selectedCommitIndex, commits, repoPath]);
 
   // Computed display files — tab-driven
-  const displayFiles = (() => {
+  const displayFiles = useMemo(() => {
     switch (viewMode) {
       case "changes":
         return uncommittedFiles;
@@ -105,7 +105,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
       case "commits":
         return selectedCommitIndex !== null ? commitFiles : [];
     }
-  })();
+  }, [viewMode, uncommittedFiles, committedFiles, commitFiles, selectedCommitIndex]);
 
   // Auto-collapse all files when the diff is large to prevent UI freeze
   const AUTO_COLLAPSE_THRESHOLD = 15;

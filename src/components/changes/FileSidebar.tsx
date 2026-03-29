@@ -35,6 +35,7 @@ const STATUS_LETTER: Record<string, string> = {
 
 const FileRow = memo(function FileRow({
   file,
+  filePath,
   isActive,
   isCollapsed,
   isReviewed,
@@ -43,18 +44,19 @@ const FileRow = memo(function FileRow({
   onToggleReviewed,
 }: {
   file: DiffFile;
+  filePath: string;
   isActive: boolean;
   isCollapsed: boolean;
   isReviewed: boolean;
   hideReviewCheckbox?: boolean;
-  onSelect: () => void;
-  onToggleReviewed: () => void;
+  onSelect: (path: string) => void;
+  onToggleReviewed: (path: string) => void;
 }) {
   const filename = file.path.split("/").pop() ?? file.path;
 
   return (
     <button
-      onClick={onSelect}
+      onClick={() => onSelect(filePath)}
       className={[
         "flex items-center gap-1.5 w-full px-2.5 py-1 text-left text-xs",
         "hover:bg-bg-hover transition-colors",
@@ -78,7 +80,7 @@ const FileRow = memo(function FileRow({
       </span>
       {!hideReviewCheckbox && (
         <button
-          onClick={(e) => { e.stopPropagation(); onToggleReviewed(); }}
+          onClick={(e) => { e.stopPropagation(); onToggleReviewed(filePath); }}
           className={[
             "flex-shrink-0 w-3.5 h-3.5 rounded-sm border flex items-center justify-center",
             isReviewed
@@ -92,7 +94,7 @@ const FileRow = memo(function FileRow({
     </button>
   );
 }, (prev, next) =>
-  prev.file.path === next.file.path &&
+  prev.filePath === next.filePath &&
   prev.isActive === next.isActive &&
   prev.isCollapsed === next.isCollapsed &&
   prev.isReviewed === next.isReviewed &&
@@ -152,12 +154,13 @@ function FileSidebar({
         <FileRow
           key={file.path}
           file={file}
+          filePath={file.path}
           isActive={activeFilePath === file.path}
           isCollapsed={collapsedFiles.has(file.path)}
           isReviewed={reviewedFiles.has(file.path)}
           hideReviewCheckbox={viewMode === "changes"}
-          onSelect={() => onSelectFile(file.path)}
-          onToggleReviewed={() => onToggleReviewed(file.path)}
+          onSelect={onSelectFile}
+          onToggleReviewed={onToggleReviewed}
         />
       )),
     [activeFilePath, collapsedFiles, reviewedFiles, viewMode, onSelectFile, onToggleReviewed],
@@ -206,7 +209,7 @@ function FileSidebar({
         <div className="px-1.5 pb-1">
           <input
             type="text"
-            placeholder="Filter files..."
+            placeholder={viewMode === "commits" ? "Filter commits..." : "Filter files..."}
             className="w-full px-2 py-1 text-[10px] bg-bg-secondary border border-border-subtle rounded text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary/40"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
