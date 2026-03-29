@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion } from "framer-motion";
+import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
@@ -200,6 +200,11 @@ function AppShell() {
   const hasNoRepos = !loading && repos.length === 0;
   const activeRepoEntry = repos.find((r) => r.path === repoPath);
 
+  const sidebarLayout = useDefaultLayout({
+    id: "sidebar",
+    storage: localStorage,
+  });
+
   // Show cat logo while loading persisted repo path
   if (loading) {
     return (
@@ -237,37 +242,43 @@ function AppShell() {
 
   // Normal state — worktrees exist, show sidebar
   return (
-    <div className="flex h-screen">
-      <motion.div
-        className="flex-shrink-0 h-full overflow-hidden"
-        initial={shouldAnimateSidebar.current ? { x: -320, opacity: 0 } : false}
-        animate={{ x: 0, opacity: 1, width: 320 }}
-        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-      >
-        <Sidebar
-          hasRepo={!!repoPath}
-          repos={repos}
-          activeRepo={repoPath}
-          onAddRepo={() => setAddRepoModalOpen(true)}
-          onRemoveRepo={(path: string) => {
-            setRemoveRepoPath(path);
-            setRemoveDialogOpen(true);
-          }}
-          activeRepoMode={activeRepoEntry?.mode ?? "worktree"}
-          onEnableWorktrees={() => {
-            if (repoPath) {
-              setSetupRepoPath(repoPath);
-              setSetupDialogOpen(true);
-            }
-          }}
-          selectedRepos={selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : [])}
-          onToggleRepo={toggleRepo}
-          repoColors={repoColors ?? {}}
-          repoDisplayNames={repoDisplayNames ?? {}}
-          onSetRepoDisplayName={setRepoDisplayName}
-        />
-      </motion.div>
-      <div className="flex-1 flex flex-col min-w-0">
+    <Group
+      orientation="horizontal"
+      defaultLayout={sidebarLayout.defaultLayout}
+      onLayoutChanged={sidebarLayout.onLayoutChanged}
+      className="h-screen"
+    >
+      <Panel defaultSize="320px" minSize="180px" maxSize="480px">
+        <div
+          className={`h-full overflow-hidden ${shouldAnimateSidebar.current ? "animate-slide-in-left" : ""}`}
+        >
+          <Sidebar
+            hasRepo={!!repoPath}
+            repos={repos}
+            activeRepo={repoPath}
+            onAddRepo={() => setAddRepoModalOpen(true)}
+            onRemoveRepo={(path: string) => {
+              setRemoveRepoPath(path);
+              setRemoveDialogOpen(true);
+            }}
+            activeRepoMode={activeRepoEntry?.mode ?? "worktree"}
+            onEnableWorktrees={() => {
+              if (repoPath) {
+                setSetupRepoPath(repoPath);
+                setSetupDialogOpen(true);
+              }
+            }}
+            selectedRepos={selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : [])}
+            onToggleRepo={toggleRepo}
+            repoColors={repoColors ?? {}}
+            repoDisplayNames={repoDisplayNames ?? {}}
+            onSetRepoDisplayName={setRepoDisplayName}
+          />
+        </div>
+      </Panel>
+      <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
+      <Panel minSize="50%">
+      <div className="flex-1 flex flex-col min-w-0 h-full">
         <StatusBar worktree={worktree} annotationCount={annotationCount} />
         <main className="flex-1 min-h-0 relative">
           {activeWorktreeId ? (
@@ -285,6 +296,7 @@ function AppShell() {
           )}
         </main>
       </div>
+      </Panel>
 
       {/* Multi-repo dialogs */}
       <AddRepoModal
@@ -315,7 +327,7 @@ function AppShell() {
         onOpenChange={setCreateDialogOpen}
         repoPath={repoPath ?? undefined}
       />
-    </div>
+    </Group>
   );
 }
 

@@ -187,7 +187,7 @@ function FileSidebar({
   );
 
   return (
-    <div className="w-[200px] bg-bg-primary border-r border-border-default flex-shrink-0 flex flex-col overflow-y-auto">
+    <div className="w-full bg-bg-primary border-r border-border-default flex flex-col overflow-y-auto">
       {/* Changes / Commits toggle */}
       <div className="flex p-1.5 gap-0">
         <button

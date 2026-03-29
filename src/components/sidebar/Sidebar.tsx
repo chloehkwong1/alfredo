@@ -152,7 +152,7 @@ function Sidebar({
   const showRepoTags = effectiveSelectedRepos.length > 1;
 
   return (
-    <div className="relative flex flex-col w-[320px] h-full sidebar-bg border-r border-border-subtle flex-shrink-0">
+    <div className="relative flex flex-col w-full h-full sidebar-bg border-r border-border-subtle flex-shrink-0">
       {/* Header */}
       <div className="flex items-center justify-between h-10 px-4 border-b border-border-subtle flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -193,7 +193,7 @@ function Sidebar({
           {/* Scrollable agent list */}
           <div className="flex-1 overflow-y-auto py-3">
             <SidebarDragContext>
-              {(isDragging) =>
+              {(isDragging, dragActiveId, dragHeight) =>
                 COLUMNS.map((col) => (
                   <StatusGroup
                     key={col}
@@ -204,6 +204,8 @@ function Sidebar({
                     onDeleteWorktree={handleDeleteWorktree}
                     onArchiveWorktree={archiveWorktree}
                     forceVisible={isDragging}
+                    dragActiveId={dragActiveId}
+                    dragHeight={dragHeight}
                     repoColors={effectiveRepoColors}
                     repoDisplayNames={repoDisplayNames}
                     showRepoTags={showRepoTags}

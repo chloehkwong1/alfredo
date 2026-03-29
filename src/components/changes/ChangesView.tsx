@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
 import { writePty } from "../../api";
@@ -49,6 +50,11 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  const fileSidebarLayout = useDefaultLayout({
+    id: "changes-file-sidebar",
+    storage: localStorage,
+  });
 
   const annotations = useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
   const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
@@ -272,26 +278,36 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   return (
     <div className="flex flex-col h-full relative">
       {/* Three-zone layout */}
-      <div className="flex flex-1 min-h-0">
+      <Group
+        orientation="horizontal"
+        defaultLayout={fileSidebarLayout.defaultLayout}
+        onLayoutChanged={fileSidebarLayout.onLayoutChanged}
+        className="flex-1 min-h-0"
+      >
         {/* Left: File sidebar */}
-        <FileSidebar
-          viewMode={viewMode}
-          onViewModeChange={handleViewModeChange}
-          uncommittedFiles={uncommittedFiles}
-          committedFiles={committedFiles}
-          hasPr={pr !== null}
-          commits={commits}
-          selectedCommitIndex={selectedCommitIndex}
-          onSelectCommit={handleSelectCommit}
-          activeFilePath={activeFilePath}
-          collapsedFiles={collapsedFiles}
-          onSelectFile={handleSelectFile}
-          reviewedFiles={reviewedFiles}
-          onToggleReviewed={handleToggleReviewed}
-        />
+        <Panel defaultSize="200px" minSize="120px" maxSize="350px">
+          <FileSidebar
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+            uncommittedFiles={uncommittedFiles}
+            committedFiles={committedFiles}
+            hasPr={pr !== null}
+            commits={commits}
+            selectedCommitIndex={selectedCommitIndex}
+            onSelectCommit={handleSelectCommit}
+            activeFilePath={activeFilePath}
+            collapsedFiles={collapsedFiles}
+            onSelectFile={handleSelectFile}
+            reviewedFiles={reviewedFiles}
+            onToggleReviewed={handleToggleReviewed}
+          />
+        </Panel>
+
+        <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
 
         {/* Center: Diff file cards */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <Panel minSize="40%">
+        <div className="flex-1 flex flex-col min-w-0 h-full">
           <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
             <span className="text-[10px] text-text-tertiary">
               {viewMode === "changes"
@@ -350,8 +366,9 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
             )}
           </div>
         </div>
+        </Panel>
 
-      </div>
+      </Group>
 
       {/* Floating review comment bar */}
       {annotations.length > 0 && (
