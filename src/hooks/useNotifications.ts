@@ -11,15 +11,64 @@ import type { AgentState, NotificationConfig } from "../types";
 
 // ── Sound generation via Web Audio API ─────────────────────────
 
-type SoundNote = { frequency: number; duration: number };
+type SoundNote = {
+  frequency: number;
+  duration: number;
+  type?: OscillatorType;     // default: "sine"
+  endFrequency?: number;     // for frequency sweeps
+  gain?: number;             // override default 0.3
+  delay?: number;            // gap after previous note (default: 0.04)
+};
 
 const SOUNDS: Record<string, SoundNote[]> = {
+  // ── Classic ──
+  none:      [],
   chime:     [{ frequency: 880, duration: 0.25 }, { frequency: 1108, duration: 0.35 }],
   pop:       [{ frequency: 440, duration: 0.12 }, { frequency: 554, duration: 0.18 }],
   ding:      [{ frequency: 1047, duration: 0.2 }, { frequency: 1318, duration: 0.3 }],
   ping:      [{ frequency: 1320, duration: 0.15 }, { frequency: 1568, duration: 0.2 }],
-  woodblock: [{ frequency: 330, duration: 0.08 }, { frequency: 440, duration: 0.12 }],
-  none:      [],
+  woodblock: [{ frequency: 330, duration: 0.08, type: "triangle" }, { frequency: 440, duration: 0.12, type: "triangle" }],
+  // ── Fun ──
+  coin:      [{ frequency: 988, duration: 0.08, type: "square", gain: 0.2 }, { frequency: 1319, duration: 0.3, type: "square", gain: 0.2 }],
+  r2d2:      [
+    { frequency: 800, duration: 0.06, endFrequency: 2400 },
+    { frequency: 2400, duration: 0.06, endFrequency: 1200, delay: 0.02 },
+    { frequency: 1200, duration: 0.06, endFrequency: 1800, delay: 0.02 },
+    { frequency: 1800, duration: 0.08, endFrequency: 600, delay: 0.02 },
+  ],
+  zelda:     [
+    { frequency: 523, duration: 0.12, type: "triangle" },
+    { frequency: 659, duration: 0.12, type: "triangle" },
+    { frequency: 784, duration: 0.12, type: "triangle" },
+    { frequency: 1047, duration: 0.4, type: "triangle" },
+  ],
+  quack:     [{ frequency: 600, duration: 0.12, type: "sawtooth", endFrequency: 200, gain: 0.15 }],
+  laser:     [{ frequency: 1500, duration: 0.15, type: "sawtooth", endFrequency: 200, gain: 0.15 }],
+  doorbell:  [
+    { frequency: 659, duration: 0.3, type: "sine", gain: 0.25 },
+    { frequency: 523, duration: 0.4, type: "sine", gain: 0.25 },
+  ],
+  bloop:     [{ frequency: 300, duration: 0.15, endFrequency: 800, gain: 0.25 }, { frequency: 800, duration: 0.1, endFrequency: 400, gain: 0.15 }],
+  victory:   [
+    { frequency: 523, duration: 0.15, type: "triangle", gain: 0.25 },
+    { frequency: 659, duration: 0.15, type: "triangle", gain: 0.25 },
+    { frequency: 784, duration: 0.15, type: "triangle", gain: 0.25 },
+    { frequency: 1047, duration: 0.5, type: "triangle", gain: 0.25, delay: 0.01 },
+  ],
+  bonk:      [{ frequency: 200, duration: 0.06, type: "square", gain: 0.2 }, { frequency: 140, duration: 0.08, type: "square", gain: 0.15, delay: 0.01 }],
+  sparkle:   [
+    { frequency: 1568, duration: 0.06, gain: 0.2 },
+    { frequency: 1760, duration: 0.06, gain: 0.2, delay: 0.02 },
+    { frequency: 1976, duration: 0.06, gain: 0.2, delay: 0.02 },
+    { frequency: 2093, duration: 0.06, gain: 0.2, delay: 0.02 },
+    { frequency: 2349, duration: 0.2, gain: 0.2, delay: 0.02 },
+  ],
+  ufo:       [
+    { frequency: 400, duration: 0.1, endFrequency: 800 },
+    { frequency: 800, duration: 0.1, endFrequency: 400, delay: 0.0 },
+    { frequency: 400, duration: 0.1, endFrequency: 800, delay: 0.0 },
+    { frequency: 800, duration: 0.15, endFrequency: 300, delay: 0.0 },
+  ],
 };
 
 let audioCtx: AudioContext | null = null;
@@ -28,13 +77,14 @@ function getAudioContext(): AudioContext {
   return audioCtx;
 }
 
-export function playTone(frequency: number, duration: number) {
+export function playTone(frequency: number, duration: number, type: OscillatorType = "sine") {
   if (frequency === 0 || duration === 0) return;
   const ctx = getAudioContext();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.connect(gain);
   gain.connect(ctx.destination);
+  osc.type = type;
   osc.frequency.value = frequency;
   gain.gain.value = 0.3;
   osc.start(ctx.currentTime);
@@ -49,15 +99,20 @@ function playNotes(notes: SoundNote[]) {
   for (const note of notes) {
     if (note.frequency === 0 || note.duration === 0) continue;
     const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = note.frequency;
-    gain.gain.setValueAtTime(0.3, offset);
+    const gainNode = ctx.createGain();
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    osc.type = note.type ?? "sine";
+    osc.frequency.setValueAtTime(note.frequency, offset);
+    if (note.endFrequency) {
+      osc.frequency.exponentialRampToValueAtTime(note.endFrequency, offset + note.duration);
+    }
+    const vol = note.gain ?? 0.3;
+    gainNode.gain.setValueAtTime(vol, offset);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, offset + note.duration);
     osc.start(offset);
-    gain.gain.exponentialRampToValueAtTime(0.001, offset + note.duration);
     osc.stop(offset + note.duration);
-    offset += note.duration + 0.04; // small gap between notes
+    offset += note.duration + (note.delay ?? 0.04);
   }
 }
 
