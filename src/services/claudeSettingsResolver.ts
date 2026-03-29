@@ -1,4 +1,4 @@
-import type { ClaudeDefaults, ClaudeOverrides } from "../types";
+import type { ClaudeDefaults, ClaudeOverrides, GlobalAppConfig } from "../types";
 
 export interface ResolvedClaudeSettings {
   model?: string;
@@ -10,20 +10,21 @@ export interface ResolvedClaudeSettings {
 }
 
 /**
- * Merge global defaults with per-branch overrides.
- * Override fields take precedence; only defined fields are merged.
+ * Merge global app defaults → per-repo defaults → per-branch overrides.
+ * Each layer overrides the previous; only defined fields are merged.
  */
 export function resolveSettings(
-  defaults?: ClaudeDefaults,
+  globalDefaults?: Pick<GlobalAppConfig, "model" | "effort" | "permissionMode" | "dangerouslySkipPermissions" | "outputStyle" | "verbose"> | null,
+  repoDefaults?: ClaudeDefaults,
   overrides?: ClaudeOverrides,
 ): ResolvedClaudeSettings {
   return {
-    model: overrides?.model ?? defaults?.model,
-    effort: overrides?.effort ?? defaults?.effort,
-    permissionMode: overrides?.permissionMode ?? defaults?.permissionMode,
-    dangerouslySkipPermissions: defaults?.dangerouslySkipPermissions,
-    outputStyle: overrides?.outputStyle ?? defaults?.outputStyle,
-    verbose: defaults?.verbose,
+    model: overrides?.model ?? repoDefaults?.model ?? globalDefaults?.model ?? undefined,
+    effort: overrides?.effort ?? repoDefaults?.effort ?? globalDefaults?.effort ?? undefined,
+    permissionMode: overrides?.permissionMode ?? repoDefaults?.permissionMode ?? globalDefaults?.permissionMode ?? undefined,
+    dangerouslySkipPermissions: repoDefaults?.dangerouslySkipPermissions ?? globalDefaults?.dangerouslySkipPermissions ?? undefined,
+    outputStyle: overrides?.outputStyle ?? repoDefaults?.outputStyle ?? globalDefaults?.outputStyle ?? undefined,
+    verbose: repoDefaults?.verbose ?? globalDefaults?.verbose ?? undefined,
   };
 }
 

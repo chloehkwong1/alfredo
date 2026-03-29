@@ -55,8 +55,9 @@ function SettingsStatusBar({ branch, worktreePath, onRestartSession }: SettingsS
   // Load resolved settings on mount and branch change
   useEffect(() => {
     if (!repoPath) return;
-    getConfig(repoPath).then((config) => {
+    Promise.all([getAppConfig(), getConfig(repoPath)]).then(([appCfg, config]) => {
       const merged = resolveSettings(
+        appCfg,
         config.claudeDefaults,
         config.worktreeOverrides?.[branch],
       );

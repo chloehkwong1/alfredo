@@ -6,7 +6,7 @@ import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { sessionManager } from "../../services/sessionManager";
-import { writePty, getConfig } from "../../api";
+import { writePty, getConfig, getAppConfig } from "../../api";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { Button } from "../ui/Button";
 import { SettingsStatusBar } from "./SettingsStatusBar";
@@ -63,9 +63,10 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       return;
     }
     if (!repoPath) return;
-    getConfig(repoPath).then((config) => {
+    Promise.all([getAppConfig(), getConfig(repoPath)]).then(([appCfg, config]) => {
       const branch = worktree?.branch ?? "";
       const resolved = resolveSettings(
+        appCfg,
         config.claudeDefaults,
         config.worktreeOverrides?.[branch],
       );
@@ -120,9 +121,10 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     // Resolve new args BEFORE closing the old session so a config error
     // doesn't leave the session dead with no reconnect trigger.
     try {
-      const config = await getConfig(repoPath);
+      const [appCfg, config] = await Promise.all([getAppConfig(), getConfig(repoPath)]);
       const branch = worktree.branch ?? "";
       const resolved = resolveSettings(
+        appCfg,
         config.claudeDefaults,
         config.worktreeOverrides?.[branch],
       );
