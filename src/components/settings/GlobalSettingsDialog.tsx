@@ -194,7 +194,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
         <div className="px-6 pt-6 pb-2">
           <h2 className="text-base font-semibold text-text-primary">Settings</h2>
         </div>
-        <div className="flex min-h-[440px]">
+        <div className="flex h-[440px]">
           {/* Tab rail */}
           <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 py-5 px-3 border-r border-border-default bg-bg-primary">
             {TABS.map((t) => (

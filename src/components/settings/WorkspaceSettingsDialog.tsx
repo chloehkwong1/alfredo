@@ -161,7 +161,7 @@ function WorkspaceSettingsDialog({
           />
         </div>
 
-        <div className="flex min-h-[320px]">
+        <div className="flex h-[380px]">
           {/* Rail */}
           <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 py-5 px-3 border-r border-border-default bg-bg-primary">
             {TABS.map((t) => (
