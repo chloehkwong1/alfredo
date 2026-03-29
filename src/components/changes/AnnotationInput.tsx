@@ -7,14 +7,14 @@ interface AnnotationInputProps {
 
 function AnnotationInput({ onSubmit, onCancel }: AnnotationInputProps) {
   const [text, setText] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
   }, []);
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && text.trim()) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && text.trim()) {
       e.preventDefault();
       onSubmit(text.trim());
     } else if (e.key === "Escape") {
@@ -24,17 +24,42 @@ function AnnotationInput({ onSubmit, onCancel }: AnnotationInputProps) {
   }
 
   return (
-    <div className="ml-24 mr-4 my-1">
-      <input
-        ref={inputRef}
-        type="text"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={onCancel}
-        placeholder="Add a comment..."
-        className="w-full px-3 py-1.5 rounded-md text-xs bg-accent-primary/8 border border-accent-primary/20 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20"
-      />
+    <div className="my-1 border-l-2 border-accent-primary bg-[#161b22] overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary/5 border-b border-border-subtle">
+        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-accent-primary text-text-on-accent text-2xs font-semibold flex items-center justify-center">
+          C
+        </span>
+        <span className="text-xs font-semibold text-text-primary">You</span>
+      </div>
+
+      {/* Input area */}
+      <div className="px-3 py-2">
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Leave a comment for the agent..."
+          rows={3}
+          className="w-full px-2.5 py-2 rounded-md text-xs bg-bg-primary border border-border-default text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20 resize-y leading-relaxed"
+        />
+        <div className="flex justify-end gap-1.5 mt-1.5">
+          <button
+            onClick={onCancel}
+            className="px-2.5 py-1 rounded-md text-[11px] text-text-secondary bg-transparent border border-border-default hover:bg-bg-hover cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => text.trim() && onSubmit(text.trim())}
+            disabled={!text.trim()}
+            className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-on-accent bg-accent-primary hover:bg-accent-hover cursor-pointer border-none disabled:opacity-40 disabled:cursor-default"
+          >
+            Comment
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
