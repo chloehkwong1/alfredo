@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useTabStore } from "../stores/tabStore";
 import { getConfig } from "../api";
 import { sessionManager } from "../services/sessionManager";
 import { lifecycleManager } from "../services/lifecycleManager";
@@ -44,7 +45,7 @@ export function useServer(activeWorktreeId: string | null, repoPath: string | nu
     try {
       if (isServerRunningHere) {
         await sessionManager.stopSession(runningServer!.tabId);
-        useWorkspaceStore.getState().updateTab(
+        useTabStore.getState().updateTab(
           runningServer!.worktreeId, runningServer!.tabId, { command: undefined },
         );
         setRunningServer(null);
@@ -53,13 +54,13 @@ export function useServer(activeWorktreeId: string | null, repoPath: string | nu
 
       if (runningServer) {
         await sessionManager.stopSession(runningServer.tabId);
-        useWorkspaceStore.getState().updateTab(
+        useTabStore.getState().updateTab(
           runningServer.worktreeId, runningServer.tabId, { command: undefined },
         );
         setRunningServer(null);
       }
 
-      const existingTabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
+      const existingTabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
       const oldServerTab = existingTabs.find((t) => t.type === "server");
       if (oldServerTab) {
         await lifecycleManager.removeTab(activeWorktreeId, oldServerTab.id);
@@ -67,7 +68,7 @@ export function useServer(activeWorktreeId: string | null, repoPath: string | nu
 
       const tabId = lifecycleManager.addTab(activeWorktreeId, "server");
       if (tabId) {
-        useWorkspaceStore.getState().updateTab(activeWorktreeId, tabId, {
+        useTabStore.getState().updateTab(activeWorktreeId, tabId, {
           command: runScript.command,
         });
       }

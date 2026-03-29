@@ -1,4 +1,5 @@
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useTabStore } from "../stores/tabStore";
 import { usePrStore } from "../stores/prStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { sessionManager } from "./sessionManager";
@@ -21,9 +22,9 @@ class LifecycleManager {
    * Returns the new tab's ID, or null if creation failed.
    */
   addTab(worktreeId: string, type: TabType, paneId?: string): string | null {
-    const prevTabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
-    useWorkspaceStore.getState().addTab(worktreeId, type);
-    const newTabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
+    const prevTabs = useTabStore.getState().tabs[worktreeId] ?? [];
+    useTabStore.getState().addTab(worktreeId, type);
+    const newTabs = useTabStore.getState().tabs[worktreeId] ?? [];
     const newTab = newTabs.find((t) => !prevTabs.some((p) => p.id === t.id));
     if (!newTab) return null;
 
@@ -41,7 +42,7 @@ class LifecycleManager {
    */
   async removeTab(worktreeId: string, tabId: string): Promise<void> {
     await sessionManager.closeSession(tabId);
-    useWorkspaceStore.getState().removeTab(worktreeId, tabId);
+    useTabStore.getState().removeTab(worktreeId, tabId);
     useLayoutStore.getState().removeTabFromPane(worktreeId, tabId);
   }
 
@@ -56,10 +57,11 @@ class LifecycleManager {
     worktreeName: string,
   ): Promise<void> {
     // Snapshot tabs before removing from store
-    const tabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
+    const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
 
     // 1. Remove from all stores atomically (synchronous)
     useWorkspaceStore.getState().removeWorktree(worktreeId);
+    useTabStore.getState().removeWorktreeTabs(worktreeId);
     usePrStore.getState().removeWorktreeState(worktreeId);
     useLayoutStore.getState().removeLayout(worktreeId);
 
@@ -88,11 +90,11 @@ class LifecycleManager {
    * Called after creating a new worktree or when one is missing defaults.
    */
   initWorktreeDefaults(worktreeId: string): void {
-    useWorkspaceStore.getState().ensureDefaultTabs(worktreeId);
+    useTabStore.getState().ensureDefaultTabs(worktreeId);
     const layoutState = useLayoutStore.getState();
     if (!layoutState.layout[worktreeId]) {
-      const tabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
-      const activeTabId = useWorkspaceStore.getState().activeTabId[worktreeId] ?? "";
+      const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
+      const activeTabId = useTabStore.getState().activeTabId[worktreeId] ?? "";
       if (tabs.length > 0) {
         layoutState.initLayout(worktreeId, tabs.map((t) => t.id), activeTabId);
       }
@@ -111,7 +113,7 @@ class LifecycleManager {
       return;
     }
 
-    const wtTabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
+    const wtTabs = useTabStore.getState().tabs[worktreeId] ?? [];
     const allPaneTabIds = new Set(
       Object.values(layoutState.panes[worktreeId] ?? {}).flatMap((p) => p.tabIds),
     );

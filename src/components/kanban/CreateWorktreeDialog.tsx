@@ -11,6 +11,7 @@ import {
 import { Button } from "../ui/Button";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useTabStore } from "../../stores/tabStore";
 import { createWorktreeFrom, getConfig, getDefaultBranch } from "../../api";
 import type { RepoEntry, WorktreeSource } from "../../types";
 import { NewBranchTab, getNewBranchSource } from "./create-worktree/NewBranchTab";
@@ -39,7 +40,7 @@ const tabDefs: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRepos, repoColors, defaultRepoPath }: CreateWorktreeDialogProps) {
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
-  const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
+  const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
 
   const [currentRepoPath, setCurrentRepoPath] = useState<string | undefined>(

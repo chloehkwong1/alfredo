@@ -38,7 +38,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "../ui/ContextMenu";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useTabStore } from "../../stores/tabStore";
 import { usePrStore } from "../../stores/prStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
@@ -180,7 +180,7 @@ function PaneTabBar({
   isServerRunning,
   runScriptName,
 }: PaneTabBarProps) {
-  const allTabs = useWorkspaceStore((s) => s.tabs);
+  const allTabs = useTabStore((s) => s.tabs);
   const tabs = allTabs[worktreeId] ?? [];
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
   const reorderTabs = useLayoutStore((s) => s.reorderTabs);

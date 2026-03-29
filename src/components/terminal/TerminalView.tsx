@@ -4,6 +4,7 @@ import "@xterm/xterm/css/xterm.css";
 
 import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useTabStore } from "../../stores/tabStore";
 import { sessionManager } from "../../services/sessionManager";
 import { writePty, getConfig } from "../../api";
 import { useAppConfig } from "../../hooks/useAppConfig";
@@ -43,7 +44,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const mode = (tabType === "shell" || tabType === "server") ? "shell" : "claude";
 
   // Read the tab's command field (used by server tabs to auto-execute a command)
-  const tabCommand = useWorkspaceStore((s) => {
+  const tabCommand = useTabStore((s) => {
     if (!activeWorktreeId || !tabId) return undefined;
     const tabs = s.tabs[activeWorktreeId] ?? [];
     return tabs.find((t) => t.id === tabId)?.command;
@@ -91,7 +92,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     if (!activeWorktreeId || annotations.length === 0) return;
 
     // Find the first Claude session for this worktree to send feedback to
-    const tabs = useWorkspaceStore.getState().tabs[activeWorktreeId] ?? [];
+    const tabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
     const claudeTab = tabs.find((t) => t.type === "claude");
     const targetKey = claudeTab?.id ?? activeWorktreeId;
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths } from "../api";
 import { loadSession } from "../services/SessionPersistence";
@@ -12,8 +13,8 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
   const setWorktreesForRepo = useWorkspaceStore((s) => s.setWorktreesForRepo);
   const clearWorktreesForRepo = useWorkspaceStore((s) => s.clearWorktreesForRepo);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
-  const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
-  const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
+  const restoreTabs = useTabStore((s) => s.restoreTabs);
+  const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   const markWorktreeSeen = useWorkspaceStore((s) => s.markWorktreeSeen);
   const restoredRepos = useRef(new Set<string>());
 
@@ -84,8 +85,8 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
 
             for (const wt of wts) {
               if (!useLayoutStore.getState().layout[wt.id]) {
-                const wtTabs = useWorkspaceStore.getState().tabs[wt.id] ?? [];
-                const wtActiveTabId = useWorkspaceStore.getState().activeTabId[wt.id] ?? "";
+                const wtTabs = useTabStore.getState().tabs[wt.id] ?? [];
+                const wtActiveTabId = useTabStore.getState().activeTabId[wt.id] ?? "";
                 useLayoutStore.getState().initLayout(wt.id, wtTabs.map((t) => t.id), wtActiveTabId);
               }
             }

@@ -4,6 +4,7 @@ import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
 import { getDiff, getUncommittedDiff, getCommits, getDiffForCommit, writePty } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useTabStore } from "../../stores/tabStore";
 import { usePrStore } from "../../stores/prStore";
 import { sessionManager } from "../../services/sessionManager";
 import { Button } from "../ui/Button";
@@ -280,7 +281,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const handleSendToClaude = useCallback(async () => {
     if (annotations.length === 0) return;
 
-    const tabs = useWorkspaceStore.getState().tabs[worktreeId] ?? [];
+    const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
     const claudeTab = tabs.find((t) => t.type === "claude");
     const targetKey = claudeTab?.id ?? worktreeId;
 

@@ -10,6 +10,7 @@ import { RepoSetupDialog } from "../onboarding/RepoSetupDialog";
 import { RemoveRepoDialog } from "../sidebar/RemoveRepoDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
@@ -30,12 +31,13 @@ const AUTO_SAVE_INTERVAL_MS = 30_000;
 /** Snapshot current workspace + layout state and persist all sessions to disk. */
 function collectAndSaveAllSessions(repoPath: string) {
   const state = useWorkspaceStore.getState();
+  const tabState = useTabStore.getState();
   const worktreeIds = state.worktrees.map((wt) => wt.id);
   return saveAllSessions(
     repoPath,
     worktreeIds,
-    (wtId) => state.tabs[wtId] ?? [],
-    (wtId) => state.activeTabId[wtId] ?? "",
+    (wtId) => tabState.tabs[wtId] ?? [],
+    (wtId) => tabState.activeTabId[wtId] ?? "",
     (tabId) => sessionManager.getBufferedOutputBase64(tabId),
     (wtId) => useLayoutStore.getState().layout[wtId],
     (wtId) => useLayoutStore.getState().panes[wtId],
@@ -50,12 +52,12 @@ function AppShell() {
   const worktree = useWorkspaceStore((s) =>
     s.worktrees.find((wt) => wt.id === activeWorktreeId),
   );
-  const allTabs = useWorkspaceStore((s) => s.tabs);
-  const allActiveTabIds = useWorkspaceStore((s) => s.activeTabId);
+  const allTabs = useTabStore((s) => s.tabs);
+  const allActiveTabIds = useTabStore((s) => s.activeTabId);
   const tabs = activeWorktreeId ? (allTabs[activeWorktreeId] ?? EMPTY_TABS) : EMPTY_TABS;
   const activeTabIdValue = activeWorktreeId ? allActiveTabIds[activeWorktreeId] : undefined;
   const annotations = useWorkspaceStore((s) => s.annotations);
-  const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
+  const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   useDensity();
 
   const {

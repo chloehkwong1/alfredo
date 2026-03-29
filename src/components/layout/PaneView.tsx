@@ -4,6 +4,7 @@ import { TerminalView } from "../terminal";
 import { ChangesView } from "../changes/ChangesView";
 import { PrPanel } from "../changes/PrPanel";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useTabStore } from "../../stores/tabStore";
 import { usePrStore } from "../../stores/prStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import type { PrPanelState, WorkspaceTab } from "../../types";
@@ -26,7 +27,7 @@ function PaneView({
   const worktree = useWorkspaceStore((s) =>
     s.worktrees.find((wt) => wt.id === worktreeId),
   );
-  const allTabs = useWorkspaceStore((s) => s.tabs);
+  const allTabs = useTabStore((s) => s.tabs);
   const tabs = allTabs[worktreeId] ?? [];
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
   const activePaneId = useLayoutStore((s) => s.activePaneId[worktreeId]);
