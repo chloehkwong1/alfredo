@@ -5,7 +5,7 @@ use tokio::time;
 
 use crate::config_manager;
 use crate::github_manager::{determine_column, parse_github_owner_repo, GithubManager};
-use crate::types::PrStatus;
+use crate::types::{PrStatus, CheckRun, PrReview, PrComment};
 
 /// Payload emitted on the `github:pr-update` Tauri event.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -41,6 +41,12 @@ pub struct PrStatusWithColumn {
     pub body: Option<String>,
     /// The repo path this PR belongs to, for multi-repo disambiguation.
     pub repo_path: String,
+    /// Full check run objects for the PR panel.
+    pub check_runs: Vec<CheckRun>,
+    /// Full review objects for the PR panel.
+    pub reviews: Vec<PrReview>,
+    /// Line comments + issue comments merged, for the PR panel.
+    pub comments: Vec<PrComment>,
 }
 
 impl PrStatusWithColumn {
@@ -66,6 +72,9 @@ impl PrStatusWithColumn {
             review_decision: None,
             mergeable: None,
             repo_path: repo_path.to_string(),
+            check_runs: Vec::new(),
+            reviews: Vec::new(),
+            comments: Vec::new(),
         }
     }
 }
@@ -196,8 +205,8 @@ async fn poll_repo(
     let mut payload_prs: Vec<PrStatusWithColumn> =
         prs.iter().map(|pr| PrStatusWithColumn::from_pr(pr, repo_path)).collect();
 
-    // Enrich non-merged PRs with sidebar indicator data (best-effort).
-    // Enrich each PR's 3 API calls concurrently (mergeable + reviews + checks in parallel).
+    // Enrich non-merged PRs with full data (sidebar summaries + PR panel detail).
+    // Per-PR API calls run concurrently via tokio::join! (5 calls in parallel per PR).
     for pr_with_col in payload_prs.iter_mut() {
         if pr_with_col.merged {
             continue;
@@ -205,8 +214,7 @@ async fn poll_repo(
 
         let pr_number = pr_with_col.number;
 
-        // Fetch mergeable, reviews, and check runs concurrently per PR
-        let (mergeable_result, reviews_result, checks_result) = tokio::join!(
+        let (mergeable_result, reviews_result, checks_result, line_comments_result, issue_comments_result) = tokio::join!(
             manager.get_pr_mergeable(&owner, &repo, pr_number),
             manager.get_pr_reviews(&owner, &repo, pr_number),
             async {
@@ -216,6 +224,8 @@ async fn poll_repo(
                     Ok(Vec::new())
                 }
             },
+            manager.get_pr_comments(&owner, &repo, pr_number),
+            manager.get_pr_issue_comments(&owner, &repo, pr_number),
         );
 
         if let Ok(mergeable) = mergeable_result {
@@ -223,9 +233,10 @@ async fn poll_repo(
         }
 
         if let Ok(reviews) = reviews_result {
-            let mut latest: std::collections::HashMap<String, crate::types::PrReview> =
+            // Deduplicate: keep latest review per reviewer for the summary decision
+            let mut latest: std::collections::HashMap<String, PrReview> =
                 std::collections::HashMap::new();
-            for review in reviews {
+            for review in &reviews {
                 latest
                     .entry(review.reviewer.clone())
                     .and_modify(|existing| {
@@ -233,7 +244,7 @@ async fn poll_repo(
                             *existing = review.clone();
                         }
                     })
-                    .or_insert(review);
+                    .or_insert(review.clone());
             }
             pr_with_col.review_decision = if latest.values().any(|r| r.state == "changes_requested") {
                 Some("changes_requested".to_string())
@@ -242,6 +253,8 @@ async fn poll_repo(
             } else {
                 Some("review_required".to_string())
             };
+            // Store full review objects (deduplicated) for the PR panel
+            pr_with_col.reviews = latest.into_values().collect();
         }
 
         if let Ok(check_runs) = checks_result {
@@ -252,7 +265,17 @@ async fn poll_repo(
                 )
             }).count() as u32;
             pr_with_col.failing_check_count = Some(failing);
+            // Store full check run objects for the PR panel
+            pr_with_col.check_runs = check_runs;
         }
+
+        // Merge line comments and issue comments
+        let mut all_comments = line_comments_result.unwrap_or_default();
+        all_comments.extend(issue_comments_result.unwrap_or_default());
+        pr_with_col.unresolved_comment_count = Some(
+            all_comments.iter().filter(|c| !c.resolved).count() as u32
+        );
+        pr_with_col.comments = all_comments;
     }
 
     Ok(payload_prs)
