@@ -264,35 +264,34 @@ pub async fn get_diff(
 }
 
 /// Get the diff of uncommitted changes (working tree + index vs HEAD).
+///
+/// Uses git CLI instead of git2 because git2 has known issues with
+/// `diff_index_to_workdir` on linked worktrees (reports all tracked files
+/// as deleted). The CLI output is parsed back via `git2::Diff::from_buffer`
+/// so the existing `diff_to_files` converter can be reused.
 #[tauri::command]
 pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
     tokio::task::spawn_blocking(move || {
-        let repo = open_repo(&repo_path)?;
+        let output = std::process::Command::new("git")
+            .args(["diff", "HEAD", "--no-ext-diff", "-p", "--no-color"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| AppError::Git(format!("failed to run git diff: {e}")))?;
 
-        let head_tree = repo
-            .head()
-            .and_then(|h| h.peel_to_tree())
-            .map_err(|e| AppError::Git(format!("failed to get HEAD tree: {e}")))?;
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(AppError::Git(format!("git diff HEAD failed: {err}")));
+        }
 
-        // Staged changes: index vs HEAD
-        let mut opts = DiffOptions::new();
-        let staged = repo
-            .diff_tree_to_index(Some(&head_tree), None, Some(&mut opts))
-            .map_err(|e| AppError::Git(format!("staged diff failed: {e}")))?;
+        // Empty diff = no uncommitted changes
+        if output.stdout.is_empty() {
+            return Ok(Vec::new());
+        }
 
-        // Unstaged changes: workdir vs index
-        let mut opts2 = DiffOptions::new();
-        let unstaged = repo
-            .diff_index_to_workdir(None, Some(&mut opts2))
-            .map_err(|e| AppError::Git(format!("unstaged diff failed: {e}")))?;
+        let diff = git2::Diff::from_buffer(&output.stdout)
+            .map_err(|e| AppError::Git(format!("failed to parse diff buffer: {e}")))?;
 
-        // Merge both diffs
-        let mut merged = staged;
-        merged
-            .merge(&unstaged)
-            .map_err(|e| AppError::Git(format!("diff merge failed: {e}")))?;
-
-        diff_to_files(&merged)
+        diff_to_files(&diff)
     })
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
