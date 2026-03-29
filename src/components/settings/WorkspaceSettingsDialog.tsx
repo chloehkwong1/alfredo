@@ -243,14 +243,28 @@ function WorkspaceSettingsDialog({
 
             {tab === "scripts" && (
               <div>
-                {/* Run Script */}
+                {/* Setup Scripts */}
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3">
+                  Setup Scripts
+                </div>
+                <p className="text-xs text-text-tertiary mb-3">
+                  Run automatically when a new worktree is created.
+                </p>
+                <ScriptEditor
+                  scripts={config.setupScripts}
+                  onChange={(scripts: SetupScript[]) =>
+                    updateConfig({ setupScripts: scripts })
+                  }
+                />
+
+                {/* Run Script */}
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">
                   Run Script
                 </div>
                 <p className="text-xs text-text-tertiary mb-3">
                   A dev server command started from any worktree via the play button in the tab bar.
                 </p>
-                <div className="mb-4 rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3 space-y-2">
+                <div className="rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3 space-y-2">
                   <input
                     type="text"
                     className={inputClass}
@@ -278,20 +292,6 @@ function WorkspaceSettingsDialog({
                     }
                   />
                 </div>
-
-                {/* Setup Scripts */}
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">
-                  Setup Scripts
-                </div>
-                <p className="text-xs text-text-tertiary mb-3">
-                  Run automatically when a new worktree is created.
-                </p>
-                <ScriptEditor
-                  scripts={config.setupScripts}
-                  onChange={(scripts: SetupScript[]) =>
-                    updateConfig({ setupScripts: scripts })
-                  }
-                />
               </div>
             )}
           </div>
