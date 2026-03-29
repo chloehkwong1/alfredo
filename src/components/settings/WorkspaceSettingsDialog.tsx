@@ -188,7 +188,7 @@ function WorkspaceSettingsDialog({
             {tab === "repository" && (
               <div>
                 {/* Repo Path (read-only) */}
-                <div className="mb-5">
+                <div className="mb-4">
                   <div className="text-[13px] font-medium text-text-primary mb-1.5">
                     Repository Path
                   </div>
@@ -201,7 +201,7 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {/* Display Name */}
-                <div className="mb-5">
+                <div className="mb-4">
                   <div className="text-[13px] font-medium text-text-primary mb-1.5">
                     Display Name
                   </div>
@@ -221,7 +221,7 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {/* Worktree Base Path */}
-                <div className="mb-5">
+                <div className="mb-4">
                   <div className="text-[13px] font-medium text-text-primary mb-1.5">
                     Worktree Directory
                   </div>

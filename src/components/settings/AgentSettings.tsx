@@ -2,7 +2,7 @@ import type { ClaudeDefaults } from "../../types";
 
 const MODEL_OPTIONS = [
   { value: "", label: "Default" },
-  { value: "claude-opus-4-6", label: "Opus 4.6 (1M context)" },
+  { value: "claude-opus-4-6", label: "Opus 4.6" },
   { value: "claude-sonnet-4-6", label: "Sonnet 4.6 (200K context)" },
   { value: "claude-haiku-4-5", label: "Haiku 4.5 (200K context)" },
 ];
@@ -43,7 +43,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
 
   return (
     <div>
-      <p className="text-xs text-text-tertiary mb-6">
+      <p className="text-xs text-text-tertiary mb-5">
         Defaults for all new sessions. Override per worktree via the status bar.
       </p>
 
@@ -51,7 +51,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         Model & Performance
       </div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Model</div>
         <select
           value={settings.model ?? ""}
@@ -64,7 +64,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         </select>
       </div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Effort</div>
         <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
           {EFFORT_OPTIONS.map((level) => (
@@ -89,7 +89,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         Permissions
       </div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Permission Mode</div>
         <select
           value={permissionValue}
@@ -115,7 +115,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         Output
       </div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Style</div>
         <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
           {OUTPUT_OPTIONS.map((style) => (
@@ -159,7 +159,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         </button>
       </div>
 
-      <p className="text-xs text-text-tertiary pt-4 mt-4 border-t border-border-default">
+      <p className="text-xs text-text-tertiary border-t border-border-default pt-4 mt-7">
         Applies to new sessions — existing sessions keep their settings.
       </p>
     </div>

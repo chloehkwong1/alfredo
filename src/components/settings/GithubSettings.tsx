@@ -79,7 +79,7 @@ function GithubSettings({
   return (
     <div>
       {/* GitHub Connection */}
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">GitHub</div>
 
         {auth.step === "checking" && (
@@ -141,7 +141,7 @@ function GithubSettings({
       </div>
 
       {/* Linear API Key */}
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">Linear</div>
         <div className="text-[13px] font-medium text-text-primary mb-1.5">API Key</div>
         <Input

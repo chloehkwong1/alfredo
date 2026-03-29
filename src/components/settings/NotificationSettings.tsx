@@ -122,7 +122,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
                   type="button"
                   onClick={() => update("sound", opt.id)}
                   className={[
-                    "flex items-center justify-between gap-1 px-3 py-1.5 text-[13px] rounded-[var(--radius-md)]",
+                    "flex items-center justify-between gap-1 px-2.5 py-[7px] text-xs rounded-[var(--radius-md)]",
                     "border transition-all duration-[var(--transition-fast)]",
                     "cursor-pointer",
                     config.sound === opt.id

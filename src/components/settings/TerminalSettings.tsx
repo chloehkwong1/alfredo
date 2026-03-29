@@ -37,12 +37,12 @@ function TerminalSettings() {
 
   return (
     <div>
-      <p className="text-xs text-text-tertiary mb-6">Terminal changes apply immediately to all sessions.</p>
+      <p className="text-xs text-text-tertiary mb-5">Terminal changes apply immediately to all sessions.</p>
 
       {/* Font */}
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">Font</div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Family</div>
         <select
           value={prefs.fontFamily}
@@ -55,7 +55,7 @@ function TerminalSettings() {
         </select>
       </div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-2">
           Size <span className="font-normal text-text-secondary">{prefs.fontSize}px</span>
         </div>
@@ -73,7 +73,7 @@ function TerminalSettings() {
         </div>
       </div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-2">
           Line Height <span className="font-normal text-text-secondary">{prefs.lineHeight.toFixed(1)}</span>
         </div>
@@ -112,7 +112,7 @@ function TerminalSettings() {
       {/* Cursor */}
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">Cursor</div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Style</div>
         <div className="flex gap-1.5">
           {(["block", "underline", "bar"] as const).map((style) => (
