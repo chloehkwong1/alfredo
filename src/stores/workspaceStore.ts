@@ -44,6 +44,13 @@ interface WorkspaceState {
   setRunningServer: (server: { worktreeId: string; sessionId: string; tabId: string } | null) => void;
 }
 
+/**
+ * Compute the best "last activity" timestamp for a worktree by taking the max of:
+ * - Last commit epoch on the branch (from git)
+ * - PR updatedAt (from GitHub API) — not used here since PR updates come via prStore
+ * - Agent state changes (tracked as Date.now() when agent status changes)
+ * - Previous lastActivityAt (preserves prior PR-driven updates)
+ */
 function withActivityTimestamps(
   incoming: Worktree[],
   existing: Worktree[],
@@ -51,17 +58,20 @@ function withActivityTimestamps(
   const existingMap = new Map(existing.map((w) => [w.id, w]));
   return incoming.map((wt) => {
     const prev = existingMap.get(wt.id);
-    if (!prev) return { ...wt, lastActivityAt: Date.now() };
-    const changed =
-      prev.agentStatus !== wt.agentStatus ||
-      prev.additions !== wt.additions ||
-      prev.deletions !== wt.deletions ||
-      prev.prStatus?.number !== wt.prStatus?.number ||
-      prev.prStatus?.state !== wt.prStatus?.state;
-    return {
-      ...wt,
-      lastActivityAt: changed ? Date.now() : (prev.lastActivityAt ?? Date.now()),
-    };
+
+    // Candidates for "last activity" — take the max of all available signals
+    const candidates: number[] = [];
+    if (wt.lastCommitEpoch) candidates.push(wt.lastCommitEpoch);
+    if (prev?.lastActivityAt) candidates.push(prev.lastActivityAt);
+
+    // Agent status change counts as activity
+    if (prev && prev.agentStatus !== wt.agentStatus) {
+      candidates.push(Date.now());
+    }
+
+    const lastActivityAt = candidates.length > 0 ? Math.max(...candidates) : wt.lastCommitEpoch ?? undefined;
+
+    return { ...wt, lastActivityAt };
   });
 }
 
@@ -129,9 +139,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
         newSeen.delete(id);
       }
       return {
-        worktrees: state.worktrees.map((wt) =>
-          wt.id === id ? { ...wt, ...patch } : wt,
-        ),
+        worktrees: state.worktrees.map((wt) => {
+          if (wt.id !== id) return wt;
+          // Update lastActivityAt when agent status changes
+          const activityPatch =
+            patch.agentStatus && patch.agentStatus !== wt.agentStatus
+              ? { lastActivityAt: Date.now() }
+              : {};
+          return { ...wt, ...patch, ...activityPatch };
+        }),
         seenWorktrees: newSeen,
       };
     }),

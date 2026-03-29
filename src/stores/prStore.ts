@@ -187,14 +187,20 @@ export const usePrStore = create<PrState>((set, get) => ({
       // Use manual override if still active, otherwise auto-assign
       const column = newOverrides[wt.id] ?? pr.autoColumn;
 
-      const prChanged =
-        wt.prStatus?.number !== prStatus.number ||
-        wt.prStatus?.state !== prStatus.state;
+      // Use the PR's updatedAt as the activity timestamp when available
+      const prUpdatedAtMs = pr.updatedAt ? new Date(pr.updatedAt).getTime() : undefined;
+
+      // Pick the most recent timestamp from: PR updatedAt, last commit, or previous activity
+      // No Date.now() here — we only want real timestamps, not "when we fetched"
+      const candidates: number[] = [];
+      if (prUpdatedAtMs && !Number.isNaN(prUpdatedAtMs)) candidates.push(prUpdatedAtMs);
+      if (wt.lastCommitEpoch) candidates.push(wt.lastCommitEpoch);
+      if (wt.lastActivityAt) candidates.push(wt.lastActivityAt);
 
       patches.set(wt.id, {
         prStatus,
         column,
-        lastActivityAt: prChanged ? Date.now() : (wt.lastActivityAt ?? Date.now()),
+        lastActivityAt: candidates.length > 0 ? Math.max(...candidates) : undefined,
       });
 
       // Sidebar summary data

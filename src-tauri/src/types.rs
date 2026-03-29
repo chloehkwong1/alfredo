@@ -73,6 +73,9 @@ pub struct Worktree {
     pub is_branch_mode: bool,
     pub additions: Option<u32>,
     pub deletions: Option<u32>,
+    /// Epoch milliseconds of the latest commit on this branch.
+    #[serde(default)]
+    pub last_commit_epoch: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -118,6 +121,9 @@ pub struct PrStatus {
     pub head_sha: Option<String>,
     #[serde(default)]
     pub body: Option<String>,
+    /// ISO 8601 timestamp of the last update to this PR (from GitHub API).
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

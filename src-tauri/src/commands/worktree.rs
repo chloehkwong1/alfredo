@@ -70,6 +70,12 @@ pub async fn create_worktree(
         is_branch_mode: config.branch_mode,
         additions: None,
         deletions: None,
+        last_commit_epoch: Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0),
+        ),
     })
 }
 
@@ -166,6 +172,7 @@ pub async fn get_worktree_status(
         is_branch_mode: config.branch_mode,
         additions,
         deletions,
+        last_commit_epoch: None, // Will be populated by list_worktrees on next refresh
     })
 }
 

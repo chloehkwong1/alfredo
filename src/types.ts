@@ -41,7 +41,8 @@ export interface Worktree {
   additions: number | null;
   deletions: number | null;
   archived?: boolean;
-  lastActivityAt?: number; // unix timestamp ms, updated on status/diff/pr changes
+  lastActivityAt?: number; // unix timestamp ms, computed from max(lastCommitEpoch, prUpdatedAt, agentChange)
+  lastCommitEpoch?: number; // epoch ms of latest commit on branch (from Rust)
   repoPath: string;
 }
 
@@ -94,6 +95,8 @@ export interface PrStatusWithColumn extends PrStatus {
   reviews: PrReview[];
   /** Line comments + issue comments merged. */
   comments: PrComment[];
+  /** ISO 8601 timestamp of the last update to this PR. */
+  updatedAt?: string;
 }
 
 // ── Config ──────────────────────────────────────────────────────

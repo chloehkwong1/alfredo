@@ -247,6 +247,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
         }
 
         let branch = get_branch_for_path(&wt_path).unwrap_or_else(|| name.to_string());
+        let last_commit_epoch = get_last_commit_epoch(&wt_path);
 
         worktrees.push(Worktree {
             id: name.to_string(),
@@ -260,6 +261,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             is_branch_mode: false,
             additions: None,
             deletions: None,
+            last_commit_epoch,
         });
     }
 
@@ -323,6 +325,15 @@ fn get_branch_for_path(path: &Path) -> Option<String> {
     let repo = Repository::open(path).ok()?;
     let head = repo.head().ok()?;
     head.shorthand().map(std::string::ToString::to_string)
+}
+
+/// Helper: get the epoch milliseconds of the latest commit on HEAD.
+fn get_last_commit_epoch(path: &Path) -> Option<i64> {
+    let repo = Repository::open(path).ok()?;
+    let head = repo.head().ok()?;
+    let commit = head.peel_to_commit().ok()?;
+    let epoch_secs = commit.time().seconds();
+    Some(epoch_secs * 1000)
 }
 
 #[cfg(test)]

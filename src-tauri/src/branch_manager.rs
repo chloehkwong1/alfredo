@@ -31,6 +31,12 @@ pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>),
             .unwrap_or("unknown")
             .to_string();
 
+        let last_commit_epoch = branch
+            .get()
+            .peel_to_commit()
+            .ok()
+            .map(|c| c.time().seconds() * 1000);
+
         worktrees.push(Worktree {
             id: format!("branch-{name}"),
             name: name.clone(),
@@ -43,6 +49,7 @@ pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>),
             is_branch_mode: true,
             additions: None,
             deletions: None,
+            last_commit_epoch,
         });
     }
 
@@ -82,6 +89,12 @@ pub async fn create_branch(
         is_branch_mode: true,
         additions: None,
         deletions: None,
+        last_commit_epoch: Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0),
+        ),
     })
 }
 

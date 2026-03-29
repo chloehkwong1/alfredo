@@ -47,6 +47,8 @@ pub struct PrStatusWithColumn {
     pub reviews: Vec<PrReview>,
     /// Line comments + issue comments merged, for the PR panel.
     pub comments: Vec<PrComment>,
+    /// ISO 8601 timestamp of the last update to this PR.
+    pub updated_at: Option<String>,
 }
 
 impl PrStatusWithColumn {
@@ -75,6 +77,7 @@ impl PrStatusWithColumn {
             check_runs: Vec::new(),
             reviews: Vec::new(),
             comments: Vec::new(),
+            updated_at: pr.updated_at.clone(),
         }
     }
 }
@@ -311,6 +314,7 @@ mod tests {
             merged_at: None,
             head_sha: None,
             body: None,
+            updated_at: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
         assert_eq!(with_col.auto_column, "draftPr");
@@ -330,6 +334,7 @@ mod tests {
             merged_at: None,
             head_sha: None,
             body: None,
+            updated_at: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
         assert_eq!(with_col.auto_column, "openPr");
@@ -349,6 +354,7 @@ mod tests {
             merged_at: None,
             head_sha: None,
             body: None,
+            updated_at: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
         assert_eq!(with_col.auto_column, "done");
