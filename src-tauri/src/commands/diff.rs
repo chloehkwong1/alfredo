@@ -16,6 +16,8 @@ pub struct DiffFile {
     pub additions: usize,
     pub deletions: usize,
     pub hunks: Vec<DiffHunk>,
+    #[serde(default)]
+    pub truncated: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -143,6 +145,7 @@ fn diff_to_files(diff: &git2::Diff<'_>) -> Result<Vec<DiffFile>> {
                 additions: 0,
                 deletions: 0,
                 hunks: Vec::new(),
+                truncated: false,
             });
         }
 

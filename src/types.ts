@@ -179,6 +179,7 @@ export interface DiffFile {
   additions: number;
   deletions: number;
   hunks: DiffHunk[];
+  truncated?: boolean;
 }
 
 export interface DiffHunk {
