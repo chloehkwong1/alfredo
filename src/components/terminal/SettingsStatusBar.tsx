@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, SquarePen, TerminalSquare } from "lucide-react";
 import { Button } from "../ui/Button";
 import { SettingsChip } from "./SettingsChip";
-import { getConfig, saveConfig } from "../../api";
+import { getConfig, saveConfig, openInEditor, openInTerminal, getAppConfig } from "../../api";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
 import type { ClaudeOverrides } from "../../types";
@@ -36,10 +36,11 @@ function displayLabel(options: { value: string; label: string }[], value: string
 
 interface SettingsStatusBarProps {
   branch: string;
+  worktreePath: string;
   onRestartSession: () => void;
 }
 
-function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps) {
+function SettingsStatusBar({ branch, worktreePath, onRestartSession }: SettingsStatusBarProps) {
   const { activeRepo: repoPath } = useAppConfig();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -114,6 +115,26 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
     onRestartSession();
   }, [onRestartSession]);
 
+  const handleOpenEditor = useCallback(async () => {
+    if (!worktreePath) return;
+    try {
+      const appCfg = await getAppConfig();
+      await openInEditor(worktreePath, appCfg.preferredEditor, appCfg.customEditorPath ?? undefined);
+    } catch (e) {
+      console.error("Failed to open editor:", e);
+    }
+  }, [worktreePath]);
+
+  const handleOpenTerminal = useCallback(async () => {
+    if (!worktreePath) return;
+    try {
+      const appCfg = await getAppConfig();
+      await openInTerminal(worktreePath, appCfg.preferredTerminal, appCfg.customTerminalPath ?? undefined);
+    } catch (e) {
+      console.error("Failed to open terminal:", e);
+    }
+  }, [worktreePath]);
+
   return (
     <div className="flex items-center justify-between px-2 py-1 border-t border-border-default flex-shrink-0">
       <div className="flex items-center gap-1.5">
@@ -143,15 +164,35 @@ function SettingsStatusBar({ branch, onRestartSession }: SettingsStatusBarProps)
         />
       </div>
 
-      {hasChanges && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-text-tertiary">Settings changed</span>
-          <Button size="sm" variant="secondary" onClick={handleRestart}>
-            <RotateCcw size={10} />
-            Restart
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        {hasChanges && (
+          <>
+            <span className="text-xs text-text-tertiary">Settings changed</span>
+            <Button size="sm" variant="secondary" onClick={handleRestart}>
+              <RotateCcw size={10} />
+              Restart
+            </Button>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={handleOpenEditor}
+          className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+          title="Open in editor"
+        >
+          <SquarePen size={13} />
+          Editor
+        </button>
+        <button
+          type="button"
+          onClick={handleOpenTerminal}
+          className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+          title="Open in terminal"
+        >
+          <TerminalSquare size={13} />
+          Terminal
+        </button>
+      </div>
     </div>
   );
 }

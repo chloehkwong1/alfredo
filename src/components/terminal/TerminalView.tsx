@@ -231,6 +231,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       {mode === "claude" && worktree && (
         <SettingsStatusBar
           branch={worktree.branch ?? ""}
+          worktreePath={worktree.path ?? ""}
           onRestartSession={handleRestartSession}
         />
       )}
