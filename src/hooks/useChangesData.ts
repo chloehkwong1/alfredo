@@ -22,14 +22,14 @@ export function useChangesData(
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [commitFiles, setCommitFiles] = useState<DiffFile[]>([]);
 
+  // Always load uncommitted files (no viewMode guard)
   useEffect(() => {
-    if (viewMode !== "changes") return;
     let cancelled = false;
     getUncommittedDiff(repoPath)
       .then((files) => { if (!cancelled) setUncommittedFiles(files); })
       .catch((err) => console.error("Failed to load uncommitted diff:", err));
     return () => { cancelled = true; };
-  }, [viewMode, repoPath]);
+  }, [repoPath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,8 +58,7 @@ export function useChangesData(
 
   const displayFiles = useMemo(() => {
     switch (viewMode) {
-      case "changes": return uncommittedFiles;
-      case "pr": return committedFiles;
+      case "changes": return [...uncommittedFiles, ...committedFiles];
       case "commits": return selectedCommitIndex !== null ? commitFiles : [];
     }
   }, [viewMode, uncommittedFiles, committedFiles, commitFiles, selectedCommitIndex]);

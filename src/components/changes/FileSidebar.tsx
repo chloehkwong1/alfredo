@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import type { DiffFile, CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 
-type ViewMode = "changes" | "pr" | "commits";
+type ViewMode = "changes" | "commits";
 
 interface FileSidebarProps {
   viewMode: ViewMode;
@@ -183,7 +183,7 @@ function FileSidebar({
 
   return (
     <div className="w-[200px] bg-bg-primary border-r border-border-default flex-shrink-0 flex flex-col overflow-y-auto">
-      {/* Changes / PR / Commits toggle */}
+      {/* Changes / Commits toggle */}
       <div className="flex p-1.5 gap-0">
         <button
           onClick={() => handleViewModeChange("changes")}
@@ -195,17 +195,6 @@ function FileSidebar({
           ].join(" ")}
         >
           Changes
-        </button>
-        <button
-          onClick={() => handleViewModeChange("pr")}
-          className={[
-            "flex-1 px-2 py-1 text-[10px] border border-l-0 border-border-default",
-            viewMode === "pr"
-              ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-              : "text-text-tertiary",
-          ].join(" ")}
-        >
-          PR
         </button>
         <button
           onClick={() => handleViewModeChange("commits")}

@@ -17,7 +17,7 @@ interface ChangesViewProps {
 }
 
 function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("pr");
+  const [viewMode, setViewMode] = useState<ViewMode>("changes");
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeAnnotationLine, setActiveAnnotationLine] = useState<number | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
@@ -123,8 +123,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const collapseAll = useCallback(() => {
     setCollapsedFiles(new Set(displayFiles.map((f) => f.path)));
   }, [displayFiles]);
-
-  const reviewedCount = displayFiles.filter((f) => reviewedFiles.has(f.path)).length;
 
   const handleToggleReviewed = useCallback(
     (filePath: string) => {
@@ -281,12 +279,10 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
             <span className="text-[10px] text-text-tertiary">
               {viewMode === "changes"
-                ? `${displayFiles.length} uncommitted file${displayFiles.length !== 1 ? "s" : ""}`
-                : viewMode === "pr"
-                  ? `${reviewedCount}/${displayFiles.length} reviewed`
-                  : selectedCommitIndex !== null
-                    ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""} in commit`
-                    : "Select a commit"}
+                ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""}`
+                : selectedCommitIndex !== null
+                  ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""} in commit`
+                  : "Select a commit"}
             </span>
             {displayFiles.length > 0 && (
               <div className="flex items-center gap-1.5 ml-auto">
