@@ -111,7 +111,7 @@ export function PrPanel({
       <div className="flex-1 overflow-y-auto py-2 flex flex-col">
         {/* Description */}
         {pr.body && (
-          <PrDescription body={pr.body} expanded={descExpanded} onToggle={() => setDescExpanded(!descExpanded)} />
+          <PrDescription body={pr.body} prUrl={pr.url} expanded={descExpanded} onToggle={() => setDescExpanded(!descExpanded)} />
         )}
 
         {/* Checks section */}
@@ -172,10 +172,24 @@ export function PrPanel({
 
 // ── Sub-components ─────────────────────────────────────────────────
 
-/** Lightly format a PR body for display: strip img tags, render headers as bold, preserve line breaks. */
+/** Count media items in a PR body string. */
+function countMedia(body: string): { images: number; videos: number } {
+  const imgTags = (body.match(/<img[^>]*\/?>/gi) ?? []).length;
+  const videoTags = (body.match(/<video[^>]*>[\s\S]*?<\/video>/gi) ?? []).length +
+    (body.match(/<video[^>]*\/?>/gi) ?? []).length;
+  const mdImages = (body.match(/!\[[^\]]*\]\([^)]+\)/g) ?? []).length;
+  return { images: imgTags + mdImages, videos: videoTags };
+}
+
+/** Lightly format a PR body for display: strip media, render headers as bold, preserve line breaks. */
 function formatPrBody(body: string): React.ReactNode[] {
-  // Strip HTML img tags
-  const cleaned = body.replace(/<img[^>]*\/?>/gi, "").replace(/\|[-|]+\|/g, "");
+  // Strip HTML img tags, video tags, and markdown images
+  const cleaned = body
+    .replace(/<img[^>]*\/?>/gi, "")
+    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, "")
+    .replace(/<video[^>]*\/?>/gi, "")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/\|[-|]+\|/g, "");
 
   return cleaned.split("\n").map((line, i) => {
     // ## Headers → bold
@@ -209,13 +223,23 @@ function formatPrBody(body: string): React.ReactNode[] {
 
 function PrDescription({
   body,
+  prUrl,
   expanded,
   onToggle,
 }: {
   body: string;
+  prUrl: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const { images, videos } = countMedia(body);
+  const hasMedia = images + videos > 0;
+
+  const mediaSummary = [
+    images > 0 ? `${images} image${images !== 1 ? "s" : ""}` : null,
+    videos > 0 ? `${videos} video${videos !== 1 ? "s" : ""}` : null,
+  ].filter(Boolean).join(", ");
+
   return (
     <div className="px-2.5 py-2 border-b border-border-subtle text-xs text-text-secondary leading-[1.5] overflow-hidden">
       <div className={expanded ? "" : "line-clamp-3"}>
@@ -227,6 +251,21 @@ function PrDescription({
       >
         {expanded ? "Show less" : "Show more"}
       </button>
+      {hasMedia && (
+        <div className="mt-1.5 pt-1.5 border-t border-border-subtle">
+          <a
+            href={prUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent-primary text-[10px] hover:underline"
+          >
+            View full description on GitHub ↗
+          </a>
+          <div className="text-[10px] text-text-tertiary mt-0.5">
+            {mediaSummary} not shown
+          </div>
+        </div>
+      )}
     </div>
   );
 }
