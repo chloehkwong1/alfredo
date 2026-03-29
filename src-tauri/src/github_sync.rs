@@ -204,6 +204,7 @@ async fn poll_repo(
     let _ = app_handle.emit("github:pr-update", &early_payload);
 
     // Phase 2: Enrich non-merged PRs with sidebar indicator data (best-effort).
+    // Enrich each PR's 3 API calls concurrently (mergeable + reviews + checks in parallel).
     for pr_with_col in payload_prs.iter_mut() {
         if pr_with_col.merged {
             continue;
@@ -211,14 +212,24 @@ async fn poll_repo(
 
         let pr_number = pr_with_col.number;
 
-        // 1. Single PR GET — extract mergeable only.
-        if let Ok(mergeable) = manager.get_pr_mergeable(&owner, &repo, pr_number).await {
+        // Fetch mergeable, reviews, and check runs concurrently per PR
+        let (mergeable_result, reviews_result, checks_result) = tokio::join!(
+            manager.get_pr_mergeable(&owner, &repo, pr_number),
+            manager.get_pr_reviews(&owner, &repo, pr_number),
+            async {
+                if let Some(ref sha) = pr_with_col.head_sha {
+                    manager.get_check_runs(&owner, &repo, sha).await
+                } else {
+                    Ok(Vec::new())
+                }
+            },
+        );
+
+        if let Ok(mergeable) = mergeable_result {
             pr_with_col.mergeable = mergeable;
         }
 
-        // 2. Reviews — derive decision (changes_requested > approved > review_required).
-        if let Ok(reviews) = manager.get_pr_reviews(&owner, &repo, pr_number).await {
-            // Deduplicate: keep the latest review per reviewer.
+        if let Ok(reviews) = reviews_result {
             let mut latest: std::collections::HashMap<String, crate::types::PrReview> =
                 std::collections::HashMap::new();
             for review in reviews {
@@ -240,17 +251,14 @@ async fn poll_repo(
             };
         }
 
-        // 3. Check runs using head_sha for precise results.
-        if let Some(ref sha) = pr_with_col.head_sha {
-            if let Ok(check_runs) = manager.get_check_runs(&owner, &repo, sha).await {
-                let failing = check_runs.iter().filter(|cr| {
-                    matches!(
-                        cr.conclusion.as_deref(),
-                        Some("failure") | Some("timed_out") | Some("action_required")
-                    )
-                }).count() as u32;
-                pr_with_col.failing_check_count = Some(failing);
-            }
+        if let Ok(check_runs) = checks_result {
+            let failing = check_runs.iter().filter(|cr| {
+                matches!(
+                    cr.conclusion.as_deref(),
+                    Some("failure") | Some("timed_out") | Some("action_required")
+                )
+            }).count() as u32;
+            pr_with_col.failing_check_count = Some(failing);
         }
     }
 
