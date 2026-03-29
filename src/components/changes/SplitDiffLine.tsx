@@ -98,13 +98,13 @@ function SplitSideContent({
         bgClass,
         canClick ? "cursor-pointer hover:bg-bg-hover/50" : "",
       ].join(" ")}
+      onClick={canClick ? () => onClickLine!(side.lineNumber!) : undefined}
     >
       <span
         className={[
           "w-[36px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px]",
           gutterBgClass,
         ].join(" ")}
-        onClick={canClick ? () => onClickLine!(side.lineNumber!) : undefined}
       >
         {side.lineNumber ?? ""}
       </span>

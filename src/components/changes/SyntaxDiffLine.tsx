@@ -89,13 +89,13 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
           LINE_BG[lineType],
           onClickLine ? "cursor-pointer hover:bg-bg-hover/50" : "",
         ].join(" ")}
+        onClick={onClickLine}
       >
         <span
           className={[
             "w-[36px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px]",
             GUTTER_BG[lineType],
           ].join(" ")}
-          onClick={onClickLine}
         >
           {oldLineNumber ?? ""}
         </span>
@@ -104,11 +104,10 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
             "w-[36px] text-right pr-2 text-text-tertiary select-none flex-shrink-0 text-[10px]",
             GUTTER_BG[lineType],
           ].join(" ")}
-          onClick={onClickLine}
         >
           {newLineNumber ?? ""}
         </span>
-        <span className="w-4 text-center select-none flex-shrink-0 relative" onClick={onClickLine}>
+        <span className="w-4 text-center select-none flex-shrink-0 relative">
           <span className={onClickLine ? "text-text-tertiary group-hover:invisible" : "text-text-tertiary"}>
             {prefix}
           </span>
