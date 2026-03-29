@@ -7,6 +7,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AgentState } from "../types";
 import { spawnPty, closePty, createPtyChannel, resizePty, writePty } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useRemoteControlStore } from "../stores/remoteControlStore";
 import { loadTerminalPreferences } from "./terminalPreferences";
 import type { TerminalPreferences } from "./terminalPreferences";
 
@@ -405,6 +406,10 @@ export class SessionManager {
     const session = this.sessions.get(sessionKey);
     if (!session) return;
 
+    // Clean up remote-control state for this worktree
+    const worktreeId = sessionKey.split(":")[0];
+    useRemoteControlStore.getState().disable(worktreeId);
+
     try {
       await closePty(session.sessionId);
     } catch {
@@ -417,6 +422,10 @@ export class SessionManager {
   async closeSession(sessionKey: string): Promise<void> {
     const session = this.sessions.get(sessionKey);
     if (!session) return;
+
+    // Clean up remote-control state for this worktree
+    const worktreeId = sessionKey.split(":")[0];
+    useRemoteControlStore.getState().disable(worktreeId);
 
     this.sessions.delete(sessionKey);
     try {
