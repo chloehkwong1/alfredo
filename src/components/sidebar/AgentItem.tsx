@@ -1,6 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState } from "react";
-import { Archive, Trash2 } from "lucide-react";
+import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import {
@@ -192,11 +192,7 @@ function AgentItem({
                 ].join(" ")}>
                   {getStatusText(effectiveStatus)}
                 </span>
-                {prSummary?.failingCheckCount != null && prSummary.failingCheckCount > 0 && (
-                  <span className="text-2xs text-status-error flex-shrink-0">
-                    {prSummary.failingCheckCount} failing
-                  </span>
-                )}
+
                 <span className="flex items-center gap-1 text-2xs ml-auto flex-shrink-0">
                   {(() => {
                     const add = formatDiffStat(worktree.additions);
@@ -220,6 +216,10 @@ function AgentItem({
                   )}
                 </span>
               </div>
+              {/* Line 4: PR stats icon row */}
+              {worktree.prStatus && prSummary && (
+                <PrStatsRow prSummary={prSummary} />
+              )}
             </div>
           </button>
         </ContextMenuTrigger>
@@ -268,6 +268,85 @@ function AgentItem({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function PrStatsRow({ prSummary }: {
+  prSummary: {
+    failingCheckCount?: number;
+    unresolvedCommentCount?: number;
+    reviewDecision?: string | null;
+    mergeable?: boolean | null;
+  };
+}) {
+  const {
+    failingCheckCount,
+    unresolvedCommentCount,
+    reviewDecision,
+    mergeable,
+  } = prSummary;
+
+  const checksPass = failingCheckCount != null && failingCheckCount === 0;
+  const checksFail = failingCheckCount != null && failingCheckCount > 0;
+
+  return (
+    <div className="flex items-center gap-2.5 pt-[5px] mt-[5px] border-t border-border-subtle">
+      {/* Check status */}
+      {checksPass && (
+        <span className="flex items-center gap-[3px] text-[10px] text-status-idle">
+          <CircleCheck size={11} />
+          pass
+        </span>
+      )}
+      {checksFail && (
+        <span className="flex items-center gap-[3px] text-[10px] text-status-error">
+          <CircleX size={11} />
+          {failingCheckCount}
+        </span>
+      )}
+
+      {/* Review decision */}
+      {reviewDecision === "APPROVED" && (
+        <span className="flex items-center gap-[3px] text-[10px] text-status-idle">
+          <Eye size={11} />
+          Approved
+        </span>
+      )}
+      {reviewDecision === "CHANGES_REQUESTED" && (
+        <span className="flex items-center gap-[3px] text-[10px] text-status-error">
+          <Eye size={11} />
+          Changes
+        </span>
+      )}
+      {reviewDecision === "REVIEW_REQUIRED" && (
+        <span className="flex items-center gap-[3px] text-[10px] text-status-busy">
+          <Clock size={11} />
+          Pending
+        </span>
+      )}
+
+      {/* Comments */}
+      {unresolvedCommentCount != null && unresolvedCommentCount > 0 && (
+        <span className="flex items-center gap-[3px] text-[10px] text-text-tertiary">
+          <MessageCircle size={11} />
+          {unresolvedCommentCount}
+        </span>
+      )}
+
+      {/* Mergeable */}
+      {mergeable === false && (
+        <span className="flex items-center gap-[3px] text-[10px] text-status-error">
+          <AlertTriangle size={11} />
+          Conflict
+        </span>
+      )}
+      {mergeable === true && reviewDecision === "APPROVED" && checksPass && (
+        <span className="flex items-center gap-[3px] text-[10px] text-status-idle">
+          <CircleCheck size={11} />
+          Ready
+        </span>
+      )}
+    </div>
   );
 }
 

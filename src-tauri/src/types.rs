@@ -116,6 +116,8 @@ pub struct PrStatus {
     pub merged_at: Option<String>,
     #[serde(default)]
     pub head_sha: Option<String>,
+    #[serde(default)]
+    pub body: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

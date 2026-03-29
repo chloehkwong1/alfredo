@@ -272,6 +272,7 @@ mod tests {
             base_branch: None,
             merged_at: None,
             head_sha: None,
+            body: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
         assert_eq!(with_col.auto_column, "draftPr");
@@ -290,6 +291,7 @@ mod tests {
             base_branch: None,
             merged_at: None,
             head_sha: None,
+            body: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
         assert_eq!(with_col.auto_column, "openPr");
@@ -308,6 +310,7 @@ mod tests {
             base_branch: None,
             merged_at: None,
             head_sha: None,
+            body: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
         assert_eq!(with_col.auto_column, "done");

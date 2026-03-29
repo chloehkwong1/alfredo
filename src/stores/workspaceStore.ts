@@ -41,6 +41,8 @@ interface WorkspaceState {
   runningServer: { worktreeId: string; sessionId: string; tabId: string } | null;
   /** Tracks reviewed files per worktree. Keyed by worktreeId. */
   reviewedFiles: Record<string, Set<string>>;
+  /** Jump-to-comment callback registered by ChangesView when active. Keyed by worktreeId. */
+  jumpToComment: Record<string, ((path: string, line: number) => void) | null>;
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
@@ -83,6 +85,8 @@ interface WorkspaceState {
   updateTab: (worktreeId: string, tabId: string, patch: Partial<WorkspaceTab>) => void;
   toggleReviewedFile: (worktreeId: string, filePath: string) => void;
   clearReviewedFiles: (worktreeId: string) => void;
+  setJumpToComment: (worktreeId: string, fn: (path: string, line: number) => void) => void;
+  clearJumpToComment: (worktreeId: string) => void;
   setWorktreesForRepo: (repoPath: string, worktrees: Worktree[]) => void;
   clearWorktreesForRepo: (repoPath: string) => void;
   clearStore: () => void;
@@ -161,6 +165,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   disconnectedTabs: new Set<string>(),
   runningServer: null,
   reviewedFiles: {},
+  jumpToComment: {},
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -541,6 +546,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       reviewedFiles: { ...state.reviewedFiles, [worktreeId]: new Set<string>() },
     })),
 
+  setJumpToComment: (worktreeId, fn) =>
+    set((state) => ({
+      jumpToComment: { ...state.jumpToComment, [worktreeId]: fn },
+    })),
+
+  clearJumpToComment: (worktreeId) =>
+    set((state) => ({
+      jumpToComment: { ...state.jumpToComment, [worktreeId]: null },
+    })),
+
   setWorktreesForRepo: (repoPath, freshWorktrees) =>
     set((state) => {
       const otherRepoWorktrees = state.worktrees.filter((wt) => wt.repoPath !== repoPath);
@@ -573,6 +588,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       disconnectedTabs: new Set<string>(),
       runningServer: null,
       reviewedFiles: {},
+      jumpToComment: {},
     }),
 
   setRunningServer: (server) => set({ runningServer: server }),

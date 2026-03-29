@@ -90,6 +90,7 @@ impl GithubManager {
                 base_branch: Some(pr.base.ref_field),
                 merged_at: None,
                 head_sha: Some(pr.head.sha),
+                body: pr.body.clone(),
             })
             .collect();
 
@@ -126,6 +127,7 @@ impl GithubManager {
                 base_branch: Some(pr.base.ref_field),
                 merged_at: pr.merged_at.map(|dt| dt.to_rfc3339()),
                 head_sha: Some(pr.head.sha),
+                body: pr.body.clone(),
             });
 
         prs.extend(merged_prs);
@@ -181,6 +183,7 @@ impl GithubManager {
             base_branch: Some(base_branch),
             merged_at,
             head_sha: Some(head_sha),
+            body: pr.body.clone(),
         }))
     }
 
@@ -664,6 +667,7 @@ mod tests {
             base_branch: None,
             merged_at: None,
             head_sha: None,
+            body: None,
         };
         assert_eq!(determine_column(Some(&pr)), KanbanColumn::DraftPr);
     }
@@ -681,6 +685,7 @@ mod tests {
             base_branch: None,
             merged_at: None,
             head_sha: None,
+            body: None,
         };
         assert_eq!(determine_column(Some(&pr)), KanbanColumn::OpenPr);
     }
@@ -698,6 +703,7 @@ mod tests {
             base_branch: None,
             merged_at: None,
             head_sha: None,
+            body: None,
         };
         assert_eq!(determine_column(Some(&pr)), KanbanColumn::Done);
     }

@@ -71,6 +71,7 @@ export interface PrStatus {
   baseBranch?: string;
   mergedAt?: string;
   headSha?: string;
+  body?: string;
 }
 
 /** Payload emitted by the `github:pr-update` Tauri event. */
