@@ -2,6 +2,46 @@ use octocrab::Octocrab;
 
 use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct GithubPrFile {
+    filename: String,
+    status: String,
+    additions: usize,
+    deletions: usize,
+    patch: Option<String>,
+    previous_filename: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct GithubPrCommit {
+    sha: String,
+    commit: GithubCommitDetail,
+}
+
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct GithubCommitDetail {
+    message: String,
+    author: GithubCommitAuthor,
+}
+
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct GithubCommitAuthor {
+    name: String,
+    date: String,
+}
+
+/// Parse a GitHub ISO 8601 timestamp (e.g. "2026-03-29T10:30:00Z") into epoch seconds.
+#[allow(dead_code)]
+fn parse_github_timestamp(date: &str) -> i64 {
+    chrono::DateTime::parse_from_rfc3339(date)
+        .map(|dt| dt.timestamp())
+        .unwrap_or(0)
+}
+
 /// Get a GitHub token: tries `gh auth token` first, falls back to the provided config token.
 pub async fn resolve_token(config_token: Option<&str>) -> Result<String, AppError> {
     // Try gh CLI first
@@ -430,6 +470,148 @@ impl GithubManager {
             mergeable,
             review_decision,
         })
+    }
+
+    /// Fetch the list of files changed in a PR, with parsed diff hunks.
+    /// Uses the GitHub REST API: GET /repos/{owner}/{repo}/pulls/{number}/files
+    #[allow(dead_code)]
+    pub async fn get_pr_files(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<Vec<crate::commands::diff::DiffFile>, AppError> {
+        let mut all_files = Vec::new();
+        let mut page: u32 = 1;
+        let client = reqwest::Client::new();
+
+        loop {
+            let url = format!(
+                "https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files?per_page=100&page={page}"
+            );
+
+            let response = client
+                .get(&url)
+                .header("Authorization", format!("Bearer {}", self.token()))
+                .header("User-Agent", "alfredo")
+                .header("Accept", "application/vnd.github+json")
+                .send()
+                .await
+                .map_err(|e| AppError::Github(format!("failed to fetch PR files: {e}")))?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().await.unwrap_or_default();
+                return Err(AppError::Github(format!(
+                    "GitHub PR files API returned {status}: {body}"
+                )));
+            }
+
+            let files: Vec<GithubPrFile> = response
+                .json()
+                .await
+                .map_err(|e| AppError::Github(format!("failed to parse PR files response: {e}")))?;
+
+            let count = files.len();
+
+            for file in files {
+                let status = match file.status.as_str() {
+                    "added" => "added",
+                    "removed" => "deleted",
+                    "renamed" => "renamed",
+                    _ => "modified",
+                };
+
+                let (hunks, truncated) = if let Some(ref patch) = file.patch {
+                    (crate::patch_parser::parse_patch(patch), false)
+                } else {
+                    (Vec::new(), true)
+                };
+
+                let additions = file.additions;
+                let deletions = file.deletions;
+
+                all_files.push(crate::commands::diff::DiffFile {
+                    path: file.filename,
+                    old_path: file.previous_filename,
+                    status: status.to_string(),
+                    additions,
+                    deletions,
+                    hunks,
+                    truncated,
+                });
+            }
+
+            if count < 100 {
+                break;
+            }
+            page += 1;
+        }
+
+        Ok(all_files)
+    }
+
+    /// Fetch commits for a PR from the GitHub API.
+    /// Uses: GET /repos/{owner}/{repo}/pulls/{number}/commits
+    #[allow(dead_code)]
+    pub async fn get_pr_commits(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<Vec<crate::commands::diff::CommitInfo>, AppError> {
+        let mut all_commits = Vec::new();
+        let mut page: u32 = 1;
+        let client = reqwest::Client::new();
+
+        loop {
+            let url = format!(
+                "https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/commits?per_page=100&page={page}"
+            );
+
+            let response = client
+                .get(&url)
+                .header("Authorization", format!("Bearer {}", self.token()))
+                .header("User-Agent", "alfredo")
+                .header("Accept", "application/vnd.github+json")
+                .send()
+                .await
+                .map_err(|e| AppError::Github(format!("failed to fetch PR commits: {e}")))?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().await.unwrap_or_default();
+                return Err(AppError::Github(format!(
+                    "GitHub PR commits API returned {status}: {body}"
+                )));
+            }
+
+            let commits: Vec<GithubPrCommit> = response
+                .json()
+                .await
+                .map_err(|e| AppError::Github(format!("failed to parse PR commits response: {e}")))?;
+
+            let count = commits.len();
+
+            for commit in commits {
+                let hash = commit.sha.clone();
+                let short_hash = hash[..7.min(hash.len())].to_string();
+                all_commits.push(crate::commands::diff::CommitInfo {
+                    hash,
+                    short_hash,
+                    message: commit.commit.message,
+                    author: commit.commit.author.name,
+                    timestamp: parse_github_timestamp(&commit.commit.author.date),
+                });
+            }
+
+            if count < 100 {
+                break;
+            }
+            page += 1;
+        }
+
+        Ok(all_commits)
     }
 
     /// Re-run only the failed jobs in a workflow run.

@@ -31,6 +31,7 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 axum = "0.8"
 thiserror = "2"
 libc = "0.2"
+chrono = { version = "0.4.44", features = ["serde"] }
 
 [lints.clippy]
 unwrap_used = "warn"
