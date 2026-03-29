@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import type { DiffFile, CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
@@ -121,6 +121,30 @@ function FileSidebar({
   onToggleReviewed,
 }: FileSidebarProps) {
   const [filter, setFilter] = useState("");
+  const filterInputRef = useRef<HTMLInputElement>(null);
+
+  // Cmd+F focuses the filter input when this component is visible
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey && e.key === "f") {
+        // If filter input is hidden (totalItems <= 5), skip — nothing to focus
+        if (!filterInputRef.current) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (document.activeElement === filterInputRef.current) {
+          // Already focused — select all text (standard Cmd+F-again behavior)
+          filterInputRef.current.select();
+        } else {
+          filterInputRef.current.focus();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, []);
 
   const handleViewModeChange = useCallback(
     (mode: ViewMode) => {
@@ -217,6 +241,7 @@ function FileSidebar({
       {totalItems > 5 && (
         <div className="px-1.5 pb-1">
           <input
+            ref={filterInputRef}
             type="text"
             placeholder={viewMode === "commits" ? "Filter commits..." : "Filter files..."}
             className="w-full px-2 py-1 text-[10px] bg-bg-secondary border border-border-subtle rounded text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary/40"
