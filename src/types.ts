@@ -88,6 +88,12 @@ export interface PrStatusWithColumn extends PrStatus {
   mergeable?: boolean | null;
   /** The repo path this PR belongs to, for multi-repo disambiguation. */
   repoPath: string;
+  /** Full check run objects for the PR panel. */
+  checkRuns: CheckRun[];
+  /** Full review objects (deduplicated, latest per reviewer). */
+  reviews: PrReview[];
+  /** Line comments + issue comments merged. */
+  comments: PrComment[];
 }
 
 // ── Config ──────────────────────────────────────────────────────
