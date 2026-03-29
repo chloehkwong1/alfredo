@@ -8,7 +8,9 @@ type ViewMode = "changes" | "commits";
 interface FileSidebarProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
-  files: DiffFile[];
+  uncommittedFiles: DiffFile[];
+  committedFiles: DiffFile[];
+  hasPr: boolean;
   commits: CommitInfo[];
   selectedCommitIndex: number | null;
   onSelectCommit: (index: number) => void;
@@ -106,7 +108,9 @@ const FileRow = memo(function FileRow({
 function FileSidebar({
   viewMode,
   onViewModeChange,
-  files,
+  uncommittedFiles,
+  committedFiles,
+  hasPr,
   commits,
   selectedCommitIndex,
   onSelectCommit,
@@ -132,9 +136,13 @@ function FileSidebar({
     [filter],
   );
 
-  const filteredFiles = useMemo(
-    () => files.filter(filterFile),
-    [files, filterFile],
+  const filteredUncommitted = useMemo(
+    () => uncommittedFiles.filter(filterFile),
+    [uncommittedFiles, filterFile],
+  );
+  const filteredCommitted = useMemo(
+    () => committedFiles.filter(filterFile),
+    [committedFiles, filterFile],
   );
   const filteredCommits = useMemo(
     () =>
@@ -146,7 +154,10 @@ function FileSidebar({
     [commits, filter],
   );
 
-  const totalItems = viewMode === "commits" ? commits.length : files.length;
+  const allFiles = viewMode === "changes"
+    ? uncommittedFiles.length + committedFiles.length
+    : 0;
+  const totalItems = viewMode === "commits" ? commits.length : allFiles;
 
   // Progressive rendering: show first batch, expand on demand
   const INITIAL_FILE_LIMIT = 50;
@@ -157,14 +168,8 @@ function FileSidebar({
     setShowAllFiles(false);
   }, [viewMode]);
 
-  const visibleFiles = useMemo(
-    () => showAllFiles ? filteredFiles : filteredFiles.slice(0, INITIAL_FILE_LIMIT),
-    [filteredFiles, showAllFiles],
-  );
-  const hasMoreFiles = filteredFiles.length > INITIAL_FILE_LIMIT && !showAllFiles;
-
   const renderFileList = useCallback(
-    (filesToRender: DiffFile[]) =>
+    (filesToRender: DiffFile[], hideReviewCheckbox: boolean) =>
       filesToRender.map((file) => (
         <FileRow
           key={file.path}
@@ -173,12 +178,12 @@ function FileSidebar({
           isActive={activeFilePath === file.path}
           isCollapsed={collapsedFiles.has(file.path)}
           isReviewed={reviewedFiles.has(file.path)}
-          hideReviewCheckbox={viewMode === "changes"}
+          hideReviewCheckbox={hideReviewCheckbox}
           onSelect={onSelectFile}
           onToggleReviewed={onToggleReviewed}
         />
       )),
-    [activeFilePath, collapsedFiles, reviewedFiles, viewMode, onSelectFile, onToggleReviewed],
+    [activeFilePath, collapsedFiles, reviewedFiles, onSelectFile, onToggleReviewed],
   );
 
   return (
@@ -266,37 +271,61 @@ function FileSidebar({
         </>
       ) : (
         <>
-          {filteredFiles.length > 0 ? (
-            <div>
-              <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
-                <span className="text-[9px] uppercase tracking-wider text-text-tertiary">
-                  {viewMode === "changes" ? "Uncommitted" : "Committed"}
-                </span>
-                <span className="text-[9px] bg-bg-hover px-1.5 rounded-full text-text-tertiary">
-                  {filteredFiles.length}
-                </span>
-              </div>
-              {renderFileList(visibleFiles)}
-              {hasMoreFiles && (
-                <button
-                  onClick={() => setShowAllFiles(true)}
-                  className="w-full px-2.5 py-1.5 text-[10px] text-accent-primary hover:text-accent-primary/80 hover:bg-bg-hover transition-colors text-center"
-                >
-                  Show {filteredFiles.length - INITIAL_FILE_LIMIT} more files
-                </button>
-              )}
-            </div>
-          ) : viewMode === "changes" ? (
+          {filteredUncommitted.length === 0 && filteredCommitted.length === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 px-4 py-8 text-center">
               <span className="text-lg text-text-tertiary/30 mb-2">✓</span>
-              <span className="text-xs text-text-tertiary">No local changes</span>
+              <span className="text-xs text-text-tertiary">No changes on this branch</span>
               <span className="text-[10px] text-text-tertiary/60 mt-1">
-                Edits you make on this branch will appear here
+                Edits you make will appear here
               </span>
             </div>
           ) : (
-            <div className="px-2.5 py-4 text-xs text-text-tertiary text-center">
-              No changes
+            <div>
+              {/* Uncommitted section */}
+              {filteredUncommitted.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
+                    <span className="text-[9px] uppercase tracking-wider text-amber-400">
+                      ● Uncommitted
+                    </span>
+                    <span className="text-[9px] bg-bg-hover px-1.5 rounded-full text-text-tertiary">
+                      {filteredUncommitted.length}
+                    </span>
+                  </div>
+                  {renderFileList(filteredUncommitted, true)}
+                </>
+              )}
+
+              {/* Divider between sections */}
+              {filteredUncommitted.length > 0 && filteredCommitted.length > 0 && (
+                <div className="border-t border-border-default mx-2.5 my-1" />
+              )}
+
+              {/* Committed section */}
+              {filteredCommitted.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
+                    <span className="text-[9px] uppercase tracking-wider text-text-tertiary">
+                      Committed
+                    </span>
+                    <span className="text-[9px] bg-bg-hover px-1.5 rounded-full text-text-tertiary">
+                      {filteredCommitted.length}
+                    </span>
+                  </div>
+                  {renderFileList(
+                    showAllFiles ? filteredCommitted : filteredCommitted.slice(0, INITIAL_FILE_LIMIT),
+                    !hasPr,
+                  )}
+                  {filteredCommitted.length > INITIAL_FILE_LIMIT && !showAllFiles && (
+                    <button
+                      onClick={() => setShowAllFiles(true)}
+                      className="w-full px-2.5 py-1.5 text-[10px] text-accent-primary hover:text-accent-primary/80 hover:bg-bg-hover transition-colors text-center"
+                    >
+                      Show {filteredCommitted.length - INITIAL_FILE_LIMIT} more files
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
         </>

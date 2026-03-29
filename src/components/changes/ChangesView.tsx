@@ -42,6 +42,8 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     repoPath, viewMode, selectedCommitIndex, pr?.baseBranch,
   );
 
+  const reviewedCount = displayFiles.filter((f) => reviewedFiles.has(f.path)).length;
+
   // Auto-collapse all files when the diff is large to prevent UI freeze
   const AUTO_COLLAPSE_THRESHOLD = 15;
   const hasAutoCollapsed = useRef(false);
@@ -263,7 +265,9 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
         <FileSidebar
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
-          files={viewMode === "changes" ? uncommittedFiles : committedFiles}
+          uncommittedFiles={uncommittedFiles}
+          committedFiles={committedFiles}
+          hasPr={pr !== null}
           commits={commits}
           selectedCommitIndex={selectedCommitIndex}
           onSelectCommit={handleSelectCommit}
@@ -279,7 +283,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
             <span className="text-[10px] text-text-tertiary">
               {viewMode === "changes"
-                ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""}`
+                ? `${reviewedCount}/${displayFiles.length} files`
                 : selectedCommitIndex !== null
                   ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""} in commit`
                   : "Select a commit"}
@@ -322,14 +326,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
 
           {displayFiles.length === 0 && (
             <div className="flex flex-col items-center justify-center flex-1 text-text-tertiary text-sm gap-1">
-              {viewMode === "changes" ? (
-                <>
-                  <span>No local changes to display</span>
-                  <span className="text-[11px] text-text-tertiary/60">
-                    Switch to the PR tab to review committed changes
-                  </span>
-                </>
-              ) : viewMode === "commits" && selectedCommitIndex === null ? (
+              {viewMode === "commits" && selectedCommitIndex === null ? (
                 <span>Select a commit to view its changes</span>
               ) : (
                 <span>No changes to display</span>
