@@ -80,7 +80,7 @@ function GithubSettings({
     <div className="space-y-5">
       {/* GitHub Connection */}
       <div className="space-y-1.5">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3">GitHub</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">GitHub</div>
 
         {auth.step === "checking" && (
           <div className="flex items-center gap-2 text-xs text-text-tertiary">
@@ -142,8 +142,8 @@ function GithubSettings({
 
       {/* Linear API Key */}
       <div className="space-y-1.5">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">Linear</div>
-        <div className="text-sm font-medium text-text-primary mb-1.5">API Key</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">Linear</div>
+        <div className="text-[13px] font-medium text-text-primary mb-1.5">API Key</div>
         <Input
           type="password"
           placeholder="lin_api_xxxxxxxxxxxx"

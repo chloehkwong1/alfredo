@@ -80,7 +80,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
       {config.enabled && (
         <>
           <div className="space-y-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-5">Notify When</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-5">Notify When</div>
 
             <div className="flex items-center justify-between py-1.5">
               <span className="text-sm text-text-secondary">
@@ -113,7 +113,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
 
           {/* Sound picker */}
           <div className="space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">Sound</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">Sound</div>
 
             <div className="grid grid-cols-3 gap-1.5">
               {SOUND_OPTIONS.map((opt) => (

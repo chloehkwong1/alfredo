@@ -47,12 +47,12 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         Defaults for all new sessions. Override per worktree via the status bar.
       </p>
 
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
         Model & Performance
       </div>
 
       <div className="mb-4">
-        <div className="text-sm font-medium text-text-primary mb-1.5">Model</div>
+        <div className="text-[13px] font-medium text-text-primary mb-1.5">Model</div>
         <select
           value={settings.model ?? ""}
           onChange={(e) => update({ model: e.target.value || undefined })}
@@ -65,7 +65,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
       </div>
 
       <div className="mb-4">
-        <div className="text-sm font-medium text-text-primary mb-1.5">Effort</div>
+        <div className="text-[13px] font-medium text-text-primary mb-1.5">Effort</div>
         <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
           {EFFORT_OPTIONS.map((level) => (
             <button
@@ -85,12 +85,12 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         </div>
       </div>
 
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
         Permissions
       </div>
 
       <div className="mb-4">
-        <div className="text-sm font-medium text-text-primary mb-1.5">Permission Mode</div>
+        <div className="text-[13px] font-medium text-text-primary mb-1.5">Permission Mode</div>
         <select
           value={permissionValue}
           onChange={(e) => {
@@ -111,12 +111,12 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         </p>
       </div>
 
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
         Output
       </div>
 
       <div className="mb-4">
-        <div className="text-sm font-medium text-text-primary mb-1.5">Style</div>
+        <div className="text-[13px] font-medium text-text-primary mb-1.5">Style</div>
         <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
           {OUTPUT_OPTIONS.map((style) => (
             <button

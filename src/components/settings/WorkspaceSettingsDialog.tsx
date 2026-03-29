@@ -163,14 +163,14 @@ function WorkspaceSettingsDialog({
 
         <div className="flex min-h-[320px]">
           {/* Rail */}
-          <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 p-5 pr-3 border-r border-border-default bg-bg-primary">
+          <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 py-5 px-3 border-r border-border-default bg-bg-primary">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
                 className={[
-                  "px-3 py-2 text-sm rounded-[var(--radius-md)] text-left",
+                  "px-3 py-2 text-[13px] rounded-[var(--radius-md)] text-left",
                   "transition-colors duration-[var(--transition-fast)]",
                   "cursor-pointer",
                   tab === t.id
@@ -189,7 +189,7 @@ function WorkspaceSettingsDialog({
               <div>
                 {/* Repo Path (read-only) */}
                 <div className="mb-4">
-                  <div className="text-sm font-medium text-text-primary mb-1.5">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
                     Repository Path
                   </div>
                   <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-primary px-3 h-8 text-sm text-text-secondary">
@@ -202,7 +202,7 @@ function WorkspaceSettingsDialog({
 
                 {/* Display Name */}
                 <div className="mb-4">
-                  <div className="text-sm font-medium text-text-primary mb-1.5">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
                     Display Name
                   </div>
                   <input
@@ -222,7 +222,7 @@ function WorkspaceSettingsDialog({
 
                 {/* Worktree Base Path */}
                 <div className="mb-4">
-                  <div className="text-sm font-medium text-text-primary mb-1.5">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
                     Worktree Directory
                   </div>
                   <input
@@ -244,7 +244,7 @@ function WorkspaceSettingsDialog({
             {tab === "scripts" && (
               <div>
                 {/* Setup Scripts */}
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
                   Setup Scripts
                 </div>
                 <p className="text-xs text-text-tertiary mb-3">
@@ -258,7 +258,7 @@ function WorkspaceSettingsDialog({
                 />
 
                 {/* Run Script */}
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
                   Run Script
                 </div>
                 <p className="text-xs text-text-tertiary mb-3">

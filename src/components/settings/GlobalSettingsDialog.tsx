@@ -60,7 +60,7 @@ function SectionTitle({ children, first }: { children: React.ReactNode; first?: 
   return (
     <div
       className={[
-        "text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3",
+        "text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5",
         first ? "" : "mt-8",
       ].join(" ")}
     >
@@ -72,9 +72,9 @@ function SectionTitle({ children, first }: { children: React.ReactNode; first?: 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="mb-4 last:mb-0">
-      <div className="text-sm font-medium text-text-primary mb-1.5">{label}</div>
+      <div className="text-[13px] font-medium text-text-primary mb-1.5">{label}</div>
       {children}
-      {hint && <p className="text-xs text-text-tertiary mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-text-tertiary mt-[5px]">{hint}</p>}
     </div>
   );
 }
@@ -191,10 +191,10 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[680px] p-0 overflow-hidden">
-        <div className="px-6 pt-5 pb-3">
+        <div className="px-6 pt-6 pb-2">
           <h2 className="text-base font-semibold text-text-primary">Settings</h2>
         </div>
-        <div className="flex min-h-[340px]">
+        <div className="flex min-h-[440px]">
           {/* Tab rail */}
           <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 py-5 px-3 border-r border-border-default bg-bg-primary">
             {TABS.map((t) => (
@@ -203,7 +203,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                 type="button"
                 onClick={() => setTab(t.id)}
                 className={[
-                  "px-3 py-2 text-sm rounded-[var(--radius-md)] text-left",
+                  "px-3 py-2 text-[13px] rounded-[var(--radius-md)] text-left",
                   "transition-colors duration-[var(--transition-fast)]",
                   "cursor-pointer",
                   tab === t.id

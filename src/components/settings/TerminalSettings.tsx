@@ -31,11 +31,11 @@ function TerminalSettings() {
 
       {/* Font section */}
       <div>
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3">Font</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">Font</div>
 
         {/* Family */}
         <div className="space-y-1.5 mb-4">
-          <div className="text-sm font-medium text-text-primary mb-1.5">Family</div>
+          <div className="text-[13px] font-medium text-text-primary mb-1.5">Family</div>
           <select
             value={prefs.fontFamily}
             onChange={(e) => update("fontFamily", e.target.value)}
@@ -59,7 +59,7 @@ function TerminalSettings() {
 
         {/* Size */}
         <div className="space-y-1.5 mb-4">
-          <div className="text-sm font-medium text-text-primary mb-1.5">
+          <div className="text-[13px] font-medium text-text-primary mb-1.5">
             Size{" "}
             <span className="font-normal text-text-secondary">
               {prefs.fontSize}px
@@ -82,7 +82,7 @@ function TerminalSettings() {
 
         {/* Line Height */}
         <div className="space-y-1.5 mb-4">
-          <div className="text-sm font-medium text-text-primary mb-1.5">
+          <div className="text-[13px] font-medium text-text-primary mb-1.5">
             Line Height{" "}
             <span className="font-normal text-text-secondary">
               {prefs.lineHeight.toFixed(1)}
@@ -105,7 +105,7 @@ function TerminalSettings() {
 
         {/* Letter Spacing */}
         <div className="space-y-1.5">
-          <div className="text-sm font-medium text-text-primary mb-1.5">
+          <div className="text-[13px] font-medium text-text-primary mb-1.5">
             Letter Spacing{" "}
             <span className="font-normal text-text-secondary">
               {prefs.letterSpacing}px
@@ -129,11 +129,11 @@ function TerminalSettings() {
 
       {/* Cursor section */}
       <div className="mt-6">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">Cursor</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">Cursor</div>
 
         {/* Style */}
         <div className="space-y-1.5 mb-4">
-          <div className="text-sm font-medium text-text-primary mb-1.5">Style</div>
+          <div className="text-[13px] font-medium text-text-primary mb-1.5">Style</div>
           <div className="flex gap-2">
             {(["block", "underline", "bar"] as const).map((style) => (
               <button
@@ -183,7 +183,7 @@ function TerminalSettings() {
 
       {/* Preview section */}
       <div className="mt-6">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">Preview</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">Preview</div>
         <div
           className="rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3"
           style={{
