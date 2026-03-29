@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useLayoutStore } from "../stores/layoutStore";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 import { lifecycleManager } from "../services/lifecycleManager";
 import type { WorkspaceTab } from "../types";
 
@@ -7,6 +8,10 @@ import type { WorkspaceTab } from "../types";
  * Global keyboard shortcuts for the workspace:
  * - Cmd+N: open Create Worktree dialog
  * - Cmd+T: new tab of same type as active pane's current tab
+ * - Cmd+W: close active tab (unless last tab in pane)
+ * - Cmd+B: toggle sidebar
+ * - Cmd+\: split pane right (horizontal)
+ * - Cmd+Shift+\: split pane down (vertical)
  * - Cmd+Shift+C: switch to Changes tab in active pane
  * - Cmd+Shift+T: switch to first terminal/claude tab in active pane
  */
@@ -75,6 +80,61 @@ export function useKeyboardShortcuts(
             const termTabId = pane?.tabIds.find((id) => tabs.find((t) => t.id === id && t.type !== "changes"));
             if (termTabId) {
               layoutState.setPaneActiveTab(activeWorktreeId, activePaneId, termTabId);
+            }
+          }
+        }
+        return;
+      }
+
+      // Cmd+W: close active tab (unless it's the last tab in the pane)
+      if (event.metaKey && !event.shiftKey && event.key === "w") {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const layoutState = useLayoutStore.getState();
+          const activePaneId = layoutState.activePaneId[activeWorktreeId];
+          if (activePaneId) {
+            const pane = layoutState.panes[activeWorktreeId]?.[activePaneId];
+            if (pane && pane.tabIds.length > 1 && pane.activeTabId) {
+              lifecycleManager.removeTab(activeWorktreeId, pane.activeTabId);
+            }
+          }
+        }
+        return;
+      }
+
+      // Cmd+B: toggle sidebar
+      if (event.metaKey && !event.shiftKey && event.key === "b") {
+        event.preventDefault();
+        useWorkspaceStore.getState().toggleSidebar();
+        return;
+      }
+
+      // Cmd+\: split pane right (horizontal)
+      if (event.metaKey && !event.shiftKey && event.key === "\\") {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const layoutState = useLayoutStore.getState();
+          const activePaneId = layoutState.activePaneId[activeWorktreeId];
+          if (activePaneId) {
+            const pane = layoutState.panes[activeWorktreeId]?.[activePaneId];
+            if (pane && pane.tabIds.length >= 2 && pane.activeTabId) {
+              layoutState.splitPane(activeWorktreeId, activePaneId, pane.activeTabId, "horizontal");
+            }
+          }
+        }
+        return;
+      }
+
+      // Cmd+Shift+\: split pane down (vertical)
+      if (event.metaKey && event.shiftKey && event.key === "|") {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const layoutState = useLayoutStore.getState();
+          const activePaneId = layoutState.activePaneId[activeWorktreeId];
+          if (activePaneId) {
+            const pane = layoutState.panes[activeWorktreeId]?.[activePaneId];
+            if (pane && pane.tabIds.length >= 2 && pane.activeTabId) {
+              layoutState.splitPane(activeWorktreeId, activePaneId, pane.activeTabId, "vertical");
             }
           }
         }
