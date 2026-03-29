@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Plus } from "lucide-react";
+import { Settings, Plus, HelpCircle } from "lucide-react";
 import { IconButton } from "../ui";
 import logoSvg from "../../assets/logo-cat.svg";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -9,6 +9,7 @@ import { ArchiveSection } from "./ArchiveSection";
 import { RepoSelector } from "./RepoSelector";
 import { BranchModeView } from "./BranchModeView";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
+import { ShortcutsOverlay } from "../settings/ShortcutsOverlay";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { lifecycleManager } from "../../services/lifecycleManager";
@@ -131,7 +132,14 @@ function Sidebar({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [flatWorktrees, activeWorktreeId, setActiveWorktree]);
 
+  useEffect(() => {
+    const handler = () => setShortcutsOpen(true);
+    window.addEventListener("alfredo:shortcuts-overlay", handler);
+    return () => window.removeEventListener("alfredo:shortcuts-overlay", handler);
+  }, []);
+
   const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
   const [deletingCount, setDeletingCount] = useState<{ current: number; total: number } | null>(null);
@@ -159,6 +167,9 @@ function Sidebar({
           <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
         </div>
         <div className="flex items-center gap-2">
+          <IconButton size="sm" label="Keyboard shortcuts" className="rounded-[6px]" onClick={() => setShortcutsOpen(true)}>
+            <HelpCircle />
+          </IconButton>
           <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
             <Settings />
           </IconButton>
@@ -250,6 +261,7 @@ function Sidebar({
         open={globalSettingsOpen}
         onOpenChange={setGlobalSettingsOpen}
       />
+      <ShortcutsOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <WorkspaceSettingsDialog
         open={workspaceSettingsOpen}
         onOpenChange={setWorkspaceSettingsOpen}

@@ -9,6 +9,7 @@ import type { WorkspaceTab } from "../types";
  * - Cmd+N: open Create Worktree dialog
  * - Cmd+T: new tab of same type as active pane's current tab
  * - Cmd+W: close active tab (unless last tab in pane)
+ * - Cmd+R: open Add Repository modal
  * - Cmd+B: toggle sidebar
  * - Cmd+\: split pane right (horizontal)
  * - Cmd+Shift+\: split pane down (vertical)
@@ -20,9 +21,18 @@ export function useKeyboardShortcuts(
   activeTab: WorkspaceTab | undefined,
   tabs: WorkspaceTab[],
   onCreateDialog: () => void,
+  onShortcutsOverlay?: () => void,
+  onAddRepo?: () => void,
 ) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      // Cmd+? (Cmd+Shift+/): show keyboard shortcuts overlay — works even from inputs
+      if (event.metaKey && event.shiftKey && event.key === "?") {
+        event.preventDefault();
+        onShortcutsOverlay?.();
+        return;
+      }
+
       const tag = (document.activeElement as HTMLElement)?.tagName;
       if (
         tag === "INPUT" ||
@@ -30,6 +40,13 @@ export function useKeyboardShortcuts(
         (document.activeElement as HTMLElement)?.isContentEditable
       )
         return;
+
+      // Cmd+R: open Add Repository modal
+      if (event.metaKey && !event.shiftKey && event.key === "r") {
+        event.preventDefault();
+        onAddRepo?.();
+        return;
+      }
 
       // Cmd+N: open Create Worktree dialog
       if (event.metaKey && !event.shiftKey && event.key === "n") {
@@ -144,5 +161,5 @@ export function useKeyboardShortcuts(
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeWorktreeId, activeTab, tabs, onCreateDialog]);
+  }, [activeWorktreeId, activeTab, tabs, onCreateDialog, onShortcutsOverlay, onAddRepo]);
 }

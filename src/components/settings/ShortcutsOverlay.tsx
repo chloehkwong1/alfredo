@@ -63,7 +63,7 @@ interface ShortcutsOverlayProps {
 function ShortcutsOverlay({ open, onOpenChange }: ShortcutsOverlayProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[480px]">
+      <DialogContent className="w-[480px] p-6">
         <DialogHeader>
           <DialogTitle>Keyboard Shortcuts</DialogTitle>
         </DialogHeader>
