@@ -21,7 +21,7 @@ const PERMISSION_OPTIONS = [
 const OUTPUT_OPTIONS = ["Default", "Explanatory", "Learning"] as const;
 
 const selectClass = [
-  "h-8 w-full px-3 text-sm font-normal",
+  "h-8 w-full px-3 text-[13px] font-normal",
   "bg-bg-primary text-text-primary",
   "border border-border-default rounded-[var(--radius-md)]",
   "hover:border-border-hover",
@@ -43,7 +43,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
 
   return (
     <div>
-      <p className="text-xs text-text-tertiary mb-5">
+      <p className="text-xs text-text-tertiary mb-6">
         Defaults for all new sessions. Override per worktree via the status bar.
       </p>
 
@@ -51,7 +51,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         Model & Performance
       </div>
 
-      <div className="mb-4">
+      <div className="mb-5">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Model</div>
         <select
           value={settings.model ?? ""}
@@ -64,7 +64,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         </select>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-5">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Effort</div>
         <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
           {EFFORT_OPTIONS.map((level) => (
@@ -73,7 +73,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
               type="button"
               onClick={() => update({ effort: level })}
               className={[
-                "flex-1 px-3 py-1.5 text-xs font-medium capitalize transition-colors cursor-pointer",
+                "flex-1 px-3 py-[7px] text-xs font-medium capitalize transition-colors cursor-pointer",
                 (settings.effort ?? "high") === level
                   ? "bg-accent-primary text-white"
                   : "bg-bg-primary text-text-secondary hover:text-text-primary",
@@ -89,7 +89,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         Permissions
       </div>
 
-      <div className="mb-4">
+      <div className="mb-5">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Permission Mode</div>
         <select
           value={permissionValue}
@@ -106,7 +106,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <p className="text-xs text-text-tertiary mt-1">
+        <p className="text-xs text-text-tertiary mt-[5px]">
           {PERMISSION_OPTIONS.find((o) => o.value === permissionValue)?.hint}
         </p>
       </div>
@@ -115,7 +115,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         Output
       </div>
 
-      <div className="mb-4">
+      <div className="mb-5">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Style</div>
         <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
           {OUTPUT_OPTIONS.map((style) => (
@@ -124,7 +124,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
               type="button"
               onClick={() => update({ outputStyle: style })}
               className={[
-                "flex-1 px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                "flex-1 px-3 py-[7px] text-xs font-medium transition-colors cursor-pointer",
                 (settings.outputStyle ?? "Default") === style
                   ? "bg-accent-primary text-white"
                   : "bg-bg-primary text-text-secondary hover:text-text-primary",
@@ -136,8 +136,8 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between py-1.5">
-        <span className="text-sm text-text-secondary">Verbose output</span>
+      <div className="flex items-center justify-between py-2">
+        <span className="text-[13px] text-text-secondary">Verbose output</span>
         <button
           type="button"
           role="switch"

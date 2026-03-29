@@ -56,10 +56,10 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
   }, [config.sound]);
 
   return (
-    <div className="space-y-5">
+    <div>
       {/* Master toggle */}
       <div className="flex items-center justify-between pb-5 mb-0 border-b border-border-default">
-        <span className="text-sm font-medium text-text-primary">Enable Notifications</span>
+        <span className="text-[13px] font-medium text-text-primary">Enable Notifications</span>
         <Toggle checked={config.enabled} onChange={() => handleEnableToggle()} />
       </div>
 
@@ -79,11 +79,11 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
       {/* Notification triggers */}
       {config.enabled && (
         <>
-          <div className="space-y-3">
+          <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-5">Notify When</div>
 
-            <div className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-text-secondary">
+            <div className="flex items-center justify-between py-2">
+              <span className="text-[13px] text-text-secondary">
                 Agent waiting for input
               </span>
               <Toggle
@@ -92,8 +92,8 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-text-secondary">
+            <div className="flex items-center justify-between py-2">
+              <span className="text-[13px] text-text-secondary">
                 Agent finished work
               </span>
               <Toggle
@@ -102,8 +102,8 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-text-secondary">Agent error</span>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-[13px] text-text-secondary">Agent error</span>
               <Toggle
                 checked={config.notifyOnError}
                 onChange={(v) => update("notifyOnError", v)}
@@ -112,7 +112,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
           </div>
 
           {/* Sound picker */}
-          <div className="space-y-2">
+          <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">Sound</div>
 
             <div className="grid grid-cols-3 gap-1.5">
@@ -122,7 +122,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
                   type="button"
                   onClick={() => update("sound", opt.id)}
                   className={[
-                    "flex items-center justify-between gap-1 px-3 py-1.5 text-sm rounded-[var(--radius-md)]",
+                    "flex items-center justify-between gap-1 px-3 py-1.5 text-[13px] rounded-[var(--radius-md)]",
                     "border transition-all duration-[var(--transition-fast)]",
                     "cursor-pointer",
                     config.sound === opt.id
@@ -149,6 +149,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
           </div>
 
           {/* Test button */}
+          <div className="mt-4">
           <Button
             variant="secondary"
             size="sm"
@@ -156,6 +157,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
           >
             Test Notification
           </Button>
+          </div>
         </>
       )}
     </div>

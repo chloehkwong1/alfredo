@@ -188,7 +188,7 @@ function WorkspaceSettingsDialog({
             {tab === "repository" && (
               <div>
                 {/* Repo Path (read-only) */}
-                <div className="mb-4">
+                <div className="mb-5">
                   <div className="text-[13px] font-medium text-text-primary mb-1.5">
                     Repository Path
                   </div>
@@ -201,7 +201,7 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {/* Display Name */}
-                <div className="mb-4">
+                <div className="mb-5">
                   <div className="text-[13px] font-medium text-text-primary mb-1.5">
                     Display Name
                   </div>
@@ -215,13 +215,13 @@ function WorkspaceSettingsDialog({
                       setDirty(true);
                     }}
                   />
-                  <p className="text-xs text-text-tertiary mt-1">
+                  <p className="text-xs text-text-tertiary mt-[5px]">
                     Short name shown in sidebar repo chips. Defaults to directory name.
                   </p>
                 </div>
 
                 {/* Worktree Base Path */}
-                <div className="mb-4">
+                <div className="mb-5">
                   <div className="text-[13px] font-medium text-text-primary mb-1.5">
                     Worktree Directory
                   </div>
@@ -234,7 +234,7 @@ function WorkspaceSettingsDialog({
                       updateConfig({ worktreeBasePath: e.target.value || null })
                     }
                   />
-                  <p className="text-xs text-text-tertiary mt-1">
+                  <p className="text-xs text-text-tertiary mt-[5px]">
                     Where new worktrees are created. Defaults to the repository parent.
                   </p>
                 </div>
@@ -247,7 +247,7 @@ function WorkspaceSettingsDialog({
                 <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
                   Setup Scripts
                 </div>
-                <p className="text-xs text-text-tertiary mb-3">
+                <p className="text-xs text-text-tertiary mb-3.5">
                   Run automatically when a new worktree is created.
                 </p>
                 <ScriptEditor
@@ -261,7 +261,7 @@ function WorkspaceSettingsDialog({
                 <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
                   Run Script
                 </div>
-                <p className="text-xs text-text-tertiary mb-3">
+                <p className="text-xs text-text-tertiary mb-3.5">
                   A dev server command started from any worktree via the play button in the tab bar.
                 </p>
                 <div className="rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3 space-y-2">
