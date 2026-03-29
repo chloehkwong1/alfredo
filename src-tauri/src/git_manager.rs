@@ -156,7 +156,9 @@ pub async fn delete_worktree(
 pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
     // Try three-dot diff against common default branch names.
     // `git diff --shortstat main...HEAD` = diff between merge-base(main, HEAD) and HEAD.
-    for branch in &["main", "master", "origin/main", "origin/master"] {
+    // Try origin/HEAD first — it points to the repo's actual default branch on GitHub
+    // (which may be "develop", not "main"), giving accurate stats for repos that don't use main.
+    for branch in &["origin/HEAD", "main", "master", "origin/main", "origin/master"] {
         let output = std::process::Command::new("git")
             .args(["diff", "--shortstat", &format!("{branch}...HEAD")])
             .current_dir(worktree_path)
