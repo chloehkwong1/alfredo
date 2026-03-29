@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Send, Trash2, MessageSquare } from "lucide-react";
 import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
-import { PrPanel } from "./PrPanel";
 import { getDiff, getUncommittedDiff, getCommits, getDiffForCommit, writePty } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { sessionManager } from "../../services/sessionManager";
@@ -33,16 +32,13 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
   const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? "unified";
-  const prPanelState = useWorkspaceStore((s) => s.prPanelState[worktreeId]);
-  const setPrPanelState = useWorkspaceStore((s) => s.setPrPanelState);
   const prComments = useWorkspaceStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
   const reviewedFiles = useWorkspaceStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
   const toggleReviewedFile = useWorkspaceStore((s) => s.toggleReviewedFile);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
-
-  // Default prPanelState to "open" when PR exists and state is not set yet
-  const effectivePrPanelState = prPanelState ?? (pr ? "open" : "collapsed");
+  const setJumpToComment = useWorkspaceStore((s) => s.setJumpToComment);
+  const clearJumpToComment = useWorkspaceStore((s) => s.clearJumpToComment);
 
   // Load data on mount — each call is independent so one failure doesn't blank everything
   useEffect(() => {
@@ -98,24 +94,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     viewMode === "commits" && selectedCommitIndex !== null
       ? commitFiles
       : [...uncommittedFiles, ...committedFiles];
-
-  // Cmd+I toggles PR panel
-  useEffect(() => {
-    if (!pr) return;
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "i" && e.metaKey) {
-        e.preventDefault();
-        setPrPanelState(
-          worktreeId,
-          effectivePrPanelState === "open" ? "collapsed" : "open",
-        );
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pr, worktreeId, effectivePrPanelState, setPrPanelState]);
 
   const handleToggleExpanded = useCallback((path: string) => {
     setCollapsedFiles((prev) => {
@@ -218,12 +196,10 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     [handleSelectFile],
   );
 
-  const handleTogglePrPanel = useCallback(() => {
-    setPrPanelState(
-      worktreeId,
-      effectivePrPanelState === "open" ? "collapsed" : "open",
-    );
-  }, [worktreeId, effectivePrPanelState, setPrPanelState]);
+  useEffect(() => {
+    setJumpToComment(worktreeId, handleJumpToComment);
+    return () => clearJumpToComment(worktreeId);
+  }, [worktreeId, handleJumpToComment, setJumpToComment, clearJumpToComment]);
 
   const handleSelectCommit = useCallback((index: number) => {
     setSelectedCommitIndex(index);
@@ -385,17 +361,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           </div>
         </div>
 
-        {/* Right: PR panel */}
-        {pr && (
-          <PrPanel
-            worktreeId={worktreeId}
-            repoPath={repoPath}
-            pr={pr}
-            panelState={effectivePrPanelState}
-            onTogglePanel={handleTogglePrPanel}
-            onJumpToComment={handleJumpToComment}
-          />
-        )}
       </div>
     </div>
   );
