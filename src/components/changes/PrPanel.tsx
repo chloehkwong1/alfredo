@@ -176,7 +176,7 @@ export function PrPanel({
 function countMedia(body: string): { images: number; videos: number } {
   const imgTags = (body.match(/<img[^>]*\/?>/gi) ?? []).length;
   const videoTags = (body.match(/<video[^>]*>[\s\S]*?<\/video>/gi) ?? []).length +
-    (body.match(/<video[^>]*\/?>/gi) ?? []).length;
+    (body.match(/<video[^>]*\/>/gi) ?? []).length;
   const mdImages = (body.match(/!\[[^\]]*\]\([^)]+\)/g) ?? []).length;
   return { images: imgTags + mdImages, videos: videoTags };
 }

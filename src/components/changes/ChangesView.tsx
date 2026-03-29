@@ -313,10 +313,10 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
             )}
           </div>
           <div className="flex-1 overflow-y-auto min-w-0">
-          {viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex] && (
-            <CommitHeader commit={commits[selectedCommitIndex]} />
-          )}
-          {displayFiles.map((file) => (
+            {viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex] && (
+              <CommitHeader commit={commits[selectedCommitIndex]} />
+            )}
+            {displayFiles.map((file) => (
             <DiffFileCard
               key={file.path}
               ref={(el) => {
@@ -337,17 +337,17 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
               onDeleteAnnotation={handleDeleteAnnotation}
               prComments={prComments}
             />
-          ))}
+            ))}
 
-          {displayFiles.length === 0 && (
-            <div className="flex flex-col items-center justify-center flex-1 text-text-tertiary text-sm gap-1">
-              {viewMode === "commits" && selectedCommitIndex === null ? (
-                <span>Select a commit to view its changes</span>
-              ) : (
-                <span>No changes to display</span>
-              )}
-            </div>
-          )}
+            {displayFiles.length === 0 && (
+              <div className="flex flex-col items-center justify-center flex-1 text-text-tertiary text-sm gap-1">
+                {viewMode === "commits" && selectedCommitIndex === null ? (
+                  <span>Select a commit to view its changes</span>
+                ) : (
+                  <span>No changes to display</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
