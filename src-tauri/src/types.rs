@@ -196,6 +196,8 @@ pub struct SetupScript {
 pub struct RunScript {
     pub name: String,
     pub command: String,
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

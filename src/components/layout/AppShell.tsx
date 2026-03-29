@@ -89,10 +89,12 @@ function AppShell() {
 
   // Extracted hooks
   useSessionRestore(repoPath, selectedRepos);
-  const { runScript, isServerRunningHere, handleToggleServer } = useServer(activeWorktreeId, repoPath);
+  const { runScript, isServerRunningHere, handleToggleServer } = useServer(activeWorktreeId);
 
   const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabIdValue);
-  useKeyboardShortcuts(activeWorktreeId, activeTab, tabs, () => setCreateDialogOpen(true));
+  useKeyboardShortcuts(activeWorktreeId, activeTab, tabs, () => setCreateDialogOpen(true), () => {
+    window.dispatchEvent(new CustomEvent("alfredo:shortcuts-overlay"));
+  }, () => setAddRepoModalOpen(true));
 
 
   // When a new repo is selected (from welcome screen or add modal)
@@ -287,6 +289,7 @@ function AppShell() {
               onToggleServer={handleToggleServer}
               isServerRunning={isServerRunningHere}
               runScriptName={runScript?.name}
+              runScriptUrl={runScript?.url}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-2">

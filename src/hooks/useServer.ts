@@ -14,10 +14,15 @@ const SERVER_POLL_INTERVAL_MS = 3_000;
  * Manages the dev server lifecycle: loading run script config,
  * toggling the server on/off, and detecting process exit via heartbeat.
  */
-export function useServer(activeWorktreeId: string | null, repoPath: string | null) {
+export function useServer(activeWorktreeId: string | null) {
   const runningServer = useWorkspaceStore((s) => s.runningServer);
   const setRunningServer = useWorkspaceStore((s) => s.setRunningServer);
   const [runScript, setRunScript] = useState<RunScript | null>(null);
+
+  // Derive repo path from the active worktree so we load the correct repo's config
+  const worktreeRepoPath = useWorkspaceStore((s) =>
+    s.worktrees.find((wt) => wt.id === activeWorktreeId)?.repoPath ?? null,
+  );
 
   // Load run script config (and refresh when settings are saved)
   const [configVersion, setConfigVersion] = useState(0);
@@ -28,16 +33,16 @@ export function useServer(activeWorktreeId: string | null, repoPath: string | nu
   }, []);
 
   useEffect(() => {
-    if (!repoPath) return;
-    getConfig(repoPath).then((config) => {
+    if (!worktreeRepoPath) return;
+    getConfig(worktreeRepoPath).then((config) => {
       setRunScript(config.runScript ?? null);
     }).catch((err) => console.error("Failed to load run script config:", err));
-  }, [repoPath, configVersion]);
+  }, [worktreeRepoPath, configVersion]);
 
   const isServerRunningHere = runningServer?.worktreeId === activeWorktreeId;
 
   const handleToggleServer = useCallback(async () => {
-    if (!activeWorktreeId || !runScript || !repoPath) return;
+    if (!activeWorktreeId || !runScript || !worktreeRepoPath) return;
 
     const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === activeWorktreeId);
     if (!wt) return;
@@ -81,7 +86,7 @@ export function useServer(activeWorktreeId: string | null, repoPath: string | nu
     } catch (err) {
       console.error("[handleToggleServer] failed:", err);
     }
-  }, [activeWorktreeId, runScript, repoPath, isServerRunningHere, runningServer, setRunningServer]);
+  }, [activeWorktreeId, runScript, worktreeRepoPath, isServerRunningHere, runningServer, setRunningServer]);
 
   // Detect server process exit via heartbeat timeout
   useEffect(() => {

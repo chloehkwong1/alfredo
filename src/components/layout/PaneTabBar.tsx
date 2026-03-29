@@ -7,6 +7,7 @@ import {
   GitCompareArrows,
   Play,
   Square,
+  ExternalLink,
   PanelRight,
   PanelBottom,
 } from "lucide-react";
@@ -43,6 +44,7 @@ import { usePrStore } from "../../stores/prStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { TabType, WorkspaceTab } from "../../types";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useState } from "react";
 
 const TAB_ICONS: Record<TabType, typeof Terminal> = {
@@ -59,6 +61,7 @@ interface PaneTabBarProps {
   onToggleServer?: () => void;
   isServerRunning?: boolean;
   runScriptName?: string;
+  runScriptUrl?: string;
 }
 
 function SortableTab({
@@ -179,6 +182,7 @@ function PaneTabBar({
   onToggleServer,
   isServerRunning,
   runScriptName,
+  runScriptUrl,
 }: PaneTabBarProps) {
   const allTabs = useTabStore((s) => s.tabs);
   const tabs = allTabs[worktreeId] ?? [];
@@ -312,19 +316,31 @@ function PaneTabBar({
       </DropdownMenu>
 
       {onToggleServer && runScriptName && (
-        <button
-          type="button"
-          onClick={onToggleServer}
-          title={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
-          className={[
-            "h-10 px-2 transition-colors cursor-pointer flex items-center",
-            isServerRunning
-              ? "text-green-400 hover:text-red-400"
-              : "text-text-tertiary hover:text-text-secondary",
-          ].join(" ")}
-        >
-          {isServerRunning ? <Square size={14} /> : <Play size={14} />}
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={onToggleServer}
+            title={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
+            className={[
+              "h-10 px-2 transition-colors cursor-pointer flex items-center",
+              isServerRunning
+                ? "text-green-400 hover:text-red-400"
+                : "text-text-tertiary hover:text-text-secondary",
+            ].join(" ")}
+          >
+            {isServerRunning ? <Square size={14} /> : <Play size={14} />}
+          </button>
+          {isServerRunning && (
+            <button
+              type="button"
+              onClick={() => openUrl(runScriptUrl ?? "http://localhost:3000")}
+              title={`Open ${runScriptUrl ?? "http://localhost:3000"}`}
+              className="h-10 px-2 transition-colors cursor-pointer flex items-center text-green-400 hover:text-text-primary"
+            >
+              <ExternalLink size={14} />
+            </button>
+          )}
+        </>
       )}
 
       <div className="flex-1" />

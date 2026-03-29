@@ -110,6 +110,7 @@ export interface SetupScript {
 export interface RunScript {
   name: string;
   command: string;
+  url?: string;
 }
 
 export interface NotificationConfig {

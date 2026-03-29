@@ -8,6 +8,7 @@ interface LayoutRendererProps {
   onToggleServer?: () => void;
   isServerRunning?: boolean;
   runScriptName?: string;
+  runScriptUrl?: string;
 }
 
 function RenderNode({
@@ -16,6 +17,7 @@ function RenderNode({
   onToggleServer,
   isServerRunning,
   runScriptName,
+  runScriptUrl,
   isFirstLeaf,
 }: {
   node: LayoutNode;
@@ -23,6 +25,7 @@ function RenderNode({
   onToggleServer?: () => void;
   isServerRunning?: boolean;
   runScriptName?: string;
+  runScriptUrl?: string;
   isFirstLeaf: boolean;
 }) {
   if (node.type === "leaf") {
@@ -33,6 +36,7 @@ function RenderNode({
         onToggleServer={isFirstLeaf ? onToggleServer : undefined}
         isServerRunning={isFirstLeaf ? isServerRunning : undefined}
         runScriptName={isFirstLeaf ? runScriptName : undefined}
+        runScriptUrl={isFirstLeaf ? runScriptUrl : undefined}
       />
     );
   }
@@ -57,6 +61,7 @@ function RenderNode({
           onToggleServer={onToggleServer}
           isServerRunning={isServerRunning}
           runScriptName={runScriptName}
+          runScriptUrl={runScriptUrl}
           isFirstLeaf={true}
         />
       </Panel>
@@ -80,6 +85,7 @@ function LayoutRenderer({
   onToggleServer,
   isServerRunning,
   runScriptName,
+  runScriptUrl,
 }: LayoutRendererProps) {
   const layout = useLayoutStore((s) => s.layout[worktreeId]);
 
@@ -99,6 +105,7 @@ function LayoutRenderer({
       onToggleServer={onToggleServer}
       isServerRunning={isServerRunning}
       runScriptName={runScriptName}
+      runScriptUrl={runScriptUrl}
       isFirstLeaf={true}
     />
   );
