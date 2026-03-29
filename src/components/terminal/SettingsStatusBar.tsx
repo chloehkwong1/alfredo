@@ -7,8 +7,13 @@ import { useAppConfig } from "../../hooks/useAppConfig";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
 import type { ClaudeOverrides } from "../../types";
 
+const CLAUDE_DEFAULTS = {
+  effort: "high",
+  permissionMode: "default",
+  outputStyle: "Default",
+} as const;
+
 const EFFORT_OPTIONS = [
-  { value: "", label: "Default" },
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
@@ -16,7 +21,7 @@ const EFFORT_OPTIONS = [
 ];
 
 const PERMISSION_OPTIONS = [
-  { value: "", label: "Default" },
+  { value: "default", label: "Default" },
   { value: "acceptEdits", label: "Accept Edits" },
   { value: "plan", label: "Plan" },
   { value: "auto", label: "Auto" },
@@ -30,8 +35,9 @@ const OUTPUT_OPTIONS = [
   { value: "Learning", label: "Learning" },
 ];
 
-function displayLabel(options: { value: string; label: string }[], value: string | undefined, fallback: string): string {
-  return options.find((o) => o.value === value)?.label ?? fallback;
+function displayLabel(options: { value: string; label: string }[], value: string | undefined, defaultValue: string): string {
+  const effective = value || defaultValue;
+  return options.find((o) => o.value === effective)?.label ?? effective;
 }
 
 interface SettingsStatusBarProps {
@@ -140,7 +146,7 @@ function SettingsStatusBar({ branch, worktreePath, onRestartSession }: SettingsS
     <div className="flex items-center justify-between px-2 py-1 border-t border-border-default flex-shrink-0">
       <div className="flex items-center gap-1.5">
         <SettingsChip
-          label={displayLabel(EFFORT_OPTIONS, resolved.effort, "Effort")}
+          label={displayLabel(EFFORT_OPTIONS, resolved.effort, CLAUDE_DEFAULTS.effort)}
           options={EFFORT_OPTIONS}
           value={resolved.effort ?? ""}
           isOpen={openDropdown === "effort"}
@@ -148,7 +154,7 @@ function SettingsStatusBar({ branch, worktreePath, onRestartSession }: SettingsS
           onChange={(v) => handleChange("effort", v)}
         />
         <SettingsChip
-          label={displayLabel(PERMISSION_OPTIONS, resolved.permissionMode, "Permissions")}
+          label={displayLabel(PERMISSION_OPTIONS, resolved.permissionMode, CLAUDE_DEFAULTS.permissionMode)}
           options={PERMISSION_OPTIONS}
           value={resolved.permissionMode ?? ""}
           isOpen={openDropdown === "permissionMode"}
@@ -156,7 +162,7 @@ function SettingsStatusBar({ branch, worktreePath, onRestartSession }: SettingsS
           onChange={(v) => handleChange("permissionMode", v)}
         />
         <SettingsChip
-          label={displayLabel(OUTPUT_OPTIONS, resolved.outputStyle, "Output")}
+          label={displayLabel(OUTPUT_OPTIONS, resolved.outputStyle, CLAUDE_DEFAULTS.outputStyle)}
           options={OUTPUT_OPTIONS}
           value={resolved.outputStyle ?? ""}
           isOpen={openDropdown === "outputStyle"}
