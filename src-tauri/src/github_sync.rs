@@ -206,11 +206,18 @@ async fn poll_repo(
         prs.iter().map(|pr| PrStatusWithColumn::from_pr(pr, repo_path)).collect();
 
     // Enrich non-merged PRs with full data (sidebar summaries + PR panel detail).
-    // Per-PR API calls run concurrently via tokio::join! (5 calls in parallel per PR).
+    // Cap at 10 per repo to avoid GitHub API rate limits (5 calls per PR = 50 max).
+    // PRs are sorted newest-first from the API, so the most recent get enriched.
+    const MAX_ENRICH: usize = 10;
+    let mut enriched_count = 0usize;
     for pr_with_col in payload_prs.iter_mut() {
         if pr_with_col.merged {
             continue;
         }
+        if enriched_count >= MAX_ENRICH {
+            break;
+        }
+        enriched_count += 1;
 
         let pr_number = pr_with_col.number;
 

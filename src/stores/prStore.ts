@@ -159,6 +159,7 @@ export const usePrStore = create<PrState>((set, get) => ({
       const pr = prByKey.get(`${wt.repoPath}::${wt.branch}`);
       if (!pr) continue;
 
+
       const currentStateKey = prStateKey(pr);
       const previousStateKey = state.lastPrState[wt.id];
 
