@@ -31,9 +31,6 @@ function ScriptEditor({ scripts, onChange }: ScriptEditorProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-text-secondary">
-          Scripts run automatically when a new worktree is created.
-        </p>
       </div>
 
       {scripts.length === 0 && (
@@ -54,10 +51,12 @@ function ScriptEditor({ scripts, onChange }: ScriptEditorProps) {
                 value={script.name}
                 onChange={(e) => updateScript(index, "name", e.target.value)}
               />
-              <Input
+              <textarea
+                rows={2}
                 placeholder="Command (e.g. npm install)"
                 value={script.command}
                 onChange={(e) => updateScript(index, "command", e.target.value)}
+                className="w-full px-3 py-2 text-sm font-mono bg-bg-primary text-text-primary border border-border-default rounded-[var(--radius-md)] placeholder:text-text-tertiary hover:border-border-hover focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50 transition-all duration-[var(--transition-fast)] resize-none"
               />
             </div>
             <IconButton

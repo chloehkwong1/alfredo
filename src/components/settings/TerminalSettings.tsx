@@ -129,7 +129,7 @@ function TerminalSettings() {
 
       {/* Cursor section */}
       <div className="mt-6">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Cursor</div>
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">Cursor</div>
 
         {/* Style */}
         <div className="space-y-1.5 mb-4">
@@ -183,7 +183,7 @@ function TerminalSettings() {
 
       {/* Preview section */}
       <div className="mt-6">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Preview</div>
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">Preview</div>
         <div
           className="rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3"
           style={{

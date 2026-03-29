@@ -280,7 +280,7 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {/* Setup Scripts */}
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">
                   Setup Scripts
                 </div>
                 <p className="text-xs text-text-tertiary mb-3">

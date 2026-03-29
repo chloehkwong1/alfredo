@@ -113,7 +113,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
 
           {/* Sound picker */}
           <div className="space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Sound</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">Sound</div>
 
             <div className="grid grid-cols-3 gap-1.5">
               {SOUND_OPTIONS.map((opt) => (

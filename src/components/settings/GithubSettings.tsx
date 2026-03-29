@@ -142,7 +142,7 @@ function GithubSettings({
 
       {/* Linear API Key */}
       <div className="space-y-1.5">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">Linear</div>
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">Linear</div>
         <div className="text-sm font-medium text-text-primary mb-1.5">API Key</div>
         <Input
           type="password"

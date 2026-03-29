@@ -85,7 +85,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         </div>
       </div>
 
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">
         Permissions
       </div>
 
@@ -111,7 +111,7 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
         </p>
       </div>
 
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-8">
         Output
       </div>
 
