@@ -61,6 +61,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
   const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? "unified";
+  const setDiffViewMode = useWorkspaceStore((s) => s.setDiffViewMode);
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
   const reviewedFiles = usePrStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
   const toggleReviewedFile = usePrStore((s) => s.toggleReviewedFile);
@@ -325,6 +326,29 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                 <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
                   Collapse all
                 </button>
+                <span className="text-text-tertiary/50 mx-1">|</span>
+                <div className="flex border border-border-default rounded overflow-hidden">
+                  <button
+                    className={`px-2 py-0.5 text-[10px] transition-colors ${
+                      diffViewMode === "unified"
+                        ? "bg-accent-primary/15 text-accent-primary font-medium"
+                        : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+                    }`}
+                    onClick={() => setDiffViewMode(worktreeId, "unified")}
+                  >
+                    Unified
+                  </button>
+                  <button
+                    className={`px-2 py-0.5 text-[10px] border-l border-border-default transition-colors ${
+                      diffViewMode === "split"
+                        ? "bg-accent-primary/15 text-accent-primary font-medium"
+                        : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+                    }`}
+                    onClick={() => setDiffViewMode(worktreeId, "split")}
+                  >
+                    Split
+                  </button>
+                </div>
               </div>
             )}
           </div>
