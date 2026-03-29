@@ -142,10 +142,12 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
 
     // ── Context expansion state ──────────────────────────────
     const [expandedGaps, setExpandedGaps] = useState<Map<string, DiffLine[]>>(new Map());
+    const [bottomExhausted, setBottomExhausted] = useState(false);
 
     // Reset expanded gaps when file data changes
     useEffect(() => {
       setExpandedGaps(new Map());
+      setBottomExhausted(false);
     }, [file]);
 
     // Compute gap info: how many hidden lines between each hunk
@@ -202,7 +204,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       }
 
       // Gap below last hunk
-      if (file.status !== "deleted") {
+      if (file.status !== "deleted" && !bottomExhausted) {
         gaps.push({
           key: "bottom",
           position: "bottom",
@@ -213,7 +215,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       }
 
       return gaps;
-    }, [file.hunks, file.status, expandedGaps]);
+    }, [file.hunks, file.status, expandedGaps, bottomExhausted]);
 
     const handleExpandContext = useCallback(
       async (gapKey: string, direction: "up" | "down" | "all") => {
@@ -222,25 +224,33 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
 
         let startLine: number;
         let endLine: number;
+        let requestedCount: number;
 
         if (gapKey === "bottom") {
+          // Compute from current expanded state to avoid stale closure
           const lastHunk = file.hunks[file.hunks.length - 1];
           const lastLineNum = lastHunk.lines.reduce((max, l) => {
             const n = l.newLineNumber ?? l.oldLineNumber ?? 0;
             return Math.max(max, n);
           }, 0);
+          // Read latest expanded count via functional updater pattern below
+          // For the API call, we need the count now — read from gapInfo which is current
           const alreadyExpanded = expandedGaps.get("bottom")?.length ?? 0;
           startLine = lastLineNum + 1 + alreadyExpanded;
           endLine = startLine + EXPAND_INCREMENT - 1;
+          requestedCount = EXPAND_INCREMENT;
         } else if (direction === "all") {
           startLine = gap.startLine;
           endLine = gap.endLine;
+          requestedCount = gap.endLine - gap.startLine + 1;
         } else if (direction === "down") {
           startLine = gap.startLine;
           endLine = Math.min(gap.startLine + EXPAND_INCREMENT - 1, gap.endLine);
+          requestedCount = endLine - startLine + 1;
         } else {
           endLine = gap.endLine;
           startLine = Math.max(gap.endLine - EXPAND_INCREMENT + 1, gap.startLine);
+          requestedCount = endLine - startLine + 1;
         }
 
         try {
@@ -251,6 +261,11 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
             oldLineNumber: l.lineNumber,
             newLineNumber: l.lineNumber,
           }));
+
+          // If we got fewer lines than requested, we've hit EOF
+          if (gapKey === "bottom" && contextLines.length < requestedCount) {
+            setBottomExhausted(true);
+          }
 
           if (contextLines.length === 0) return;
 

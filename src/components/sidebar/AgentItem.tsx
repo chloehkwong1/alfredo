@@ -1,7 +1,8 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState } from "react";
-import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock } from "lucide-react";
+import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock, SquarePen, TerminalSquare } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
+import { openInEditor, openInTerminal, getAppConfig } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import {
@@ -228,6 +229,24 @@ function AgentItem({
     id: worktree.id,
   });
 
+  const handleOpenEditor = async () => {
+    try {
+      const appCfg = await getAppConfig();
+      await openInEditor(worktree.path, appCfg.preferredEditor, appCfg.customEditorPath ?? undefined);
+    } catch (e) {
+      console.error("Failed to open editor:", e);
+    }
+  };
+
+  const handleOpenTerminal = async () => {
+    try {
+      const appCfg = await getAppConfig();
+      await openInTerminal(worktree.path, appCfg.preferredTerminal, appCfg.customTerminalPath ?? undefined);
+    } catch (e) {
+      console.error("Failed to open terminal:", e);
+    }
+  };
+
   return (
     <>
       <ContextMenu>
@@ -269,6 +288,15 @@ function AgentItem({
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ContextMenuItem onSelect={handleOpenEditor}>
+            <SquarePen className="h-4 w-4" />
+            Open in Editor
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={handleOpenTerminal}>
+            <TerminalSquare className="h-4 w-4" />
+            Open in Terminal
+          </ContextMenuItem>
+          <ContextMenuSeparator />
           {isDone && onArchive && (
             <>
               <ContextMenuItem onSelect={() => onArchive(worktree.id)}>
