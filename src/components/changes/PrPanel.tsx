@@ -136,13 +136,13 @@ export function PrPanel({
         </button>
       </div>
 
-      {/* Description */}
-      {pr.body && (
-        <PrDescription body={pr.body} expanded={descExpanded} onToggle={() => setDescExpanded(!descExpanded)} />
-      )}
-
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto py-2 flex flex-col">
+        {/* Description */}
+        {pr.body && (
+          <PrDescription body={pr.body} expanded={descExpanded} onToggle={() => setDescExpanded(!descExpanded)} />
+        )}
+
         {/* Checks section */}
         <Section title="Checks" count={checkRuns.length}>
           {checkRuns.length === 0 ? (
@@ -247,7 +247,7 @@ function PrDescription({
 }) {
   return (
     <div className="px-2.5 py-2 border-b border-border-subtle text-xs text-text-secondary leading-[1.5] overflow-hidden">
-      <div className={expanded ? "overflow-y-auto max-h-[200px]" : "line-clamp-3"}>
+      <div className={expanded ? "" : "line-clamp-3"}>
         {formatPrBody(body)}
       </div>
       <button
