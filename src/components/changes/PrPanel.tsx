@@ -11,6 +11,7 @@ import {
 import { usePrData } from "../../hooks/usePrData";
 import { usePrStore } from "../../stores/prStore";
 import type { CheckRun, PrPanelState, PrStatus } from "../../types";
+import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
 
 interface PrPanelProps {
   worktreeId: string;
@@ -97,16 +98,6 @@ export function PrPanel({
         <span className="text-[13px] font-semibold text-text-primary flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
           PR #{pr.number}
         </span>
-        <a
-          href={pr.url}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="text-text-tertiary leading-none"
-          title="Open on GitHub"
-        >
-          <ExternalLink size={13} />
-        </a>
         <button
           onClick={onTogglePanel}
           className="bg-transparent border-none cursor-pointer text-text-tertiary p-0 leading-none"
@@ -554,28 +545,4 @@ function MergeStatusBanner({
       Open
     </div>
   );
-}
-
-// ── Helper functions ───────────────────────────────────────────────
-
-/** Converts a millisecond duration to a human-readable string like "42s" or "1m 12s". */
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.round(ms / 1000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
-}
-
-/** Converts an ISO timestamp to a relative time string like "2h ago" or "3d ago". */
-function formatTimeAgo(timestamp: string): string {
-  const diffMs = Date.now() - new Date(timestamp).getTime();
-  const diffSecs = Math.round(diffMs / 1000);
-
-  if (diffSecs < 60) return "just now";
-  if (diffSecs < 3600) return `${Math.floor(diffSecs / 60)}m ago`;
-  if (diffSecs < 86400) return `${Math.floor(diffSecs / 3600)}h ago`;
-  if (diffSecs < 86400 * 30) return `${Math.floor(diffSecs / 86400)}d ago`;
-  if (diffSecs < 86400 * 365) return `${Math.floor(diffSecs / (86400 * 30))}mo ago`;
-  return `${Math.floor(diffSecs / (86400 * 365))}y ago`;
 }
