@@ -317,6 +317,18 @@ pub struct GlobalAppConfig {
     pub preferred_terminal: String,
     #[serde(default)]
     pub custom_terminal_path: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
+    #[serde(default)]
+    pub permission_mode: Option<String>,
+    #[serde(default)]
+    pub dangerously_skip_permissions: Option<bool>,
+    #[serde(default)]
+    pub output_style: Option<String>,
+    #[serde(default)]
+    pub verbose: Option<bool>,
 }
 
 fn default_editor() -> String { "vscode".into() }

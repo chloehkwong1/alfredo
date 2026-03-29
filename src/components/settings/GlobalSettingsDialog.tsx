@@ -84,6 +84,12 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
           customEditorPath: null,
           preferredTerminal: "iterm",
           customTerminalPath: null,
+          model: null,
+          effort: null,
+          permissionMode: null,
+          dangerouslySkipPermissions: null,
+          outputStyle: null,
+          verbose: null,
         });
       });
     getConfig(".")

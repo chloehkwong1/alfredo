@@ -312,6 +312,12 @@ export interface GlobalAppConfig {
   customEditorPath: string | null;
   preferredTerminal: string;
   customTerminalPath: string | null;
+  model?: string | null;
+  effort?: string | null;
+  permissionMode?: string | null;
+  dangerouslySkipPermissions?: boolean | null;
+  outputStyle?: string | null;
+  verbose?: boolean | null;
 }
 
 // ── Inline annotation ────────────────────────────────────────────

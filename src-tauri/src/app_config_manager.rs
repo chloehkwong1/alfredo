@@ -26,6 +26,12 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             custom_editor_path: None,
             preferred_terminal: "iterm".into(),
             custom_terminal_path: None,
+            model: None,
+            effort: None,
+            permission_mode: None,
+            dangerously_skip_permissions: None,
+            output_style: None,
+            verbose: None,
         });
     }
 
@@ -142,6 +148,12 @@ pub async fn migrate_if_needed(
         custom_editor_path: None,
         preferred_terminal: "iterm".into(),
         custom_terminal_path: None,
+        model: None,
+        effort: None,
+        permission_mode: None,
+        dangerously_skip_permissions: None,
+        output_style: None,
+        verbose: None,
     };
 
     save(app_data_dir, &global).await?;
@@ -180,6 +192,12 @@ mod tests {
             custom_editor_path: None,
             preferred_terminal: "iterm".into(),
             custom_terminal_path: None,
+            model: None,
+            effort: None,
+            permission_mode: None,
+            dangerously_skip_permissions: None,
+            output_style: None,
+            verbose: None,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -206,6 +224,12 @@ mod tests {
             custom_editor_path: None,
             preferred_terminal: "iterm".into(),
             custom_terminal_path: None,
+            model: None,
+            effort: None,
+            permission_mode: None,
+            dangerously_skip_permissions: None,
+            output_style: None,
+            verbose: None,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -229,6 +253,12 @@ mod tests {
             custom_editor_path: None,
             preferred_terminal: "iterm".into(),
             custom_terminal_path: None,
+            model: None,
+            effort: None,
+            permission_mode: None,
+            dangerously_skip_permissions: None,
+            output_style: None,
+            verbose: None,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);
