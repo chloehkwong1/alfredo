@@ -14,7 +14,6 @@ import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
 
 interface PrPanelProps {
   worktreeId: string;
-  repoPath: string;
   pr: PrStatus;
   panelState: PrPanelState;
   onTogglePanel: () => void;
@@ -23,7 +22,6 @@ interface PrPanelProps {
 
 export function PrPanel({
   worktreeId,
-  repoPath: _repoPath,
   pr,
   panelState,
   onTogglePanel,

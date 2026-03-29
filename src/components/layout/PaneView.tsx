@@ -8,7 +8,6 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { usePrStore } from "../../stores/prStore";
 import { useLayoutStore } from "../../stores/layoutStore";
-import { usePrData } from "../../hooks/usePrData";
 import type { PrPanelState, WorkspaceTab } from "../../types";
 
 interface PaneViewProps {
@@ -44,9 +43,6 @@ function PaneView({
   const repoPath = worktree?.path ?? ".";
 
   const effectivePrPanelState: PrPanelState = prPanelState ?? (pr ? "open" : "collapsed");
-
-  // Fetch PR data here (not in PrPanel) so it survives panel open/collapse remounts
-  usePrData(worktreeId, repoPath, pr?.number ?? 0, pr?.headSha ?? pr?.branch ?? "", !!pr);
 
   const handleTogglePrPanel = useCallback(() => {
     setPrPanelState(
@@ -145,7 +141,6 @@ function PaneView({
           <Panel defaultSize="260px" minSize="200px" maxSize="400px">
             <PrPanel
               worktreeId={worktreeId}
-              repoPath={repoPath}
               pr={pr}
               panelState={effectivePrPanelState}
               onTogglePanel={handleTogglePrPanel}
@@ -173,7 +168,6 @@ function PaneView({
           {pr && (
             <PrPanel
               worktreeId={worktreeId}
-              repoPath={repoPath}
               pr={pr}
               panelState={effectivePrPanelState}
               onTogglePanel={handleTogglePrPanel}
