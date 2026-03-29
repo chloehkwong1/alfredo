@@ -45,7 +45,7 @@ function CommitHeader({ commit }: { commit: CommitInfo }) {
 function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("changes");
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
-  const [activeAnnotationLine, setActiveAnnotationLine] = useState<number | null>(null);
+  const [activeAnnotationLine, setActiveAnnotationLine] = useState<{ filePath: string; lineNumber: number } | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
@@ -185,7 +185,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     (filePath: string, line: number) => {
       handleSelectFile(filePath);
       setTimeout(() => {
-        setActiveAnnotationLine(line);
+        setActiveAnnotationLine({ filePath, lineNumber: line });
       }, 150);
     },
     [handleSelectFile],
@@ -210,8 +210,9 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
 
   const handleAddAnnotation = useCallback(
     (filePath: string, lineNumber: number) => {
-      void filePath;
-      setActiveAnnotationLine((prev) => (prev === lineNumber ? null : lineNumber));
+      setActiveAnnotationLine((prev) =>
+        prev?.filePath === filePath && prev?.lineNumber === lineNumber ? null : { filePath, lineNumber }
+      );
     },
     [],
   );

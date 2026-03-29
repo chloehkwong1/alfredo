@@ -23,7 +23,7 @@ interface DiffFileCardProps {
   onToggleExpanded: (path: string) => void;
   viewMode: DiffViewMode;
   annotations: Annotation[];
-  activeAnnotationLine: number | null;
+  activeAnnotationLine: { filePath: string; lineNumber: number } | null;
   onAddAnnotation: (filePath: string, lineNumber: number) => void;
   onSubmitAnnotation: (
     filePath: string,
@@ -395,7 +395,9 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                         ? (prCommentsByLine.get(lineNumber) ?? [])
                         : [];
                       const isActiveAnnotationLine =
-                        lineNumber !== null && activeAnnotationLine === lineNumber;
+                        lineNumber !== null &&
+                        activeAnnotationLine?.filePath === file.path &&
+                        activeAnnotationLine?.lineNumber === lineNumber;
                       const hasComments = lineComments.length > 0;
                       const commentsExpanded =
                         lineNumber !== null && expandedCommentLines.has(lineNumber);
@@ -455,7 +457,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                         : [];
                       const isActiveAnnotationLine =
                         lineNumber !== null &&
-                        activeAnnotationLine === lineNumber;
+                        activeAnnotationLine?.filePath === file.path &&
+                        activeAnnotationLine?.lineNumber === lineNumber;
                       const hasComments = lineComments.length > 0;
                       const commentsExpanded =
                         lineNumber !== null &&
