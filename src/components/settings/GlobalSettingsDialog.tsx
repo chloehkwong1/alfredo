@@ -191,12 +191,12 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[680px] p-0 overflow-hidden">
-        <div className="px-6 pt-6 pb-4">
+        <div className="px-6 pt-5 pb-3">
           <h2 className="text-base font-semibold text-text-primary">Settings</h2>
         </div>
-        <div className="flex min-h-[400px]">
+        <div className="flex min-h-[340px]">
           {/* Tab rail */}
-          <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 p-5 pr-3 border-r border-border-default bg-bg-primary">
+          <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 py-5 px-3 border-r border-border-default bg-bg-primary">
             {TABS.map((t) => (
               <button
                 key={t.id}

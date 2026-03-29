@@ -16,7 +16,7 @@ interface ThemeSelectorProps {
 
 function ThemeSelector({ currentTheme, onSelect }: ThemeSelectorProps) {
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-4 gap-2.5">
       {themes.map((theme) => {
         const isSelected = currentTheme === theme.id;
         return (
@@ -25,7 +25,7 @@ function ThemeSelector({ currentTheme, onSelect }: ThemeSelectorProps) {
             type="button"
             onClick={() => onSelect(theme.id)}
             className={[
-              "flex flex-col items-center gap-2 p-3",
+              "flex flex-col items-center gap-1.5 p-2",
               "rounded-[var(--radius-md)] border",
               "transition-all duration-[var(--transition-fast)]",
               "cursor-pointer",
@@ -36,31 +36,31 @@ function ThemeSelector({ currentTheme, onSelect }: ThemeSelectorProps) {
           >
             {/* Preview swatch with mini UI */}
             <div
-              className="w-full h-14 rounded-[var(--radius-sm)] relative overflow-hidden"
+              className="w-full h-9 rounded-[var(--radius-sm)] relative overflow-hidden"
               style={{ backgroundColor: theme.bg }}
             >
               {/* Mini sidebar */}
               <div
-                className="absolute top-1.5 left-1.5 bottom-1.5 w-3 rounded-sm opacity-20"
+                className="absolute top-1 left-1 bottom-1 w-2 rounded-sm opacity-20"
                 style={{ backgroundColor: theme.fg }}
               />
               {/* Mini title bar line */}
               <div
-                className="absolute top-2 left-6 right-2 h-1 rounded-full opacity-15"
+                className="absolute top-1.5 left-4 right-1.5 h-0.5 rounded-full opacity-15"
                 style={{ backgroundColor: theme.fg }}
               />
               {/* Mini content lines */}
               <div
-                className="absolute top-5 left-6 right-4 h-0.5 rounded-full opacity-10"
+                className="absolute top-3.5 left-4 right-3 h-0.5 rounded-full opacity-10"
                 style={{ backgroundColor: theme.fg }}
               />
               <div
-                className="absolute top-7 left-6 right-6 h-0.5 rounded-full opacity-10"
+                className="absolute top-5 left-4 right-4 h-0.5 rounded-full opacity-10"
                 style={{ backgroundColor: theme.fg }}
               />
               {/* Accent button */}
               <div
-                className="absolute bottom-2 right-2 w-4 h-1.5 rounded-sm"
+                className="absolute bottom-1.5 right-1.5 w-3 h-1 rounded-sm"
                 style={{ backgroundColor: theme.accent }}
               />
             </div>
