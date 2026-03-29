@@ -58,7 +58,12 @@ export function useChangesData(
 
   const displayFiles = useMemo(() => {
     switch (viewMode) {
-      case "changes": return [...uncommittedFiles, ...committedFiles];
+      case "changes": {
+        // Deduplicate: uncommitted (local edits) take precedence over committed version
+        const uncommittedPaths = new Set(uncommittedFiles.map((f) => f.path));
+        const uniqueCommitted = committedFiles.filter((f) => !uncommittedPaths.has(f.path));
+        return [...uncommittedFiles, ...uniqueCommitted];
+      }
       case "commits": return selectedCommitIndex !== null ? commitFiles : [];
     }
   }, [viewMode, uncommittedFiles, committedFiles, commitFiles, selectedCommitIndex]);

@@ -39,7 +39,7 @@ function PaneView({
   const pr = worktree?.prStatus ?? null;
   const prPanelState = usePrStore((s) => s.prPanelState[worktreeId]);
   const setPrPanelState = usePrStore((s) => s.setPrPanelState);
-  const repoPath = worktree?.path ?? ".";
+  const repoPath = worktree?.repoPath ?? worktree?.path ?? ".";
 
   const effectivePrPanelState: PrPanelState = prPanelState ?? (pr ? "open" : "collapsed");
 
