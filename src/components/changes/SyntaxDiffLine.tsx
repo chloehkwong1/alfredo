@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { tokenizeLine, getLangFromPath } from "../../services/syntaxHighlighter";
 import type { ThemedToken } from "shiki";
 
@@ -24,7 +24,7 @@ const GUTTER_BG: Record<string, string> = {
   context: "",
 };
 
-function SyntaxDiffLine({
+const SyntaxDiffLine = memo(function SyntaxDiffLine({
   content,
   lineType,
   oldLineNumber,
@@ -34,8 +34,32 @@ function SyntaxDiffLine({
   children,
 }: SyntaxDiffLineProps) {
   const [tokens, setTokens] = useState<ThemedToken[] | null>(null);
+  const lineRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
+  // Track visibility via IntersectionObserver — pre-load 200px before scrolling into view
   useEffect(() => {
+    const el = lineRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Only tokenize once the line is visible
+  useEffect(() => {
+    if (!visible) return;
+
     let cancelled = false;
     const lang = getLangFromPath(filePath);
     const code =
@@ -51,7 +75,7 @@ function SyntaxDiffLine({
     return () => {
       cancelled = true;
     };
-  }, [content, filePath]);
+  }, [visible, content, filePath]);
 
   const prefix =
     lineType === "addition" ? "+" : lineType === "deletion" ? "-" : " ";
@@ -59,6 +83,7 @@ function SyntaxDiffLine({
   return (
     <>
       <div
+        ref={lineRef}
         className={[
           "flex font-mono text-xs leading-5 group",
           LINE_BG[lineType],
@@ -108,6 +133,14 @@ function SyntaxDiffLine({
       {children}
     </>
   );
-}
+}, (prev, next) =>
+  prev.content === next.content &&
+  prev.lineType === next.lineType &&
+  prev.oldLineNumber === next.oldLineNumber &&
+  prev.newLineNumber === next.newLineNumber &&
+  prev.filePath === next.filePath &&
+  prev.onClickLine === next.onClickLine &&
+  prev.children === next.children
+);
 
 export { SyntaxDiffLine };

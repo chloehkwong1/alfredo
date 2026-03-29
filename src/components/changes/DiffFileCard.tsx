@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useState } from "react";
+import { forwardRef, memo, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { SyntaxDiffLine } from "./SyntaxDiffLine";
 import { AnnotationBubble } from "./AnnotationBubble";
@@ -15,7 +15,7 @@ import type {
 interface DiffFileCardProps {
   file: DiffFile;
   expanded: boolean;
-  onToggleExpanded: () => void;
+  onToggleExpanded: (path: string) => void;
   viewMode: DiffViewMode;
   annotations: Annotation[];
   activeAnnotationLine: number | null;
@@ -43,7 +43,7 @@ const STATUS_COLOR: Record<DiffFile["status"], string> = {
   renamed: "text-text-secondary bg-bg-hover",
 };
 
-const DiffFileCard = forwardRef<HTMLDivElement, DiffFileCardProps>(
+const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   function DiffFileCard(
     {
       file,
@@ -62,6 +62,30 @@ const DiffFileCard = forwardRef<HTMLDivElement, DiffFileCardProps>(
     const [expandedCommentLines, setExpandedCommentLines] = useState<
       Set<number>
     >(new Set());
+
+    // Track whether this card has ever been in/near the viewport.
+    // Off-screen cards skip rendering their diff body even when expanded,
+    // so "Expand all" doesn't mount all 42 cards at once.
+    const cardRef = useRef<HTMLDivElement | null>(null);
+    const [hasBeenVisible, setHasBeenVisible] = useState(false);
+
+    useEffect(() => {
+      const node = cardRef.current;
+      if (!node || hasBeenVisible) return;
+
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setHasBeenVisible(true);
+            observer.disconnect();
+          }
+        },
+        { rootMargin: "500px" }
+      );
+
+      observer.observe(node);
+      return () => observer.disconnect();
+    }, [hasBeenVisible]);
 
     // Group annotations by newLineNumber for O(1) lookup
     const annotationsByLine = useMemo(() => {
@@ -111,11 +135,16 @@ const DiffFileCard = forwardRef<HTMLDivElement, DiffFileCardProps>(
     const statusColor = STATUS_COLOR[file.status];
 
     return (
-      <div ref={ref} className="border-b border-border-default">
+      <div ref={(node) => {
+        // Merge forwarded ref + local cardRef
+        cardRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      }} className="border-b border-border-default">
         {/* Sticky header */}
         <div
           className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default cursor-pointer select-none hover:bg-bg-hover transition-colors"
-          onClick={onToggleExpanded}
+          onClick={() => onToggleExpanded(file.path)}
         >
           {/* Chevron */}
           <span className="text-text-tertiary flex-shrink-0">
@@ -154,8 +183,8 @@ const DiffFileCard = forwardRef<HTMLDivElement, DiffFileCardProps>(
           )}
         </div>
 
-        {/* Diff body */}
-        {expanded && (
+        {/* Diff body — deferred until card has been in/near viewport */}
+        {expanded && hasBeenVisible && (
           <div className="bg-bg-primary overflow-x-auto">
             {file.hunks.map((hunk, hunkIndex) => (
               <div key={hunkIndex}>
@@ -241,6 +270,16 @@ const DiffFileCard = forwardRef<HTMLDivElement, DiffFileCardProps>(
       </div>
     );
   }
+), (prev, next) =>
+  prev.file.path === next.file.path &&
+  prev.expanded === next.expanded &&
+  prev.annotations.length === next.annotations.length &&
+  prev.activeAnnotationLine === next.activeAnnotationLine &&
+  prev.prComments.length === next.prComments.length &&
+  prev.onToggleExpanded === next.onToggleExpanded &&
+  prev.onAddAnnotation === next.onAddAnnotation &&
+  prev.onSubmitAnnotation === next.onSubmitAnnotation &&
+  prev.onDeleteAnnotation === next.onDeleteAnnotation
 );
 
 export { DiffFileCard };

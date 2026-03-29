@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import type { DiffFile, CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
@@ -148,6 +148,21 @@ function FileSidebar({
 
   const totalItems = viewMode === "commits" ? commits.length : files.length;
 
+  // Progressive rendering: show first batch, expand on demand
+  const INITIAL_FILE_LIMIT = 50;
+  const [showAllFiles, setShowAllFiles] = useState(false);
+
+  // Reset when files change (e.g., tab switch)
+  useEffect(() => {
+    setShowAllFiles(false);
+  }, [viewMode]);
+
+  const visibleFiles = useMemo(
+    () => showAllFiles ? filteredFiles : filteredFiles.slice(0, INITIAL_FILE_LIMIT),
+    [filteredFiles, showAllFiles],
+  );
+  const hasMoreFiles = filteredFiles.length > INITIAL_FILE_LIMIT && !showAllFiles;
+
   const renderFileList = useCallback(
     (filesToRender: DiffFile[]) =>
       filesToRender.map((file) => (
@@ -272,7 +287,15 @@ function FileSidebar({
                   {filteredFiles.length}
                 </span>
               </div>
-              {renderFileList(filteredFiles)}
+              {renderFileList(visibleFiles)}
+              {hasMoreFiles && (
+                <button
+                  onClick={() => setShowAllFiles(true)}
+                  className="w-full px-2.5 py-1.5 text-[10px] text-accent-primary hover:text-accent-primary/80 hover:bg-bg-hover transition-colors text-center"
+                >
+                  Show {filteredFiles.length - INITIAL_FILE_LIMIT} more files
+                </button>
+              )}
             </div>
           ) : viewMode === "changes" ? (
             <div className="flex flex-col items-center justify-center flex-1 px-4 py-8 text-center">

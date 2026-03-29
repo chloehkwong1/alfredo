@@ -3,11 +3,14 @@ import { createHighlighter, type BundledLanguage, type Highlighter, type ThemedT
 let highlighterInstance: Highlighter | null = null;
 let highlighterPromise: Promise<Highlighter> | null = null;
 
+const TOKEN_CACHE_MAX = 10_000;
+const tokenCache = new Map<string, ThemedToken[]>();
+
 const SUPPORTED_LANGS = [
   "typescript", "tsx", "javascript", "jsx",
   "rust", "json", "css", "html",
   "markdown", "yaml", "toml", "bash",
-  "python", "go", "sql",
+  "python", "go", "sql", "ruby", "erb",
 ] as const;
 
 /**
@@ -53,14 +56,47 @@ export function getLangFromPath(filePath: string): string | undefined {
     py: "python",
     go: "go",
     sql: "sql",
+    rb: "ruby",
+    rake: "ruby",
+    gemspec: "ruby",
+    erb: "erb",
   };
   return map[ext ?? ""];
+}
+
+// Concurrency-limited tokenization queue to prevent UI jank during scrolling.
+// Without this, scrolling through a large diff fires dozens of concurrent
+// tokenizations that saturate the main thread.
+const MAX_CONCURRENT = 6;
+let activeCount = 0;
+const pendingQueue: Array<() => void> = [];
+
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    function run() {
+      activeCount++;
+      fn()
+        .then(resolve, reject)
+        .finally(() => {
+          activeCount--;
+          const next = pendingQueue.shift();
+          if (next) next();
+        });
+    }
+
+    if (activeCount < MAX_CONCURRENT) {
+      run();
+    } else {
+      pendingQueue.push(run);
+    }
+  });
 }
 
 /**
  * Tokenize a single line of code for syntax highlighting.
  * Returns an array of themed tokens with color info.
  * Falls back to plain text if language is unsupported.
+ * Concurrency-limited to MAX_CONCURRENT to avoid UI jank.
  */
 export async function tokenizeLine(
   code: string,
@@ -70,12 +106,32 @@ export async function tokenizeLine(
     return [{ content: code, offset: 0, color: undefined }];
   }
 
-  const highlighter = await getHighlighter();
-  const tokens = highlighter.codeToTokensBase(code, {
-    lang: lang as BundledLanguage,
-    theme: "github-dark-default",
-  });
+  const cacheKey = `${lang}:${code}`;
+  const cached = tokenCache.get(cacheKey);
+  if (cached) return cached;
 
-  // codeToTokensBase returns Token[][] (lines), we only pass one line
-  return tokens[0] ?? [{ content: code, offset: 0, color: undefined }];
+  return enqueue(async () => {
+    // Re-check cache — another queued call may have populated it
+    const rechecked = tokenCache.get(cacheKey);
+    if (rechecked) return rechecked;
+
+    const highlighter = await getHighlighter();
+    const tokens = highlighter.codeToTokensBase(code, {
+      lang: lang as BundledLanguage,
+      theme: "github-dark-default",
+    });
+
+    const result = tokens[0] ?? [{ content: code, offset: 0, color: undefined }];
+
+    if (tokenCache.size >= TOKEN_CACHE_MAX) {
+      tokenCache.clear();
+    }
+    tokenCache.set(cacheKey, result);
+
+    return result;
+  });
+}
+
+export function clearTokenCache(): void {
+  tokenCache.clear();
 }
