@@ -35,7 +35,9 @@ pub fn run() {
                 .map_err(|e| format!("failed to resolve app data dir: {e}"))?;
             let store_path = app_data.clone();
             tauri::async_runtime::block_on(async {
-                app_config_manager::migrate_if_needed(&app_data, &store_path).await.ok();
+                if let Err(e) = app_config_manager::migrate_if_needed(&app_data, &store_path).await {
+                    eprintln!("[alfredo] config migration failed: {e}");
+                }
             });
 
             // Start the background GitHub PR sync loop
