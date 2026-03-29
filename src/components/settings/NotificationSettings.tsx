@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { Bell, Play, Volume2 } from "lucide-react";
 import { Button } from "../ui/Button";
+import { Toggle } from "../ui/Toggle";
 import type { NotificationConfig } from "../../types";
 import { SOUNDS, playSoundById } from "../../hooks/useNotifications";
 
@@ -13,37 +14,6 @@ const SOUND_OPTIONS = Object.keys(SOUNDS).map((id) => ({
 interface NotificationSettingsProps {
   config: NotificationConfig;
   onChange: (config: NotificationConfig) => void;
-}
-
-function Toggle({
-  checked,
-  onToggle,
-}: {
-  checked: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onToggle}
-      className={[
-        "relative inline-flex h-5 w-9 items-center rounded-full",
-        "transition-colors duration-[var(--transition-fast)]",
-        "cursor-pointer",
-        checked ? "bg-accent-primary" : "bg-bg-active",
-      ].join(" ")}
-    >
-      <span
-        className={[
-          "inline-block h-3.5 w-3.5 rounded-full bg-white",
-          "transition-transform duration-[var(--transition-fast)]",
-          checked ? "translate-x-[18px]" : "translate-x-[3px]",
-        ].join(" ")}
-      />
-    </button>
-  );
 }
 
 function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
@@ -95,7 +65,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
             Enable Notifications
           </label>
         </div>
-        <Toggle checked={config.enabled} onToggle={handleEnableToggle} />
+        <Toggle checked={config.enabled} onChange={() => handleEnableToggle()} />
       </div>
 
       {permissionState === "denied" && (
@@ -125,9 +95,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
               </span>
               <Toggle
                 checked={config.notifyOnWaiting}
-                onToggle={() =>
-                  update("notifyOnWaiting", !config.notifyOnWaiting)
-                }
+                onChange={(v) => update("notifyOnWaiting", v)}
               />
             </div>
 
@@ -137,7 +105,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
               </span>
               <Toggle
                 checked={config.notifyOnIdle}
-                onToggle={() => update("notifyOnIdle", !config.notifyOnIdle)}
+                onChange={(v) => update("notifyOnIdle", v)}
               />
             </div>
 
@@ -145,9 +113,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
               <span className="text-sm text-text-secondary">Agent error</span>
               <Toggle
                 checked={config.notifyOnError}
-                onToggle={() =>
-                  update("notifyOnError", !config.notifyOnError)
-                }
+                onChange={(v) => update("notifyOnError", v)}
               />
             </div>
           </div>
