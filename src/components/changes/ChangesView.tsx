@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Send, Trash2, MessageSquare } from "lucide-react";
 import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
-import { getDiff, getUncommittedDiff, getCommits, getDiffForCommit, writePty } from "../../api";
+import { writePty } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { usePrStore } from "../../stores/prStore";
 import { sessionManager } from "../../services/sessionManager";
 import { Button } from "../ui/Button";
-import type { DiffFile, CommitInfo } from "../../types";
+import { useChangesData } from "../../hooks/useChangesData";
 import type { ViewMode } from "./FileSidebar";
 
 interface ChangesViewProps {
@@ -18,10 +18,6 @@ interface ChangesViewProps {
 
 function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("pr");
-  const [uncommittedFiles, setUncommittedFiles] = useState<DiffFile[]>([]);
-  const [committedFiles, setCommittedFiles] = useState<DiffFile[]>([]);
-  const [commits, setCommits] = useState<CommitInfo[]>([]);
-  const [commitFiles, setCommitFiles] = useState<DiffFile[]>([]);
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeAnnotationLine, setActiveAnnotationLine] = useState<number | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
@@ -42,72 +38,9 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const setJumpToComment = usePrStore((s) => s.setJumpToComment);
   const clearJumpToComment = usePrStore((s) => s.clearJumpToComment);
 
-  // Lazy-load uncommitted diff only when Changes tab is active
-  useEffect(() => {
-    if (viewMode !== "changes") return;
-    let cancelled = false;
-    getUncommittedDiff(repoPath)
-      .then((files) => { if (!cancelled) setUncommittedFiles(files); })
-      .catch((err) => console.error("Failed to load uncommitted diff:", err));
-    return () => { cancelled = true; };
-  }, [viewMode, repoPath]);
-
-  // Load committed diff and commits on mount
-  useEffect(() => {
-    let cancelled = false;
-
-    getDiff(repoPath, pr?.baseBranch)
-      .then((files) => { if (!cancelled) setCommittedFiles(files); })
-      .catch((err) => console.error("Failed to load committed diff:", err));
-
-    getCommits(repoPath, pr?.baseBranch)
-      .then((list) => { if (!cancelled) setCommits(list); })
-      .catch((err) => console.error("Failed to load commits:", err));
-
-    return () => {
-      cancelled = true;
-    };
-  }, [repoPath, pr?.baseBranch]);
-
-  // Load commit diff when a commit is selected in commits mode
-  useEffect(() => {
-    if (viewMode !== "commits" || selectedCommitIndex === null || commits.length === 0) {
-      setCommitFiles([]);
-      return;
-    }
-
-    let cancelled = false;
-    const commit = commits[selectedCommitIndex];
-    if (!commit) return;
-
-    async function loadCommitDiff() {
-      try {
-        const files = await getDiffForCommit(repoPath, commit.hash);
-        if (!cancelled) {
-          setCommitFiles(files);
-        }
-      } catch (err) {
-        console.error("Failed to load commit diff:", err);
-      }
-    }
-
-    loadCommitDiff();
-    return () => {
-      cancelled = true;
-    };
-  }, [viewMode, selectedCommitIndex, commits, repoPath]);
-
-  // Computed display files — tab-driven
-  const displayFiles = useMemo(() => {
-    switch (viewMode) {
-      case "changes":
-        return uncommittedFiles;
-      case "pr":
-        return committedFiles;
-      case "commits":
-        return selectedCommitIndex !== null ? commitFiles : [];
-    }
-  }, [viewMode, uncommittedFiles, committedFiles, commitFiles, selectedCommitIndex]);
+  const { uncommittedFiles, committedFiles, commits, displayFiles } = useChangesData(
+    repoPath, viewMode, selectedCommitIndex, pr?.baseBranch,
+  );
 
   // Auto-collapse all files when the diff is large to prevent UI freeze
   const AUTO_COLLAPSE_THRESHOLD = 15;

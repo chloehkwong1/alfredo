@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   CircleCheck,
   Eye,
@@ -8,7 +8,7 @@ import {
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
-import { getCheckRuns, getPrDetail } from "../../api";
+import { usePrData } from "../../hooks/usePrData";
 import { usePrStore } from "../../stores/prStore";
 import type { CheckRun, PrPanelState, PrStatus } from "../../types";
 
@@ -29,10 +29,10 @@ export function PrPanel({
   onTogglePanel,
   onJumpToComment,
 }: PrPanelProps) {
+  usePrData(worktreeId, repoPath, pr.number, pr.headSha ?? pr.branch);
+
   const checkRuns = usePrStore((s) => s.checkRuns[worktreeId]) ?? [];
   const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
-  const setCheckRuns = usePrStore((s) => s.setCheckRuns);
-  const setPrDetail = usePrStore((s) => s.setPrDetail);
 
   const [descExpanded, setDescExpanded] = useState(true);
 
@@ -48,34 +48,6 @@ export function PrPanel({
   const pendingChecks = checkRuns.filter((r) => r.status !== "completed").length;
   const unresolvedComments = comments.filter((c) => !c.resolved).length;
   const approvals = reviews.filter((r) => r.state === "APPROVED").length;
-
-  async function fetchData() {
-    const ref = pr.headSha ?? pr.branch;
-
-    const [runsResult, detailResult] = await Promise.allSettled([
-      getCheckRuns(repoPath, ref),
-      getPrDetail(repoPath, pr.number),
-    ]);
-
-    if (runsResult.status === "fulfilled") {
-      setCheckRuns(worktreeId, runsResult.value);
-    } else {
-      console.warn("[PrPanel] getCheckRuns failed:", runsResult.reason);
-    }
-
-    if (detailResult.status === "fulfilled") {
-      setPrDetail(worktreeId, detailResult.value);
-    } else {
-      console.warn("[PrPanel] getPrDetail failed:", detailResult.reason);
-    }
-  }
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30_000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [worktreeId, repoPath, pr.number, pr.branch]);
 
   // ── Collapsed rail ─────────────────────────────────────────────
   if (panelState === "collapsed") {
