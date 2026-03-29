@@ -138,17 +138,7 @@ export function PrPanel({
 
       {/* Description */}
       {pr.body && (
-        <div className="px-2.5 py-2 border-b border-border-subtle text-xs text-text-secondary leading-[1.5]">
-          <p className={descExpanded ? "" : "line-clamp-3"}>
-            {pr.body}
-          </p>
-          <button
-            onClick={() => setDescExpanded(!descExpanded)}
-            className="text-accent-primary text-[10px] mt-0.5 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
-          >
-            {descExpanded ? "Show less" : "Show more"}
-          </button>
-        </div>
+        <PrDescription body={pr.body} expanded={descExpanded} onToggle={() => setDescExpanded(!descExpanded)} />
       )}
 
       {/* Scrollable content */}
@@ -210,6 +200,65 @@ export function PrPanel({
 }
 
 // ── Sub-components ─────────────────────────────────────────────────
+
+/** Lightly format a PR body for display: strip img tags, render headers as bold, preserve line breaks. */
+function formatPrBody(body: string): React.ReactNode[] {
+  // Strip HTML img tags
+  const cleaned = body.replace(/<img[^>]*\/?>/gi, "").replace(/\|[-|]+\|/g, "");
+
+  return cleaned.split("\n").map((line, i) => {
+    // ## Headers → bold
+    const headerMatch = line.match(/^#{1,3}\s+(.+)/);
+    if (headerMatch) {
+      return (
+        <span key={i} className="block text-text-primary font-semibold mt-1 first:mt-0">
+          {headerMatch[1]}
+        </span>
+      );
+    }
+    // Blank lines → small spacer
+    if (line.trim() === "") {
+      return <span key={i} className="block h-1" />;
+    }
+    // **bold** → <strong>
+    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+    return (
+      <span key={i} className="block">
+        {parts.map((part, j) => {
+          const boldMatch = part.match(/^\*\*(.+)\*\*$/);
+          if (boldMatch) {
+            return <strong key={j} className="text-text-primary">{boldMatch[1]}</strong>;
+          }
+          return part;
+        })}
+      </span>
+    );
+  });
+}
+
+function PrDescription({
+  body,
+  expanded,
+  onToggle,
+}: {
+  body: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="px-2.5 py-2 border-b border-border-subtle text-xs text-text-secondary leading-[1.5] overflow-hidden">
+      <div className={expanded ? "overflow-y-auto max-h-[200px]" : "line-clamp-3"}>
+        {formatPrBody(body)}
+      </div>
+      <button
+        onClick={onToggle}
+        className="text-accent-primary text-[10px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
+      >
+        {expanded ? "Show less" : "Show more"}
+      </button>
+    </div>
+  );
+}
 
 type BadgeVariant = "error" | "ok" | "pending" | "info" | "neutral";
 
