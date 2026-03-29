@@ -19,7 +19,7 @@ function RepoTag({ repoPath, repoColors, repoDisplayNames, repoIndex, visible }:
 
   return (
     <span
-      className="text-[9px] font-medium px-1.5 py-px rounded-[3px] flex-shrink-0"
+      className="text-[11px] font-medium px-1.5 py-0.5 rounded-[4px] flex-shrink-0"
       style={{
         background: color.bg,
         color: color.text,
