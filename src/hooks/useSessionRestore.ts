@@ -3,7 +3,6 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths } from "../api";
 import { loadSession } from "../services/SessionPersistence";
-import { sessionManager } from "../services/sessionManager";
 
 /**
  * Loads worktrees for all selected repos, restores persisted sessions
@@ -15,6 +14,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useWorkspaceStore((s) => s.restoreTabs);
   const ensureDefaultTabs = useWorkspaceStore((s) => s.ensureDefaultTabs);
+  const markWorktreeSeen = useWorkspaceStore((s) => s.markWorktreeSeen);
   const restoredRepos = useRef(new Set<string>());
 
   const selectedReposKey = selectedRepos.join(",");
@@ -66,15 +66,13 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
                 }
 
+                // Don't eagerly spawn sessions — they'll start lazily when
+                // the user clicks the Claude tab via usePty → getOrSpawn.
+                // Eager spawning on restore causes multiple concurrent PTY
+                // processes that can freeze the app.
                 for (const tab of session.tabs) {
-                  if (tab.type === "claude" && !sessionManager.getSession(tab.id)) {
-                    try {
-                      await sessionManager.getOrSpawn(
-                        tab.id, wt.id, wt.path, "claude", undefined, ["--continue"],
-                      );
-                    } catch (err) {
-                      console.warn(`[session-restore] Failed to resume session ${tab.id}:`, err);
-                    }
+                  if (tab.type === "claude") {
+                    markWorktreeSeen(wt.id);
                   }
                 }
               }
