@@ -1,0 +1,45 @@
+<h2>Message Sent to Agent</h2>
+<p class="subtitle">What the agent sees in its terminal when you hit "Send to agent"</p>
+
+<div class="split" style="gap: 24px;">
+  <!-- Option A: Compact -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="flex: 1;">
+    <div class="card-body">
+      <h3>A — Compact</h3>
+      <p style="margin-bottom: 12px; color: #aaa; font-size: 13px;">Minimal formatting, easy for agent to parse</p>
+      <div style="background: #0d1117; border-radius: 8px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.7; color: #ccc; white-space: pre-wrap;">I have review comments on the following code:
+
+<span style="color: #c8ab37;">[app/models/user_company_pay_rate.rb:4]</span>
+Is it safe to remove this column? Are there any background jobs still writing to it?
+
+<span style="color: #c8ab37;">[app/models/user_company_pay_rate.rb:7]</span>
+This pluralization looks wrong — should it be company_pay_rate (singular)?
+
+<span style="color: #c8ab37;">[app/controllers/client/v2/user_company_pay_rates_controller.rb:18]</span>
+This change drops the pay_rate param — will existing API clients break?</div>
+    </div>
+  </div>
+
+  <!-- Option B: Markdown -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="flex: 1;">
+    <div class="card-body">
+      <h3>B — Markdown</h3>
+      <p style="margin-bottom: 12px; color: #aaa; font-size: 13px;">Richer formatting, grouped by file</p>
+      <div style="background: #0d1117; border-radius: 8px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.7; color: #ccc; white-space: pre-wrap;">Code review comments:
+
+<span style="color: #e0e0e0; font-weight: 600;">## app/models/user_company_pay_rate.rb</span>
+
+<span style="color: #888;">Line 4:</span> Is it safe to remove this column? Are there any background jobs still writing to it?
+
+<span style="color: #888;">Line 7:</span> This pluralization looks wrong — should it be company_pay_rate (singular)?
+
+<span style="color: #e0e0e0; font-weight: 600;">## app/controllers/client/v2/user_company_pay_rates_controller.rb</span>
+
+<span style="color: #888;">Line 18:</span> This change drops the pay_rate param — will existing API clients break?</div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 16px; padding: 12px; background: rgba(200,171,55,0.1); border-radius: 8px; font-size: 13px; color: #aaa;">
+  <strong style="color: #e0e0e0;">Note:</strong> Both formats get typed into the agent's terminal as if you typed them. Option A keeps all comments flat. Option B groups by file with markdown headers, which Claude Code handles well.
+</div>
