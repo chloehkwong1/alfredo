@@ -14,6 +14,7 @@ import type {
   RepoMode,
   Worktree,
   WorktreeSource,
+  WorkflowRunLog,
 } from "./types";
 
 // ── PTY ─────────────────────────────────────────────────────────
@@ -222,6 +223,20 @@ export function validateGitRepo(path: string): Promise<boolean> {
 
 export function getCheckRuns(repoPath: string, branch: string): Promise<CheckRun[]> {
   return invoke("get_check_runs", { repoPath, branch });
+}
+
+export function rerunFailedChecks(
+  repoPath: string,
+  checkSuiteId: number,
+): Promise<void> {
+  return invoke("rerun_failed_checks", { repoPath, checkSuiteId });
+}
+
+export function getWorkflowLog(
+  repoPath: string,
+  checkSuiteId: number,
+): Promise<WorkflowRunLog[]> {
+  return invoke("get_workflow_log", { repoPath, checkSuiteId });
 }
 
 export function getPrDetail(
