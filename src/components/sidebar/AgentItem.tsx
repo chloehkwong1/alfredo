@@ -109,7 +109,9 @@ function AgentItem({
   const isServerRunning = useWorkspaceStore(
     (s) => s.runningServer?.worktreeId === worktree.id,
   );
-  const channelStatus = worktree.channelAlive === false ? "disconnected" : worktree.agentStatus;
+  const channelStatus = worktree.channelAlive === false && worktree.agentStatus !== "notRunning"
+    ? "disconnected"
+    : worktree.agentStatus;
   const baseStatus = channelStatus === "busy" && worktree.staleBusy ? "stale" : channelStatus;
   const effectiveStatus = baseStatus === "idle" && !isSeen ? "done" : baseStatus;
   const shouldPulse = effectiveStatus === "busy" || effectiveStatus === "waitingForInput";
@@ -306,19 +308,19 @@ function PrStatsRow({ prSummary }: {
       )}
 
       {/* Review decision */}
-      {reviewDecision === "APPROVED" && (
+      {reviewDecision === "approved" && (
         <span className="flex items-center gap-[3px] text-[10px] text-status-idle">
           <Eye size={11} />
           Approved
         </span>
       )}
-      {reviewDecision === "CHANGES_REQUESTED" && (
+      {reviewDecision === "changes_requested" && (
         <span className="flex items-center gap-[3px] text-[10px] text-status-error">
           <Eye size={11} />
           Changes
         </span>
       )}
-      {reviewDecision === "REVIEW_REQUIRED" && (
+      {reviewDecision === "review_required" && (
         <span className="flex items-center gap-[3px] text-[10px] text-status-busy">
           <Clock size={11} />
           Pending
@@ -340,7 +342,7 @@ function PrStatsRow({ prSummary }: {
           Conflict
         </span>
       )}
-      {mergeable === true && reviewDecision === "APPROVED" && checksPass && (
+      {mergeable === true && reviewDecision === "approved" && checksPass && (
         <span className="flex items-center gap-[3px] text-[10px] text-status-idle">
           <CircleCheck size={11} />
           Ready
