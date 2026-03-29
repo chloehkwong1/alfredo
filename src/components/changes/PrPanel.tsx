@@ -532,17 +532,6 @@ function MergeStatusBanner({
     );
   }
 
-  if (pr.draft) {
-    return (
-      <div className="px-2.5 py-1.5 bg-text-tertiary/10 border-t border-text-tertiary/20 text-xs text-text-tertiary font-semibold shrink-0">
-        Draft
-      </div>
-    );
-  }
-
-  return (
-    <div className="px-2.5 py-1.5 bg-status-waiting/10 border-t border-status-waiting/20 text-xs text-status-waiting font-semibold shrink-0">
-      Open
-    </div>
-  );
+  // Draft and Open states — not shown (redundant)
+  return null;
 }
