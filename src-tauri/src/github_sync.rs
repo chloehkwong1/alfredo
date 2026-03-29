@@ -101,22 +101,23 @@ pub fn start_sync_loop(app_handle: AppHandle) {
 }
 
 /// Resolve the repo paths from managed state.
-fn get_repo_paths(app_handle: &AppHandle) -> Vec<String> {
+fn get_sync_state(app_handle: &AppHandle) -> (Vec<String>, std::collections::HashSet<String>) {
     let Some(state) = app_handle.try_state::<SyncState>() else {
-        return Vec::new();
+        return (Vec::new(), std::collections::HashSet::new());
     };
-    let Ok(paths) = state.repo_paths.lock() else {
-        return Vec::new();
-    };
-    paths.clone()
+    let paths = state.repo_paths.lock().map(|p| p.clone()).unwrap_or_default();
+    let branches = state.active_branches.lock().map(|b| b.clone()).unwrap_or_default();
+    (paths, branches)
 }
 
-/// Managed state to hold the repo paths for the sync loop.
+/// Managed state to hold the repo paths and active worktree branches for the sync loop.
 pub struct SyncState {
     pub repo_paths: std::sync::Mutex<Vec<String>>,
+    /// Branches that have active worktrees — only these PRs get full enrichment.
+    pub active_branches: std::sync::Mutex<std::collections::HashSet<String>>,
 }
 
-/// Set the repo paths so the sync loop knows what to poll.
+/// Set the repo paths and active branches so the sync loop knows what to poll and enrich.
 /// Also triggers an immediate poll so worktrees get correct PR status on startup
 /// without waiting for the next 30-second tick.
 #[tauri::command]
@@ -124,10 +125,15 @@ pub async fn set_sync_repo_paths(
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, SyncState>,
     repo_paths: Vec<String>,
+    active_branches: Vec<String>,
 ) -> Result<(), String> {
     {
         let mut paths = state.repo_paths.lock().map_err(|e| e.to_string())?;
         *paths = repo_paths;
+    }
+    {
+        let mut branches = state.active_branches.lock().map_err(|e| e.to_string())?;
+        *branches = active_branches.into_iter().collect();
     }
     // Fire an immediate poll so the frontend doesn't wait 30s for PR status
     if let Err(e) = poll_once(&app_handle).await {
@@ -138,7 +144,7 @@ pub async fn set_sync_repo_paths(
 
 /// Single poll iteration: fetch PRs for all repos and emit event.
 async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
-    let repo_paths = get_repo_paths(app_handle);
+    let (repo_paths, active_branches) = get_sync_state(app_handle);
     if repo_paths.is_empty() {
         return Ok(()); // No repos configured yet — silently skip
     }
@@ -146,7 +152,7 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
     let mut all_prs: Vec<PrStatusWithColumn> = Vec::new();
 
     for repo_path in &repo_paths {
-        match poll_repo(app_handle, repo_path).await {
+        match poll_repo(app_handle, repo_path, &active_branches).await {
             Ok(prs) => all_prs.extend(prs),
             Err(e) => {
                 eprintln!("[github_sync] error syncing {repo_path}: {e}");
@@ -168,6 +174,7 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
 async fn poll_repo(
     _app_handle: &AppHandle,
     repo_path: &str,
+    active_branches: &std::collections::HashSet<String>,
 ) -> Result<Vec<PrStatusWithColumn>, String> {
     let config = config_manager::load_config(repo_path)
         .await
@@ -205,19 +212,16 @@ async fn poll_repo(
     let mut payload_prs: Vec<PrStatusWithColumn> =
         prs.iter().map(|pr| PrStatusWithColumn::from_pr(pr, repo_path)).collect();
 
-    // Enrich non-merged PRs with full data (sidebar summaries + PR panel detail).
-    // Cap at 10 per repo to avoid GitHub API rate limits (5 calls per PR = 50 max).
-    // PRs are sorted newest-first from the API, so the most recent get enriched.
-    const MAX_ENRICH: usize = 10;
-    let mut enriched_count = 0usize;
+    // Only enrich PRs that have active worktrees — no point fetching details
+    // for PRs the user isn't looking at. This keeps API usage proportional to
+    // the number of worktrees (typically 2-5), not the total open PRs (can be 80+).
     for pr_with_col in payload_prs.iter_mut() {
         if pr_with_col.merged {
             continue;
         }
-        if enriched_count >= MAX_ENRICH {
-            break;
+        if !active_branches.contains(&pr_with_col.branch) {
+            continue;
         }
-        enriched_count += 1;
 
         let pr_number = pr_with_col.number;
 

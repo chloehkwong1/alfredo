@@ -28,6 +28,7 @@ pub fn run() {
         .manage(PtyManager::new())
         .manage(SyncState {
             repo_paths: std::sync::Mutex::new(Vec::new()),
+            active_branches: std::sync::Mutex::new(std::collections::HashSet::new()),
         })
         .setup(|app| {
             // Migrate legacy single-repo config to app.json

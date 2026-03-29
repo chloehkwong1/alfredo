@@ -22,7 +22,10 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
   useEffect(() => {
     if (!repoPath) return;
     const reposToSync = selectedRepos.length > 0 ? selectedRepos : [repoPath];
-    setSyncRepoPaths(reposToSync).catch(e => console.warn('[AppShell] Failed to sync repo paths:', e));
+    const worktreeBranches = useWorkspaceStore.getState().worktrees
+      .filter((wt) => !wt.archived)
+      .map((wt) => wt.branch);
+    setSyncRepoPaths(reposToSync, worktreeBranches).catch(e => console.warn('[AppShell] Failed to sync repo paths:', e));
 
     const reposToLoad = selectedRepos.length > 0 ? selectedRepos : [repoPath];
 
@@ -41,6 +44,12 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
         if (wts.length > 0) {
           setWorktreesForRepo(repo, wts);
           ensureAlfredoGitignore(repo).catch(e => console.warn('[AppShell] Failed to ensure .alfredo gitignore:', e));
+
+          // Update active branches now that worktrees are loaded
+          const allWorktrees = useWorkspaceStore.getState().worktrees;
+          const branches = allWorktrees.filter((wt) => !wt.archived).map((wt) => wt.branch);
+          const repos = selectedRepos.length > 0 ? selectedRepos : [repoPath];
+          setSyncRepoPaths(repos, branches).catch(() => {});
 
           if (!restoredRepos.current.has(repo)) {
             restoredRepos.current.add(repo);

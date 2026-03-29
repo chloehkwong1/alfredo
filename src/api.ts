@@ -130,8 +130,8 @@ export function githubAuthToken(): Promise<string> {
 
 // ── GitHub Sync ─────────────────────────────────────────────────
 
-export function setSyncRepoPaths(repoPaths: string[]): Promise<void> {
-  return invoke("set_sync_repo_paths", { repoPaths });
+export function setSyncRepoPaths(repoPaths: string[], activeBranches: string[]): Promise<void> {
+  return invoke("set_sync_repo_paths", { repoPaths, activeBranches });
 }
 
 // ── Config ──────────────────────────────────────────────────────
