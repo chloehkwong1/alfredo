@@ -7,6 +7,7 @@ mod git_manager;
 mod github_manager;
 mod github_sync;
 mod linear_manager;
+mod patch_parser;
 mod pty_manager;
 mod state_server;
 mod types;
