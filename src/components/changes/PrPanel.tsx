@@ -35,7 +35,7 @@ export function PrPanel({
   const checkRuns = usePrStore((s) => s.checkRuns[worktreeId]) ?? [];
   const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
 
-  const [descExpanded, setDescExpanded] = useState(true);
+  const [descExpanded, setDescExpanded] = useState(false);
 
   const reviews = prDetail?.reviews ?? [];
   const comments = prDetail?.comments ?? [];
