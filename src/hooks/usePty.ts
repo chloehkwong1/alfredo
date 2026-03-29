@@ -3,7 +3,7 @@ import type { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import type { SearchAddon } from "@xterm/addon-search";
 import type { AgentState } from "../types";
-import { writePty, resizePty } from "../api";
+import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
 import { sessionManager } from "../services/sessionManager";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { ManagedSession } from "../services/sessionManager";
@@ -185,15 +185,17 @@ export function usePty({
     // If busy with no output for this long, mark as stale/unresponsive.
     const STALE_BUSY_MS = 30_000;
 
+    let prevAgentState: AgentState | null = null;
     const stateInterval = setInterval(() => {
       const session = sessionRef.current;
       if (session) {
-        setAgentState(session.agentState);
+        const currentState = session.agentState;
+        setAgentState(currentState);
         const alive = !session.sessionId || Date.now() - session.lastHeartbeat < 6000;
         setChannelAlive(alive);
 
         // Detect stale busy: process alive but no output for STALE_BUSY_MS
-        const staleBusy = alive && session.agentState === "busy"
+        const staleBusy = alive && currentState === "busy"
           && session.lastOutputAt > 0
           && Date.now() - session.lastOutputAt > STALE_BUSY_MS;
 
@@ -202,7 +204,28 @@ export function usePty({
             channelAlive: alive,
             staleBusy,
           });
+
+          // Refresh diff stats when agent finishes work (busy/waitingForInput → idle)
+          if (currentState === "idle" && prevAgentState && prevAgentState !== "idle" && prevAgentState !== "notRunning") {
+            const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
+            if (wt?.prStatus?.number) {
+              getPrFiles(wt.repoPath, wt.prStatus.number)
+                .then((files) => {
+                  const additions = files.reduce((sum, f) => sum + f.additions, 0);
+                  const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
+                  useWorkspaceStore.getState().updateWorktree(worktreeId, { additions, deletions });
+                })
+                .catch(() => {});
+            } else {
+              getWorktreeDiffStats(worktreePath)
+                .then(([additions, deletions]) => {
+                  useWorkspaceStore.getState().updateWorktree(worktreeId, { additions, deletions });
+                })
+                .catch(() => {});
+            }
+          }
         }
+        prevAgentState = currentState;
       }
     }, 500);
 
