@@ -13,3 +13,23 @@ pub async fn get_pr_detail(
     let (manager, owner, repo) = github_manager::github_context(&repo_path).await?;
     manager.get_pr_detail(&owner, &repo, pr_number).await
 }
+
+/// Fetch PR file diffs from GitHub API.
+#[tauri::command]
+pub async fn get_pr_files(
+    repo_path: String,
+    pr_number: u64,
+) -> Result<Vec<crate::commands::diff::DiffFile>> {
+    let (manager, owner, repo) = github_manager::github_context(&repo_path).await?;
+    manager.get_pr_files(&owner, &repo, pr_number).await
+}
+
+/// Fetch PR commits from GitHub API.
+#[tauri::command]
+pub async fn get_pr_commits(
+    repo_path: String,
+    pr_number: u64,
+) -> Result<Vec<crate::commands::diff::CommitInfo>> {
+    let (manager, owner, repo) = github_manager::github_context(&repo_path).await?;
+    manager.get_pr_commits(&owner, &repo, pr_number).await
+}

@@ -3,7 +3,6 @@ use octocrab::Octocrab;
 use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
 #[derive(serde::Deserialize)]
-#[allow(dead_code)]
 struct GithubPrFile {
     filename: String,
     status: String,
@@ -14,28 +13,24 @@ struct GithubPrFile {
 }
 
 #[derive(serde::Deserialize)]
-#[allow(dead_code)]
 struct GithubPrCommit {
     sha: String,
     commit: GithubCommitDetail,
 }
 
 #[derive(serde::Deserialize)]
-#[allow(dead_code)]
 struct GithubCommitDetail {
     message: String,
     author: GithubCommitAuthor,
 }
 
 #[derive(serde::Deserialize)]
-#[allow(dead_code)]
 struct GithubCommitAuthor {
     name: String,
     date: String,
 }
 
 /// Parse a GitHub ISO 8601 timestamp (e.g. "2026-03-29T10:30:00Z") into epoch seconds.
-#[allow(dead_code)]
 fn parse_github_timestamp(date: &str) -> i64 {
     chrono::DateTime::parse_from_rfc3339(date)
         .map(|dt| dt.timestamp())
@@ -474,7 +469,6 @@ impl GithubManager {
 
     /// Fetch the list of files changed in a PR, with parsed diff hunks.
     /// Uses the GitHub REST API: GET /repos/{owner}/{repo}/pulls/{number}/files
-    #[allow(dead_code)]
     pub async fn get_pr_files(
         &self,
         owner: &str,
@@ -553,7 +547,6 @@ impl GithubManager {
 
     /// Fetch commits for a PR from the GitHub API.
     /// Uses: GET /repos/{owner}/{repo}/pulls/{number}/commits
-    #[allow(dead_code)]
     pub async fn get_pr_commits(
         &self,
         owner: &str,

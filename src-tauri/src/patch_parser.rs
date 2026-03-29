@@ -10,7 +10,6 @@ use crate::commands::diff::{DiffHunk, DiffLine};
 ///
 ///  const x = 1;
 /// ```
-#[allow(dead_code)]
 pub fn parse_patch(patch: &str) -> Vec<DiffHunk> {
     let mut hunks: Vec<DiffHunk> = Vec::new();
     let mut current_hunk: Option<DiffHunk> = None;

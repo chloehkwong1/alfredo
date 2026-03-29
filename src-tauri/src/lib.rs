@@ -90,6 +90,8 @@ pub fn run() {
             github_sync::set_sync_repo_paths,
             // PR Detail
             pr_detail::get_pr_detail,
+            pr_detail::get_pr_files,
+            pr_detail::get_pr_commits,
             // GitHub Auth
             github_auth::github_auth_status,
             github_auth::github_auth_token,
