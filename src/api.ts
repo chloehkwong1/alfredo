@@ -182,6 +182,20 @@ export function getDiffForCommit(
   return invoke("get_diff_for_commit", { repoPath, commitHash });
 }
 
+export function getPrFiles(
+  repoPath: string,
+  prNumber: number,
+): Promise<DiffFile[]> {
+  return invoke("get_pr_files", { repoPath, prNumber });
+}
+
+export function getPrCommits(
+  repoPath: string,
+  prNumber: number,
+): Promise<CommitInfo[]> {
+  return invoke("get_pr_commits", { repoPath, prNumber });
+}
+
 export function getFileLines(
   repoPath: string,
   filePath: string,

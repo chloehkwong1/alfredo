@@ -71,7 +71,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const clearJumpToComment = usePrStore((s) => s.clearJumpToComment);
 
   const { uncommittedFiles, committedFiles, commits, displayFiles } = useChangesData(
-    repoPath, viewMode, selectedCommitIndex, pr?.baseBranch,
+    repoPath, viewMode, selectedCommitIndex, pr?.baseBranch, pr?.number,
   );
 
   const reviewedCount = displayFiles.filter((f) => reviewedFiles.has(f.path)).length;
