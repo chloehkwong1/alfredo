@@ -1,7 +1,9 @@
 import { type ReactNode, useCallback, useState } from "react";
 import {
   DndContext,
+  DragOverlay,
   type DragEndEvent,
+  type DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
@@ -10,15 +12,17 @@ import type { KanbanColumn } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import { setWorktreeColumn } from "../../api";
+import { AgentItemOverlay } from "./AgentItemOverlay";
 
 interface SidebarDragContextProps {
-  children: (isDragging: boolean) => ReactNode;
+  children: (isDragging: boolean, activeId: string | null, dragHeight: number | null) => ReactNode;
 }
 
 function SidebarDragContext({ children }: SidebarDragContextProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const setManualColumn = useWorkspaceStore((s) => s.setManualColumn);
-  const [isDragging, setIsDragging] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [dragSize, setDragSize] = useState<{ width: number; height: number } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -26,9 +30,18 @@ function SidebarDragContext({ children }: SidebarDragContextProps) {
     }),
   );
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+    const el = (event.activatorEvent.target as HTMLElement)?.closest?.("button");
+    if (el) {
+      const { width, height } = el.getBoundingClientRect();
+      setDragSize({ width, height });
+    }
+  }, []);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      setIsDragging(false);
+      setActiveId(null);
 
       const { active, over } = event;
       if (!over) return;
@@ -50,14 +63,23 @@ function SidebarDragContext({ children }: SidebarDragContextProps) {
     [worktrees, setManualColumn],
   );
 
+  const activeWorktree = activeId
+    ? worktrees.find((wt) => wt.id === activeId)
+    : null;
+
   return (
     <DndContext
       sensors={sensors}
-      onDragStart={() => setIsDragging(true)}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setIsDragging(false)}
+      onDragCancel={() => setActiveId(null)}
     >
-      {children(isDragging)}
+      {children(activeId !== null, activeId, dragSize?.height ?? null)}
+      <DragOverlay dropAnimation={null}>
+        {activeWorktree ? (
+          <AgentItemOverlay worktree={activeWorktree} width={dragSize?.width} />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

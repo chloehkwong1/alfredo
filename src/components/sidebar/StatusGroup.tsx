@@ -21,6 +21,8 @@ interface StatusGroupProps {
   onDeleteWorktree?: (id: string) => void;
   onArchiveWorktree?: (id: string) => void;
   forceVisible?: boolean;
+  dragActiveId?: string | null;
+  dragHeight?: number | null;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
   showRepoTags?: boolean;
@@ -51,6 +53,8 @@ function StatusGroup({
   onDeleteWorktree,
   onArchiveWorktree,
   forceVisible,
+  dragActiveId,
+  dragHeight,
   repoColors,
   repoDisplayNames,
   showRepoTags,
@@ -67,13 +71,14 @@ function StatusGroup({
   const Icon = columnIcon[column];
   const label = columnLabel[column];
 
+  // Show a drop placeholder when dragging over this group from a different group
+  const draggedItemIsInThisGroup = dragActiveId != null && worktrees.some((wt) => wt.id === dragActiveId);
+  const showDropPlaceholder = isOver && !draggedItemIsInThisGroup && dragActiveId != null;
+
   return (
     <div
       ref={setNodeRef}
-      className={[
-        "w-full mt-2 first:mt-0 rounded-md transition-colors",
-        isOver ? "bg-accent-muted ring-1 ring-accent-primary" : "",
-      ].join(" ")}
+      className="w-full mt-2 first:mt-0 rounded-md transition-colors"
     >
       {/* Group header */}
       <button
@@ -129,6 +134,12 @@ function StatusGroup({
                 showRepoTag={showRepoTags ?? false}
               />
             ))}
+            {showDropPlaceholder && (
+              <div
+                className="mx-3 my-1 rounded-md border border-dashed border-accent-primary/40 bg-accent-muted/30 transition-all"
+                style={dragHeight ? { height: dragHeight } : { height: 40 }}
+              />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
