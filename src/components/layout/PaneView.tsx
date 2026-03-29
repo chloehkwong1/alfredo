@@ -59,11 +59,19 @@ function PaneView({
       const changesTab = tabs.find((t) => t.type === "changes");
       if (changesTab && activeTab?.type !== "changes") {
         setPaneActiveTab(worktreeId, paneId, changesTab.id);
-        // Delay jump slightly to let ChangesView mount and register its callback
-        setTimeout(() => {
+        // Poll for the jumpToComment callback to appear (registered by ChangesView on mount)
+        let attempts = 0;
+        const poll = setInterval(() => {
+          attempts++;
           const fn = usePrStore.getState().jumpToComment[worktreeId];
-          if (fn) fn(filePath, line);
-        }, 300);
+          if (fn) {
+            clearInterval(poll);
+            fn(filePath, line);
+          } else if (attempts >= 20) {
+            clearInterval(poll);
+            console.warn("[PaneView] jumpToComment callback not registered after 2s");
+          }
+        }, 100);
       } else if (jumpToComment) {
         jumpToComment(filePath, line);
       }

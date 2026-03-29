@@ -148,13 +148,22 @@ export function usePty({
       setAgentState(session.agentState);
       setIsConnected(true);
 
-      // Write startup command to stdin after a brief delay for shell init
+      // Write startup command after shell produces its first output (prompt ready)
       if (startupCommandRef.current && session.sessionId) {
-        setTimeout(() => {
-          const cmd = startupCommandRef.current + "\n";
-          const bytes = Array.from(new TextEncoder().encode(cmd));
-          writePty(session.sessionId, bytes).catch(console.error);
-        }, 500);
+        let startupAttempts = 0;
+        const waitForReady = setInterval(() => {
+          startupAttempts++;
+          const s = sessionRef.current;
+          if (s && s.lastOutputAt > 0) {
+            clearInterval(waitForReady);
+            const cmd = startupCommandRef.current + "\n";
+            const bytes = Array.from(new TextEncoder().encode(cmd));
+            writePty(s.sessionId, bytes).catch(console.error);
+          } else if (startupAttempts >= 50) {
+            clearInterval(waitForReady);
+            console.warn("[usePty] shell never produced output, skipping startup command");
+          }
+        }, 100);
       }
     }
 
