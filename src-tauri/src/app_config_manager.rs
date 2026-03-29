@@ -22,6 +22,10 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             display_name: None,
             repo_colors: std::collections::HashMap::new(),
             repo_display_names: std::collections::HashMap::new(),
+            preferred_editor: "vscode".into(),
+            custom_editor_path: None,
+            preferred_terminal: "iterm".into(),
+            custom_terminal_path: None,
         });
     }
 
@@ -134,6 +138,10 @@ pub async fn migrate_if_needed(
         display_name: None,
         repo_colors: std::collections::HashMap::new(),
         repo_display_names: std::collections::HashMap::new(),
+        preferred_editor: "vscode".into(),
+        custom_editor_path: None,
+        preferred_terminal: "iterm".into(),
+        custom_terminal_path: None,
     };
 
     save(app_data_dir, &global).await?;
@@ -168,6 +176,10 @@ mod tests {
             display_name: None,
             repo_colors: std::collections::HashMap::new(),
             repo_display_names: std::collections::HashMap::new(),
+            preferred_editor: "vscode".into(),
+            custom_editor_path: None,
+            preferred_terminal: "iterm".into(),
+            custom_terminal_path: None,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -190,6 +202,10 @@ mod tests {
             display_name: None,
             repo_colors: std::collections::HashMap::new(),
             repo_display_names: std::collections::HashMap::new(),
+            preferred_editor: "vscode".into(),
+            custom_editor_path: None,
+            preferred_terminal: "iterm".into(),
+            custom_terminal_path: None,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -209,6 +225,10 @@ mod tests {
             display_name: None,
             repo_colors: std::collections::HashMap::new(),
             repo_display_names: std::collections::HashMap::new(),
+            preferred_editor: "vscode".into(),
+            custom_editor_path: None,
+            preferred_terminal: "iterm".into(),
+            custom_terminal_path: None,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);

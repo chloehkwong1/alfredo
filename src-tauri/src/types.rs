@@ -309,7 +309,18 @@ pub struct GlobalAppConfig {
     pub repo_colors: HashMap<String, String>,
     #[serde(default)]
     pub repo_display_names: HashMap<String, String>,
+    #[serde(default = "default_editor")]
+    pub preferred_editor: String,
+    #[serde(default)]
+    pub custom_editor_path: Option<String>,
+    #[serde(default = "default_terminal")]
+    pub preferred_terminal: String,
+    #[serde(default)]
+    pub custom_terminal_path: Option<String>,
 }
+
+fn default_editor() -> String { "vscode".into() }
+fn default_terminal() -> String { "iterm".into() }
 
 // ── Linear ──────────────────────────────────────────────────────
 
