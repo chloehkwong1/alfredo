@@ -13,7 +13,7 @@ mod types;
 
 use tauri::Manager;
 
-use commands::{app_config, branch, checks, config, diff, github, github_auth, linear, pr_detail, pty, repo, session, worktree};
+use commands::{app_config, branch, checks, config, diff, external_tools, github, github_auth, linear, pr_detail, pty, repo, session, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 
@@ -116,6 +116,9 @@ pub fn run() {
             diff::get_default_branch,
             diff::get_diff_for_commit,
             diff::get_file_lines,
+            // External Tools
+            external_tools::open_in_editor,
+            external_tools::open_in_terminal,
             // Session persistence
             session::save_session_file,
             session::load_session_file,

@@ -1,4 +1,5 @@
 pub mod app_config;
+pub mod external_tools;
 pub mod branch;
 pub mod checks;
 pub mod config;
