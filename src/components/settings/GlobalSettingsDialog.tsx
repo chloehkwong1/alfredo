@@ -318,12 +318,17 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
         </div>
 
         <DialogFooter className="px-6 py-3.5">
+          {tab === "terminal" ? (
+            <p className="text-xs text-text-tertiary mr-auto">Changes apply immediately</p>
+          ) : null}
           <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
-            Cancel
+            {dirty ? "Cancel" : "Close"}
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
+          {tab !== "terminal" && (
+            <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

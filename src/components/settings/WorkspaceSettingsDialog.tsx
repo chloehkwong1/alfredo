@@ -7,20 +7,37 @@ import {
   Dialog,
   DialogContent,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "../ui/Dialog";
-import { Input } from "../ui/Input";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import { ScriptEditor } from "./ScriptEditor";
 
-type WorkspaceTab = "repository" | "scripts" | "display";
+type WorkspaceTab = "repository" | "scripts";
 
 const TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "repository", label: "Repository" },
   { id: "scripts", label: "Scripts" },
-  { id: "display", label: "Display" },
 ];
+
+const inputClass = [
+  "h-8 w-full px-3 text-sm",
+  "bg-bg-primary text-text-primary",
+  "border border-border-default rounded-[var(--radius-md)]",
+  "placeholder:text-text-tertiary",
+  "hover:border-border-hover",
+  "focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50",
+  "transition-all duration-[var(--transition-fast)]",
+].join(" ");
+
+const textareaClass = [
+  "w-full px-3 py-2 text-sm font-mono",
+  "bg-bg-primary text-text-primary",
+  "border border-border-default rounded-[var(--radius-md)]",
+  "placeholder:text-text-tertiary",
+  "hover:border-border-hover",
+  "focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50",
+  "transition-all duration-[var(--transition-fast)]",
+  "resize-none",
+].join(" ");
 
 interface WorkspaceSettingsDialogProps {
   open: boolean;
@@ -119,7 +136,6 @@ function WorkspaceSettingsDialog({
       window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
     } catch {
-      // Backend not available — close anyway during dev
       setDirty(false);
       onOpenChange(false);
     } finally {
@@ -131,12 +147,10 @@ function WorkspaceSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[720px]">
-        <div className="flex flex-col gap-6">
-          <DialogHeader className="!mb-0">
-            <DialogTitle>Repository Settings</DialogTitle>
-          </DialogHeader>
-
+      <DialogContent className="w-[680px] p-0 overflow-hidden">
+        {/* Header with repo selector */}
+        <div className="px-6 pt-6 pb-4 border-b border-border-default">
+          <h2 className="text-base font-semibold text-text-primary mb-4">Repository Settings</h2>
           <RepoDropdown
             repos={repos}
             selectedRepos={selectedRepos}
@@ -145,18 +159,18 @@ function WorkspaceSettingsDialog({
             value={currentRepoPath}
             onChange={handleRepoChange}
           />
+        </div>
 
-          {/* Vertical tab layout */}
-          <div className="flex gap-6 min-h-[280px]">
-          {/* Tab rail */}
-          <nav className="flex flex-col gap-0.5 w-36 flex-shrink-0 border-r border-border-default pr-4">
+        <div className="flex min-h-[320px]">
+          {/* Rail */}
+          <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 p-5 pr-3 border-r border-border-default bg-bg-primary">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
                 className={[
-                  "px-3 py-1.5 text-sm rounded-[var(--radius-md)] text-left",
+                  "px-3 py-2 text-sm rounded-[var(--radius-md)] text-left",
                   "transition-colors duration-[var(--transition-fast)]",
                   "cursor-pointer",
                   tab === t.id
@@ -169,16 +183,16 @@ function WorkspaceSettingsDialog({
             ))}
           </nav>
 
-          {/* Tab content */}
-          <div className="flex-1 min-w-0">
+          {/* Content */}
+          <div className="flex-1 min-w-0 p-6 overflow-y-auto max-h-[400px]">
             {tab === "repository" && (
-              <div className="space-y-5">
+              <div>
                 {/* Repo Path (read-only) */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-text-primary">
+                <div className="mb-4">
+                  <div className="text-sm font-medium text-text-primary mb-1.5">
                     Repository Path
-                  </label>
-                  <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-secondary px-3 h-8 text-sm text-text-secondary">
+                  </div>
+                  <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-primary px-3 h-8 text-sm text-text-secondary">
                     <FolderOpen className="h-4 w-4 flex-shrink-0 text-text-tertiary" />
                     <span className="truncate">
                       {config.repoPath && config.repoPath !== "." ? config.repoPath : "No repository configured"}
@@ -187,16 +201,13 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {/* Display Name */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-text-primary">
+                <div className="mb-4">
+                  <div className="text-sm font-medium text-text-primary mb-1.5">
                     Display Name
-                  </label>
-                  <p className="text-xs text-text-tertiary">
-                    A short name shown in the sidebar repo chips. Defaults to the directory name.
-                  </p>
+                  </div>
                   <input
                     type="text"
-                    className="w-full rounded-[var(--radius-md)] border border-border-default bg-bg-primary px-3 h-8 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                    className={inputClass}
                     placeholder={currentRepoPath.split("/").filter(Boolean).pop() ?? ""}
                     value={displayNameDraft}
                     onChange={(e) => {
@@ -204,110 +215,90 @@ function WorkspaceSettingsDialog({
                       setDirty(true);
                     }}
                   />
+                  <p className="text-xs text-text-tertiary mt-1">
+                    Short name shown in sidebar repo chips. Defaults to directory name.
+                  </p>
                 </div>
 
                 {/* Worktree Base Path */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-text-primary">
+                <div className="mb-4">
+                  <div className="text-sm font-medium text-text-primary mb-1.5">
                     Worktree Directory
-                  </label>
-                  <p className="text-xs text-text-tertiary">
-                    Where new worktrees are created. Defaults to the parent of the repository.
-                  </p>
+                  </div>
                   <input
                     type="text"
-                    className="w-full rounded-[var(--radius-md)] border border-border-default bg-bg-primary px-3 h-8 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                    className={inputClass}
                     placeholder="e.g. /Users/you/worktrees"
                     value={config.worktreeBasePath ?? ""}
                     onChange={(e) =>
-                      updateConfig({
-                        worktreeBasePath: e.target.value || null,
-                      })
+                      updateConfig({ worktreeBasePath: e.target.value || null })
                     }
                   />
-                </div>
-
-                {/* Default Branch */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-text-primary">
-                    Default Branch
-                  </label>
-                  <span className="text-2xs font-medium px-2 py-0.5 rounded-full bg-bg-hover text-text-tertiary">Coming soon</span>
+                  <p className="text-xs text-text-tertiary mt-1">
+                    Where new worktrees are created. Defaults to the repository parent.
+                  </p>
                 </div>
               </div>
             )}
 
             {tab === "scripts" && (
-              <>
-                <div className="space-y-3 mb-6">
-                  <div>
-                    <h3 className="text-sm font-medium text-text-primary mb-1">Run Script</h3>
-                    <p className="text-sm text-text-secondary">
-                      A dev server command that can be started from any worktree via the play button in the tab bar.
-                    </p>
-                  </div>
-                  <div className="space-y-2 rounded-[var(--radius-md)] border border-border-default bg-bg-secondary p-3">
-                    <Input
-                      placeholder="Name (e.g. Dev Server)"
-                      value={config.runScript?.name ?? ""}
-                      onChange={(e) =>
-                        updateConfig({
-                          runScript: e.target.value || config.runScript?.command
-                            ? { name: e.target.value, command: config.runScript?.command ?? "" }
-                            : null,
-                        })
-                      }
-                    />
-                    <Input
-                      placeholder="Command (e.g. npm run dev)"
-                      value={config.runScript?.command ?? ""}
-                      onChange={(e) =>
-                        updateConfig({
-                          runScript: config.runScript?.name || e.target.value
-                            ? { name: config.runScript?.name ?? "", command: e.target.value }
-                            : null,
-                        })
-                      }
-                    />
-                  </div>
+              <div>
+                {/* Run Script */}
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3">
+                  Run Script
                 </div>
-                <div>
-                  <h3 className="text-sm font-medium text-text-primary mb-1">Setup Scripts</h3>
-                  <ScriptEditor
-                    scripts={config.setupScripts}
-                    onChange={(scripts: SetupScript[]) =>
-                      updateConfig({ setupScripts: scripts })
+                <p className="text-xs text-text-tertiary mb-3">
+                  A dev server command started from any worktree via the play button in the tab bar.
+                </p>
+                <div className="mb-4 rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3 space-y-2">
+                  <input
+                    type="text"
+                    className={inputClass}
+                    placeholder="Name (e.g. Dev Server)"
+                    value={config.runScript?.name ?? ""}
+                    onChange={(e) =>
+                      updateConfig({
+                        runScript: e.target.value || config.runScript?.command
+                          ? { name: e.target.value, command: config.runScript?.command ?? "" }
+                          : null,
+                      })
+                    }
+                  />
+                  <textarea
+                    className={textareaClass}
+                    rows={3}
+                    placeholder="Command (e.g. npm run dev)"
+                    value={config.runScript?.command ?? ""}
+                    onChange={(e) =>
+                      updateConfig({
+                        runScript: config.runScript?.name || e.target.value
+                          ? { name: config.runScript?.name ?? "", command: e.target.value }
+                          : null,
+                      })
                     }
                   />
                 </div>
-              </>
-            )}
 
-            {tab === "display" && (
-              <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-sm font-medium text-text-primary">
-                      Collapse empty status groups
-                    </label>
-                    <p className="text-xs text-text-tertiary mt-0.5">
-                      Hide status groups with no worktrees in the sidebar.
-                    </p>
-                  </div>
-                  <span className="text-2xs font-medium px-2 py-0.5 rounded-full bg-bg-hover text-text-tertiary">Coming soon</span>
+                {/* Setup Scripts */}
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-3 mt-6">
+                  Setup Scripts
                 </div>
+                <p className="text-xs text-text-tertiary mb-3">
+                  Run automatically when a new worktree is created.
+                </p>
+                <ScriptEditor
+                  scripts={config.setupScripts}
+                  onChange={(scripts: SetupScript[]) =>
+                    updateConfig({ setupScripts: scripts })
+                  }
+                />
               </div>
             )}
           </div>
         </div>
-        </div>
 
-        <DialogFooter>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-          >
+        <DialogFooter className="px-6 py-3.5">
+          <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
