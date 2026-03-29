@@ -32,7 +32,7 @@ async function toggleRemoteControl(
   // Clear any stale poll from a previous attempt
   clearPoll(worktreeId);
 
-  const bytes = Array.from(new TextEncoder().encode("/remote-control\n"));
+  const bytes = Array.from(new TextEncoder().encode("/remote-control\r"));
   await writePty(session.sessionId, bytes);
 
   const startTime = Date.now();
