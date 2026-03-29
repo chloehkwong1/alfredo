@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
-import { writePty } from "../../api";
+import { writePty, getConfig } from "../../api";
+import { resolveSettings, buildClaudeArgs } from "../../services/claudeSettingsResolver";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { usePrStore } from "../../stores/prStore";
@@ -251,8 +252,24 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     const claudeTab = tabs.find((t) => t.type === "claude");
     const targetKey = claudeTab?.id ?? worktreeId;
 
-    const session = sessionManager.getSession(targetKey);
-    if (!session) return;
+    // Auto-spawn session if it doesn't exist yet
+    let session = sessionManager.getSession(targetKey);
+    if (!session) {
+      try {
+        const config = await getConfig(repoPath);
+        const branch = worktree?.branch ?? "";
+        const resolved = resolveSettings(
+          config.claudeDefaults,
+          config.worktreeOverrides?.[branch],
+        );
+        const args = buildClaudeArgs(resolved);
+        session = await sessionManager.getOrSpawn(
+          targetKey, worktreeId, repoPath, "claude", undefined, args,
+        );
+      } catch {
+        return;
+      }
+    }
 
     // Group annotations by file
     const byFile = new Map<string, typeof annotations>();
@@ -275,7 +292,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     const bytes = Array.from(new TextEncoder().encode(message));
     await writePty(session.sessionId, bytes);
     clearAnnotations(worktreeId);
-  }, [worktreeId, annotations, clearAnnotations]);
+  }, [worktreeId, repoPath, worktree?.branch, annotations, clearAnnotations]);
 
   const activeCommitHash =
     viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex]
