@@ -34,7 +34,7 @@ export function PrPanel({
   const setCheckRuns = useWorkspaceStore((s) => s.setCheckRuns);
   const setPrDetail = useWorkspaceStore((s) => s.setPrDetail);
 
-  const [descExpanded, setDescExpanded] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(true);
 
   const reviews = prDetail?.reviews ?? [];
   const comments = prDetail?.comments ?? [];
@@ -50,15 +50,23 @@ export function PrPanel({
   const approvals = reviews.filter((r) => r.state === "APPROVED").length;
 
   async function fetchData() {
-    try {
-      const [runs, detail] = await Promise.all([
-        getCheckRuns(repoPath, pr.headSha ?? pr.branch),
-        getPrDetail(repoPath, pr.number),
-      ]);
-      setCheckRuns(worktreeId, runs);
-      setPrDetail(worktreeId, detail);
-    } catch {
-      // silently ignore — stale data is acceptable
+    const ref = pr.headSha ?? pr.branch;
+
+    const [runsResult, detailResult] = await Promise.allSettled([
+      getCheckRuns(repoPath, ref),
+      getPrDetail(repoPath, pr.number),
+    ]);
+
+    if (runsResult.status === "fulfilled") {
+      setCheckRuns(worktreeId, runsResult.value);
+    } else {
+      console.warn("[PrPanel] getCheckRuns failed:", runsResult.reason);
+    }
+
+    if (detailResult.status === "fulfilled") {
+      setPrDetail(worktreeId, detailResult.value);
+    } else {
+      console.warn("[PrPanel] getPrDetail failed:", detailResult.reason);
     }
   }
 
@@ -579,7 +587,7 @@ function MergeStatusBanner({
 // ── Helper functions ───────────────────────────────────────────────
 
 /** Converts a millisecond duration to a human-readable string like "42s" or "1m 12s". */
-export function formatDuration(ms: number): string {
+function formatDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000);
   if (totalSeconds < 60) return `${totalSeconds}s`;
   const minutes = Math.floor(totalSeconds / 60);
@@ -588,7 +596,7 @@ export function formatDuration(ms: number): string {
 }
 
 /** Converts an ISO timestamp to a relative time string like "2h ago" or "3d ago". */
-export function formatTimeAgo(timestamp: string): string {
+function formatTimeAgo(timestamp: string): string {
   const diffMs = Date.now() - new Date(timestamp).getTime();
   const diffSecs = Math.round(diffMs / 1000);
 
