@@ -5,6 +5,8 @@ import { AnnotationBubble } from "./AnnotationBubble";
 import { AnnotationInput } from "./AnnotationInput";
 import { DiffCommentIndicator } from "./DiffCommentIndicator";
 import { DiffCommentThread } from "./DiffCommentThread";
+import { SplitDiffLine } from "./SplitDiffLine";
+import { pairLinesForSplit } from "./splitPairing";
 import type {
   DiffFile,
   DiffViewMode,
@@ -49,7 +51,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       file,
       expanded,
       onToggleExpanded,
-      viewMode: _viewMode,
+      viewMode,
       annotations,
       activeAnnotationLine,
       onAddAnnotation,
@@ -194,75 +196,133 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 </div>
 
                 {/* Lines */}
-                {hunk.lines.map((line, lineIndex) => {
-                  // Use newLineNumber for additions/context, oldLineNumber for deletions
-                  const lineNumber =
-                    line.newLineNumber ?? line.oldLineNumber ?? null;
+                {viewMode === "split" ? (
+                  pairLinesForSplit(hunk.lines).map((row, rowIndex) => {
+                    const lineNumber = row.right?.lineNumber ?? row.left?.lineNumber ?? null;
+                    const lineAnnotations = lineNumber !== null
+                      ? (annotationsByLine.get(lineNumber) ?? [])
+                      : [];
+                    const lineComments = lineNumber !== null
+                      ? (prCommentsByLine.get(lineNumber) ?? [])
+                      : [];
+                    const isActiveAnnotationLine =
+                      lineNumber !== null && activeAnnotationLine === lineNumber;
+                    const hasComments = lineComments.length > 0;
+                    const commentsExpanded =
+                      lineNumber !== null && expandedCommentLines.has(lineNumber);
 
-                  const lineAnnotations = lineNumber !== null
-                    ? (annotationsByLine.get(lineNumber) ?? [])
-                    : [];
-                  const lineComments = lineNumber !== null
-                    ? (prCommentsByLine.get(lineNumber) ?? [])
-                    : [];
-                  const isActiveAnnotationLine =
-                    lineNumber !== null &&
-                    activeAnnotationLine === lineNumber;
-                  const hasComments = lineComments.length > 0;
-                  const commentsExpanded =
-                    lineNumber !== null &&
-                    expandedCommentLines.has(lineNumber);
-
-                  return (
-                    <SyntaxDiffLine
-                      key={lineIndex}
-                      content={line.content}
-                      lineType={line.lineType}
-                      oldLineNumber={line.oldLineNumber}
-                      newLineNumber={line.newLineNumber}
-                      filePath={file.path}
-                      onClickLine={
-                        lineNumber !== null
-                          ? () => onAddAnnotation(file.path, lineNumber)
-                          : undefined
-                      }
-                    >
-                      {/* PR comment indicator */}
-                      {hasComments && lineNumber !== null && (
-                        <div className="flex justify-end pr-2">
-                          <DiffCommentIndicator
-                            count={lineComments.length}
-                            onClick={() => toggleCommentLine(lineNumber)}
+                    return (
+                      <SplitDiffLine
+                        key={rowIndex}
+                        left={row.left}
+                        right={row.right}
+                        filePath={file.path}
+                        onClickLine={
+                          lineNumber !== null
+                            ? (ln) => onAddAnnotation(file.path, ln)
+                            : undefined
+                        }
+                      >
+                        {hasComments && lineNumber !== null && (
+                          <div className="flex justify-end pr-2">
+                            <DiffCommentIndicator
+                              count={lineComments.length}
+                              onClick={() => toggleCommentLine(lineNumber)}
+                            />
+                          </div>
+                        )}
+                        {hasComments && commentsExpanded && (
+                          <DiffCommentThread comments={lineComments} />
+                        )}
+                        {lineAnnotations.map((ann) => (
+                          <AnnotationBubble
+                            key={ann.id}
+                            annotation={ann}
+                            onDelete={onDeleteAnnotation}
                           />
-                        </div>
-                      )}
+                        ))}
+                        {isActiveAnnotationLine && lineNumber !== null && (
+                          <AnnotationInput
+                            onSubmit={(text) =>
+                              onSubmitAnnotation(file.path, lineNumber, text)
+                            }
+                            onCancel={() => onAddAnnotation(file.path, lineNumber)}
+                          />
+                        )}
+                      </SplitDiffLine>
+                    );
+                  })
+                ) : (
+                  hunk.lines.map((line, lineIndex) => {
+                    // Use newLineNumber for additions/context, oldLineNumber for deletions
+                    const lineNumber =
+                      line.newLineNumber ?? line.oldLineNumber ?? null;
 
-                      {/* PR comment thread */}
-                      {hasComments && commentsExpanded && (
-                        <DiffCommentThread comments={lineComments} />
-                      )}
+                    const lineAnnotations = lineNumber !== null
+                      ? (annotationsByLine.get(lineNumber) ?? [])
+                      : [];
+                    const lineComments = lineNumber !== null
+                      ? (prCommentsByLine.get(lineNumber) ?? [])
+                      : [];
+                    const isActiveAnnotationLine =
+                      lineNumber !== null &&
+                      activeAnnotationLine === lineNumber;
+                    const hasComments = lineComments.length > 0;
+                    const commentsExpanded =
+                      lineNumber !== null &&
+                      expandedCommentLines.has(lineNumber);
 
-                      {/* Existing annotations */}
-                      {lineAnnotations.map((ann) => (
-                        <AnnotationBubble
-                          key={ann.id}
-                          annotation={ann}
-                          onDelete={onDeleteAnnotation}
-                        />
-                      ))}
+                    return (
+                      <SyntaxDiffLine
+                        key={lineIndex}
+                        content={line.content}
+                        lineType={line.lineType}
+                        oldLineNumber={line.oldLineNumber}
+                        newLineNumber={line.newLineNumber}
+                        filePath={file.path}
+                        onClickLine={
+                          lineNumber !== null
+                            ? () => onAddAnnotation(file.path, lineNumber)
+                            : undefined
+                        }
+                      >
+                        {/* PR comment indicator */}
+                        {hasComments && lineNumber !== null && (
+                          <div className="flex justify-end pr-2">
+                            <DiffCommentIndicator
+                              count={lineComments.length}
+                              onClick={() => toggleCommentLine(lineNumber)}
+                            />
+                          </div>
+                        )}
 
-                      {/* Active annotation input (only on additions/context, not deletions — avoids duplicates on modified lines) */}
-                      {isActiveAnnotationLine && lineNumber !== null && line.lineType !== "deletion" && (
-                        <AnnotationInput
-                          onSubmit={(text) =>
-                            onSubmitAnnotation(file.path, lineNumber, text)
-                          }
-                          onCancel={() => onAddAnnotation(file.path, lineNumber)}
-                        />
-                      )}
-                    </SyntaxDiffLine>
-                  );
-                })}
+                        {/* PR comment thread */}
+                        {hasComments && commentsExpanded && (
+                          <DiffCommentThread comments={lineComments} />
+                        )}
+
+                        {/* Existing annotations */}
+                        {lineAnnotations.map((ann) => (
+                          <AnnotationBubble
+                            key={ann.id}
+                            annotation={ann}
+                            onDelete={onDeleteAnnotation}
+                          />
+                        ))}
+
+                        {/* Active annotation input (only on additions/context, not deletions — avoids duplicates on modified lines) */}
+                        {isActiveAnnotationLine && lineNumber !== null && line.lineType !== "deletion" && (
+                          <AnnotationInput
+                            onSubmit={(text) =>
+                              onSubmitAnnotation(file.path, lineNumber, text)
+                            }
+                            onCancel={() => onAddAnnotation(file.path, lineNumber)}
+                          />
+                        )}
+                      </SyntaxDiffLine>
+                    );
+                  })
+                )}
               </div>
             ))}
           </div>
@@ -273,6 +333,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
 ), (prev, next) =>
   prev.file.path === next.file.path &&
   prev.expanded === next.expanded &&
+  prev.viewMode === next.viewMode &&
   prev.annotations.length === next.annotations.length &&
   prev.activeAnnotationLine === next.activeAnnotationLine &&
   prev.prComments.length === next.prComments.length &&
