@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — Settings Redesign</title>
+  <link rel="stylesheet" href="kit.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); }
+
+    .dialog-content { width: 680px; padding: 0; overflow: hidden; }
+
+    /* Tab layout */
+    .settings-layout { display: flex; min-height: 440px; }
+
+    .settings-rail {
+      width: 160px;
+      padding: 20px 12px;
+      border-right: 1px solid var(--border-default);
+      background: var(--bg-primary);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .rail-tab {
+      padding: 7px 12px;
+      font-size: 13px;
+      color: var(--text-tertiary);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      text-align: left;
+      font-family: inherit;
+      transition: all var(--transition-fast);
+    }
+    .rail-tab:hover { color: var(--text-secondary); background: var(--bg-hover); }
+    .rail-tab.active {
+      color: var(--text-primary);
+      background: var(--accent-muted);
+      font-weight: 500;
+    }
+
+    .settings-body {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      max-height: 480px;
+    }
+
+    /* Section styling */
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-tertiary);
+      margin-bottom: 12px;
+    }
+    .section-title:not(:first-child) { margin-top: 24px; }
+
+    .field { margin-bottom: 16px; }
+    .field:last-child { margin-bottom: 0; }
+
+    .field-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .field-hint {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+
+    /* Unified select */
+    .select {
+      height: 32px;
+      width: 100%;
+      padding: 0 12px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      transition: all var(--transition-fast);
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+    .select:hover { border-color: var(--border-hover); }
+    .select:focus { border-color: var(--border-focus); outline: none; box-shadow: 0 0 0 1px rgba(147,51,234,0.5); }
+
+    /* Unified toggle */
+    .toggle {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      flex-shrink: 0;
+    }
+    .toggle.off { background: var(--bg-active); }
+    .toggle.on { background: var(--accent-primary); }
+    .toggle-knob {
+      position: absolute;
+      top: 3px;
+      width: 14px;
+      height: 14px;
+      border-radius: 7px;
+      background: white;
+      transition: transform var(--transition-fast);
+    }
+    .toggle.off .toggle-knob { left: 3px; }
+    .toggle.on .toggle-knob { left: 19px; }
+
+    /* Toggle row */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+    }
+    .toggle-row-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* Segmented control */
+    .segmented {
+      display: flex;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+      overflow: hidden;
+    }
+    .seg-item {
+      flex: 1;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all var(--transition-fast);
+      text-transform: capitalize;
+    }
+    .seg-item.active {
+      background: var(--accent-primary);
+      color: white;
+    }
+    .seg-item:not(.active) {
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+    }
+    .seg-item:not(.active):hover {
+      color: var(--text-primary);
+    }
+
+    /* Theme grid */
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .theme-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .theme-card:hover { border-color: var(--border-hover); }
+    .theme-card.selected { border-color: var(--accent-primary); box-shadow: 0 0 0 1px rgba(147,51,234,0.5); }
+    .theme-swatch {
+      width: 100%;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      position: relative;
+      overflow: hidden;
+    }
+    .theme-name { font-size: 11px; color: var(--text-secondary); }
+
+    /* Footer */
+    .settings-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 14px 24px;
+      border-top: 1px solid var(--border-default);
+    }
+
+    /* Inline input */
+    .input-sm {
+      height: 32px;
+      width: 100%;
+      padding: 0 12px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      transition: all var(--transition-fast);
+    }
+    .input-sm::placeholder { color: var(--text-tertiary); }
+    .input-sm:hover { border-color: var(--border-hover); }
+    .input-sm:focus { border-color: var(--border-focus); outline: none; box-shadow: 0 0 0 1px rgba(147,51,234,0.5); }
+
+    /* Cursor style buttons */
+    .cursor-group { display: flex; gap: 6px; }
+    .cursor-btn {
+      flex: 1;
+      height: 32px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all var(--transition-fast);
+      text-transform: capitalize;
+    }
+    .cursor-btn:hover { border-color: var(--border-hover); }
+    .cursor-btn.active {
+      border-color: var(--accent-primary);
+      background: var(--accent-muted);
+      color: var(--text-primary);
+    }
+
+    /* Range slider */
+    .range-row { display: flex; align-items: center; gap: 12px; }
+    .range-value { font-size: 12px; color: var(--text-secondary); min-width: 36px; text-align: right; }
+    input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent-primary);
+      cursor: pointer;
+      height: 4px;
+    }
+
+    /* Preview box */
+    .terminal-preview {
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+      background: var(--bg-primary);
+      padding: 12px;
+      margin-top: 4px;
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    /* Connected account */
+    .connected-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+      background: var(--bg-primary);
+      font-size: 13px;
+    }
+    .connected-dot {
+      width: 6px; height: 6px;
+      border-radius: 3px;
+      background: var(--status-idle);
+    }
+
+    /* Sound grid */
+    .sound-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .sound-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all var(--transition-fast);
+    }
+    .sound-btn:hover { border-color: var(--border-hover); }
+    .sound-btn.active {
+      border-color: var(--accent-primary);
+      background: var(--accent-muted);
+      color: var(--text-primary);
+    }
+    .play-icon { font-size: 10px; color: var(--text-tertiary); }
+
+    /* Tabs indicator */
+    .tab-label { display: flex; align-items: center; gap: 8px; }
+    .tab-icon { width: 16px; height: 16px; color: inherit; opacity: 0.7; }
+
+    /* Annotation for mockup */
+    .mockup-note {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      background: var(--bg-elevated);
+      padding: 6px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-default);
+    }
+
+    .tab-set {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border-default);
+      padding-bottom: 0;
+    }
+    .view-tab {
+      padding: 6px 0;
+      margin-bottom: -1px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 500;
+      margin-right: 16px;
+      border-bottom: 2px solid transparent;
+      transition: all var(--transition-fast);
+    }
+    .view-tab:hover { color: var(--text-secondary); }
+    .view-tab.active { color: var(--text-primary); border-bottom-color: var(--accent-primary); }
+  </style>
+</head>
+<body>
+
+<div class="dialog-content">
+
+  <div class="settings-layout">
+    <!-- Rail -->
+    <div class="settings-rail">
+      <button class="rail-tab active" onclick="showTab('general')">General</button>
+      <button class="rail-tab" onclick="showTab('terminal')">Terminal</button>
+      <button class="rail-tab" onclick="showTab('agent')">Agent</button>
+      <button class="rail-tab" onclick="showTab('notifications')">Notifications</button>
+      <button class="rail-tab" onclick="showTab('integrations')">Integrations</button>
+    </div>
+
+    <!-- General Tab -->
+    <div class="settings-body" id="tab-general">
+      <div class="section-title">Theme</div>
+      <div class="theme-grid">
+        <div class="theme-card selected">
+          <div class="theme-swatch" style="background:#1a1918">
+            <div style="position:absolute;top:6px;left:6px;bottom:6px;width:10px;border-radius:2px;background:rgba(245,242,239,0.15)"></div>
+            <div style="position:absolute;top:7px;left:22px;right:8px;height:3px;border-radius:2px;background:rgba(245,242,239,0.12)"></div>
+            <div style="position:absolute;top:16px;left:22px;right:14px;height:2px;border-radius:1px;background:rgba(245,242,239,0.07)"></div>
+            <div style="position:absolute;bottom:6px;right:6px;width:14px;height:5px;border-radius:2px;background:#9333ea"></div>
+          </div>
+          <span class="theme-name">Warm Dark</span>
+        </div>
+        <div class="theme-card">
+          <div class="theme-swatch" style="background:#fafaf9">
+            <div style="position:absolute;top:6px;left:6px;bottom:6px;width:10px;border-radius:2px;background:rgba(28,25,23,0.12)"></div>
+            <div style="position:absolute;top:7px;left:22px;right:8px;height:3px;border-radius:2px;background:rgba(28,25,23,0.10)"></div>
+            <div style="position:absolute;bottom:6px;right:6px;width:14px;height:5px;border-radius:2px;background:#7c3aed"></div>
+          </div>
+          <span class="theme-name">Light</span>
+        </div>
+        <div class="theme-card">
+          <div class="theme-swatch" style="background:#1a1028">
+            <div style="position:absolute;top:6px;left:6px;bottom:6px;width:10px;border-radius:2px;background:rgba(245,240,255,0.12)"></div>
+            <div style="position:absolute;bottom:6px;right:6px;width:14px;height:5px;border-radius:2px;background:#ff2975"></div>
+          </div>
+          <span class="theme-name">Synthwave</span>
+        </div>
+        <div class="theme-card">
+          <div class="theme-swatch" style="background:#1e1e2e">
+            <div style="position:absolute;top:6px;left:6px;bottom:6px;width:10px;border-radius:2px;background:rgba(205,214,244,0.12)"></div>
+            <div style="position:absolute;bottom:6px;right:6px;width:14px;height:5px;border-radius:2px;background:#cba6f7"></div>
+          </div>
+          <span class="theme-name">Catppuccin</span>
+        </div>
+        <div class="theme-card">
+          <div class="theme-swatch" style="background:#1f1520">
+            <div style="position:absolute;top:6px;left:6px;bottom:6px;width:10px;border-radius:2px;background:rgba(245,230,240,0.12)"></div>
+            <div style="position:absolute;bottom:6px;right:6px;width:14px;height:5px;border-radius:2px;background:#f472b6"></div>
+          </div>
+          <span class="theme-name">Sunset</span>
+        </div>
+        <div class="theme-card">
+          <div class="theme-swatch" style="background:#1a1b26">
+            <div style="position:absolute;top:6px;left:6px;bottom:6px;width:10px;border-radius:2px;background:rgba(192,202,245,0.12)"></div>
+            <div style="position:absolute;bottom:6px;right:6px;width:14px;height:5px;border-radius:2px;background:#7aa2f7"></div>
+          </div>
+          <span class="theme-name">Tokyo Night</span>
+        </div>
+        <div class="theme-card">
+          <div class="theme-swatch" style="background:#002b36">
+            <div style="position:absolute;top:6px;left:6px;bottom:6px;width:10px;border-radius:2px;background:rgba(131,148,150,0.15)"></div>
+            <div style="position:absolute;bottom:6px;right:6px;width:14px;height:5px;border-radius:2px;background:#268bd2"></div>
+          </div>
+          <span class="theme-name">Solarized</span>
+        </div>
+        <div class="theme-card">
+          <div class="theme-swatch" style="background:#1c1a17">
+            <div style="position:absolute;top:6px;left:6px;bottom:6px;width:10px;border-radius:2px;background:rgba(245,242,239,0.12)"></div>
+            <div style="position:absolute;bottom:6px;right:6px;width:14px;height:5px;border-radius:2px;background:#eab308"></div>
+          </div>
+          <span class="theme-name">Honeycomb</span>
+        </div>
+      </div>
+
+      <div class="section-title">External Tools</div>
+      <div class="field">
+        <div class="field-label">Editor</div>
+        <select class="select">
+          <option>Cursor</option>
+          <option>VS Code</option>
+          <option>Zed</option>
+          <option>Vim / Neovim</option>
+          <option>Custom...</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-label">Terminal</div>
+        <select class="select">
+          <option>Ghostty</option>
+          <option>iTerm2</option>
+          <option>Terminal.app</option>
+          <option>Warp</option>
+          <option>Custom...</option>
+        </select>
+        <div class="field-hint">Used when opening worktrees via context menu or status bar</div>
+      </div>
+    </div>
+
+    <!-- Terminal Tab -->
+    <div class="settings-body" id="tab-terminal" style="display:none">
+      <div class="section-title">Font</div>
+      <div class="field">
+        <div class="field-label">Family</div>
+        <select class="select">
+          <option>JetBrains Mono</option>
+          <option>SF Mono</option>
+          <option>Fira Code</option>
+          <option>Menlo</option>
+          <option>Monaco</option>
+          <option>Cascadia Code</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-label">Size</div>
+        <div class="range-row">
+          <input type="range" min="10" max="20" value="14">
+          <span class="range-value">14px</span>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Line Height</div>
+        <div class="range-row">
+          <input type="range" min="10" max="18" value="12">
+          <span class="range-value">1.2</span>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Letter Spacing</div>
+        <div class="range-row">
+          <input type="range" min="-10" max="30" value="0">
+          <span class="range-value">0px</span>
+        </div>
+      </div>
+
+      <div class="section-title">Cursor</div>
+      <div class="field">
+        <div class="field-label">Style</div>
+        <div class="cursor-group">
+          <button class="cursor-btn active">Block</button>
+          <button class="cursor-btn">Underline</button>
+          <button class="cursor-btn">Bar</button>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-row-label">Cursor blink</span>
+        <div class="toggle on"><div class="toggle-knob"></div></div>
+      </div>
+
+      <div class="section-title">Preview</div>
+      <div class="terminal-preview">
+        <div><span style="color:var(--status-idle)">$</span> <span style="color:var(--text-primary)">npm run dev</span></div>
+        <div style="color:var(--text-secondary)">Ready in 1.2s</div>
+      </div>
+    </div>
+
+    <!-- Agent Tab -->
+    <div class="settings-body" id="tab-agent" style="display:none">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:20px">
+        Defaults for all new sessions. Override per worktree via the status bar.
+      </div>
+
+      <div class="section-title">Model & Performance</div>
+      <div class="field">
+        <div class="field-label">Model</div>
+        <select class="select">
+          <option>Default</option>
+          <option selected>Opus 4.6 (1M context)</option>
+          <option>Sonnet 4.6 (200K context)</option>
+          <option>Haiku 4.5 (200K context)</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="field-label">Effort</div>
+        <div class="segmented">
+          <button class="seg-item">Low</button>
+          <button class="seg-item">Medium</button>
+          <button class="seg-item active">High</button>
+          <button class="seg-item">Max</button>
+        </div>
+      </div>
+
+      <div class="section-title">Permissions</div>
+      <div class="field">
+        <div class="field-label">Permission Mode</div>
+        <select class="select">
+          <option selected>Default</option>
+          <option>Accept Edits</option>
+          <option>Plan</option>
+          <option>Auto</option>
+          <option>Don't Ask</option>
+          <option>Bypass Permissions</option>
+        </select>
+        <div class="field-hint">Asks before edits and commands</div>
+      </div>
+
+      <div class="section-title">Output</div>
+      <div class="field">
+        <div class="field-label">Style</div>
+        <div class="segmented">
+          <button class="seg-item active">Default</button>
+          <button class="seg-item">Explanatory</button>
+          <button class="seg-item">Learning</button>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-row-label">Verbose output</span>
+        <div class="toggle off"><div class="toggle-knob"></div></div>
+      </div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-default);font-size:12px;color:var(--text-tertiary)">
+        Applies to new sessions &mdash; existing sessions keep their settings.
+      </div>
+    </div>
+
+    <!-- Notifications Tab -->
+    <div class="settings-body" id="tab-notifications" style="display:none">
+      <div class="toggle-row" style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-secondary)"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span style="font-size:13px;font-weight:500;color:var(--text-primary)">Enable Notifications</span>
+        </div>
+        <div class="toggle on"><div class="toggle-knob"></div></div>
+      </div>
+
+      <div class="section-title">Notify When</div>
+      <div class="toggle-row">
+        <span class="toggle-row-label">Agent waiting for input</span>
+        <div class="toggle on"><div class="toggle-knob"></div></div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-row-label">Agent finished work</span>
+        <div class="toggle on"><div class="toggle-knob"></div></div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-row-label">Agent error</span>
+        <div class="toggle off"><div class="toggle-knob"></div></div>
+      </div>
+
+      <div class="section-title">Sound</div>
+      <div class="sound-grid">
+        <button class="sound-btn">None</button>
+        <button class="sound-btn active">Chime <span class="play-icon">&#9654;</span></button>
+        <button class="sound-btn">Ding <span class="play-icon">&#9654;</span></button>
+        <button class="sound-btn">Pop <span class="play-icon">&#9654;</span></button>
+        <button class="sound-btn">Bell <span class="play-icon">&#9654;</span></button>
+        <button class="sound-btn">Blip <span class="play-icon">&#9654;</span></button>
+      </div>
+
+      <div style="margin-top:16px">
+        <button class="btn btn-secondary btn-sm">Test Notification</button>
+      </div>
+    </div>
+
+    <!-- Integrations Tab -->
+    <div class="settings-body" id="tab-integrations" style="display:none">
+      <div class="section-title">GitHub</div>
+      <div class="field">
+        <div class="connected-row">
+          <span class="connected-dot"></span>
+          <span style="font-weight:500;color:var(--text-primary)">@chloe</span>
+        </div>
+        <div class="field-hint">Authenticated via GitHub CLI. Run <code style="font-size:11px;font-family:'JetBrains Mono',monospace;background:var(--bg-primary);padding:1px 4px;border-radius:3px">gh auth login</code> to switch accounts.</div>
+      </div>
+
+      <div class="section-title">Linear</div>
+      <div class="field">
+        <div class="field-label">API Key</div>
+        <input class="input-sm" type="password" placeholder="lin_api_xxxxxxxxxxxx" value="lin_api_xxxxxxxxxx">
+        <div class="field-hint">Used for creating worktrees from Linear tickets</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="settings-footer">
+    <button class="btn btn-secondary btn-sm">Cancel</button>
+    <button class="btn btn-primary btn-sm">Save</button>
+  </div>
+</div>
+
+<div class="mockup-note">Click a tab to preview each section</div>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.settings-body').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.rail-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).style.display = 'block';
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>
