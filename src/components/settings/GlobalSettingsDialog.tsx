@@ -77,6 +77,10 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
           displayName: null,
           repoColors: {},
           repoDisplayNames: {},
+          preferredEditor: "vscode",
+          customEditorPath: null,
+          preferredTerminal: "iterm",
+          customTerminalPath: null,
         });
       });
     getConfig(".")

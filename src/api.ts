@@ -282,3 +282,21 @@ export function setRepoColor(repoPath: string, color: string): Promise<GlobalApp
 export function setRepoDisplayName(repoPath: string, name: string | null): Promise<GlobalAppConfig> {
   return invoke<GlobalAppConfig>("set_repo_display_name", { repoPath, name });
 }
+
+// ── External Tools ─────────────────────────────────────────────
+
+export function openInEditor(
+  path: string,
+  editor: string,
+  customPath?: string,
+): Promise<void> {
+  return invoke("open_in_editor", { path, editor, customPath: customPath ?? null });
+}
+
+export function openInTerminal(
+  path: string,
+  terminal: string,
+  customPath?: string,
+): Promise<void> {
+  return invoke("open_in_terminal", { path, terminal, customPath: customPath ?? null });
+}
