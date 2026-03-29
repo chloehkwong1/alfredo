@@ -151,6 +151,8 @@ export const usePrStore = create<PrState>((set, get) => ({
     const newOverrides = { ...state.columnOverrides };
     const newLastPrState = { ...state.lastPrState };
     const newSummary = { ...state.prSummary };
+    const newCheckRuns = { ...state.checkRuns };
+    const newPrDetail = { ...state.prDetail };
     const patches = new Map<string, Partial<Worktree>>();
 
     for (const wt of worktrees) {
@@ -194,18 +196,35 @@ export const usePrStore = create<PrState>((set, get) => ({
         lastActivityAt: prChanged ? Date.now() : (wt.lastActivityAt ?? Date.now()),
       });
 
+      // Sidebar summary data
       newSummary[wt.id] = {
         failingCheckCount: pr.failingCheckCount,
         unresolvedCommentCount: pr.unresolvedCommentCount,
         reviewDecision: pr.reviewDecision,
         mergeable: pr.mergeable,
       };
+
+      // PR panel full data (only update if enrichment data is present)
+      if (pr.checkRuns && pr.checkRuns.length > 0) {
+        newCheckRuns[wt.id] = pr.checkRuns;
+      }
+
+      if (pr.reviews || pr.comments) {
+        newPrDetail[wt.id] = {
+          reviews: pr.reviews ?? [],
+          comments: pr.comments ?? [],
+          mergeable: pr.mergeable ?? null,
+          reviewDecision: pr.reviewDecision ?? null,
+        };
+      }
     }
 
     set({
       columnOverrides: newOverrides,
       lastPrState: newLastPrState,
       prSummary: newSummary,
+      checkRuns: newCheckRuns,
+      prDetail: newPrDetail,
     });
 
     return patches;
