@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, getPrFiles, setSyncRepoPaths } from "../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 
 /**
@@ -103,22 +103,11 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
 
           for (const wt of wts) {
             if (wt.column === "done") continue;
-            if (wt.prStatus?.number) {
-              // PR exists: sum stats from GitHub API for accurate numbers
-              getPrFiles(wt.repoPath, wt.prStatus.number)
-                .then((files) => {
-                  const additions = files.reduce((sum, f) => sum + f.additions, 0);
-                  const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
-                  updateWorktree(wt.id, { additions, deletions });
-                })
-                .catch(e => console.warn(`[AppShell] Failed to load PR diff stats for ${wt.path}:`, e));
-            } else {
-              getWorktreeDiffStats(wt.path)
-                .then(([additions, deletions]) => {
-                  updateWorktree(wt.id, { additions, deletions });
-                })
-                .catch(e => console.warn(`[AppShell] Failed to load diff stats for ${wt.path}:`, e));
-            }
+            getWorktreeDiffStats(wt.path)
+              .then(([additions, deletions]) => {
+                updateWorktree(wt.id, { additions, deletions });
+              })
+              .catch(e => console.warn(`[AppShell] Failed to load diff stats for ${wt.path}:`, e));
           }
         }
       }).catch(e => {

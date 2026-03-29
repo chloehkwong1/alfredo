@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { PrUpdatePayload } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
+import { getPrFiles } from "../api";
 
 /**
  * Listens for `github:pr-update` events from the Rust background sync loop
@@ -18,6 +19,22 @@ export function useGithubSync() {
         useWorkspaceStore.getState().worktrees,
       );
       useWorkspaceStore.getState().applyWorktreePatches(patches);
+
+      // Update diff stats for worktrees that have PRs — use GitHub API for accuracy
+      for (const [wtId, patch] of patches) {
+        if (patch.prStatus?.number) {
+          const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === wtId);
+          if (wt && wt.column !== "done") {
+            getPrFiles(wt.repoPath, patch.prStatus.number)
+              .then((files) => {
+                const additions = files.reduce((sum, f) => sum + f.additions, 0);
+                const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
+                useWorkspaceStore.getState().updateWorktree(wtId, { additions, deletions });
+              })
+              .catch(() => {}); // Silently fall back to existing local stats
+          }
+        }
+      }
 
       // Auto-archive check: batch-archive Done worktrees with expired mergedAt
       const state = useWorkspaceStore.getState();
