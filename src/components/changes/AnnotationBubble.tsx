@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import type { Annotation } from "../../types";
+import { formatRelativeTime } from "./formatRelativeTime";
 
 interface AnnotationBubbleProps {
   annotation: Annotation;
@@ -8,31 +9,33 @@ interface AnnotationBubbleProps {
 
 function AnnotationBubble({ annotation, onDelete }: AnnotationBubbleProps) {
   return (
-    <div className="ml-24 mr-4 my-1 flex items-start gap-2 px-3 py-1.5 rounded-md bg-accent-primary/10 border border-accent-primary/20">
-      {/* Avatar */}
-      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-accent-primary text-text-on-accent text-2xs font-semibold flex items-center justify-center mt-0.5">
-        C
-      </span>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-text-primary">{annotation.text}</p>
-        <p className="text-2xs text-text-tertiary mt-0.5">
-          annotations attach to your next terminal message
-        </p>
+    <div className="my-1 border-l-2 border-accent-primary bg-[#161b22] overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary/5 border-b border-border-subtle">
+        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-accent-primary text-text-on-accent text-2xs font-semibold flex items-center justify-center">
+          C
+        </span>
+        <span className="text-xs font-semibold text-text-primary">You</span>
+        <span className="text-[10px] text-text-tertiary">
+          {formatRelativeTime(annotation.createdAt / 1000)}
+        </span>
+        <span className="text-[10px] text-text-tertiary">· pending</span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(annotation.id);
+          }}
+          className="ml-auto flex-shrink-0 p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors cursor-pointer bg-transparent border-none"
+          aria-label="Delete comment"
+        >
+          <X size={12} />
+        </button>
       </div>
 
-      {/* Delete */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(annotation.id);
-        }}
-        className="flex-shrink-0 p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
-        aria-label="Delete annotation"
-      >
-        <X size={12} />
-      </button>
+      {/* Body */}
+      <div className="px-3 py-2">
+        <p className="text-xs text-text-secondary leading-relaxed m-0">{annotation.text}</p>
+      </div>
     </div>
   );
 }
