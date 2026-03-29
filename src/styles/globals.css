@@ -99,6 +99,20 @@
   animation: slide-in-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animate-slide-up {
+  animation: slide-up 150ms ease-out;
+}
+
 @keyframes card-in {
   from {
     opacity: 0;

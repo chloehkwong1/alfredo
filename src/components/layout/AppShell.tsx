@@ -3,6 +3,7 @@ import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panel
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
+import { RemoteControlBar } from "./RemoteControlBar";
 import { LayoutRenderer } from "./LayoutRenderer";
 import { RepoWelcomeScreen } from "../onboarding/RepoWelcomeScreen";
 import { AddRepoModal } from "../onboarding/AddRepoModal";
@@ -281,6 +282,7 @@ function AppShell() {
       <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
       <Panel minSize="50%">
       <div className="flex-1 flex flex-col min-w-0 h-full">
+        {activeWorktreeId && <RemoteControlBar worktreeId={activeWorktreeId} />}
         <StatusBar worktree={worktree} annotationCount={annotationCount} />
         <main className="flex-1 min-h-0 relative">
           {activeWorktreeId ? (
