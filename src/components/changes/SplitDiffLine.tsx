@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { tokenizeLine, getLangFromPath } from "../../services/syntaxHighlighter";
+import { highlightText } from "./highlightSearch";
 import type { ThemedToken } from "shiki";
 
 interface SplitSide {
@@ -13,6 +14,7 @@ interface SplitDiffLineProps {
   right: SplitSide | null;
   filePath: string;
   onClickLine?: (lineNumber: number) => void;
+  searchQuery?: string;
   children?: React.ReactNode;
 }
 
@@ -35,11 +37,13 @@ function SplitSideContent({
   filePath,
   onClickLine,
   align,
+  searchQuery,
 }: {
   side: SplitSide | null;
   filePath: string;
   onClickLine?: (lineNumber: number) => void;
   align: "left" | "right";
+  searchQuery?: string;
 }) {
   const [tokens, setTokens] = useState<ThemedToken[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -112,12 +116,14 @@ function SplitSideContent({
         {tokens ? (
           tokens.map((token, i) => (
             <span key={i} style={token.color ? { color: token.color } : undefined}>
-              {token.content}
+              {searchQuery ? highlightText(token.content, searchQuery) : token.content}
             </span>
           ))
         ) : (
           <span className="text-text-primary">
-            {side.content.length > 0 ? side.content.slice(1) : ""}
+            {searchQuery
+              ? highlightText(side.content.length > 0 ? side.content.slice(1) : "", searchQuery)
+              : side.content.length > 0 ? side.content.slice(1) : ""}
           </span>
         )}
       </span>
@@ -130,14 +136,15 @@ const SplitDiffLine = memo(function SplitDiffLine({
   right,
   filePath,
   onClickLine,
+  searchQuery,
   children,
 }: SplitDiffLineProps) {
   return (
     <>
       <div className="flex">
-        <SplitSideContent side={left} filePath={filePath} onClickLine={onClickLine} align="left" />
+        <SplitSideContent side={left} filePath={filePath} onClickLine={onClickLine} align="left" searchQuery={searchQuery} />
         <div className="w-px bg-border-default flex-shrink-0" />
-        <SplitSideContent side={right} filePath={filePath} onClickLine={onClickLine} align="right" />
+        <SplitSideContent side={right} filePath={filePath} onClickLine={onClickLine} align="right" searchQuery={searchQuery} />
       </div>
       {children}
     </>

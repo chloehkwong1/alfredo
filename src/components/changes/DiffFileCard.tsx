@@ -34,6 +34,8 @@ interface DiffFileCardProps {
   prComments: PrComment[];
   repoPath: string;
   commitHash?: string;
+  searchQuery?: string;
+  activeSearchMatch?: { hunkIndex: number; lineIndex: number } | null;
 }
 
 const STATUS_LABEL: Record<DiffFile["status"], string> = {
@@ -65,6 +67,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       prComments,
       repoPath,
       commitHash,
+      searchQuery,
+      activeSearchMatch,
     },
     ref
   ) {
@@ -366,6 +370,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                         left={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
                         right={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
                         filePath={file.path}
+                        searchQuery={searchQuery}
                       />
                     ) : (
                       <SyntaxDiffLine
@@ -375,6 +380,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                         oldLineNumber={line.oldLineNumber}
                         newLineNumber={line.newLineNumber}
                         filePath={file.path}
+                        searchQuery={searchQuery}
                       />
                     )
                   )}
@@ -413,6 +419,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                               ? (ln) => onAddAnnotation(file.path, ln)
                               : undefined
                           }
+                          searchQuery={searchQuery}
                         >
                           {hasComments && lineNumber !== null && (
                             <div className="flex justify-end pr-2">
@@ -464,6 +471,11 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                         lineNumber !== null &&
                         expandedCommentLines.has(lineNumber);
 
+                      const isActiveMatch = activeSearchMatch !== null &&
+                        activeSearchMatch !== undefined &&
+                        activeSearchMatch.hunkIndex === hunkIndex &&
+                        activeSearchMatch.lineIndex === lineIndex;
+
                       return (
                         <SyntaxDiffLine
                           key={lineIndex}
@@ -477,6 +489,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                               ? () => onAddAnnotation(file.path, lineNumber)
                               : undefined
                           }
+                          searchQuery={searchQuery}
+                          isActiveSearchMatch={isActiveMatch}
                         >
                           {/* PR comment indicator */}
                           {hasComments && lineNumber !== null && (
@@ -527,6 +541,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                   left={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
                   right={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
                   filePath={file.path}
+                  searchQuery={searchQuery}
                 />
               ) : (
                 <SyntaxDiffLine
@@ -536,6 +551,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                   oldLineNumber={line.oldLineNumber}
                   newLineNumber={line.newLineNumber}
                   filePath={file.path}
+                  searchQuery={searchQuery}
                 />
               )
             )}
@@ -563,6 +579,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   prev.annotations.length === next.annotations.length &&
   prev.activeAnnotationLine === next.activeAnnotationLine &&
   prev.prComments.length === next.prComments.length &&
+  prev.searchQuery === next.searchQuery &&
+  prev.activeSearchMatch === next.activeSearchMatch &&
   prev.onToggleExpanded === next.onToggleExpanded &&
   prev.onAddAnnotation === next.onAddAnnotation &&
   prev.onSubmitAnnotation === next.onSubmitAnnotation &&

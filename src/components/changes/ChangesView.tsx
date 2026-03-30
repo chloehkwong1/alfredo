@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
@@ -10,9 +10,16 @@ import { usePrStore } from "../../stores/prStore";
 import { sessionManager } from "../../services/sessionManager";
 import { Button } from "../ui/Button";
 import { useChangesData } from "../../hooks/useChangesData";
+import { Search, ChevronUp, ChevronDown, X } from "lucide-react";
 import type { ViewMode } from "./FileSidebar";
 import type { CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
+
+interface SearchMatch {
+  filePath: string;
+  hunkIndex: number;
+  lineIndex: number;
+}
 
 interface ChangesViewProps {
   worktreeId: string;
@@ -49,6 +56,10 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const [activeAnnotationLine, setActiveAnnotationLine] = useState<{ filePath: string; lineNumber: number } | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -150,6 +161,97 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [displayFiles, activeFilePath, handleToggleExpanded]);
+
+  // ── Search within diffs ──────────────────────────────
+  const matches = useMemo(() => {
+    if (!searchQuery) return [];
+    const result: SearchMatch[] = [];
+    const lq = searchQuery.toLowerCase();
+    for (const file of displayFiles) {
+      for (let hi = 0; hi < file.hunks.length; hi++) {
+        for (let li = 0; li < file.hunks[hi].lines.length; li++) {
+          if (file.hunks[hi].lines[li].content.toLowerCase().includes(lq)) {
+            result.push({ filePath: file.path, hunkIndex: hi, lineIndex: li });
+          }
+        }
+      }
+    }
+    return result;
+  }, [displayFiles, searchQuery]);
+
+  // Reset match index when query or matches change
+  useEffect(() => {
+    setCurrentMatchIndex(0);
+  }, [searchQuery]);
+
+  const navigateMatch = useCallback(
+    (direction: "next" | "prev") => {
+      if (matches.length === 0) return;
+      const newIndex =
+        direction === "next"
+          ? (currentMatchIndex + 1) % matches.length
+          : (currentMatchIndex - 1 + matches.length) % matches.length;
+      setCurrentMatchIndex(newIndex);
+
+      const match = matches[newIndex];
+      // Expand the file if collapsed
+      setCollapsedFiles((prev) => {
+        if (!prev.has(match.filePath)) return prev;
+        const next = new Set(prev);
+        next.delete(match.filePath);
+        return next;
+      });
+      setActiveFilePath(match.filePath);
+
+      // Scroll to the active match after render
+      requestAnimationFrame(() => {
+        const el = document.getElementById("active-search-match");
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    },
+    [matches, currentMatchIndex],
+  );
+
+  // Keyboard: "/" to open search, Escape to close, Enter/Shift+Enter to navigate
+  useEffect(() => {
+    function handleSearchKeys(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isInput = tag === "INPUT" || tag === "TEXTAREA";
+
+      // "/" to open search (when not in an input)
+      if (e.key === "/" && !isInput) {
+        e.preventDefault();
+        setSearchOpen(true);
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+        return;
+      }
+
+      // Escape to close search
+      if (e.key === "Escape" && searchOpen) {
+        setSearchOpen(false);
+        setSearchQuery("");
+        return;
+      }
+
+      // Enter / Shift+Enter to navigate matches (when search input is focused)
+      if (
+        e.key === "Enter" &&
+        document.activeElement === searchInputRef.current
+      ) {
+        e.preventDefault();
+        navigateMatch(e.shiftKey ? "prev" : "next");
+      }
+    }
+
+    window.addEventListener("keydown", handleSearchKeys);
+    return () => window.removeEventListener("keydown", handleSearchKeys);
+  }, [searchOpen, navigateMatch]);
+
+  // Compute active search match for the current file (for highlighting the active line)
+  const activeSearchMatch = useMemo(() => {
+    if (matches.length === 0) return null;
+    return matches[currentMatchIndex] ?? null;
+  }, [matches, currentMatchIndex]);
 
   const expandAll = useCallback(() => {
     setCollapsedFiles(new Set());
@@ -342,6 +444,57 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
             </span>
             {displayFiles.length > 0 && (
               <div className="flex items-center gap-1.5 ml-auto">
+                {/* Search within diffs */}
+                {searchOpen ? (
+                  <div className="flex items-center gap-1 border border-border-default rounded bg-bg-primary px-1.5 py-0.5">
+                    <Search size={11} className="text-text-tertiary flex-shrink-0" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder="Search in diffs..."
+                      className="w-32 text-[10px] bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      autoFocus
+                    />
+                    {searchQuery && (
+                      <span className="text-[9px] text-text-tertiary whitespace-nowrap">
+                        {matches.length > 0
+                          ? `${currentMatchIndex + 1}/${matches.length}`
+                          : "0 results"}
+                      </span>
+                    )}
+                    <button
+                      className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                      onClick={() => navigateMatch("prev")}
+                      disabled={matches.length === 0}
+                    >
+                      <ChevronUp size={12} />
+                    </button>
+                    <button
+                      className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                      onClick={() => navigateMatch("next")}
+                      disabled={matches.length === 0}
+                    >
+                      <ChevronDown size={12} />
+                    </button>
+                    <button
+                      className="text-text-tertiary hover:text-text-primary"
+                      onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="text-text-tertiary hover:text-text-primary"
+                    onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()); }}
+                    title="Search in diffs (/)"
+                  >
+                    <Search size={12} />
+                  </button>
+                )}
+                <span className="text-text-tertiary/50">|</span>
                 <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
                   Expand all
                 </button>
@@ -401,6 +554,12 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
               prComments={prComments}
               repoPath={repoPath}
               commitHash={activeCommitHash}
+              searchQuery={searchQuery}
+              activeSearchMatch={
+                activeSearchMatch?.filePath === file.path
+                  ? { hunkIndex: activeSearchMatch.hunkIndex, lineIndex: activeSearchMatch.lineIndex }
+                  : null
+              }
             />
             ))}
 

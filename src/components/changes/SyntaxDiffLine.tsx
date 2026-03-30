@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { tokenizeLine, getLangFromPath } from "../../services/syntaxHighlighter";
+import { highlightText } from "./highlightSearch";
 import type { ThemedToken } from "shiki";
 
 interface SyntaxDiffLineProps {
@@ -9,6 +10,8 @@ interface SyntaxDiffLineProps {
   newLineNumber: number | null;
   filePath: string;
   onClickLine?: () => void;
+  searchQuery?: string;
+  isActiveSearchMatch?: boolean;
   children?: React.ReactNode;
 }
 
@@ -31,6 +34,8 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
   newLineNumber,
   filePath,
   onClickLine,
+  searchQuery,
+  isActiveSearchMatch,
   children,
 }: SyntaxDiffLineProps) {
   const [tokens, setTokens] = useState<ThemedToken[] | null>(null);
@@ -84,9 +89,11 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
     <>
       <div
         ref={lineRef}
+        id={isActiveSearchMatch ? "active-search-match" : undefined}
         className={[
           "flex font-mono text-xs leading-5 group",
           LINE_BG[lineType],
+          isActiveSearchMatch ? "ring-1 ring-orange-400/60 ring-inset" : "",
           onClickLine ? "cursor-pointer hover:bg-bg-hover/50" : "",
         ].join(" ")}
         onClick={onClickLine}
@@ -121,11 +128,13 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
           {tokens ? (
             tokens.map((token, i) => (
               <span key={i} style={token.color ? { color: token.color } : undefined}>
-                {token.content}
+                {searchQuery ? highlightText(token.content, searchQuery, isActiveSearchMatch) : token.content}
               </span>
             ))
           ) : (
-            <span className="text-text-primary">{content.slice(1)}</span>
+            <span className="text-text-primary">
+              {searchQuery ? highlightText(content.slice(1), searchQuery, isActiveSearchMatch) : content.slice(1)}
+            </span>
           )}
         </span>
       </div>
@@ -139,6 +148,8 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
   prev.newLineNumber === next.newLineNumber &&
   prev.filePath === next.filePath &&
   prev.onClickLine === next.onClickLine &&
+  prev.searchQuery === next.searchQuery &&
+  prev.isActiveSearchMatch === next.isActiveSearchMatch &&
   prev.children === next.children
 );
 
