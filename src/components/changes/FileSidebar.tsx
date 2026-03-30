@@ -212,7 +212,7 @@ function FileSidebar({
 
   return (
     <div className="w-full bg-bg-primary border-r border-border-default flex flex-col overflow-y-auto">
-      {/* Changes / Commits toggle */}
+      {/* Files / Commits toggle */}
       <div className="flex p-1.5 gap-0">
         <button
           onClick={() => handleViewModeChange("changes")}
@@ -223,7 +223,7 @@ function FileSidebar({
               : "text-text-tertiary",
           ].join(" ")}
         >
-          Changes{uncommittedFiles.length + committedFiles.length > 0 ? ` (${uncommittedFiles.length + committedFiles.length})` : ""}
+          Files{uncommittedFiles.length + committedFiles.length > 0 ? ` (${uncommittedFiles.length + committedFiles.length})` : ""}
         </button>
         <button
           onClick={() => handleViewModeChange("commits")}

@@ -233,7 +233,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
             onClose={() => setShowSearch(false)}
           />
         )}
-        <div ref={containerRef} className="h-full p-1" />
+        <div ref={containerRef} className="h-full pl-1 pr-0.5 py-0.5" />
       </div>
       {/* Status bar */}
       {mode === "claude" && worktree && (
