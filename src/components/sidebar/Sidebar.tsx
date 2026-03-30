@@ -17,10 +17,12 @@ import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
 
 const COLUMNS: KanbanColumn[] = [
+  "toDo",
   "inProgress",
   "blocked",
   "draftPr",
   "openPr",
+  "needsReview",
   "done",
 ];
 
@@ -28,10 +30,12 @@ function groupByColumn(
   worktrees: Worktree[],
 ): Record<KanbanColumn, Worktree[]> {
   const groups: Record<KanbanColumn, Worktree[]> = {
+    toDo: [],
     inProgress: [],
     blocked: [],
     draftPr: [],
     openPr: [],
+    needsReview: [],
     done: [],
   };
   for (const wt of worktrees) {
@@ -112,6 +116,10 @@ function Sidebar({
         return;
 
       if ((document.activeElement as HTMLElement)?.closest?.('.xterm')) return;
+
+      // Only handle arrow keys when focus is inside the sidebar
+      const inSidebar = (document.activeElement as HTMLElement)?.closest?.('[data-sidebar]');
+      if (!inSidebar && (event.key === "ArrowUp" || event.key === "ArrowDown")) return;
 
       const currentIndex = flatWorktrees.findIndex(
         (wt) => wt.id === activeWorktreeId,

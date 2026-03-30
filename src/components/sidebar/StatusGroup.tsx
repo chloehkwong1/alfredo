@@ -1,10 +1,12 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useDroppable } from "@dnd-kit/core";
 import {
+  CircleDot,
   Circle,
   OctagonX,
   GitPullRequestDraft,
   GitPullRequest,
+  Eye,
   CheckCircle2,
   ChevronRight,
   type LucideIcon,
@@ -31,18 +33,22 @@ interface StatusGroupProps {
 }
 
 const columnIcon: Record<KanbanColumn, LucideIcon> = {
+  toDo: CircleDot,
   inProgress: Circle,
   blocked: OctagonX,
   draftPr: GitPullRequestDraft,
   openPr: GitPullRequest,
+  needsReview: Eye,
   done: CheckCircle2,
 };
 
 const columnLabel: Record<KanbanColumn, string> = {
+  toDo: "To do",
   inProgress: "In progress",
   blocked: "Blocked",
   draftPr: "Draft PR",
-  openPr: "Open PR",
+  openPr: "In review",
+  needsReview: "Needs review",
   done: "Done",
 };
 

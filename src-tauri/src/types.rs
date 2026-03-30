@@ -81,10 +81,12 @@ pub struct Worktree {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum KanbanColumn {
+    ToDo,
     InProgress,
     Blocked,
     DraftPr,
     OpenPr,
+    NeedsReview,
     Done,
 }
 
@@ -124,6 +126,9 @@ pub struct PrStatus {
     /// ISO 8601 timestamp of the last update to this PR (from GitHub API).
     #[serde(default)]
     pub updated_at: Option<String>,
+    /// GitHub login of the PR author (used for "In Review" vs "Needs Review" column).
+    #[serde(default)]
+    pub author: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

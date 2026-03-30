@@ -47,10 +47,12 @@ export interface Worktree {
 }
 
 export type KanbanColumn =
+  | "toDo"
   | "inProgress"
   | "blocked"
   | "draftPr"
   | "openPr"
+  | "needsReview"
   | "done";
 
 export type WorktreeSource =
@@ -73,6 +75,7 @@ export interface PrStatus {
   mergedAt?: string;
   headSha?: string;
   body?: string;
+  author?: string;
 }
 
 /** Payload emitted by the `github:pr-update` Tauri event. */

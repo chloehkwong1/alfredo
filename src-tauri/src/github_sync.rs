@@ -49,11 +49,13 @@ pub struct PrStatusWithColumn {
     pub comments: Vec<PrComment>,
     /// ISO 8601 timestamp of the last update to this PR.
     pub updated_at: Option<String>,
+    /// GitHub login of the PR author.
+    pub author: Option<String>,
 }
 
 impl PrStatusWithColumn {
-    fn from_pr(pr: &PrStatus, repo_path: &str) -> Self {
-        let column = determine_column(Some(pr));
+    fn from_pr(pr: &PrStatus, repo_path: &str, github_username: Option<&str>) -> Self {
+        let column = determine_column(Some(pr), github_username);
         Self {
             number: pr.number,
             state: pr.state.clone(),
@@ -78,6 +80,7 @@ impl PrStatusWithColumn {
             reviews: Vec::new(),
             comments: Vec::new(),
             updated_at: pr.updated_at.clone(),
+            author: pr.author.clone(),
         }
     }
 }
@@ -211,9 +214,13 @@ async fn poll_repo(
         .await
         .map_err(|e| format!("{e}"))?;
 
+    // Resolve the authenticated GitHub username so we can distinguish
+    // "In Review" (own PRs) from "Needs Review" (others' PRs).
+    let github_username = resolve_github_username().await;
+
     // Build the initial payload from PrStatus, then enrich open PRs with summary data.
     let mut payload_prs: Vec<PrStatusWithColumn> =
-        prs.iter().map(|pr| PrStatusWithColumn::from_pr(pr, repo_path)).collect();
+        prs.iter().map(|pr| PrStatusWithColumn::from_pr(pr, repo_path, github_username.as_deref())).collect();
 
     // Only enrich PRs that have active worktrees — no point fetching details
     // for PRs the user isn't looking at. This keeps API usage proportional to
@@ -295,6 +302,22 @@ async fn poll_repo(
     Ok(payload_prs)
 }
 
+/// Resolve the authenticated GitHub username via `gh api user`.
+async fn resolve_github_username() -> Option<String> {
+    tokio::process::Command::new("gh")
+        .args(["api", "user", "--jq", ".login"])
+        .output()
+        .await
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+            } else {
+                None
+            }
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,13 +338,14 @@ mod tests {
             head_sha: None,
             body: None,
             updated_at: None,
+            author: Some("chloe".into()),
         };
-        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
+        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "draftPr");
     }
 
     #[test]
-    fn test_pr_status_with_column_open() {
+    fn test_pr_status_with_column_own_pr() {
         let pr = PrStatus {
             number: 2,
             state: "open".into(),
@@ -335,9 +359,31 @@ mod tests {
             head_sha: None,
             body: None,
             updated_at: None,
+            author: Some("chloe".into()),
         };
-        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
+        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "openPr");
+    }
+
+    #[test]
+    fn test_pr_status_with_column_needs_review() {
+        let pr = PrStatus {
+            number: 2,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/review".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+        };
+        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
+        assert_eq!(with_col.auto_column, "needsReview");
     }
 
     #[test]
@@ -355,8 +401,9 @@ mod tests {
             head_sha: None,
             body: None,
             updated_at: None,
+            author: Some("chloe".into()),
         };
-        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo");
+        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "done");
     }
 }

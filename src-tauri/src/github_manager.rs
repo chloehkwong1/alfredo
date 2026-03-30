@@ -127,6 +127,7 @@ impl GithubManager {
                 head_sha: Some(pr.head.sha),
                 body: pr.body.clone(),
                 updated_at: pr.updated_at.map(|dt| dt.to_rfc3339()),
+                author: pr.user.as_ref().map(|u| u.login.clone()),
             })
             .collect();
 
@@ -165,6 +166,7 @@ impl GithubManager {
                 head_sha: Some(pr.head.sha),
                 body: pr.body.clone(),
                 updated_at: pr.updated_at.map(|dt| dt.to_rfc3339()),
+                author: pr.user.as_ref().map(|u| u.login.clone()),
             });
 
         prs.extend(merged_prs);
@@ -222,6 +224,7 @@ impl GithubManager {
             head_sha: Some(head_sha),
             body: pr.body.clone(),
             updated_at: pr.updated_at.map(|dt| dt.to_rfc3339()),
+            author: pr.user.as_ref().map(|u| u.login.clone()),
         }))
     }
 
@@ -791,12 +794,25 @@ pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), App
 }
 
 /// Determine the kanban column for a worktree based on its PR status.
-pub fn determine_column(pr: Option<&PrStatus>) -> KanbanColumn {
+///
+/// When `github_username` is provided, open (non-draft) PRs are split into
+/// "In Review" (user is the author) vs "Needs Review" (someone else's PR).
+pub fn determine_column(pr: Option<&PrStatus>, github_username: Option<&str>) -> KanbanColumn {
     match pr {
         None => KanbanColumn::InProgress,
         Some(pr) if pr.merged => KanbanColumn::Done,
         Some(pr) if pr.draft => KanbanColumn::DraftPr,
-        Some(_) => KanbanColumn::OpenPr,
+        Some(pr) => {
+            let is_own_pr = match (pr.author.as_deref(), github_username) {
+                (Some(author), Some(user)) => author.eq_ignore_ascii_case(user),
+                _ => true, // default to "own PR" if we can't tell
+            };
+            if is_own_pr {
+                KanbanColumn::OpenPr
+            } else {
+                KanbanColumn::NeedsReview
+            }
+        }
     }
 }
 
@@ -829,7 +845,7 @@ mod tests {
 
     #[test]
     fn test_determine_column_no_pr() {
-        assert_eq!(determine_column(None), KanbanColumn::InProgress);
+        assert_eq!(determine_column(None, None), KanbanColumn::InProgress);
     }
 
     #[test]
@@ -847,12 +863,13 @@ mod tests {
             head_sha: None,
             body: None,
             updated_at: None,
+            author: Some("chloe".into()),
         };
-        assert_eq!(determine_column(Some(&pr)), KanbanColumn::DraftPr);
+        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::DraftPr);
     }
 
     #[test]
-    fn test_determine_column_open() {
+    fn test_determine_column_own_pr() {
         let pr = PrStatus {
             number: 1,
             state: "open".into(),
@@ -866,8 +883,49 @@ mod tests {
             head_sha: None,
             body: None,
             updated_at: None,
+            author: Some("chloe".into()),
         };
-        assert_eq!(determine_column(Some(&pr)), KanbanColumn::OpenPr);
+        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::OpenPr);
+    }
+
+    #[test]
+    fn test_determine_column_needs_review() {
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+        };
+        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::NeedsReview);
+    }
+
+    #[test]
+    fn test_determine_column_no_username_defaults_to_own() {
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("anyone".into()),
+        };
+        assert_eq!(determine_column(Some(&pr), None), KanbanColumn::OpenPr);
     }
 
     #[test]
@@ -885,7 +943,8 @@ mod tests {
             head_sha: None,
             body: None,
             updated_at: None,
+            author: Some("chloe".into()),
         };
-        assert_eq!(determine_column(Some(&pr)), KanbanColumn::Done);
+        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::Done);
     }
 }
