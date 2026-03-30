@@ -94,16 +94,22 @@ export function usePty({
 
       if (term.element) {
         container.appendChild(term.element);
+        // Force a full redraw — canvas/WebGL content may be stale after DOM detach
+        term.refresh(0, term.rows - 1);
       } else {
         term.open(container);
       }
 
-      // Load WebGL renderer once (needs terminal in DOM)
+      // Load WebGL renderer (needs terminal in DOM).
+      // webglLoaded is reset on context loss (e.g. DOM detach) so we reload here.
       if (!session.webglLoaded) {
         session.webglLoaded = true;
         try {
           const webgl = new WebglAddon();
-          webgl.onContextLoss(() => webgl.dispose());
+          webgl.onContextLoss(() => {
+            webgl.dispose();
+            session.webglLoaded = false; // reload on next attach
+          });
           term.loadAddon(webgl);
         } catch {
           // WebGL unavailable — canvas renderer is fine
