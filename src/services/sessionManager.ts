@@ -160,7 +160,11 @@ export class SessionManager {
       const isZombie = !existing.sessionId && existing.lastHeartbeat > 0 &&
         Date.now() - existing.lastHeartbeat > 10_000;
       if (!isZombie) return existing;
-      // Clean up the zombie so we can spawn fresh
+      // Clean up the zombie so we can spawn fresh — reset agent status so the
+      // new session's notRunning → idle doesn't trigger a false notification.
+      useWorkspaceStore
+        .getState()
+        .updateWorktree(worktreeId, { agentStatus: "notRunning" });
       existing.terminal.dispose();
       this.sessions.delete(sessionKey);
     }
@@ -426,6 +430,12 @@ export class SessionManager {
     // Clean up remote-control state for this worktree
     const worktreeId = sessionKey.split(":")[0];
     useRemoteControlStore.getState().disable(worktreeId);
+
+    // Reset agent status so that the subsequent session spawn
+    // (notRunning → idle) doesn't trigger a false "finished" notification.
+    useWorkspaceStore
+      .getState()
+      .updateWorktree(worktreeId, { agentStatus: "notRunning" });
 
     this.sessions.delete(sessionKey);
     try {

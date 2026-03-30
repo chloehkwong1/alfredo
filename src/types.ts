@@ -118,7 +118,6 @@ export interface NotificationConfig {
   sound: string; // sound ID
   notifyOnWaiting: boolean;
   notifyOnIdle: boolean;
-  notifyOnError: boolean;
 }
 
 export interface ClaudeDefaults {

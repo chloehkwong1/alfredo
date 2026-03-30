@@ -5,5 +5,4 @@ export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
   sound: "chime",
   notifyOnWaiting: true,
   notifyOnIdle: true,
-  notifyOnError: false,
 };

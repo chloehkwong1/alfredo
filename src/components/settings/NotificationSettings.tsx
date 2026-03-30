@@ -102,13 +102,6 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between py-2">
-              <span className="text-[13px] text-text-secondary">Agent error</span>
-              <Toggle
-                checked={config.notifyOnError}
-                onChange={(v) => update("notifyOnError", v)}
-              />
-            </div>
           </div>
 
           {/* Sound picker */}
