@@ -99,6 +99,7 @@ function SortableTab({
   const Icon = TAB_ICONS[tab.type];
   const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
+  const setActiveTabId = useTabStore((s) => s.setActiveTabId);
 
   const layout = useLayoutStore((s) => s.layout[worktreeId]);
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
@@ -116,6 +117,7 @@ function SortableTab({
           onClick={() => {
             setPaneActiveTab(worktreeId, paneId, tab.id);
             setActivePaneId(worktreeId, paneId);
+            setActiveTabId(worktreeId, tab.id);
           }}
           className={[
             "group h-full px-4 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
@@ -354,6 +356,7 @@ function PaneTabBar({
               e.stopPropagation();
               setPaneActiveTab(worktreeId, paneId, changesTab.id);
               setActivePaneId(worktreeId, paneId);
+              useTabStore.getState().setActiveTabId(worktreeId, changesTab.id);
             }}
             className={[
               "ml-auto h-full px-4 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
