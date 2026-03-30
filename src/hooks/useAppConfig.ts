@@ -87,6 +87,13 @@ export function useAppConfig() {
     setConfig(updated);
   }, [config]);
 
+  const updateConfig = useCallback(async (patch: Partial<GlobalAppConfig>) => {
+    if (!config) return;
+    const updated = { ...config, ...patch };
+    await saveAppConfig(updated);
+    setConfig(updated);
+  }, [config]);
+
   const clearError = useCallback(() => setError(null), []);
 
   const toggleRepo = useCallback(async (path: string) => {
@@ -122,6 +129,7 @@ export function useAppConfig() {
     switchRepo,
     updateRepoMode,
     updateGlobalSettings,
+    updateConfig,
     selectedRepos: config?.selectedRepos ?? [],
     displayName: config?.displayName ?? null,
     repoColors: config?.repoColors ?? {},
