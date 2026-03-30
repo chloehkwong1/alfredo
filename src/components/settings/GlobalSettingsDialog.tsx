@@ -9,6 +9,7 @@ import { NotificationSettings } from "./NotificationSettings";
 import { DEFAULT_NOTIFICATION_CONFIG } from "./notificationConfig";
 import { TerminalSettings } from "./TerminalSettings";
 import { ThemeSelector } from "./ThemeSelector";
+import { Toggle } from "../ui/Toggle";
 
 type GlobalTab = "general" | "terminal" | "agent" | "notifications" | "integrations";
 
@@ -269,6 +270,48 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                       className={`${inputClass} mt-2`}
                     />
                   )}
+                </Field>
+
+                <SectionTitle>Conversations</SectionTitle>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <div className="text-[13px] font-medium text-text-primary">Auto-resume conversations</div>
+                    <p className="text-xs text-text-tertiary mt-[5px]">
+                      Automatically run /resume when opening a Claude tab with previous history
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={appConfig.autoResume !== false}
+                    onChange={(checked) => updateAppConfig({ autoResume: checked })}
+                  />
+                </div>
+
+                <SectionTitle>Diff View</SectionTitle>
+                <Field label="Default diff view" hint="Applied when a worktree has no explicit view mode set.">
+                  <div className="flex border border-border-default rounded overflow-hidden w-fit">
+                    <button
+                      type="button"
+                      className={`px-3 py-1.5 text-[13px] transition-colors ${
+                        (appConfig.defaultDiffViewMode ?? "unified") === "unified"
+                          ? "bg-accent-primary/15 text-accent-primary font-medium"
+                          : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+                      }`}
+                      onClick={() => updateAppConfig({ defaultDiffViewMode: "unified" })}
+                    >
+                      Unified
+                    </button>
+                    <button
+                      type="button"
+                      className={`px-3 py-1.5 text-[13px] border-l border-border-default transition-colors ${
+                        appConfig.defaultDiffViewMode === "split"
+                          ? "bg-accent-primary/15 text-accent-primary font-medium"
+                          : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+                      }`}
+                      onClick={() => updateAppConfig({ defaultDiffViewMode: "split" })}
+                    >
+                      Split
+                    </button>
+                  </div>
                 </Field>
               </>
             )}

@@ -14,6 +14,7 @@ import { Search, ChevronUp, ChevronDown, X } from "lucide-react";
 import type { ViewMode } from "./FileSidebar";
 import type { CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
+import { useAppConfig } from "../../hooks/useAppConfig";
 
 interface SearchMatch {
   filePath: string;
@@ -73,7 +74,9 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
-  const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? "unified";
+  const { config: appCfg } = useAppConfig();
+  const defaultDiffView = appCfg?.defaultDiffViewMode ?? "unified";
+  const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? defaultDiffView;
   const setDiffViewMode = useWorkspaceStore((s) => s.setDiffViewMode);
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
   const reviewedFiles = usePrStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
