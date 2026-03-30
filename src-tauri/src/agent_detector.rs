@@ -88,6 +88,16 @@ impl AgentDetector {
         // Convert bytes to string (lossy — terminal output may contain partial UTF-8)
         let text = String::from_utf8_lossy(data);
 
+        // Detect OSC 9 desktop notification sequences (ESC ] 9 ; ... BEL/ST).
+        // Claude Code emits these when it needs user attention — the same signal
+        // that iTerm uses for dock-bounce / Notification Center alerts.
+        // This is a protocol-level signal, not string-guessing on prompt text.
+        if text.contains("\x1b]9;") {
+            self.state = AgentState::WaitingForInput;
+            self.line_buf.clear();
+            return Some((self.agent_type.clone(), AgentState::WaitingForInput));
+        }
+
         // Accumulate into line buffer and process complete lines
         self.line_buf.push_str(&text);
 
@@ -215,7 +225,6 @@ fn classify_claude_code(line: &str) -> (Option<AgentType>, Option<AgentState>) {
     {
         return (None, Some(AgentState::WaitingForInput));
     }
-
     // Idle prompt — Claude Code shows a `❯` or `>` prompt when waiting for user input
     // The prompt line is typically short and ends with the prompt char
     if line_is_claude_prompt(line) {
