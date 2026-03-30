@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Settings, Plus, HelpCircle } from "lucide-react";
 import { IconButton } from "../ui";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -14,6 +14,7 @@ import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
+import { useAppConfig } from "../../hooks/useAppConfig";
 
 const COLUMNS: KanbanColumn[] = [
   "inProgress",
@@ -76,6 +77,16 @@ function Sidebar({
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
   const repoPath = activeRepo;
 
+  const { config, updateConfig } = useAppConfig();
+  const collapsedColumns = config?.collapsedKanbanColumns ?? [];
+
+  const handleToggleCollapsed = useCallback((column: KanbanColumn) => {
+    const current = config?.collapsedKanbanColumns ?? [];
+    const next = current.includes(column)
+      ? current.filter((c: string) => c !== column)
+      : [...current, column];
+    updateConfig({ collapsedKanbanColumns: next });
+  }, [config, updateConfig]);
 
   async function handleDeleteWorktree(id: string) {
     const wt = worktrees.find((w) => w.id === id);
@@ -161,7 +172,7 @@ function Sidebar({
   const showRepoTags = effectiveSelectedRepos.length > 1;
 
   return (
-    <div className="relative flex flex-col w-full h-full sidebar-bg border-r border-border-subtle flex-shrink-0">
+    <div data-sidebar className="relative flex flex-col w-full h-full sidebar-bg border-r border-border-subtle flex-shrink-0">
       {/* Header */}
       <div className="flex items-center justify-between h-10 px-4 border-b border-border-subtle flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -222,6 +233,8 @@ function Sidebar({
                     repoDisplayNames={repoDisplayNames}
                     showRepoTags={showRepoTags}
                     repoIndexMap={repoIndexMap}
+                    isCollapsed={collapsedColumns.includes(col)}
+                    onToggleCollapsed={handleToggleCollapsed}
                   />
                 ))
               }

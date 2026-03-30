@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useDroppable } from "@dnd-kit/core";
 import {
@@ -27,6 +26,8 @@ interface StatusGroupProps {
   repoDisplayNames?: Record<string, string>;
   showRepoTags?: boolean;
   repoIndexMap?: Record<string, number>;
+  isCollapsed?: boolean;
+  onToggleCollapsed?: (column: KanbanColumn) => void;
 }
 
 const columnIcon: Record<KanbanColumn, LucideIcon> = {
@@ -59,8 +60,10 @@ function StatusGroup({
   repoDisplayNames,
   showRepoTags,
   repoIndexMap,
+  isCollapsed,
+  onToggleCollapsed,
 }: StatusGroupProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const collapsed = isCollapsed ?? false;
   const { isOver, setNodeRef } = useDroppable({ id: column });
 
   const isVisible =
@@ -82,7 +85,7 @@ function StatusGroup({
     >
       {/* Group header */}
       <button
-        onClick={() => setIsCollapsed((prev) => !prev)}
+        onClick={() => onToggleCollapsed?.(column)}
         className={[
           "flex w-full items-center px-3.5 pt-3 pb-2",
           "cursor-pointer select-none",
@@ -103,7 +106,7 @@ function StatusGroup({
           <ChevronRight
             className={[
               "h-3.5 w-3.5 transition-transform duration-150",
-              isCollapsed ? "rotate-0" : "rotate-90",
+              collapsed ? "rotate-0" : "rotate-90",
             ].join(" ")}
           />
         </span>
@@ -111,7 +114,7 @@ function StatusGroup({
 
       {/* Agent items */}
       <AnimatePresence initial={false}>
-        {!isCollapsed && (
+        {!collapsed && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
