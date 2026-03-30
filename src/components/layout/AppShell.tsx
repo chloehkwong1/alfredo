@@ -22,6 +22,7 @@ import { setRepoColor as setRepoColorApi } from "../../api";
 import { REPO_COLOR_PALETTE } from "../sidebar/RepoSelector";
 import { saveAllSessions } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
+import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { WorkspaceTab } from "../../types";
@@ -33,6 +34,7 @@ const AUTO_SAVE_INTERVAL_MS = 30_000;
 function collectAndSaveAllSessions(repoPath: string) {
   const state = useWorkspaceStore.getState();
   const tabState = useTabStore.getState();
+  const prState = usePrStore.getState();
   const worktreeIds = state.worktrees.map((wt) => wt.id);
   return saveAllSessions(
     repoPath,
@@ -44,6 +46,11 @@ function collectAndSaveAllSessions(repoPath: string) {
     (wtId) => useLayoutStore.getState().panes[wtId],
     (wtId) => useLayoutStore.getState().activePaneId[wtId],
     (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.column,
+    (wtId) => state.diffViewMode[wtId],
+    (wtId) => prState.columnOverrides[wtId] ?? null,
+    (wtId) => prState.prPanelState[wtId],
+    (wtId) => state.changesViewMode[wtId],
+    (wtId) => state.seenWorktrees.has(wtId) || undefined,
   );
 }
 
