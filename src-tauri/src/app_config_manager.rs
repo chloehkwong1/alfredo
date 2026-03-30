@@ -32,6 +32,10 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             dangerously_skip_permissions: None,
             output_style: None,
             verbose: None,
+            default_diff_view_mode: None,
+            auto_resume: None,
+            collapsed_kanban_columns: vec![],
+            sidebar_collapsed: None,
         });
     }
 
@@ -154,6 +158,10 @@ pub async fn migrate_if_needed(
         dangerously_skip_permissions: None,
         output_style: None,
         verbose: None,
+        default_diff_view_mode: None,
+        auto_resume: None,
+        collapsed_kanban_columns: vec![],
+        sidebar_collapsed: None,
     };
 
     save(app_data_dir, &global).await?;
@@ -198,6 +206,10 @@ mod tests {
             dangerously_skip_permissions: None,
             output_style: None,
             verbose: None,
+            default_diff_view_mode: None,
+            auto_resume: None,
+            collapsed_kanban_columns: vec![],
+            sidebar_collapsed: None,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -230,6 +242,10 @@ mod tests {
             dangerously_skip_permissions: None,
             output_style: None,
             verbose: None,
+            default_diff_view_mode: None,
+            auto_resume: None,
+            collapsed_kanban_columns: vec![],
+            sidebar_collapsed: None,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -259,6 +275,10 @@ mod tests {
             dangerously_skip_permissions: None,
             output_style: None,
             verbose: None,
+            default_diff_view_mode: None,
+            auto_resume: None,
+            collapsed_kanban_columns: vec![],
+            sidebar_collapsed: None,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);

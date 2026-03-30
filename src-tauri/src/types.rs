@@ -331,6 +331,14 @@ pub struct GlobalAppConfig {
     pub output_style: Option<String>,
     #[serde(default)]
     pub verbose: Option<bool>,
+    #[serde(default)]
+    pub default_diff_view_mode: Option<String>,
+    #[serde(default)]
+    pub auto_resume: Option<bool>,
+    #[serde(default)]
+    pub collapsed_kanban_columns: Vec<String>,
+    #[serde(default)]
+    pub sidebar_collapsed: Option<bool>,
 }
 
 fn default_editor() -> String { "vscode".into() }

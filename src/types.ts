@@ -318,6 +318,14 @@ export interface GlobalAppConfig {
   dangerouslySkipPermissions?: boolean | null;
   outputStyle?: string | null;
   verbose?: boolean | null;
+  /** Default diff view mode for new worktrees. */
+  defaultDiffViewMode?: DiffViewMode;
+  /** Whether to auto-resume Claude conversations on tab focus. */
+  autoResume?: boolean;
+  /** Which kanban column groups are collapsed in the sidebar. */
+  collapsedKanbanColumns?: string[];
+  /** Whether the sidebar starts collapsed. */
+  sidebarCollapsed?: boolean;
 }
 
 // ── Inline annotation ────────────────────────────────────────────
