@@ -17,6 +17,8 @@ interface WorkspaceState {
   diffViewMode: Record<string, DiffViewMode>;
   /** Changes tab view mode per worktree. Keyed by worktreeId. */
   changesViewMode: Record<string, "changes" | "commits">;
+  /** Whether the changes panel is collapsed per worktree. Keyed by worktreeId. */
+  changesPanelCollapsed: Record<string, boolean>;
   /** Whether the sidebar is collapsed. */
   sidebarCollapsed: boolean;
   /** Number of days after merging before a worktree is auto-archived. */
@@ -39,6 +41,7 @@ interface WorkspaceState {
   clearAnnotations: (worktreeId: string) => void;
   setDiffViewMode: (worktreeId: string, mode: DiffViewMode) => void;
   setChangesViewMode: (worktreeId: string, mode: "changes" | "commits") => void;
+  setChangesPanelCollapsed: (worktreeId: string, collapsed: boolean) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setWorktreesForRepo: (repoPath: string, worktrees: Worktree[]) => void;
@@ -107,6 +110,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   annotations: {},
   diffViewMode: {},
   changesViewMode: {},
+  changesPanelCollapsed: {},
   sidebarCollapsed: false,
   archiveAfterDays: 2,
   runningServer: null,
@@ -240,6 +244,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       changesViewMode: { ...state.changesViewMode, [worktreeId]: mode },
     })),
 
+  setChangesPanelCollapsed: (worktreeId, collapsed) =>
+    set((state) => ({
+      changesPanelCollapsed: { ...state.changesPanelCollapsed, [worktreeId]: collapsed },
+    })),
+
   toggleSidebar: () =>
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
@@ -266,6 +275,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       annotations: {},
       diffViewMode: {},
       changesViewMode: {},
+      changesPanelCollapsed: {},
       sidebarCollapsed: false,
       archiveAfterDays: 2,
       runningServer: null,
