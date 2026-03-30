@@ -5,6 +5,7 @@ import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { RemoteControlBar } from "./RemoteControlBar";
 import { LayoutRenderer } from "./LayoutRenderer";
+import { ChangesPanel, ChangesPanelMinimized } from "../changes/ChangesPanel";
 import { RepoWelcomeScreen } from "../onboarding/RepoWelcomeScreen";
 import { AddRepoModal } from "../onboarding/AddRepoModal";
 import { RepoSetupDialog } from "../onboarding/RepoSetupDialog";
@@ -227,6 +228,9 @@ function AppShell() {
     }
   }, [JSON.stringify(worktreeIds)]);
 
+  const changesPanelCollapsed = useWorkspaceStore((s) => s.changesPanelCollapsed[activeWorktreeId ?? ""] ?? false);
+  const setChangesPanelCollapsed = useWorkspaceStore((s) => s.setChangesPanelCollapsed);
+
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)
     : 0;
@@ -315,17 +319,42 @@ function AppShell() {
       <div className="flex-1 flex flex-col min-w-0 h-full">
         {activeWorktreeId && <RemoteControlBar worktreeId={activeWorktreeId} />}
         <StatusBar worktree={worktree} annotationCount={annotationCount} />
-        <main className="flex-1 min-h-0 relative">
+        <main className="flex-1 min-h-0 relative flex">
           {activeWorktreeId ? (
-            <LayoutRenderer
-              worktreeId={activeWorktreeId}
-              onToggleServer={handleToggleServer}
-              isServerRunning={isServerRunningHere}
-              runScriptName={runScript?.name}
-              runScriptUrl={runScript?.url}
-            />
+            <>
+              <Group orientation="horizontal" className="flex-1 min-h-0">
+                <Panel minSize={changesPanelCollapsed ? "100%" : "50%"}>
+                  <LayoutRenderer
+                    worktreeId={activeWorktreeId}
+                    onToggleServer={handleToggleServer}
+                    isServerRunning={isServerRunningHere}
+                    runScriptName={runScript?.name}
+                    runScriptUrl={runScript?.url}
+                  />
+                </Panel>
+                {!changesPanelCollapsed && (
+                  <>
+                    <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
+                    <Panel defaultSize="220px" minSize="140px" maxSize="400px">
+                      <ChangesPanel
+                        worktreeId={activeWorktreeId}
+                        repoPath={repoPath ?? "."}
+                        onCollapse={() => setChangesPanelCollapsed(activeWorktreeId, true)}
+                      />
+                    </Panel>
+                  </>
+                )}
+              </Group>
+              {changesPanelCollapsed && (
+                <ChangesPanelMinimized
+                  worktreeId={activeWorktreeId}
+                  repoPath={repoPath ?? "."}
+                  onExpand={() => setChangesPanelCollapsed(activeWorktreeId, false)}
+                />
+              )}
+            </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-3">
+            <div className="flex flex-col items-center justify-center h-full w-full text-text-tertiary gap-3">
               <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
               <div className="flex flex-col items-center gap-1">
                 <span className="text-sm">Select a worktree to get started</span>
