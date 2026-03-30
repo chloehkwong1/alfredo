@@ -294,9 +294,12 @@ function AppShell() {
               runScriptUrl={runScript?.url}
             />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-2">
-              <span className="text-sm">Select a worktree to get started</span>
-              <span className="text-xs">Each worktree gets its own branch, terminal, and agent</span>
+            <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-3">
+              <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-sm">Select a worktree to get started</span>
+                <span className="text-xs">Each worktree gets its own branch, terminal, and agent</span>
+              </div>
             </div>
           )}
         </main>
