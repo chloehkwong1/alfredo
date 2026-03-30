@@ -127,7 +127,10 @@ impl AgentDetector {
 
         // Truncate line buffer if it grows too large (safety valve)
         if self.line_buf.len() > 4096 {
-            self.line_buf = self.line_buf[self.line_buf.len() - 1024..].to_string();
+            let start = self.line_buf.len() - 1024;
+            // Find the next valid char boundary so we don't slice mid-character
+            let start = self.line_buf.ceil_char_boundary(start);
+            self.line_buf = self.line_buf[start..].to_string();
         }
 
         // Suppress Idle→Busy transitions during the cooldown window.
