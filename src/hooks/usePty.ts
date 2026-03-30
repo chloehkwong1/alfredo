@@ -3,7 +3,7 @@ import type { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import type { SearchAddon } from "@xterm/addon-search";
 import type { AgentState } from "../types";
-import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
+import { writePty, resizePty, getWorktreeDiffStats, getPrFiles, getAppConfig } from "../api";
 import { sessionManager } from "../services/sessionManager";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { ManagedSession } from "../services/sessionManager";
@@ -170,6 +170,32 @@ export function usePty({
             console.warn("[usePty] shell never produced output, skipping startup command");
           }
         }, 100);
+      }
+
+      // Auto-resume Claude conversations that have prior scrollback
+      if (
+        mode === "claude" &&
+        !startupCommandRef.current &&
+        session.sessionId &&
+        session.restoredFromScrollback
+      ) {
+        const appConfig = await getAppConfig();
+        if (appConfig.autoResume !== false) {
+          let resumeAttempts = 0;
+          const waitForReady = setInterval(() => {
+            resumeAttempts++;
+            const s = sessionRef.current;
+            if (s && s.lastOutputAt > 0) {
+              clearInterval(waitForReady);
+              const bytes = Array.from(new TextEncoder().encode("/resume\n"));
+              writePty(s.sessionId, bytes).catch(console.error);
+              // Clear the flag so subsequent reconnects don't re-resume
+              session.restoredFromScrollback = false;
+            } else if (resumeAttempts >= 50) {
+              clearInterval(waitForReady);
+            }
+          }, 100);
+        }
       }
     }
 

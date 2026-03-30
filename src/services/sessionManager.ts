@@ -42,6 +42,8 @@ export interface ManagedSession {
   pendingOutput: Uint8Array[];
   /** Whether a requestAnimationFrame flush is already scheduled. */
   writeScheduled: boolean;
+  /** Whether this session was restored from saved scrollback (for auto-resume). */
+  restoredFromScrollback: boolean;
 }
 
 /**
@@ -203,6 +205,7 @@ export class SessionManager {
       lastOutputAt: Date.now(),
       pendingOutput: [],
       writeScheduled: false,
+      restoredFromScrollback: false,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -331,6 +334,7 @@ export class SessionManager {
       lastOutputAt: 0,
       pendingOutput: [],
       writeScheduled: false,
+      restoredFromScrollback: true,
     };
 
     this.sessions.set(sessionKey, session);
