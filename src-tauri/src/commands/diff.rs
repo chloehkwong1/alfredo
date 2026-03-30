@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use git2::{Delta, DiffFormat, DiffOptions, Repository, Sort};
 use serde::Serialize;
 
@@ -227,6 +229,42 @@ fn diff_to_files(diff: &git2::Diff<'_>) -> Result<Vec<DiffFile>> {
     Ok(files)
 }
 
+/// Return the set of paths that git considers ignored (even if tracked).
+///
+/// Uses `git check-ignore` so that `.gitignore`, `.git/info/exclude`, and
+/// `core.excludesFile` (global gitignore) are all respected.
+fn ignored_paths(repo_path: &str, paths: &[String]) -> HashSet<String> {
+    if paths.is_empty() {
+        return HashSet::new();
+    }
+
+    let mut cmd = std::process::Command::new("git");
+    cmd.args(["check-ignore", "--stdin"])
+        .current_dir(repo_path)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null());
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(_) => return HashSet::new(),
+    };
+
+    // Write all paths to stdin
+    if let Some(ref mut stdin) = child.stdin {
+        use std::io::Write;
+        let _ = stdin.write_all(paths.join("\n").as_bytes());
+    }
+
+    match child.wait_with_output() {
+        Ok(output) => String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(str::to_string)
+            .collect(),
+        Err(_) => HashSet::new(),
+    }
+}
+
 // ── Commands ───────────────────────────────────────────────────
 
 /// Get the diff between HEAD and the merge base with the default branch.
@@ -345,6 +383,14 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
                     truncated: false,
                 });
             }
+        }
+
+        // 3. Filter out gitignored files (tracked files matching gitignore
+        //    still appear in `git diff HEAD` but shouldn't show in the UI)
+        let all_paths: Vec<String> = files.iter().map(|f| f.path.clone()).collect();
+        let ignored = ignored_paths(&repo_path, &all_paths);
+        if !ignored.is_empty() {
+            files.retain(|f| !ignored.contains(&f.path));
         }
 
         Ok(files)
