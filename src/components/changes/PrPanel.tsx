@@ -6,6 +6,7 @@ import {
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { CheckRun, PrStatus } from "../../types";
@@ -385,17 +386,17 @@ function CheckRunRow({ run }: { run: CheckRun }) {
           {duration}
         </span>
       )}
-      {isFailed && (
-        <a
-          href={run.htmlUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-diff-removed leading-none shrink-0"
+      {isFailed && run.htmlUrl && (
+        <button
+          className="text-diff-removed leading-none shrink-0 cursor-pointer"
           title="View logs"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            openUrl(run.htmlUrl!);
+          }}
         >
           <ExternalLink size={11} />
-        </a>
+        </button>
       )}
     </div>
   );
@@ -492,16 +493,16 @@ function CommentCard({
         <span className="text-text-tertiary text-[10px] shrink-0">
           {formatTimeAgo(createdAt)}
         </span>
-        <a
-          href={htmlUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-text-tertiary leading-none shrink-0"
+        <button
+          className="text-text-tertiary leading-none shrink-0 cursor-pointer"
           title="Open on GitHub"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            openUrl(htmlUrl);
+          }}
         >
           <ExternalLink size={10} />
-        </a>
+        </button>
       </div>
 
       {/* Body */}
