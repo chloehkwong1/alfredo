@@ -79,7 +79,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const [showSearch, setShowSearch] = useState(false);
 
-  const { agentState, channelAlive, isConnected, searchAddon } = usePty({
+  const { channelAlive, isConnected, searchAddon } = usePty({
     sessionKey,
     worktreeId: activeWorktreeId ?? "",
     worktreePath: worktree?.path ?? "",
@@ -153,16 +153,20 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showSearch]);
 
-  // Mark as seen when user is viewing a terminal that's idle or waiting
+  // Mark as seen when user is viewing a terminal that's idle or waiting.
+  // Uses worktree.agentStatus from the store (not usePty's polled agentState)
+  // so it updates atomically with seenWorktrees — avoiding a race where the
+  // stale polled state re-marks the worktree as seen immediately after clearing.
+  const storeAgentStatus = worktree?.agentStatus;
   useEffect(() => {
     if (
       activeWorktreeId &&
       !isSeen &&
-      (agentState === "idle" || agentState === "waitingForInput")
+      (storeAgentStatus === "idle" || storeAgentStatus === "waitingForInput")
     ) {
       markWorktreeSeen(activeWorktreeId);
     }
-  }, [activeWorktreeId, agentState, isSeen, markWorktreeSeen]);
+  }, [activeWorktreeId, storeAgentStatus, isSeen, markWorktreeSeen]);
 
   if (!activeWorktreeId) {
     return (
