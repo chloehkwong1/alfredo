@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock, SquarePen, TerminalSquare } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openInEditor, openInTerminal, getAppConfig } from "../../api";
@@ -25,7 +25,54 @@ import { ServerIndicator } from "./ServerIndicator";
 import { RelativeTime } from "../ui/RelativeTime";
 import { RepoTag } from "./RepoTag";
 
-const ATTENTION_STATES = new Set(["waitingForInput", "done", "error"]);
+const THINKING_VERBS = [
+  "Thinking…",
+  "Reading files…",
+  "Writing code…",
+  "Searching…",
+  "Analyzing…",
+  "Running commands…",
+  "Editing…",
+  "Reasoning…",
+];
+
+function ThinkingText() {
+  const [index, setIndex] = useState(0);
+  const [fade, setFade] = useState(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setFade(false);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % THINKING_VERBS.length);
+        setFade(true);
+      }, 200);
+    }, 3000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
+
+  return (
+    <span
+      className="transition-opacity duration-200"
+      style={{ opacity: fade ? 1 : 0 }}
+    >
+      {THINKING_VERBS[index]}
+    </span>
+  );
+}
+
+function ThinkingDots() {
+  return (
+    <span className="inline-flex items-center gap-[3px] ml-0.5">
+      <span className="w-[3px] h-[3px] rounded-full bg-status-busy animate-thinking-dot-1" />
+      <span className="w-[3px] h-[3px] rounded-full bg-status-busy animate-thinking-dot-2" />
+      <span className="w-[3px] h-[3px] rounded-full bg-status-busy animate-thinking-dot-3" />
+    </span>
+  );
+}
+
+const ATTENTION_STATES = new Set(["busy", "waitingForInput", "done", "error"]);
 
 function isAttentionState(status: string): boolean {
   return ATTENTION_STATES.has(status);
@@ -33,6 +80,7 @@ function isAttentionState(status: string): boolean {
 
 function getBleedClass(status: string): string {
   switch (status) {
+    case "busy": return "bleed-busy";
     case "waitingForInput": return "bleed-waiting";
     case "done": return "bleed-done";
     case "error": return "bleed-error";
@@ -42,6 +90,7 @@ function getBleedClass(status: string): string {
 
 function getDotGlowClass(status: string): string {
   switch (status) {
+    case "busy": return "dot-glow-busy";
     case "waitingForInput": return "dot-glow-waiting";
     case "done": return "dot-glow-done";
     case "error": return "dot-glow-error";
@@ -173,15 +222,17 @@ function AgentItemContent({
         <div className="flex items-center gap-2 mt-1">
           <span className={[
             "text-xs truncate",
-            (effectiveStatus as string) === "waitingForInput"
-              ? "text-status-waiting font-medium"
-              : (effectiveStatus as string) === "done"
-                ? "text-accent-primary font-medium"
-                : (effectiveStatus as string) === "error"
-                  ? "text-status-error font-medium"
-                  : "text-text-tertiary",
+            (effectiveStatus as string) === "busy"
+              ? "text-status-busy font-medium"
+              : (effectiveStatus as string) === "waitingForInput"
+                ? "text-status-waiting font-medium"
+                : (effectiveStatus as string) === "done"
+                  ? "text-accent-primary font-medium"
+                  : (effectiveStatus as string) === "error"
+                    ? "text-status-error font-medium"
+                    : "text-text-tertiary",
           ].join(" ")}>
-            {getStatusText(effectiveStatus)}
+            {effectiveStatus === "busy" ? <><ThinkingText /><ThinkingDots /></> : getStatusText(effectiveStatus)}
           </span>
 
           <span className="flex items-center gap-1 text-xs ml-auto flex-shrink-0">

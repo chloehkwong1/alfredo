@@ -53,6 +53,9 @@
   --animate-eq-bar-2: eq-bar-2 1.4s ease-in-out infinite;
   --animate-eq-bar-3: eq-bar-3 1.0s ease-in-out infinite;
   --animate-eq-bar-4: eq-bar-4 1.6s ease-in-out infinite;
+  --animate-thinking-dot-1: thinking-dot 1.4s ease-in-out infinite;
+  --animate-thinking-dot-2: thinking-dot 1.4s ease-in-out 0.2s infinite;
+  --animate-thinking-dot-3: thinking-dot 1.4s ease-in-out 0.4s infinite;
 
   /* Zone backgrounds */
   --color-bg-sidebar: var(--bg-sidebar);
@@ -214,6 +217,16 @@ body {
 }
 
 /* Attention: gradient bleed from left border */
+.bleed-busy {
+  border-left: 3px solid var(--status-busy);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--status-busy) 4%, transparent) 0%, transparent 50%);
+}
+
+@keyframes thinking-dot {
+  0%, 60%, 100% { opacity: 0.25; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1); }
+}
+
 .bleed-waiting {
   border-left: 3px solid var(--status-waiting);
   background: linear-gradient(90deg, color-mix(in srgb, var(--status-waiting) 6%, transparent) 0%, transparent 60%);
@@ -228,6 +241,9 @@ body {
 }
 
 /* Light theme: higher opacity for bleed visibility */
+html[data-theme="light"] .bleed-busy {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--status-busy) 7%, transparent) 0%, transparent 50%);
+}
 html[data-theme="light"] .bleed-waiting {
   background: linear-gradient(90deg, color-mix(in srgb, var(--status-waiting) 10%, transparent) 0%, transparent 60%);
 }
@@ -239,12 +255,14 @@ html[data-theme="light"] .bleed-error {
 }
 
 /* Status dot glow — color-matched ambient light */
+.dot-glow-busy    { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-busy) 40%, transparent); }
 .dot-glow-waiting { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-waiting) 45%, transparent); }
 .dot-glow-done    { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-primary) 40%, transparent); }
 .dot-glow-error   { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-error) 45%, transparent); }
 .dot-glow-amber   { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-busy) 35%, transparent); }
 
 /* Light theme: reduce glow intensity */
+html[data-theme="light"] .dot-glow-busy    { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--status-busy) 30%, transparent); }
 html[data-theme="light"] .dot-glow-waiting { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--status-waiting) 35%, transparent); }
 html[data-theme="light"] .dot-glow-done    { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--accent-primary) 30%, transparent); }
 html[data-theme="light"] .dot-glow-error   { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--status-error) 35%, transparent); }
