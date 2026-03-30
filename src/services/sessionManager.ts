@@ -429,7 +429,10 @@ export class SessionManager {
     session.sessionId = sessionId;
     session.agentState = mode === "shell" ? "notRunning" : "idle";
     session.lastHeartbeat = Date.now();
-    session.lastOutputAt = Date.now();
+    // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the
+    // PTY actually produces output, rather than seeing the stale value from
+    // the scrollback-only phase.
+    session.lastOutputAt = 0;
     registerKittyProtocol(session.terminal, sessionId);
 
     // Resize PTY immediately to match the terminal's current dimensions.
