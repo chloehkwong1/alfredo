@@ -4,6 +4,7 @@ import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths } from "../api";
 import { loadSession } from "../services/SessionPersistence";
+import { sessionManager } from "../services/sessionManager";
 
 /**
  * Loads worktrees for all selected repos, restores persisted sessions
@@ -63,6 +64,15 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 }
 
                 restoreTabs(wt.id, session.tabs, session.activeTabId);
+
+                // Pre-load terminal scrollback so it's visible before PTY spawns
+                if (session.terminals) {
+                  for (const [tabId, termData] of Object.entries(session.terminals)) {
+                    if (termData.scrollback) {
+                      sessionManager.loadScrollbackOnly(tabId, termData.scrollback);
+                    }
+                  }
+                }
 
                 const sessionLayout = session.layout;
                 const sessionPanes = session.panes;

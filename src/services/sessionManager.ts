@@ -156,6 +156,10 @@ export class SessionManager {
   ): Promise<ManagedSession> {
     const existing = this.sessions.get(sessionKey);
     if (existing) {
+      // Scrollback-only session (no PTY yet) — spawn a PTY for it
+      if (!existing.sessionId && existing.lastHeartbeat === 0) {
+        return this.spawnForExisting(sessionKey, worktreeId, worktreePath, mode, args);
+      }
       // Zombie detection: session exists but PTY never spawned or died
       const isZombie = !existing.sessionId && existing.lastHeartbeat > 0 &&
         Date.now() - existing.lastHeartbeat > 10_000;
