@@ -189,8 +189,14 @@ export function usePty({
             if (s && s.lastOutputAt > 0) {
               clearInterval(autoResumeInterval!);
               autoResumeInterval = null;
-              const bytes = Array.from(new TextEncoder().encode("/resume\n"));
-              writePty(s.sessionId, bytes).catch(console.error);
+              // Send /resume then Enter (\r) after a brief delay so
+              // Claude Code's TUI has time to register the slash command
+              const textBytes = Array.from(new TextEncoder().encode("/resume"));
+              writePty(s.sessionId, textBytes).catch(console.error);
+              setTimeout(() => {
+                const enterBytes = Array.from(new TextEncoder().encode("\r"));
+                writePty(s.sessionId, enterBytes).catch(console.error);
+              }, 200);
               // Clear the flag so subsequent reconnects don't re-resume
               session.restoredFromScrollback = false;
             } else if (resumeAttempts >= 50) {
