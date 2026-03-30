@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
-import { FileSidebar } from "./FileSidebar";
 import { DiffFileCard } from "./DiffFileCard";
 import { writePty, getConfig } from "../../api";
 import { resolveSettings, buildClaudeArgs } from "../../services/claudeSettingsResolver";
@@ -11,7 +9,6 @@ import { sessionManager } from "../../services/sessionManager";
 import { Button } from "../ui/Button";
 import { useChangesData } from "../../hooks/useChangesData";
 import { Search, ChevronUp, ChevronDown, X } from "lucide-react";
-import type { ViewMode } from "./FileSidebar";
 import type { CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 import { useAppConfig } from "../../hooks/useAppConfig";
@@ -53,7 +50,6 @@ function CommitHeader({ commit }: { commit: CommitInfo }) {
 
 function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const viewMode = useWorkspaceStore((s) => s.changesViewMode[worktreeId]) ?? "changes";
-  const setChangesViewMode = useWorkspaceStore((s) => s.setChangesViewMode);
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeAnnotationLine, setActiveAnnotationLine] = useState<{ filePath: string; lineNumber: number } | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
@@ -65,11 +61,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
 
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const fileSidebarLayout = useDefaultLayout({
-    id: "changes-file-sidebar",
-    storage: localStorage,
-  });
-
   const annotations = useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
   const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
@@ -80,13 +71,12 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const setDiffViewMode = useWorkspaceStore((s) => s.setDiffViewMode);
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
   const reviewedFiles = usePrStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
-  const toggleReviewedFile = usePrStore((s) => s.toggleReviewedFile);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
   const setJumpToComment = usePrStore((s) => s.setJumpToComment);
   const clearJumpToComment = usePrStore((s) => s.clearJumpToComment);
 
-  const { uncommittedFiles, committedFiles, commits, displayFiles } = useChangesData(
+  const { commits, displayFiles } = useChangesData(
     repoPath, viewMode, selectedCommitIndex, pr?.baseBranch, pr?.number,
   );
 
@@ -265,13 +255,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     setCollapsedFiles(new Set(displayFiles.map((f) => f.path)));
   }, [displayFiles]);
 
-  const handleToggleReviewed = useCallback(
-    (filePath: string) => {
-      toggleReviewedFile(worktreeId, filePath);
-    },
-    [worktreeId, toggleReviewedFile],
-  );
-
   const handleSelectFile = useCallback((path: string) => {
     setActiveFilePath(path);
     // Uncollapse if collapsed
@@ -320,12 +303,17 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     setActiveAnnotationLine(null);
   }, []);
 
-  const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setChangesViewMode(worktreeId, mode);
-    setSelectedCommitIndex(null);
-    setActiveAnnotationLine(null);
-    setActiveFilePath(null);
-  }, [setChangesViewMode, worktreeId]);
+  // Listen for commit selection from the persistent ChangesPanel
+  useEffect(() => {
+    function handlePanelSelectCommit(e: Event) {
+      const index = (e as CustomEvent).detail?.index;
+      if (typeof index === "number") {
+        handleSelectCommit(index);
+      }
+    }
+    window.addEventListener("alfredo:changes-panel-select-commit", handlePanelSelectCommit);
+    return () => window.removeEventListener("alfredo:changes-panel-select-commit", handlePanelSelectCommit);
+  }, [handleSelectCommit]);
 
   const handleAddAnnotation = useCallback(
     (filePath: string, lineNumber: number) => {
@@ -419,36 +407,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* Three-zone layout */}
-      <Group
-        orientation="horizontal"
-        defaultLayout={fileSidebarLayout.defaultLayout}
-        onLayoutChanged={fileSidebarLayout.onLayoutChanged}
-        className="flex-1 min-h-0"
-      >
-        {/* Left: File sidebar */}
-        <Panel defaultSize="200px" minSize="120px" maxSize="350px">
-          <FileSidebar
-            viewMode={viewMode}
-            onViewModeChange={handleViewModeChange}
-            uncommittedFiles={uncommittedFiles}
-            committedFiles={committedFiles}
-            hasPr={pr !== null}
-            commits={commits}
-            selectedCommitIndex={selectedCommitIndex}
-            onSelectCommit={handleSelectCommit}
-            activeFilePath={activeFilePath}
-            collapsedFiles={collapsedFiles}
-            onSelectFile={handleSelectFile}
-            reviewedFiles={reviewedFiles}
-            onToggleReviewed={handleToggleReviewed}
-          />
-        </Panel>
-
-        <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
-
-        {/* Center: Diff file cards */}
-        <Panel minSize="40%">
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
             <span className="text-[10px] text-text-tertiary">
@@ -590,9 +548,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
             )}
           </div>
         </div>
-        </Panel>
-
-      </Group>
 
       {/* Floating review comment bar */}
       {annotations.length > 0 && (

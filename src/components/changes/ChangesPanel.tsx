@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { FileSidebar } from "./FileSidebar";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -24,16 +24,30 @@ function ChangesPanel({
   const reviewedFiles = usePrStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
   const toggleReviewedFile = usePrStore((s) => s.toggleReviewedFile);
 
+  const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+
   const { uncommittedFiles, committedFiles, commits } = useChangesData(
     repoPath,
     viewMode,
-    null,
+    selectedCommitIndex,
     pr?.baseBranch,
     pr?.number,
   );
 
+  const handleSelectCommit = useCallback((index: number) => {
+    setSelectedCommitIndex(index);
+    setActiveFilePath(null);
+    // Dispatch event so ChangesView can update its commit selection
+    window.dispatchEvent(
+      new CustomEvent("alfredo:changes-panel-select-commit", { detail: { index } }),
+    );
+  }, []);
+
   const handleSelectFile = useCallback(
     (path: string) => {
+      setActiveFilePath(path);
+
       // Activate the Changes tab in the active pane
       const layoutState = useLayoutStore.getState();
       const activePaneId = layoutState.activePaneId[worktreeId];
@@ -61,6 +75,8 @@ function ChangesPanel({
   const handleViewModeChange = useCallback(
     (mode: ViewMode) => {
       setChangesViewMode(worktreeId, mode);
+      setSelectedCommitIndex(null);
+      setActiveFilePath(null);
     },
     [worktreeId, setChangesViewMode],
   );
@@ -90,9 +106,9 @@ function ChangesPanel({
           committedFiles={committedFiles}
           hasPr={pr !== null}
           commits={commits}
-          selectedCommitIndex={null}
-          onSelectCommit={() => {}}
-          activeFilePath={null}
+          selectedCommitIndex={selectedCommitIndex}
+          onSelectCommit={handleSelectCommit}
+          activeFilePath={activeFilePath}
           collapsedFiles={new Set()}
           onSelectFile={handleSelectFile}
           reviewedFiles={reviewedFiles}
