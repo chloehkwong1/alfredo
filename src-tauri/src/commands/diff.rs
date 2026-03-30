@@ -56,6 +56,10 @@ fn open_repo(repo_path: &str) -> Result<Repository> {
 
 /// Resolve the default branch OID, trying the provided name, then `main`, `master`,
 /// and finally `refs/remotes/origin/HEAD`.
+///
+/// Prefers remote tracking branches (`origin/main`) over local branches because
+/// local `main` can be stale (not pulled recently), causing diffs and commit
+/// lists to include other people's commits that landed on main since the last pull.
 fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Result<git2::Oid> {
     let candidates: Vec<String> = if let Some(name) = default_branch {
         vec![name.to_string()]
@@ -67,16 +71,16 @@ fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Re
     };
 
     for name in &candidates {
-        // Try local branch
-        if let Ok(reference) = repo.find_branch(name, git2::BranchType::Local) {
-            if let Some(oid) = reference.get().target() {
-                return Ok(oid);
-            }
-        }
-        // Try remote tracking branch
+        // Prefer remote tracking branch — it reflects the latest fetched state
         let remote_ref = format!("refs/remotes/origin/{name}");
         if let Ok(reference) = repo.find_reference(&remote_ref) {
             if let Some(oid) = reference.target() {
+                return Ok(oid);
+            }
+        }
+        // Fall back to local branch
+        if let Ok(reference) = repo.find_branch(name, git2::BranchType::Local) {
+            if let Some(oid) = reference.get().target() {
                 return Ok(oid);
             }
         }
