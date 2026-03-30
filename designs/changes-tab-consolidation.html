@@ -1,0 +1,124 @@
+<h2>Combined Changes view</h2>
+<p class="subtitle">Uncommitted + committed diffs in one scrollable list, with clear section headers. Commits stays as its own tab.</p>
+
+<div class="split" style="gap: 2rem; margin-bottom: 2rem;">
+  <div class="mockup">
+    <div class="mockup-header">No PR — Changes | Commits</div>
+    <div class="mockup-body" style="padding: 0;">
+      <div style="display: flex; gap: 0; padding: 6px;">
+        <div style="flex: 1; padding: 4px 8px; font-size: 11px; text-align: center; border: 1px solid rgba(96,165,250,0.4); border-radius: 4px 0 0 4px; background: rgba(96,165,250,0.1); color: rgb(96,165,250);">Changes</div>
+        <div style="flex: 1; padding: 4px 8px; font-size: 11px; text-align: center; border: 1px solid rgba(100,100,100,0.3); border-left: 0; border-radius: 0 4px 4px 0; color: #888;">Commits</div>
+      </div>
+      <!-- Uncommitted section -->
+      <div style="padding: 4px 10px 2px;">
+        <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #e8a44a; margin-bottom: 4px;">● Uncommitted</div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+          <span>Controls.tsx</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+2</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(74,222,128,0.15); color:#4ade80;">A</span>
+          <span>new_helper.rb</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+14</span>
+        </div>
+      </div>
+      <!-- Divider -->
+      <div style="border-top: 1px solid rgba(100,100,100,0.2); margin: 4px 10px;"></div>
+      <!-- Committed section -->
+      <div style="padding: 2px 10px 8px;">
+        <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px;">Committed</div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+          <span>shifts_controller.rb</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+18</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+          <span>PrintCalendarFilte...</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+76</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+          <span>printable_presen...</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+29</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+          <span>shifts_spec.rb</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+89</span> <span style="color:#f87171; font-size:9px;">-1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">With PR — Changes | Commits</div>
+    <div class="mockup-body" style="padding: 0;">
+      <div style="display: flex; gap: 0; padding: 6px;">
+        <div style="flex: 1; padding: 4px 8px; font-size: 11px; text-align: center; border: 1px solid rgba(96,165,250,0.4); border-radius: 4px 0 0 4px; background: rgba(96,165,250,0.1); color: rgb(96,165,250);">Changes</div>
+        <div style="flex: 1; padding: 4px 8px; font-size: 11px; text-align: center; border: 1px solid rgba(100,100,100,0.3); border-left: 0; border-radius: 0 4px 4px 0; color: #888;">Commits</div>
+      </div>
+      <!-- Uncommitted section -->
+      <div style="padding: 4px 10px 2px;">
+        <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #e8a44a; margin-bottom: 4px;">● Uncommitted</div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+          <span>Controls.tsx</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+2</span>
+        </div>
+      </div>
+      <!-- Divider -->
+      <div style="border-top: 1px solid rgba(100,100,100,0.2); margin: 4px 10px;"></div>
+      <!-- Committed section -->
+      <div style="padding: 2px 10px 4px;">
+        <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px;">Committed</div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+          <span>shifts_controller.rb</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+18</span>
+          <span style="font-size:9px; color:#4ade80;">✓</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+          <span>PrintCalendarFilte...</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+76</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+          <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+          <span>printable_presen...</span>
+          <span style="margin-left:auto; color:#4ade80; font-size:9px;">+29</span>
+        </div>
+      </div>
+      <!-- PR panel indicator -->
+      <div style="border-top: 1px solid rgba(100,100,100,0.2); margin-top: 4px; padding: 6px 10px; background: rgba(96,165,250,0.05);">
+        <div style="font-size: 9px; color: rgb(96,165,250);">PR #72 panel → (right side)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>What about when there are no uncommitted changes?</h3>
+<div class="mockup" style="max-width: 280px;">
+  <div class="mockup-header">Clean working tree</div>
+  <div class="mockup-body" style="padding: 0;">
+    <div style="display: flex; gap: 0; padding: 6px;">
+      <div style="flex: 1; padding: 4px 8px; font-size: 11px; text-align: center; border: 1px solid rgba(96,165,250,0.4); border-radius: 4px 0 0 4px; background: rgba(96,165,250,0.1); color: rgb(96,165,250);">Changes</div>
+      <div style="flex: 1; padding: 4px 8px; font-size: 11px; text-align: center; border: 1px solid rgba(100,100,100,0.3); border-left: 0; border-radius: 0 4px 4px 0; color: #888;">Commits</div>
+    </div>
+    <div style="padding: 4px 10px 8px;">
+      <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px;">Committed</div>
+      <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+        <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+        <span>shifts_controller.rb</span>
+        <span style="margin-left:auto; color:#4ade80; font-size:9px;">+18</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size: 10px; color: #ccc;">
+        <span style="font-size:9px; padding:1px 4px; border-radius:3px; background:rgba(96,165,250,0.15); color:rgb(96,165,250);">M</span>
+        <span>Controls.tsx</span>
+        <span style="margin-left:auto; color:#4ade80; font-size:9px;">+2</span>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="subtitle" style="margin-top: 12px;">When no uncommitted changes exist, the "Uncommitted" section just doesn't appear — committed files show directly. No empty state needed.</p>

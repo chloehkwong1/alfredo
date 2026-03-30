@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — Settings Polish Pass</title>
+  <link rel="stylesheet" href="kit.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); min-height: 100vh; overflow: auto; }
+
+    /* Dialog override */
+    .dialog-content { width: 680px; padding: 0; overflow: hidden; position: relative; transform: none; left: auto; top: auto; }
+
+    /* Settings layout */
+    .s-layout { display: flex; min-height: 440px; }
+    .s-rail { width: 160px; padding: 20px 12px; border-right: 1px solid var(--border-default); background: var(--bg-primary); display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+    .s-tab { padding: 8px 12px; font-size: 13px; color: var(--text-tertiary); border-radius: var(--radius-md); cursor: pointer; border: none; background: transparent; text-align: left; font-family: inherit; transition: all 120ms ease; }
+    .s-tab:hover { color: var(--text-secondary); background: var(--bg-hover); }
+    .s-tab.active { color: var(--text-primary); background: var(--accent-muted); font-weight: 500; }
+    .s-body { flex: 1; padding: 24px; overflow-y: auto; max-height: 480px; }
+    .s-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 24px; border-top: 1px solid var(--border-default); }
+    .s-footer-hint { font-size: 12px; color: var(--text-tertiary); margin-right: auto; }
+
+    /* Section title — KEY FIX: mt-8 instead of mt-6 */
+    .s-section {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 14px;
+    }
+    .s-section:not(:first-child) { margin-top: 32px; }
+
+    /* Field */
+    .s-field { margin-bottom: 16px; }
+    .s-field:last-child { margin-bottom: 0; }
+    .s-label { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
+    .s-hint { font-size: 12px; color: var(--text-tertiary); margin-top: 5px; line-height: 1.4; }
+
+    /* Select */
+    .s-select {
+      height: 32px; width: 100%; padding: 0 28px 0 12px; font-size: 13px; font-family: inherit;
+      background: var(--bg-primary); color: var(--text-primary);
+      border: 1px solid var(--border-default); border-radius: var(--radius-md);
+      cursor: pointer; -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center;
+    }
+    .s-select:hover { border-color: var(--border-hover); }
+
+    /* Input */
+    .s-input {
+      height: 32px; width: 100%; padding: 0 12px; font-size: 13px; font-family: inherit;
+      background: var(--bg-primary); color: var(--text-primary);
+      border: 1px solid var(--border-default); border-radius: var(--radius-md);
+    }
+    .s-input::placeholder { color: var(--text-tertiary); }
+
+    /* Toggle */
+    .s-toggle { position: relative; width: 36px; height: 20px; border-radius: 10px; border: none; cursor: pointer; flex-shrink: 0; display: inline-block; }
+    .s-toggle.off { background: var(--bg-active); }
+    .s-toggle.on { background: var(--accent-primary); }
+    .s-toggle-k { position: absolute; top: 3px; width: 14px; height: 14px; border-radius: 7px; background: white; }
+    .s-toggle.off .s-toggle-k { left: 3px; }
+    .s-toggle.on .s-toggle-k { left: 19px; }
+
+    /* Toggle row */
+    .s-trow { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+    .s-trow-label { font-size: 13px; color: var(--text-secondary); }
+
+    /* Segmented control */
+    .s-seg { display: flex; border-radius: var(--radius-md); border: 1px solid var(--border-default); overflow: hidden; }
+    .s-seg-item { flex: 1; padding: 7px 12px; font-size: 12px; font-weight: 500; text-align: center; border: none; cursor: pointer; font-family: inherit; text-transform: capitalize; }
+    .s-seg-item.active { background: var(--accent-primary); color: white; }
+    .s-seg-item:not(.active) { background: var(--bg-primary); color: var(--text-secondary); }
+
+    /* Theme grid */
+    .s-tgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .s-tc { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px; border-radius: var(--radius-md); border: 1px solid var(--border-default); cursor: pointer; transition: all 120ms ease; }
+    .s-tc:hover { border-color: var(--border-hover); }
+    .s-tc.sel { border-color: var(--accent-primary); box-shadow: 0 0 0 1px rgba(147,51,234,0.5); }
+    .s-tsw { width: 100%; height: 36px; border-radius: 4px; position: relative; overflow: hidden; }
+    .s-tn { font-size: 11px; color: var(--text-secondary); text-align: center; }
+
+    /* Connected row */
+    .s-conn { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: var(--radius-md); border: 1px solid var(--border-default); background: var(--bg-primary); font-size: 13px; }
+    .s-conn-dot { width: 6px; height: 6px; border-radius: 3px; background: var(--status-idle); }
+
+    /* Sound grid */
+    .s-sgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .s-sb { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; font-size: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-default); background: var(--bg-primary); color: var(--text-secondary); cursor: pointer; font-family: inherit; }
+    .s-sb.active { border-color: var(--accent-primary); background: var(--accent-muted); color: var(--text-primary); }
+    .s-sb .pi { font-size: 9px; color: var(--text-tertiary); }
+
+    /* Cursor style buttons */
+    .s-cg { display: flex; gap: 6px; }
+    .s-cb { flex: 1; height: 32px; font-size: 12px; font-weight: 500; border-radius: var(--radius-md); border: 1px solid var(--border-default); background: var(--bg-primary); color: var(--text-secondary); cursor: pointer; font-family: inherit; text-transform: capitalize; }
+    .s-cb.active { border-color: var(--accent-primary); background: var(--accent-muted); color: var(--text-primary); }
+
+    /* Range */
+    .s-rrow { display: flex; align-items: center; gap: 12px; }
+    .s-rv { font-size: 12px; color: var(--text-secondary); min-width: 36px; text-align: right; }
+    input[type="range"] { flex: 1; accent-color: var(--accent-primary); cursor: pointer; }
+
+    /* Preview */
+    .s-preview { border-radius: var(--radius-md); border: 1px solid var(--border-default); background: var(--bg-primary); padding: 12px 14px; font-family: "JetBrains Mono", "SF Mono", monospace; font-size: 13px; line-height: 1.5; }
+
+    /* Divider row */
+    .s-divider { padding-bottom: 20px; margin-bottom: 0; border-bottom: 1px solid var(--border-default); }
+
+    /* Kbd badge */
+    .s-kbd { padding: 2px 8px; font-size: 11px; font-family: "SF Mono", "JetBrains Mono", monospace; background: var(--bg-primary); color: var(--text-primary); border-radius: 4px; border: 1px solid var(--border-default); white-space: nowrap; flex-shrink: 0; }
+
+    /* Shortcut row */
+    .s-shortcut { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 6px 0; }
+    .s-shortcut-desc { font-size: 13px; color: var(--text-secondary); }
+
+    /* Shortcut group with top border for separation */
+    .s-shortcut-group { }
+    .s-shortcut-group + .s-shortcut-group { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-default); }
+
+    /* Inline value label — subordinate to field label */
+    .s-val { font-weight: 400; color: var(--text-secondary); }
+
+    /* Tabs for dialog mode switcher */
+    .s-mode-tabs { display: flex; margin-bottom: 16px; }
+    .s-mode-tab { font-size: 12px; font-weight: 500; color: var(--text-tertiary); background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; margin-right: 20px; }
+    .s-mode-tab.active { color: var(--accent-primary); }
+
+    /* Button styles */
+    .s-btn { height: 28px; padding: 0 10px; font-size: 12px; font-weight: 500; border-radius: 4px; cursor: pointer; font-family: inherit; border: none; }
+    .s-btn-ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--border-default); }
+    .s-btn-primary { background: var(--accent-primary); color: white; }
+    .s-btn-primary:disabled { opacity: 0.5; }
+
+    /* Password dots */
+    .s-password { font-family: monospace; letter-spacing: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- Tab selector at top of page -->
+<div style="position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 100;">
+  <div class="s-mode-tabs">
+    <button class="s-mode-tab active" onclick="showDialog('global')">Global Settings</button>
+    <button class="s-mode-tab" onclick="showDialog('workspace')">Workspace Settings</button>
+    <button class="s-mode-tab" onclick="showDialog('shortcuts')">Shortcuts</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     GLOBAL SETTINGS
+     ═══════════════════════════════════════════ -->
+<div class="dialog-content" id="dialog-global">
+  <div class="s-layout">
+    <div class="s-rail">
+      <button class="s-tab active" onclick="gTab('general',this)">General</button>
+      <button class="s-tab" onclick="gTab('terminal',this)">Terminal</button>
+      <button class="s-tab" onclick="gTab('agent',this)">Agent</button>
+      <button class="s-tab" onclick="gTab('notifications',this)">Notifications</button>
+      <button class="s-tab" onclick="gTab('integrations',this)">Integrations</button>
+    </div>
+
+    <!-- General -->
+    <div class="s-body" id="g-general">
+      <!-- FIX #4: No "APPEARANCE" section title — Theme is directly the first field label -->
+      <div class="s-field">
+        <div class="s-label">Theme</div>
+        <div class="s-tgrid">
+          <div class="s-tc sel">
+            <div class="s-tsw" style="background:#1a1918"><div style="position:absolute;top:5px;left:5px;bottom:5px;width:8px;border-radius:2px;background:rgba(245,242,239,0.15)"></div><div style="position:absolute;bottom:5px;right:5px;width:12px;height:4px;border-radius:2px;background:#9333ea"></div></div>
+            <span class="s-tn">Warm Dark</span>
+          </div>
+          <div class="s-tc">
+            <div class="s-tsw" style="background:#fafaf9"><div style="position:absolute;top:5px;left:5px;bottom:5px;width:8px;border-radius:2px;background:rgba(28,25,23,0.12)"></div><div style="position:absolute;bottom:5px;right:5px;width:12px;height:4px;border-radius:2px;background:#7c3aed"></div></div>
+            <span class="s-tn">Light</span>
+          </div>
+          <div class="s-tc">
+            <div class="s-tsw" style="background:#1a1028"><div style="position:absolute;top:5px;left:5px;bottom:5px;width:8px;border-radius:2px;background:rgba(245,240,255,0.12)"></div><div style="position:absolute;bottom:5px;right:5px;width:12px;height:4px;border-radius:2px;background:#ff2975"></div></div>
+            <span class="s-tn">Synthwave</span>
+          </div>
+          <div class="s-tc">
+            <div class="s-tsw" style="background:#1e1e2e"><div style="position:absolute;top:5px;left:5px;bottom:5px;width:8px;border-radius:2px;background:rgba(205,214,244,0.12)"></div><div style="position:absolute;bottom:5px;right:5px;width:12px;height:4px;border-radius:2px;background:#cba6f7"></div></div>
+            <span class="s-tn">Catppuccin</span>
+          </div>
+          <div class="s-tc">
+            <div class="s-tsw" style="background:#1f1520"><div style="position:absolute;top:5px;left:5px;bottom:5px;width:8px;border-radius:2px;background:rgba(245,230,240,0.12)"></div><div style="position:absolute;bottom:5px;right:5px;width:12px;height:4px;border-radius:2px;background:#f472b6"></div></div>
+            <span class="s-tn">Sunset</span>
+          </div>
+          <div class="s-tc">
+            <div class="s-tsw" style="background:#1a1b26"><div style="position:absolute;top:5px;left:5px;bottom:5px;width:8px;border-radius:2px;background:rgba(192,202,245,0.12)"></div><div style="position:absolute;bottom:5px;right:5px;width:12px;height:4px;border-radius:2px;background:#7aa2f7"></div></div>
+            <span class="s-tn">Tokyo Night</span>
+          </div>
+          <div class="s-tc">
+            <div class="s-tsw" style="background:#002b36"><div style="position:absolute;top:5px;left:5px;bottom:5px;width:8px;border-radius:2px;background:rgba(131,148,150,0.15)"></div><div style="position:absolute;bottom:5px;right:5px;width:12px;height:4px;border-radius:2px;background:#268bd2"></div></div>
+            <span class="s-tn">Solarized</span>
+          </div>
+          <div class="s-tc">
+            <div class="s-tsw" style="background:#1c1a17"><div style="position:absolute;top:5px;left:5px;bottom:5px;width:8px;border-radius:2px;background:rgba(245,242,239,0.12)"></div><div style="position:absolute;bottom:5px;right:5px;width:12px;height:4px;border-radius:2px;background:#eab308"></div></div>
+            <span class="s-tn">Honeycomb</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- FIX #4: "EXTERNAL TOOLS" is now the first section title -->
+      <div class="s-section" style="margin-top: 32px;">External Tools</div>
+      <div class="s-field">
+        <div class="s-label">Editor</div>
+        <select class="s-select"><option>Cursor</option><option>VS Code</option><option>Zed</option></select>
+        <div class="s-hint">Used when opening worktrees in an external editor.</div>
+      </div>
+      <div class="s-field">
+        <div class="s-label">Terminal</div>
+        <select class="s-select"><option>Ghostty</option><option>iTerm2</option><option>Terminal.app</option></select>
+        <div class="s-hint">Used when opening worktrees in an external terminal.</div>
+      </div>
+    </div>
+
+    <!-- Terminal -->
+    <div class="s-body" id="g-terminal" style="display:none">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:20px">Terminal changes apply immediately to all sessions.</div>
+
+      <div class="s-section" style="margin-top:0">Font</div>
+      <div class="s-field">
+        <div class="s-label">Family</div>
+        <select class="s-select"><option>Menlo</option><option>JetBrains Mono</option><option>SF Mono</option></select>
+      </div>
+      <div class="s-field">
+        <!-- FIX #5: value is subordinate to label -->
+        <div class="s-label">Size <span class="s-val">14px</span></div>
+        <div class="s-rrow"><input type="range" min="10" max="20" value="14"><span class="s-rv">14px</span></div>
+      </div>
+      <div class="s-field">
+        <div class="s-label">Line Height <span class="s-val">1.2</span></div>
+        <div class="s-rrow"><input type="range" min="10" max="18" value="12"><span class="s-rv">1.2</span></div>
+      </div>
+      <div class="s-field">
+        <div class="s-label">Letter Spacing <span class="s-val">-0.5px</span></div>
+        <div class="s-rrow"><input type="range" min="-10" max="30" value="-5"><span class="s-rv">-0.5px</span></div>
+      </div>
+
+      <!-- FIX #3: More space before section (mt-8 = 32px) -->
+      <div class="s-section">Cursor</div>
+      <div class="s-field">
+        <div class="s-label">Style</div>
+        <div class="s-cg"><button class="s-cb active">Block</button><button class="s-cb">Underline</button><button class="s-cb">Bar</button></div>
+      </div>
+      <div class="s-trow">
+        <span class="s-trow-label">Blink</span>
+        <div class="s-toggle on"><div class="s-toggle-k"></div></div>
+      </div>
+
+      <div class="s-section">Preview</div>
+      <div class="s-preview">
+        <div><span style="color:var(--status-idle)">$</span> <span>npm run dev</span></div>
+        <div style="color:var(--text-secondary)">Ready in 1.2s</div>
+      </div>
+    </div>
+
+    <!-- Agent -->
+    <div class="s-body" id="g-agent" style="display:none">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:20px">Defaults for all new sessions. Override per worktree via the status bar.</div>
+
+      <div class="s-section" style="margin-top:0">Model & Performance</div>
+      <div class="s-field">
+        <div class="s-label">Model</div>
+        <select class="s-select"><option>Default</option><option selected>Opus 4.6 (1M context)</option></select>
+      </div>
+      <div class="s-field">
+        <div class="s-label">Effort</div>
+        <!-- FIX #1: "High" is highlighted as the default -->
+        <div class="s-seg">
+          <button class="s-seg-item">Low</button>
+          <button class="s-seg-item">Medium</button>
+          <button class="s-seg-item active">High</button>
+          <button class="s-seg-item">Max</button>
+        </div>
+      </div>
+
+      <!-- FIX #3: 32px gap before section -->
+      <div class="s-section">Permissions</div>
+      <div class="s-field">
+        <div class="s-label">Permission Mode</div>
+        <select class="s-select"><option selected>Default</option><option>Accept Edits</option><option>Auto</option></select>
+        <div class="s-hint">Asks before edits and commands</div>
+      </div>
+
+      <div class="s-section">Output</div>
+      <div class="s-field">
+        <div class="s-label">Style</div>
+        <div class="s-seg">
+          <button class="s-seg-item active">Default</button>
+          <button class="s-seg-item">Explanatory</button>
+          <button class="s-seg-item">Learning</button>
+        </div>
+      </div>
+      <div class="s-trow">
+        <span class="s-trow-label">Verbose output</span>
+        <div class="s-toggle off"><div class="s-toggle-k"></div></div>
+      </div>
+
+      <div style="margin-top:28px;padding-top:16px;border-top:1px solid var(--border-default);font-size:12px;color:var(--text-tertiary)">
+        Applies to new sessions — existing sessions keep their settings.
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="s-body" id="g-notifications" style="display:none">
+      <!-- FIX #6 & #7: No icons, divider under master toggle -->
+      <div class="s-trow s-divider">
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary)">Enable Notifications</span>
+        <div class="s-toggle on"><div class="s-toggle-k"></div></div>
+      </div>
+
+      <!-- FIX #3: Section title has proper spacing after divider -->
+      <div class="s-section" style="margin-top:20px">Notify When</div>
+      <div class="s-trow"><span class="s-trow-label">Agent waiting for input</span><div class="s-toggle on"><div class="s-toggle-k"></div></div></div>
+      <div class="s-trow"><span class="s-trow-label">Agent finished work</span><div class="s-toggle on"><div class="s-toggle-k"></div></div></div>
+      <div class="s-trow"><span class="s-trow-label">Agent error</span><div class="s-toggle off"><div class="s-toggle-k"></div></div></div>
+
+      <div class="s-section">Sound</div>
+      <div class="s-sgrid">
+        <button class="s-sb">None</button>
+        <button class="s-sb active">Chime <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Pop <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Ding <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Ping <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Woodblock <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Coin <span class="pi">&#9654;</span></button>
+        <button class="s-sb">R2-D2 <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Zelda <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Quack <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Laser <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Doorbell <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Bloop <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Victory <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Bonk <span class="pi">&#9654;</span></button>
+        <button class="s-sb">Sparkle <span class="pi">&#9654;</span></button>
+        <button class="s-sb">UFO <span class="pi">&#9654;</span></button>
+      </div>
+      <div style="margin-top:16px"><button class="s-btn s-btn-ghost">Test Notification</button></div>
+    </div>
+
+    <!-- Integrations -->
+    <div class="s-body" id="g-integrations" style="display:none">
+      <div class="s-section" style="margin-top:0">GitHub</div>
+      <div class="s-field">
+        <div class="s-conn"><span class="s-conn-dot"></span><span style="font-weight:500;color:var(--text-primary)">@chloehkwong1</span></div>
+        <div class="s-hint">Authenticated via GitHub CLI. Run <code style="font-size:11px;font-family:'JetBrains Mono',monospace;background:var(--bg-primary);padding:1px 4px;border-radius:3px">gh auth login</code> to switch accounts.</div>
+      </div>
+
+      <!-- FIX #3: 32px gap before LINEAR -->
+      <div class="s-section">Linear</div>
+      <div class="s-field">
+        <div class="s-label">API Key</div>
+        <input class="s-input s-password" type="password" value="lin_api_xxxxxxxxxx">
+        <div class="s-hint">Used for creating worktrees from Linear tickets.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="s-footer">
+    <button class="s-btn s-btn-ghost">Close</button>
+    <button class="s-btn s-btn-primary" disabled>Save</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     WORKSPACE SETTINGS
+     ═══════════════════════════════════════════ -->
+<div class="dialog-content" id="dialog-workspace" style="display:none">
+  <!-- FIX #9: No redundant "Repository" label — just title + dropdown -->
+  <div style="padding:24px 24px 16px;border-bottom:1px solid var(--border-default)">
+    <div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:14px">Repository Settings</div>
+    <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:var(--radius-md);border:1px solid var(--border-default);background:var(--bg-primary);cursor:pointer">
+      <span style="width:8px;height:8px;border-radius:4px;background:#a78bfa"></span>
+      <span style="font-size:13px;color:var(--text-primary);font-weight:500">Florence</span>
+      <span style="margin-left:auto;font-size:12px;color:var(--text-tertiary)">&#9662;</span>
+    </div>
+  </div>
+
+  <div class="s-layout" style="min-height:320px">
+    <!-- FIX #10: Rail has bg-primary -->
+    <div class="s-rail">
+      <button class="s-tab" onclick="wTab('repo',this)">Repository</button>
+      <button class="s-tab active" onclick="wTab('scripts',this)">Scripts</button>
+    </div>
+
+    <!-- Repository tab -->
+    <div class="s-body" id="w-repo" style="display:none">
+      <div class="s-field">
+        <div class="s-label">Repository Path</div>
+        <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border-radius:var(--radius-md);border:1px solid var(--border-default);background:var(--bg-primary);font-size:13px;color:var(--text-secondary)">
+          <span style="color:var(--text-tertiary)">&#128193;</span>
+          /Users/chloe/dev/florence_apps/florence
+        </div>
+      </div>
+      <div class="s-field">
+        <div class="s-label">Display Name</div>
+        <input class="s-input" value="Florence">
+        <div class="s-hint">Short name shown in sidebar repo chips. Defaults to directory name.</div>
+      </div>
+      <div class="s-field">
+        <div class="s-label">Worktree Directory</div>
+        <input class="s-input" value="/Users/chloe/worktrees/florence">
+        <div class="s-hint">Where new worktrees are created. Defaults to the repository parent.</div>
+      </div>
+    </div>
+
+    <!-- Scripts tab -->
+    <div class="s-body" id="w-scripts">
+      <div class="s-section" style="margin-top:0">Run Script</div>
+      <div class="s-hint" style="margin-top:-8px;margin-bottom:12px">Started from any worktree via the play button in the tab bar.</div>
+      <div style="border-radius:var(--radius-md);border:1px solid var(--border-default);background:var(--bg-primary);padding:12px;margin-bottom:8px">
+        <input class="s-input" value="Dev server" style="margin-bottom:8px">
+        <textarea style="width:100%;padding:8px 12px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-default);border-radius:var(--radius-md);resize:none;line-height:1.5" rows="3">rm ./.overmind.sock; kill $(lsof -t -i:3000) &> /dev/null; ./bin/florence</textarea>
+      </div>
+
+      <!-- FIX #2: No duplicate description -->
+      <div class="s-section">Setup Scripts</div>
+      <div class="s-hint" style="margin-top:-8px;margin-bottom:12px">Run automatically when a new worktree is created.</div>
+      <div style="border-radius:var(--radius-md);border:1px solid var(--border-default);background:var(--bg-primary);padding:12px;margin-bottom:8px">
+        <input class="s-input" value="Setup script" style="margin-bottom:8px">
+        <!-- FIX #11: textarea instead of input -->
+        <textarea style="width:100%;padding:8px 12px;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-default);border-radius:var(--radius-md);resize:none;line-height:1.5" rows="2">ln -sf ~/dev/florence_apps/florence/.env .env && mkdir -p .claude</textarea>
+        <div style="position:relative;float:right;margin-top:-32px;margin-right:4px;color:var(--text-tertiary);cursor:pointer;font-size:14px">&#128465;</div>
+      </div>
+      <button style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;font-family:inherit;padding:4px 0">+ Add Script</button>
+    </div>
+  </div>
+
+  <div class="s-footer">
+    <button class="s-btn s-btn-ghost">Cancel</button>
+    <button class="s-btn s-btn-primary">Save</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     SHORTCUTS OVERLAY
+     ═══════════════════════════════════════════ -->
+<div class="dialog-content" id="dialog-shortcuts" style="display:none;width:480px">
+  <div style="padding:24px">
+    <div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:20px">Keyboard Shortcuts</div>
+
+    <!-- FIX #12: Groups have borders between them, clear visual separation -->
+    <div class="s-shortcut-group">
+      <div class="s-section" style="margin-top:0;margin-bottom:8px">Navigation</div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Navigate between worktrees</span><span class="s-kbd">&#8593; / &#8595;</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Jump to worktree by position</span><span class="s-kbd">&#8984; 1&ndash;9</span></div>
+    </div>
+
+    <div class="s-shortcut-group">
+      <div class="s-section" style="margin-top:0;margin-bottom:8px">Tabs & Panes</div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Add repository</span><span class="s-kbd">&#8984; R</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">New worktree</span><span class="s-kbd">&#8984; N</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">New tab</span><span class="s-kbd">&#8984; T</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Close tab</span><span class="s-kbd">&#8984; W</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Split pane right</span><span class="s-kbd">&#8984; \</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Split pane down</span><span class="s-kbd">&#8984; &#8679; \</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Switch to Changes tab</span><span class="s-kbd">&#8984; &#8679; C</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Switch to terminal tab</span><span class="s-kbd">&#8984; &#8679; T</span></div>
+    </div>
+
+    <div class="s-shortcut-group">
+      <div class="s-section" style="margin-top:0;margin-bottom:8px">Panels</div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Toggle sidebar</span><span class="s-kbd">&#8984; B</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Toggle PR panel</span><span class="s-kbd">&#8984; I</span></div>
+    </div>
+
+    <div class="s-shortcut-group">
+      <div class="s-section" style="margin-top:0;margin-bottom:8px">Search</div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Search (terminal or file filter)</span><span class="s-kbd">&#8984; F</span></div>
+    </div>
+
+    <div class="s-shortcut-group">
+      <div class="s-section" style="margin-top:0;margin-bottom:8px">Changes View</div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Next file</span><span class="s-kbd">] / n</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Previous file</span><span class="s-kbd">[ / p</span></div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Toggle file collapse</span><span class="s-kbd">x</span></div>
+    </div>
+
+    <div class="s-shortcut-group">
+      <div class="s-section" style="margin-top:0;margin-bottom:8px">Help</div>
+      <div class="s-shortcut"><span class="s-shortcut-desc">Show keyboard shortcuts</span><span class="s-kbd">&#8984; ?</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function gTab(name, el) {
+  document.querySelectorAll('[id^="g-"]').forEach(b => b.style.display = 'none');
+  document.querySelectorAll('#dialog-global .s-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('g-' + name).style.display = 'block';
+  el.classList.add('active');
+}
+function wTab(name, el) {
+  document.querySelectorAll('[id^="w-"]').forEach(b => b.style.display = 'none');
+  document.querySelectorAll('#dialog-workspace .s-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('w-' + name).style.display = 'block';
+  el.classList.add('active');
+}
+function showDialog(name) {
+  document.querySelectorAll('[id^="dialog-"]').forEach(d => d.style.display = 'none');
+  document.querySelectorAll('.s-mode-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('dialog-' + name).style.display = '';
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

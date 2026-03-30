@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — Split View & Expandable Context</title>
+  <link rel="stylesheet" href="kit.css">
+  <style>
+    body { overflow: auto; }
+
+    .mockup-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-xl);
+    }
+
+    .mockup-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-primary);
+      margin-bottom: var(--space-sm);
+    }
+
+    .mockup-section {
+      margin-bottom: 48px;
+    }
+
+    .mockup-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-xs);
+    }
+
+    .mockup-desc {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-lg);
+    }
+
+    /* ── Diff card frame ── */
+    .diff-card {
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: var(--bg-primary);
+    }
+
+    .diff-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-default);
+      font-size: 12px;
+    }
+
+    .diff-header .chevron {
+      color: var(--text-tertiary);
+      font-size: 14px;
+    }
+
+    .status-badge {
+      width: 20px;
+      height: 20px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .status-badge-m {
+      color: var(--accent-primary);
+      background: rgba(147, 51, 234, 0.1);
+    }
+
+    .diff-path {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 12px;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .diff-stats {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11px;
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .stat-add { color: var(--diff-added); }
+    .stat-rm { color: var(--diff-removed); }
+
+    /* ── Toolbar ── */
+    .diff-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-default);
+      font-size: 10px;
+      color: var(--text-tertiary);
+    }
+
+    .toolbar-spacer { flex: 1; }
+
+    .view-toggle {
+      display: flex;
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .view-toggle-btn {
+      padding: 3px 10px;
+      font-size: 11px;
+      font-family: inherit;
+      background: transparent;
+      color: var(--text-tertiary);
+      border: none;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .view-toggle-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+
+    .view-toggle-btn.active {
+      background: var(--accent-muted);
+      color: var(--accent-primary);
+      font-weight: 500;
+    }
+
+    .view-toggle-btn + .view-toggle-btn {
+      border-left: 1px solid var(--border-default);
+    }
+
+    /* ── Hunk header ── */
+    .hunk-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-default);
+      border-bottom: 1px solid var(--border-default);
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 10px;
+      color: var(--text-tertiary);
+    }
+
+    /* ── Unified diff lines ── */
+    .diff-line {
+      display: flex;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 12px;
+      line-height: 20px;
+    }
+
+    .gutter {
+      width: 36px;
+      text-align: right;
+      padding-right: 6px;
+      color: var(--text-tertiary);
+      font-size: 10px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .prefix {
+      width: 16px;
+      text-align: center;
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .code {
+      flex: 1;
+      padding: 0 8px;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .line-add {
+      background: rgba(74, 222, 128, 0.15);
+    }
+    .line-add .gutter {
+      background: rgba(74, 222, 128, 0.25);
+    }
+    .line-add .prefix {
+      color: var(--diff-added);
+    }
+
+    .line-del {
+      background: rgba(248, 113, 113, 0.15);
+    }
+    .line-del .gutter {
+      background: rgba(248, 113, 113, 0.25);
+    }
+    .line-del .prefix {
+      color: var(--diff-removed);
+    }
+
+    /* ── Split view ── */
+    .split-container {
+      display: flex;
+    }
+
+    .split-side {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .split-side + .split-side {
+      border-left: 1px solid var(--border-default);
+    }
+
+    .split-line {
+      display: flex;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 12px;
+      line-height: 20px;
+    }
+
+    .split-gutter {
+      width: 36px;
+      text-align: right;
+      padding-right: 6px;
+      color: var(--text-tertiary);
+      font-size: 10px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .split-code {
+      flex: 1;
+      padding: 0 8px;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .split-empty {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .split-del {
+      background: rgba(248, 113, 113, 0.15);
+    }
+    .split-del .split-gutter {
+      background: rgba(248, 113, 113, 0.25);
+    }
+
+    .split-add {
+      background: rgba(74, 222, 128, 0.15);
+    }
+    .split-add .split-gutter {
+      background: rgba(74, 222, 128, 0.25);
+    }
+
+    /* ── Expand context button ── */
+    .expand-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 4px 12px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      user-select: none;
+    }
+
+    .expand-row:hover {
+      background: var(--bg-hover);
+    }
+
+    .expand-icon {
+      color: var(--text-tertiary);
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .expand-label {
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    .expand-row:hover .expand-label,
+    .expand-row:hover .expand-icon {
+      color: var(--accent-primary);
+    }
+
+    .expand-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .expand-action {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      padding: 0;
+      transition: color var(--transition-fast);
+    }
+
+    .expand-action:hover {
+      color: var(--accent-primary);
+    }
+
+    .expand-separator {
+      color: var(--border-default);
+      font-size: 11px;
+    }
+
+    /* Annotation callout */
+    .callout {
+      margin-top: 32px;
+      padding: 12px 16px;
+      background: rgba(147, 51, 234, 0.06);
+      border-left: 3px solid var(--accent-primary);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .callout strong {
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+
+<div class="mockup-container">
+
+  <!-- ════════════════════════════════════════════════
+       SECTION 1: UNIFIED VIEW (current) with expand buttons
+       ════════════════════════════════════════════════ -->
+  <div class="mockup-section">
+    <div class="mockup-label">Current + New: Unified View with Expandable Context</div>
+    <div class="mockup-title">Unified Diff View</div>
+    <div class="mockup-desc">Global toggle in the toolbar switches all files. Expand buttons appear between hunks and at file edges.</div>
+
+    <div class="diff-card">
+      <!-- Toolbar with toggle -->
+      <div class="diff-toolbar">
+        <span>3/8 files</span>
+        <span style="margin-left: 8px; cursor: pointer;">Expand all</span>
+        <span style="color: var(--border-default); margin: 0 2px;">|</span>
+        <span style="cursor: pointer;">Collapse all</span>
+        <div class="toolbar-spacer"></div>
+        <div class="view-toggle">
+          <button class="view-toggle-btn active">Unified</button>
+          <button class="view-toggle-btn">Split</button>
+        </div>
+      </div>
+
+      <!-- File header -->
+      <div class="diff-header">
+        <span class="chevron">▾</span>
+        <span class="status-badge status-badge-m">M</span>
+        <span class="diff-path">src/components/changes/DiffFileCard.tsx</span>
+        <span class="diff-stats">
+          <span class="stat-add">+24</span>
+          <span class="stat-rm">-8</span>
+        </span>
+      </div>
+
+      <!-- Expand up (top of file) -->
+      <div class="expand-row">
+        <span class="expand-icon">↑</span>
+        <span class="expand-label">Show 20 more lines</span>
+      </div>
+
+      <!-- Hunk 1 -->
+      <div class="hunk-header"><span>@@ -14,6 +14,8 @@ interface DiffFileCardProps</span></div>
+      <div class="diff-line">
+        <span class="gutter">14</span><span class="gutter">14</span>
+        <span class="prefix"> </span>
+        <span class="code">  viewMode: DiffViewMode;</span>
+      </div>
+      <div class="diff-line">
+        <span class="gutter">15</span><span class="gutter">15</span>
+        <span class="prefix"> </span>
+        <span class="code">  annotations: Annotation[];</span>
+      </div>
+      <div class="diff-line line-add">
+        <span class="gutter"></span><span class="gutter">16</span>
+        <span class="prefix">+</span>
+        <span class="code">  expandedContext: Map&lt;number, DiffLine[]&gt;;</span>
+      </div>
+      <div class="diff-line line-add">
+        <span class="gutter"></span><span class="gutter">17</span>
+        <span class="prefix">+</span>
+        <span class="code">  onExpandContext: (hunkIndex: number, direction: 'up' | 'down' | 'all') =&gt; void;</span>
+      </div>
+      <div class="diff-line">
+        <span class="gutter">16</span><span class="gutter">18</span>
+        <span class="prefix"> </span>
+        <span class="code">  activeAnnotationLine: number | null;</span>
+      </div>
+      <div class="diff-line">
+        <span class="gutter">17</span><span class="gutter">19</span>
+        <span class="prefix"> </span>
+        <span class="code">  onAddAnnotation: (filePath: string, lineNumber: number) =&gt; void;</span>
+      </div>
+
+      <!-- Expand between hunks -->
+      <div class="expand-row">
+        <span class="expand-icon">⋯</span>
+        <div class="expand-actions">
+          <button class="expand-action">↓ Show 20 lines</button>
+          <span class="expand-separator">·</span>
+          <button class="expand-action">Show all 47 lines</button>
+          <span class="expand-separator">·</span>
+          <button class="expand-action">↑ Show 20 lines</button>
+        </div>
+      </div>
+
+      <!-- Hunk 2 -->
+      <div class="hunk-header"><span>@@ -82,7 +84,9 @@ function DiffFileCard</span></div>
+      <div class="diff-line">
+        <span class="gutter">82</span><span class="gutter">84</span>
+        <span class="prefix"> </span>
+        <span class="code">    return (</span>
+      </div>
+      <div class="diff-line line-del">
+        <span class="gutter">83</span><span class="gutter"></span>
+        <span class="prefix">-</span>
+        <span class="code">      &lt;div className="flex font-mono text-xs"&gt;</span>
+      </div>
+      <div class="diff-line line-add">
+        <span class="gutter"></span><span class="gutter">85</span>
+        <span class="prefix">+</span>
+        <span class="code">      &lt;div className={viewMode === "split" ? "split-container" : "flex font-mono text-xs"}&gt;</span>
+      </div>
+      <div class="diff-line">
+        <span class="gutter">84</span><span class="gutter">86</span>
+        <span class="prefix"> </span>
+        <span class="code">        {file.hunks.map((hunk, hunkIndex) =&gt; (</span>
+      </div>
+
+      <!-- Expand down (bottom of file) -->
+      <div class="expand-row">
+        <span class="expand-icon">↓</span>
+        <span class="expand-label">Show 20 more lines</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       SECTION 2: SPLIT VIEW
+       ════════════════════════════════════════════════ -->
+  <div class="mockup-section">
+    <div class="mockup-label">New: Split (Side-by-Side) View</div>
+    <div class="mockup-title">Split Diff View</div>
+    <div class="mockup-desc">Same file, same data — just rendered in two columns. Left = old file, right = new file. Modifications align on the same row.</div>
+
+    <div class="diff-card">
+      <!-- Toolbar with toggle -->
+      <div class="diff-toolbar">
+        <span>3/8 files</span>
+        <span style="margin-left: 8px; cursor: pointer;">Expand all</span>
+        <span style="color: var(--border-default); margin: 0 2px;">|</span>
+        <span style="cursor: pointer;">Collapse all</span>
+        <div class="toolbar-spacer"></div>
+        <div class="view-toggle">
+          <button class="view-toggle-btn">Unified</button>
+          <button class="view-toggle-btn active">Split</button>
+        </div>
+      </div>
+
+      <!-- File header -->
+      <div class="diff-header">
+        <span class="chevron">▾</span>
+        <span class="status-badge status-badge-m">M</span>
+        <span class="diff-path">src/components/changes/DiffFileCard.tsx</span>
+        <span class="diff-stats">
+          <span class="stat-add">+24</span>
+          <span class="stat-rm">-8</span>
+        </span>
+      </div>
+
+      <!-- Expand up -->
+      <div class="expand-row">
+        <span class="expand-icon">↑</span>
+        <span class="expand-label">Show 20 more lines</span>
+      </div>
+
+      <!-- Hunk header -->
+      <div class="hunk-header"><span>@@ -14,6 +14,8 @@ interface DiffFileCardProps</span></div>
+
+      <!-- Split: context line (both sides) -->
+      <div class="split-container">
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">14</span>
+            <span class="split-code">  viewMode: DiffViewMode;</span>
+          </div>
+        </div>
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">14</span>
+            <span class="split-code">  viewMode: DiffViewMode;</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split: context line -->
+      <div class="split-container">
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">15</span>
+            <span class="split-code">  annotations: Annotation[];</span>
+          </div>
+        </div>
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">15</span>
+            <span class="split-code">  annotations: Annotation[];</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split: additions only (right side, left empty) -->
+      <div class="split-container">
+        <div class="split-side">
+          <div class="split-line split-empty">
+            <span class="split-gutter"></span>
+            <span class="split-code"></span>
+          </div>
+        </div>
+        <div class="split-side">
+          <div class="split-line split-add">
+            <span class="split-gutter">16</span>
+            <span class="split-code">  expandedContext: Map&lt;number, DiffLine[]&gt;;</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="split-container">
+        <div class="split-side">
+          <div class="split-line split-empty">
+            <span class="split-gutter"></span>
+            <span class="split-code"></span>
+          </div>
+        </div>
+        <div class="split-side">
+          <div class="split-line split-add">
+            <span class="split-gutter">17</span>
+            <span class="split-code">  onExpandContext: (hunkIndex: number, direction: 'up' | 'down' | 'all') =&gt; void;</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split: context lines -->
+      <div class="split-container">
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">16</span>
+            <span class="split-code">  activeAnnotationLine: number | null;</span>
+          </div>
+        </div>
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">18</span>
+            <span class="split-code">  activeAnnotationLine: number | null;</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="split-container">
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">17</span>
+            <span class="split-code">  onAddAnnotation: (filePath: string, lineNumber: number) =&gt; void;</span>
+          </div>
+        </div>
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">19</span>
+            <span class="split-code">  onAddAnnotation: (filePath: string, lineNumber: number) =&gt; void;</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expand between hunks (same style in split view) -->
+      <div class="expand-row">
+        <span class="expand-icon">⋯</span>
+        <div class="expand-actions">
+          <button class="expand-action">↓ Show 20 lines</button>
+          <span class="expand-separator">·</span>
+          <button class="expand-action">Show all 47 lines</button>
+          <span class="expand-separator">·</span>
+          <button class="expand-action">↑ Show 20 lines</button>
+        </div>
+      </div>
+
+      <!-- Hunk 2 header -->
+      <div class="hunk-header"><span>@@ -82,7 +84,9 @@ function DiffFileCard</span></div>
+
+      <!-- Split: context -->
+      <div class="split-container">
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">82</span>
+            <span class="split-code">    return (</span>
+          </div>
+        </div>
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">84</span>
+            <span class="split-code">    return (</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split: modification (deletion left, addition right — same row) -->
+      <div class="split-container">
+        <div class="split-side">
+          <div class="split-line split-del">
+            <span class="split-gutter">83</span>
+            <span class="split-code">      &lt;div className="flex font-mono text-xs"&gt;</span>
+          </div>
+        </div>
+        <div class="split-side">
+          <div class="split-line split-add">
+            <span class="split-gutter">85</span>
+            <span class="split-code">      &lt;div className={viewMode === "split" ? "split-container" : "flex font-mono text-xs"}&gt;</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split: context -->
+      <div class="split-container">
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">84</span>
+            <span class="split-code">        {file.hunks.map((hunk, hunkIndex) =&gt; (</span>
+          </div>
+        </div>
+        <div class="split-side">
+          <div class="split-line">
+            <span class="split-gutter">86</span>
+            <span class="split-code">        {file.hunks.map((hunk, hunkIndex) =&gt; (</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expand down -->
+      <div class="expand-row">
+        <span class="expand-icon">↓</span>
+        <span class="expand-label">Show 20 more lines</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       Callout: key details
+       ════════════════════════════════════════════════ -->
+  <div class="callout">
+    <strong>Key details:</strong><br>
+    • Toggle lives in the toolbar bar, persists per-worktree<br>
+    • Expand buttons: ↑/↓ arrows at file edges, ⋯ with dual actions between hunks (20 lines or show all)<br>
+    • Modifications (del→add) align on the same row in split view<br>
+    • Pure additions/deletions leave the opposite side empty with a subtle background<br>
+    • Expand buttons look identical in both unified and split views
+  </div>
+
+</div>
+
+</body>
+</html>

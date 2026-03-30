@@ -1,0 +1,425 @@
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #0f0f0f; padding: 40px; font-family: -apple-system, system-ui, sans-serif; color: #888; }
+  h2 { color: #f5f2ef; font-size: 18px; margin-bottom: 6px; }
+  .subtitle { color: rgba(255,255,255,0.4); font-size: 13px; margin-bottom: 24px; }
+  .section { margin-bottom: 32px; }
+
+  .state-label {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  }
+  .state-open { background: rgba(147,51,234,0.12); color: #c084fc; }
+  .state-closed { background: rgba(96,165,250,0.12); color: #60a5fa; }
+  .callout {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px; margin: 6px 0 12px;
+    background: rgba(147,51,234,0.08); border-radius: 6px;
+    font-size: 10px; color: #c084fc;
+  }
+  .callout .arrow { font-size: 14px; }
+
+  .window {
+    background: #1a1918;
+    border: 1px solid #3d3a37;
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    color: #f5f2ef;
+  }
+  .titlebar {
+    height: 32px; background: #151413;
+    display: flex; align-items: center; padding: 0 14px; gap: 8px;
+    border-bottom: 1px solid #3d3a37;
+  }
+  .tl { width: 10px; height: 10px; border-radius: 50%; }
+  .tl-r { background: #ff5f57; } .tl-y { background: #febc2e; } .tl-g { background: #28c840; }
+
+  /* Sidebar */
+  .sb { width: 200px; background: #151413; border-right: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; display: flex; flex-direction: column; }
+  .sb-hd { height: 36px; display: flex; align-items: center; padding: 0 10px; gap: 7px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .sb-logo { width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(135deg,#9333ea,#7e22ce); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: white; }
+  .sb-name { font-size: 12px; font-weight: 600; }
+  .sb-ct { flex: 1; padding: 4px 0; }
+  .sg-lbl { padding: 8px 14px 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #444; display: flex; align-items: center; gap: 8px; }
+  .sg-lbl span { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent); }
+
+  /* Agent items */
+  .ag { padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid transparent; }
+  .ag.sel { background: rgba(255,255,255,0.05); }
+  .ag-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .ag-info { flex: 1; min-width: 0; }
+  .ag-row1 { display: flex; align-items: center; gap: 6px; }
+  .ag-name { font-size: 12px; font-weight: 500; color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ag-name.bold { font-weight: 600; color: #eee; }
+  .ag-pr-num { font-size: 10px; color: #444; }
+  .ag-time { margin-left: auto; font-size: 9px; color: #444; flex-shrink: 0; }
+  .ag-pr-title { font-size: 11px; color: #555; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ag-row3 { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .ag-status { font-size: 11px; }
+  .ag-diff { margin-left: auto; font-size: 10px; flex-shrink: 0; }
+  .diff-a { color: #4ade80; } .diff-d { color: #f87171; }
+
+  /* PR stats row in sidebar */
+  .pr-stats { display: flex; align-items: center; gap: 10px; padding-top: 5px; margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .pr-st { display: flex; align-items: center; gap: 3px; font-size: 10px; }
+  .pr-st svg { width: 11px; height: 11px; flex-shrink: 0; }
+
+  /* Tab bar */
+  .tbar { height: 32px; background: #1e1d1c; border-bottom: 1px solid #3d3a37; display: flex; align-items: end; padding: 0 6px; }
+  .tb { padding: 6px 10px; font-size: 10px; color: #78716c; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 4px; }
+  .tb.tb-act { color: #f5f2ef; border-bottom-color: #9333ea; background: linear-gradient(180deg, transparent 0%, rgba(147,51,234,0.06) 100%); }
+  .tbar .changes-tab { margin-left: auto; }
+
+  /* Terminal content */
+  .term { flex: 1; background: #1a1918; padding: 12px 14px; font-family: 'SF Mono','Fira Code',monospace; font-size: 10px; line-height: 1.7; color: #a8a29e; overflow-y: auto; }
+  .term .prompt { color: #9333ea; }
+  .term .ok { color: #4ade80; }
+
+  /* PR Panel */
+  .pr-panel {
+    width: 260px; background: #1a1918;
+    border-left: 1px solid #3d3a37;
+    flex-shrink: 0; overflow-y: auto;
+    display: flex; flex-direction: column;
+  }
+  .pp-header {
+    padding: 8px 14px;
+    border-bottom: 1px solid #3d3a37;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pp-title { font-size: 13px; font-weight: 600; }
+  .pp-num { color: #78716c; font-size: 12px; }
+  .pp-gh { color: #78716c; font-size: 10px; margin-left: auto; }
+  .pp-collapse {
+    width: 24px; height: 24px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    color: #78716c; cursor: default; font-size: 13px;
+  }
+  .pp-collapse:hover { background: #333231; color: #f5f2ef; }
+
+  /* Description (NEW) */
+  .pp-desc {
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 11px; color: #a8a29e; line-height: 1.5;
+  }
+  .pp-desc .show-more { color: #9333ea; font-size: 10px; cursor: pointer; display: inline-block; margin-top: 3px; }
+
+  .pp-section { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .pp-section:last-child { border-bottom: none; }
+  .pp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #57534e; margin-bottom: 8px; font-weight: 600; }
+  .ck-row { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 11px; color: #a8a29e; }
+  .ck-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .ck-ok { background: #4ade80; } .ck-fl { background: #f87171; }
+  .ck-row .ck-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ck-row .ck-time { color: #57534e; font-size: 10px; }
+  .ck-row .ck-action { color: #f87171; font-size: 10px; }
+  .rv-row { display: flex; align-items: center; gap: 6px; padding: 5px 0; font-size: 11px; color: #a8a29e; }
+  .rv-avatar { width: 20px; height: 20px; border-radius: 50%; background: #333231; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; color: #a8a29e; flex-shrink: 0; }
+  .rv-name { font-weight: 500; color: #f5f2ef; font-size: 11px; flex: 1; }
+  .cm-card { padding: 8px 10px; margin-bottom: 6px; background: #232220; border-radius: 6px; cursor: default; }
+  .cm-card:hover { background: #2a2928; }
+  .cm-card .cm-top { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+  .cm-card .cm-author { font-weight: 600; color: #f5f2ef; font-size: 10px; }
+  .cm-card .cm-file { color: #9333ea; font-size: 9px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cm-card .cm-time { margin-left: auto; color: #57534e; font-size: 9px; }
+  .cm-card .cm-body { color: #a8a29e; font-size: 11px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .cm-card.resolved { opacity: 0.5; }
+  .merge-status { padding: 8px 10px; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; }
+  .merge-blocked { background: rgba(248,113,113,0.08); color: #f87171; }
+  .merge-ready { background: rgba(74,222,128,0.08); color: #4ade80; }
+  .merge-open { background: rgba(96,165,250,0.08); color: #60a5fa; }
+
+  /* Collapsed rail */
+  .panel-toolbar {
+    width: 36px; background: #1a1918;
+    border-left: 1px solid #3d3a37;
+    flex-shrink: 0;
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 6px 0; gap: 2px;
+  }
+  .pt-btn {
+    width: 28px; height: 28px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; cursor: default; position: relative;
+    color: #78716c;
+  }
+  .pt-btn:hover { background: #333231; }
+  .pt-badge {
+    position: absolute; top: -2px; right: -2px;
+    min-width: 14px; height: 14px; border-radius: 7px;
+    font-size: 7px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; padding: 0 3px;
+  }
+  .pb-fl { background: #f87171; color: #fff; }
+  .pb-ok { background: #4ade80; color: #1a1918; }
+  .pb-cnt { background: #60a5fa; color: #fff; }
+  .pb-n { background: #78716c; color: #fff; }
+  .rail-expand {
+    width: 28px; height: 28px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: #78716c; cursor: default; font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .rail-expand:hover { background: #333231; color: #f5f2ef; }
+</style>
+
+<h2>Persistent PR Panel</h2>
+<p class="subtitle">PR panel visible from any tab — not just Changes. Shows description, checks, reviews, comments, merge status.</p>
+
+<!-- ═══════════════════════════════════════
+     EXPANDED — Visible from Claude tab
+     ═══════════════════════════════════════ -->
+<div class="section">
+  <h3><span class="state-label state-open">Panel Open</span> — from Claude tab</h3>
+  <div class="callout"><span class="arrow">→</span> Panel persists across all tabs. Description section is new. Comment clicks are no-ops outside Changes tab.</div>
+
+  <div class="window">
+    <div class="titlebar"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span style="flex:1;text-align:center;font-size:11px;color:#78716c;">Alfredo</span></div>
+    <div style="display:flex;height:480px;">
+      <!-- Sidebar -->
+      <div class="sb">
+        <div class="sb-hd"><div class="sb-logo">A</div><span class="sb-name">alfredo</span></div>
+        <div class="sb-ct">
+          <div class="sg-lbl">In Progress <span></span> 2</div>
+
+          <!-- Selected agent with PR stats -->
+          <div class="ag sel">
+            <div class="ag-dot" style="background: #fbbf24;"></div>
+            <div class="ag-info">
+              <div class="ag-row1">
+                <span class="ag-name">chloe/add-search-api</span>
+                <span class="ag-pr-num">#138</span>
+                <span class="ag-time">12m</span>
+              </div>
+              <div class="ag-pr-title">Add full-text search endpoint</div>
+              <div class="ag-row3">
+                <span class="ag-status" style="color: #fbbf24;">Thinking...</span>
+                <span class="ag-diff"><span class="diff-a">+312</span> <span class="diff-d">-87</span></span>
+              </div>
+              <div class="pr-stats">
+                <span class="pr-st" style="color: #f87171;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  2
+                </span>
+                <span class="pr-st" style="color: #f87171;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                  Changes
+                </span>
+                <span class="pr-st" style="color: #78716c;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+                  3
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Another agent -->
+          <div class="ag">
+            <div class="ag-dot" style="background: #4ade80;"></div>
+            <div class="ag-info">
+              <div class="ag-row1">
+                <span class="ag-name">chloe/fix-auth-flow</span>
+                <span class="ag-pr-num">#142</span>
+                <span class="ag-time">3m</span>
+              </div>
+              <div class="ag-row3">
+                <span class="ag-status" style="color: #555;">Idle</span>
+                <span class="ag-diff"><span class="diff-a">+45</span> <span class="diff-d">-12</span></span>
+              </div>
+              <div class="pr-stats">
+                <span class="pr-st" style="color: #4ade80;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  8
+                </span>
+                <span class="pr-st" style="color: #4ade80;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Approved
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="sg-lbl" style="margin-top: 4px;">Open PR <span></span> 1</div>
+          <div class="ag">
+            <div class="ag-dot" style="background: #555;"></div>
+            <div class="ag-info">
+              <div class="ag-row1">
+                <span class="ag-name" style="color: #999;">chloe/new-feature</span>
+                <span class="ag-time">1h</span>
+              </div>
+              <div class="ag-row3">
+                <span class="ag-status" style="color: #555;">Not running</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main content area -->
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+        <div class="tbar">
+          <span class="tb tb-act">✦ Claude</span>
+          <span class="tb">▸ Shell</span>
+          <span class="tb changes-tab">⇄ Changes</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0;">
+          <!-- Terminal -->
+          <div class="term">
+            <div><span class="prompt">$</span> claude --continue</div>
+            <div style="margin-top: 6px;">Resuming session...</div>
+            <div style="margin-top: 10px;">I'll fix the failing search endpoint tests. The issue is that the query parser doesn't handle quoted phrases correctly.</div>
+            <div style="margin-top: 6px;"><span class="ok">Updated</span> src/search/parser.rs</div>
+            <div><span class="ok">Updated</span> tests/search_test.rs</div>
+            <div style="margin-top: 10px;">Running tests now...</div>
+            <div style="margin-top: 6px;"><span class="prompt">$</span> cargo test search <span style="opacity: 0.5;">_</span></div>
+          </div>
+
+          <!-- PR Panel (expanded) -->
+          <div class="pr-panel">
+            <div class="pp-header">
+              <span class="pp-title">PR</span><span class="pp-num">#138</span>
+              <span class="pp-gh">↗ GitHub</span>
+              <span class="pp-collapse" title="Collapse panel">▸</span>
+            </div>
+
+            <!-- NEW: Description -->
+            <div class="pp-desc">
+              Adds a full-text search endpoint for projects using pg_trgm indexes. Supports quoted phrases, boolean operators, and field-specific filters.
+              <span class="show-more">Show more</span>
+            </div>
+
+            <div style="flex: 1; overflow-y: auto;">
+              <div class="pp-section">
+                <div class="pp-label">Checks</div>
+                <div class="ck-row"><span class="ck-dot ck-fl"></span><span class="ck-name" style="color:#f87171;">search-integration</span><span class="ck-time">2m 14s</span><span class="ck-action">logs ↗</span></div>
+                <div class="ck-row"><span class="ck-dot ck-fl"></span><span class="ck-name" style="color:#f87171;">search-unit</span><span class="ck-time">48s</span><span class="ck-action">logs ↗</span></div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">lint / clippy</span><span class="ck-time">1m 3s</span></div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">lint / eslint</span><span class="ck-time">22s</span></div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">build / release</span><span class="ck-time">3m 41s</span></div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">deploy / staging</span><span class="ck-time">1m 56s</span></div>
+              </div>
+
+              <div class="pp-section">
+                <div class="pp-label">Reviews</div>
+                <div class="rv-row"><span class="rv-avatar">J</span><span class="rv-name">jamesbirtwell</span><span style="color:#f87171;font-size:10px;">Changes requested</span></div>
+                <div class="rv-row"><span class="rv-avatar">S</span><span class="rv-name">sarahdev</span><span style="color:#78716c;font-size:10px;">Pending</span></div>
+              </div>
+
+              <div class="pp-section">
+                <div class="pp-label">Comments</div>
+                <div class="cm-card"><div class="cm-top"><span class="cm-author">jamesbirtwell</span><span class="cm-file">parser.rs:42</span><span class="cm-time">2h ago</span></div><div class="cm-body">This regex will fail on nested quotes — we had a similar bug in the filter parser last sprint. Can we reuse the tokenizer?</div></div>
+                <div class="cm-card"><div class="cm-top"><span class="cm-author">jamesbirtwell</span><span class="cm-file">handler.rs:118</span><span class="cm-time">2h ago</span></div><div class="cm-body">Missing rate limiting on this endpoint. We should add the standard rate_limit middleware.</div></div>
+                <div class="cm-card resolved"><div class="cm-top"><span class="cm-author">jamesbirtwell</span><span class="cm-file">migration.sql:8</span><span class="cm-time">3h ago</span></div><div class="cm-body">Nit: index name should follow our naming convention — idx_{table}_{columns}_trgm</div></div>
+              </div>
+            </div>
+
+            <div class="pp-section" style="border-top: 1px solid rgba(255,255,255,0.04);">
+              <div class="merge-status merge-blocked">⚠ Changes requested</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     COLLAPSED — Icon rail
+     ═══════════════════════════════════════ -->
+<div class="section">
+  <h3><span class="state-label state-closed">Panel Collapsed</span> — icon rail with badge counts</h3>
+  <div class="callout"><span class="arrow">→</span> Click <strong>◂</strong> or any icon to expand. Badges show status at a glance.</div>
+
+  <div class="window">
+    <div class="titlebar"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span style="flex:1;text-align:center;font-size:11px;color:#78716c;">Alfredo</span></div>
+    <div style="display:flex;height:480px;">
+      <!-- Sidebar (same) -->
+      <div class="sb">
+        <div class="sb-hd"><div class="sb-logo">A</div><span class="sb-name">alfredo</span></div>
+        <div class="sb-ct">
+          <div class="sg-lbl">In Progress <span></span> 2</div>
+          <div class="ag sel">
+            <div class="ag-dot" style="background: #4ade80;"></div>
+            <div class="ag-info">
+              <div class="ag-row1">
+                <span class="ag-name">chloe/fix-auth-flow</span>
+                <span class="ag-pr-num">#142</span>
+                <span class="ag-time">3m</span>
+              </div>
+              <div class="ag-pr-title">Fix OAuth redirect loop</div>
+              <div class="ag-row3">
+                <span class="ag-status" style="color: #555;">Idle</span>
+                <span class="ag-diff"><span class="diff-a">+45</span> <span class="diff-d">-12</span></span>
+              </div>
+              <div class="pr-stats">
+                <span class="pr-st" style="color: #4ade80;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  8
+                </span>
+                <span class="pr-st" style="color: #4ade80;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Approved
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ag">
+            <div class="ag-dot" style="background: #fbbf24;"></div>
+            <div class="ag-info">
+              <div class="ag-row1">
+                <span class="ag-name">chloe/new-feature</span>
+                <span class="ag-time">5m</span>
+              </div>
+              <div class="ag-row3">
+                <span class="ag-status" style="color: #fbbf24;">Thinking...</span>
+                <span class="ag-diff"><span class="diff-a">+22</span> <span class="diff-d">-3</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+        <div class="tbar">
+          <span class="tb tb-act">✦ Claude</span>
+          <span class="tb">▸ Shell</span>
+          <span class="tb changes-tab">⇄ Changes</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0;">
+          <!-- Terminal gets nearly full width -->
+          <div class="term">
+            <div><span class="prompt">$</span> claude --continue</div>
+            <div style="margin-top: 6px;">Resuming session...</div>
+            <div style="margin-top: 10px;">All tests are passing now. The OAuth flow has been fixed — the redirect loop was caused by the token refresh endpoint not clearing the expired session cookie before issuing a new one.</div>
+            <div style="margin-top: 6px;"><span class="ok">Updated</span> src/auth/oauth.rs</div>
+            <div><span class="ok">Updated</span> src/auth/session.rs</div>
+            <div><span class="ok">Updated</span> tests/auth_test.rs</div>
+            <div style="margin-top: 10px; color: #4ade80;">All 24 tests passed.</div>
+            <div style="margin-top: 6px;"><span class="prompt">$</span> <span style="opacity: 0.5;">_</span></div>
+          </div>
+
+          <!-- Collapsed rail -->
+          <div class="panel-toolbar">
+            <div class="rail-expand" title="Expand PR panel">◂</div>
+            <div class="pt-btn" title="Checks: 8 passing" style="margin-top: 4px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              <span class="pt-badge pb-ok">8</span>
+            </div>
+            <div class="pt-btn" title="Reviews: Approved">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span class="pt-badge pb-ok">1</span>
+            </div>
+            <div class="pt-btn" title="Comments: 0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

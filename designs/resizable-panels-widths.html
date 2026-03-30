@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — Resizable Panel Width Constraints</title>
+  <link rel="stylesheet" href="kit.css">
+  <style>
+    body { overflow-y: auto; padding: 24px; gap: 32px; display: flex; flex-direction: column; }
+
+    h1 { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+    h2 { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+    .scenario-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--accent-primary); margin-bottom: 6px;
+    }
+    .dimension {
+      font-size: 10px; color: var(--text-tertiary); font-variant-numeric: tabular-nums;
+      text-align: center; padding: 2px 0;
+    }
+
+    /* App frame */
+    .app-frame {
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      height: 420px;
+      display: flex;
+      flex-direction: column;
+    }
+    .app-frame-title {
+      background: var(--bg-bar);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 6px 12px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .app-body {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* Panels */
+    .panel-sidebar {
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .panel-file-sidebar {
+      background: var(--bg-primary);
+      border-right: 1px solid var(--border-default);
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-diff {
+      background: var(--bg-primary);
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-pr {
+      background: var(--bg-primary);
+      border-left: 1px solid var(--border-default);
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Resize handle */
+    .resize-handle {
+      width: 3px;
+      background: var(--border-subtle);
+      cursor: col-resize;
+      flex-shrink: 0;
+      transition: background 150ms;
+      position: relative;
+    }
+    .resize-handle:hover, .resize-handle.active {
+      background: var(--accent-primary);
+    }
+    .resize-handle::after {
+      content: ""; position: absolute; inset: -4px -6px; /* larger hit area visual */
+    }
+
+    /* Content placeholders */
+    .sidebar-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .sidebar-header .logo {
+      width: 20px; height: 20px; border-radius: 4px;
+      background: var(--accent-primary); opacity: 0.6; flex-shrink: 0;
+    }
+    .sidebar-header .title {
+      font-size: 13px; font-weight: 600; color: var(--text-primary);
+    }
+
+    .sidebar-items { padding: 8px 0; flex: 1; overflow: hidden; }
+
+    .sidebar-group-label {
+      font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--text-tertiary); padding: 8px 14px 4px;
+    }
+
+    .wt-item {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 7px 14px; cursor: pointer; border-left: 3px solid transparent;
+    }
+    .wt-item:hover { background: rgba(255,255,255,0.035); }
+    .wt-item.active { background: rgba(255,255,255,0.05); border-left-color: var(--accent-primary); }
+    .wt-dot {
+      width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
+    }
+    .wt-info { flex: 1; min-width: 0; }
+    .wt-name { font-size: 13px; font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wt-pr { font-size: 11px; color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+    .wt-status { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wt-diff { font-size: 10px; flex-shrink: 0; margin-left: auto; display: flex; gap: 4px; margin-top: 2px; }
+
+    /* File sidebar content */
+    .fs-toggle { display: flex; padding: 6px; gap: 0; flex-shrink: 0; }
+    .fs-toggle-btn {
+      flex: 1; padding: 4px; font-size: 10px; text-align: center;
+      border: 1px solid var(--border-default); color: var(--text-tertiary);
+      background: transparent; cursor: pointer;
+    }
+    .fs-toggle-btn:first-child { border-radius: 4px 0 0 4px; }
+    .fs-toggle-btn:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+    .fs-toggle-btn.active { background: var(--accent-muted); color: var(--accent-primary); border-color: rgba(147,51,234,0.4); }
+
+    .fs-file {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px; font-size: 11px; color: var(--text-secondary);
+      overflow: hidden;
+    }
+    .fs-badge {
+      font-size: 9px; font-weight: 600; padding: 0 4px; border-radius: 2px; flex-shrink: 0;
+    }
+    .fs-badge-m { background: rgba(147,51,234,0.15); color: var(--accent-primary); }
+    .fs-badge-a { background: rgba(74,222,128,0.15); color: var(--diff-added); }
+    .fs-badge-d { background: rgba(248,113,113,0.15); color: var(--diff-removed); }
+    .fs-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .fs-stat { font-size: 10px; flex-shrink: 0; }
+
+    /* Diff area */
+    .diff-toolbar {
+      display: flex; align-items: center; padding: 4px 12px; flex-shrink: 0;
+      background: var(--bg-secondary); border-bottom: 1px solid var(--border-default);
+      font-size: 10px; color: var(--text-tertiary);
+    }
+    .diff-file-header {
+      padding: 8px 12px; font-size: 12px; font-weight: 600; color: var(--text-primary);
+      background: var(--bg-secondary); border-bottom: 1px solid var(--border-default);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .diff-line {
+      display: flex; font-family: "SF Mono", "Fira Code", monospace; font-size: 11px;
+      line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,0.02);
+    }
+    .diff-ln { width: 36px; text-align: right; padding: 0 8px; color: var(--text-tertiary); flex-shrink: 0; user-select: none; opacity: 0.5; }
+    .diff-prefix { width: 16px; text-align: center; flex-shrink: 0; }
+    .diff-code { flex: 1; padding-right: 12px; white-space: pre; overflow-x: auto; }
+    .diff-line-add { background: rgba(74,222,128,0.06); }
+    .diff-line-add .diff-prefix { color: var(--diff-added); }
+    .diff-line-rm { background: rgba(248,113,113,0.06); }
+    .diff-line-rm .diff-prefix { color: var(--diff-removed); }
+
+    /* PR Panel content */
+    .pr-header {
+      padding: 8px 10px; border-bottom: 1px solid var(--border-default); flex-shrink: 0;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .pr-header-title { font-size: 13px; font-weight: 600; color: var(--text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pr-section-label {
+      font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--text-tertiary); padding: 6px 10px 2px;
+    }
+    .pr-check {
+      display: flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 11px;
+    }
+    .pr-check-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .pr-check-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+    .pr-check-time { font-size: 10px; color: var(--text-tertiary); flex-shrink: 0; }
+
+    /* Width ruler */
+    .ruler {
+      height: 20px; position: relative; border-left: 1px solid var(--accent-primary);
+      border-right: 1px solid var(--accent-primary); margin: 0 auto;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ruler::before, .ruler::after {
+      content: ""; position: absolute; top: 50%; height: 1px;
+      background: var(--accent-primary); opacity: 0.4;
+    }
+    .ruler::before { left: 0; right: 50%; margin-right: 20px; }
+    .ruler::after { left: 50%; margin-left: 20px; right: 0; }
+    .ruler-label {
+      font-size: 10px; color: var(--accent-primary); font-weight: 600;
+      background: var(--bg-primary); padding: 0 6px; position: relative; z-index: 1;
+    }
+
+    /* Scenario grid */
+    .scenarios { display: flex; flex-direction: column; gap: 32px; }
+  </style>
+</head>
+<body>
+
+<h1>Resizable Panel Width Constraints</h1>
+<p class="text-xs text-secondary" style="margin-top: -20px;">
+  Three scenarios showing default, minimum, and maximum widths for each resizable boundary.
+  Resize handles shown as thin purple lines between panels.
+</p>
+
+<div class="scenarios">
+
+  <!-- ═══════════ SCENARIO 1: DEFAULTS ═══════════ -->
+  <div>
+    <div class="scenario-label">Scenario 1 — Default Widths</div>
+    <h2>Sidebar 320px &nbsp;|&nbsp; File Sidebar 200px &nbsp;|&nbsp; PR Panel 260px</h2>
+
+    <div class="app-frame" style="width: 100%;">
+      <div class="app-frame-title">
+        <span style="color: var(--accent-primary);">Default</span> — What you see on first launch
+      </div>
+      <div class="app-body">
+        <!-- Sidebar: 320px -->
+        <div class="panel-sidebar" style="width: 320px;">
+          <div class="sidebar-header">
+            <div class="logo"></div>
+          </div>
+          <div class="sidebar-items">
+            <div class="sidebar-group-label">IN PROGRESS &nbsp; 2</div>
+            <div class="wt-item active">
+              <div class="wt-dot" style="background: var(--status-busy);"></div>
+              <div class="wt-info">
+                <div class="wt-name">spike-shifts-within-shifts</div>
+                <div class="wt-status" style="color: var(--status-busy);">Working</div>
+              </div>
+            </div>
+            <div class="wt-item">
+              <div class="wt-dot" style="background: var(--status-busy);"></div>
+              <div class="wt-info">
+                <div class="wt-name">ros-1858-printing-shifts-cannot-p...</div>
+                <div class="wt-pr">Printing shifts pagination fix</div>
+                <div class="wt-diff">
+                  <span style="color: var(--diff-added);">+1854</span>
+                  <span style="color: var(--diff-removed);">-43</span>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-group-label">OPEN PR &nbsp; 2</div>
+            <div class="wt-item">
+              <div class="wt-dot" style="background: #60a5fa;"></div>
+              <div class="wt-info">
+                <div class="wt-name">joshuachumber-ros-1856-wor...</div>
+                <div class="wt-pr">Add leave requests and unavailability</div>
+              </div>
+            </div>
+            <div class="wt-item">
+              <div class="wt-dot" style="background: #60a5fa;"></div>
+              <div class="wt-info">
+                <div class="wt-name">ros-1854-remove-old-pay...</div>
+                <div class="wt-pr">ROS-1854: Remove deprecated pay rate col...</div>
+                <div class="wt-diff">
+                  <span style="color: var(--diff-added);">+726</span>
+                  <span style="color: var(--diff-removed);">-363</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="resize-handle"></div>
+
+        <!-- Main content area -->
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <!-- Tab bar -->
+          <div class="diff-toolbar" style="border-bottom: 1px solid var(--border-subtle); padding: 0 8px; height: 32px; gap: 0;">
+            <span style="padding: 6px 12px; border-bottom: 2px solid var(--accent-primary); color: var(--text-primary); font-size: 12px;">Changes</span>
+            <span style="padding: 6px 12px; color: var(--text-tertiary); font-size: 12px;">Commits</span>
+          </div>
+
+          <div style="flex: 1; display: flex; min-height: 0;">
+            <!-- File sidebar: 200px -->
+            <div class="panel-file-sidebar" style="width: 200px;">
+              <div class="fs-toggle">
+                <button class="fs-toggle-btn active">Changes</button>
+                <button class="fs-toggle-btn">Commits</button>
+              </div>
+              <div style="padding: 0; flex: 1; overflow-y: auto;">
+                <div class="sidebar-group-label" style="color: var(--status-busy);">Uncommitted &nbsp; 3</div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">AppShell.tsx</span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">Sidebar.tsx</span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-a">A</span><span class="fs-name">ResizeHandle.tsx</span></div>
+                <div style="border-top: 1px solid var(--border-default); margin: 4px 10px;"></div>
+                <div class="sidebar-group-label">Committed &nbsp; 12</div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">PaneView.tsx</span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">ChangesView.tsx</span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">FileSidebar.tsx</span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">PrPanel.tsx</span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-d">D</span><span class="fs-name">OldLayout.tsx</span></div>
+              </div>
+            </div>
+
+            <div class="resize-handle"></div>
+
+            <!-- Diff area -->
+            <div class="panel-diff">
+              <div class="diff-toolbar">3/12 files reviewed &nbsp; | &nbsp; Expand all &nbsp; | &nbsp; Collapse all</div>
+              <div style="flex: 1; overflow-y: auto;">
+                <div class="diff-file-header">
+                  <span style="color: var(--accent-primary); font-size: 10px; font-weight: 600; padding: 0 4px; border-radius: 2px; background: rgba(147,51,234,0.15);">M</span>
+                  src/components/layout/AppShell.tsx
+                  <span style="margin-left: auto; font-size: 11px; font-weight: 400;">
+                    <span style="color: var(--diff-added);">+15</span>
+                    <span style="color: var(--diff-removed); margin-left: 4px;">-8</span>
+                  </span>
+                </div>
+                <div class="diff-line"><div class="diff-ln">238</div><div class="diff-ln">238</div><div class="diff-prefix"></div><div class="diff-code">  // Normal state</div></div>
+                <div class="diff-line"><div class="diff-ln">239</div><div class="diff-ln">239</div><div class="diff-prefix"></div><div class="diff-code">  return (</div></div>
+                <div class="diff-line diff-line-rm"><div class="diff-ln">240</div><div class="diff-ln"></div><div class="diff-prefix">-</div><div class="diff-code">    &lt;div className="flex h-screen"&gt;</div></div>
+                <div class="diff-line diff-line-add"><div class="diff-ln"></div><div class="diff-ln">240</div><div class="diff-prefix">+</div><div class="diff-code">    &lt;Group orientation="horizontal"&gt;</div></div>
+                <div class="diff-line diff-line-add"><div class="diff-ln"></div><div class="diff-ln">241</div><div class="diff-prefix">+</div><div class="diff-code">      &lt;Panel defaultSize="320px"&gt;</div></div>
+                <div class="diff-line"><div class="diff-ln">241</div><div class="diff-ln">242</div><div class="diff-prefix"></div><div class="diff-code">        &lt;motion.div</div></div>
+              </div>
+            </div>
+
+            <div class="resize-handle"></div>
+
+            <!-- PR Panel: 260px -->
+            <div class="panel-pr" style="width: 260px;">
+              <div class="pr-header">
+                <span class="pr-header-title">PR #21340</span>
+                <span style="font-size: 11px; color: var(--text-tertiary); cursor: pointer;">&rsaquo;</span>
+              </div>
+              <div style="flex: 1; overflow-y: auto;">
+                <div class="pr-section-label">CHECKS &nbsp; 10</div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">cubic - AI code reviewer</span>
+                  <span class="pr-check-time">2m 46s</span>
+                </div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">build-translations</span>
+                  <span class="pr-check-time">0s</span>
+                </div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">rspec (ikaro, ubuntu-22.04, fa...)</span>
+                  <span class="pr-check-time">3m 26s</span>
+                </div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">rspec (florence, larger-runne...)</span>
+                  <span class="pr-check-time">2m 56s</span>
+                </div>
+                <div class="pr-section-label">REVIEWS &nbsp; 1</div>
+                <div class="pr-check">
+                  <div style="width: 18px; height: 18px; border-radius: 50%; background: var(--bg-hover); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0;">C</div>
+                  <span class="pr-check-name">claude-dev-ai[bot]</span>
+                  <span class="pr-check-time" style="color: var(--status-busy);">Pending</span>
+                </div>
+                <div class="pr-section-label">COMMENTS &nbsp; 16</div>
+                <div style="margin: 4px 6px; padding: 6px 8px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-default);">
+                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">cubic-dev-ai[bot]</span>
+                    <span style="font-size: 10px; color: var(--text-tertiary); margin-left: auto;">3d ago</span>
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-primary); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                    Use the hire start date as the period's date_from here. For backdated hires...
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Width rulers -->
+    <div style="display: flex; margin-top: 4px;">
+      <div style="width: 320px; flex-shrink: 0;"><div class="ruler"><span class="ruler-label">320px</span></div></div>
+      <div style="width: 3px;"></div>
+      <div style="flex: 1; display: flex;">
+        <div style="width: 200px; flex-shrink: 0;"><div class="ruler"><span class="ruler-label">200px</span></div></div>
+        <div style="width: 3px;"></div>
+        <div style="flex: 1;"><div class="ruler"><span class="ruler-label">flex</span></div></div>
+        <div style="width: 3px;"></div>
+        <div style="width: 260px; flex-shrink: 0;"><div class="ruler"><span class="ruler-label">260px</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ SCENARIO 2: MINIMUMS ═══════════ -->
+  <div>
+    <div class="scenario-label">Scenario 2 — Minimum Widths</div>
+    <h2>Sidebar 180px &nbsp;|&nbsp; File Sidebar 120px &nbsp;|&nbsp; PR Panel 200px</h2>
+
+    <div class="app-frame" style="width: 100%;">
+      <div class="app-frame-title">
+        <span style="color: var(--status-busy);">Minimum</span> — Smallest usable size before content breaks
+      </div>
+      <div class="app-body">
+        <!-- Sidebar: 180px min -->
+        <div class="panel-sidebar" style="width: 180px;">
+          <div class="sidebar-header">
+            <div class="logo"></div>
+          </div>
+          <div class="sidebar-items">
+            <div class="sidebar-group-label">IN PROGRESS &nbsp; 2</div>
+            <div class="wt-item active">
+              <div class="wt-dot" style="background: var(--status-busy);"></div>
+              <div class="wt-info">
+                <div class="wt-name">spike-shifts-w...</div>
+                <div class="wt-status" style="color: var(--status-busy);">Working</div>
+              </div>
+            </div>
+            <div class="wt-item">
+              <div class="wt-dot" style="background: var(--status-busy);"></div>
+              <div class="wt-info">
+                <div class="wt-name">ros-1858-pri...</div>
+                <div class="wt-diff">
+                  <span style="color: var(--diff-added);">+1854</span>
+                  <span style="color: var(--diff-removed);">-43</span>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-group-label">OPEN PR &nbsp; 2</div>
+            <div class="wt-item">
+              <div class="wt-dot" style="background: #60a5fa;"></div>
+              <div class="wt-info">
+                <div class="wt-name">joshuachum...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="resize-handle active"></div>
+
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div class="diff-toolbar" style="border-bottom: 1px solid var(--border-subtle); padding: 0 8px; height: 32px;">
+            <span style="padding: 6px 12px; border-bottom: 2px solid var(--accent-primary); color: var(--text-primary); font-size: 12px;">Changes</span>
+          </div>
+          <div style="flex: 1; display: flex; min-height: 0;">
+            <!-- File sidebar: 120px min -->
+            <div class="panel-file-sidebar" style="width: 120px;">
+              <div class="fs-toggle">
+                <button class="fs-toggle-btn active">Changes</button>
+                <button class="fs-toggle-btn">Commits</button>
+              </div>
+              <div style="flex: 1; overflow-y: auto;">
+                <div class="sidebar-group-label" style="color: var(--status-busy); font-size: 8px;">UNCOMMITTED</div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">AppShell.tsx</span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">Sidebar.tsx</span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-a">A</span><span class="fs-name">ResizeHa...</span></div>
+              </div>
+            </div>
+
+            <div class="resize-handle active"></div>
+
+            <div class="panel-diff">
+              <div class="diff-toolbar">3/12 files &nbsp; | &nbsp; Expand all</div>
+              <div style="flex: 1; overflow-y: auto;">
+                <div class="diff-file-header">
+                  <span style="color: var(--accent-primary); font-size: 10px; font-weight: 600; padding: 0 4px; border-radius: 2px; background: rgba(147,51,234,0.15);">M</span>
+                  src/components/layout/AppShell.tsx
+                </div>
+                <div class="diff-line"><div class="diff-ln">238</div><div class="diff-ln">238</div><div class="diff-prefix"></div><div class="diff-code">  // Normal state</div></div>
+                <div class="diff-line diff-line-rm"><div class="diff-ln">240</div><div class="diff-ln"></div><div class="diff-prefix">-</div><div class="diff-code">    &lt;div className="flex h-screen"&gt;</div></div>
+                <div class="diff-line diff-line-add"><div class="diff-ln"></div><div class="diff-ln">240</div><div class="diff-prefix">+</div><div class="diff-code">    &lt;Group orientation="horizontal"&gt;</div></div>
+              </div>
+            </div>
+
+            <div class="resize-handle active"></div>
+
+            <!-- PR Panel: 200px min -->
+            <div class="panel-pr" style="width: 200px;">
+              <div class="pr-header">
+                <span class="pr-header-title">PR #21340</span>
+              </div>
+              <div style="flex: 1; overflow-y: auto;">
+                <div class="pr-section-label">CHECKS &nbsp; 10</div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">cubic - AI code rev...</span>
+                  <span class="pr-check-time">2m 46s</span>
+                </div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">build-translations</span>
+                  <span class="pr-check-time">0s</span>
+                </div>
+                <div class="pr-section-label">COMMENTS &nbsp; 16</div>
+                <div style="margin: 4px 6px; padding: 6px 8px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-default);">
+                  <div style="font-size: 11px; font-weight: 600; color: var(--text-primary);">cubic-dev-ai[bot]</div>
+                  <div style="font-size: 11px; color: var(--text-primary); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                    Use the hire start date as the period's...
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; margin-top: 4px;">
+      <div style="width: 180px; flex-shrink: 0;"><div class="ruler"><span class="ruler-label">180px</span></div></div>
+      <div style="width: 3px;"></div>
+      <div style="flex: 1; display: flex;">
+        <div style="width: 120px; flex-shrink: 0;"><div class="ruler"><span class="ruler-label">120px</span></div></div>
+        <div style="width: 3px;"></div>
+        <div style="flex: 1;"><div class="ruler"><span class="ruler-label">flex (maximized)</span></div></div>
+        <div style="width: 3px;"></div>
+        <div style="width: 200px; flex-shrink: 0;"><div class="ruler"><span class="ruler-label">200px</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ SCENARIO 3: MAXIMUMS ═══════════ -->
+  <div>
+    <div class="scenario-label">Scenario 3 — Maximum Widths</div>
+    <h2>Sidebar 480px &nbsp;|&nbsp; File Sidebar 350px &nbsp;|&nbsp; PR Panel 400px</h2>
+
+    <div class="app-frame" style="width: 100%;">
+      <div class="app-frame-title">
+        <span style="color: var(--diff-added);">Maximum</span> — Largest useful size before wasting space
+      </div>
+      <div class="app-body">
+        <!-- Sidebar: 480px max -->
+        <div class="panel-sidebar" style="width: 480px;">
+          <div class="sidebar-header">
+            <div class="logo"></div>
+            <span class="title" style="font-size: 13px; font-weight: 600; color: var(--text-primary);">Alfredo</span>
+          </div>
+          <div class="sidebar-items">
+            <div class="sidebar-group-label">IN PROGRESS &nbsp; 2</div>
+            <div class="wt-item active">
+              <div class="wt-dot" style="background: var(--status-busy);"></div>
+              <div class="wt-info">
+                <div class="wt-name">spike-shifts-within-shifts</div>
+                <div class="wt-status" style="color: var(--status-busy);">Working &mdash; Analyzing test failures in shift overlap detection</div>
+              </div>
+              <div class="wt-diff" style="margin-top: 4px;">
+                <span style="color: var(--diff-added);">+342</span>
+                <span style="color: var(--diff-removed);">-18</span>
+              </div>
+            </div>
+            <div class="wt-item">
+              <div class="wt-dot" style="background: var(--status-busy);"></div>
+              <div class="wt-info">
+                <div class="wt-name">ros-1858-printing-shifts-cannot-paginate-beyond-first-page</div>
+                <div class="wt-pr">Printing shifts: fix pagination beyond first page of results</div>
+                <div class="wt-diff">
+                  <span style="color: var(--diff-added);">+1854</span>
+                  <span style="color: var(--diff-removed);">-43</span>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-group-label">OPEN PR &nbsp; 2</div>
+            <div class="wt-item">
+              <div class="wt-dot" style="background: #60a5fa;"></div>
+              <div class="wt-info">
+                <div class="wt-name">joshuachumber-ros-1856-worktree-calendar-leave</div>
+                <div class="wt-pr">Add leave requests and unavailability to calendar view component</div>
+                <div class="wt-diff">
+                  <span style="color: var(--diff-added);">+1515</span>
+                  <span style="color: var(--diff-removed);">-495</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="resize-handle active"></div>
+
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div class="diff-toolbar" style="border-bottom: 1px solid var(--border-subtle); padding: 0 8px; height: 32px;">
+            <span style="padding: 6px 12px; border-bottom: 2px solid var(--accent-primary); color: var(--text-primary); font-size: 12px;">Changes</span>
+          </div>
+          <div style="flex: 1; display: flex; min-height: 0;">
+            <!-- File sidebar: 350px max -->
+            <div class="panel-file-sidebar" style="width: 350px;">
+              <div class="fs-toggle">
+                <button class="fs-toggle-btn active">Changes</button>
+                <button class="fs-toggle-btn">Commits</button>
+              </div>
+              <div style="flex: 1; overflow-y: auto;">
+                <div class="sidebar-group-label" style="color: var(--status-busy);">Uncommitted &nbsp; 3</div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">AppShell.tsx</span><span class="fs-stat"><span style="color: var(--diff-added);">+15</span> <span style="color: var(--diff-removed);">-8</span></span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">Sidebar.tsx</span><span class="fs-stat"><span style="color: var(--diff-added);">+2</span> <span style="color: var(--diff-removed);">-2</span></span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-a">A</span><span class="fs-name">ResizeHandle.tsx</span><span class="fs-stat"><span style="color: var(--diff-added);">+24</span></span></div>
+                <div style="border-top: 1px solid var(--border-default); margin: 4px 10px;"></div>
+                <div class="sidebar-group-label">Committed &nbsp; 12</div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">PaneView.tsx</span><span class="fs-stat"><span style="color: var(--diff-added);">+30</span> <span style="color: var(--diff-removed);">-12</span></span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">ChangesView.tsx</span><span class="fs-stat"><span style="color: var(--diff-added);">+18</span> <span style="color: var(--diff-removed);">-5</span></span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">FileSidebar.tsx</span><span class="fs-stat"><span style="color: var(--diff-added);">+3</span> <span style="color: var(--diff-removed);">-3</span></span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">PrPanel.tsx</span><span class="fs-stat"><span style="color: var(--diff-added);">+2</span> <span style="color: var(--diff-removed);">-2</span></span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-d">D</span><span class="fs-name">OldLayout.tsx</span><span class="fs-stat"><span style="color: var(--diff-removed);">-145</span></span></div>
+                <div class="fs-file"><span class="fs-badge fs-badge-m">M</span><span class="fs-name">layoutStore.ts</span><span class="fs-stat"><span style="color: var(--diff-added);">+8</span> <span style="color: var(--diff-removed);">-1</span></span></div>
+              </div>
+            </div>
+
+            <div class="resize-handle active"></div>
+
+            <div class="panel-diff">
+              <div class="diff-toolbar">3/12 files</div>
+              <div style="flex: 1; overflow-y: auto; display: flex; align-items: center; justify-content: center;">
+                <span style="color: var(--text-tertiary); font-size: 12px;">Diff area compressed — max panels active</span>
+              </div>
+            </div>
+
+            <div class="resize-handle active"></div>
+
+            <!-- PR Panel: 400px max -->
+            <div class="panel-pr" style="width: 400px;">
+              <div class="pr-header">
+                <span class="pr-header-title">PR #21340</span>
+              </div>
+              <div style="flex: 1; overflow-y: auto;">
+                <div class="pr-section-label">CHECKS &nbsp; 10</div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">cubic - AI code reviewer</span>
+                  <span class="pr-check-time">2m 46s</span>
+                </div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">build-translations</span>
+                  <span class="pr-check-time">0s</span>
+                </div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">rspec (ikaro, ubuntu-22.04, factory_bot)</span>
+                  <span class="pr-check-time">3m 26s</span>
+                </div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">rspec (florence, larger-runner-1)</span>
+                  <span class="pr-check-time">2m 56s</span>
+                </div>
+                <div class="pr-check">
+                  <div class="pr-check-dot" style="background: var(--diff-added);"></div>
+                  <span class="pr-check-name">rspec (florence_canada, ubuntu-latest)</span>
+                  <span class="pr-check-time">2m 56s</span>
+                </div>
+                <div class="pr-section-label">REVIEWS &nbsp; 1</div>
+                <div class="pr-check">
+                  <div style="width: 18px; height: 18px; border-radius: 50%; background: var(--bg-hover); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0;">C</div>
+                  <span class="pr-check-name">claude-dev-ai[bot]</span>
+                  <span class="pr-check-time" style="color: var(--status-busy);">Pending &nbsp; 3d ago</span>
+                </div>
+                <div class="pr-section-label">COMMENTS &nbsp; 16</div>
+                <div style="margin: 4px 6px; padding: 8px 10px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-default);">
+                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">cubic-dev-ai[bot]</span>
+                    <span style="font-size: 10px; color: var(--text-tertiary); flex: 1;">import.rb</span>
+                    <span style="font-size: 10px; color: var(--text-tertiary);">3d ago</span>
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-primary); line-height: 1.5;">
+                    Use the imported employment start date as the pay-rate period's effective date. For backdated hires, use the hire start date as the period's date_from here.
+                  </div>
+                </div>
+                <div style="margin: 4px 6px; padding: 8px 10px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-default);">
+                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">cubic-dev-ai[bot]</span>
+                    <span style="font-size: 10px; color: var(--text-tertiary); flex: 1;">handle.rb</span>
+                    <span style="font-size: 10px; color: var(--text-tertiary);">3d ago</span>
+                  </div>
+                  <div style="font-size: 11px; color: var(--text-primary); line-height: 1.5;">
+                    This call reinforces an N+1 query in the presenter by querying periods once per employee record.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; margin-top: 4px;">
+      <div style="width: 480px; flex-shrink: 0;"><div class="ruler"><span class="ruler-label">480px</span></div></div>
+      <div style="width: 3px;"></div>
+      <div style="flex: 1; display: flex;">
+        <div style="width: 350px; flex-shrink: 0;"><div class="ruler"><span class="ruler-label">350px</span></div></div>
+        <div style="width: 3px;"></div>
+        <div style="flex: 1;"><div class="ruler"><span class="ruler-label">flex (squeezed)</span></div></div>
+        <div style="width: 3px;"></div>
+        <div style="width: 400px; flex-shrink: 0;"><div class="ruler"><span class="ruler-label">400px</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ PROPOSED VALUES ═══════════ -->
+  <div style="padding: 20px; background: var(--bg-secondary); border: 1px solid var(--border-default); border-radius: var(--radius-md);">
+    <div class="scenario-label">Proposed Pixel Constraints</div>
+    <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 8px;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--border-default);">
+          <th style="text-align: left; padding: 8px 12px; color: var(--text-secondary); font-weight: 600;">Panel</th>
+          <th style="text-align: center; padding: 8px 12px; color: var(--text-secondary); font-weight: 600;">Default</th>
+          <th style="text-align: center; padding: 8px 12px; color: var(--text-secondary); font-weight: 600;">Min</th>
+          <th style="text-align: center; padding: 8px 12px; color: var(--text-secondary); font-weight: 600;">Max</th>
+          <th style="text-align: left; padding: 8px 12px; color: var(--text-secondary); font-weight: 600;">Rationale</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <td style="padding: 8px 12px; color: var(--text-primary);">Left Sidebar</td>
+          <td style="padding: 8px 12px; text-align: center; color: var(--accent-primary); font-weight: 600;">320px</td>
+          <td style="padding: 8px 12px; text-align: center; color: var(--status-busy);">180px</td>
+          <td style="padding: 8px 12px; text-align: center; color: var(--diff-added);">480px</td>
+          <td style="padding: 8px 12px; color: var(--text-tertiary); font-size: 12px;">180px fits branch name + status dot. 480px shows full PR titles.</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <td style="padding: 8px 12px; color: var(--text-primary);">File Sidebar</td>
+          <td style="padding: 8px 12px; text-align: center; color: var(--accent-primary); font-weight: 600;">200px</td>
+          <td style="padding: 8px 12px; text-align: center; color: var(--status-busy);">120px</td>
+          <td style="padding: 8px 12px; text-align: center; color: var(--diff-added);">350px</td>
+          <td style="padding: 8px 12px; color: var(--text-tertiary); font-size: 12px;">120px shows badge + truncated filename. 350px shows full paths.</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 12px; color: var(--text-primary);">PR Panel</td>
+          <td style="padding: 8px 12px; text-align: center; color: var(--accent-primary); font-weight: 600;">260px</td>
+          <td style="padding: 8px 12px; text-align: center; color: var(--status-busy);">200px</td>
+          <td style="padding: 8px 12px; text-align: center; color: var(--diff-added);">400px</td>
+          <td style="padding: 8px 12px; color: var(--text-tertiary); font-size: 12px;">200px shows check names + times. 400px shows full comment text.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+</body>
+</html>

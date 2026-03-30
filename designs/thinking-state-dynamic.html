@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — Dynamic Thinking State</title>
+  <link rel="stylesheet" href="kit.css">
+  <style>
+    body {
+      display: flex;
+      gap: 48px;
+      padding: 32px;
+      overflow: auto;
+      height: auto;
+      flex-wrap: wrap;
+    }
+
+    .option {
+      width: 320px;
+      flex-shrink: 0;
+    }
+    .option-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      margin-bottom: 12px;
+      padding-left: 4px;
+    }
+    .option-desc {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-top: 8px;
+      padding-left: 4px;
+      line-height: 1.5;
+    }
+    .sidebar-slice {
+      background: var(--bg-sidebar);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* ── Shared: flat agent item ─────── */
+    .item {
+      width: 100%;
+      text-align: left;
+      padding: 8px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      border-left: 3px solid transparent;
+      transition: background var(--transition-fast);
+    }
+    .item-info { flex: 1; min-width: 0; }
+    .item-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .item-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .item-time {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      margin-left: auto;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .item-status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .item-status {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+    .dot {
+      margin-top: 4px;
+      height: 8px;
+      width: 8px;
+      border-radius: 9999px;
+      flex-shrink: 0;
+    }
+    .dot-idle { background: var(--status-idle); }
+    .dot-busy { background: var(--status-busy); }
+    .dot-done { background: #60a5fa; }
+    .dot-off  { background: var(--text-tertiary); }
+
+    /* Context: Done state for comparison */
+    .bleed-done-ref {
+      border-left: 3px solid var(--accent-primary);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--accent-primary) 6%, transparent) 0%, transparent 60%);
+    }
+    .dot-glow-done-ref { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-primary) 40%, transparent); }
+
+    /* ═══════════════════════════════════
+       OPTION A — Animated progress bar
+       ═══════════════════════════════════ */
+
+    @keyframes progress-sweep {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+
+    .item-busy-a {
+      border-left: 3px solid var(--status-busy);
+      position: relative;
+      overflow: hidden;
+    }
+    .item-busy-a::before {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--status-busy), transparent);
+      animation: progress-sweep 2s ease-in-out infinite;
+    }
+    .dot-busy-a {
+      background: var(--status-busy);
+      animation: pulse-dot 2s ease-in-out infinite;
+      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-busy) 40%, transparent);
+    }
+    .status-busy-a {
+      color: var(--status-busy);
+      font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════
+       OPTION B — Equalizer bars (like server indicator)
+       ═══════════════════════════════════ */
+
+    @keyframes eq-b-1 { 0%, 100% { height: 3px; } 50% { height: 10px; } }
+    @keyframes eq-b-2 { 0%, 100% { height: 7px; } 50% { height: 3px; } }
+    @keyframes eq-b-3 { 0%, 100% { height: 4px; } 50% { height: 11px; } }
+
+    .thinking-eq {
+      display: flex;
+      align-items: flex-end;
+      gap: 1.5px;
+      height: 12px;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .thinking-eq span {
+      width: 2.5px;
+      border-radius: 1px;
+      background: var(--status-busy);
+    }
+    .thinking-eq span:nth-child(1) { animation: eq-b-1 1.2s ease-in-out infinite; }
+    .thinking-eq span:nth-child(2) { animation: eq-b-2 1.2s ease-in-out 0.15s infinite; }
+    .thinking-eq span:nth-child(3) { animation: eq-b-3 1.2s ease-in-out 0.3s infinite; }
+
+    .item-busy-b {
+      border-left: 3px solid var(--status-busy);
+    }
+    .status-busy-b {
+      color: var(--status-busy);
+      font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════
+       OPTION C — Shimmer gradient sweep
+       ═══════════════════════════════════ */
+
+    @keyframes shimmer-sweep {
+      0%   { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .item-busy-c {
+      border-left: 3px solid var(--status-busy);
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--status-busy) 6%, transparent) 0%,
+        color-mix(in srgb, var(--status-busy) 12%, transparent) 20%,
+        color-mix(in srgb, var(--status-busy) 3%, transparent) 40%,
+        transparent 60%
+      );
+      background-size: 200% 100%;
+      animation: shimmer-sweep 3s ease-in-out infinite;
+    }
+    .dot-busy-c {
+      background: var(--status-busy);
+      animation: pulse-dot 2s ease-in-out infinite;
+      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-busy) 40%, transparent);
+    }
+    .status-busy-c {
+      color: var(--status-busy);
+      font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════
+       OPTION D — Orbiting dot ring
+       ═══════════════════════════════════ */
+
+    @keyframes orbit {
+      0%   { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .orbit-ring {
+      width: 14px;
+      height: 14px;
+      margin-top: 2px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .orbit-ring-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px;
+      height: 6px;
+      border-radius: 9999px;
+      background: var(--status-busy);
+    }
+    .orbit-ring-track {
+      position: absolute;
+      inset: 0;
+      animation: orbit 1.8s linear infinite;
+    }
+    .orbit-ring-track::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 3px;
+      height: 3px;
+      border-radius: 9999px;
+      background: color-mix(in srgb, var(--status-busy) 60%, transparent);
+    }
+
+    .item-busy-d {
+      border-left: 3px solid var(--status-busy);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--status-busy) 4%, transparent) 0%, transparent 50%);
+    }
+    .status-busy-d {
+      color: var(--status-busy);
+      font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════
+       OPTION E — Typing dots + progress bar
+       Combined: the most dynamic option
+       ═══════════════════════════════════ */
+
+    @keyframes typing-dot {
+      0%, 60%, 100% { opacity: 0.25; transform: scale(0.8); }
+      30% { opacity: 1; transform: scale(1); }
+    }
+
+    .typing-dots {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+    .typing-dots span {
+      width: 3px;
+      height: 3px;
+      border-radius: 9999px;
+      background: var(--status-busy);
+    }
+    .typing-dots span:nth-child(1) { animation: typing-dot 1.4s ease-in-out infinite; }
+    .typing-dots span:nth-child(2) { animation: typing-dot 1.4s ease-in-out 0.2s infinite; }
+    .typing-dots span:nth-child(3) { animation: typing-dot 1.4s ease-in-out 0.4s infinite; }
+
+    .item-busy-e {
+      border-left: 3px solid var(--status-busy);
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(90deg, color-mix(in srgb, var(--status-busy) 4%, transparent) 0%, transparent 50%);
+    }
+    .item-busy-e::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1.5px;
+      background: linear-gradient(90deg, transparent, var(--status-busy), transparent);
+      animation: progress-sweep 2.5s ease-in-out infinite;
+    }
+    .dot-busy-e {
+      background: var(--status-busy);
+      animation: pulse-dot 2s ease-in-out infinite;
+      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-busy) 35%, transparent);
+    }
+    .status-busy-e {
+      color: var(--status-busy);
+      font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════
+       OPTION F — Indeterminate thin bar at top
+       ═══════════════════════════════════ */
+
+    @keyframes indeterminate {
+      0%   { left: -30%; width: 30%; }
+      50%  { left: 50%;  width: 30%; }
+      100% { left: 100%; width: 10%; }
+    }
+
+    .item-busy-f {
+      border-left: 3px solid var(--status-busy);
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(90deg, color-mix(in srgb, var(--status-busy) 5%, transparent) 0%, transparent 50%);
+    }
+    .item-busy-f::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      height: 1.5px;
+      background: var(--status-busy);
+      opacity: 0.7;
+      animation: indeterminate 2s ease-in-out infinite;
+    }
+    .dot-busy-f {
+      background: var(--status-busy);
+      animation: pulse-dot 2s ease-in-out infinite;
+      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-busy) 35%, transparent);
+    }
+    .status-busy-f {
+      color: var(--status-busy);
+      font-weight: 500;
+    }
+
+    /* Cycling text animation for options that use it */
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+</head>
+<body>
+
+  <!-- Reference: current Done state -->
+  <div class="option">
+    <div class="option-label">Reference — Done State</div>
+    <div class="sidebar-slice">
+      <div class="item bleed-done-ref">
+        <span class="dot dot-done dot-glow-done-ref"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">ros-1858-printing-shifts-cann…</span>
+            <span class="item-time">2m</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status" style="color: var(--accent-primary); font-weight: 500;">Done</span>
+            <span class="item-status" style="margin-left: auto; font-size: 10px;">
+              <span style="color: var(--diff-added);">+644</span>
+              <span style="color: var(--diff-removed); margin-left: 4px;">-43</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option-desc">Current done state for comparison. The thinking state must look clearly different from this.</div>
+  </div>
+
+  <!-- OPTION A: Progress bar sweep at bottom -->
+  <div class="option">
+    <div class="option-label">A — Progress Bar Sweep</div>
+    <div class="sidebar-slice">
+      <div class="item item-busy-a">
+        <span class="dot dot-busy-a"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">spike-shifts-within-shifts</span>
+            <span class="item-time">now</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status status-busy-a">Analyzing…</span>
+          </div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="dot dot-idle"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">pro-5108-foundation-local-tri…</span>
+            <span class="item-time">1h</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status">Idle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option-desc">Amber left border + sweeping progress bar along the bottom edge. The motion draws the eye without being flashy. Pulsing dot with glow.</div>
+  </div>
+
+  <!-- OPTION B: Equalizer bars replace the dot -->
+  <div class="option">
+    <div class="option-label">B — Equalizer Bars</div>
+    <div class="sidebar-slice">
+      <div class="item item-busy-b">
+        <div class="thinking-eq">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">spike-shifts-within-shifts</span>
+            <span class="item-time">now</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status status-busy-b">Writing code…</span>
+          </div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="dot dot-idle"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">pro-5108-foundation-local-tri…</span>
+            <span class="item-time">1h</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status">Idle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option-desc">Dot replaced with amber equalizer bars (like the server indicator but amber). Reuses a familiar pattern from the app. Amber border for color distinction.</div>
+  </div>
+
+  <!-- OPTION C: Shimmer gradient sweep -->
+  <div class="option">
+    <div class="option-label">C — Shimmer Gradient</div>
+    <div class="sidebar-slice">
+      <div class="item item-busy-c">
+        <span class="dot dot-busy-c"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">spike-shifts-within-shifts</span>
+            <span class="item-time">now</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status status-busy-c">Searching…</span>
+          </div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="dot dot-idle"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">pro-5108-foundation-local-tri…</span>
+            <span class="item-time">1h</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status">Idle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option-desc">Amber shimmer that sweeps across the background, like a loading skeleton. The whole row breathes with warm light. Subtle but unmistakable.</div>
+  </div>
+
+  <!-- OPTION D: Orbiting dot ring -->
+  <div class="option">
+    <div class="option-label">D — Orbit Ring</div>
+    <div class="sidebar-slice">
+      <div class="item item-busy-d">
+        <div class="orbit-ring">
+          <div class="orbit-ring-center"></div>
+          <div class="orbit-ring-track"></div>
+        </div>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">spike-shifts-within-shifts</span>
+            <span class="item-time">now</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status status-busy-d">Reasoning…</span>
+          </div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="dot dot-idle"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">pro-5108-foundation-local-tri…</span>
+            <span class="item-time">1h</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status">Idle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option-desc">Dot becomes a spinner — small satellite orbits a center dot. More "processing" feel. Subtle amber bleed behind. Feels technical/precise.</div>
+  </div>
+
+  <!-- OPTION E: Typing dots + progress bar (kitchen sink) -->
+  <div class="option">
+    <div class="option-label">E — Typing Dots + Bar (recommended)</div>
+    <div class="sidebar-slice">
+      <div class="item item-busy-e">
+        <span class="dot dot-busy-e"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">spike-shifts-within-shifts</span>
+            <span class="item-time">now</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status status-busy-e">Analyzing…</span>
+            <div class="typing-dots" style="margin-left: 2px;">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="dot dot-idle"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">pro-5108-foundation-local-tri…</span>
+            <span class="item-time">1h</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status">Idle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option-desc">Three layers of motion: pulsing dot with glow, cascading typing dots next to the verb, and a thin progress sweep at the bottom. Unmistakably alive. The amber bleed tints the row warm — completely different from Done's purple.</div>
+  </div>
+
+  <!-- OPTION F: Indeterminate bar at top -->
+  <div class="option">
+    <div class="option-label">F — Indeterminate Top Bar</div>
+    <div class="sidebar-slice">
+      <div class="item item-busy-f">
+        <span class="dot dot-busy-f"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">spike-shifts-within-shifts</span>
+            <span class="item-time">now</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status status-busy-f">Reading files…</span>
+          </div>
+        </div>
+      </div>
+      <div class="item">
+        <span class="dot dot-idle"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">pro-5108-foundation-local-tri…</span>
+            <span class="item-time">1h</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status">Idle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option-desc">Classic indeterminate progress bar along the top edge — like a browser loading indicator. Clean, familiar, not distracting. Pulsing dot + subtle amber background.</div>
+  </div>
+
+</body>
+</html>

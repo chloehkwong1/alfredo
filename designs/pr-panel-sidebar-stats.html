@@ -1,0 +1,184 @@
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #0f0f0f; padding: 40px; font-family: -apple-system, system-ui, sans-serif; color: #888; }
+  h2 { color: #f5f2ef; font-size: 18px; margin-bottom: 6px; }
+  .subtitle { color: rgba(255,255,255,0.4); font-size: 13px; margin-bottom: 24px; }
+  .cards { display: flex; gap: 24px; flex-wrap: wrap; }
+  .card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #78716c; margin-bottom: 8px; }
+</style>
+
+<h2>Sidebar PR Stats — Icon Row</h2>
+<p class="subtitle">New row below status line when a PR exists. Shows check status, review decision, comments, and merge state.</p>
+
+<div class="cards">
+
+  <!-- All Good -->
+  <div>
+    <div class="card-label">All Passing + Approved</div>
+    <div style="
+      width: 260px;
+      background: #131316;
+      border-radius: 10px;
+      border: 1px solid #3d3a37;
+      overflow: hidden;
+      font-family: -apple-system, system-ui, sans-serif;
+      font-size: 13px;
+      color: #888;
+    ">
+      <!-- Agent item -->
+      <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid transparent; background: rgba(255,255,255,0.05);">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #4ade80; margin-top: 4px; flex-shrink: 0;"></div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="color: #eee; font-size: 12px; font-weight: 500;">chloe/fix-auth-flow</span>
+            <span style="font-size: 10px; color: #444;">#142</span>
+            <span style="margin-left: auto; font-size: 9px; color: #444;">3m</span>
+          </div>
+          <div style="font-size: 11px; color: #555; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Fix OAuth redirect loop on expired sessions</div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+            <span style="font-size: 11px; color: #555;">Idle</span>
+            <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+45</span> <span style="color: #f87171;">-12</span></span>
+          </div>
+          <!-- PR stats row -->
+          <div style="display: flex; align-items: center; gap: 10px; padding-top: 5px; margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.06);">
+            <span style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: #4ade80;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              8
+            </span>
+            <span style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: #4ade80;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              Approved
+            </span>
+            <span style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: #4ade80;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              Ready
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Needs Attention -->
+  <div>
+    <div class="card-label">Failing + Changes Requested</div>
+    <div style="
+      width: 260px;
+      background: #131316;
+      border-radius: 10px;
+      border: 1px solid #3d3a37;
+      overflow: hidden;
+      font-family: -apple-system, system-ui, sans-serif;
+      font-size: 13px;
+      color: #888;
+    ">
+      <div style="padding: 8px 14px 8px 11px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid #60a5fa; background: linear-gradient(90deg, rgba(96,165,250,0.06) 0%, transparent 60%);">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #60a5fa; box-shadow: 0 0 10px rgba(96,165,250,0.6); margin-top: 4px; flex-shrink: 0;"></div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="color: #eee; font-size: 12px; font-weight: 600;">chloe/add-search-api</span>
+            <span style="font-size: 10px; color: #444;">#138</span>
+            <span style="margin-left: auto; font-size: 9px; color: #444;">12m</span>
+          </div>
+          <div style="font-size: 11px; color: #555; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Add full-text search endpoint for projects</div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+            <span style="font-size: 11px; color: #60a5fa; font-weight: 500;">Waiting for input</span>
+            <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+312</span> <span style="color: #f87171;">-87</span></span>
+          </div>
+          <!-- PR stats row -->
+          <div style="display: flex; align-items: center; gap: 10px; padding-top: 5px; margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.06);">
+            <span style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: #f87171;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              2
+            </span>
+            <span style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: #f87171;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              Changes
+            </span>
+            <span style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: #78716c;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+              3
+            </span>
+            <span style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: #f87171;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Conflict
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- In Review -->
+  <div>
+    <div class="card-label">Pending Reviews</div>
+    <div style="
+      width: 260px;
+      background: #131316;
+      border-radius: 10px;
+      border: 1px solid #3d3a37;
+      overflow: hidden;
+      font-family: -apple-system, system-ui, sans-serif;
+      font-size: 13px;
+      color: #888;
+    ">
+      <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid transparent;">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; margin-top: 4px; flex-shrink: 0;"></div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="color: #ccc; font-size: 12px; font-weight: 500;">chloe/refactor-store</span>
+            <span style="font-size: 10px; color: #444;">#145</span>
+            <span style="margin-left: auto; font-size: 9px; color: #444;">1m</span>
+          </div>
+          <div style="font-size: 11px; color: #555; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Refactor workspace store to use slices</div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+            <span style="font-size: 11px; color: #fbbf24;">Thinking...</span>
+            <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+128</span> <span style="color: #f87171;">-204</span></span>
+          </div>
+          <!-- PR stats row -->
+          <div style="display: flex; align-items: center; gap: 10px; padding-top: 5px; margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.06);">
+            <span style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: #4ade80;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              5
+            </span>
+            <span style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: #fbbf24;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              2 pending
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- No PR -->
+  <div>
+    <div class="card-label">No PR (Unchanged)</div>
+    <div style="
+      width: 260px;
+      background: #131316;
+      border-radius: 10px;
+      border: 1px solid #3d3a37;
+      overflow: hidden;
+      font-family: -apple-system, system-ui, sans-serif;
+      font-size: 13px;
+      color: #888;
+    ">
+      <div style="padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid transparent;">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; margin-top: 4px; flex-shrink: 0;"></div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="color: #ccc; font-size: 12px; font-weight: 500;">chloe/new-feature</span>
+            <span style="margin-left: auto; font-size: 9px; color: #444;">5m</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+            <span style="font-size: 11px; color: #fbbf24;">Thinking...</span>
+            <span style="margin-left: auto; font-size: 10px;"><span style="color: #4ade80;">+22</span> <span style="color: #f87171;">-3</span></span>
+          </div>
+          <!-- No PR stats row -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

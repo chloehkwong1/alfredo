@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — Changes View Tab Redesign</title>
+  <link rel="stylesheet" href="kit.css">
+  <style>
+    body { overflow: auto; padding: 40px; }
+    h2 { font-size: 18px; margin-bottom: 6px; }
+    .subtitle { color: rgba(255,255,255,0.4); font-size: 13px; margin-bottom: 24px; }
+    .section { margin-bottom: 48px; }
+    .state-label {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 600;
+    }
+    .state-open { background: rgba(147,51,234,0.12); color: #c084fc; }
+    .callout {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 10px; margin: 6px 0 12px;
+      background: rgba(147,51,234,0.08); border-radius: 6px;
+      font-size: 10px; color: #c084fc;
+    }
+    .callout .arrow { font-size: 14px; }
+
+    /* ═══ Full app window ═══ */
+    .window {
+      background: #1a1918;
+      border: 1px solid #3d3a37;
+      border-radius: 10px;
+      overflow: hidden;
+      font-size: 12px;
+    }
+    .titlebar {
+      height: 32px; background: #151413;
+      display: flex; align-items: center; padding: 0 14px; gap: 8px;
+      border-bottom: 1px solid #3d3a37;
+    }
+    .tl { width: 10px; height: 10px; border-radius: 50%; }
+    .tl-r { background: #ff5f57; } .tl-y { background: #febc2e; } .tl-g { background: #28c840; }
+
+    /* ═══ Sidebar ═══ */
+    .sb { width: 200px; background: #151413; border-right: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; display: flex; flex-direction: column; }
+    .sb-hd { height: 36px; display: flex; align-items: center; padding: 0 10px; gap: 7px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .sb-logo { width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(135deg,#9333ea,#7e22ce); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: white; }
+    .sb-name { font-size: 12px; font-weight: 600; }
+    .sb-repos { display: flex; gap: 4px; padding: 6px 10px; }
+    .sb-repo { padding: 3px 8px; font-size: 10px; border-radius: 4px; border: 1px solid #3d3a37; }
+    .sb-repo.active { background: rgba(147,51,234,0.15); color: #c084fc; border-color: rgba(147,51,234,0.4); }
+    .sb-ct { flex: 1; padding: 4px 0; overflow-y: auto; }
+    .sg-lbl { padding: 8px 14px 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #444; display: flex; align-items: center; gap: 8px; }
+    .sg-lbl span { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent); }
+
+    /* Agent items */
+    .ag { padding: 8px 14px; display: flex; align-items: flex-start; gap: 8px; border-left: 3px solid transparent; cursor: pointer; }
+    .ag:hover { background: rgba(255,255,255,0.03); }
+    .ag.sel { background: rgba(255,255,255,0.05); }
+    .ag-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+    .ag-info { flex: 1; min-width: 0; }
+    .ag-row1 { display: flex; align-items: center; gap: 6px; }
+    .ag-name { font-size: 12px; font-weight: 500; color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ag-pr-num { font-size: 10px; color: #444; }
+    .ag-time { margin-left: auto; font-size: 9px; color: #444; flex-shrink: 0; }
+    .ag-pr-title { font-size: 11px; color: #555; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ag-row3 { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+    .ag-status { font-size: 11px; }
+    .ag-diff { margin-left: auto; font-size: 10px; flex-shrink: 0; }
+    .diff-a { color: #4ade80; } .diff-d { color: #f87171; }
+    .pr-stats { display: flex; align-items: center; gap: 10px; padding-top: 5px; margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.06); }
+    .pr-st { display: flex; align-items: center; gap: 3px; font-size: 10px; }
+    .pr-st svg { width: 11px; height: 11px; flex-shrink: 0; }
+
+    /* ═══ Tab bar ═══ */
+    .tbar { height: 32px; background: #1e1d1c; border-bottom: 1px solid #3d3a37; display: flex; align-items: end; padding: 0 6px; }
+    .tb { padding: 6px 10px; font-size: 10px; color: #78716c; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+    .tb.tb-act { color: #f5f2ef; border-bottom-color: #9333ea; background: linear-gradient(180deg, transparent 0%, rgba(147,51,234,0.06) 100%); }
+    .tbar .changes-tab { margin-left: auto; }
+
+    /* ═══ PR Panel (right) ═══ */
+    .pr-panel {
+      width: 240px; background: #1a1918;
+      border-left: 1px solid #3d3a37;
+      flex-shrink: 0; overflow-y: auto;
+      display: flex; flex-direction: column;
+    }
+    .pp-header { padding: 8px 14px; border-bottom: 1px solid #3d3a37; display: flex; align-items: center; gap: 8px; }
+    .pp-title { font-size: 13px; font-weight: 600; }
+    .pp-num { color: #78716c; font-size: 12px; }
+    .pp-gh { color: #78716c; font-size: 10px; margin-left: auto; }
+    .pp-desc { padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 11px; color: #a8a29e; line-height: 1.5; }
+    .pp-desc .show-more { color: #9333ea; font-size: 10px; cursor: pointer; display: inline-block; margin-top: 3px; }
+    .pp-section { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .pp-section:last-child { border-bottom: none; }
+    .pp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #57534e; margin-bottom: 8px; font-weight: 600; }
+    .ck-row { display: flex; align-items: center; gap: 7px; padding: 3px 0; font-size: 11px; color: #a8a29e; }
+    .ck-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .ck-ok { background: #4ade80; } .ck-fl { background: #f87171; } .ck-run { background: #fbbf24; }
+    .ck-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ck-time { color: #57534e; font-size: 10px; }
+    .rv-row { display: flex; align-items: center; gap: 6px; padding: 5px 0; font-size: 11px; color: #a8a29e; }
+    .rv-avatar { width: 20px; height: 20px; border-radius: 50%; background: #333231; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; flex-shrink: 0; }
+    .cm-card { padding: 8px 10px; margin-bottom: 6px; background: #232220; border-radius: 6px; }
+    .cm-card .cm-top { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+    .cm-card .cm-author { font-weight: 600; color: #f5f2ef; font-size: 10px; }
+    .cm-card .cm-file { color: #9333ea; font-size: 9px; }
+    .cm-card .cm-time { margin-left: auto; color: #57534e; font-size: 9px; }
+    .cm-card .cm-body { color: #a8a29e; font-size: 11px; line-height: 1.4; }
+
+    /* ═══ Changes view inner layout ═══ */
+    .cv-sidebar {
+      width: 200px; background: #1a1918;
+      border-right: 1px solid #3d3a37;
+      flex-shrink: 0; display: flex; flex-direction: column;
+      overflow-y: auto;
+    }
+
+    /* Three-tab toggle */
+    .cv-tabs { display: flex; padding: 6px; gap: 0; }
+    .cv-tab {
+      flex: 1; padding: 4px 6px; font-size: 10px;
+      border: 1px solid #3d3a37; background: transparent;
+      color: #78716c; cursor: pointer; font-family: inherit;
+      transition: all 120ms ease;
+    }
+    .cv-tab:first-child { border-radius: 4px 0 0 4px; }
+    .cv-tab:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+    .cv-tab:nth-child(2) { border-left: 0; }
+    .cv-tab.active {
+      background: rgba(147,51,234,0.15); color: #c084fc;
+      border-color: rgba(147,51,234,0.4);
+    }
+    .cv-tab:nth-child(2).active { border-left: 1px solid rgba(147,51,234,0.4); }
+
+    .cv-filter {
+      margin: 0 6px 4px; padding: 4px 8px;
+      font-size: 10px; background: #232220;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 4px; color: #f5f2ef;
+      font-family: inherit; width: calc(100% - 12px);
+    }
+    .cv-filter::placeholder { color: #78716c; }
+
+    .cv-section-label {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px 4px;
+    }
+    .cv-section-text { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #78716c; }
+    .cv-section-count { font-size: 9px; background: #333231; padding: 0 6px; border-radius: 9999px; color: #78716c; }
+
+    /* File row */
+    .fr { display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; color: #a8a29e; cursor: pointer; }
+    .fr:hover { background: #333231; }
+    .fr.active { background: #333231; color: #f5f2ef; }
+    .fr-badge { font-size: 9px; font-weight: 600; padding: 1px 4px; border-radius: 2px; flex-shrink: 0; }
+    .fr-m { color: #9333ea; background: rgba(147,51,234,0.1); }
+    .fr-a { color: #4ade80; background: rgba(74,222,128,0.1); }
+    .fr-d { color: #f87171; background: rgba(248,113,113,0.1); }
+    .fr-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fr-stats { font-size: 10px; flex-shrink: 0; font-family: 'SF Mono', monospace; }
+    .fr-check { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; }
+
+    /* Diff area */
+    .cv-diff { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .cv-toolbar { display: flex; align-items: center; padding: 4px 12px; background: #232220; border-bottom: 1px solid #3d3a37; flex-shrink: 0; }
+    .cv-reviewed { font-size: 10px; color: #78716c; }
+    .cv-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+    .cv-action { font-size: 10px; color: #78716c; background: none; border: none; font-family: inherit; cursor: pointer; }
+    .cv-action:hover { color: #f5f2ef; }
+    .cv-sep { color: rgba(120,113,108,0.5); font-size: 10px; }
+
+    .cv-scroll { flex: 1; overflow-y: auto; }
+
+    /* Diff cards */
+    .dc { border-bottom: 1px solid #3d3a37; }
+    .dc-hd { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #232220; border-bottom: 1px solid #3d3a37; cursor: pointer; }
+    .dc-hd:hover { background: #333231; }
+    .dc-chev { color: #78716c; font-size: 11px; flex-shrink: 0; }
+    .dc-path { flex: 1; font-family: 'SF Mono', monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dc-stats { flex-shrink: 0; font-family: 'SF Mono', monospace; font-size: 11px; display: flex; gap: 6px; }
+
+    /* Hunk header */
+    .hunk-hd { padding: 4px 12px; background: #232220; border-top: 1px solid #3d3a37; border-bottom: 1px solid #3d3a37; font-family: 'SF Mono', monospace; font-size: 10px; color: #78716c; }
+
+    /* Diff lines */
+    .dl { display: flex; font-family: 'SF Mono', monospace; font-size: 12px; line-height: 20px; }
+    .dl-g { width: 36px; text-align: right; padding-right: 6px; color: #78716c; font-size: 10px; flex-shrink: 0; user-select: none; }
+    .dl-p { width: 16px; text-align: center; flex-shrink: 0; user-select: none; color: #78716c; }
+    .dl-c { flex: 1; padding: 0 8px; white-space: pre; overflow-x: auto; }
+    .dl-add { background: rgba(74,222,128,0.08); }
+    .dl-add .dl-g { background: rgba(74,222,128,0.15); }
+    .dl-del { background: rgba(248,113,113,0.08); }
+    .dl-del .dl-g { background: rgba(248,113,113,0.15); }
+
+    /* Empty state */
+    .cv-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; color: #78716c; font-size: 13px; gap: 6px; padding: 40px; text-align: center; }
+    .cv-empty-sub { font-size: 11px; opacity: 0.6; }
+
+    /* Commit row */
+    .cm-row { padding: 6px 10px; border-left: 2px solid transparent; cursor: pointer; }
+    .cm-row:hover { background: #333231; }
+    .cm-row.active { background: #333231; border-left-color: #9333ea; }
+    .cm-msg { font-size: 12px; color: #a8a29e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cm-row.active .cm-msg { color: #f5f2ef; }
+    .cm-meta { display: flex; gap: 8px; margin-top: 2px; font-size: 10px; font-family: 'SF Mono', monospace; color: #57534e; }
+  </style>
+</head>
+<body>
+
+<h2>Changes View — Tab Redesign</h2>
+<p class="subtitle">Three tabs: Changes (local edits), PR (committed diff), Commits (per-commit view). Shown in full app context.</p>
+
+<!-- ═══════════════════════════════════════
+     STATE 1: PR TAB (default when reviewing)
+     ═══════════════════════════════════════ -->
+<div class="section">
+  <h3 style="margin-bottom: 4px;"><span class="state-label state-open">PR Tab</span> — reviewing committed changes (default)</h3>
+  <div class="callout"><span class="arrow">→</span> Only shows the 42 committed PR files. No uncommitted noise. Review counter + expand/collapse controls.</div>
+
+  <div class="window">
+    <div class="titlebar"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span style="flex:1;text-align:center;font-size:11px;color:#78716c;">jamesbirtwell/ros-1854-remove-old-pay-rate &nbsp; +726 -363</span></div>
+    <div style="display:flex;height:520px;">
+      <!-- App sidebar -->
+      <div class="sb">
+        <div class="sb-hd"><div class="sb-logo">A</div><span class="sb-name">alfredo</span></div>
+        <div class="sb-repos">
+          <span class="sb-repo active">Florence</span>
+          <span class="sb-repo">Florence Go</span>
+        </div>
+        <div class="sb-ct">
+          <div class="sg-lbl">In Progress <span></span> 2</div>
+          <div class="ag">
+            <div class="ag-dot" style="background: #4ade80;"></div>
+            <div class="ag-info">
+              <div class="ag-row1"><span class="ag-name">spike-shifts-within-shifts</span><span class="ag-time">1m</span></div>
+              <div class="ag-row3"><span class="ag-status" style="color: #555;">Not running</span><span class="ag-diff" style="color: #555;">FL</span></div>
+            </div>
+          </div>
+          <div class="ag">
+            <div class="ag-dot" style="background: #4ade80;"></div>
+            <div class="ag-info">
+              <div class="ag-row1"><span class="ag-name">ros-1858-printing-shifts...</span><span class="ag-time">1m</span></div>
+              <div class="ag-row3"><span class="ag-status" style="color: #555;">Not running</span><span class="ag-diff"><span class="diff-a">+1654</span> <span class="diff-d">-43</span></span></div>
+            </div>
+          </div>
+
+          <div class="sg-lbl" style="margin-top: 4px;">Open PR <span></span> 2</div>
+          <div class="ag sel">
+            <div class="ag-dot" style="background: #555;"></div>
+            <div class="ag-info">
+              <div class="ag-row1"><span class="ag-name">ros-1854-remove-old-pay-r...</span><span class="ag-pr-num">#21340</span><span class="ag-time">1m</span></div>
+              <div class="ag-pr-title">ROS-1854: Remove deprecated pay_rate colu...</div>
+              <div class="ag-row3">
+                <span class="ag-status" style="color: #555;">Not running</span>
+                <span class="ag-diff"><span class="diff-a">+726</span> <span class="diff-d">-363</span></span>
+              </div>
+              <div class="pr-stats">
+                <span class="pr-st" style="color: #4ade80;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  pass
+                </span>
+                <span class="pr-st" style="color: #fbbf24;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Pending
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="ag">
+            <div class="ag-dot" style="background: #555;"></div>
+            <div class="ag-info">
+              <div class="ag-row1"><span class="ag-name">joshuachumber-ros-1856...</span><span class="ag-pr-num">#72</span><span class="ag-time">now</span></div>
+              <div class="ag-row3"><span class="ag-status" style="color: #555;">Not running</span><span class="ag-diff"><span class="diff-a">+1515</span> <span class="diff-d">-495</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main content -->
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+        <div class="tbar">
+          <span class="tb">✦ Claude</span>
+          <span class="tb">▸ Terminal</span>
+          <span class="tb changes-tab tb-act">⇄ Changes</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0;">
+          <!-- Changes sidebar (file list) -->
+          <div class="cv-sidebar">
+            <div class="cv-tabs">
+              <button class="cv-tab">Changes</button>
+              <button class="cv-tab active">PR</button>
+              <button class="cv-tab">Commits</button>
+            </div>
+            <input class="cv-filter" placeholder="Filter files..." />
+            <div class="cv-section-label">
+              <span class="cv-section-text">Committed</span>
+              <span class="cv-section-count">42</span>
+            </div>
+            <div class="fr active"><span class="fr-badge fr-m">M</span><span class="fr-name">location_client_wor...</span><span class="fr-stats"><span class="diff-d">-3</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">user_company_p...</span><span class="fr-stats"><span class="diff-a">+7</span><span class="diff-d" style="margin-left:3px">-6</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">location_client_...</span><span class="fr-stats"><span class="diff-a">+5</span><span class="diff-d" style="margin-left:3px">-3</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">user_company_p...</span><span class="fr-stats"><span class="diff-a">+3</span><span class="diff-d" style="margin-left:3px">-4</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">user_company_pa...</span><span class="fr-stats"><span class="diff-a">+17</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">contract_based...</span><span class="fr-stats"><span class="diff-a">+3</span><span class="diff-d" style="margin-left:3px">-10</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">import.rb</span><span class="fr-stats"><span class="diff-a">+52</span><span class="diff-d" style="margin-left:3px">-1</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">create.rb</span><span class="fr-stats"><span class="diff-d">-7</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">update.rb</span><span class="fr-stats"><span class="diff-d">-6</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">handle_new_hire...</span><span class="fr-stats"><span class="diff-a">+9</span><span class="diff-d" style="margin-left:3px">-1</span></span><span class="fr-check"></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">export_company...</span><span class="fr-stats"><span class="diff-a">+1</span><span class="diff-d" style="margin-left:3px">-1</span></span><span class="fr-check"></span></div>
+            <div class="fr" style="opacity:0.4;justify-content:center;"><span style="font-size:10px;color:#78716c;">... 31 more files</span></div>
+          </div>
+
+          <!-- Diff cards -->
+          <div class="cv-diff">
+            <div class="cv-toolbar">
+              <span class="cv-reviewed">0/42 reviewed</span>
+              <div class="cv-actions">
+                <button class="cv-action">Expand all</button>
+                <span class="cv-sep">|</span>
+                <button class="cv-action">Collapse all</button>
+              </div>
+            </div>
+            <div class="cv-scroll">
+              <!-- Expanded file -->
+              <div class="dc">
+                <div class="dc-hd">
+                  <span class="dc-chev">▾</span>
+                  <span class="fr-badge fr-m">M</span>
+                  <span class="dc-path">app/controllers/client/v2/client_workers/location_client_worker_employment_contracts_controller.rb</span>
+                  <div class="dc-stats"><span class="diff-d">-3</span></div>
+                </div>
+                <div class="hunk-hd">@@ -87,7 +87,6 @@ module Client</div>
+                <div class="dl"><span class="dl-g">87</span><span class="dl-g">87</span><span class="dl-p"> </span><span class="dl-c" style="color:#e6d4a3">              :employment_start_date,</span></div>
+                <div class="dl"><span class="dl-g">88</span><span class="dl-g">88</span><span class="dl-p"> </span><span class="dl-c" style="color:#e6d4a3">              :employment_contract_end_date,</span></div>
+                <div class="dl"><span class="dl-g">89</span><span class="dl-g">89</span><span class="dl-p"> </span><span class="dl-c" style="color:#e6d4a3">              :employment_contract_contracted_hours,</span></div>
+                <div class="dl dl-del"><span class="dl-g">90</span><span class="dl-g"></span><span class="dl-p">-</span><span class="dl-c" style="color:#f87171">              :individual_pay_rate,</span></div>
+                <div class="dl"><span class="dl-g">91</span><span class="dl-g">90</span><span class="dl-p"> </span><span class="dl-c" style="color:#e6d4a3">              :breaks_paid,</span></div>
+                <div class="dl"><span class="dl-g">92</span><span class="dl-g">91</span><span class="dl-p"> </span><span class="dl-c" style="color:#e6d4a3">              :bank_holiday_multiplier,</span></div>
+                <div class="dl"><span class="dl-g">93</span><span class="dl-g">92</span><span class="dl-p"> </span><span class="dl-c" style="color:#e6d4a3">              :allowance_in_hours,</span></div>
+              </div>
+              <!-- Collapsed files -->
+              <div class="dc"><div class="dc-hd"><span class="dc-chev">▸</span><span class="fr-badge fr-m">M</span><span class="dc-path">app/services/user_company_pay_rates/import.rb</span><div class="dc-stats"><span class="diff-a">+52</span><span class="diff-d">-1</span></div></div></div>
+              <div class="dc"><div class="dc-hd"><span class="dc-chev">▸</span><span class="fr-badge fr-m">M</span><span class="dc-path">app/services/user_company_pay_rates/create.rb</span><div class="dc-stats"><span class="diff-d">-7</span></div></div></div>
+              <div class="dc"><div class="dc-hd"><span class="dc-chev">▸</span><span class="fr-badge fr-m">M</span><span class="dc-path">app/models/leave_request.rb</span><div class="dc-stats"><span class="diff-d">-180</span></div></div></div>
+              <div class="dc"><div class="dc-hd"><span class="dc-chev">▸</span><span class="fr-badge fr-m">M</span><span class="dc-path">app/models/location.rb</span><div class="dc-stats"><span class="diff-d">-737</span></div></div></div>
+              <div class="dc"><div class="dc-hd"><span class="dc-chev">▸</span><span class="fr-badge fr-m">M</span><span class="dc-path">app/models/location_app_feature.rb</span><div class="dc-stats"><span class="diff-d">-35</span></div></div></div>
+            </div>
+          </div>
+
+          <!-- PR Panel -->
+          <div class="pr-panel">
+            <div class="pp-header">
+              <span class="pp-title">PR</span><span class="pp-num">#21340</span>
+              <span class="pp-gh">↗</span>
+            </div>
+            <div class="pp-desc">
+              Deprecates individual_pay_rate contract and pay_rate columns, migrating to the new unified pay structure.
+              <span class="show-more">Show more</span>
+            </div>
+            <div style="flex:1;overflow-y:auto;">
+              <div class="pp-section">
+                <div class="pp-label">Checks 11</div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">cubic - AI code reviewer</span><span class="ck-time">2m 45s</span></div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">rspec (karo)</span><span class="ck-time">2m 39s</span></div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">rspec (florence, larger)</span><span class="ck-time">8m 26s</span></div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">brakeman</span><span class="ck-time">1m 42s</span></div>
+                <div class="ck-row"><span class="ck-dot ck-run"></span><span class="ck-name">jest</span><span class="ck-time">...</span></div>
+              </div>
+              <div class="pp-section">
+                <div class="pp-label">Reviews 1</div>
+                <div class="rv-row"><span class="rv-avatar">C</span><span style="font-size:11px;color:#f5f2ef;">cubic-dev-ai[bot]</span><span style="color:#fbbf24;font-size:10px;margin-left:auto;">Pending</span></div>
+              </div>
+              <div class="pp-section">
+                <div class="pp-label">Comments 14</div>
+                <div class="cm-card"><div class="cm-top"><span class="cm-author">cubic-dev-ai[bot]</span><span class="cm-file">import.rb</span><span class="cm-time">9d ago</span></div><div class="cm-body">Use the imported employment start date as the pay-rate period's effective date.</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     STATE 2: CHANGES TAB (local edits while reviewing)
+     ═══════════════════════════════════════ -->
+<div class="section">
+  <h3 style="margin-bottom: 4px;"><span class="state-label state-open">Changes Tab</span> — local uncommitted edits</h3>
+  <div class="callout"><span class="arrow">→</span> Only your local edits appear. Switched to this tab after modifying import.rb to test an alternative approach.</div>
+
+  <div class="window">
+    <div class="titlebar"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span style="flex:1;text-align:center;font-size:11px;color:#78716c;">jamesbirtwell/ros-1854-remove-old-pay-rate &nbsp; +726 -363</span></div>
+    <div style="display:flex;height:420px;">
+      <!-- App sidebar (same) -->
+      <div class="sb">
+        <div class="sb-hd"><div class="sb-logo">A</div><span class="sb-name">alfredo</span></div>
+        <div class="sb-repos">
+          <span class="sb-repo active">Florence</span>
+          <span class="sb-repo">Florence Go</span>
+        </div>
+        <div class="sb-ct">
+          <div class="sg-lbl">In Progress <span></span> 2</div>
+          <div class="ag">
+            <div class="ag-dot" style="background: #4ade80;"></div>
+            <div class="ag-info">
+              <div class="ag-row1"><span class="ag-name">spike-shifts-within-shifts</span><span class="ag-time">1m</span></div>
+              <div class="ag-row3"><span class="ag-status" style="color: #555;">Not running</span></div>
+            </div>
+          </div>
+          <div class="sg-lbl" style="margin-top: 4px;">Open PR <span></span> 2</div>
+          <div class="ag sel">
+            <div class="ag-dot" style="background: #555;"></div>
+            <div class="ag-info">
+              <div class="ag-row1"><span class="ag-name">ros-1854-remove-old-pay-r...</span><span class="ag-pr-num">#21340</span></div>
+              <div class="ag-row3"><span class="ag-status" style="color: #555;">Not running</span><span class="ag-diff"><span class="diff-a">+726</span> <span class="diff-d">-363</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main content -->
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+        <div class="tbar">
+          <span class="tb">✦ Claude</span>
+          <span class="tb">▸ Terminal</span>
+          <span class="tb changes-tab tb-act">⇄ Changes</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0;">
+          <!-- Changes sidebar -->
+          <div class="cv-sidebar">
+            <div class="cv-tabs">
+              <button class="cv-tab active">Changes</button>
+              <button class="cv-tab">PR</button>
+              <button class="cv-tab">Commits</button>
+            </div>
+            <div class="cv-section-label">
+              <span class="cv-section-text">Uncommitted</span>
+              <span class="cv-section-count">2</span>
+            </div>
+            <div class="fr active"><span class="fr-badge fr-m">M</span><span class="fr-name">import.rb</span><span class="fr-stats"><span class="diff-a">+3</span><span class="diff-d" style="margin-left:3px">-1</span></span></div>
+            <div class="fr"><span class="fr-badge fr-m">M</span><span class="fr-name">create.rb</span><span class="fr-stats"><span class="diff-a">+5</span><span class="diff-d" style="margin-left:3px">-2</span></span></div>
+          </div>
+
+          <!-- Diff cards -->
+          <div class="cv-diff">
+            <div class="cv-toolbar">
+              <span class="cv-reviewed">2 uncommitted files</span>
+            </div>
+            <div class="cv-scroll">
+              <div class="dc">
+                <div class="dc-hd">
+                  <span class="dc-chev">▾</span>
+                  <span class="fr-badge fr-m">M</span>
+                  <span class="dc-path">app/services/user_company_pay_rates/import.rb</span>
+                  <div class="dc-stats"><span class="diff-a">+3</span><span class="diff-d">-1</span></div>
+                </div>
+                <div class="hunk-hd">@@ -15,7 +15,9 @@ module UserCompanyPayRates</div>
+                <div class="dl"><span class="dl-g">15</span><span class="dl-g">15</span><span class="dl-p"> </span><span class="dl-c" style="color:#e6d4a3">    def process_row(row)</span></div>
+                <div class="dl dl-del"><span class="dl-g">16</span><span class="dl-g"></span><span class="dl-p">-</span><span class="dl-c" style="color:#f87171">      validate_pay_rate(row[:amount])</span></div>
+                <div class="dl dl-add"><span class="dl-g"></span><span class="dl-g">16</span><span class="dl-p">+</span><span class="dl-c" style="color:#4ade80">      amount = row[:amount]</span></div>
+                <div class="dl dl-add"><span class="dl-g"></span><span class="dl-g">17</span><span class="dl-p">+</span><span class="dl-c" style="color:#4ade80">      return if amount.blank?</span></div>
+                <div class="dl dl-add"><span class="dl-g"></span><span class="dl-g">18</span><span class="dl-p">+</span><span class="dl-c" style="color:#4ade80">      validate_pay_rate(amount)</span></div>
+                <div class="dl"><span class="dl-g">17</span><span class="dl-g">19</span><span class="dl-p"> </span><span class="dl-c" style="color:#e6d4a3">      create_record(row)</span></div>
+              </div>
+              <div class="dc"><div class="dc-hd"><span class="dc-chev">▸</span><span class="fr-badge fr-m">M</span><span class="dc-path">app/services/user_company_pay_rates/create.rb</span><div class="dc-stats"><span class="diff-a">+5</span><span class="diff-d">-2</span></div></div></div>
+            </div>
+          </div>
+
+          <!-- PR Panel (still visible) -->
+          <div class="pr-panel">
+            <div class="pp-header">
+              <span class="pp-title">PR</span><span class="pp-num">#21340</span>
+              <span class="pp-gh">↗</span>
+            </div>
+            <div class="pp-desc">
+              Deprecates individual_pay_rate contract and pay_rate columns, migrating to the new unified pay structure.
+              <span class="show-more">Show more</span>
+            </div>
+            <div style="flex:1;overflow-y:auto;">
+              <div class="pp-section">
+                <div class="pp-label">Checks 11</div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">cubic - AI code reviewer</span><span class="ck-time">2m 45s</span></div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">rspec (karo)</span><span class="ck-time">2m 39s</span></div>
+                <div class="ck-row"><span class="ck-dot ck-ok"></span><span class="ck-name">rspec (florence, larger)</span><span class="ck-time">8m 26s</span></div>
+              </div>
+              <div class="pp-section">
+                <div class="pp-label">Reviews 1</div>
+                <div class="rv-row"><span class="rv-avatar">C</span><span style="font-size:11px;color:#f5f2ef;">cubic-dev-ai[bot]</span><span style="color:#fbbf24;font-size:10px;margin-left:auto;">Pending</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     STATE 3: CHANGES TAB — empty (just reviewing, no local edits)
+     ═══════════════════════════════════════ -->
+<div class="section">
+  <h3 style="margin-bottom: 4px;"><span class="state-label state-open">Changes Tab</span> — empty state (no local edits)</h3>
+  <div class="callout"><span class="arrow">→</span> Clean empty state guides the user. Uncommitted diff is not fetched until this tab is opened.</div>
+
+  <div class="window">
+    <div class="titlebar"><span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span><span style="flex:1;text-align:center;font-size:11px;color:#78716c;">jamesbirtwell/ros-1854-remove-old-pay-rate &nbsp; +726 -363</span></div>
+    <div style="display:flex;height:300px;">
+      <div class="sb">
+        <div class="sb-hd"><div class="sb-logo">A</div><span class="sb-name">alfredo</span></div>
+        <div class="sb-ct" style="padding-top: 0;">
+          <div class="sg-lbl">Open PR <span></span> 2</div>
+          <div class="ag sel">
+            <div class="ag-dot" style="background: #555;"></div>
+            <div class="ag-info">
+              <div class="ag-row1"><span class="ag-name">ros-1854-remove-old-pay-r...</span><span class="ag-pr-num">#21340</span></div>
+              <div class="ag-row3"><span class="ag-status" style="color: #555;">Not running</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+        <div class="tbar">
+          <span class="tb">✦ Claude</span>
+          <span class="tb">▸ Terminal</span>
+          <span class="tb changes-tab tb-act">⇄ Changes</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0;">
+          <div class="cv-sidebar">
+            <div class="cv-tabs">
+              <button class="cv-tab active">Changes</button>
+              <button class="cv-tab">PR</button>
+              <button class="cv-tab">Commits</button>
+            </div>
+            <div class="cv-empty">
+              <div style="font-size: 20px; opacity: 0.3;">✓</div>
+              <div>No local changes</div>
+              <div class="cv-empty-sub">Edits you make on this branch will appear here</div>
+            </div>
+          </div>
+          <div class="cv-diff">
+            <div class="cv-toolbar"><span class="cv-reviewed">No uncommitted changes</span></div>
+            <div class="cv-empty">
+              <div>No local changes to display</div>
+              <div class="cv-empty-sub">Switch to the PR tab to review committed changes</div>
+            </div>
+          </div>
+          <div class="pr-panel" style="width: 200px;">
+            <div class="pp-header"><span class="pp-title">PR</span><span class="pp-num">#21340</span><span class="pp-gh">↗</span></div>
+            <div class="pp-desc" style="font-size: 10px;">Deprecates individual_pay_rate...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

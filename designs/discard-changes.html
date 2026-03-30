@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Discard Controls Mockup v2</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #8b949e; margin-bottom: 24px; }
+
+  .app-section { margin-bottom: 32px; }
+  .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #8b949e; margin-bottom: 8px; }
+
+  /* ─── Uncommitted section header ─── */
+  .uncommitted-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px 8px 0 0;
+    font-size: 12px; font-weight: 600; color: #e6edf3;
+  }
+  .uncommitted-header .count { color: #8b949e; font-weight: 400; margin-left: 6px; }
+  .discard-all-btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(248,81,73,0.4);
+    background: rgba(248,81,73,0.1);
+    color: #f85149;
+    font-size: 11px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .discard-all-btn:hover { background: rgba(248,81,73,0.2); border-color: rgba(248,81,73,0.6); }
+  .discard-all-btn svg { width: 12px; height: 12px; }
+
+  /* ─── File card ─── */
+  .file-card {
+    border: 1px solid #30363d;
+    border-top: none;
+    overflow: hidden;
+  }
+  .file-card:last-child { border-radius: 0 0 8px 8px; }
+
+  .file-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .file-header:hover { background: #1c2128; }
+
+  .chevron { color: #8b949e; font-size: 10px; flex-shrink: 0; }
+  .status-badge {
+    flex-shrink: 0; width: 18px; height: 18px;
+    border-radius: 3px;
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .status-M { background: rgba(130,148,255,0.15); color: #828aff; }
+  .status-A { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .status-D { background: rgba(248,81,73,0.15); color: #f85149; }
+
+  .file-path { flex: 1; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; color: #e6edf3; }
+  .file-stats { flex-shrink: 0; font-family: 'SF Mono', Monaco, monospace; font-size: 10px; display: flex; gap: 6px; }
+  .stat-add { color: #3fb950; }
+  .stat-del { color: #f85149; }
+
+  .discard-file-btn {
+    flex-shrink: 0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: #8b949e;
+    cursor: pointer;
+    display: flex; align-items: center;
+    transition: all 0.15s;
+    opacity: 0;
+  }
+  .file-header:hover .discard-file-btn { opacity: 1; }
+  .discard-file-btn:hover { background: rgba(248,81,73,0.15); color: #f85149; }
+  .discard-file-btn svg { width: 14px; height: 14px; }
+  .demo-visible .discard-file-btn { opacity: 1; }
+
+  /* ─── Diff lines (clean, no discard controls) ─── */
+  .diff-body { background: #0d1117; }
+
+  .diff-line {
+    display: flex;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 11px;
+    line-height: 20px;
+  }
+  .diff-line.addition { background: rgba(63,185,80,0.1); }
+  .diff-line.deletion { background: rgba(248,81,73,0.1); }
+
+  .gutter {
+    width: 36px; text-align: right; padding-right: 6px;
+    color: #484f58; user-select: none; flex-shrink: 0; font-size: 10px;
+  }
+  .gutter.addition { background: rgba(63,185,80,0.2); }
+  .gutter.deletion { background: rgba(248,81,73,0.2); }
+
+  .prefix { width: 16px; text-align: center; user-select: none; flex-shrink: 0; color: #8b949e; }
+  .code { flex: 1; padding: 0 8px; white-space: pre; overflow-x: auto; color: #e6edf3; }
+
+  .hunk-header {
+    display: flex; align-items: center;
+    padding: 4px 12px;
+    background: rgba(130,148,255,0.08);
+    color: #828aff;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 10px;
+    border-bottom: 1px solid #30363d;
+  }
+
+  /* ─── Confirmation dialog ─── */
+  .confirm-overlay {
+    margin-top: 32px;
+    max-width: 400px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+  }
+  .confirm-header {
+    padding: 16px 20px 12px;
+    font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .confirm-header svg { color: #f85149; }
+  .confirm-body {
+    padding: 0 20px 16px;
+    font-size: 12px; color: #8b949e; line-height: 1.5;
+  }
+  .confirm-body code {
+    background: rgba(255,255,255,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 11px;
+    color: #e6edf3;
+  }
+  .confirm-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 20px;
+    background: rgba(0,0,0,0.2);
+    border-top: 1px solid #30363d;
+  }
+  .btn-cancel {
+    padding: 6px 14px; border-radius: 6px;
+    border: 1px solid #30363d; background: #21262d;
+    color: #e6edf3; font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .btn-cancel:hover { background: #30363d; }
+  .btn-danger {
+    padding: 6px 14px; border-radius: 6px;
+    border: 1px solid rgba(248,81,73,0.6); background: rgba(248,81,73,0.15);
+    color: #f85149; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .btn-danger:hover { background: rgba(248,81,73,0.25); }
+
+  .anno {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; margin: 0;
+    border-radius: 12px;
+    font-size: 10px; font-weight: 600;
+  }
+  .anno-1 { background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+  .anno-2 { background: rgba(136,198,255,0.1); color: #88c6ff; border: 1px solid rgba(136,198,255,0.2); }
+</style>
+</head>
+<body>
+
+<h1>Discard Changes — v2</h1>
+<p class="subtitle">Two controls: discard all + discard per file. Clean diff view with no inline buttons.</p>
+
+<!-- ─── MOCKUP ─── -->
+<div style="max-width: 800px;">
+
+  <div class="uncommitted-header">
+    <span>Uncommitted Changes <span class="count">3 files</span></span>
+    <button class="discard-all-btn">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 4v8.5a1 1 0 001 1h4a1 1 0 001-1V4"/></svg>
+      Discard All
+    </button>
+  </div>
+
+  <!-- File 1: expanded with diff -->
+  <div class="file-card">
+    <div class="file-header demo-visible">
+      <span class="chevron">&#9662;</span>
+      <span class="status-badge status-M">M</span>
+      <span class="file-path">src/components/changes/ChangesView.tsx</span>
+      <span class="file-stats"><span class="stat-add">+12</span><span class="stat-del">-3</span></span>
+      <button class="discard-file-btn" title="Discard changes to this file">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 4v8.5a1 1 0 001 1h4a1 1 0 001-1V4"/></svg>
+      </button>
+    </div>
+    <div class="diff-body">
+      <div class="hunk-header">@@ -42,8 +42,12 @@ function ChangesView()</div>
+      <div class="diff-line context">
+        <span class="gutter">42</span><span class="gutter">42</span>
+        <span class="prefix"> </span>
+        <span class="code">  const [viewMode, setViewMode] = useState("changes");</span>
+      </div>
+      <div class="diff-line context">
+        <span class="gutter">43</span><span class="gutter">43</span>
+        <span class="prefix"> </span>
+        <span class="code">  const [selectedCommitIndex, setSelectedCommitIndex] = useState(null);</span>
+      </div>
+      <div class="diff-line deletion">
+        <span class="gutter deletion">44</span><span class="gutter deletion"></span>
+        <span class="prefix">-</span>
+        <span class="code" style="color:#f85149;">  const [discardMode, setDiscardMode] = useState(false);</span>
+      </div>
+      <div class="diff-line addition">
+        <span class="gutter addition"></span><span class="gutter addition">44</span>
+        <span class="prefix">+</span>
+        <span class="code" style="color:#3fb950;">  const [canDiscard, setCanDiscard] = useState(true);</span>
+      </div>
+      <div class="diff-line addition">
+        <span class="gutter addition"></span><span class="gutter addition">45</span>
+        <span class="prefix">+</span>
+        <span class="code" style="color:#3fb950;">  const [discardConfirm, setDiscardConfirm] = useState(false);</span>
+      </div>
+      <div class="diff-line addition">
+        <span class="gutter addition"></span><span class="gutter addition">46</span>
+        <span class="prefix">+</span>
+        <span class="code" style="color:#3fb950;">  const handleDiscard = useCallback(() => {</span>
+      </div>
+      <div class="diff-line context">
+        <span class="gutter">45</span><span class="gutter">47</span>
+        <span class="prefix"> </span>
+        <span class="code">  const fileRefs = useRef(new Map());</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- File 2: collapsed -->
+  <div class="file-card">
+    <div class="file-header demo-visible">
+      <span class="chevron">&#9656;</span>
+      <span class="status-badge status-A">A</span>
+      <span class="file-path">src/hooks/useDiscardChanges.ts</span>
+      <span class="file-stats"><span class="stat-add">+45</span></span>
+      <button class="discard-file-btn" title="Discard changes to this file">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 4v8.5a1 1 0 001 1h4a1 1 0 001-1V4"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- File 3: collapsed -->
+  <div class="file-card">
+    <div class="file-header demo-visible" style="border-radius: 0 0 8px 8px;">
+      <span class="chevron">&#9656;</span>
+      <span class="status-badge status-D">D</span>
+      <span class="file-path">src/utils/legacyHelper.ts</span>
+      <span class="file-stats"><span class="stat-del">-23</span></span>
+      <button class="discard-file-btn" title="Discard changes to this file">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 4v8.5a1 1 0 001 1h4a1 1 0 001-1V4"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Confirmation dialog mockup ─── -->
+<div style="margin-top: 40px; max-width: 800px;">
+  <div class="section-label">Confirmation dialog (shown before any discard)</div>
+  <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+
+    <!-- Single file confirm -->
+    <div class="confirm-overlay">
+      <div class="confirm-header">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 10.5a.75.75 0 110-1.5.75.75 0 010 1.5zM8.75 4.75v4a.75.75 0 01-1.5 0v-4a.75.75 0 011.5 0z"/></svg>
+        Discard changes?
+      </div>
+      <div class="confirm-body">
+        This will revert all changes to <code>ChangesView.tsx</code> back to HEAD. This cannot be undone.
+      </div>
+      <div class="confirm-actions">
+        <button class="btn-cancel">Cancel</button>
+        <button class="btn-danger">Discard</button>
+      </div>
+    </div>
+
+    <!-- Discard all confirm -->
+    <div class="confirm-overlay">
+      <div class="confirm-header">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 10.5a.75.75 0 110-1.5.75.75 0 010 1.5zM8.75 4.75v4a.75.75 0 01-1.5 0v-4a.75.75 0 011.5 0z"/></svg>
+        Discard all changes?
+      </div>
+      <div class="confirm-body">
+        This will revert <strong>3 files</strong> back to HEAD. This cannot be undone.
+      </div>
+      <div class="confirm-actions">
+        <button class="btn-cancel">Cancel</button>
+        <button class="btn-danger">Discard All</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

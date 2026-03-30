@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — Thinking + Server Running</title>
+  <link rel="stylesheet" href="kit.css">
+  <style>
+    body {
+      display: flex;
+      gap: 48px;
+      padding: 32px;
+      overflow: auto;
+      height: auto;
+    }
+
+    .option {
+      width: 340px;
+      flex-shrink: 0;
+    }
+    .option-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      margin-bottom: 12px;
+      padding-left: 4px;
+    }
+    .option-desc {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-top: 8px;
+      padding-left: 4px;
+      line-height: 1.5;
+    }
+    .sidebar-slice {
+      background: var(--bg-sidebar);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* ── Shared: flat agent item ─────── */
+    .item {
+      width: 100%;
+      text-align: left;
+      padding: 8px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      border-left: 3px solid transparent;
+    }
+    .item-info { flex: 1; min-width: 0; }
+    .item-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .item-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .item-name.highlight { font-weight: 600; }
+    .item-time {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      margin-left: auto;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .item-pr-title {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+    .item-status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .item-status {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+    .item-diff {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .dot {
+      margin-top: 4px;
+      height: 8px;
+      width: 8px;
+      border-radius: 9999px;
+      flex-shrink: 0;
+    }
+    .dot-idle { background: var(--status-idle); }
+    .dot-off  { background: var(--text-tertiary); }
+
+    .pr-number {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+    }
+
+    /* ── Server indicator (green eq bars) ── */
+    @keyframes eq-bar-1 { 0%, 100% { height: 3px; } 50% { height: 12px; } }
+    @keyframes eq-bar-2 { 0%, 100% { height: 8px; } 50% { height: 4px; } }
+    @keyframes eq-bar-3 { 0%, 100% { height: 5px; } 50% { height: 14px; } }
+    @keyframes eq-bar-4 { 0%, 100% { height: 10px; } 50% { height: 3px; } }
+
+    .server-eq {
+      display: flex;
+      align-items: flex-end;
+      gap: 1.5px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+    .server-eq span {
+      width: 2.5px;
+      border-radius: 1px;
+      background: #4ade80;
+    }
+    .server-eq span:nth-child(1) { animation: eq-bar-1 1.2s ease-in-out infinite; }
+    .server-eq span:nth-child(2) { animation: eq-bar-2 1.4s ease-in-out infinite; }
+    .server-eq span:nth-child(3) { animation: eq-bar-3 1.0s ease-in-out infinite; }
+    .server-eq span:nth-child(4) { animation: eq-bar-4 1.6s ease-in-out infinite; }
+
+    /* ── Busy state (Option E) ─────── */
+    @keyframes busy-sweep {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+    @keyframes thinking-dot {
+      0%, 60%, 100% { opacity: 0.25; transform: scale(0.8); }
+      30% { opacity: 1; transform: scale(1); }
+    }
+
+    .item-busy {
+      border-left: 3px solid var(--status-busy);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--status-busy) 4%, transparent) 0%, transparent 50%);
+      position: relative;
+      overflow: hidden;
+    }
+    .item-busy::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1.5px;
+      background: linear-gradient(90deg, transparent, var(--status-busy), transparent);
+      animation: busy-sweep 2.5s ease-in-out infinite;
+    }
+    .dot-busy {
+      background: var(--status-busy);
+      animation: pulse-dot 2s ease-in-out infinite;
+      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-busy) 35%, transparent);
+    }
+    .status-busy {
+      color: var(--status-busy);
+      font-weight: 500;
+    }
+    .thinking-dots {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      margin-left: 2px;
+    }
+    .thinking-dots span {
+      width: 3px;
+      height: 3px;
+      border-radius: 9999px;
+      background: var(--status-busy);
+    }
+    .thinking-dots span:nth-child(1) { animation: thinking-dot 1.4s ease-in-out infinite; }
+    .thinking-dots span:nth-child(2) { animation: thinking-dot 1.4s ease-in-out 0.2s infinite; }
+    .thinking-dots span:nth-child(3) { animation: thinking-dot 1.4s ease-in-out 0.4s infinite; }
+
+    /* ── Done bleed (for contrast) ── */
+    .bleed-done-ref {
+      border-left: 3px solid var(--accent-primary);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--accent-primary) 6%, transparent) 0%, transparent 60%);
+    }
+    .dot-done { background: #60a5fa; box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-primary) 40%, transparent); }
+
+    /* Done status check icons */
+    .check-icon { color: var(--status-idle); }
+    .pending-icon { color: var(--status-busy); }
+    .comment-icon { color: var(--text-tertiary); }
+    .pr-stats-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-top: 8px;
+      margin-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .pr-stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Busy + Server running -->
+  <div class="option">
+    <div class="option-label">Busy + Server Running</div>
+    <div class="sidebar-slice">
+      <div class="item item-busy">
+        <span class="dot dot-busy"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name highlight">spike-shifts-within-shifts</span>
+            <div class="server-eq">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <span class="item-time">now</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status status-busy">Writing code…</span>
+            <span class="thinking-dots">
+              <span></span><span></span><span></span>
+            </span>
+            <span class="item-diff">
+              <span style="color: var(--diff-added);">+128</span>
+              <span style="color: var(--diff-removed);">-34</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Idle neighbor for context -->
+      <div class="item">
+        <span class="dot dot-idle"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">pro-5108-foundation-local-tri…</span>
+            <span class="item-time">1h</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status">Idle</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Not running neighbor -->
+      <div class="item">
+        <span class="dot dot-off"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name">ros-1854-remove-old-pay-r…</span>
+            <span class="pr-number">#21340</span>
+            <span class="item-time">3d</span>
+          </div>
+          <div class="item-pr-title">ROS-1854: Remove deprecated pay_rate colu…</div>
+          <div class="item-status-row">
+            <span class="item-status">Not running</span>
+            <span class="item-diff">
+              <span style="color: var(--diff-added);">+726</span>
+              <span style="color: var(--diff-removed);">-363</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option-desc">Green eq bars (server) on name row, amber dots + sweep on status row. Different color, different row, different shape — no clash.</div>
+  </div>
+
+  <!-- Busy + Server + PR -->
+  <div class="option">
+    <div class="option-label">Busy + Server + PR</div>
+    <div class="sidebar-slice">
+      <div class="item item-busy">
+        <span class="dot dot-busy"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name highlight">spike-shifts-within-shifts</span>
+            <span class="pr-number">#21402</span>
+            <div class="server-eq">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <span class="item-time">now</span>
+          </div>
+          <div class="item-pr-title">Add shift-within-shift assignment flow</div>
+          <div class="item-status-row">
+            <span class="item-status status-busy">Analyzing…</span>
+            <span class="thinking-dots">
+              <span></span><span></span><span></span>
+            </span>
+            <span class="item-diff">
+              <span style="color: var(--diff-added);">+644</span>
+              <span style="color: var(--diff-removed);">-43</span>
+            </span>
+          </div>
+          <div class="pr-stats-row">
+            <span class="pr-stat check-icon">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Checks pass
+            </span>
+            <span class="pr-stat pending-icon">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Review pending
+            </span>
+            <span class="pr-stat comment-icon">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              14
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Done neighbor with server for comparison -->
+      <div class="item bleed-done-ref">
+        <span class="dot dot-done"></span>
+        <div class="item-info">
+          <div class="item-name-row">
+            <span class="item-name highlight">ros-1858-printing-shifts-cann…</span>
+            <div class="server-eq">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <span class="item-time">2m</span>
+          </div>
+          <div class="item-status-row">
+            <span class="item-status" style="color: var(--accent-primary); font-weight: 500;">Done</span>
+            <span class="item-diff">
+              <span style="color: var(--diff-added);">+644</span>
+              <span style="color: var(--diff-removed);">-43</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option-desc">Worst case — busy worktree with PR, server, diff stats, and PR stats all visible. Green bars sit on the name row; amber activity lives on the status row. Done state below for direct comparison.</div>
+  </div>
+
+</body>
+</html>

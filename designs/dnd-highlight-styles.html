@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — DnD Drop Zone Highlight Styles</title>
+  <link rel="stylesheet" href="kit.css">
+  <style>
+    body { overflow: auto; }
+
+    .mockup-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      padding: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .mockup-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      letter-spacing: 0.03em;
+    }
+    .mockup-sublabel {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .mockup-sidebar {
+      width: 100%;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 12px 0;
+      overflow: hidden;
+    }
+
+    /* Shared status group header */
+    .sg-header {
+      display: flex;
+      align-items: center;
+      padding: 12px 14px 8px;
+      color: var(--text-tertiary);
+      gap: 8px;
+    }
+    .sg-icon { width: 14px; height: 14px; flex-shrink: 0; }
+    .sg-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .sg-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--border-subtle), transparent);
+      margin: 0 8px;
+    }
+    .sg-count {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Agent items */
+    .ai {
+      padding: 8px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      border-left: 3px solid transparent;
+    }
+    .ai-dot {
+      margin-top: 5px;
+      height: 8px;
+      width: 8px;
+      border-radius: 9999px;
+      flex-shrink: 0;
+    }
+    .ai-info { flex: 1; min-width: 0; }
+    .ai-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ai-meta {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+    .ai-ghost {
+      opacity: 0.15;
+    }
+
+    /* Floating drag overlay (shared) */
+    .drag-overlay {
+      position: absolute;
+      pointer-events: none;
+      z-index: 100;
+      min-width: 180px;
+      max-width: 260px;
+      padding: 8px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-secondary);
+      border: 1px solid rgba(147, 51, 234, 0.4);
+      box-shadow: var(--shadow-lg);
+      cursor: grabbing;
+    }
+    .drag-overlay .ai-name { font-size: 13px; }
+    .drag-overlay .ai-meta { font-size: 11px; color: var(--text-tertiary); }
+
+    /* ── Variant A: Current (bg + ring) ── */
+    .v-current .drop-target {
+      background: var(--accent-muted);
+      box-shadow: inset 0 0 0 1px var(--accent-primary);
+      border-radius: var(--radius-md);
+    }
+
+    /* ── Variant B: Subtle top accent ── */
+    .v-subtle .drop-target .sg-header {
+      border-top: 2px solid var(--accent-primary);
+      padding-top: 10px;
+    }
+    .v-subtle .drop-target .sg-label {
+      color: var(--accent-primary);
+    }
+
+    /* ── Variant C: Left bar ── */
+    .v-leftbar .drop-target {
+      border-left: 3px solid var(--accent-primary);
+      background: linear-gradient(90deg, color-mix(in srgb, var(--accent-primary) 6%, transparent) 0%, transparent 40%);
+    }
+
+    /* ── Variant D: Insert line ── */
+    .v-insertline .insert-indicator {
+      height: 2px;
+      background: var(--accent-primary);
+      margin: 0 14px;
+      border-radius: 1px;
+      position: relative;
+    }
+    .v-insertline .insert-indicator::before {
+      content: "";
+      position: absolute;
+      left: -3px;
+      top: -3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+    }
+    .v-insertline .insert-indicator::after {
+      content: "";
+      position: absolute;
+      right: -3px;
+      top: -3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+    }
+
+    /* Circle icon placeholder */
+    .circle-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1.5px solid currentColor;
+      flex-shrink: 0;
+    }
+    .octagon-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .octagon-icon::before {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border: 1.5px solid currentColor;
+      border-radius: 3px;
+      transform: rotate(0deg);
+    }
+    .check-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1.5px solid currentColor;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .check-icon::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 1.5px;
+      width: 4px;
+      height: 7px;
+      border: solid currentColor;
+      border-width: 0 1.5px 1.5px 0;
+      transform: rotate(40deg);
+    }
+
+    /* Winner badge */
+    .winner-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent-primary);
+      background: var(--accent-muted);
+      padding: 2px 8px;
+      border-radius: 9999px;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="mockup-grid">
+
+    <!-- ════════════════════════════════════════════ -->
+    <!-- VARIANT A: Current (bg highlight + ring)   -->
+    <!-- ════════════════════════════════════════════ -->
+    <div>
+      <div class="mockup-label">A. Current — Full Section Highlight</div>
+      <div class="mockup-sublabel">Entire group gets bg-accent-muted + ring. Visually heavy — highlights items that aren't involved in the drag.</div>
+      <div class="mockup-sidebar v-current">
+        <!-- Source group: In Progress -->
+        <div class="status-group">
+          <div class="sg-header">
+            <div class="circle-icon"></div>
+            <span class="sg-label">In progress</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">2</span>
+          </div>
+          <div class="ai ai-ghost">
+            <span class="ai-dot" style="background: var(--status-busy)"></span>
+            <div class="ai-info">
+              <div class="ai-name">feat/auth-flow</div>
+              <div class="ai-meta">Thinking...</div>
+            </div>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: var(--status-idle)"></span>
+            <div class="ai-info">
+              <div class="ai-name">fix/nav-crash</div>
+              <div class="ai-meta">Idle</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Target group: Blocked (highlighted) -->
+        <div class="status-group drop-target">
+          <div class="sg-header">
+            <div class="octagon-icon"></div>
+            <span class="sg-label">Blocked</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">1</span>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: var(--text-tertiary)"></span>
+            <div class="ai-info">
+              <div class="ai-name">chore/deps-update</div>
+              <div class="ai-meta">Not running</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Done group -->
+        <div class="status-group">
+          <div class="sg-header">
+            <div class="check-icon"></div>
+            <span class="sg-label">Done</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">1</span>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: #60a5fa"></span>
+            <div class="ai-info">
+              <div class="ai-name">fix/typo-readme</div>
+              <div class="ai-meta" style="color: var(--accent-primary); font-weight: 500;">Done</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drag overlay -->
+      <div class="drag-overlay" style="position: relative; margin-top: 12px; margin-left: 40px;">
+        <div class="ai-name">feat/auth-flow</div>
+        <div class="ai-meta">Thinking...</div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════ -->
+    <!-- VARIANT B: Subtle top accent on header     -->
+    <!-- ════════════════════════════════════════════ -->
+    <div>
+      <div class="mockup-label">B. Header Accent</div>
+      <div class="mockup-sublabel">Only the group header gets a top border + accent color on the label. Minimal, but could be easy to miss.</div>
+      <div class="mockup-sidebar v-subtle">
+        <div class="status-group">
+          <div class="sg-header">
+            <div class="circle-icon"></div>
+            <span class="sg-label">In progress</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">2</span>
+          </div>
+          <div class="ai ai-ghost">
+            <span class="ai-dot" style="background: var(--status-busy)"></span>
+            <div class="ai-info">
+              <div class="ai-name">feat/auth-flow</div>
+              <div class="ai-meta">Thinking...</div>
+            </div>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: var(--status-idle)"></span>
+            <div class="ai-info">
+              <div class="ai-name">fix/nav-crash</div>
+              <div class="ai-meta">Idle</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group drop-target">
+          <div class="sg-header">
+            <div class="octagon-icon"></div>
+            <span class="sg-label">Blocked</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">1</span>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: var(--text-tertiary)"></span>
+            <div class="ai-info">
+              <div class="ai-name">chore/deps-update</div>
+              <div class="ai-meta">Not running</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group">
+          <div class="sg-header">
+            <div class="check-icon"></div>
+            <span class="sg-label">Done</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">1</span>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: #60a5fa"></span>
+            <div class="ai-info">
+              <div class="ai-name">fix/typo-readme</div>
+              <div class="ai-meta" style="color: var(--accent-primary); font-weight: 500;">Done</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="drag-overlay" style="position: relative; margin-top: 12px; margin-left: 40px;">
+        <div class="ai-name">feat/auth-flow</div>
+        <div class="ai-meta">Thinking...</div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════ -->
+    <!-- VARIANT C: Left accent bar (gradient bleed) -->
+    <!-- ════════════════════════════════════════════ -->
+    <div>
+      <div class="mockup-label">C. Left Accent Bar</div>
+      <div class="mockup-sublabel">Accent bar on left edge with subtle gradient bleed. Matches the existing attention-state bleed pattern (waiting/done/error).</div>
+      <div class="mockup-sidebar v-leftbar">
+        <div class="status-group">
+          <div class="sg-header">
+            <div class="circle-icon"></div>
+            <span class="sg-label">In progress</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">2</span>
+          </div>
+          <div class="ai ai-ghost">
+            <span class="ai-dot" style="background: var(--status-busy)"></span>
+            <div class="ai-info">
+              <div class="ai-name">feat/auth-flow</div>
+              <div class="ai-meta">Thinking...</div>
+            </div>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: var(--status-idle)"></span>
+            <div class="ai-info">
+              <div class="ai-name">fix/nav-crash</div>
+              <div class="ai-meta">Idle</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group drop-target">
+          <div class="sg-header">
+            <div class="octagon-icon"></div>
+            <span class="sg-label">Blocked</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">1</span>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: var(--text-tertiary)"></span>
+            <div class="ai-info">
+              <div class="ai-name">chore/deps-update</div>
+              <div class="ai-meta">Not running</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group">
+          <div class="sg-header">
+            <div class="check-icon"></div>
+            <span class="sg-label">Done</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">1</span>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: #60a5fa"></span>
+            <div class="ai-info">
+              <div class="ai-name">fix/typo-readme</div>
+              <div class="ai-meta" style="color: var(--accent-primary); font-weight: 500;">Done</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="drag-overlay" style="position: relative; margin-top: 12px; margin-left: 40px;">
+        <div class="ai-name">feat/auth-flow</div>
+        <div class="ai-meta">Thinking...</div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════ -->
+    <!-- VARIANT D: Insert line between items       -->
+    <!-- ════════════════════════════════════════════ -->
+    <div>
+      <div class="mockup-label">D. Insert Line</div>
+      <div class="mockup-sublabel">Horizontal accent line with dot endpoints shows exactly where the item will land. No group highlight at all — precision over affordance.</div>
+      <div class="mockup-sidebar v-insertline">
+        <div class="status-group">
+          <div class="sg-header">
+            <div class="circle-icon"></div>
+            <span class="sg-label">In progress</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">2</span>
+          </div>
+          <div class="ai ai-ghost">
+            <span class="ai-dot" style="background: var(--status-busy)"></span>
+            <div class="ai-info">
+              <div class="ai-name">feat/auth-flow</div>
+              <div class="ai-meta">Thinking...</div>
+            </div>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: var(--status-idle)"></span>
+            <div class="ai-info">
+              <div class="ai-name">fix/nav-crash</div>
+              <div class="ai-meta">Idle</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-group">
+          <div class="sg-header">
+            <div class="octagon-icon"></div>
+            <span class="sg-label">Blocked</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">1</span>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: var(--text-tertiary)"></span>
+            <div class="ai-info">
+              <div class="ai-name">chore/deps-update</div>
+              <div class="ai-meta">Not running</div>
+            </div>
+          </div>
+          <div class="insert-indicator"></div>
+        </div>
+
+        <div class="status-group">
+          <div class="sg-header">
+            <div class="check-icon"></div>
+            <span class="sg-label">Done</span>
+            <span class="sg-line"></span>
+            <span class="sg-count">1</span>
+          </div>
+          <div class="ai">
+            <span class="ai-dot" style="background: #60a5fa"></span>
+            <div class="ai-info">
+              <div class="ai-name">fix/typo-readme</div>
+              <div class="ai-meta" style="color: var(--accent-primary); font-weight: 500;">Done</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="drag-overlay" style="position: relative; margin-top: 12px; margin-left: 40px;">
+        <div class="ai-name">feat/auth-flow</div>
+        <div class="ai-meta">Thinking...</div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
