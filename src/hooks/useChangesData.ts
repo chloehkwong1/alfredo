@@ -23,21 +23,27 @@ export function useChangesData(
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [commitFiles, setCommitFiles] = useState<DiffFile[]>([]);
 
-  // Always load uncommitted files (no viewMode guard)
+  // Always load uncommitted files (no viewMode guard), poll to pick up new edits
   useEffect(() => {
     let cancelled = false;
-    getUncommittedDiff(repoPath)
-      .then((files) => { if (!cancelled) setUncommittedFiles(files); })
-      .catch((err) => console.error("Failed to load uncommitted diff:", err));
-    return () => { cancelled = true; };
+    const fetch = () => {
+      getUncommittedDiff(repoPath)
+        .then((files) => { if (!cancelled) setUncommittedFiles(files); })
+        .catch((err) => console.error("Failed to load uncommitted diff:", err));
+    };
+    fetch();
+    const interval = setInterval(fetch, 3_000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [repoPath]);
 
-  // Load committed files and commits — from GitHub API when PR exists, local git otherwise
+  // Load committed files and commits — from GitHub API when PR exists, local git otherwise.
+  // Local git paths poll every 10s to pick up new commits; GitHub API paths fetch once
+  // (refreshed by github_sync on a longer cadence).
   useEffect(() => {
     let cancelled = false;
 
     if (prNumber) {
-      // PR exists: fetch from GitHub API
+      // PR exists: fetch from GitHub API (no polling — rate-limit sensitive)
       getPrFiles(repoPath, prNumber)
         .then(async (files) => {
           if (cancelled) return;
@@ -70,17 +76,22 @@ export function useChangesData(
       getPrCommits(repoPath, prNumber)
         .then((list) => { if (!cancelled) setCommits(list); })
         .catch((err) => console.error("Failed to load PR commits:", err));
-    } else {
-      // No PR: use local git diff
+
+      return () => { cancelled = true; };
+    }
+
+    // No PR: use local git diff — poll to pick up new commits
+    const fetchLocal = () => {
       getDiff(repoPath, baseBranch)
         .then((files) => { if (!cancelled) setCommittedFiles(files); })
         .catch((err) => console.error("Failed to load committed diff:", err));
       getCommits(repoPath, baseBranch)
         .then((list) => { if (!cancelled) setCommits(list); })
         .catch((err) => console.error("Failed to load commits:", err));
-    }
-
-    return () => { cancelled = true; };
+    };
+    fetchLocal();
+    const interval = setInterval(fetchLocal, 10_000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [repoPath, baseBranch, prNumber]);
 
   useEffect(() => {
