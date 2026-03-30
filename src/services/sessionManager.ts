@@ -224,9 +224,20 @@ export class SessionManager {
           break;
         }
         case "agentState": {
-          // Once hooks are active, ignore ALL detector events.
-          // Detector is only the source of truth before the first hook fires.
-          if (session.hooksActive) break;
+          if (session.hooksActive) {
+            // Hooks are authoritative for busy/waitingForInput, but they
+            // can miss downward transitions (e.g. Ctrl+C killing hook
+            // commands before they complete). Allow detector idle/notRunning
+            // signals through as a safety net — the detector's prompt
+            // match is highly reliable and prevents stuck "busy" states.
+            if (event.data === "idle" || event.data === "notRunning") {
+              session.agentState = event.data;
+              useWorkspaceStore
+                .getState()
+                .updateWorktree(worktreeId, { agentStatus: event.data });
+            }
+            break;
+          }
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
@@ -353,9 +364,20 @@ export class SessionManager {
           break;
         }
         case "agentState": {
-          // Once hooks are active, ignore ALL detector events.
-          // Detector is only the source of truth before the first hook fires.
-          if (session.hooksActive) break;
+          if (session.hooksActive) {
+            // Hooks are authoritative for busy/waitingForInput, but they
+            // can miss downward transitions (e.g. Ctrl+C killing hook
+            // commands before they complete). Allow detector idle/notRunning
+            // signals through as a safety net — the detector's prompt
+            // match is highly reliable and prevents stuck "busy" states.
+            if (event.data === "idle" || event.data === "notRunning") {
+              session.agentState = event.data;
+              useWorkspaceStore
+                .getState()
+                .updateWorktree(worktreeId, { agentStatus: event.data });
+            }
+            break;
+          }
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
