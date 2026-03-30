@@ -1,5 +1,5 @@
 import { saveSessionFile, loadSessionFile, deleteSessionFile } from "../api";
-import type { WorkspaceTab, LayoutNode, Pane, KanbanColumn } from "../types";
+import type { WorkspaceTab, LayoutNode, Pane, KanbanColumn, DiffViewMode, PrPanelState } from "../types";
 
 export interface SessionData {
   tabs: WorkspaceTab[];
@@ -14,6 +14,16 @@ export interface SessionData {
   activePaneId?: string;
   /** Last-known kanban column so worktrees render in the correct group on restore. */
   column?: KanbanColumn;
+  /** Diff view mode (split or unified) for this worktree. */
+  diffViewMode?: DiffViewMode;
+  /** Manual column override with the GitHub state it was set against. */
+  columnOverride?: { column: KanbanColumn; githubStateWhenSet: string } | null;
+  /** PR panel expanded or collapsed. */
+  prPanelState?: PrPanelState;
+  /** Changes tab view mode (changes or commits). */
+  changesViewMode?: "changes" | "commits";
+  /** Whether the user has dismissed the idle indicator for this worktree. */
+  seenWorktree?: boolean;
 }
 
 export async function saveSession(
@@ -54,6 +64,11 @@ export async function saveAllSessions(
   getPanes?: (worktreeId: string) => Record<string, Pane> | undefined,
   getActivePaneId?: (worktreeId: string) => string | undefined,
   getColumn?: (worktreeId: string) => KanbanColumn | undefined,
+  getDiffViewMode?: (worktreeId: string) => DiffViewMode | undefined,
+  getColumnOverride?: (worktreeId: string) => { column: KanbanColumn; githubStateWhenSet: string } | null | undefined,
+  getPrPanelState?: (worktreeId: string) => PrPanelState | undefined,
+  getChangesViewMode?: (worktreeId: string) => "changes" | "commits" | undefined,
+  getSeenWorktree?: (worktreeId: string) => boolean | undefined,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
     const tabs = getTabs(wtId).filter((t) => t.type !== "server");
@@ -90,6 +105,11 @@ export async function saveAllSessions(
       panes,
       activePaneId: getActivePaneId?.(wtId),
       column: getColumn?.(wtId),
+      diffViewMode: getDiffViewMode?.(wtId),
+      columnOverride: getColumnOverride?.(wtId),
+      prPanelState: getPrPanelState?.(wtId),
+      changesViewMode: getChangesViewMode?.(wtId),
+      seenWorktree: getSeenWorktree?.(wtId),
     };
     return saveSession(repoPath, wtId, data);
   });
