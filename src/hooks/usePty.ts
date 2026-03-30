@@ -3,7 +3,7 @@ import type { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import type { SearchAddon } from "@xterm/addon-search";
 import type { AgentState } from "../types";
-import { writePty, resizePty, getWorktreeDiffStats, getPrFiles, getAppConfig } from "../api";
+import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
 import { sessionManager } from "../services/sessionManager";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { ManagedSession } from "../services/sessionManager";
@@ -74,7 +74,6 @@ export function usePty({
     let onResizeDisposable: { dispose(): void } | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-    let autoResumeInterval: ReturnType<typeof setInterval> | null = null;
 
     // Reset channelAlive immediately so the disconnect banner disappears
     // while we spin up the new session. Only claude tabs should update the
@@ -173,39 +172,10 @@ export function usePty({
         }, 100);
       }
 
-      // Auto-resume Claude conversations that have prior scrollback
-      if (
-        mode === "claude" &&
-        !startupCommandRef.current &&
-        session.sessionId &&
-        session.restoredFromScrollback
-      ) {
-        const appConfig = await getAppConfig();
-        if (appConfig.autoResume !== false) {
-          let resumeAttempts = 0;
-          autoResumeInterval = setInterval(() => {
-            resumeAttempts++;
-            const s = sessionRef.current;
-            if (s && s.lastOutputAt > 0) {
-              clearInterval(autoResumeInterval!);
-              autoResumeInterval = null;
-              // Send /resume then Enter (\r) after a brief delay so
-              // Claude Code's TUI has time to register the slash command
-              const textBytes = Array.from(new TextEncoder().encode("/resume"));
-              writePty(s.sessionId, textBytes).catch(console.error);
-              setTimeout(() => {
-                const enterBytes = Array.from(new TextEncoder().encode("\r"));
-                writePty(s.sessionId, enterBytes).catch(console.error);
-              }, 200);
-              // Clear the flag so subsequent reconnects don't re-resume
-              session.restoredFromScrollback = false;
-            } else if (resumeAttempts >= 50) {
-              clearInterval(autoResumeInterval!);
-              autoResumeInterval = null;
-            }
-          }, 100);
-        }
-      }
+      // TODO: Auto-resume Claude conversations — disabled until we can track
+      // Claude Code conversation IDs. Currently /resume picks the most recent
+      // conversation in the directory, which may not match the scrollback.
+      // See roadmap: "auto-resume with conversation ID tracking"
     }
 
     attach().catch((err) => {
@@ -273,8 +243,6 @@ export function usePty({
     return () => {
       disposed = true;
       clearInterval(stateInterval);
-      if (autoResumeInterval) clearInterval(autoResumeInterval);
-
       onDataDisposable?.dispose();
       onResizeDisposable?.dispose();
       resizeObserver?.disconnect();
