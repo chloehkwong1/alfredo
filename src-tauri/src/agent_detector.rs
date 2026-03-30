@@ -13,6 +13,7 @@ const ECHO_SUPPRESS_MS: u128 = 100;
 /// chunks too small to match `is_status_bar()`.
 const IDLE_COOLDOWN_MS: u128 = 500;
 
+
 /// Detects which AI coding agent is running in a PTY and tracks its state
 /// by pattern-matching on terminal output.
 pub struct AgentDetector {
@@ -24,6 +25,9 @@ pub struct AgentDetector {
     last_input: Option<Instant>,
     /// Timestamp of last transition to Idle (for cooldown before allowing Busy).
     last_idle: Option<Instant>,
+    /// True while in WaitingForInput and no user input has been received yet.
+    /// Blocks Busy transitions until the user actually responds.
+    waiting_for_input: bool,
     /// Accumulates partial lines for pattern matching.
     line_buf: String,
 }
@@ -51,6 +55,7 @@ impl AgentDetector {
             last_resize: None,
             last_input: None,
             last_idle,
+            waiting_for_input: false,
             line_buf: String::new(),
         }
     }
@@ -68,6 +73,8 @@ impl AgentDetector {
         if self.last_input.is_none_or(|prev| ts > prev) {
             self.last_input = Some(ts);
         }
+        // User responded — allow Busy transitions again.
+        self.waiting_for_input = false;
     }
 
     /// Feed raw PTY output bytes into the detector. Returns `Some(...)` only
@@ -112,7 +119,16 @@ impl AgentDetector {
                 new_type = t;
             }
             if let Some(s) = s {
-                new_state = s;
+                // Don't let Busy override WaitingForInput — option lines
+                // following a prompt (e.g. "› 1. Yes", "2. No") would
+                // otherwise clobber the prompt detection. The flag is
+                // cleared by notify_input_at() when the user responds.
+                if s == AgentState::WaitingForInput {
+                    self.waiting_for_input = true;
+                }
+                if !(self.waiting_for_input && s == AgentState::Busy) {
+                    new_state = s;
+                }
             }
         }
 
@@ -123,7 +139,9 @@ impl AgentDetector {
                 new_type = t;
             }
             if let Some(s) = s {
-                new_state = s;
+                if !(new_state == AgentState::WaitingForInput && s == AgentState::Busy) {
+                    new_state = s;
+                }
             }
         }
 
@@ -151,11 +169,22 @@ impl AgentDetector {
             }
         }
 
+        // Suppress WaitingForInput→Busy transitions until user input is
+        // received. Prompt option lines and terminal redraws would otherwise
+        // clobber the state. The flag is cleared in notify_input_at().
+        if self.waiting_for_input && new_state == AgentState::Busy {
+            return None;
+        }
+
         // Only emit when something changed
         if new_type != self.agent_type || new_state != self.state {
             // Record when we transition to Idle for cooldown tracking
             if new_state == AgentState::Idle {
                 self.last_idle = Some(Instant::now());
+            }
+            // Lock out Busy transitions until user responds
+            if new_state == AgentState::WaitingForInput {
+                self.waiting_for_input = true;
             }
             self.agent_type = new_type.clone();
             self.state = new_state.clone();
@@ -643,6 +672,50 @@ mod tests {
         let result = det.feed(b") | Opus 4.6 (1M context)\n");
         assert_eq!(result, None);
         assert_eq!(det.state(), &AgentState::Idle);
+    }
+
+    #[test]
+    fn waiting_for_input_not_clobbered_by_option_lines() {
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        // Expire idle cooldown so state transitions work
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(1));
+        // Prompt with options arrives in one batch
+        let result = det.feed(b"Do you want to proceed?\n\xe2\x80\xba 1. Yes\n  2. No\n");
+        assert_eq!(
+            result,
+            Some((AgentType::ClaudeCode, AgentState::WaitingForInput))
+        );
+    }
+
+    #[test]
+    fn waiting_for_input_sticky_across_batches() {
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(1));
+        // First batch: prompt detected
+        det.feed(b"Do you want to proceed?\n");
+        assert_eq!(det.state(), &AgentState::WaitingForInput);
+        // Second batch: option lines should NOT flip to Busy
+        let result = det.feed(b"\xe2\x80\xba 1. Yes\n  2. No\n");
+        assert_eq!(result, None);
+        assert_eq!(det.state(), &AgentState::WaitingForInput);
+    }
+
+    #[test]
+    fn waiting_for_input_clears_on_user_input() {
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(1));
+        det.feed(b"Do you want to proceed?\n");
+        assert_eq!(det.state(), &AgentState::WaitingForInput);
+        // User responds — clears the sticky flag
+        det.notify_input_at(Instant::now());
+        // Now agent output should transition to Busy
+        // (wait for echo suppression to expire)
+        det.last_input = Some(Instant::now() - std::time::Duration::from_secs(1));
+        let result = det.feed(b"Processing your request...\n");
+        assert_eq!(
+            result,
+            Some((AgentType::ClaudeCode, AgentState::Busy))
+        );
     }
 
     #[test]
