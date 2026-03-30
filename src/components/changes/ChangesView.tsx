@@ -283,6 +283,21 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     return () => window.removeEventListener("alfredo:changes-panel-select-file", handlePanelSelectFile);
   }, [handleSelectFile]);
 
+  // Listen for jump-to-comment from the persistent ChangesPanel
+  useEffect(() => {
+    function handlePanelJumpToComment(e: Event) {
+      const { path, line } = (e as CustomEvent).detail ?? {};
+      if (typeof path === "string" && typeof line === "number") {
+        handleSelectFile(path);
+        setTimeout(() => {
+          setActiveAnnotationLine({ filePath: path, lineNumber: line });
+        }, 150);
+      }
+    }
+    window.addEventListener("alfredo:changes-panel-jump-to-comment", handlePanelJumpToComment);
+    return () => window.removeEventListener("alfredo:changes-panel-jump-to-comment", handlePanelJumpToComment);
+  }, [handleSelectFile]);
+
   const handleJumpToComment = useCallback(
     (filePath: string, line: number) => {
       handleSelectFile(filePath);

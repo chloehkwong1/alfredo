@@ -5,7 +5,7 @@ import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { RemoteControlBar } from "./RemoteControlBar";
 import { LayoutRenderer } from "./LayoutRenderer";
-import { ChangesPanel, ChangesPanelMinimized } from "../changes/ChangesPanel";
+import { WorkspacePanel, WorkspacePanelMinimized } from "../changes/ChangesPanel";
 import { RepoWelcomeScreen } from "../onboarding/RepoWelcomeScreen";
 import { AddRepoModal } from "../onboarding/AddRepoModal";
 import { RepoSetupDialog } from "../onboarding/RepoSetupDialog";
@@ -232,6 +232,20 @@ function AppShell() {
   const changesPanelCollapsed = useWorkspaceStore((s) => s.changesPanelCollapsed[activeWorktreeId ?? ""] ?? false);
   const setChangesPanelCollapsed = useWorkspaceStore((s) => s.setChangesPanelCollapsed);
 
+  // Cmd+I (Mac) / Ctrl+I (Windows/Linux) to toggle changes panel
+  useEffect(() => {
+    function handleTogglePanel(e: KeyboardEvent) {
+      if (!activeWorktreeId) return;
+      if (e.key === "i" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        const current = useWorkspaceStore.getState().changesPanelCollapsed[activeWorktreeId] ?? false;
+        setChangesPanelCollapsed(activeWorktreeId, !current);
+      }
+    }
+    window.addEventListener("keydown", handleTogglePanel);
+    return () => window.removeEventListener("keydown", handleTogglePanel);
+  }, [activeWorktreeId, setChangesPanelCollapsed]);
+
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)
     : 0;
@@ -337,9 +351,10 @@ function AppShell() {
                   <>
                     <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
                     <Panel defaultSize="220px" minSize="140px" maxSize="400px">
-                      <ChangesPanel
+                      <WorkspacePanel
+                        key={activeWorktreeId}
                         worktreeId={activeWorktreeId}
-                        repoPath={repoPath ?? "."}
+                        repoPath={worktree?.path ?? "."}
                         onCollapse={() => setChangesPanelCollapsed(activeWorktreeId, true)}
                       />
                     </Panel>
@@ -347,9 +362,9 @@ function AppShell() {
                 )}
               </Group>
               {changesPanelCollapsed && (
-                <ChangesPanelMinimized
+                <WorkspacePanelMinimized
                   worktreeId={activeWorktreeId}
-                  repoPath={repoPath ?? "."}
+                  repoPath={worktree?.path ?? "."}
                   onExpand={() => setChangesPanelCollapsed(activeWorktreeId, false)}
                 />
               )}

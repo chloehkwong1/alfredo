@@ -3,45 +3,27 @@ import {
   CircleCheck,
   Eye,
   MessageCircle,
-  ChevronLeft,
-  ChevronRight,
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
 import { usePrStore } from "../../stores/prStore";
-import type { CheckRun, PrPanelState, PrStatus } from "../../types";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import type { CheckRun, PrStatus } from "../../types";
 import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
 import { rerunFailedChecks, fixFailingChecks, fixMergeConflicts } from "../../services/prActions";
 import { useTabStore } from "../../stores/tabStore";
 
-interface PrPanelProps {
-  worktreeId: string;
-  repoPath: string;
-  pr: PrStatus;
-  panelState: PrPanelState;
-  onTogglePanel: () => void;
-  onJumpToComment: (filePath: string, line: number) => void;
-}
+// ── Shared badge-count helpers ─────────────────────────────────────
 
-export function PrPanel({
-  worktreeId,
-  repoPath,
-  pr,
-  panelState,
-  onTogglePanel,
-  onJumpToComment,
-}: PrPanelProps) {
+function usePrBadgeCounts(worktreeId: string) {
   const checkRuns = usePrStore((s) => s.checkRuns[worktreeId]) ?? [];
   const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
-
-  const [descExpanded, setDescExpanded] = useState(false);
 
   const reviews = prDetail?.reviews ?? [];
   const comments = prDetail?.comments ?? [];
   const mergeable = prDetail?.mergeable ?? null;
   const reviewDecision = prDetail?.reviewDecision ?? null;
 
-  // Derived counts for badges
   const failingChecks = checkRuns.filter(
     (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
   ).length;
@@ -49,63 +31,30 @@ export function PrPanel({
   const unresolvedComments = comments.filter((c) => !c.resolved).length;
   const approvals = reviews.filter((r) => r.state === "APPROVED").length;
 
-  // ── Collapsed rail ─────────────────────────────────────────────
-  if (panelState === "collapsed") {
-    return (
-      <div
-        className="w-9 shrink-0 flex flex-col items-center pt-2 pb-2 gap-4 bg-bg-primary border-l border-border-default cursor-pointer"
-        onClick={onTogglePanel}
-        title="Expand PR panel"
-      >
-        {/* Expand arrow */}
-        <div className="text-text-tertiary mb-1">
-          <ChevronLeft size={16} />
-        </div>
+  return { checkRuns, prDetail, reviews, comments, mergeable, reviewDecision, failingChecks, pendingChecks, unresolvedComments, approvals };
+}
 
-        {/* Checks icon + badge */}
-        <RailIcon
-          icon={<CircleCheck size={16} />}
-          count={failingChecks > 0 ? failingChecks : pendingChecks > 0 ? pendingChecks : checkRuns.length}
-          badgeVariant={failingChecks > 0 ? "error" : pendingChecks > 0 ? "pending" : "ok"}
-          title="Check runs"
-        />
+// ── PrPanelContent ─────────────────────────────────────────────────
+// Renders ONLY the scrollable content + merge banner (no header, no rail, no expand/collapse).
 
-        {/* Reviews icon + badge */}
-        <RailIcon
-          icon={<Eye size={16} />}
-          count={approvals}
-          badgeVariant={reviewDecision === "APPROVED" ? "ok" : reviewDecision === "CHANGES_REQUESTED" ? "error" : "neutral"}
-          title="Reviews"
-        />
+interface PrPanelContentProps {
+  worktreeId: string;
+  repoPath: string;
+  onJumpToComment: (filePath: string, line: number) => void;
+}
 
-        {/* Comments icon + badge */}
-        <RailIcon
-          icon={<MessageCircle size={16} />}
-          count={unresolvedComments}
-          badgeVariant="info"
-          title="Comments"
-        />
-      </div>
-    );
-  }
+export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPanelContentProps) {
+  const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
+  const pr = worktree?.prStatus ?? null;
 
-  // ── Expanded panel ─────────────────────────────────────────────
+  const { checkRuns, reviews, comments, mergeable, reviewDecision, unresolvedComments } = usePrBadgeCounts(worktreeId);
+
+  const [descExpanded, setDescExpanded] = useState(false);
+
+  if (!pr) return null;
+
   return (
-    <div className="w-full h-full flex flex-col bg-bg-primary border-l border-border-default overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-border-default shrink-0">
-        <span className="text-[13px] font-semibold text-text-primary flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-          PR #{pr.number}
-        </span>
-        <button
-          onClick={onTogglePanel}
-          className="bg-transparent border-none cursor-pointer text-text-tertiary p-0 leading-none"
-          title="Collapse panel"
-        >
-          <ChevronRight size={15} />
-        </button>
-      </div>
-
+    <div className="flex-1 flex flex-col overflow-hidden">
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto py-2 flex flex-col">
         {/* Description */}
@@ -169,6 +118,45 @@ export function PrPanel({
         repoPath={repoPath}
       />
     </div>
+  );
+}
+
+// ── PrRailIcons ────────────────────────────────────────────────────
+// Renders the three rail icons (checks, reviews, comments) with badges.
+
+interface PrRailIconsProps {
+  worktreeId: string;
+}
+
+export function PrRailIcons({ worktreeId }: PrRailIconsProps) {
+  const { checkRuns, reviewDecision, failingChecks, pendingChecks, unresolvedComments, approvals } = usePrBadgeCounts(worktreeId);
+
+  return (
+    <>
+      {/* Checks icon + badge */}
+      <RailIcon
+        icon={<CircleCheck size={16} />}
+        count={failingChecks > 0 ? failingChecks : pendingChecks > 0 ? pendingChecks : checkRuns.length}
+        badgeVariant={failingChecks > 0 ? "error" : pendingChecks > 0 ? "pending" : "ok"}
+        title="Check runs"
+      />
+
+      {/* Reviews icon + badge */}
+      <RailIcon
+        icon={<Eye size={16} />}
+        count={approvals}
+        badgeVariant={reviewDecision === "APPROVED" ? "ok" : reviewDecision === "CHANGES_REQUESTED" ? "error" : "neutral"}
+        title="Reviews"
+      />
+
+      {/* Comments icon + badge */}
+      <RailIcon
+        icon={<MessageCircle size={16} />}
+        count={unresolvedComments}
+        badgeVariant="info"
+        title="Comments"
+      />
+    </>
   );
 }
 
