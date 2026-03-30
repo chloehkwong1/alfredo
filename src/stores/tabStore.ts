@@ -96,7 +96,9 @@ export const useTabStore = create<TabState>((set, get) => ({
           ? count > 0 ? `Claude ${count + 1}` : "Claude"
           : type === "shell"
             ? count > 0 ? `Terminal ${count + 1}` : "Terminal"
-            : "Changes";
+            : type === "server"
+              ? "Server"
+              : "Changes";
       const tab: WorkspaceTab = {
         id: `${worktreeId}:${type}:${crypto.randomUUID().slice(0, 8)}`,
         type,
