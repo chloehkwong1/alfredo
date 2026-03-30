@@ -33,11 +33,14 @@ export function useKeyboardShortcuts(
         return;
       }
 
+      // Allow meta-key shortcuts (Cmd+T, Cmd+W, etc.) through even when
+      // focus is in a terminal (xterm uses a hidden textarea for input)
       const tag = (document.activeElement as HTMLElement)?.tagName;
       if (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        (document.activeElement as HTMLElement)?.isContentEditable
+        !event.metaKey &&
+        (tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          (document.activeElement as HTMLElement)?.isContentEditable)
       )
         return;
 
