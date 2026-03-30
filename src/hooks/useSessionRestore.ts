@@ -5,6 +5,7 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
+import { usePrStore } from "../stores/prStore";
 
 /**
  * Loads worktrees for all selected repos, restores persisted sessions
@@ -72,6 +73,31 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                       sessionManager.loadScrollbackOnly(tabId, termData.scrollback);
                     }
                   }
+                }
+
+                // Restore per-worktree UI state
+                if (session.diffViewMode) {
+                  useWorkspaceStore.getState().setDiffViewMode(wt.id, session.diffViewMode);
+                }
+                if (session.changesViewMode) {
+                  useWorkspaceStore.getState().setChangesViewMode(wt.id, session.changesViewMode);
+                }
+                if (session.seenWorktree) {
+                  markWorktreeSeen(wt.id);
+                }
+
+                // Restore column override
+                if (session.columnOverride) {
+                  usePrStore.getState().setManualColumn(
+                    wt.id,
+                    session.columnOverride.column,
+                    session.columnOverride.githubStateWhenSet,
+                  );
+                }
+
+                // Restore PR panel state
+                if (session.prPanelState) {
+                  usePrStore.getState().setPrPanelState(wt.id, session.prPanelState);
                 }
 
                 const sessionLayout = session.layout;
