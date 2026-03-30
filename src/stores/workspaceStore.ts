@@ -15,6 +15,8 @@ interface WorkspaceState {
   annotations: Record<string, Annotation[]>;
   /** Diff view mode per worktree. Keyed by worktreeId. */
   diffViewMode: Record<string, DiffViewMode>;
+  /** Changes tab view mode per worktree. Keyed by worktreeId. */
+  changesViewMode: Record<string, "changes" | "commits">;
   /** Whether the sidebar is collapsed. */
   sidebarCollapsed: boolean;
   /** Number of days after merging before a worktree is auto-archived. */
@@ -36,6 +38,7 @@ interface WorkspaceState {
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
   clearAnnotations: (worktreeId: string) => void;
   setDiffViewMode: (worktreeId: string, mode: DiffViewMode) => void;
+  setChangesViewMode: (worktreeId: string, mode: "changes" | "commits") => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setWorktreesForRepo: (repoPath: string, worktrees: Worktree[]) => void;
@@ -103,6 +106,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   seenWorktrees: new Set<string>(),
   annotations: {},
   diffViewMode: {},
+  changesViewMode: {},
   sidebarCollapsed: false,
   archiveAfterDays: 2,
   runningServer: null,
@@ -166,7 +170,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       ),
     })),
 
-  setActiveWorktree: (id) => set({ activeWorktreeId: id }),
+  setActiveWorktree: (id) => {
+    const prev = useWorkspaceStore.getState().activeWorktreeId;
+    if (prev !== id) {
+      const clickedSidebar = !!(document.activeElement as HTMLElement)?.closest?.("[data-sidebar]");
+      if (!clickedSidebar) {
+        const stack = new Error().stack ?? "(no stack)";
+        // eslint-disable-next-line no-alert
+        alert(`activeWorktreeId changed WITHOUT sidebar click!\n\nFrom: ${prev}\nTo: ${id}\n\nStack:\n${stack.split("\n").slice(1, 6).join("\n")}`);
+      }
+    }
+    set({ activeWorktreeId: id });
+  },
 
   setWorktrees: (freshWorktrees) =>
     set((state) => ({
@@ -220,6 +235,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       diffViewMode: { ...state.diffViewMode, [worktreeId]: mode },
     })),
 
+  setChangesViewMode: (worktreeId, mode) =>
+    set((state) => ({
+      changesViewMode: { ...state.changesViewMode, [worktreeId]: mode },
+    })),
+
   toggleSidebar: () =>
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
@@ -245,6 +265,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       seenWorktrees: new Set<string>(),
       annotations: {},
       diffViewMode: {},
+      changesViewMode: {},
       sidebarCollapsed: false,
       archiveAfterDays: 2,
       runningServer: null,
