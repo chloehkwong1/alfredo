@@ -118,7 +118,7 @@ function SortableTab({
             setActivePaneId(worktreeId, paneId);
           }}
           className={[
-            "group h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
+            "group h-full px-4 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
             isActive
               ? "text-text-primary"
               : "text-text-tertiary hover:text-text-secondary",
@@ -253,7 +253,7 @@ function PaneTabBar({
   return (
     <div
       className={[
-        "flex items-center w-full h-10 bg-bg-bar border-b flex-shrink-0",
+        "flex items-center w-full h-11 bg-bg-bar border-b flex-shrink-0",
         isActivePane ? "border-accent-primary/30" : "border-border-subtle",
       ].join(" ")}
       onClick={() => setActivePaneId(worktreeId, paneId)}
@@ -300,7 +300,7 @@ function PaneTabBar({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="h-10 px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
+            className="h-11 px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
           >
             <Plus size={16} />
           </button>
@@ -322,7 +322,7 @@ function PaneTabBar({
             onClick={onToggleServer}
             title={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
             className={[
-              "h-10 px-2 transition-colors cursor-pointer flex items-center",
+              "h-11 px-2 transition-colors cursor-pointer flex items-center",
               isServerRunning
                 ? "text-green-400 hover:text-red-400"
                 : "text-text-tertiary hover:text-text-secondary",
@@ -335,7 +335,7 @@ function PaneTabBar({
               type="button"
               onClick={() => openUrl(runScriptUrl ?? "http://localhost:3000")}
               title={`Open ${runScriptUrl ?? "http://localhost:3000"}`}
-              className="h-10 px-2 transition-colors cursor-pointer flex items-center text-green-400 hover:text-text-primary"
+              className="h-11 px-2 transition-colors cursor-pointer flex items-center text-green-400 hover:text-text-primary"
             >
               <ExternalLink size={14} />
             </button>
@@ -356,7 +356,7 @@ function PaneTabBar({
               setActivePaneId(worktreeId, paneId);
             }}
             className={[
-              "ml-auto h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
+              "ml-auto h-full px-4 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
               isActive
                 ? "bg-gradient-to-t from-accent-primary/6 to-transparent border-b-2 border-accent-primary text-text-primary"
                 : "text-text-tertiary border-b-2 border-transparent hover:text-text-secondary",
