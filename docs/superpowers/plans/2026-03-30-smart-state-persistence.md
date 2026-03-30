@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Persist UI state (diff view mode, kanban column collapses, column overrides, sidebar state, changes view mode, seen worktrees) across app restarts, and auto-resume Claude conversations on tab focus.
+**Goal:** Persist UI state (diff view mode, kanban column collapses, column overrides, sidebar state, changes view mode, seen worktrees) across app restarts, fix terminal scrollback restoration, and auto-resume Claude conversations on tab focus.
 
 **Architecture:** Extend existing `SessionData` interface for per-worktree state and `GlobalAppConfig` for global preferences. No new persistence infrastructure — piggyback on the 30-second auto-save and on-quit save already in place. Auto-resume sends `/resume\n` to newly-spawned Claude PTYs after detecting shell readiness.
 
@@ -17,7 +17,8 @@
 | File | Responsibility |
 |------|---------------|
 | `src/services/SessionPersistence.ts` | Add new fields to `SessionData`, add getter params to `saveAllSessions` |
-| `src/hooks/useSessionRestore.ts` | Restore new per-worktree fields on load |
+| `src/services/sessionManager.ts` | Add `restoredFromScrollback` flag for auto-resume |
+| `src/hooks/useSessionRestore.ts` | Restore scrollback + new per-worktree fields on load |
 | `src/components/layout/AppShell.tsx` | Pass new getter functions to `collectAndSaveAllSessions` |
 | `src/stores/workspaceStore.ts` | Add `changesViewMode` per-worktree state |
 | `src/stores/prStore.ts` | Restructure `columnOverrides` to include `githubStateWhenSet` |
@@ -435,7 +436,86 @@ git commit -m "feat(persistence): pass new state getters to session save"
 
 ---
 
-### Task 6: Restore new per-worktree fields on session load
+### Task 6: Fix terminal scrollback restoration on app restart
+
+**Files:**
+- Modify: `src/hooks/useSessionRestore.ts:57-88` (session restore loop)
+- Modify: `src/services/sessionManager.ts` (loadScrollbackOnly)
+
+The scrollback is saved to session files correctly but never passed back to the session manager on restore. The `session.terminals` data is loaded then discarded. The `sessionManager.loadScrollbackOnly()` method exists for exactly this purpose but is never called.
+
+- [ ] **Step 1: Call loadScrollbackOnly during session restore**
+
+In `src/hooks/useSessionRestore.ts`, after `restoreTabs()` is called, iterate over the session's terminal scrollback data and pre-load it into the session manager. This creates terminal instances with visible scrollback but no PTY — the PTY spawns lazily when the user clicks the tab.
+
+After the `restoreTabs(wt.id, session.tabs, session.activeTabId)` line, add:
+
+```typescript
+              restoreTabs(wt.id, session.tabs, session.activeTabId);
+
+              // Pre-load terminal scrollback so it's visible before PTY spawns
+              if (session.terminals) {
+                for (const [tabId, termData] of Object.entries(session.terminals)) {
+                  if (termData.scrollback) {
+                    sessionManager.loadScrollbackOnly(tabId, termData.scrollback);
+                  }
+                }
+              }
+```
+
+Add the `sessionManager` import at the top:
+
+```typescript
+import { sessionManager } from "../services/sessionManager";
+```
+
+- [ ] **Step 2: Ensure getOrSpawn reuses pre-loaded sessions**
+
+This already works — `getOrSpawn` checks `this.sessions.get(sessionKey)` first and returns the existing session if found. When `loadScrollbackOnly` pre-loads a session, `getOrSpawn` will find it and call `spawnForExisting` to attach a PTY to the terminal that already has scrollback visible.
+
+Verify that `getOrSpawn` handles the case where `sessionId` is empty (no PTY yet). Looking at the code, the zombie detection checks `!existing.sessionId && existing.lastHeartbeat > 0`. Since `loadScrollbackOnly` sets `lastHeartbeat: 0`, it won't be treated as a zombie — it will be returned as-is.
+
+**Wait** — this means `getOrSpawn` will return the scrollback-only session without spawning a PTY. The session has no `sessionId`, so `usePty` won't wire up input/resize forwarding (the `if (session.sessionId)` guard at line 115). We need `getOrSpawn` to detect a scrollback-only session and spawn a PTY for it.
+
+Add this check after the existing session lookup in `getOrSpawn`:
+
+In `src/services/sessionManager.ts`, in the `getOrSpawn` method, after `if (!isZombie) return existing;`:
+
+```typescript
+    const existing = this.sessions.get(sessionKey);
+    if (existing) {
+      // Scrollback-only session (no PTY yet) — spawn a PTY for it
+      if (!existing.sessionId && existing.lastHeartbeat === 0) {
+        return this.spawnForExisting(sessionKey, worktreeId, worktreePath, mode, args);
+      }
+      // Zombie detection: session exists but PTY never spawned or died
+      const isZombie = !existing.sessionId && existing.lastHeartbeat > 0 &&
+        Date.now() - existing.lastHeartbeat > 10_000;
+      if (!isZombie) return existing;
+```
+
+- [ ] **Step 3: Verify TypeScript compiles**
+
+Run: `npx tsc --noEmit`
+Expected: Clean compile.
+
+- [ ] **Step 4: Test manually**
+
+1. Open app, use a terminal tab (run some commands so there's scrollback)
+2. Quit app
+3. Reopen app, click on the terminal tab
+4. Verify: previous scrollback is visible above, fresh shell prompt appears below
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/hooks/useSessionRestore.ts src/services/sessionManager.ts
+git commit -m "fix(persistence): restore terminal scrollback on app restart"
+```
+
+---
+
+### Task 7: Restore new per-worktree fields on session load (extends Task 6)
 
 **Files:**
 - Modify: `src/hooks/useSessionRestore.ts:60-88` (session restore loop)
@@ -495,7 +575,7 @@ git commit -m "feat(persistence): restore per-worktree UI state from session fil
 
 ---
 
-### Task 7: Add updateConfig helper to useAppConfig
+### Task 8: Add updateConfig helper to useAppConfig
 
 **Files:**
 - Modify: `src/hooks/useAppConfig.ts:89-96` (add new helper)
@@ -548,7 +628,7 @@ git commit -m "feat(persistence): add generic updateConfig helper to useAppConfi
 
 ---
 
-### Task 8: Persist kanban column collapse state
+### Task 9: Persist kanban column collapse state
 
 **Files:**
 - Modify: `src/components/sidebar/StatusGroup.tsx:1,48-63` (replace useState with config)
@@ -648,7 +728,7 @@ git commit -m "feat(persistence): persist kanban column collapse state in app co
 
 ---
 
-### Task 9: Persist sidebar collapsed state
+### Task 10: Persist sidebar collapsed state
 
 **Files:**
 - Modify: `src/components/layout/AppShell.tsx` or wherever sidebar toggle is handled
@@ -713,7 +793,7 @@ git commit -m "feat(persistence): persist sidebar collapsed state in app config"
 
 ---
 
-### Task 10: Auto-resume Claude conversations on tab focus
+### Task 11: Auto-resume Claude conversations on tab focus
 
 **Files:**
 - Modify: `src/hooks/usePty.ts:150-167` (startupCommand / post-spawn logic)
@@ -803,7 +883,7 @@ git commit -m "feat(persistence): auto-resume Claude conversations on tab focus"
 
 ---
 
-### Task 11: Add autoResume toggle to settings
+### Task 12: Add autoResume toggle to settings
 
 **Files:**
 - Modify: the settings component (find the existing settings panel that shows editor/terminal preferences)
@@ -880,7 +960,7 @@ git commit -m "feat(persistence): add auto-resume and default diff view settings
 
 ---
 
-### Task 12: Final integration verification
+### Task 13: Final integration verification
 
 - [ ] **Step 1: Full TypeScript check**
 
@@ -902,12 +982,14 @@ Expected: Clean, no warnings.
 6. Drag a worktree to a different kanban column
 7. Quit and reopen the app
 8. Verify all state is restored:
+   - Terminal scrollback visible (previous commands/output) ✓
    - Diff view modes per worktree ✓
    - Kanban column collapse ✓
    - Sidebar collapsed ✓
    - Changes view mode ✓
    - Column override ✓
 9. Click a Claude tab with prior history → verify `/resume` auto-sends
+10. Click a shell tab → verify scrollback is visible above the fresh prompt
 
 - [ ] **Step 4: Commit any final fixes**
 
