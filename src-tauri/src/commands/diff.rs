@@ -276,9 +276,13 @@ pub async fn get_diff(
 /// `diff_index_to_workdir` on linked worktrees (reports all tracked files
 /// as deleted). The CLI output is parsed back via `git2::Diff::from_buffer`
 /// so the existing `diff_to_files` converter can be reused.
+///
+/// Also includes untracked files (new files not yet staged) by running
+/// `git ls-files --others --exclude-standard` and reading their contents.
 #[tauri::command]
 pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
     tokio::task::spawn_blocking(move || {
+        // 1. Get tracked file changes via git diff HEAD
         let output = std::process::Command::new("git")
             .args(["diff", "HEAD", "--no-ext-diff", "-p", "--no-color"])
             .current_dir(&repo_path)
@@ -290,15 +294,60 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
             return Err(AppError::Git(format!("git diff HEAD failed: {err}")));
         }
 
-        // Empty diff = no uncommitted changes
-        if output.stdout.is_empty() {
-            return Ok(Vec::new());
+        let mut files = if output.stdout.is_empty() {
+            Vec::new()
+        } else {
+            let diff = git2::Diff::from_buffer(&output.stdout)
+                .map_err(|e| AppError::Git(format!("failed to parse diff buffer: {e}")))?;
+            diff_to_files(&diff)?
+        };
+
+        // 2. Get untracked files (new files not yet git-added)
+        let untracked_output = std::process::Command::new("git")
+            .args(["ls-files", "--others", "--exclude-standard"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| AppError::Git(format!("failed to run git ls-files: {e}")))?;
+
+        if untracked_output.status.success() {
+            let listing = String::from_utf8_lossy(&untracked_output.stdout);
+            for rel_path in listing.lines().filter(|l| !l.is_empty()) {
+                let abs_path = std::path::Path::new(&repo_path).join(rel_path);
+                let content = match std::fs::read_to_string(&abs_path) {
+                    Ok(c) => c,
+                    Err(_) => continue, // skip binary / unreadable files
+                };
+
+                let line_count = content.lines().count();
+                let lines: Vec<DiffLine> = content
+                    .lines()
+                    .enumerate()
+                    .map(|(i, line)| DiffLine {
+                        line_type: "addition".to_string(),
+                        content: line.to_string(),
+                        old_line_number: None,
+                        new_line_number: Some((i + 1) as u32),
+                    })
+                    .collect();
+
+                files.push(DiffFile {
+                    path: rel_path.to_string(),
+                    old_path: None,
+                    status: "added".to_string(),
+                    additions: line_count,
+                    deletions: 0,
+                    hunks: vec![DiffHunk {
+                        header: format!("@@ -0,0 +1,{line_count} @@"),
+                        old_start: 0,
+                        new_start: 1,
+                        lines,
+                    }],
+                    truncated: false,
+                });
+            }
         }
 
-        let diff = git2::Diff::from_buffer(&output.stdout)
-            .map_err(|e| AppError::Git(format!("failed to parse diff buffer: {e}")))?;
-
-        diff_to_files(&diff)
+        Ok(files)
     })
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
