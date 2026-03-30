@@ -82,6 +82,9 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 if (session.changesViewMode) {
                   useWorkspaceStore.getState().setChangesViewMode(wt.id, session.changesViewMode);
                 }
+                if (session.changesPanelCollapsed != null) {
+                  useWorkspaceStore.getState().setChangesPanelCollapsed(wt.id, session.changesPanelCollapsed);
+                }
                 if (session.seenWorktree) {
                   markWorktreeSeen(wt.id);
                 }

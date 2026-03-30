@@ -51,6 +51,7 @@ function collectAndSaveAllSessions(repoPath: string) {
     (wtId) => prState.columnOverrides[wtId] ?? null,
     (wtId) => prState.prPanelState[wtId],
     (wtId) => state.changesViewMode[wtId],
+    (wtId) => state.changesPanelCollapsed[wtId],
     (wtId) => state.seenWorktrees.has(wtId) || undefined,
   );
 }

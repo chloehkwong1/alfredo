@@ -22,6 +22,8 @@ export interface SessionData {
   prPanelState?: PrPanelState;
   /** Changes tab view mode (changes or commits). */
   changesViewMode?: "changes" | "commits";
+  /** Whether the changes panel is minimized. */
+  changesPanelCollapsed?: boolean;
   /** Whether the user has dismissed the idle indicator for this worktree. */
   seenWorktree?: boolean;
 }
@@ -68,6 +70,7 @@ export async function saveAllSessions(
   getColumnOverride?: (worktreeId: string) => { column: KanbanColumn; githubStateWhenSet: string } | null | undefined,
   getPrPanelState?: (worktreeId: string) => PrPanelState | undefined,
   getChangesViewMode?: (worktreeId: string) => "changes" | "commits" | undefined,
+  getChangesPanelCollapsed?: (worktreeId: string) => boolean | undefined,
   getSeenWorktree?: (worktreeId: string) => boolean | undefined,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
@@ -109,6 +112,7 @@ export async function saveAllSessions(
       columnOverride: getColumnOverride?.(wtId),
       prPanelState: getPrPanelState?.(wtId),
       changesViewMode: getChangesViewMode?.(wtId),
+      changesPanelCollapsed: getChangesPanelCollapsed?.(wtId),
       seenWorktree: getSeenWorktree?.(wtId),
     };
     return saveSession(repoPath, wtId, data);
