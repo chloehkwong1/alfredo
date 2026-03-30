@@ -150,12 +150,9 @@
 }
 
 /* ── Base resets ───────────────────────────────── */
-*,
-*::before,
-*::after {
-  margin: 0;
-  box-sizing: border-box;
-}
+/* NOTE: margin/box-sizing reset removed — Tailwind v4 Preflight handles this
+   in @layer base. Having it unlayered here was overriding ALL Tailwind margin
+   utilities (mb-4, mt-8, etc.), collapsing spacing across the entire app. */
 
 html,
 #root {
