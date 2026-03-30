@@ -108,9 +108,18 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
 
   restoreLayout: (worktreeId, layout, panes, activePaneId) => {
+    // Validate each pane's activeTabId exists in its tabIds
+    const validatedPanes = Object.fromEntries(
+      Object.entries(panes).map(([paneId, pane]) => [
+        paneId,
+        pane.tabIds.includes(pane.activeTabId)
+          ? pane
+          : { ...pane, activeTabId: pane.tabIds[0] ?? pane.activeTabId },
+      ]),
+    );
     set((s) => ({
       layout: { ...s.layout, [worktreeId]: layout },
-      panes: { ...s.panes, [worktreeId]: panes },
+      panes: { ...s.panes, [worktreeId]: validatedPanes },
       activePaneId: { ...s.activePaneId, [worktreeId]: activePaneId },
     }));
   },

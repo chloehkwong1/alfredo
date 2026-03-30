@@ -85,17 +85,23 @@ export async function saveAllSessions(
       }
     }
 
-    // Filter server tabs from pane state too
+    // Filter server tabs from pane state too, and validate activeTabId
     const rawPanes = getPanes?.(wtId);
     const panes = rawPanes
       ? Object.fromEntries(
-          Object.entries(rawPanes).map(([paneId, pane]) => [
-            paneId,
-            {
-              ...pane,
-              tabIds: pane.tabIds.filter((id) => tabs.some((t) => t.id === id)),
-            },
-          ]),
+          Object.entries(rawPanes).map(([paneId, pane]) => {
+            const filteredTabIds = pane.tabIds.filter((id) => tabs.some((t) => t.id === id));
+            return [
+              paneId,
+              {
+                ...pane,
+                tabIds: filteredTabIds,
+                activeTabId: filteredTabIds.includes(pane.activeTabId)
+                  ? pane.activeTabId
+                  : filteredTabIds[0] ?? pane.activeTabId,
+              },
+            ];
+          }),
         )
       : undefined;
 

@@ -356,6 +356,10 @@ export class SessionManager {
     if (!session) throw new Error(`No session found for key: ${sessionKey}`);
     if (session.sessionId) return session; // Already spawned
 
+    // Clear stale scrollback before spawning a fresh PTY so old session
+    // content doesn't persist above the new prompt.
+    session.terminal.clear();
+
     const channel = createPtyChannel((event) => {
       switch (event.event) {
         case "output": {
