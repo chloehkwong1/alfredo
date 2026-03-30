@@ -288,6 +288,18 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     }
   }, []);
 
+  // Listen for file selection from the persistent ChangesPanel
+  useEffect(() => {
+    function handlePanelSelectFile(e: Event) {
+      const path = (e as CustomEvent).detail?.path;
+      if (typeof path === "string") {
+        handleSelectFile(path);
+      }
+    }
+    window.addEventListener("alfredo:changes-panel-select-file", handlePanelSelectFile);
+    return () => window.removeEventListener("alfredo:changes-panel-select-file", handlePanelSelectFile);
+  }, [handleSelectFile]);
+
   const handleJumpToComment = useCallback(
     (filePath: string, line: number) => {
       handleSelectFile(filePath);
