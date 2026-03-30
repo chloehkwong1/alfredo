@@ -52,7 +52,8 @@ function SidebarDragContext({ children }: SidebarDragContextProps) {
       const worktree = worktrees.find((wt) => wt.id === worktreeId);
       if (!worktree || worktree.column === targetColumn) return;
 
-      usePrStore.getState().setManualColumn(worktreeId, targetColumn);
+      const stateKey = worktree.prStatus?.merged ? "merged" : worktree.prStatus?.draft ? "draft" : "open";
+      usePrStore.getState().setManualColumn(worktreeId, targetColumn, stateKey);
       setManualColumn(worktreeId, targetColumn);
 
       // Persist column override via Tauri command (fire-and-forget)

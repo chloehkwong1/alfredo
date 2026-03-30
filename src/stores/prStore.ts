@@ -21,7 +21,7 @@ interface PrState {
   reviewedFiles: Record<string, Set<string>>;
   jumpToComment: Record<string, ((path: string, line: number) => void) | null>;
   lastPrState: Record<string, string>;
-  columnOverrides: Record<string, KanbanColumn>;
+  columnOverrides: Record<string, { column: KanbanColumn; githubStateWhenSet: string }>;
 
   setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
   setPrDetail: (worktreeId: string, detail: PrDetailedStatus) => void;
@@ -30,7 +30,7 @@ interface PrState {
   clearReviewedFiles: (worktreeId: string) => void;
   setJumpToComment: (worktreeId: string, fn: (path: string, line: number) => void) => void;
   clearJumpToComment: (worktreeId: string) => void;
-  setManualColumn: (id: string, column: KanbanColumn) => void;
+  setManualColumn: (id: string, column: KanbanColumn, githubStateWhenSet: string) => void;
   removeWorktreeState: (id: string) => void;
   clearStore: () => void;
 
@@ -110,9 +110,9 @@ export const usePrStore = create<PrState>((set, get) => ({
     })),
 
   /** Manual column override from drag-and-drop. Persisted until PR state changes. */
-  setManualColumn: (id, column) =>
+  setManualColumn: (id, column, githubStateWhenSet) =>
     set((state) => ({
-      columnOverrides: { ...state.columnOverrides, [id]: column },
+      columnOverrides: { ...state.columnOverrides, [id]: { column, githubStateWhenSet } },
     })),
 
   removeWorktreeState: (id) =>
@@ -161,10 +161,10 @@ export const usePrStore = create<PrState>((set, get) => ({
 
 
       const currentStateKey = prStateKey(pr);
-      const previousStateKey = state.lastPrState[wt.id];
 
-      // If PR state changed, clear any manual override
-      if (previousStateKey && previousStateKey !== currentStateKey) {
+      // If PR state changed since the override was set, clear it
+      const override = newOverrides[wt.id];
+      if (override && override.githubStateWhenSet !== currentStateKey) {
         delete newOverrides[wt.id];
       }
 
@@ -185,7 +185,7 @@ export const usePrStore = create<PrState>((set, get) => ({
       };
 
       // Use manual override if still active, otherwise auto-assign
-      const column = newOverrides[wt.id] ?? pr.autoColumn;
+      const column = newOverrides[wt.id]?.column ?? pr.autoColumn;
 
       // Use the PR's updatedAt as the activity timestamp when available
       const prUpdatedAtMs = pr.updatedAt ? new Date(pr.updatedAt).getTime() : undefined;
