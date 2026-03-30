@@ -410,14 +410,22 @@ export class SessionManager {
     const command = mode === "shell" ? "/bin/zsh" : "claude";
     const agentType = mode === "claude" ? "claudeCode" : undefined;
 
-    const sessionId = await spawnPty(
-      worktreeId,
-      worktreePath,
-      command,
-      args ?? [],
-      channel,
-      agentType,
-    );
+    let sessionId: string;
+    try {
+      sessionId = await spawnPty(
+        worktreeId,
+        worktreePath,
+        command,
+        args ?? [],
+        channel,
+        agentType,
+      );
+    } catch (e) {
+      // Spawn failed — remove session so it doesn't get stuck as scrollback-only
+      session.terminal.dispose();
+      this.sessions.delete(sessionKey);
+      throw e;
+    }
     session.sessionId = sessionId;
     session.agentState = mode === "shell" ? "notRunning" : "idle";
     session.lastHeartbeat = Date.now();

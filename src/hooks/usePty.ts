@@ -74,6 +74,7 @@ export function usePty({
     let onResizeDisposable: { dispose(): void } | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let autoResumeInterval: ReturnType<typeof setInterval> | null = null;
 
     // Reset channelAlive immediately so the disconnect banner disappears
     // while we spin up the new session. Only claude tabs should update the
@@ -182,17 +183,19 @@ export function usePty({
         const appConfig = await getAppConfig();
         if (appConfig.autoResume !== false) {
           let resumeAttempts = 0;
-          const waitForReady = setInterval(() => {
+          autoResumeInterval = setInterval(() => {
             resumeAttempts++;
             const s = sessionRef.current;
             if (s && s.lastOutputAt > 0) {
-              clearInterval(waitForReady);
+              clearInterval(autoResumeInterval!);
+              autoResumeInterval = null;
               const bytes = Array.from(new TextEncoder().encode("/resume\n"));
               writePty(s.sessionId, bytes).catch(console.error);
               // Clear the flag so subsequent reconnects don't re-resume
               session.restoredFromScrollback = false;
             } else if (resumeAttempts >= 50) {
-              clearInterval(waitForReady);
+              clearInterval(autoResumeInterval!);
+              autoResumeInterval = null;
             }
           }, 100);
         }
@@ -264,6 +267,7 @@ export function usePty({
     return () => {
       disposed = true;
       clearInterval(stateInterval);
+      if (autoResumeInterval) clearInterval(autoResumeInterval);
 
       onDataDisposable?.dispose();
       onResizeDisposable?.dispose();
