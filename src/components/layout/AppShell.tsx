@@ -82,6 +82,8 @@ function AppShell() {
     repoDisplayNames,
     toggleRepo,
     setRepoDisplayName,
+    config,
+    updateConfig,
   } = useAppConfig();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -94,6 +96,28 @@ function AppShell() {
   const [removeRepoPath, setRemoveRepoPath] = useState<string | null>(null);
 
   const hasWorktrees = worktrees.length > 0;
+
+  // Restore sidebar collapsed state from app config (one-time)
+  const sidebarRestored = useRef(false);
+  useEffect(() => {
+    if (!sidebarRestored.current && config?.sidebarCollapsed != null) {
+      sidebarRestored.current = true;
+      useWorkspaceStore.getState().setSidebarCollapsed(config.sidebarCollapsed);
+    }
+  }, [config]);
+
+  // Save sidebar collapsed state to config on toggle
+  useEffect(() => {
+    if (!sidebarRestored.current) return;
+    let prev = useWorkspaceStore.getState().sidebarCollapsed;
+    const unsub = useWorkspaceStore.subscribe((state) => {
+      if (state.sidebarCollapsed !== prev) {
+        prev = state.sidebarCollapsed;
+        updateConfig({ sidebarCollapsed: state.sidebarCollapsed });
+      }
+    });
+    return unsub;
+  }, [updateConfig]);
 
   // Extracted hooks
   useSessionRestore(repoPath, selectedRepos);
