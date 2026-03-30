@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AppConfig, GlobalAppConfig } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig } from "../../api";
 import { Button } from "../ui/Button";
-import { Dialog, DialogContent, DialogFooter } from "../ui/Dialog";
+import { Dialog, DialogContent } from "../ui/Dialog";
 import { AgentSettings } from "./AgentSettings";
 import { GithubSettings } from "./GithubSettings";
 import { NotificationSettings } from "./NotificationSettings";
@@ -37,7 +37,7 @@ const TERMINAL_OPTIONS = [
 ];
 
 const selectClass = [
-  "h-8 w-full px-3 text-sm font-normal",
+  "h-8 w-full px-3 text-[13px] font-normal",
   "bg-bg-primary text-text-primary",
   "border border-border-default rounded-[var(--radius-md)]",
   "hover:border-border-hover",
@@ -47,7 +47,7 @@ const selectClass = [
 ].join(" ");
 
 const inputClass = [
-  "h-8 w-full px-3 text-sm",
+  "h-8 w-full px-3 text-[13px]",
   "bg-bg-primary text-text-primary",
   "border border-border-default rounded-[var(--radius-md)]",
   "placeholder:text-text-tertiary",
@@ -191,11 +191,8 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[680px] p-0 overflow-hidden">
-        <div className="px-6 pt-6 pb-2">
-          <h2 className="text-base font-semibold text-text-primary">Settings</h2>
-        </div>
-        <div className="flex h-[440px]">
-          {/* Tab rail */}
+        <div className="flex h-[500px]">
+          {/* Tab rail — spans full height */}
           <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 py-5 px-3 border-r border-border-default bg-bg-primary">
             {TABS.map((t) => (
               <button
@@ -216,8 +213,8 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
             ))}
           </nav>
 
-          {/* Tab content */}
-          <div className="flex-1 min-w-0 p-6 overflow-y-auto max-h-[480px]">
+          {/* Right side: scrollable content body */}
+          <div className="flex-1 min-w-0 min-h-0 p-6 overflow-y-auto">
             {tab === "general" && (
               <>
                 <Field label="Theme">
@@ -319,7 +316,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-3.5">
+        <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-border-default">
           {tab === "terminal" ? (
             <p className="text-xs text-text-tertiary mr-auto">Changes apply immediately</p>
           ) : null}
@@ -331,7 +328,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
               {saving ? "Saving..." : "Save"}
             </Button>
           )}
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

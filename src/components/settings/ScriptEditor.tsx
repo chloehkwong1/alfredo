@@ -43,7 +43,7 @@ function ScriptEditor({ scripts, onChange }: ScriptEditorProps) {
         {scripts.map((script, index) => (
           <div
             key={index}
-            className="flex items-start gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-secondary p-3"
+            className="flex items-start gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3"
           >
             <div className="flex-1 space-y-2">
               <Input
@@ -56,7 +56,7 @@ function ScriptEditor({ scripts, onChange }: ScriptEditorProps) {
                 placeholder="Command (e.g. npm install)"
                 value={script.command}
                 onChange={(e) => updateScript(index, "command", e.target.value)}
-                className="w-full px-3 py-2 text-sm font-mono bg-bg-primary text-text-primary border border-border-default rounded-[var(--radius-md)] placeholder:text-text-tertiary hover:border-border-hover focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50 transition-all duration-[var(--transition-fast)] resize-none"
+                className="w-full px-3 py-2 text-sm font-mono bg-bg-secondary text-text-primary border border-border-default rounded-[var(--radius-md)] placeholder:text-text-tertiary hover:border-border-hover focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50 transition-all duration-[var(--transition-fast)] resize-none"
               />
             </div>
             <IconButton

@@ -6,7 +6,6 @@ import { Button } from "../ui/Button";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
 } from "../ui/Dialog";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import { ScriptEditor } from "./ScriptEditor";
@@ -30,7 +29,7 @@ const inputClass = [
 
 const textareaClass = [
   "w-full px-3 py-2 text-sm font-mono",
-  "bg-bg-primary text-text-primary",
+  "bg-bg-secondary text-text-primary",
   "border border-border-default rounded-[var(--radius-md)]",
   "placeholder:text-text-tertiary",
   "hover:border-border-hover",
@@ -150,7 +149,7 @@ function WorkspaceSettingsDialog({
       <DialogContent className="w-[680px] p-0 overflow-hidden">
         {/* Header with repo selector */}
         <div className="px-6 pt-6 pb-4 border-b border-border-default">
-          <h2 className="text-base font-semibold text-text-primary mb-4">Repository Settings</h2>
+          <h2 className="text-base font-semibold text-text-primary mb-3.5">Repository Settings</h2>
           <RepoDropdown
             repos={repos}
             selectedRepos={selectedRepos}
@@ -184,7 +183,7 @@ function WorkspaceSettingsDialog({
           </nav>
 
           {/* Content */}
-          <div className="flex-1 min-w-0 p-6 overflow-y-auto max-h-[400px]">
+          <div className="flex-1 min-w-0 min-h-0 p-6 overflow-y-auto">
             {tab === "repository" && (
               <div>
                 {/* Repo Path (read-only) */}
@@ -243,26 +242,12 @@ function WorkspaceSettingsDialog({
 
             {tab === "scripts" && (
               <div>
-                {/* Setup Scripts */}
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
-                  Setup Scripts
-                </div>
-                <p className="text-xs text-text-tertiary mb-3.5">
-                  Run automatically when a new worktree is created.
-                </p>
-                <ScriptEditor
-                  scripts={config.setupScripts}
-                  onChange={(scripts: SetupScript[]) =>
-                    updateConfig({ setupScripts: scripts })
-                  }
-                />
-
                 {/* Run Script */}
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
                   Run Script
                 </div>
-                <p className="text-xs text-text-tertiary mb-3.5">
-                  A dev server command started from any worktree via the play button in the tab bar.
+                <p className="text-xs text-text-tertiary -mt-2 mb-3">
+                  Started from any worktree via the play button in the tab bar.
                 </p>
                 <div className="rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3 space-y-2">
                   <input
@@ -292,19 +277,33 @@ function WorkspaceSettingsDialog({
                     }
                   />
                 </div>
+
+                {/* Setup Scripts */}
+                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+                  Setup Scripts
+                </div>
+                <p className="text-xs text-text-tertiary -mt-2 mb-3">
+                  Run automatically when a new worktree is created.
+                </p>
+                <ScriptEditor
+                  scripts={config.setupScripts}
+                  onChange={(scripts: SetupScript[]) =>
+                    updateConfig({ setupScripts: scripts })
+                  }
+                />
               </div>
             )}
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-3.5">
+        <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-border-default">
           <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
             {saving ? "Saving..." : "Save"}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -49,9 +49,6 @@ function RepoDropdown({
 
   return (
     <div>
-      <label className="block text-xs font-medium text-text-secondary mb-2">
-        Repository
-      </label>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button

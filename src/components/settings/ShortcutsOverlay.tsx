@@ -70,16 +70,16 @@ function ShortcutsOverlay({ open, onOpenChange }: ShortcutsOverlayProps) {
         <div className="space-y-0">
           {SHORTCUT_GROUPS.map((group, index) => (
             <div key={group.label} className={index > 0 ? "pt-5 mt-5 border-t border-border-default" : ""}>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary mb-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-2">
                 {group.label}
               </div>
               <div className="space-y-1">
                 {group.shortcuts.map((shortcut) => (
                   <div key={shortcut.keys} className="flex items-center justify-between gap-4 py-1.5">
-                    <span className="text-sm text-text-secondary truncate min-w-0">
+                    <span className="text-[13px] text-text-secondary truncate min-w-0">
                       {shortcut.description}
                     </span>
-                    <kbd className="px-2 py-0.5 text-xs font-mono bg-bg-primary text-text-primary rounded-[var(--radius-sm)] border border-border-default whitespace-nowrap flex-shrink-0">
+                    <kbd className="px-2 py-0.5 text-[11px] font-mono bg-bg-primary text-text-primary rounded border border-border-default whitespace-nowrap flex-shrink-0">
                       {shortcut.keys}
                     </kbd>
                   </div>

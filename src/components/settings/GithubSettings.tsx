@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Github, Check, Loader2, Terminal } from "lucide-react";
+import { Github, Loader2, Terminal } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
@@ -128,7 +128,7 @@ function GithubSettings({
         {auth.step === "connected" && (
           <div>
             <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-primary px-3 h-8 text-sm">
-              <Check className="h-3.5 w-3.5 text-green-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-status-idle flex-shrink-0" />
               <span className="text-text-primary font-medium">
                 @{auth.username}
               </span>
