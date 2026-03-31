@@ -22,7 +22,7 @@ import { useServer } from "../../hooks/useServer";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useUpdater } from "../../hooks/useUpdater";
 import { UpdateBanner } from "./UpdateBanner";
-import { setRepoColor as setRepoColorApi } from "../../api";
+import { setRepoColor as setRepoColorApi, getConfig } from "../../api";
 import { REPO_COLOR_PALETTE } from "../sidebar/RepoSelector";
 import { saveAllSessions } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
@@ -30,7 +30,7 @@ import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { CommandPalette } from "../commandPalette/CommandPalette";
 import logoSvg from "../../assets/logo-cat.svg";
-import type { WorkspaceTab } from "../../types";
+import type { WorkspaceTab, AppConfig } from "../../types";
 
 const EMPTY_TABS: WorkspaceTab[] = [];
 const AUTO_SAVE_INTERVAL_MS = 30_000;
@@ -113,6 +113,20 @@ function AppShell() {
   const [setupRepoPath, setSetupRepoPath] = useState<string | null>(null);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [removeRepoPath, setRemoveRepoPath] = useState<string | null>(null);
+  const [previousRepoConfig, setPreviousRepoConfig] = useState<AppConfig | null>(null);
+
+  useEffect(() => {
+    if (!setupRepoPath || repos.length <= 1) {
+      setPreviousRepoConfig(null);
+      return;
+    }
+    const otherRepo = repos.find((r) => r.path !== setupRepoPath);
+    if (otherRepo) {
+      getConfig(otherRepo.path)
+        .then(setPreviousRepoConfig)
+        .catch(() => setPreviousRepoConfig(null));
+    }
+  }, [setupRepoPath, repos]);
 
   const hasWorktrees = worktrees.length > 0;
 
@@ -192,15 +206,18 @@ function AppShell() {
   }, [addRepo, repoColors, repos]);
 
   // When repo setup is configured
-  const handleRepoConfigured = useCallback(async (mode: "worktree" | "branch") => {
+  const handleRepoConfigured = useCallback(async (result: { selectedWorktreeIds: string[] } | "createNew") => {
     if (!setupRepoPath) return;
-    await updateRepoMode(setupRepoPath, mode);
+    await updateRepoMode(setupRepoPath, "worktree");
     setSetupDialogOpen(false);
-    if (mode === "worktree") {
+    if (result === "createNew") {
       setCreateDialogOpen(true);
     }
+    // If result has selectedWorktreeIds, worktrees will be loaded by useSessionRestore
+    // when the repo becomes active — no extra action needed here.
     setSetupRepoPath(null);
   }, [setupRepoPath, updateRepoMode]);
+
 
   // When removing a repo
   const handleRemoveRepo = useCallback(async () => {
@@ -331,6 +348,7 @@ function AppShell() {
             open={setupDialogOpen}
             onOpenChange={setSetupDialogOpen}
             repoPath={setupRepoPath}
+            previousRepoConfig={null}
             onConfigured={handleRepoConfigured}
           />
         )}
@@ -430,7 +448,7 @@ function AppShell() {
               <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
               <div className="flex flex-col items-center gap-1">
                 <span className="text-sm">Select a worktree to get started</span>
-                <span className="text-xs">Each worktree gets its own branch, terminal, and agent</span>
+                <span className="text-xs">Each worktree gets its own branch, terminal, and agent · <kbd className="px-1 py-0.5 rounded bg-bg-elevated border border-border-default font-mono text-[10px]">⌘N</kbd> to create new</span>
               </div>
             </div>
           )}
@@ -451,8 +469,9 @@ function AppShell() {
           open={setupDialogOpen}
           onOpenChange={setSetupDialogOpen}
           repoPath={setupRepoPath}
-          existingGithubToken={null}
-          existingLinearKey={null}
+          existingGithubToken={previousRepoConfig?.githubToken ?? null}
+          existingLinearKey={previousRepoConfig?.linearApiKey ?? null}
+          previousRepoConfig={previousRepoConfig}
           onConfigured={handleRepoConfigured}
         />
       )}

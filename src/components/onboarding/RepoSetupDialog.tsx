@@ -9,9 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "../ui/Dialog";
 import { getConfig, saveConfig, githubAuthStatus, githubAuthToken, listWorktrees } from "../../api";
+import type { AppConfig, Worktree } from "../../types";
 
 interface RepoSetupDialogProps {
   open: boolean;
@@ -19,7 +19,9 @@ interface RepoSetupDialogProps {
   repoPath: string;
   existingGithubToken?: string | null;
   existingLinearKey?: string | null;
-  onConfigured: (mode: "worktree" | "branch") => void;
+  /** Config from most recently added repo, for carry-forward. Null for first repo. */
+  previousRepoConfig?: AppConfig | null;
+  onConfigured: (result: { selectedWorktreeIds: string[] } | "createNew") => void;
 }
 
 /** Derive parent directory from a path (e.g. /Users/chloe/dev/alfredo -> /Users/chloe/dev) */
@@ -29,6 +31,24 @@ function parentDir(path: string): string {
   return segments.join("/") || "/";
 }
 
+/** Collapse /Users/<user> prefix to ~ for display */
+function tildePath(path: string): string {
+  const home =
+    typeof window !== "undefined"
+      ? (window as unknown as Record<string, string>).__TAURI_HOME__ ?? ""
+      : "";
+  // Fallback: match /Users/<something> or /home/<something> pattern
+  if (home && path.startsWith(home)) {
+    return "~" + path.slice(home.length);
+  }
+  return path.replace(/^\/Users\/[^/]+/, "~").replace(/^\/home\/[^/]+/, "~");
+}
+
+/** Extract last path segment as repo name */
+function repoNameFromPath(path: string): string {
+  return path.replace(/\/+$/, "").split("/").pop() ?? path;
+}
+
 function RepoSetupDialog({
   open: isOpen,
   onOpenChange,
@@ -36,6 +56,7 @@ function RepoSetupDialog({
   existingGithubToken,
   existingLinearKey,
   onConfigured,
+  previousRepoConfig,
 }: RepoSetupDialogProps) {
   // GitHub state
   const [githubConnected, setGithubConnected] = useState<string | null>(null);
@@ -45,7 +66,6 @@ function RepoSetupDialog({
   >({ step: "idle" });
   const [githubToken, setGithubToken] = useState("");
   const [githubError, setGithubError] = useState<string | null>(null);
-  // Tracks whether the user wants to use the existing token from another repo
   const [usingExistingGithub, setUsingExistingGithub] = useState(false);
 
   // Linear state
@@ -57,11 +77,16 @@ function RepoSetupDialog({
   // Setup scripts state
   const [setupScriptInput, setSetupScriptInput] = useState("");
 
-  // Existing worktree detection
-  const [existingWorktreeCount, setExistingWorktreeCount] = useState(0);
+  // Worktree detection state
+  const [detectedWorktrees, setDetectedWorktrees] = useState<Worktree[]>([]);
+  const [selectedWorktreeIds, setSelectedWorktreeIds] = useState<Set<string>>(new Set());
 
-  // Resolve username for existingGithubToken on open
+  // Existing github username (for "use existing" offer)
   const [existingGithubUsername, setExistingGithubUsername] = useState<string | null>(null);
+
+  // Track whether github/linear values came from carry-forward vs own config
+  const [githubFromCarryForward, setGithubFromCarryForward] = useState(false);
+  const [linearFromCarryForward, setLinearFromCarryForward] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -72,22 +97,54 @@ function RepoSetupDialog({
     setGithubToken("");
     setGithubError(null);
     setUsingExistingGithub(false);
-    setLinearKey(existingLinearKey ?? "");
     setWorktreeBasePathInput(parentDir(repoPath));
     setSetupScriptInput("");
     setExistingGithubUsername(null);
-    setExistingWorktreeCount(0);
+    setDetectedWorktrees([]);
+    setSelectedWorktreeIds(new Set());
+    setGithubFromCarryForward(false);
+    setLinearFromCarryForward(false);
 
-    // Detect existing worktrees (e.g. from Conductor or other tools)
+    // Pre-fill from carry-forward
+    let carryForwardGithubToken: string | null = null;
+    if (previousRepoConfig?.githubToken) {
+      setGithubToken(previousRepoConfig.githubToken);
+      carryForwardGithubToken = previousRepoConfig.githubToken;
+      setGithubFromCarryForward(true);
+    }
+    if (previousRepoConfig?.linearApiKey) {
+      setLinearKey(previousRepoConfig.linearApiKey);
+      setLinearFromCarryForward(true);
+    } else {
+      setLinearKey(existingLinearKey ?? "");
+    }
+
+    // Detect existing worktrees
     listWorktrees(repoPath)
-      .then((wts) => setExistingWorktreeCount(wts.length))
-      .catch(() => { /* no worktrees or error — ignore */ });
+      .then((wts) => {
+        setDetectedWorktrees(wts);
+        setSelectedWorktreeIds(new Set(wts.map((wt) => wt.id)));
+      })
+      .catch(() => {
+        setDetectedWorktrees([]);
+        setSelectedWorktreeIds(new Set());
+      });
 
-    // Load existing config for this repo
+    // Load existing config for this repo — overrides carry-forward values
     getConfig(repoPath)
       .then((config) => {
         if (config.githubToken) {
           setGithubToken(config.githubToken);
+          setGithubFromCarryForward(false);
+          githubAuthStatus()
+            .then((status) => {
+              if (status.authenticated && status.username) {
+                setGithubConnected(status.username);
+              }
+            })
+            .catch(() => { /* token invalid */ });
+        } else if (carryForwardGithubToken) {
+          // Check auth status with the carry-forward token
           githubAuthStatus()
             .then((status) => {
               if (status.authenticated && status.username) {
@@ -104,10 +161,20 @@ function RepoSetupDialog({
         }
         if (config.linearApiKey) {
           setLinearKey(config.linearApiKey);
+          setLinearFromCarryForward(false);
         }
       })
       .catch(() => {
-        // Config doesn't exist yet — use defaults
+        // Config doesn't exist yet — check carry-forward token auth
+        if (carryForwardGithubToken) {
+          githubAuthStatus()
+            .then((status) => {
+              if (status.authenticated && status.username) {
+                setGithubConnected(status.username);
+              }
+            })
+            .catch(() => {});
+        }
       });
 
     // Resolve username for the passed-in existing token (from another repo)
@@ -120,7 +187,33 @@ function RepoSetupDialog({
         })
         .catch(() => { /* token invalid — hide the offer */ });
     }
-  }, [isOpen, repoPath, existingGithubToken, existingLinearKey]);
+  }, [isOpen, repoPath, existingGithubToken, existingLinearKey, previousRepoConfig]);
+
+  // ── Worktree toggle helpers ──────────────────────────────────────
+
+  const toggleWorktree = useCallback((id: string) => {
+    setSelectedWorktreeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleAllWorktrees = useCallback(() => {
+    if (selectedWorktreeIds.size === detectedWorktrees.length) {
+      setSelectedWorktreeIds(new Set());
+    } else {
+      setSelectedWorktreeIds(new Set(detectedWorktrees.map((wt) => wt.id)));
+    }
+  }, [selectedWorktreeIds.size, detectedWorktrees]);
+
+  const hasDetectedWorktrees = detectedWorktrees.length > 0;
+
+  // ── GitHub auth ──────────────────────────────────────────────────
 
   const startGithubAuth = useCallback(async () => {
     setGithubError(null);
@@ -142,6 +235,7 @@ function RepoSetupDialog({
       const token = await githubAuthToken();
       setGithubToken(token);
       setGithubConnected(status.username ?? "unknown");
+      setGithubFromCarryForward(false);
       setGithubAuthState({ step: "idle" });
     } catch (e) {
       setGithubError(e instanceof Error ? e.message : String(e));
@@ -157,7 +251,9 @@ function RepoSetupDialog({
     setGithubAuthState({ step: "idle" });
   }, [existingGithubToken, existingGithubUsername]);
 
-  const handleSave = useCallback(async (mode: "worktree" | "branch") => {
+  // ── Save ─────────────────────────────────────────────────────────
+
+  const handleSave = useCallback(async () => {
     try {
       const current = await getConfig(repoPath);
       const updated = { ...current };
@@ -181,8 +277,13 @@ function RepoSetupDialog({
     } catch {
       // Save failed — proceed anyway
     }
-    onConfigured(mode);
-  }, [repoPath, githubToken, linearKey, setupScriptInput, worktreeBasePathInput, onConfigured]);
+
+    if (hasDetectedWorktrees) {
+      onConfigured({ selectedWorktreeIds: Array.from(selectedWorktreeIds) });
+    } else {
+      onConfigured("createNew");
+    }
+  }, [repoPath, githubToken, linearKey, setupScriptInput, worktreeBasePathInput, onConfigured, hasDetectedWorktrees, selectedWorktreeIds]);
 
   // Show "use existing" offer when: existing token resolves a username, and
   // we don't yet have a different token connected for this repo.
@@ -198,12 +299,94 @@ function RepoSetupDialog({
         <DialogHeader>
           <DialogTitle>Set up your workspace</DialogTitle>
           <DialogDescription>
-            Configure integrations and scripts. You can always change these later in settings.
+            Configure integrations and worktrees for{" "}
+            <span className="font-medium text-text-primary">{tildePath(repoPath)}</span>
           </DialogDescription>
+          {previousRepoConfig && (
+            <p className="text-micro text-text-tertiary mt-1">
+              Settings carried over from {repoNameFromPath(previousRepoConfig.repoPath)}
+            </p>
+          )}
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* GitHub card */}
+          {/* ── Worktree detection hero ────────────────────────────── */}
+          {hasDetectedWorktrees ? (
+            <div className="px-4 py-3.5 border border-accent-primary/20 bg-accent-primary/5 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-[22px] w-[22px] rounded-md bg-accent-primary/15 flex items-center justify-center shrink-0">
+                    <FolderOpen className="h-3 w-3 text-accent-primary" />
+                  </div>
+                  <span className="text-caption font-semibold text-text-primary">
+                    Found {detectedWorktrees.length} {detectedWorktrees.length === 1 ? "worktree" : "worktrees"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="text-micro text-accent-primary hover:underline cursor-pointer"
+                  onClick={toggleAllWorktrees}
+                >
+                  {selectedWorktreeIds.size === detectedWorktrees.length ? "Deselect all" : "Select all"}
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-1.5 max-h-[240px] overflow-y-auto">
+                {detectedWorktrees.map((wt) => {
+                  const isSelected = selectedWorktreeIds.has(wt.id);
+                  return (
+                    <button
+                      key={wt.id}
+                      type="button"
+                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md text-caption cursor-pointer transition-colors ${
+                        isSelected
+                          ? "bg-accent-primary/8 border border-accent-primary/25"
+                          : "bg-[rgba(255,255,255,0.02)] border border-border-default opacity-60"
+                      }`}
+                      onClick={() => toggleWorktree(wt.id)}
+                    >
+                      {/* Checkbox */}
+                      <div
+                        className={`h-[18px] w-[18px] rounded shrink-0 flex items-center justify-center ${
+                          isSelected
+                            ? "bg-accent-primary"
+                            : "border-[1.5px] border-text-quaternary"
+                        }`}
+                      >
+                        {isSelected && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                      {/* Branch name */}
+                      <span className={`font-medium ${isSelected ? "text-text-primary" : "text-text-secondary"}`}>
+                        {wt.branch}
+                      </span>
+                      {/* Disk path */}
+                      <span className="ml-auto text-micro text-text-quaternary truncate max-w-[200px]">
+                        {tildePath(wt.path)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="text-micro text-text-quaternary mt-2.5">
+                {selectedWorktreeIds.size} of {detectedWorktrees.length} selected{" "}
+                &middot; Deselected worktrees stay on disk, just hidden from your board
+              </p>
+            </div>
+          ) : (
+            <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className="h-[22px] w-[22px] rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
+                  <FolderOpen className="h-3 w-3 text-text-tertiary" />
+                </div>
+                <span className="text-caption text-text-secondary">
+                  No existing worktrees found — you'll create your first one next
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* ── GitHub card ────────────────────────────────────────── */}
           <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-7 w-7 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
@@ -219,7 +402,7 @@ function RepoSetupDialog({
               <div className="flex items-center gap-2 text-body">
                 <Check className="h-3.5 w-3.5 text-green-400" />
                 <span className="text-text-primary font-medium">@{githubConnected}</span>
-                {usingExistingGithub && (
+                {(usingExistingGithub || githubFromCarryForward) && (
                   <span className="text-micro text-text-tertiary">(from another repository)</span>
                 )}
               </div>
@@ -271,7 +454,7 @@ function RepoSetupDialog({
             )}
           </div>
 
-          {/* Linear card */}
+          {/* ── Linear card ────────────────────────────────────────── */}
           <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-7 w-7 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
@@ -288,19 +471,24 @@ function RepoSetupDialog({
               value={linearKey}
               onChange={(e) => setLinearKey(e.target.value)}
             />
-            {existingLinearKey && linearKey === existingLinearKey && (
+            {linearFromCarryForward && linearKey === previousRepoConfig?.linearApiKey && (
               <p className="text-micro text-text-tertiary mt-1.5">
                 Using key from another repository
               </p>
             )}
-            {!existingLinearKey && (
+            {existingLinearKey && !linearFromCarryForward && linearKey === existingLinearKey && (
+              <p className="text-micro text-text-tertiary mt-1.5">
+                Using key from another repository
+              </p>
+            )}
+            {!existingLinearKey && !linearFromCarryForward && (
               <p className="text-micro text-text-tertiary mt-1.5">
                 Optional — you can add this later in settings
               </p>
             )}
           </div>
 
-          {/* Worktree location card */}
+          {/* ── Worktree location card ─────────────────────────────── */}
           <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-7 w-7 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
@@ -333,7 +521,7 @@ function RepoSetupDialog({
             </p>
           </div>
 
-          {/* Setup scripts card */}
+          {/* ── Setup scripts card ─────────────────────────────────── */}
           <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-7 w-7 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
@@ -353,27 +541,12 @@ function RepoSetupDialog({
           </div>
         </div>
 
-        {existingWorktreeCount > 0 && (
-          <div className="px-4 py-3 border border-accent-primary/20 bg-accent-primary/5 rounded-lg">
-            <p className="text-caption text-text-secondary">
-              Found <span className="font-medium text-text-primary">{existingWorktreeCount}</span> existing{" "}
-              {existingWorktreeCount === 1 ? "worktree" : "worktrees"} — {existingWorktreeCount === 1 ? "it" : "they"}'ll appear on your board automatically.
-            </p>
-          </div>
-        )}
-
-        <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
-          <button
-            type="button"
-            className="text-caption text-text-tertiary hover:text-text-secondary cursor-pointer hover:underline"
-            onClick={() => handleSave("branch")}
-          >
-            Skip — just use branches
-          </button>
-          <Button size="lg" onClick={() => handleSave("worktree")}>
-            Save &amp; create first worktree
+        <div className="mt-7 pt-5 flex items-center justify-between gap-3 border-t border-border-default">
+          <span className="text-micro text-text-quaternary">You can add more worktrees later</span>
+          <Button size="lg" onClick={handleSave}>
+            {hasDetectedWorktrees ? "Open board \u2192" : "Save & create first worktree"}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
