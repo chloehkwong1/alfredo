@@ -1,0 +1,40 @@
+src/hooks/useSessionRestore.ts
+  77ea243c6ed3cdb2 19,143-148,156-161
+src/components/terminal/TerminalView.tsx
+  77ea243c6ed3cdb2 61-66
+src/types.ts
+  77ea243c6ed3cdb2 302-303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "6a26e0ca14b922419c6437e63e4012781cd17b2a",
+  "prompts": {
+    "46d8131245546530": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a7a3d9a8-db55-42bb-acef-20adcdacd530",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 400,
+      "total_deletions": 0,
+      "accepted_lines": 400,
+      "overriden_lines": 0
+    },
+    "77ea243c6ed3cdb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54862b47-208b-4a39-9a3f-0e6da5a8b578",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    }
+  }
+}
