@@ -55,6 +55,14 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const [reconnectKey, setReconnectKey] = useState(0);
 
+  // Track whether the initial spawn has happened — restarts should NOT auto-resume
+  const hasSpawnedRef = useRef(false);
+
+  const claudeSessionId = useWorkspaceStore((s) => {
+    if (!activeWorktreeId) return undefined;
+    return s.worktrees.find((wt) => wt.id === activeWorktreeId)?.claudeSessionId;
+  });
+
   const [resolvedArgs, setResolvedArgs] = useState<string[] | null>(null);
 
   // Resolve settings when component mounts — must complete before PTY spawns
@@ -71,11 +79,18 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         config.claudeDefaults,
         config.worktreeOverrides?.[branch],
       );
-      setResolvedArgs(buildClaudeArgs(resolved));
+      const args = buildClaudeArgs(resolved);
+      // Append --resume for the initial spawn if we have a saved session ID
+      if (!hasSpawnedRef.current && claudeSessionId) {
+        args.push("--resume", claudeSessionId);
+      }
+      hasSpawnedRef.current = true;
+      setResolvedArgs(args);
     }).catch(() => {
+      hasSpawnedRef.current = true;
       setResolvedArgs([]);
     });
-  }, [repoPath, worktree?.branch, mode]);
+  }, [repoPath, worktree?.branch, mode, claudeSessionId]);
 
   const [showSearch, setShowSearch] = useState(false);
 
@@ -233,7 +248,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
             onClose={() => setShowSearch(false)}
           />
         )}
-        <div ref={containerRef} className="h-full pl-1 pr-0.5 py-0.5" />
+        <div ref={containerRef} className="h-full pl-1 pr-0.5" />
       </div>
       {/* Status bar */}
       {worktree && (

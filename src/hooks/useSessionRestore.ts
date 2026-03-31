@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths } from "../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getConfig } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
@@ -55,6 +55,16 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
 
           if (!restoredRepos.current.has(repo)) {
             restoredRepos.current.add(repo);
+
+            // Sync archive/delete settings from per-repo config to workspace store
+            getConfig(repo).then((cfg) => {
+              if (cfg.archiveAfterDays != null) {
+                useWorkspaceStore.setState({ archiveAfterDays: cfg.archiveAfterDays });
+              }
+              if (cfg.deleteAfterDays != null) {
+                useWorkspaceStore.setState({ deleteAfterDays: cfg.deleteAfterDays });
+              }
+            }).catch(() => {});
             for (const wt of wts) {
               const session = await loadSession(repo, wt.id);
               if (session) {
@@ -114,6 +124,20 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   const tabIds = session.tabs.map((t) => t.id);
                   useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
                 }
+
+                // Restore persisted Claude session ID immediately
+                if (session.claudeSessionId) {
+                  updateWorktree(wt.id, { claudeSessionId: session.claudeSessionId });
+                }
+
+                // Also scan filesystem for a newer session ID (fire and forget)
+                findClaudeSession(wt.path)
+                  .then((claudeSessionId) => {
+                    if (claudeSessionId) {
+                      updateWorktree(wt.id, { claudeSessionId });
+                    }
+                  })
+                  .catch((e) => console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e));
 
                 // Don't eagerly spawn sessions — they'll start lazily when
                 // the user clicks the Claude tab via usePty → getOrSpawn.

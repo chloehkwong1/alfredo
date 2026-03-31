@@ -129,6 +129,7 @@ pub fn run() {
             session::load_session_file,
             session::delete_session_file,
             session::ensure_alfredo_gitignore,
+            session::find_claude_session,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {

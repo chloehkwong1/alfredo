@@ -335,6 +335,12 @@ export function setRepoDisplayName(repoPath: string, name: string | null): Promi
 
 // ── External Tools ─────────────────────────────────────────────
 
+// ── Claude Session ─────────────────────────────────────────────
+
+export function findClaudeSession(worktreePath: string): Promise<string | null> {
+  return invoke("find_claude_session", { worktreePath });
+}
+
 export function openInEditor(
   path: string,
   editor: string,

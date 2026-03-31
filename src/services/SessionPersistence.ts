@@ -26,6 +26,8 @@ export interface SessionData {
   changesPanelCollapsed?: boolean;
   /** Whether the user has dismissed the idle indicator for this worktree. */
   seenWorktree?: boolean;
+  /** Claude Code session UUID for `--resume` on next spawn. */
+  claudeSessionId?: string;
 }
 
 export async function saveSession(
@@ -72,6 +74,7 @@ export async function saveAllSessions(
   getChangesViewMode?: (worktreeId: string) => "changes" | "commits" | "pr" | undefined,
   getChangesPanelCollapsed?: (worktreeId: string) => boolean | undefined,
   getSeenWorktree?: (worktreeId: string) => boolean | undefined,
+  getClaudeSessionId?: (worktreeId: string) => string | undefined,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
     const tabs = getTabs(wtId).filter((t) => t.type !== "server");
@@ -120,6 +123,7 @@ export async function saveAllSessions(
       changesViewMode: getChangesViewMode?.(wtId),
       changesPanelCollapsed: getChangesPanelCollapsed?.(wtId),
       seenWorktree: getSeenWorktree?.(wtId),
+      claudeSessionId: getClaudeSessionId?.(wtId),
     };
     return saveSession(repoPath, wtId, data);
   });

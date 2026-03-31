@@ -172,10 +172,6 @@ export function usePty({
         }, 100);
       }
 
-      // TODO: Auto-resume Claude conversations — disabled until we can track
-      // Claude Code conversation IDs. Currently /resume picks the most recent
-      // conversation in the directory, which may not match the scrollback.
-      // See roadmap: "auto-resume with conversation ID tracking"
     }
 
     attach().catch((err) => {
