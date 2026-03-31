@@ -3,6 +3,7 @@ import { writePty, getConfig } from "../api";
 import { resolveSettings, buildClaudeArgs } from "../services/claudeSettingsResolver";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
+import { useLayoutStore } from "../stores/layoutStore";
 import { sessionManager } from "../services/sessionManager";
 
 export function useSendToClaude(
@@ -62,7 +63,11 @@ export function useSendToClaude(
 
     // Switch to the Claude terminal tab so the user sees the message arrive
     if (claudeTab) {
-      useTabStore.getState().setActiveTabId(worktreeId, claudeTab.id);
+      const layout = useLayoutStore.getState();
+      const paneId = layout.findPaneForTab(worktreeId, claudeTab.id);
+      if (paneId) {
+        layout.setPaneActiveTab(worktreeId, paneId, claudeTab.id);
+      }
     }
   }, [worktreeId, repoPath, branch, annotations, clearAnnotations]);
 

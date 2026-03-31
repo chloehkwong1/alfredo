@@ -14,6 +14,7 @@ import type { CheckRun, PrStatus } from "../../types";
 import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
 import { rerunFailedChecks, fixFailingChecks, fixMergeConflicts } from "../../services/prActions";
 import { useTabStore } from "../../stores/tabStore";
+import { useLayoutStore } from "../../stores/layoutStore";
 import { IconButton } from "../ui/IconButton";
 import { Button } from "../ui/Button";
 
@@ -612,7 +613,11 @@ export function MergeStatusBanner({
     const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
     const claudeTab = tabs.find((t) => t.type === "claude");
     if (claudeTab) {
-      useTabStore.getState().setActiveTabId(worktreeId, claudeTab.id);
+      const layout = useLayoutStore.getState();
+      const paneId = layout.findPaneForTab(worktreeId, claudeTab.id);
+      if (paneId) {
+        layout.setPaneActiveTab(worktreeId, paneId, claudeTab.id);
+      }
     }
   };
 
