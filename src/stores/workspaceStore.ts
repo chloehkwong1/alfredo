@@ -23,12 +23,15 @@ interface WorkspaceState {
   sidebarCollapsed: boolean;
   /** Number of days after merging before a worktree is auto-archived. */
   archiveAfterDays: number;
+  /** Number of days after archiving before a worktree is auto-deleted. 0 = never. */
+  deleteAfterDays: number;
   /** Tracks the currently running dev server, if any. */
   runningServer: { worktreeId: string; sessionId: string; tabId: string } | null;
 
   addWorktree: (worktree: Worktree) => void;
   removeWorktree: (id: string) => void;
   archiveWorktree: (id: string) => void;
+  unarchiveWorktree: (id: string) => void;
   updateWorktree: (id: string, patch: Partial<Worktree>) => void;
   setManualColumn: (id: string, column: KanbanColumn) => void;
   setActiveWorktree: (id: string | null) => void;
@@ -96,6 +99,8 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         column: old.column,
         agentStatus: old.agentStatus,
         archived: old.archived,
+        archivedAt: old.archivedAt,
+        claudeSessionId: old.claudeSessionId,
       };
     }
     return wt;
@@ -113,6 +118,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   changesPanelCollapsed: {},
   sidebarCollapsed: false,
   archiveAfterDays: 2,
+  deleteAfterDays: 7,
   runningServer: null,
 
   addWorktree: (worktree) =>
@@ -135,7 +141,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   archiveWorktree: (id) =>
     set((state) => ({
       worktrees: state.worktrees.map((wt) =>
-        wt.id === id ? { ...wt, archived: true } : wt,
+        wt.id === id ? { ...wt, archived: true, archivedAt: Date.now() } : wt,
+      ),
+    })),
+
+  unarchiveWorktree: (id) =>
+    set((state) => ({
+      worktrees: state.worktrees.map((wt) =>
+        wt.id === id ? { ...wt, archived: false, archivedAt: undefined } : wt,
       ),
     })),
 
@@ -270,6 +283,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       changesPanelCollapsed: {},
       sidebarCollapsed: false,
       archiveAfterDays: 2,
+      deleteAfterDays: 7,
       runningServer: null,
     }),
 

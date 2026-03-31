@@ -4,6 +4,7 @@ import type { PrUpdatePayload } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
 import { getPrFiles } from "../api";
+import { lifecycleManager } from "../services/lifecycleManager";
 
 /**
  * Listens for `github:pr-update` events from the Rust background sync loop
@@ -13,7 +14,7 @@ import { getPrFiles } from "../api";
  */
 export function useGithubSync() {
   useEffect(() => {
-    const unlisten = listen<PrUpdatePayload>("github:pr-update", (event) => {
+    const unlisten = listen<PrUpdatePayload>("github:pr-update", async (event) => {
       const patches = usePrStore.getState().applyPrUpdates(
         event.payload.prs,
         useWorkspaceStore.getState().worktrees,
@@ -53,9 +54,24 @@ export function useGithubSync() {
       if (toArchive.length > 0) {
         useWorkspaceStore.setState((s) => ({
           worktrees: s.worktrees.map((wt) =>
-            toArchive.includes(wt.id) ? { ...wt, archived: true } : wt,
+            toArchive.includes(wt.id) ? { ...wt, archived: true, archivedAt: now } : wt,
           ),
         }));
+      }
+
+      // Auto-delete check: remove worktrees that have been archived for too long
+      const deleteAfterMs = state.deleteAfterDays * 24 * 60 * 60 * 1000;
+      if (state.deleteAfterDays > 0) {
+        const toDelete = state.worktrees
+          .filter((wt) =>
+            wt.archived &&
+            wt.archivedAt &&
+            now - wt.archivedAt >= deleteAfterMs
+          );
+
+        for (const wt of toDelete) {
+          await lifecycleManager.removeWorktree(wt.id, wt.repoPath, wt.name).catch(() => {});
+        }
       }
     });
 

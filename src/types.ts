@@ -41,9 +41,12 @@ export interface Worktree {
   additions: number | null;
   deletions: number | null;
   archived?: boolean;
+  archivedAt?: number; // unix timestamp ms — when moved to archive
   lastActivityAt?: number; // unix timestamp ms, computed from max(lastCommitEpoch, prUpdatedAt, agentChange)
   lastCommitEpoch?: number; // epoch ms of latest commit on branch (from Rust)
   repoPath: string;
+  /** Claude Code session UUID for `--resume` on next spawn. */
+  claudeSessionId?: string;
 }
 
 export type KanbanColumn =
@@ -153,6 +156,7 @@ export interface AppConfig {
   notifications?: NotificationConfig;
   worktreeBasePath?: string | null;
   archiveAfterDays?: number;
+  deleteAfterDays?: number;
   claudeDefaults?: ClaudeDefaults;
   worktreeOverrides?: Record<string, ClaudeOverrides>;
 }

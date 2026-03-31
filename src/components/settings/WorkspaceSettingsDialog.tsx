@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FolderOpen } from "lucide-react";
 import type { AppConfig, RepoEntry, SetupScript } from "../../types";
 import { getConfig, saveConfig } from "../../api";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { Button } from "../ui/Button";
 import {
   Dialog,
@@ -131,6 +132,14 @@ function WorkspaceSettingsDialog({
       if (newName !== oldName) {
         await onSetRepoDisplayName?.(currentRepoPath, newName);
       }
+      // Sync archive/delete settings to workspace store
+      const wsStore = useWorkspaceStore.getState();
+      if (config.archiveAfterDays != null && config.archiveAfterDays !== wsStore.archiveAfterDays) {
+        useWorkspaceStore.setState({ archiveAfterDays: config.archiveAfterDays });
+      }
+      if (config.deleteAfterDays != null && config.deleteAfterDays !== wsStore.deleteAfterDays) {
+        useWorkspaceStore.setState({ deleteAfterDays: config.deleteAfterDays });
+      }
       setDirty(false);
       window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
@@ -235,6 +244,50 @@ function WorkspaceSettingsDialog({
                   />
                   <p className="text-xs text-text-tertiary mt-[5px]">
                     Where new worktrees are created. Defaults to the repository parent.
+                  </p>
+                </div>
+
+                {/* Archive & Cleanup */}
+                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3 mt-6">
+                  Archive &amp; Cleanup
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[13px] text-text-primary">
+                      Auto-archive merged worktrees after
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        className={inputClass + " !w-16 text-center"}
+                        value={config.archiveAfterDays ?? 2}
+                        onChange={(e) =>
+                          updateConfig({ archiveAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
+                        }
+                      />
+                      <span className="text-sm text-text-secondary w-10">days</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-[13px] text-text-primary">
+                      Auto-delete archived worktrees after
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        className={inputClass + " !w-16 text-center"}
+                        value={config.deleteAfterDays ?? 7}
+                        onChange={(e) =>
+                          updateConfig({ deleteAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
+                        }
+                      />
+                      <span className="text-sm text-text-secondary w-10">days</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-text-tertiary">
+                    Set to 0 to disable.
                   </p>
                 </div>
               </div>
