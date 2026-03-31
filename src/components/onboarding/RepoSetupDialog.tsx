@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "../ui/Dialog";
-import { getConfig, saveConfig, githubAuthStatus, githubAuthToken } from "../../api";
+import { getConfig, saveConfig, githubAuthStatus, githubAuthToken, listWorktrees } from "../../api";
 
 interface RepoSetupDialogProps {
   open: boolean;
@@ -57,6 +57,9 @@ function RepoSetupDialog({
   // Setup scripts state
   const [setupScriptInput, setSetupScriptInput] = useState("");
 
+  // Existing worktree detection
+  const [existingWorktreeCount, setExistingWorktreeCount] = useState(0);
+
   // Resolve username for existingGithubToken on open
   const [existingGithubUsername, setExistingGithubUsername] = useState<string | null>(null);
 
@@ -73,6 +76,12 @@ function RepoSetupDialog({
     setWorktreeBasePathInput(parentDir(repoPath));
     setSetupScriptInput("");
     setExistingGithubUsername(null);
+    setExistingWorktreeCount(0);
+
+    // Detect existing worktrees (e.g. from Conductor or other tools)
+    listWorktrees(repoPath)
+      .then((wts) => setExistingWorktreeCount(wts.length))
+      .catch(() => { /* no worktrees or error — ignore */ });
 
     // Load existing config for this repo
     getConfig(repoPath)
@@ -343,6 +352,15 @@ function RepoSetupDialog({
             />
           </div>
         </div>
+
+        {existingWorktreeCount > 0 && (
+          <div className="px-4 py-3 border border-accent-primary/20 bg-accent-primary/5 rounded-lg">
+            <p className="text-caption text-text-secondary">
+              Found <span className="font-medium text-text-primary">{existingWorktreeCount}</span> existing{" "}
+              {existingWorktreeCount === 1 ? "worktree" : "worktrees"} — {existingWorktreeCount === 1 ? "it" : "they"}'ll appear on your board automatically.
+            </p>
+          </div>
+        )}
 
         <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
           <button
