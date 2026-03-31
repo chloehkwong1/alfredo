@@ -1,3 +1,5 @@
+use tauri::{AppHandle, Manager};
+
 use crate::config_manager;
 use crate::git_manager;
 use crate::git_manager::get_diff_stats;
@@ -10,6 +12,7 @@ type Result<T> = std::result::Result<T, AppError>;
 /// Create a worktree from any supported source (branch, PR, Linear ticket).
 #[tauri::command]
 pub async fn create_worktree_from(
+    app: AppHandle,
     repo_path: String,
     source: WorktreeSource,
 ) -> Result<Worktree> {
@@ -26,7 +29,7 @@ pub async fn create_worktree_from(
             create_worktree_from_pr(repo_path, number).await
         }
         WorktreeSource::LinearTicket { id } => {
-            create_worktree_from_linear(repo_path, &id).await
+            create_worktree_from_linear(&app, repo_path, &id).await
         }
     }
 }
@@ -205,17 +208,11 @@ pub async fn set_worktree_column(
 }
 
 /// Create a worktree from a Linear ticket, injecting ticket context.
-async fn create_worktree_from_linear(repo_path: String, issue_id: &str) -> Result<Worktree> {
-    // 1. Get API key from config (use "." to match the Linear commands' config source)
-    let config = config_manager::load_config(".").await?;
-    let api_key = config
-        .linear_api_key
-        .filter(|k| !k.is_empty())
-        .ok_or_else(|| {
-            AppError::Linear(
-                "Linear API key not configured. Add it in Settings > Integrations.".into(),
-            )
-        })?;
+async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_id: &str) -> Result<Worktree> {
+    // 1. Resolve Linear API token (OAuth first, then config fallback)
+    let app_data = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let api_key = linear_manager::resolve_token(&app_data, ".").await?;
 
     // 2. Fetch full ticket details
     let ticket = linear_manager::get_issue(&api_key, issue_id).await?;
