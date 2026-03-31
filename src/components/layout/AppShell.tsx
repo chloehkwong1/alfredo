@@ -20,6 +20,8 @@ import { useDensity } from "../../hooks/useDensity";
 import { useSessionRestore } from "../../hooks/useSessionRestore";
 import { useServer } from "../../hooks/useServer";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+import { useUpdater } from "../../hooks/useUpdater";
+import { UpdateBanner } from "./UpdateBanner";
 import { setRepoColor as setRepoColorApi } from "../../api";
 import { REPO_COLOR_PALETTE } from "../sidebar/RepoSelector";
 import { saveAllSessions } from "../../services/SessionPersistence";
@@ -75,6 +77,7 @@ function AppShell() {
   const annotations = useWorkspaceStore((s) => s.annotations);
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   useDensity();
+  const updater = useUpdater();
 
   const {
     loading,
@@ -379,6 +382,7 @@ function AppShell() {
       <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
       <Panel minSize="50%">
       <div className="flex-1 flex flex-col min-w-0 h-full">
+        <UpdateBanner updater={updater} />
         {activeWorktreeId && <RemoteControlBar worktreeId={activeWorktreeId} />}
         <StatusBar worktree={worktree} annotationCount={annotationCount} />
         <main className="flex-1 min-h-0 relative flex">
