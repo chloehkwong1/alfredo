@@ -1,0 +1,99 @@
+<h2>Worktree Detection — Selectable</h2>
+<p class="subtitle">Users can choose which existing worktrees to import onto their board</p>
+
+<div class="cards" style="max-width: 560px; margin: 0 auto;">
+  <div class="card" style="cursor: default;">
+    <div class="card-body" style="background: #1a1918; color: #f5f2ef; font-family: -apple-system, system-ui, sans-serif; padding: 0;">
+
+      <!-- Dialog header -->
+      <div style="padding: 24px 24px 16px;">
+        <div style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">Set up your workspace</div>
+        <div style="font-size: 13px; color: #a8a29e;">Configure integrations and worktrees for <span style="color: #f5f2ef; font-weight: 500;">~/dev/my-app</span></div>
+      </div>
+
+      <!-- Worktrees found — selectable -->
+      <div style="margin: 0 16px 16px; padding: 16px; border: 1px solid rgba(147, 51, 234, 0.3); background: rgba(147, 51, 234, 0.06); border-radius: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 22px; height: 22px; background: rgba(147, 51, 234, 0.15); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🌿</div>
+            <span style="font-size: 14px; font-weight: 600;">Found 4 worktrees</span>
+          </div>
+          <span style="font-size: 12px; color: #9333ea; cursor: pointer;">Select all</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <!-- Selected worktree -->
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(147, 51, 234, 0.08); border: 1px solid rgba(147, 51, 234, 0.25); border-radius: 6px; font-size: 13px; cursor: pointer;">
+            <div style="width: 18px; height: 18px; background: #9333ea; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <span style="color: white; font-size: 11px; font-weight: bold;">✓</span>
+            </div>
+            <span style="color: #f5f2ef; font-weight: 500;">feat/auth-flow</span>
+            <span style="color: #78716c; margin-left: auto; font-size: 11px;">~/dev/my-app-auth-flow</span>
+          </div>
+
+          <!-- Selected worktree -->
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(147, 51, 234, 0.08); border: 1px solid rgba(147, 51, 234, 0.25); border-radius: 6px; font-size: 13px; cursor: pointer;">
+            <div style="width: 18px; height: 18px; background: #9333ea; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <span style="color: white; font-size: 11px; font-weight: bold;">✓</span>
+            </div>
+            <span style="color: #f5f2ef; font-weight: 500;">fix/login-bug</span>
+            <span style="color: #78716c; margin-left: auto; font-size: 11px;">~/dev/my-app-login-bug</span>
+          </div>
+
+          <!-- Deselected worktree -->
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(255,255,255,0.02); border: 1px solid #3d3a37; border-radius: 6px; font-size: 13px; cursor: pointer; opacity: 0.6;">
+            <div style="width: 18px; height: 18px; background: transparent; border: 1.5px solid #57534e; border-radius: 4px; flex-shrink: 0;">
+            </div>
+            <span style="color: #a8a29e; font-weight: 500;">refactor/api-layer</span>
+            <span style="color: #78716c; margin-left: auto; font-size: 11px;">~/dev/my-app-api-layer</span>
+          </div>
+
+          <!-- Selected worktree (main) -->
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(147, 51, 234, 0.08); border: 1px solid rgba(147, 51, 234, 0.25); border-radius: 6px; font-size: 13px; cursor: pointer;">
+            <div style="width: 18px; height: 18px; background: #9333ea; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <span style="color: white; font-size: 11px; font-weight: bold;">✓</span>
+            </div>
+            <span style="color: #f5f2ef; font-weight: 500;">main</span>
+            <span style="color: #78716c; margin-left: auto; font-size: 11px;">~/dev/my-app</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 10px; font-size: 11px; color: #78716c;">
+          3 of 4 selected · Deselected worktrees stay on disk, just hidden from your board
+        </div>
+      </div>
+
+      <!-- Integrations — collapsed -->
+      <div style="margin: 0 16px 16px;">
+        <div style="padding: 12px 14px; border: 1px solid #3d3a37; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 13px; color: #a8a29e;">⚙️</span>
+            <span style="font-size: 13px; color: #a8a29e;">Integrations & settings</span>
+          </div>
+          <span style="font-size: 11px; color: #78716c;">Optional ▸</span>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding: 16px 24px; border-top: 1px solid #3d3a37; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 12px; color: #78716c;">You can add more worktrees later</span>
+        <div style="padding: 10px 20px; background: #9333ea; color: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;">
+          Open board →
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 24px; padding: 16px 20px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+  <h3 style="margin: 0 0 8px; font-size: 15px;">Behaviour</h3>
+  <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #ccc; line-height: 1.8;">
+    <li>All worktrees <strong>selected by default</strong> — opt-out, not opt-in</li>
+    <li>"Select all" link in header for quick toggle</li>
+    <li>Deselected worktrees stay on disk — just not shown on the board</li>
+    <li>Helper text at bottom: "3 of 4 selected"</li>
+    <li>CTA stays "Open board →" regardless of selection count (as long as ≥1 selected)</li>
+    <li>If user deselects ALL, CTA could change to "Open board with no worktrees" or disable</li>
+  </ul>
+</div>

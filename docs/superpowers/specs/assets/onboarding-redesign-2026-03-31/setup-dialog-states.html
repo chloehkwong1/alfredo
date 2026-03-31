@@ -1,0 +1,148 @@
+<h2>Redesigned Setup Dialog — Two States</h2>
+<p class="subtitle">The dialog adapts based on whether existing worktrees are found</p>
+
+<div class="split" style="gap: 32px; align-items: start;">
+
+  <!-- STATE A: Worktrees Found -->
+  <div class="mockup" style="flex: 1;">
+    <div class="mockup-header">State A: Existing worktrees detected</div>
+    <div class="mockup-body" style="background: #1a1918; color: #f5f2ef; font-family: -apple-system, system-ui, sans-serif; padding: 0;">
+
+      <!-- Dialog header -->
+      <div style="padding: 24px 24px 16px;">
+        <div style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">Set up your workspace</div>
+        <div style="font-size: 13px; color: #a8a29e;">Configure integrations and worktrees for <span style="color: #f5f2ef; font-weight: 500;">~/dev/my-app</span></div>
+      </div>
+
+      <!-- Worktrees found — HERO section -->
+      <div style="margin: 0 16px 16px; padding: 16px; border: 1px solid rgba(147, 51, 234, 0.3); background: rgba(147, 51, 234, 0.06); border-radius: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <div style="width: 22px; height: 22px; background: rgba(147, 51, 234, 0.15); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🌿</div>
+          <span style="font-size: 14px; font-weight: 600;">Found 4 worktrees</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 6px; font-size: 13px;">
+            <span style="color: #4ade80; font-size: 11px;">●</span>
+            <span style="color: #f5f2ef; font-weight: 500;">feat/auth-flow</span>
+            <span style="color: #78716c; margin-left: auto; font-size: 11px;">~/dev/my-app-auth-flow</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 6px; font-size: 13px;">
+            <span style="color: #fbbf24; font-size: 11px;">●</span>
+            <span style="color: #f5f2ef; font-weight: 500;">fix/login-bug</span>
+            <span style="color: #78716c; margin-left: auto; font-size: 11px;">~/dev/my-app-login-bug</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 6px; font-size: 13px;">
+            <span style="color: #60a5fa; font-size: 11px;">●</span>
+            <span style="color: #f5f2ef; font-weight: 500;">refactor/api-layer</span>
+            <span style="color: #78716c; margin-left: auto; font-size: 11px;">~/dev/my-app-api-layer</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 6px; font-size: 13px;">
+            <span style="color: #4ade80; font-size: 11px;">●</span>
+            <span style="color: #f5f2ef; font-weight: 500;">main</span>
+            <span style="color: #78716c; margin-left: auto; font-size: 11px;">~/dev/my-app</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Integrations — collapsed/secondary -->
+      <div style="margin: 0 16px 16px;">
+        <div style="padding: 12px 14px; border: 1px solid #3d3a37; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 13px; color: #a8a29e;">⚙️</span>
+            <span style="font-size: 13px; color: #a8a29e;">Integrations & settings</span>
+          </div>
+          <span style="font-size: 11px; color: #78716c;">Optional ▸</span>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding: 16px 24px; border-top: 1px solid #3d3a37; display: flex; justify-content: flex-end;">
+        <div style="padding: 10px 20px; background: #9333ea; color: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;">
+          Open board →
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- STATE B: No Worktrees -->
+  <div class="mockup" style="flex: 1;">
+    <div class="mockup-header">State B: No existing worktrees</div>
+    <div class="mockup-body" style="background: #1a1918; color: #f5f2ef; font-family: -apple-system, system-ui, sans-serif; padding: 0;">
+
+      <!-- Dialog header -->
+      <div style="padding: 24px 24px 16px;">
+        <div style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">Set up your workspace</div>
+        <div style="font-size: 13px; color: #a8a29e;">Configure integrations and worktrees for <span style="color: #f5f2ef; font-weight: 500;">~/dev/my-app</span></div>
+      </div>
+
+      <!-- No worktrees — info -->
+      <div style="margin: 0 16px 16px; padding: 14px 16px; border: 1px solid #3d3a37; background: rgba(255,255,255,0.02); border-radius: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px;">🌿</span>
+          <span style="font-size: 13px; color: #a8a29e;">No existing worktrees found — you'll create your first one next</span>
+        </div>
+      </div>
+
+      <!-- Integrations — expanded by default when no worktrees -->
+      <div style="margin: 0 16px;">
+        <!-- GitHub -->
+        <div style="padding: 14px; border: 1px solid #3d3a37; border-radius: 8px; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <div style="width: 26px; height: 26px; background: rgba(255,255,255,0.03); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🐙</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 500;">Connect GitHub</div>
+              <div style="font-size: 11px; color: #78716c;">PR status, check runs</div>
+            </div>
+          </div>
+          <div style="padding: 8px 14px; background: #232220; border: 1px solid #3d3a37; border-radius: 6px; font-size: 13px; color: #a8a29e; cursor: pointer; display: inline-block;">
+            Connect to GitHub
+          </div>
+          <div style="font-size: 11px; color: #78716c; margin-top: 6px;">Optional — add later in settings</div>
+        </div>
+
+        <!-- Worktree location -->
+        <div style="padding: 14px; border: 1px solid #3d3a37; border-radius: 8px; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <div style="width: 26px; height: 26px; background: rgba(255,255,255,0.03); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px;">📂</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 500;">Worktree location</div>
+              <div style="font-size: 11px; color: #78716c;">Where new worktrees are created</div>
+            </div>
+          </div>
+          <div style="padding: 8px 12px; background: #232220; border: 1px solid #3d3a37; border-radius: 6px; font-size: 13px; color: #f5f2ef;">~/dev</div>
+        </div>
+
+        <!-- Setup scripts -->
+        <div style="padding: 14px; border: 1px solid #3d3a37; border-radius: 8px; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <div style="width: 26px; height: 26px; background: rgba(255,255,255,0.03); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px;">⌨️</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 500;">Setup scripts</div>
+              <div style="font-size: 11px; color: #78716c;">Run when creating worktrees</div>
+            </div>
+          </div>
+          <div style="padding: 8px 12px; background: #232220; border: 1px solid #3d3a37; border-radius: 6px; font-size: 13px; color: #78716c; font-family: monospace;">npm install</div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding: 16px 24px; border-top: 1px solid #3d3a37; display: flex; justify-content: flex-end;">
+        <div style="padding: 10px 20px; background: #9333ea; color: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;">
+          Save & create first worktree
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 24px; padding: 16px 20px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+  <h3 style="margin: 0 0 8px; font-size: 15px;">Key differences</h3>
+  <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #ccc; line-height: 1.8;">
+    <li><strong>Worktrees found:</strong> Hero section shows detected worktrees, integrations collapsed, CTA = "Open board →"</li>
+    <li><strong>No worktrees:</strong> Integrations expanded by default, CTA = "Save & create first worktree"</li>
+    <li>Both states: same dialog component, adapts based on <code>listWorktrees()</code> result</li>
+  </ul>
+</div>
