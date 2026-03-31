@@ -23,6 +23,7 @@ export function useKeyboardShortcuts(
   onCreateDialog: () => void,
   onShortcutsOverlay?: () => void,
   onAddRepo?: () => void,
+  onCommandPalette?: () => void,
 ) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -43,6 +44,13 @@ export function useKeyboardShortcuts(
           (document.activeElement as HTMLElement)?.isContentEditable)
       )
         return;
+
+      // Cmd+K: open command palette
+      if (event.metaKey && !event.shiftKey && event.key === "k") {
+        event.preventDefault();
+        onCommandPalette?.();
+        return;
+      }
 
       // Cmd+R: open Add Repository modal
       if (event.metaKey && !event.shiftKey && event.key === "r") {
@@ -141,5 +149,5 @@ export function useKeyboardShortcuts(
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeWorktreeId, activeTab, tabs, onCreateDialog, onShortcutsOverlay, onAddRepo]);
+  }, [activeWorktreeId, activeTab, tabs, onCreateDialog, onShortcutsOverlay, onAddRepo, onCommandPalette]);
 }

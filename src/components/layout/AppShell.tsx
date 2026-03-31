@@ -25,6 +25,7 @@ import { saveAllSessions } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
+import { CommandPalette } from "../commandPalette/CommandPalette";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { WorkspaceTab } from "../../types";
 
@@ -89,6 +90,14 @@ function AppShell() {
   } = useAppConfig();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // Listen for command palette's "new worktree" event
+  useEffect(() => {
+    const handler = () => setCreateDialogOpen(true);
+    window.addEventListener("alfredo:create-worktree", handler);
+    return () => window.removeEventListener("alfredo:create-worktree", handler);
+  }, []);
 
   // Dialog state for multi-repo lifecycle
   const [addRepoModalOpen, setAddRepoModalOpen] = useState(false);
@@ -128,7 +137,7 @@ function AppShell() {
   const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabIdValue);
   useKeyboardShortcuts(activeWorktreeId, activeTab, tabs, () => setCreateDialogOpen(true), () => {
     window.dispatchEvent(new CustomEvent("alfredo:shortcuts-overlay"));
-  }, () => setAddRepoModalOpen(true));
+  }, () => setAddRepoModalOpen(true), () => setCommandPaletteOpen(true));
 
 
   // When a new repo is selected (from welcome screen or add modal)
@@ -410,6 +419,10 @@ function AppShell() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         repoPath={repoPath ?? undefined}
+      />
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
       />
     </Group>
   );

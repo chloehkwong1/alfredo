@@ -158,6 +158,12 @@ function Sidebar({
     return () => window.removeEventListener("alfredo:shortcuts-overlay", handler);
   }, []);
 
+  useEffect(() => {
+    const handler = () => setGlobalSettingsOpen(true);
+    window.addEventListener("alfredo:settings-open", handler);
+    return () => window.removeEventListener("alfredo:settings-open", handler);
+  }, []);
+
   const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
