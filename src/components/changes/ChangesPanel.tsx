@@ -111,7 +111,7 @@ function WorkspacePanel({
       {/* Header */}
       <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-border-subtle flex-shrink-0">
         <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
-          {hasPr ? "Workspace" : "Changes"}
+          Changes
         </span>
         <button
           onClick={onCollapse}
@@ -222,7 +222,7 @@ function WorkspacePanelMinimized({
         className="text-[10px] text-text-tertiary"
         style={{ writingMode: "vertical-lr" }}
       >
-        {hasPr ? "Workspace" : "Changes"}
+        Changes
       </span>
       {fileCount > 0 && (
         <span className="text-[9px] font-semibold px-1 py-px rounded-sm bg-accent-primary/15 text-accent-primary flex-shrink-0">
