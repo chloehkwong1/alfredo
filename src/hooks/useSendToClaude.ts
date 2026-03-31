@@ -57,6 +57,7 @@ export function useSendToClaude(
       }
     }
 
+    session.waitingForInput = false;
     const bytes = Array.from(new TextEncoder().encode(message));
     await writePty(session.sessionId, bytes);
     clearAnnotations(worktreeId);

@@ -134,6 +134,8 @@ export function usePty({
       // event propagates to the backend PTY (which starts at 80×24).
       if (session.sessionId) {
         onDataDisposable = term.onData((data: string) => {
+          // User responded — allow Busy hook transitions again.
+          session.waitingForInput = false;
           const bytes = Array.from(new TextEncoder().encode(data));
           writePty(session.sessionId, bytes).catch(console.error);
         });

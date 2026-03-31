@@ -1,6 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState, useEffect, useRef } from "react";
-import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare } from "lucide-react";
+import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openInEditor, openInTerminal, getAppConfig } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -416,7 +416,7 @@ type PrSummary = {
 function hasPrStats(s: PrSummary): boolean {
   const { failingCheckCount, unresolvedCommentCount, reviewDecision, mergeable } = s;
   if (failingCheckCount != null) return true;
-  if (reviewDecision === "approved" || reviewDecision === "changes_requested" || reviewDecision === "review_required") return true;
+  if (reviewDecision === "approved" || reviewDecision === "changes_requested" || reviewDecision === "review_required" || reviewDecision === "review_requested") return true;
   if (unresolvedCommentCount != null && unresolvedCommentCount > 0) return true;
   if (mergeable != null) return true;
   return false;
@@ -470,10 +470,16 @@ function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
           Changes requested
         </span>
       )}
-      {reviewDecision === "review_required" && (
+      {reviewDecision === "review_requested" && (
         <span className="flex items-center gap-1 text-xs text-status-busy">
+          <UserPlus size={12} />
+          Review requested
+        </span>
+      )}
+      {reviewDecision === "review_required" && (
+        <span className="flex items-center gap-1 text-xs text-text-tertiary">
           <Clock size={12} />
-          Review pending
+          Needs reviewer
         </span>
       )}
 

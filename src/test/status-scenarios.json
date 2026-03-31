@@ -164,5 +164,54 @@
         "expect": { "agentStatus": "busy", "effectiveStatus": "disconnected" }
       }
     ]
+  },
+  {
+    "name": "interrupt-prompt-what-should-claude-do",
+    "description": "User interrupts a running command, Claude asks what to do instead",
+    "category": "missed-waiting-for-input",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "Running specs...\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "Interrupted \u00b7 What should Claude do instead?\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      }
+    ]
+  },
+  {
+    "name": "esc-to-cancel-prompt",
+    "description": "File creation prompt with Esc to cancel navigation hint",
+    "category": "missed-waiting-for-input",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "Generating plan content...\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "Do you want to create plan.md?\n\u203a 1. Yes\n  2. No\nEsc to cancel \u00b7 Tab to amend\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      }
+    ]
+  },
+  {
+    "name": "late-hook-busy-after-waiting-for-input",
+    "description": "Hook busy arrives after detector already set waitingForInput (race condition)",
+    "category": "missed-waiting-for-input",
+    "steps": [
+      {
+        "action": { "type": "hookEvent", "state": "busy" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "Do you want to proceed?\n\u203a 1. Yes\n  2. No\nEsc to cancel\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      },
+      {
+        "action": { "type": "hookEvent", "state": "busy" },
+        "expect": { "agentStatus": "waitingForInput" }
+      }
+    ]
   }
 ]

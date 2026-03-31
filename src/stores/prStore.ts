@@ -224,6 +224,7 @@ export const usePrStore = create<PrState>((set, get) => ({
           comments: pr.comments ?? [],
           mergeable: pr.mergeable ?? null,
           reviewDecision: pr.reviewDecision ?? null,
+          requestedReviewers: pr.requestedReviewers ?? [],
         };
       }
     }

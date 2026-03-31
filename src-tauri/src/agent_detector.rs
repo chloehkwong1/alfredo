@@ -252,6 +252,15 @@ fn classify_claude_code(line: &str) -> (Option<AgentType>, Option<AgentState>) {
     {
         return (None, Some(AgentState::WaitingForInput));
     }
+    // Interrupt prompt — user interrupted a running tool/command
+    if line.contains("What should Claude do") || line.contains("What should claude do") {
+        return (None, Some(AgentState::WaitingForInput));
+    }
+    // Universal prompt navigation hints — present on virtually all Claude Code
+    // prompts that require user input (permission, elicitation, file creation, etc.)
+    if line.contains("Esc to cancel") || line.contains("Tab to amend") {
+        return (None, Some(AgentState::WaitingForInput));
+    }
     // Idle prompt — Claude Code shows a `❯` or `>` prompt when waiting for user input
     // The prompt line is typically short and ends with the prompt char
     if line_is_claude_prompt(line) {

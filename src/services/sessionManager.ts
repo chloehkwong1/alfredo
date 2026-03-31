@@ -44,6 +44,10 @@ export interface ManagedSession {
   writeScheduled: boolean;
   /** Whether this session was restored from saved scrollback (for auto-resume). */
   restoredFromScrollback: boolean;
+  /** Sticky flag: true while agent is waiting for user input. Prevents late
+   *  "busy" hook events (e.g. a delayed PreToolUse) from overriding
+   *  waitingForInput. Cleared when user provides input (writePty). */
+  waitingForInput: boolean;
 }
 
 /**
@@ -216,6 +220,7 @@ export class SessionManager {
       pendingOutput: [],
       writeScheduled: false,
       restoredFromScrollback: false,
+      waitingForInput: false,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -233,8 +238,12 @@ export class SessionManager {
           break;
         }
         case "hookAgentState": {
-          session.agentState = event.data;
           session.hooksActive = true;
+          // Don't let a late "busy" hook (e.g. delayed PreToolUse) override
+          // waitingForInput. The flag is cleared when the user provides input.
+          if (event.data === "busy" && session.waitingForInput) break;
+          session.waitingForInput = event.data === "waitingForInput";
+          session.agentState = event.data;
           useWorkspaceStore
             .getState()
             .updateWorktree(worktreeId, { agentStatus: event.data });
@@ -242,6 +251,11 @@ export class SessionManager {
         }
         case "agentState": {
           if (!shouldAcceptDetectorState(session.hooksActive, event.data)) break;
+          if (event.data === "waitingForInput") {
+            session.waitingForInput = true;
+          } else if (event.data !== "busy") {
+            session.waitingForInput = false;
+          }
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
@@ -324,6 +338,7 @@ export class SessionManager {
       pendingOutput: [],
       writeScheduled: false,
       restoredFromScrollback: true,
+      waitingForInput: false,
     };
 
     this.sessions.set(sessionKey, session);
@@ -363,8 +378,10 @@ export class SessionManager {
           break;
         }
         case "hookAgentState": {
-          session.agentState = event.data;
           session.hooksActive = true;
+          if (event.data === "busy" && session.waitingForInput) break;
+          session.waitingForInput = event.data === "waitingForInput";
+          session.agentState = event.data;
           useWorkspaceStore
             .getState()
             .updateWorktree(worktreeId, { agentStatus: event.data });
@@ -372,6 +389,11 @@ export class SessionManager {
         }
         case "agentState": {
           if (!shouldAcceptDetectorState(session.hooksActive, event.data)) break;
+          if (event.data === "waitingForInput") {
+            session.waitingForInput = true;
+          } else if (event.data !== "busy") {
+            session.waitingForInput = false;
+          }
           session.agentState = event.data;
           useWorkspaceStore
             .getState()

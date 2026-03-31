@@ -52,11 +52,15 @@ pub fn dedup_reviews(reviews: Vec<PrReview>) -> Vec<PrReview> {
 }
 
 /// Derive review decision from deduplicated reviews.
-pub fn derive_review_decision(reviews: &[PrReview]) -> Option<String> {
+/// When no definitive decision exists, distinguishes between "review_requested"
+/// (reviewer has been assigned) and "review_required" (no reviewer assigned yet).
+pub fn derive_review_decision(reviews: &[PrReview], requested_reviewers: &[String]) -> Option<String> {
     if reviews.iter().any(|r| r.state == "changes_requested") {
         Some("changes_requested".to_string())
     } else if reviews.iter().any(|r| r.state == "approved") {
         Some("approved".to_string())
+    } else if !requested_reviewers.is_empty() {
+        Some("review_requested".to_string())
     } else {
         Some("review_required".to_string())
     }
@@ -424,6 +428,16 @@ impl GithubManager {
 
         let mergeable = pr_response.get("mergeable").and_then(serde_json::Value::as_bool);
 
+        let requested_reviewers = pr_response
+            .get("requested_reviewers")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|u| u.get("login").and_then(|l| l.as_str()).map(String::from))
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+
         // Fetch reviews, line comments, and issue comments concurrently
         let (reviews, line_comments, issue_comments) = tokio::join!(
             self.get_pr_reviews(owner, repo, pr_number),
@@ -436,13 +450,14 @@ impl GithubManager {
         comments.extend(issue_comments?);
 
         let deduped_reviews = dedup_reviews(reviews);
-        let review_decision = derive_review_decision(&deduped_reviews);
+        let review_decision = derive_review_decision(&deduped_reviews, &requested_reviewers);
 
         Ok(PrDetailedStatus {
             reviews: deduped_reviews,
             comments,
             mergeable,
             review_decision,
+            requested_reviewers,
         })
     }
 

@@ -53,6 +53,8 @@ pub struct PrStatusWithColumn {
     pub updated_at: Option<String>,
     /// GitHub login of the PR author.
     pub author: Option<String>,
+    /// GitHub logins of users requested to review this PR.
+    pub requested_reviewers: Vec<String>,
 }
 
 impl PrStatusWithColumn {
@@ -84,6 +86,7 @@ impl PrStatusWithColumn {
             comments: Vec::new(),
             updated_at: pr.updated_at.clone(),
             author: pr.author.clone(),
+            requested_reviewers: pr.requested_reviewers.clone(),
         }
     }
 }
@@ -245,7 +248,7 @@ async fn poll_repo(
 
         if let Ok(reviews) = reviews_result {
             let deduped = dedup_reviews(reviews);
-            pr_with_col.review_decision = derive_review_decision(&deduped);
+            pr_with_col.review_decision = derive_review_decision(&deduped, &pr_with_col.requested_reviewers);
             pr_with_col.reviews = deduped;
         }
 
