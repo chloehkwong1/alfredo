@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Archive, ChevronRight, Trash2 } from "lucide-react";
+import { ArchiveRestore, ChevronRight, Trash2 } from "lucide-react";
+import { Tooltip } from "../ui";
 import { Button } from "../ui";
 import {
   Dialog,
@@ -16,38 +17,35 @@ interface ArchiveSectionProps {
   worktrees: Worktree[];
   onDelete: (id: string) => void;
   onDeleteAll: () => void;
+  onUnarchive: (id: string) => void;
   deletingCount?: { current: number; total: number } | null;
 }
 
-function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: ArchiveSectionProps) {
-  const [isCollapsed, setIsCollapsed] = useState(true);
+function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletingCount }: ArchiveSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
 
   if (worktrees.length === 0) return null;
 
   return (
-    <div className="mt-4 border-t border-border-subtle pt-2">
+    <div className="mb-2">
       <button
-        onClick={() => setIsCollapsed((prev) => !prev)}
-        className="flex w-full items-center gap-2 px-3.5 pt-3 pb-2 cursor-pointer select-none text-text-tertiary hover:text-text-secondary transition-colors"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        className="flex w-full items-center gap-1.5 py-1 cursor-pointer select-none text-text-tertiary/60 hover:text-text-tertiary transition-colors"
       >
-        <Archive className="h-3.5 w-3.5" />
-        <span className="text-xs font-semibold uppercase tracking-wider">
-          Archive
-        </span>
-        <span className="ml-auto text-2xs text-text-tertiary tabular-nums">
-          {worktrees.length}
-        </span>
         <ChevronRight
           className={[
-            "h-3.5 w-3.5 transition-transform duration-150",
-            isCollapsed ? "rotate-0" : "rotate-90",
+            "h-3 w-3 transition-transform duration-150",
+            isExpanded ? "rotate-90" : "rotate-0",
           ].join(" ")}
         />
+        <span className="text-[11px]">
+          {worktrees.length} archived
+        </span>
       </button>
 
       <AnimatePresence initial={false}>
-        {!isCollapsed && (
+        {isExpanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
@@ -55,37 +53,44 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, deletingCount }: Arc
             transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-red-400 hover:text-red-300 text-xs w-full"
-                onClick={() => setDeleteAllDialogOpen(true)}
-                disabled={!!deletingCount}
-              >
-                {deletingCount
-                  ? `Deleting ${deletingCount.current}/${deletingCount.total}...`
-                  : "Delete all"}
-              </Button>
-            </div>
-
             {worktrees.map((wt) => (
               <div
                 key={wt.id}
-                className="group w-full text-left px-3.5 py-2 flex items-center gap-2 border-l-[3px] border-l-transparent"
+                className="group flex items-center gap-1.5 py-1 pl-1"
               >
-                <span className="text-sm text-text-tertiary truncate flex-1">
+                <span className="text-[11px] text-text-tertiary/60 truncate flex-1">
                   {wt.branch}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onDelete(wt.id)}
-                  className="opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-red-400 transition-opacity p-1 cursor-pointer"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <Tooltip content="Restore" side="top" delayDuration={0}>
+                  <button
+                    type="button"
+                    onClick={() => onUnarchive(wt.id)}
+                    className="opacity-0 group-hover:opacity-100 text-text-tertiary/60 hover:text-accent-primary transition-opacity p-0.5 cursor-pointer"
+                  >
+                    <ArchiveRestore className="h-3 w-3" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Delete" side="top" delayDuration={0}>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(wt.id)}
+                    className="opacity-0 group-hover:opacity-100 text-text-tertiary/60 hover:text-red-400 transition-opacity p-0.5 cursor-pointer"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </Tooltip>
               </div>
             ))}
+            <button
+              type="button"
+              onClick={() => setDeleteAllDialogOpen(true)}
+              disabled={!!deletingCount}
+              className="text-[10px] text-text-tertiary/40 hover:text-red-400/70 transition-colors cursor-pointer mt-1 mb-1 pl-1"
+            >
+              {deletingCount
+                ? `Deleting ${deletingCount.current}/${deletingCount.total}...`
+                : "Delete all"}
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

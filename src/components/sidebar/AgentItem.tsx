@@ -275,7 +275,6 @@ function AgentItem({
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { prSummary, isServerRunning, effectiveStatus, shouldPulse } = useAgentItemState(worktree);
-  const isDone = worktree.column === "done";
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: worktree.id,
   });
@@ -348,7 +347,7 @@ function AgentItem({
             Open in Terminal
           </ContextMenuItem>
           <ContextMenuSeparator />
-          {isDone && onArchive && (
+          {onArchive && (
             <>
               <ContextMenuItem onSelect={() => onArchive(worktree.id)}>
                 <Archive className="h-4 w-4" />

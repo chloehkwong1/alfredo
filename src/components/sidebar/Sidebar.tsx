@@ -79,6 +79,7 @@ function Sidebar({
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
+  const unarchiveWorktree = useWorkspaceStore((s) => s.unarchiveWorktree);
   const repoPath = activeRepo;
 
   const { config, updateConfig } = useAppConfig();
@@ -253,17 +254,18 @@ function Sidebar({
                 ))
               }
             </SidebarDragContext>
-            <ArchiveSection
-              worktrees={archivedWorktrees}
-              onDelete={handleDeleteWorktree}
-              onDeleteAll={handleDeleteAllArchived}
-              deletingCount={deletingCount}
-            />
           </div>
 
           {/* Footer — only show worktree actions when a repo is configured */}
           {hasRepo && (
-            <div className="p-4 border-t border-border-subtle flex-shrink-0">
+            <div className="px-4 pt-3 pb-4 border-t border-border-subtle flex-shrink-0">
+              <ArchiveSection
+                worktrees={archivedWorktrees}
+                onDelete={handleDeleteWorktree}
+                onDeleteAll={handleDeleteAllArchived}
+                onUnarchive={unarchiveWorktree}
+                deletingCount={deletingCount}
+              />
               <button
                 type="button"
                 className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] border border-dashed border-accent-primary/25 text-accent-primary/70 text-sm font-medium hover:bg-accent-muted hover:border-accent-primary/40 hover:text-accent-primary transition-all cursor-pointer"
