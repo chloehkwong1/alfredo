@@ -48,6 +48,9 @@ html[data-theme="light"] {
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
 
+  --search-match: rgba(202, 138, 4, 0.35);
+  --search-match-active: rgba(234, 88, 12, 0.5);
+
   --bg-sidebar: #eeeeec;
   --bg-bar: #f0efed;
   --border-subtle: rgba(0, 0, 0, 0.06);
@@ -96,6 +99,9 @@ html[data-theme="synthwave"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --search-match: rgba(255, 230, 0, 0.35);
+  --search-match-active: rgba(255, 41, 117, 0.5);
 
   --bg-sidebar: #140c20;
   --bg-bar: #1e1230;
@@ -146,6 +152,9 @@ html[data-theme="catppuccin"] {
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
 
+  --search-match: rgba(249, 226, 175, 0.35);
+  --search-match-active: rgba(250, 179, 135, 0.55);
+
   --bg-sidebar: #181826;
   --bg-bar: #21212f;
   --border-subtle: rgba(255, 255, 255, 0.06);
@@ -194,6 +203,9 @@ html[data-theme="sunset"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --search-match: rgba(251, 191, 36, 0.35);
+  --search-match-active: rgba(244, 114, 182, 0.5);
 
   --bg-sidebar: #180f18;
   --bg-bar: #221824;
@@ -244,6 +256,9 @@ html[data-theme="tokyo-night"] {
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
 
+  --search-match: rgba(224, 175, 104, 0.35);
+  --search-match-active: rgba(255, 158, 100, 0.55);
+
   --bg-sidebar: #15161f;
   --bg-bar: #1c1d28;
   --border-subtle: rgba(255, 255, 255, 0.06);
@@ -293,6 +308,9 @@ html[data-theme="solarized"] {
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
 
+  --search-match: rgba(181, 137, 0, 0.4);
+  --search-match-active: rgba(203, 75, 22, 0.55);
+
   --bg-sidebar: #00232d;
   --bg-bar: #003540;
   --border-subtle: rgba(255, 255, 255, 0.06);
@@ -341,6 +359,9 @@ html[data-theme="honeycomb"] {
 
   --transition-fast: 120ms ease;
   --transition-normal: 200ms ease;
+
+  --search-match: rgba(234, 179, 8, 0.35);
+  --search-match-active: rgba(251, 146, 60, 0.5);
 
   --bg-sidebar: #161411;
   --bg-bar: #1f1d19;

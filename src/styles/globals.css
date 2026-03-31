@@ -39,6 +39,9 @@
   --color-danger-hover: var(--danger-hover);
   --color-danger-muted: var(--danger-muted);
 
+  --color-search-match: var(--search-match);
+  --color-search-match-active: var(--search-match-active);
+
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
