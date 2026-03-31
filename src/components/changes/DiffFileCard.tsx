@@ -23,11 +23,12 @@ interface DiffFileCardProps {
   onToggleExpanded: (path: string) => void;
   viewMode: DiffViewMode;
   annotations: Annotation[];
-  activeAnnotationLine: { filePath: string; lineNumber: number } | null;
-  onAddAnnotation: (filePath: string, lineNumber: number) => void;
+  activeAnnotationLine: { filePath: string; lineNumber: number; side: import("../../types").DiffSide } | null;
+  onAddAnnotation: (filePath: string, lineNumber: number, side: import("../../types").DiffSide) => void;
   onSubmitAnnotation: (
     filePath: string,
     lineNumber: number,
+    side: import("../../types").DiffSide,
     text: string
   ) => void;
   onDeleteAnnotation: (annotationId: string) => void;
@@ -129,12 +130,12 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       return () => observer.disconnect();
     }, [hasBeenVisible]);
 
-    // Group annotations by newLineNumber for O(1) lookup
+    // Group annotations by side:lineNumber for O(1) lookup
     const annotationsByLine = useMemo(() => {
-      const map = new Map<number, Annotation[]>();
+      const map = new Map<string, Annotation[]>();
       for (const ann of annotations) {
         if (ann.filePath !== file.path) continue;
-        const key = ann.lineNumber;
+        const key = `${ann.side}:${ann.lineNumber}`;
         const existing = map.get(key);
         if (existing) {
           existing.push(ann);
@@ -423,9 +424,12 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                   {/* Lines */}
                   {viewMode === "split" ? (
                     pairLinesForSplit(hunk.lines).map((row, rowIndex) => {
+                      // Split view: clicks only on right side, so annotations use "new" side
+                      const side: import("../../types").DiffSide = "new";
                       const lineNumber = row.right?.lineNumber ?? row.left?.lineNumber ?? null;
-                      const lineAnnotations = lineNumber !== null
-                        ? (annotationsByLine.get(lineNumber) ?? [])
+                      const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
+                      const lineAnnotations = annotationKey !== null
+                        ? (annotationsByLine.get(annotationKey) ?? [])
                         : [];
                       const lineComments = lineNumber !== null
                         ? (prCommentsByLine.get(lineNumber) ?? [])
@@ -433,7 +437,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                       const isActiveAnnotationLine =
                         lineNumber !== null &&
                         activeAnnotationLine?.filePath === file.path &&
-                        activeAnnotationLine?.lineNumber === lineNumber;
+                        activeAnnotationLine?.lineNumber === lineNumber &&
+                        activeAnnotationLine?.side === side;
                       const hasComments = lineComments.length > 0;
                       const commentsExpanded =
                         lineNumber !== null && expandedCommentLines.has(lineNumber);
@@ -446,7 +451,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                           filePath={file.path}
                           onClickLine={
                             lineNumber !== null
-                              ? (ln) => onAddAnnotation(file.path, ln)
+                              ? (ln) => onAddAnnotation(file.path, ln, side)
                               : undefined
                           }
                           searchQuery={searchQuery}
@@ -476,9 +481,9 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                           {isActiveAnnotationLine && lineNumber !== null && (
                             <AnnotationInput
                               onSubmit={(text) =>
-                                onSubmitAnnotation(file.path, lineNumber, text)
+                                onSubmitAnnotation(file.path, lineNumber, side, text)
                               }
-                              onCancel={() => onAddAnnotation(file.path, lineNumber)}
+                              onCancel={() => onAddAnnotation(file.path, lineNumber, side)}
                             />
                           )}
                         </SplitDiffLine>
@@ -486,12 +491,14 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                     })
                   ) : (
                     hunk.lines.map((line, lineIndex) => {
-                      // Use newLineNumber for additions/context, oldLineNumber for deletions
+                      // Determine side and line number based on line type
+                      const side: import("../../types").DiffSide = line.lineType === "deletion" ? "old" : "new";
                       const lineNumber =
                         line.newLineNumber ?? line.oldLineNumber ?? null;
+                      const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
 
-                      const lineAnnotations = lineNumber !== null
-                        ? (annotationsByLine.get(lineNumber) ?? [])
+                      const lineAnnotations = annotationKey !== null
+                        ? (annotationsByLine.get(annotationKey) ?? [])
                         : [];
                       const lineComments = lineNumber !== null
                         ? (prCommentsByLine.get(lineNumber) ?? [])
@@ -499,7 +506,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                       const isActiveAnnotationLine =
                         lineNumber !== null &&
                         activeAnnotationLine?.filePath === file.path &&
-                        activeAnnotationLine?.lineNumber === lineNumber;
+                        activeAnnotationLine?.lineNumber === lineNumber &&
+                        activeAnnotationLine?.side === side;
                       const hasComments = lineComments.length > 0;
                       const commentsExpanded =
                         lineNumber !== null &&
@@ -520,7 +528,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                           filePath={file.path}
                           onClickLine={
                             lineNumber !== null
-                              ? () => onAddAnnotation(file.path, lineNumber)
+                              ? () => onAddAnnotation(file.path, lineNumber, side)
                               : undefined
                           }
                           searchQuery={searchQuery}
@@ -558,9 +566,9 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                           {isActiveAnnotationLine && lineNumber !== null && line.lineType !== "deletion" && (
                             <AnnotationInput
                               onSubmit={(text) =>
-                                onSubmitAnnotation(file.path, lineNumber, text)
+                                onSubmitAnnotation(file.path, lineNumber, side, text)
                               }
-                              onCancel={() => onAddAnnotation(file.path, lineNumber)}
+                              onCancel={() => onAddAnnotation(file.path, lineNumber, side)}
                             />
                           )}
                         </SyntaxDiffLine>

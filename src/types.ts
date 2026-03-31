@@ -342,11 +342,14 @@ export interface GlobalAppConfig {
 
 // ── Inline annotation ────────────────────────────────────────────
 
+export type DiffSide = "old" | "new";
+
 export interface Annotation {
   id: string;
   worktreeId: string;
   filePath: string;
   lineNumber: number;
+  side: DiffSide; // which side of the diff: old (deletion) or new (addition/context)
   commitHash: string | null; // null = "all changes" mode
   text: string;
   createdAt: number;

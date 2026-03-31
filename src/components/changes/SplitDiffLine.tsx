@@ -146,7 +146,13 @@ const SplitDiffLine = memo(function SplitDiffLine({
         <div className="w-px bg-border-default flex-shrink-0" />
         <SplitSideContent side={right} filePath={filePath} onClickLine={onClickLine} align="right" searchQuery={searchQuery} />
       </div>
-      {children}
+      {children && (
+        <div className="flex">
+          <div className="flex-1" />
+          <div className="w-px bg-border-default flex-shrink-0" />
+          <div className="flex-1">{children}</div>
+        </div>
+      )}
     </>
   );
 });

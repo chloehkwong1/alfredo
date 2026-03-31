@@ -57,7 +57,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   // Map panel tab to data view mode — "pr" tab doesn't affect data fetching
   const viewMode = panelTab === "commits" ? "commits" : "changes";
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
-  const [activeAnnotationLine, setActiveAnnotationLine] = useState<{ filePath: string; lineNumber: number } | null>(null);
+  const [activeAnnotationLine, setActiveAnnotationLine] = useState<{ filePath: string; lineNumber: number; side: import("../../types").DiffSide } | null>(null);
 
   const annotations = useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
   const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
@@ -220,16 +220,16 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   }, [handleSelectCommit]);
 
   const handleAddAnnotation = useCallback(
-    (filePath: string, lineNumber: number) => {
+    (filePath: string, lineNumber: number, side: import("../../types").DiffSide) => {
       setActiveAnnotationLine((prev) =>
-        prev?.filePath === filePath && prev?.lineNumber === lineNumber ? null : { filePath, lineNumber }
+        prev?.filePath === filePath && prev?.lineNumber === lineNumber && prev?.side === side ? null : { filePath, lineNumber, side }
       );
     },
     [],
   );
 
   const handleSubmitAnnotation = useCallback(
-    (filePath: string, lineNumber: number, text: string) => {
+    (filePath: string, lineNumber: number, side: import("../../types").DiffSide, text: string) => {
       const commitHash =
         viewMode === "commits" && selectedCommitIndex !== null && commits.length > 0
           ? commits[selectedCommitIndex].hash
@@ -239,6 +239,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
         worktreeId,
         filePath,
         lineNumber,
+        side,
         commitHash,
         text,
         createdAt: Date.now(),
