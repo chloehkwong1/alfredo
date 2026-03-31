@@ -22,12 +22,12 @@ import type {
 export function spawnPty(
   worktreeId: string,
   worktreePath: string,
-  command: string,
+  mode: "shell" | "claude" | "codex" | "aider",
   args: string[],
   onData: Channel<PtyEvent>,
   agentType?: "claudeCode" | "codex" | "aider",
 ): Promise<string> {
-  return invoke("spawn_pty", { worktreeId, worktreePath, command, args, onData, agentType });
+  return invoke("spawn_pty", { worktreeId, worktreePath, mode, args, onData, agentType });
 }
 
 export function writePty(sessionId: string, data: number[]): Promise<void> {

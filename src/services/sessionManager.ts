@@ -260,8 +260,6 @@ export class SessionManager {
       }
     });
 
-    // Determine command and agent type based on mode
-    const command = mode === "shell" ? "/bin/zsh" : "claude";
     const agentType = mode === "claude" ? "claudeCode" : undefined;
 
     this.sessions.set(sessionKey, session);
@@ -271,7 +269,7 @@ export class SessionManager {
       sessionId = await spawnPty(
         worktreeId,
         worktreePath,
-        command,
+        mode,
         args ?? [],
         channel,
         agentType,
@@ -411,7 +409,6 @@ export class SessionManager {
       }
     });
 
-    const command = mode === "shell" ? "/bin/zsh" : "claude";
     const agentType = mode === "claude" ? "claudeCode" : undefined;
 
     let sessionId: string;
@@ -419,7 +416,7 @@ export class SessionManager {
       sessionId = await spawnPty(
         worktreeId,
         worktreePath,
-        command,
+        mode,
         args ?? [],
         channel,
         agentType,

@@ -10,6 +10,10 @@ type Result<T> = std::result::Result<T, AppError>;
 /// Returns the session ID. Output streams back via the `on_data` Channel.
 /// `agent_type` tells the detector what agent is running so it can track
 /// state immediately without relying on banner/launch detection.
+///
+/// `mode` determines the command to run: `"shell"` spawns the user's
+/// default shell, `"claude"` spawns Claude Code, etc. The backend maps
+/// mode to the actual binary — the frontend never specifies a raw command.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn spawn_pty(
@@ -17,11 +21,19 @@ pub async fn spawn_pty(
     state_server: State<'_, StateServerHandle>,
     worktree_id: String,
     worktree_path: String,
-    command: String,
+    mode: String,
     args: Vec<String>,
     on_data: Channel<PtyEvent>,
     agent_type: Option<AgentType>,
 ) -> Result<String> {
+    let command = match mode.as_str() {
+        "shell" => std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string()),
+        "claude" => "claude".to_string(),
+        "codex" => "codex".to_string(),
+        "aider" => "aider".to_string(),
+        _ => return Err(AppError::Pty(format!("unknown PTY mode: {mode}"))),
+    };
+
     let session_id = PtyManager::generate_session_id();
 
     // Register the channel with the state server BEFORE spawning so that
