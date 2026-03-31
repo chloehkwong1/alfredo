@@ -10,6 +10,8 @@ interface UseChangesDataReturn {
   commitFiles: DiffFile[];
   displayFiles: DiffFile[];
   refetchUncommitted: () => void;
+  /** Error message from the most recent failed fetch, or null if healthy. */
+  error: string | null;
 }
 
 export function useChangesData(
@@ -23,6 +25,7 @@ export function useChangesData(
   const [committedFiles, setCommittedFiles] = useState<DiffFile[]>([]);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [commitFiles, setCommitFiles] = useState<DiffFile[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refetchUncommitted = () => setRefreshKey((k) => k + 1);
@@ -32,8 +35,8 @@ export function useChangesData(
     let cancelled = false;
     const fetch = () => {
       getUncommittedDiff(repoPath)
-        .then((files) => { if (!cancelled) setUncommittedFiles(files); })
-        .catch((err) => console.error("Failed to load uncommitted diff:", err));
+        .then((files) => { if (!cancelled) { setUncommittedFiles(files); setError(null); } })
+        .catch((err) => { if (!cancelled) setError(`Uncommitted diff failed: ${err}`); });
     };
     fetch();
     const interval = setInterval(fetch, 3_000);
@@ -74,12 +77,13 @@ export function useChangesData(
           } else {
             setCommittedFiles(files);
           }
+          setError(null);
         })
-        .catch((err) => console.error("Failed to load PR files:", err));
+        .catch((err) => { if (!cancelled) setError(`PR files failed: ${err}`); });
 
       getPrCommits(repoPath, prNumber)
         .then((list) => { if (!cancelled) setCommits(list); })
-        .catch((err) => console.error("Failed to load PR commits:", err));
+        .catch((err) => { if (!cancelled) setError(`PR commits failed: ${err}`); });
 
       return () => { cancelled = true; };
     }
@@ -87,11 +91,11 @@ export function useChangesData(
     // No PR: use local git diff — poll to pick up new commits
     const fetchLocal = () => {
       getDiff(repoPath, baseBranch)
-        .then((files) => { if (!cancelled) setCommittedFiles(files); })
-        .catch((err) => console.error("Failed to load committed diff:", err));
+        .then((files) => { if (!cancelled) { setCommittedFiles(files); setError(null); } })
+        .catch((err) => { if (!cancelled) setError(`Committed diff failed: ${err}`); });
       getCommits(repoPath, baseBranch)
         .then((list) => { if (!cancelled) setCommits(list); })
-        .catch((err) => console.error("Failed to load commits:", err));
+        .catch((err) => { if (!cancelled) setError(`Commits failed: ${err}`); });
     };
     fetchLocal();
     const interval = setInterval(fetchLocal, 10_000);
@@ -108,7 +112,7 @@ export function useChangesData(
     if (!commit) return;
     getDiffForCommit(repoPath, commit.hash)
       .then((files) => { if (!cancelled) setCommitFiles(files); })
-      .catch((err) => console.error("Failed to load commit diff:", err));
+      .catch((err) => { if (!cancelled) setError(`Commit diff failed: ${err}`); });
     return () => { cancelled = true; };
   }, [viewMode, selectedCommitIndex, commits, repoPath]);
 
@@ -124,5 +128,5 @@ export function useChangesData(
     }
   }, [viewMode, uncommittedFiles, committedFiles, commitFiles, selectedCommitIndex]);
 
-  return { uncommittedFiles, committedFiles, commits, commitFiles, displayFiles, refetchUncommitted };
+  return { uncommittedFiles, committedFiles, commits, commitFiles, displayFiles, refetchUncommitted, error };
 }
