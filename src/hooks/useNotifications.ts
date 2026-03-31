@@ -102,6 +102,54 @@ const SOUNDS: Record<string, SoundNote[]> = {
     { frequency: 1200, duration: 0.08, type: "triangle", endFrequency: 600, gain: 0.15, delay: 0.0 },
     { frequency: 600, duration: 0.06, type: "triangle", endFrequency: 900, gain: 0.1, delay: 0.0 },
   ],
+  // ── More fun ──
+  oneup:     [
+    { frequency: 660, duration: 0.06, type: "square", gain: 0.18 },
+    { frequency: 880, duration: 0.06, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 1175, duration: 0.06, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 880, duration: 0.06, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 1175, duration: 0.06, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 1568, duration: 0.25, type: "square", gain: 0.2, delay: 0.0 },
+  ],
+  sonar:     [
+    { frequency: 1200, duration: 0.15, gain: 0.25 },
+    { frequency: 1200, duration: 0.15, gain: 0.12, delay: 0.25 },
+  ],
+  marimba:   [
+    { frequency: 1047, duration: 0.06, type: "sine", gain: 0.3 },
+    { frequency: 1319, duration: 0.06, type: "sine", gain: 0.25, delay: 0.08 },
+    { frequency: 1568, duration: 0.12, type: "sine", gain: 0.2, delay: 0.08 },
+  ],
+  levelup:   [
+    { frequency: 440, duration: 0.08, type: "square", gain: 0.18 },
+    { frequency: 554, duration: 0.08, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 659, duration: 0.08, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 880, duration: 0.08, type: "square", gain: 0.18, delay: 0.06 },
+    { frequency: 1047, duration: 0.08, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 1319, duration: 0.35, type: "square", gain: 0.2, delay: 0.0 },
+  ],
+  bubble:    [
+    { frequency: 250, duration: 0.06, endFrequency: 800, gain: 0.2 },
+    { frequency: 300, duration: 0.06, endFrequency: 900, gain: 0.18, delay: 0.06 },
+    { frequency: 350, duration: 0.08, endFrequency: 1100, gain: 0.15, delay: 0.06 },
+  ],
+  whistle:   [
+    { frequency: 900, duration: 0.08, endFrequency: 1800, gain: 0.2 },
+    { frequency: 1800, duration: 0.2, gain: 0.18, delay: 0.0 },
+    { frequency: 1800, duration: 0.08, endFrequency: 1400, gain: 0.12, delay: 0.0 },
+  ],
+  bell:      [
+    { frequency: 1397, duration: 0.5, type: "sine", gain: 0.25 },
+    { frequency: 2794, duration: 0.3, type: "sine", gain: 0.08, delay: 0.0 },
+  ],
+  arcade:    [
+    { frequency: 1047, duration: 0.04, type: "square", gain: 0.18 },
+    { frequency: 1319, duration: 0.04, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 1568, duration: 0.04, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 1047, duration: 0.04, type: "square", gain: 0.18, delay: 0.06 },
+    { frequency: 1568, duration: 0.04, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 2093, duration: 0.15, type: "square", gain: 0.2, delay: 0.0 },
+  ],
 };
 
 let audioCtx: AudioContext | null = null;
