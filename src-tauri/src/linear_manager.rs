@@ -27,38 +27,47 @@ pub async fn search_issues(
     query: &str,
     team_id: Option<&str>,
 ) -> Result<Vec<LinearTicket>, AppError> {
-    let team_filter = match team_id {
-        Some(id) => format!(r#", filter: {{ team: {{ id: {{ eq: "{id}" }} }} }}"#),
-        None => String::new(),
-    };
-
-    let graphql_query = format!(
-        r#"{{
-  searchIssues(term: "{query}"{team_filter}, first: 25) {{
-    nodes {{
+    let (graphql_query, variables) = if team_id.is_some() {
+        (
+            r#"query SearchIssues($term: String!, $teamId: String!) {
+  searchIssues(term: $term, filter: { team: { id: { eq: $teamId } } }, first: 25) {
+    nodes {
       id
       identifier
       title
       description
       url
-      state {{
-        name
-      }}
-      labels {{
-        nodes {{
-          name
-        }}
-      }}
-      assignee {{
-        name
-      }}
+      state { name }
+      labels { nodes { name } }
+      assignee { name }
       updatedAt
-    }}
-  }}
-}}"#
-    );
+    }
+  }
+}"#,
+            serde_json::json!({ "term": query, "teamId": team_id }),
+        )
+    } else {
+        (
+            r#"query SearchIssues($term: String!) {
+  searchIssues(term: $term, first: 25) {
+    nodes {
+      id
+      identifier
+      title
+      description
+      url
+      state { name }
+      labels { nodes { name } }
+      assignee { name }
+      updatedAt
+    }
+  }
+}"#,
+            serde_json::json!({ "term": query }),
+        )
+    };
 
-    let body = serde_json::json!({ "query": graphql_query });
+    let body = serde_json::json!({ "query": graphql_query, "variables": variables });
 
     let resp = client(api_key)?
         .post(GRAPHQL_ENDPOINT)
@@ -99,31 +108,24 @@ pub async fn get_issue(
     api_key: &str,
     issue_id: &str,
 ) -> Result<LinearTicket, AppError> {
-    let graphql_query = format!(
-        r#"{{
-  issue(id: "{issue_id}") {{
+    let graphql_query = r#"query GetIssue($id: String!) {
+  issue(id: $id) {
     id
     identifier
     title
     description
     url
-    state {{
-      name
-    }}
-    labels {{
-      nodes {{
-        name
-      }}
-    }}
-    assignee {{
-      name
-    }}
+    state { name }
+    labels { nodes { name } }
+    assignee { name }
     updatedAt
-  }}
-}}"#
-    );
+  }
+}"#;
 
-    let body = serde_json::json!({ "query": graphql_query });
+    let body = serde_json::json!({
+        "query": graphql_query,
+        "variables": { "id": issue_id }
+    });
 
     let resp = client(api_key)?
         .post(GRAPHQL_ENDPOINT)
