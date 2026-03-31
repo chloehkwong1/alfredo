@@ -2,6 +2,60 @@ use octocrab::Octocrab;
 
 use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
+/// Convert an octocrab PR model into our `PrStatus` type.
+/// Derives `merged` from `merged_at.is_some()`, which works for all PR states.
+fn pr_status_from_octocrab(pr: octocrab::models::pulls::PullRequest) -> PrStatus {
+    let merged_at = pr.merged_at.map(|dt| dt.to_rfc3339());
+    PrStatus {
+        number: pr.number,
+        state: pr
+            .state
+            .map(|s| format!("{s:?}").to_lowercase())
+            .unwrap_or_else(|| "open".to_string()),
+        title: pr.title.unwrap_or_default(),
+        url: pr
+            .html_url
+            .map(|u| u.to_string())
+            .unwrap_or_default(),
+        draft: pr.draft.unwrap_or(false),
+        merged: merged_at.is_some(),
+        branch: pr.head.ref_field,
+        base_branch: Some(pr.base.ref_field),
+        merged_at,
+        head_sha: Some(pr.head.sha),
+        body: pr.body.clone(),
+        updated_at: pr.updated_at.map(|dt| dt.to_rfc3339()),
+        author: pr.user.as_ref().map(|u| u.login.clone()),
+    }
+}
+
+/// Deduplicate reviews: keep only the latest review per reviewer.
+pub fn dedup_reviews(reviews: Vec<PrReview>) -> Vec<PrReview> {
+    let mut latest: std::collections::HashMap<String, PrReview> = std::collections::HashMap::new();
+    for review in reviews {
+        latest
+            .entry(review.reviewer.clone())
+            .and_modify(|existing| {
+                if review.submitted_at > existing.submitted_at {
+                    *existing = review.clone();
+                }
+            })
+            .or_insert(review);
+    }
+    latest.into_values().collect()
+}
+
+/// Derive review decision from deduplicated reviews.
+pub fn derive_review_decision(reviews: &[PrReview]) -> Option<String> {
+    if reviews.iter().any(|r| r.state == "changes_requested") {
+        Some("changes_requested".to_string())
+    } else if reviews.iter().any(|r| r.state == "approved") {
+        Some("approved".to_string())
+    } else {
+        Some("review_required".to_string())
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct GithubPrFile {
     filename: String,
@@ -76,6 +130,7 @@ fn format_octocrab_error(context: &str, e: &octocrab::Error) -> AppError {
 /// Manages GitHub API interactions via octocrab.
 pub struct GithubManager {
     client: Octocrab,
+    http_client: reqwest::Client,
     token: String,
 }
 
@@ -86,11 +141,20 @@ impl GithubManager {
             .personal_token(token.to_string())
             .build()
             .map_err(|e| AppError::Github(format!("failed to build octocrab client: {e}")))?;
-        Ok(Self { client, token: token.to_string() })
+        Ok(Self { client, http_client: reqwest::Client::new(), token: token.to_string() })
     }
 
     fn token(&self) -> &str {
         &self.token
+    }
+
+    /// Build an authenticated GET request with standard GitHub headers.
+    fn authed_get(&self, url: &str) -> reqwest::RequestBuilder {
+        self.http_client
+            .get(url)
+            .header("Authorization", format!("Bearer {}", self.token()))
+            .header("User-Agent", "alfredo")
+            .header("Accept", "application/vnd.github+json")
     }
 
     /// Fetch all open PRs and recently merged PRs for the given owner/repo.
@@ -108,27 +172,7 @@ impl GithubManager {
         let mut prs: Vec<PrStatus> = open_page
             .items
             .into_iter()
-            .map(|pr| PrStatus {
-                number: pr.number,
-                state: pr
-                    .state
-                    .map(|s| format!("{s:?}").to_lowercase())
-                    .unwrap_or_else(|| "open".to_string()),
-                title: pr.title.unwrap_or_default(),
-                url: pr
-                    .html_url
-                    .map(|u| u.to_string())
-                    .unwrap_or_default(),
-                draft: pr.draft.unwrap_or(false),
-                merged: false, // open PRs aren't merged
-                branch: pr.head.ref_field,
-                base_branch: Some(pr.base.ref_field),
-                merged_at: None,
-                head_sha: Some(pr.head.sha),
-                body: pr.body.clone(),
-                updated_at: pr.updated_at.map(|dt| dt.to_rfc3339()),
-                author: pr.user.as_ref().map(|u| u.login.clone()),
-            })
+            .map(pr_status_from_octocrab)
             .collect();
 
         let closed_page = self
@@ -147,27 +191,7 @@ impl GithubManager {
             .items
             .into_iter()
             .filter(|pr| pr.merged_at.is_some())
-            .map(|pr| PrStatus {
-                number: pr.number,
-                state: pr
-                    .state
-                    .map(|s| format!("{s:?}").to_lowercase())
-                    .unwrap_or_else(|| "closed".to_string()),
-                title: pr.title.unwrap_or_default(),
-                url: pr
-                    .html_url
-                    .map(|u| u.to_string())
-                    .unwrap_or_default(),
-                draft: pr.draft.unwrap_or(false),
-                merged: true,
-                branch: pr.head.ref_field,
-                base_branch: Some(pr.base.ref_field),
-                merged_at: pr.merged_at.map(|dt| dt.to_rfc3339()),
-                head_sha: Some(pr.head.sha),
-                body: pr.body.clone(),
-                updated_at: pr.updated_at.map(|dt| dt.to_rfc3339()),
-                author: pr.user.as_ref().map(|u| u.login.clone()),
-            });
+            .map(pr_status_from_octocrab);
 
         prs.extend(merged_prs);
 
@@ -192,40 +216,7 @@ impl GithubManager {
             .await
             .map_err(|e| format_octocrab_error("failed to fetch PR for branch", &e))?;
 
-        let pr = match page.items.into_iter().next() {
-            Some(pr) => pr,
-            None => return Ok(None),
-        };
-
-        let merged_at = pr.merged_at.map(|dt| dt.to_rfc3339());
-        let merged = merged_at.is_some();
-        let draft = pr.draft.unwrap_or(false);
-
-        let branch = pr.head.ref_field.clone();
-        let base_branch = pr.base.ref_field.clone();
-        let head_sha = pr.head.sha.clone();
-
-        Ok(Some(PrStatus {
-            number: pr.number,
-            state: pr
-                .state
-                .map(|s| format!("{s:?}").to_lowercase())
-                .unwrap_or_else(|| "open".to_string()),
-            title: pr.title.unwrap_or_default(),
-            url: pr
-                .html_url
-                .map(|u| u.to_string())
-                .unwrap_or_default(),
-            draft,
-            merged,
-            branch,
-            base_branch: Some(base_branch),
-            merged_at,
-            head_sha: Some(head_sha),
-            body: pr.body.clone(),
-            updated_at: pr.updated_at.map(|dt| dt.to_rfc3339()),
-            author: pr.user.as_ref().map(|u| u.login.clone()),
-        }))
+        Ok(page.items.into_iter().next().map(pr_status_from_octocrab))
     }
 
     /// Fetch check runs for a given git ref (branch, SHA, or tag).
@@ -438,29 +429,8 @@ impl GithubManager {
         let mut comments = line_comments?;
         comments.extend(issue_comments?);
 
-        // Deduplicate reviews: keep only the latest review per reviewer
-        let mut latest_reviews: std::collections::HashMap<String, PrReview> =
-            std::collections::HashMap::new();
-        for review in reviews {
-            latest_reviews
-                .entry(review.reviewer.clone())
-                .and_modify(|existing| {
-                    if review.submitted_at > existing.submitted_at {
-                        *existing = review.clone();
-                    }
-                })
-                .or_insert(review);
-        }
-        let deduped_reviews: Vec<PrReview> = latest_reviews.into_values().collect();
-
-        // Derive review decision from individual reviews
-        let review_decision = if deduped_reviews.iter().any(|r| r.state == "changes_requested") {
-            Some("changes_requested".to_string())
-        } else if deduped_reviews.iter().any(|r| r.state == "approved") {
-            Some("approved".to_string())
-        } else {
-            Some("review_required".to_string())
-        };
+        let deduped_reviews = dedup_reviews(reviews);
+        let review_decision = derive_review_decision(&deduped_reviews);
 
         Ok(PrDetailedStatus {
             reviews: deduped_reviews,
@@ -480,18 +450,14 @@ impl GithubManager {
     ) -> Result<Vec<crate::commands::diff::DiffFile>, AppError> {
         let mut all_files = Vec::new();
         let mut page: u32 = 1;
-        let client = reqwest::Client::new();
 
         loop {
             let url = format!(
                 "https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files?per_page=100&page={page}"
             );
 
-            let response = client
-                .get(&url)
-                .header("Authorization", format!("Bearer {}", self.token()))
-                .header("User-Agent", "alfredo")
-                .header("Accept", "application/vnd.github+json")
+            let response = self
+                .authed_get(&url)
                 .send()
                 .await
                 .map_err(|e| AppError::Github(format!("failed to fetch PR files: {e}")))?;
@@ -558,18 +524,14 @@ impl GithubManager {
     ) -> Result<Vec<crate::commands::diff::CommitInfo>, AppError> {
         let mut all_commits = Vec::new();
         let mut page: u32 = 1;
-        let client = reqwest::Client::new();
 
         loop {
             let url = format!(
                 "https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/commits?per_page=100&page={page}"
             );
 
-            let response = client
-                .get(&url)
-                .header("Authorization", format!("Bearer {}", self.token()))
-                .header("User-Agent", "alfredo")
-                .header("Accept", "application/vnd.github+json")
+            let response = self
+                .authed_get(&url)
                 .send()
                 .await
                 .map_err(|e| AppError::Github(format!("failed to fetch PR commits: {e}")))?;
@@ -660,12 +622,8 @@ impl GithubManager {
     ) -> Result<Vec<WorkflowRunLog>, AppError> {
         let url = format!("https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/logs");
 
-        let client = reqwest::Client::new();
-        let response = client
-            .get(&url)
-            .header("Authorization", format!("Bearer {}", self.token()))
-            .header("User-Agent", "alfredo")
-            .header("Accept", "application/vnd.github+json")
+        let response = self
+            .authed_get(&url)
             .send()
             .await
             .map_err(|e| AppError::Github(format!("failed to download workflow logs: {e}")))?;

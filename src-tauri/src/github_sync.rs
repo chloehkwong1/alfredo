@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::time;
 
 use crate::config_manager;
-use crate::github_manager::{determine_column, parse_github_owner_repo, GithubManager};
+use crate::github_manager::{dedup_reviews, derive_review_decision, determine_column, GithubManager};
 use crate::types::{PrStatus, CheckRun, PrReview, PrComment};
 
 /// Payload emitted on the `github:pr-update` Tauri event.
@@ -161,7 +161,7 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
     let mut all_prs: Vec<PrStatusWithColumn> = Vec::new();
 
     for repo_path in &repo_paths {
-        match poll_repo(app_handle, repo_path, &active_branches).await {
+        match poll_repo(repo_path, &active_branches).await {
             Ok(prs) => all_prs.extend(prs),
             Err(e) => {
                 eprintln!("[github_sync] error syncing {repo_path}: {e}");
@@ -181,7 +181,6 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
 
 /// Fetch and enrich PRs for a single repo. Returns the enriched PR list.
 async fn poll_repo(
-    _app_handle: &AppHandle,
     repo_path: &str,
     active_branches: &std::collections::HashSet<String>,
 ) -> Result<Vec<PrStatusWithColumn>, String> {
@@ -196,21 +195,9 @@ async fn poll_repo(
 
     let manager = GithubManager::new(&token).map_err(|e| format!("{e}"))?;
 
-    // Resolve owner/repo from git remote
-    let output = tokio::process::Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .current_dir(repo_path)
-        .output()
+    let (owner, repo) = crate::github_manager::resolve_owner_repo(repo_path)
         .await
-        .map_err(|e| format!("failed to get remote URL: {e}"))?;
-
-    if !output.status.success() {
-        return Err("no origin remote found".into());
-    }
-
-    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let (owner, repo) = parse_github_owner_repo(&url)
-        .ok_or_else(|| format!("could not parse owner/repo from: {url}"))?;
+        .map_err(|e| format!("{e}"))?;
 
     let prs = manager
         .sync_prs(&owner, &repo)
@@ -257,28 +244,9 @@ async fn poll_repo(
         }
 
         if let Ok(reviews) = reviews_result {
-            // Deduplicate: keep latest review per reviewer for the summary decision
-            let mut latest: std::collections::HashMap<String, PrReview> =
-                std::collections::HashMap::new();
-            for review in &reviews {
-                latest
-                    .entry(review.reviewer.clone())
-                    .and_modify(|existing| {
-                        if review.submitted_at > existing.submitted_at {
-                            *existing = review.clone();
-                        }
-                    })
-                    .or_insert(review.clone());
-            }
-            pr_with_col.review_decision = if latest.values().any(|r| r.state == "changes_requested") {
-                Some("changes_requested".to_string())
-            } else if latest.values().any(|r| r.state == "approved") {
-                Some("approved".to_string())
-            } else {
-                Some("review_required".to_string())
-            };
-            // Store full review objects (deduplicated) for the PR panel
-            pr_with_col.reviews = latest.into_values().collect();
+            let deduped = dedup_reviews(reviews);
+            pr_with_col.review_decision = derive_review_decision(&deduped);
+            pr_with_col.reviews = deduped;
         }
 
         if let Ok(check_runs) = checks_result {
