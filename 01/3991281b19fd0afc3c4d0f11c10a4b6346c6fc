@@ -1,0 +1,23 @@
+src/components/layout/AppShell.tsx
+  75ec3d71f6efff86 451
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "013991281b19fd0afc3c4d0f11c10a4b6346c6fc",
+  "prompts": {
+    "75ec3d71f6efff86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71668b35-6442-4424-a4a3-7bb33168154f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 8,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
