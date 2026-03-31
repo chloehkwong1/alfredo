@@ -8,7 +8,7 @@ import { useChangesData } from "../../hooks/useChangesData";
 import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { useSendToClaude } from "../../hooks/useSendToClaude";
-import { Search, ChevronUp, ChevronDown, X, Trash2 } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, X, Trash2, ArrowLeft, Maximize2, Minimize2 } from "lucide-react";
 import type { CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 import { useAppConfig } from "../../hooks/useAppConfig";
@@ -80,12 +80,20 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     collapsedFiles,
     setCollapsedFiles,
     setActiveFilePath,
+    focusedFilePath,
+    clearFocusedFile,
     fileRefs,
     handleToggleExpanded,
     expandAll,
     collapseAll,
     handleSelectFile,
   } = useFileNavigation(displayFiles, viewMode);
+
+  const [expandFullFile, setExpandFullFile] = useState(false);
+
+  useEffect(() => {
+    setExpandFullFile(false);
+  }, [focusedFilePath]);
 
   const {
     searchOpen,
@@ -150,6 +158,13 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     window.addEventListener("alfredo:changes-panel-select-file", handlePanelSelectFile);
     return () => window.removeEventListener("alfredo:changes-panel-select-file", handlePanelSelectFile);
   }, [handleSelectFile]);
+
+  // Listen for clear-focus from the persistent ChangesPanel
+  useEffect(() => {
+    function handleClearFocus() { clearFocusedFile(); }
+    window.addEventListener("alfredo:changes-panel-clear-focus", handleClearFocus);
+    return () => window.removeEventListener("alfredo:changes-panel-clear-focus", handleClearFocus);
+  }, [clearFocusedFile]);
 
   // Listen for jump-to-comment from the persistent ChangesPanel
   useEffect(() => {
@@ -241,6 +256,25 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     [worktreeId, editAnnotation],
   );
 
+  const focusedFileIndex = focusedFilePath ? displayFiles.findIndex((f) => f.path === focusedFilePath) : -1;
+
+  const goToNextFile = useCallback(() => {
+    if (focusedFileIndex === -1) return;
+    const next = focusedFileIndex < displayFiles.length - 1 ? focusedFileIndex + 1 : 0;
+    const file = displayFiles[next];
+    if (file) handleSelectFile(file.path);
+  }, [focusedFileIndex, displayFiles, handleSelectFile]);
+
+  const goToPrevFile = useCallback(() => {
+    if (focusedFileIndex === -1) return;
+    const prev = focusedFileIndex > 0 ? focusedFileIndex - 1 : displayFiles.length - 1;
+    const file = displayFiles[prev];
+    if (file) handleSelectFile(file.path);
+  }, [focusedFileIndex, displayFiles, handleSelectFile]);
+
+  const focusedFile = focusedFilePath ? displayFiles.find((f) => f.path === focusedFilePath) : null;
+  const filesToRender = focusedFile ? [focusedFile] : displayFiles;
+
   const activeCommitHash =
     viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex]
       ? commits[selectedCommitIndex].hash
@@ -250,97 +284,222 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     <div className="flex flex-col h-full relative">
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
-            <span className="text-[10px] text-text-tertiary">
-              {viewMode === "changes"
-                ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""}`
-                : selectedCommitIndex !== null
-                  ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""} in commit`
-                  : "Select a commit"}
-            </span>
-            {displayFiles.length > 0 && (
-              <div className="flex items-center gap-1.5 ml-auto">
-                {/* Search within diffs */}
-                {searchOpen ? (
-                  <div className="flex items-center gap-1 border border-border-default rounded bg-bg-primary px-1.5 py-0.5">
-                    <Search size={11} className="text-text-tertiary flex-shrink-0" />
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      placeholder="Search in diffs..."
-                      className="w-32 text-[10px] bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      autoFocus
-                    />
-                    {searchQuery && (
-                      <span className="text-[9px] text-text-tertiary whitespace-nowrap">
-                        {matches.length > 0
-                          ? `${currentMatchIndex + 1}/${matches.length}`
-                          : "0 results"}
-                      </span>
-                    )}
-                    <button
-                      className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
-                      onClick={() => navigateMatch("prev")}
-                      disabled={matches.length === 0}
-                    >
-                      <ChevronUp size={12} />
-                    </button>
-                    <button
-                      className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
-                      onClick={() => navigateMatch("next")}
-                      disabled={matches.length === 0}
-                    >
-                      <ChevronDown size={12} />
-                    </button>
-                    <button
-                      className="text-text-tertiary hover:text-text-primary"
-                      onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
-                    >
-                      <X size={11} />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    className="text-text-tertiary hover:text-text-primary"
-                    onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()); }}
-                    title="Search in diffs (/)"
-                  >
-                    <Search size={12} />
-                  </button>
-                )}
-                <span className="text-text-tertiary/50">|</span>
-                <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
-                  Expand all
+            {focusedFilePath ? (
+              <>
+                {/* Focused file toolbar - left side */}
+                <button
+                  className="text-text-tertiary hover:text-text-primary flex-shrink-0"
+                  onClick={clearFocusedFile}
+                  title="Back to all files (Esc)"
+                >
+                  <ArrowLeft size={14} />
                 </button>
-                <span className="text-text-tertiary/50">|</span>
-                <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
-                  Collapse all
-                </button>
-                <span className="text-text-tertiary/50 mx-1">|</span>
-                <div className="flex border border-border-default rounded overflow-hidden">
+                <span className="text-[11px] font-mono text-text-primary truncate">
+                  {focusedFilePath.split("/").pop()}
+                </span>
+                <span className="text-[10px] text-text-tertiary truncate hidden sm:inline">
+                  {focusedFilePath.split("/").slice(0, -1).join("/")}
+                </span>
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <button
-                    className={`px-2 py-0.5 text-[10px] transition-colors ${
-                      diffViewMode === "unified"
-                        ? "bg-accent-primary/15 text-accent-primary font-medium"
-                        : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
-                    }`}
-                    onClick={() => setDiffViewMode(worktreeId, "unified")}
+                    className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                    onClick={goToPrevFile}
+                    disabled={displayFiles.length <= 1}
+                    title="Previous file"
                   >
-                    Unified
+                    <ChevronLeft size={14} />
                   </button>
+                  <span className="text-[10px] text-text-tertiary tabular-nums">
+                    {focusedFileIndex + 1}/{displayFiles.length}
+                  </span>
                   <button
-                    className={`px-2 py-0.5 text-[10px] border-l border-border-default transition-colors ${
-                      diffViewMode === "split"
-                        ? "bg-accent-primary/15 text-accent-primary font-medium"
-                        : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
-                    }`}
-                    onClick={() => setDiffViewMode(worktreeId, "split")}
+                    className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                    onClick={goToNextFile}
+                    disabled={displayFiles.length <= 1}
+                    title="Next file"
                   >
-                    Split
+                    <ChevronRight size={14} />
                   </button>
                 </div>
-              </div>
+                {/* Focused file toolbar - right side */}
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <button
+                    className="text-text-tertiary hover:text-text-primary"
+                    onClick={() => setExpandFullFile((v) => !v)}
+                    title={expandFullFile ? "Show diffs only" : "Expand full file"}
+                  >
+                    {expandFullFile ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                  </button>
+                  <span className="text-text-tertiary/50">|</span>
+                  {searchOpen ? (
+                    <div className="flex items-center gap-1 border border-border-default rounded bg-bg-primary px-1.5 py-0.5">
+                      <Search size={11} className="text-text-tertiary flex-shrink-0" />
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder="Search in diffs..."
+                        className="w-32 text-[10px] bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        autoFocus
+                      />
+                      {searchQuery && (
+                        <span className="text-[9px] text-text-tertiary whitespace-nowrap">
+                          {matches.length > 0
+                            ? `${currentMatchIndex + 1}/${matches.length}`
+                            : "0 results"}
+                        </span>
+                      )}
+                      <button
+                        className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                        onClick={() => navigateMatch("prev")}
+                        disabled={matches.length === 0}
+                      >
+                        <ChevronUp size={12} />
+                      </button>
+                      <button
+                        className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                        onClick={() => navigateMatch("next")}
+                        disabled={matches.length === 0}
+                      >
+                        <ChevronDown size={12} />
+                      </button>
+                      <button
+                        className="text-text-tertiary hover:text-text-primary"
+                        onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="text-text-tertiary hover:text-text-primary"
+                      onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()); }}
+                      title="Search in diffs (/)"
+                    >
+                      <Search size={12} />
+                    </button>
+                  )}
+                  <span className="text-text-tertiary/50">|</span>
+                  <div className="flex border border-border-default rounded overflow-hidden">
+                    <button
+                      className={`px-2 py-0.5 text-[10px] transition-colors ${
+                        diffViewMode === "unified"
+                          ? "bg-accent-primary/15 text-accent-primary font-medium"
+                          : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+                      }`}
+                      onClick={() => setDiffViewMode(worktreeId, "unified")}
+                    >
+                      Unified
+                    </button>
+                    <button
+                      className={`px-2 py-0.5 text-[10px] border-l border-border-default transition-colors ${
+                        diffViewMode === "split"
+                          ? "bg-accent-primary/15 text-accent-primary font-medium"
+                          : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+                      }`}
+                      onClick={() => setDiffViewMode(worktreeId, "split")}
+                    >
+                      Split
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="text-[10px] text-text-tertiary">
+                  {viewMode === "changes"
+                    ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""}`
+                    : selectedCommitIndex !== null
+                      ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""} in commit`
+                      : "Select a commit"}
+                </span>
+                {displayFiles.length > 0 && (
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    {/* Search within diffs */}
+                    {searchOpen ? (
+                      <div className="flex items-center gap-1 border border-border-default rounded bg-bg-primary px-1.5 py-0.5">
+                        <Search size={11} className="text-text-tertiary flex-shrink-0" />
+                        <input
+                          ref={searchInputRef}
+                          type="text"
+                          placeholder="Search in diffs..."
+                          className="w-32 text-[10px] bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          autoFocus
+                        />
+                        {searchQuery && (
+                          <span className="text-[9px] text-text-tertiary whitespace-nowrap">
+                            {matches.length > 0
+                              ? `${currentMatchIndex + 1}/${matches.length}`
+                              : "0 results"}
+                          </span>
+                        )}
+                        <button
+                          className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                          onClick={() => navigateMatch("prev")}
+                          disabled={matches.length === 0}
+                        >
+                          <ChevronUp size={12} />
+                        </button>
+                        <button
+                          className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                          onClick={() => navigateMatch("next")}
+                          disabled={matches.length === 0}
+                        >
+                          <ChevronDown size={12} />
+                        </button>
+                        <button
+                          className="text-text-tertiary hover:text-text-primary"
+                          onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        className="text-text-tertiary hover:text-text-primary"
+                        onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()); }}
+                        title="Search in diffs (/)"
+                      >
+                        <Search size={12} />
+                      </button>
+                    )}
+                    <span className="text-text-tertiary/50">|</span>
+                    <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
+                      Expand all
+                    </button>
+                    <span className="text-text-tertiary/50">|</span>
+                    <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
+                      Collapse all
+                    </button>
+                    <span className="text-text-tertiary/50 mx-1">|</span>
+                    <div className="flex border border-border-default rounded overflow-hidden">
+                      <button
+                        className={`px-2 py-0.5 text-[10px] transition-colors ${
+                          diffViewMode === "unified"
+                            ? "bg-accent-primary/15 text-accent-primary font-medium"
+                            : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+                        }`}
+                        onClick={() => setDiffViewMode(worktreeId, "unified")}
+                      >
+                        Unified
+                      </button>
+                      <button
+                        className={`px-2 py-0.5 text-[10px] border-l border-border-default transition-colors ${
+                          diffViewMode === "split"
+                            ? "bg-accent-primary/15 text-accent-primary font-medium"
+                            : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
+                        }`}
+                        onClick={() => setDiffViewMode(worktreeId, "split")}
+                      >
+                        Split
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <div className="flex-1 overflow-y-auto min-w-0">
@@ -348,7 +507,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
               <CommitHeader commit={commits[selectedCommitIndex]} />
             )}
             {/* Uncommitted section header with Discard All */}
-            {viewMode === "changes" && uncommittedFiles.length > 0 && (
+            {!focusedFilePath && viewMode === "changes" && uncommittedFiles.length > 0 && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default">
                 <span className="text-[10px] font-medium text-text-secondary">
                   Uncommitted ({uncommittedFiles.length})
@@ -365,7 +524,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                 </div>
               </div>
             )}
-            {displayFiles.map((file) => {
+            {filesToRender.map((file) => {
               const isUncommitted = uncommittedFiles.some((u) => u.path === file.path);
               return (
               <DiffFileCard
@@ -378,7 +537,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                   }
                 }}
                 file={file}
-                expanded={!collapsedFiles.has(file.path)}
+                expanded={focusedFilePath ? true : !collapsedFiles.has(file.path)}
                 onToggleExpanded={handleToggleExpanded}
                 viewMode={diffViewMode}
                 annotations={annotations}
