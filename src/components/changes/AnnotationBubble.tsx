@@ -26,7 +26,7 @@ function AnnotationBubble({ annotation, onDelete, onEdit }: AnnotationBubbleProp
   }
 
   return (
-    <div className="my-1 border-l-2 border-accent-primary bg-[#161b22] overflow-hidden">
+    <div className="my-1 border-l-2 border-accent-primary bg-bg-elevated overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary/5 border-b border-border-subtle">
         <StickyNote size={12} className="flex-shrink-0 text-accent-primary" />

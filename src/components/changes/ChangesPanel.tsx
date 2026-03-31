@@ -1,12 +1,13 @@
 import { useCallback, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
 import { PrPanelContent, PrRailIcons, MergeStatusBanner, usePrBadgeCounts } from "./PrPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/Dialog";
 import { Button } from "../ui/Button";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { useLayoutStore } from "../../stores/layoutStore";
 import { useTabStore } from "../../stores/tabStore";
+import { useLayoutStore } from "../../stores/layoutStore";
 import { useChangesData } from "../../hooks/useChangesData";
 import { discardFile } from "../../api";
 import type { ViewMode } from "./FileSidebar";
@@ -61,70 +62,66 @@ function WorkspacePanel({
     }
   }, [discardTarget, repoPath, refetchUncommitted]);
 
-  const activateChangesTab = useCallback(
-    () => {
-      const changesTabId = `${worktreeId}:changes`;
-      const tabState = useTabStore.getState();
-      const existingTabs = tabState.tabs[worktreeId] ?? [];
-
-      // Ensure the changes tab exists in the tab store
-      if (!existingTabs.some((t) => t.id === changesTabId)) {
-        const updatedTabs = [...existingTabs, { id: changesTabId, type: "changes" as const, label: "Changes" }];
-        tabState.restoreTabs(
-          worktreeId,
-          updatedTabs,
-          tabState.activeTabId[worktreeId] ?? existingTabs[0]?.id ?? changesTabId,
-        );
-      }
-
-      const layoutState = useLayoutStore.getState();
-      const activePaneId = layoutState.activePaneId[worktreeId];
-      if (!activePaneId) return;
-
-      // Ensure the changes tab is in the pane's tab list
-      const pane = layoutState.panes[worktreeId]?.[activePaneId];
-      if (pane && !pane.tabIds.includes(changesTabId)) {
-        layoutState.addTabToPane(worktreeId, activePaneId, changesTabId);
-      } else {
-        layoutState.setPaneActiveTab(worktreeId, activePaneId, changesTabId);
-      }
-    },
-    [worktreeId],
-  );
-
   const handleSelectCommit = useCallback((index: number) => {
     setSelectedCommitIndex(index);
     setActiveFilePath(null);
-    activateChangesTab();
-
-    // Dispatch after a frame so ChangesView has time to mount if the tab was just created
+    // Switch the active tab to the changes tab first so ChangesView mounts
+    const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
+    const changesTab = tabs.find((t) => t.type === "changes");
+    if (changesTab) {
+      const layoutState = useLayoutStore.getState();
+      const activePaneId = layoutState.activePaneId[worktreeId];
+      if (activePaneId) {
+        layoutState.setPaneActiveTab(worktreeId, activePaneId, changesTab.id);
+      }
+      useTabStore.getState().setActiveTabId(worktreeId, changesTab.id);
+    }
     requestAnimationFrame(() => {
       window.dispatchEvent(
         new CustomEvent("alfredo:changes-panel-select-commit", { detail: { index } }),
       );
     });
-  }, [activateChangesTab]);
+  }, [worktreeId]);
 
   const handleSelectFile = useCallback(
     (path: string) => {
       setActiveFilePath(path);
-      activateChangesTab();
-
-      // Dispatch after a frame so ChangesView has time to mount if the tab was just created
+      // Switch the active tab to the changes tab first so ChangesView mounts
+      const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
+      const changesTab = tabs.find((t) => t.type === "changes");
+      if (changesTab) {
+        const layoutState = useLayoutStore.getState();
+        const activePaneId = layoutState.activePaneId[worktreeId];
+        if (activePaneId) {
+          layoutState.setPaneActiveTab(worktreeId, activePaneId, changesTab.id);
+        }
+        useTabStore.getState().setActiveTabId(worktreeId, changesTab.id);
+      }
+      // Dispatch after a frame so ChangesView has time to mount and attach its listener
       requestAnimationFrame(() => {
         window.dispatchEvent(
           new CustomEvent("alfredo:changes-panel-select-file", { detail: { path } }),
         );
       });
     },
-    [activateChangesTab],
+    [worktreeId],
   );
 
   const handleJumpToComment = useCallback(
     (filePath: string, line: number) => {
-      activateChangesTab();
-
-      // Dispatch after a frame so ChangesView has time to mount if the tab was just created
+      // Switch back to files tab
+      setChangesViewMode(worktreeId, "changes");
+      // Switch the active tab to the changes tab first
+      const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
+      const changesTab = tabs.find((t) => t.type === "changes");
+      if (changesTab) {
+        const layoutState = useLayoutStore.getState();
+        const activePaneId = layoutState.activePaneId[worktreeId];
+        if (activePaneId) {
+          layoutState.setPaneActiveTab(worktreeId, activePaneId, changesTab.id);
+        }
+        useTabStore.getState().setActiveTabId(worktreeId, changesTab.id);
+      }
       requestAnimationFrame(() => {
         window.dispatchEvent(
           new CustomEvent("alfredo:changes-panel-select-file", { detail: { path: filePath } }),
@@ -133,11 +130,8 @@ function WorkspacePanel({
           new CustomEvent("alfredo:changes-panel-jump-to-comment", { detail: { path: filePath, line } }),
         );
       });
-
-      // Switch back to files tab
-      setChangesViewMode(worktreeId, "changes");
     },
-    [activateChangesTab, setChangesViewMode, worktreeId],
+    [setChangesViewMode, worktreeId],
   );
 
   const handleTabChange = useCallback(
@@ -163,24 +157,25 @@ function WorkspacePanel({
     <div className="flex flex-col h-full bg-bg-primary border-l border-border-default overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-border-subtle flex-shrink-0">
-        <span className="text-[10px] uppercase tracking-wider text-text-tertiary font-medium">
+        <span className="text-xs uppercase tracking-wider text-text-tertiary font-medium">
           Changes
         </span>
-        <button
+        <IconButton
+          size="sm"
+          label="Collapse panel"
+          className="h-auto w-auto p-0.5"
           onClick={onCollapse}
-          className="p-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
-          title="Collapse panel"
         >
           <PanelLeftClose size={14} />
-        </button>
+        </IconButton>
       </div>
 
       {/* Unified tab bar: Files | Commits | PR */}
-      <div className="flex p-1.5 gap-0 flex-shrink-0">
+      <div className="flex px-2.5 py-1.5 gap-0 flex-shrink-0">
         <button
           onClick={() => handleTabChange("changes")}
           className={[
-            "flex-1 px-2 py-1 text-[10px] border border-border-default rounded-l-md",
+            "flex-1 px-2 py-1 text-[11px] border border-border-default rounded-l-md",
             panelTab === "changes"
               ? "bg-accent-muted text-accent-primary border-accent-primary/40"
               : "text-text-tertiary",
@@ -191,7 +186,7 @@ function WorkspacePanel({
         <button
           onClick={() => handleTabChange("commits")}
           className={[
-            "flex-1 px-2 py-1 text-[10px] border border-l-0 border-border-default",
+            "flex-1 px-2 py-1 text-[11px] border border-l-0 border-border-default",
             hasPr ? "" : "rounded-r-md",
             panelTab === "commits"
               ? "bg-accent-muted text-accent-primary border-accent-primary/40"
@@ -204,7 +199,7 @@ function WorkspacePanel({
           <button
             onClick={() => handleTabChange("pr")}
             className={[
-              "flex-1 px-2 py-1 text-[10px] border border-l-0 border-border-default rounded-r-md",
+              "flex-1 px-2 py-1 text-[11px] border border-l-0 border-border-default rounded-r-md",
               panelTab === "pr"
                 ? "bg-accent-muted text-accent-primary border-accent-primary/40"
                 : "text-text-tertiary",

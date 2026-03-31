@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Undo2 } from "lucide-react";
 import type { DiffFile, CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 
@@ -55,10 +55,14 @@ const FileRow = memo(function FileRow({
         "group flex items-center gap-1.5 w-full px-2.5 py-1 text-left text-xs",
         "hover:bg-bg-hover transition-colors cursor-pointer",
         isActive ? "bg-bg-hover text-text-primary" : "text-text-secondary",
-        isCollapsed ? "opacity-50" : "",
       ].join(" ")}
       onClick={() => onSelect(filePath)}
     >
+      {isCollapsed ? (
+        <ChevronRight size={12} className="flex-shrink-0 text-text-tertiary" />
+      ) : (
+        <ChevronDown size={12} className="flex-shrink-0 text-text-tertiary" />
+      )}
       <span
         className={[
           "text-[9px] font-semibold px-1 py-px rounded-sm flex-shrink-0",
@@ -75,7 +79,7 @@ const FileRow = memo(function FileRow({
       {onDiscard && (
         <button
           onClick={(e) => { e.stopPropagation(); onDiscard(file.path, file.status); }}
-          className="hidden group-hover:flex items-center p-0.5 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors flex-shrink-0"
+          className="hidden group-hover:flex group-focus-within:flex items-center p-0.5 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors flex-shrink-0"
           title="Discard changes"
         >
           <Undo2 size={12} />
@@ -191,7 +195,7 @@ function FileSidebar({
   return (
     <div className="w-full bg-bg-primary border-r border-border-default flex flex-col overflow-y-auto">
       {totalItems > 5 && (
-        <div className="px-1.5 pb-1">
+        <div className="px-2.5 pb-1">
           <input
             ref={filterInputRef}
             type="text"
@@ -222,10 +226,7 @@ function FileSidebar({
                     : "border-transparent",
                 ].join(" ")}
               >
-                <div className={[
-                  "text-xs leading-snug",
-                  isSelected ? "text-text-primary" : "text-text-secondary",
-                ].join(" ")}>
+                <div className="text-xs leading-snug text-text-primary font-medium">
                   {subject}
                 </div>
                 <div className="flex items-center gap-2">
@@ -262,10 +263,10 @@ function FileSidebar({
               {filteredUncommitted.length > 0 && (
                 <>
                   <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
-                    <span className="text-[9px] uppercase tracking-wider text-amber-400">
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-status-busy">
                       ● Uncommitted
                     </span>
-                    <span className="text-[9px] bg-bg-hover px-1.5 rounded-full text-text-tertiary">
+                    <span className="text-2xs bg-bg-hover px-1.5 rounded-full text-text-tertiary">
                       {filteredUncommitted.length}
                     </span>
                   </div>
@@ -282,10 +283,10 @@ function FileSidebar({
               {filteredCommitted.length > 0 && (
                 <>
                   <div className="flex items-center justify-between px-2.5 pt-2 pb-1">
-                    <span className="text-[9px] uppercase tracking-wider text-text-tertiary">
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-text-tertiary">
                       Committed
                     </span>
-                    <span className="text-[9px] bg-bg-hover px-1.5 rounded-full text-text-tertiary">
+                    <span className="text-2xs bg-bg-hover px-1.5 rounded-full text-text-tertiary">
                       {filteredCommitted.length}
                     </span>
                   </div>

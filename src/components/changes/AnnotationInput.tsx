@@ -24,7 +24,7 @@ function AnnotationInput({ onSubmit, onCancel }: AnnotationInputProps) {
   }
 
   return (
-    <div className="my-1 border-l-2 border-accent-primary bg-[#161b22] overflow-hidden">
+    <div className="my-1 border-l-2 border-accent-primary bg-bg-elevated overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary/5 border-b border-border-subtle">
         <span className="flex-shrink-0 w-5 h-5 rounded-full bg-accent-primary text-text-on-accent text-2xs font-semibold flex items-center justify-center">

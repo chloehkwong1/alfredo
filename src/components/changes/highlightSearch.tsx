@@ -25,8 +25,8 @@ export function highlightText(
         key={`m${matchIdx++}`}
         className={
           isActiveMatch
-            ? "bg-orange-400/60 text-inherit rounded-[1px]"
-            : "bg-yellow-400/40 text-inherit rounded-[1px]"
+            ? "bg-search-match-active text-inherit rounded-[1px]"
+            : "bg-search-match text-inherit rounded-[1px]"
         }
       >
         {text.slice(idx, idx + query.length)}

@@ -8,7 +8,9 @@ import { useChangesData } from "../../hooks/useChangesData";
 import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { useSendToClaude } from "../../hooks/useSendToClaude";
-import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, X, Trash2, ArrowLeft, Maximize2, Minimize2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Maximize2, Minimize2 } from "lucide-react";
+import { IconButton } from "../ui/IconButton";
+import { DiffSearchBar } from "./DiffSearchBar";
 import type { CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 import { useAppConfig } from "../../hooks/useAppConfig";
@@ -287,13 +289,14 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
             {focusedFilePath ? (
               <>
                 {/* Focused file toolbar - left side */}
-                <button
-                  className="text-text-tertiary hover:text-text-primary flex-shrink-0"
+                <IconButton
+                  size="sm"
+                  label="Back to all files (Esc)"
+                  className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary flex-shrink-0"
                   onClick={clearFocusedFile}
-                  title="Back to all files (Esc)"
                 >
                   <ArrowLeft size={14} />
-                </button>
+                </IconButton>
                 <span className="text-[11px] font-mono text-text-primary truncate">
                   {focusedFilePath.split("/").pop()}
                 </span>
@@ -301,84 +304,60 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                   {focusedFilePath.split("/").slice(0, -1).join("/")}
                 </span>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                  <IconButton
+                    size="sm"
+                    label="Previous file"
+                    className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
                     onClick={goToPrevFile}
                     disabled={displayFiles.length <= 1}
-                    title="Previous file"
                   >
                     <ChevronLeft size={14} />
-                  </button>
+                  </IconButton>
                   <span className="text-[10px] text-text-tertiary tabular-nums">
                     {focusedFileIndex + 1}/{displayFiles.length}
                   </span>
-                  <button
-                    className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
+                  <IconButton
+                    size="sm"
+                    label="Next file"
+                    className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
                     onClick={goToNextFile}
                     disabled={displayFiles.length <= 1}
-                    title="Next file"
                   >
                     <ChevronRight size={14} />
-                  </button>
+                  </IconButton>
                 </div>
                 {/* Focused file toolbar - right side */}
                 <div className="flex items-center gap-1.5 ml-auto">
-                  <button
-                    className="text-text-tertiary hover:text-text-primary"
+                  <IconButton
+                    size="sm"
+                    label={expandFullFile ? "Show diffs only" : "Expand full file"}
+                    className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
                     onClick={() => setExpandFullFile((v) => !v)}
-                    title={expandFullFile ? "Show diffs only" : "Expand full file"}
                   >
                     {expandFullFile ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                  </button>
+                  </IconButton>
                   <span className="text-text-tertiary/50">|</span>
                   {searchOpen ? (
-                    <div className="flex items-center gap-1 border border-border-default rounded bg-bg-primary px-1.5 py-0.5">
-                      <Search size={11} className="text-text-tertiary flex-shrink-0" />
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder="Search in diffs..."
-                        className="w-32 text-[10px] bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        autoFocus
-                      />
-                      {searchQuery && (
-                        <span className="text-[9px] text-text-tertiary whitespace-nowrap">
-                          {matches.length > 0
-                            ? `${currentMatchIndex + 1}/${matches.length}`
-                            : "0 results"}
-                        </span>
-                      )}
-                      <button
-                        className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
-                        onClick={() => navigateMatch("prev")}
-                        disabled={matches.length === 0}
-                      >
-                        <ChevronUp size={12} />
-                      </button>
-                      <button
-                        className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
-                        onClick={() => navigateMatch("next")}
-                        disabled={matches.length === 0}
-                      >
-                        <ChevronDown size={12} />
-                      </button>
-                      <button
-                        className="text-text-tertiary hover:text-text-primary"
-                        onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
-                      >
-                        <X size={11} />
-                      </button>
-                    </div>
+                    <DiffSearchBar
+                      isOpen={searchOpen}
+                      onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
+                      searchTerm={searchQuery}
+                      onSearchChange={setSearchQuery}
+                      matchCount={matches.length}
+                      activeMatch={currentMatchIndex}
+                      onPrev={() => navigateMatch("prev")}
+                      onNext={() => navigateMatch("next")}
+                      inputRef={searchInputRef}
+                    />
                   ) : (
-                    <button
-                      className="text-text-tertiary hover:text-text-primary"
+                    <IconButton
+                      size="sm"
+                      label="Search in diffs (/)"
+                      className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
                       onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()); }}
-                      title="Search in diffs (/)"
                     >
                       <Search size={12} />
-                    </button>
+                    </IconButton>
                   )}
                   <span className="text-text-tertiary/50">|</span>
                   <div className="flex border border-border-default rounded overflow-hidden">
@@ -418,62 +397,35 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                   <div className="flex items-center gap-1.5 ml-auto">
                     {/* Search within diffs */}
                     {searchOpen ? (
-                      <div className="flex items-center gap-1 border border-border-default rounded bg-bg-primary px-1.5 py-0.5">
-                        <Search size={11} className="text-text-tertiary flex-shrink-0" />
-                        <input
-                          ref={searchInputRef}
-                          type="text"
-                          placeholder="Search in diffs..."
-                          className="w-32 text-[10px] bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          autoFocus
-                        />
-                        {searchQuery && (
-                          <span className="text-[9px] text-text-tertiary whitespace-nowrap">
-                            {matches.length > 0
-                              ? `${currentMatchIndex + 1}/${matches.length}`
-                              : "0 results"}
-                          </span>
-                        )}
-                        <button
-                          className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
-                          onClick={() => navigateMatch("prev")}
-                          disabled={matches.length === 0}
-                        >
-                          <ChevronUp size={12} />
-                        </button>
-                        <button
-                          className="text-text-tertiary hover:text-text-primary disabled:opacity-30"
-                          onClick={() => navigateMatch("next")}
-                          disabled={matches.length === 0}
-                        >
-                          <ChevronDown size={12} />
-                        </button>
-                        <button
-                          className="text-text-tertiary hover:text-text-primary"
-                          onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
-                        >
-                          <X size={11} />
-                        </button>
-                      </div>
+                      <DiffSearchBar
+                        isOpen={searchOpen}
+                        onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
+                        searchTerm={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        matchCount={matches.length}
+                        activeMatch={currentMatchIndex}
+                        onPrev={() => navigateMatch("prev")}
+                        onNext={() => navigateMatch("next")}
+                        inputRef={searchInputRef}
+                      />
                     ) : (
-                      <button
-                        className="text-text-tertiary hover:text-text-primary"
+                      <IconButton
+                        size="sm"
+                        label="Search in diffs (/)"
+                        className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
                         onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()); }}
-                        title="Search in diffs (/)"
                       >
                         <Search size={12} />
-                      </button>
+                      </IconButton>
                     )}
                     <span className="text-text-tertiary/50">|</span>
-                    <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
+                    <Button size="sm" variant="ghost" className="h-auto px-0 text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
                       Expand all
-                    </button>
+                    </Button>
                     <span className="text-text-tertiary/50">|</span>
-                    <button className="text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
+                    <Button size="sm" variant="ghost" className="h-auto px-0 text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
                       Collapse all
-                    </button>
+                    </Button>
                     <span className="text-text-tertiary/50 mx-1">|</span>
                     <div className="flex border border-border-default rounded overflow-hidden">
                       <button

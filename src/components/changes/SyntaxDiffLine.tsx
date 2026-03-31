@@ -93,7 +93,7 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
         className={[
           "flex font-mono text-xs leading-5 group",
           LINE_BG[lineType],
-          isActiveSearchMatch ? "ring-1 ring-orange-400/60 ring-inset" : "",
+          isActiveSearchMatch ? "ring-1 ring-search-match-active ring-inset" : "",
           onClickLine ? "cursor-pointer hover:bg-bg-hover/50" : "",
         ].join(" ")}
         onClick={onClickLine}

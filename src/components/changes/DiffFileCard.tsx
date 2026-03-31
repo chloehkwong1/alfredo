@@ -235,11 +235,14 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       return gaps;
     }, [file.hunks, file.status, expandedGaps, bottomExhausted]);
 
+    const [loadingGaps, setLoadingGaps] = useState<Set<string>>(new Set());
+
     const handleExpandContext = useCallback(
       async (gapKey: string) => {
         const gap = gapInfo.find((g) => g.key === gapKey);
         if (!gap) return;
 
+        setLoadingGaps((prev) => new Set(prev).add(gapKey));
         try {
           const lines = await getFileLines(repoPath, file.path, gap.startLine, gap.endLine, commitHash);
           const contextLines: DiffLine[] = lines.map((l) => ({
@@ -262,6 +265,12 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
           });
         } catch (err) {
           console.error("Failed to expand context:", err);
+        } finally {
+          setLoadingGaps((prev) => {
+            const next = new Set(prev);
+            next.delete(gapKey);
+            return next;
+          });
         }
       },
       [gapInfo, file.path, repoPath, commitHash],
@@ -331,7 +340,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
           {/* Discard button */}
           {onDiscardFile && (
             <button
-              className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-0.5 rounded text-text-tertiary hover:text-red-400 transition-all"
+              className="flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 p-0.5 rounded text-text-tertiary hover:text-danger transition-all"
               onClick={(e) => {
                 e.stopPropagation();
                 onDiscardFile(file.path, file.status);
@@ -359,6 +368,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                       position={topGap.position}
                       hiddenLineCount={topGap.hiddenLines}
                       onExpandAll={() => handleExpandContext(topGapKey)}
+                      loading={loadingGaps.has(topGapKey)}
                     />
                   )}
 
@@ -564,6 +574,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 position="bottom"
                 hiddenLineCount={gapInfo.find((g) => g.key === "bottom")!.hiddenLines}
                 onExpandAll={() => handleExpandContext("bottom")}
+                loading={loadingGaps.has("bottom")}
               />
             )}
           </div>
