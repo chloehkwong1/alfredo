@@ -48,9 +48,10 @@ interface SettingsStatusBarProps {
   worktreeId: string;
   sessionKey: string;
   onRestartSession: () => void;
+  showClaudeSettings?: boolean;
 }
 
-function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRestartSession }: SettingsStatusBarProps) {
+function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRestartSession, showClaudeSettings = true }: SettingsStatusBarProps) {
   const { activeRepo: repoPath } = useAppConfig();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -157,34 +158,38 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRes
   return (
     <div className="flex items-center justify-between px-2 py-1 border-t border-border-default flex-shrink-0">
       <div className="flex items-center gap-1.5">
-        <SettingsChip
-          label={displayLabel(EFFORT_OPTIONS, resolved.effort, CLAUDE_DEFAULTS.effort)}
-          options={EFFORT_OPTIONS}
-          value={resolved.effort ?? ""}
-          isOpen={openDropdown === "effort"}
-          onToggle={() => toggleDropdown("effort")}
-          onChange={(v) => handleChange("effort", v)}
-        />
-        <SettingsChip
-          label={displayLabel(PERMISSION_OPTIONS, resolved.permissionMode, CLAUDE_DEFAULTS.permissionMode)}
-          options={PERMISSION_OPTIONS}
-          value={resolved.permissionMode ?? ""}
-          isOpen={openDropdown === "permissionMode"}
-          onToggle={() => toggleDropdown("permissionMode")}
-          onChange={(v) => handleChange("permissionMode", v)}
-        />
-        <SettingsChip
-          label={displayLabel(OUTPUT_OPTIONS, resolved.outputStyle, CLAUDE_DEFAULTS.outputStyle)}
-          options={OUTPUT_OPTIONS}
-          value={resolved.outputStyle ?? ""}
-          isOpen={openDropdown === "outputStyle"}
-          onToggle={() => toggleDropdown("outputStyle")}
-          onChange={(v) => handleChange("outputStyle", v)}
-        />
+        {showClaudeSettings && (
+          <>
+            <SettingsChip
+              label={displayLabel(EFFORT_OPTIONS, resolved.effort, CLAUDE_DEFAULTS.effort)}
+              options={EFFORT_OPTIONS}
+              value={resolved.effort ?? ""}
+              isOpen={openDropdown === "effort"}
+              onToggle={() => toggleDropdown("effort")}
+              onChange={(v) => handleChange("effort", v)}
+            />
+            <SettingsChip
+              label={displayLabel(PERMISSION_OPTIONS, resolved.permissionMode, CLAUDE_DEFAULTS.permissionMode)}
+              options={PERMISSION_OPTIONS}
+              value={resolved.permissionMode ?? ""}
+              isOpen={openDropdown === "permissionMode"}
+              onToggle={() => toggleDropdown("permissionMode")}
+              onChange={(v) => handleChange("permissionMode", v)}
+            />
+            <SettingsChip
+              label={displayLabel(OUTPUT_OPTIONS, resolved.outputStyle, CLAUDE_DEFAULTS.outputStyle)}
+              options={OUTPUT_OPTIONS}
+              value={resolved.outputStyle ?? ""}
+              isOpen={openDropdown === "outputStyle"}
+              onToggle={() => toggleDropdown("outputStyle")}
+              onChange={(v) => handleChange("outputStyle", v)}
+            />
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
-        {hasChanges && (
+        {showClaudeSettings && hasChanges && (
           <>
             <span className="text-xs text-text-tertiary">Settings changed</span>
             <Button size="sm" variant="secondary" onClick={handleRestart}>

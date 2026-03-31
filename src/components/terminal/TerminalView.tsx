@@ -236,13 +236,14 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         <div ref={containerRef} className="h-full pl-1 pr-0.5 py-0.5" />
       </div>
       {/* Status bar */}
-      {mode === "claude" && worktree && (
+      {worktree && (
         <SettingsStatusBar
           branch={worktree.branch ?? ""}
           worktreePath={worktree.path ?? ""}
           worktreeId={activeWorktreeId ?? ""}
           sessionKey={sessionKey}
           onRestartSession={handleRestartSession}
+          showClaudeSettings={mode === "claude"}
         />
       )}
     </div>

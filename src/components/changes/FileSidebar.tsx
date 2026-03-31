@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Undo2 } from "lucide-react";
 import type { DiffFile, CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 
@@ -14,6 +15,7 @@ interface FileSidebarProps {
   activeFilePath: string | null;
   collapsedFiles: Set<string>;
   onSelectFile: (path: string) => void;
+  onDiscardFile?: (path: string, status: string) => void;
 }
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
@@ -36,24 +38,26 @@ const FileRow = memo(function FileRow({
   isActive,
   isCollapsed,
   onSelect,
+  onDiscard,
 }: {
   file: DiffFile;
   filePath: string;
   isActive: boolean;
   isCollapsed: boolean;
   onSelect: (path: string) => void;
+  onDiscard?: (path: string, status: string) => void;
 }) {
   const filename = file.path.split("/").pop() ?? file.path;
 
   return (
-    <button
-      onClick={() => onSelect(filePath)}
+    <div
       className={[
-        "flex items-center gap-1.5 w-full px-2.5 py-1 text-left text-xs",
-        "hover:bg-bg-hover transition-colors",
+        "group flex items-center gap-1.5 w-full px-2.5 py-1 text-left text-xs",
+        "hover:bg-bg-hover transition-colors cursor-pointer",
         isActive ? "bg-bg-hover text-text-primary" : "text-text-secondary",
         isCollapsed ? "opacity-50" : "",
       ].join(" ")}
+      onClick={() => onSelect(filePath)}
     >
       <span
         className={[
@@ -64,17 +68,27 @@ const FileRow = memo(function FileRow({
         {STATUS_LETTER[file.status] ?? "?"}
       </span>
       <span className="truncate flex-1" title={file.path}>{filename}</span>
-      <span className="text-text-tertiary text-[10px] flex-shrink-0">
+      <span className="text-text-tertiary text-[10px] flex-shrink-0 group-hover:hidden">
         {file.additions > 0 && <span className="text-diff-added">+{file.additions}</span>}
         {file.deletions > 0 && <span className="text-diff-removed ml-1">-{file.deletions}</span>}
       </span>
-    </button>
+      {onDiscard && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDiscard(file.path, file.status); }}
+          className="hidden group-hover:flex items-center p-0.5 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors flex-shrink-0"
+          title="Discard changes"
+        >
+          <Undo2 size={12} />
+        </button>
+      )}
+    </div>
   );
 }, (prev, next) =>
   prev.filePath === next.filePath &&
   prev.isActive === next.isActive &&
   prev.isCollapsed === next.isCollapsed &&
-  prev.onSelect === next.onSelect
+  prev.onSelect === next.onSelect &&
+  prev.onDiscard === next.onDiscard
 );
 
 function FileSidebar({
@@ -87,6 +101,7 @@ function FileSidebar({
   activeFilePath,
   collapsedFiles,
   onSelectFile,
+  onDiscardFile,
 }: FileSidebarProps) {
   const [filter, setFilter] = useState("");
   const filterInputRef = useRef<HTMLInputElement>(null);
@@ -158,7 +173,7 @@ function FileSidebar({
   }, [viewMode]);
 
   const renderFileList = useCallback(
-    (filesToRender: DiffFile[]) =>
+    (filesToRender: DiffFile[], onDiscard?: (path: string, status: string) => void) =>
       filesToRender.map((file) => (
         <FileRow
           key={file.path}
@@ -167,6 +182,7 @@ function FileSidebar({
           isActive={activeFilePath === file.path}
           isCollapsed={collapsedFiles.has(file.path)}
           onSelect={onSelectFile}
+          onDiscard={onDiscard}
         />
       )),
     [activeFilePath, collapsedFiles, onSelectFile],
@@ -253,7 +269,7 @@ function FileSidebar({
                       {filteredUncommitted.length}
                     </span>
                   </div>
-                  {renderFileList(filteredUncommitted)}
+                  {renderFileList(filteredUncommitted, onDiscardFile)}
                 </>
               )}
 
