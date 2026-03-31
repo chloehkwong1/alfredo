@@ -43,9 +43,12 @@ const SOUNDS: Record<string, SoundNote[]> = {
     { frequency: 1047, duration: 0.4, type: "triangle" },
   ],
   quack:     [
-    { frequency: 800, duration: 0.04, type: "sawtooth", endFrequency: 350, gain: 0.2 },
-    { frequency: 700, duration: 0.06, type: "sawtooth", endFrequency: 300, gain: 0.18, delay: 0.01 },
-    { frequency: 650, duration: 0.05, type: "sawtooth", endFrequency: 250, gain: 0.12, delay: 0.08 },
+    { frequency: 1600, duration: 0.03, type: "sawtooth", endFrequency: 600, gain: 0.22 },
+    { frequency: 600, duration: 0.04, type: "sawtooth", endFrequency: 1200, gain: 0.18, delay: 0.0 },
+    { frequency: 1200, duration: 0.06, type: "sawtooth", endFrequency: 300, gain: 0.15, delay: 0.0 },
+    { frequency: 1400, duration: 0.03, type: "sawtooth", endFrequency: 500, gain: 0.18, delay: 0.12 },
+    { frequency: 500, duration: 0.04, type: "sawtooth", endFrequency: 1000, gain: 0.14, delay: 0.0 },
+    { frequency: 1000, duration: 0.05, type: "sawtooth", endFrequency: 250, gain: 0.1, delay: 0.0 },
   ],
   laser:     [
     { frequency: 2200, duration: 0.06, type: "sawtooth", endFrequency: 800, gain: 0.18 },
@@ -149,6 +152,20 @@ const SOUNDS: Record<string, SoundNote[]> = {
     { frequency: 1047, duration: 0.04, type: "square", gain: 0.18, delay: 0.06 },
     { frequency: 1568, duration: 0.04, type: "square", gain: 0.18, delay: 0.0 },
     { frequency: 2093, duration: 0.15, type: "square", gain: 0.2, delay: 0.0 },
+  ],
+  train:     [
+    { frequency: 800, duration: 0.25, type: "triangle", gain: 0.25 },
+    { frequency: 600, duration: 0.35, type: "triangle", gain: 0.25, delay: 0.05 },
+    { frequency: 800, duration: 0.25, type: "triangle", gain: 0.22, delay: 0.15 },
+    { frequency: 600, duration: 0.45, type: "triangle", gain: 0.2, delay: 0.05 },
+  ],
+  seatbelt:  [
+    { frequency: 1047, duration: 0.12, type: "sine", gain: 0.25 },
+    { frequency: 1319, duration: 0.18, type: "sine", gain: 0.25, delay: 0.02 },
+  ],
+  cuckoo:    [
+    { frequency: 1047, duration: 0.2, type: "triangle", gain: 0.22 },
+    { frequency: 784, duration: 0.35, type: "triangle", gain: 0.22, delay: 0.05 },
   ],
 };
 
