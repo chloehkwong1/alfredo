@@ -385,8 +385,21 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
             }
         }
 
-        // 3. Filter out gitignored files (tracked files matching gitignore
-        //    still appear in `git diff HEAD` but shouldn't show in the UI)
+        // 3. Filter out files that should never appear as uncommitted changes.
+        //
+        // a) Alfredo-injected artifacts (.claude/context.md, .claude/settings.local.json)
+        //    are added to .git/info/exclude, but that only affects untracked files.
+        //    If they were ever committed, `git diff HEAD` still reports them — so we
+        //    need a hardcoded filter here.
+        //
+        // b) Also filter via `git check-ignore` for any other gitignored paths that
+        //    slip through (e.g. tracked files matching .gitignore).
+        const HIDDEN_PATHS: &[&str] = &[
+            ".claude/context.md",
+            ".claude/settings.local.json",
+        ];
+        files.retain(|f| !HIDDEN_PATHS.contains(&f.path.as_str()));
+
         let all_paths: Vec<String> = files.iter().map(|f| f.path.clone()).collect();
         let ignored = ignored_paths(&repo_path, &all_paths);
         if !ignored.is_empty() {
@@ -401,18 +414,25 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
 
 /// Return the name of the default branch for the given repo.
 ///
-/// Checks `origin/HEAD` first (the remote's declared default), then falls back
-/// to looking for a local `main` or `master` branch.
+/// Resolution order matches `resolve_default_branch` and `get_diff_stats`:
+/// prefer remote tracking branches over local ones to avoid stale-local-main issues.
 #[tauri::command]
 pub async fn get_default_branch(repo_path: String) -> Result<String> {
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
 
-        // Best signal: origin/HEAD symbolic ref (e.g. refs/remotes/origin/develop)
+        // Prefer remote tracking branches — local main can be stale.
+        for name in &["main", "master"] {
+            let remote_ref = format!("refs/remotes/origin/{name}");
+            if repo.find_reference(&remote_ref).is_ok() {
+                return Ok(name.to_string());
+            }
+        }
+
+        // origin/HEAD symbolic ref (e.g. refs/remotes/origin/develop)
         if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
             if let Ok(resolved) = reference.resolve() {
                 if let Some(name) = resolved.name() {
-                    // "refs/remotes/origin/develop" → "develop"
                     if let Some(short) = name.strip_prefix("refs/remotes/origin/") {
                         return Ok(short.to_string());
                     }
@@ -420,7 +440,7 @@ pub async fn get_default_branch(repo_path: String) -> Result<String> {
             }
         }
 
-        // Fallback: first local branch that exists
+        // Last resort: local branch
         for name in &["main", "master"] {
             if repo.find_branch(name, git2::BranchType::Local).is_ok() {
                 return Ok(name.to_string());

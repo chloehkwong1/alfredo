@@ -154,10 +154,18 @@ pub async fn delete_worktree(
 /// Uses git CLI instead of git2, which has known issues with worktree diff accuracy.
 pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
     // Try three-dot diff against common default branch names.
-    // `git diff --shortstat main...HEAD` = diff between merge-base(main, HEAD) and HEAD.
-    // Try origin/HEAD first — it points to the repo's actual default branch on GitHub
-    // (which may be "develop", not "main"), giving accurate stats for repos that don't use main.
-    for branch in &["origin/HEAD", "main", "master", "origin/main", "origin/master"] {
+    // `git diff --shortstat origin/main...HEAD` = diff between merge-base and HEAD.
+    //
+    // Prefer remote tracking branches (origin/main) over local branches because
+    // local `main` can be stale (not pulled recently), causing the diff to include
+    // all commits from remote main that the local branch doesn't have — producing
+    // wildly inflated stats after a rebase.
+    //
+    // Resolution order matches resolve_default_branch() in diff.rs.
+    for branch in &[
+        "origin/main", "origin/master", "origin/HEAD",
+        "main", "master",
+    ] {
         let output = std::process::Command::new("git")
             .args(["diff", "--shortstat", &format!("{branch}...HEAD")])
             .current_dir(worktree_path)
