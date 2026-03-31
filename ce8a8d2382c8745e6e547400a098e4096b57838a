@@ -1,0 +1,73 @@
+src/components/commandPalette/useCommandRegistry.ts
+  3e6fe771d32d7a3d 2,33-34,418
+  b1310486752472f1 1,3-32,35-417,419-451
+src/components/layout/AppShell.tsx
+  b1310486752472f1 28,93,95-100,140,423-426
+src/hooks/useKeyboardShortcuts.ts
+  b1310486752472f1 26,48-54,152
+src/components/sidebar/Sidebar.tsx
+  b1310486752472f1 161-166
+src/components/commandPalette/CommandPalette.tsx
+  b1310486752472f1 1-194
+package.json
+  b1310486752472f1 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "ce8a8d2382c8745e6e547400a098e4096b57838a",
+  "prompts": {
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "3e6fe771d32d7a3d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c11368ba-169d-4242-9288-c3c901918809",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "52fac910dae3c352": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23b9937e-4742-479c-a4da-579a25f6840c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "b1310486752472f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90bce76a-09ac-4d7c-9476-dfddf1382ad7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 671,
+      "overriden_lines": 0
+    }
+  }
+}
