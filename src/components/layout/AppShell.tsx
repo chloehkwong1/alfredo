@@ -448,7 +448,7 @@ function AppShell() {
               <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
               <div className="flex flex-col items-center gap-1">
                 <span className="text-sm">Select a worktree to get started</span>
-                <span className="text-xs">Each worktree gets its own branch, terminal, and agent · <kbd className="px-1 py-0.5 rounded bg-bg-elevated border border-border-default font-mono text-[10px]">⌘N</kbd> to create new</span>
+                <span className="text-xs">Each worktree gets its own branch, terminal, and agent · <kbd className="px-1.5 py-0.5 rounded bg-bg-elevated border border-border-default font-mono text-[11px]">⌘N</kbd> to create new worktree</span>
               </div>
             </div>
           )}
