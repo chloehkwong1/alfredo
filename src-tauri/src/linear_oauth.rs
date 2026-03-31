@@ -211,9 +211,19 @@ pub async fn start_oauth_flow() -> Result<(String, u16, oneshot::Receiver<Result
     });
 
     let redirect_uri = format!("http://localhost:{port}/callback");
-    let auth_url = format!(
-        "{AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={redirect_uri}&response_type=code&scope=read&state={state_param}&prompt=consent",
-    );
+    let auth_url = reqwest::Url::parse_with_params(
+        AUTH_URL,
+        &[
+            ("client_id", CLIENT_ID),
+            ("redirect_uri", redirect_uri.as_str()),
+            ("response_type", "code"),
+            ("scope", "read"),
+            ("state", state_param.as_str()),
+            ("prompt", "consent"),
+        ],
+    )
+    .map_err(|e| AppError::Linear(format!("failed to build auth URL: {e}")))?
+    .to_string();
 
     Ok((auth_url, port, result_rx))
 }

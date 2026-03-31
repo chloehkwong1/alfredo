@@ -212,7 +212,7 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
     // 1. Resolve Linear API token (OAuth first, then config fallback)
     let app_data = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
-    let api_key = linear_manager::resolve_token(&app_data, ".").await?;
+    let api_key = linear_manager::resolve_token(&app_data, &repo_path).await?;
 
     // 2. Fetch full ticket details
     let ticket = linear_manager::get_issue(&api_key, issue_id).await?;
