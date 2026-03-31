@@ -436,6 +436,110 @@ impl AgentDetector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    struct StatusScenario {
+        name: String,
+        #[allow(dead_code)]
+        description: String,
+        #[allow(dead_code)]
+        category: String,
+        steps: Vec<ScenarioStep>,
+    }
+
+    #[derive(Deserialize)]
+    struct ScenarioStep {
+        action: ScenarioAction,
+        expect: ScenarioExpect,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(tag = "type")]
+    enum ScenarioAction {
+        #[serde(rename = "ptyOutput")]
+        PtyOutput { data: String },
+        #[serde(rename = "hookEvent")]
+        HookEvent {
+            #[allow(dead_code)]
+            state: String,
+        },
+        #[serde(rename = "userInput")]
+        UserInput,
+        #[serde(rename = "elapsed")]
+        Elapsed { ms: u64 },
+        #[serde(rename = "heartbeat")]
+        Heartbeat,
+        #[serde(rename = "noHeartbeat")]
+        NoHeartbeat {
+            #[allow(dead_code)]
+            ms: u64,
+        },
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct ScenarioExpect {
+        agent_status: String,
+        #[allow(dead_code)]
+        effective_status: Option<String>,
+        #[allow(dead_code)]
+        stale_busy: Option<bool>,
+    }
+
+    fn parse_expected_state(s: &str) -> AgentState {
+        match s {
+            "busy" => AgentState::Busy,
+            "idle" => AgentState::Idle,
+            "waitingForInput" => AgentState::WaitingForInput,
+            "notRunning" => AgentState::NotRunning,
+            other => panic!("Unknown agent state in scenario: {other}"),
+        }
+    }
+
+    fn run_scenario(scenario: &StatusScenario) {
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        // Expire idle cooldown so initial output transitions work
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(1));
+
+        for (i, step) in scenario.steps.iter().enumerate() {
+            match &step.action {
+                ScenarioAction::PtyOutput { data } => {
+                    det.feed(data.as_bytes());
+                }
+                ScenarioAction::UserInput => {
+                    det.notify_input_at(Instant::now());
+                }
+                ScenarioAction::Elapsed { ms } => {
+                    // Advance input/idle timestamps backward so cooldowns expire
+                    let elapsed = std::time::Duration::from_millis(*ms);
+                    if let Some(ref mut ts) = det.last_input {
+                        *ts -= elapsed;
+                    }
+                    if let Some(ref mut ts) = det.last_idle {
+                        *ts -= elapsed;
+                    }
+                }
+                ScenarioAction::HookEvent { .. }
+                | ScenarioAction::Heartbeat
+                | ScenarioAction::NoHeartbeat { .. } => {
+                    // These are frontend-only concerns; skip in Rust detector tests
+                    continue;
+                }
+            }
+
+            let expected = parse_expected_state(&step.expect.agent_status);
+            assert_eq!(
+                det.state(),
+                &expected,
+                "Scenario '{}' failed at step {}: expected {:?}, got {:?}",
+                scenario.name,
+                i,
+                expected,
+                det.state(),
+            );
+        }
+    }
 
     #[test]
     fn detects_claude_code_launch() {
@@ -749,5 +853,16 @@ mod tests {
             result,
             Some((AgentType::ClaudeCode, AgentState::Busy))
         );
+    }
+
+    #[test]
+    fn shared_status_scenarios() {
+        let json = include_str!("../../src/test/status-scenarios.json");
+        let scenarios: Vec<StatusScenario> =
+            serde_json::from_str(json).expect("Failed to parse status-scenarios.json");
+        assert!(!scenarios.is_empty(), "No scenarios found");
+        for scenario in &scenarios {
+            run_scenario(scenario);
+        }
     }
 }

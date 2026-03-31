@@ -1,0 +1,168 @@
+[
+  {
+    "name": "skill-completes-idle-prompt-arrives",
+    "description": "Agent runs tool, outputs result lines, then idle prompt",
+    "category": "stuck-busy",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "I'll read the file now.\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "Here are the contents of the file:\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "\u276f \n" },
+        "expect": { "agentStatus": "idle" }
+      }
+    ]
+  },
+  {
+    "name": "skill-with-ask-user-question",
+    "description": "Agent outputs elicitation dialog, user answers, agent resumes",
+    "category": "stuck-busy",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "Let me research this ticket.\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "Do you have any extra context beyond the ticket?\n\u203a 1. No extra context\n  2. I have context\n  3. Type something.\nEnter to select \u00b7 \u2191/\u2193 to navigate \u00b7 Esc to cancel\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      },
+      {
+        "action": { "type": "userInput" },
+        "expect": { "agentStatus": "waitingForInput" }
+      },
+      {
+        "action": { "type": "elapsed", "ms": 200 },
+        "expect": { "agentStatus": "waitingForInput" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "Proceeding with codebase exploration.\n" },
+        "expect": { "agentStatus": "busy" }
+      }
+    ]
+  },
+  {
+    "name": "stop-hook-fires-detector-overridden",
+    "description": "Hook sends idle even though detector sees output lines",
+    "category": "stuck-busy",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "Working on the task...\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "hookEvent", "state": "idle" },
+        "expect": { "agentStatus": "idle" }
+      }
+    ]
+  },
+  {
+    "name": "permission-prompt-allow-deny",
+    "description": "Standard tool approval prompt with Allow/Deny",
+    "category": "missed-waiting-for-input",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "I need to run a command.\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "  Allow    Deny\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      }
+    ]
+  },
+  {
+    "name": "elicitation-dialog-enter-to-select",
+    "description": "Numbered options with Enter to select navigation hint",
+    "category": "missed-waiting-for-input",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "Processing request...\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "Which approach do you prefer?\n\u203a 1. Option A\n  2. Option B\nEnter to select \u00b7 \u2191/\u2193 to navigate \u00b7 Esc to cancel\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      }
+    ]
+  },
+  {
+    "name": "confirmation-prompt-y-n",
+    "description": "Simple yes/no confirmation prompt",
+    "category": "missed-waiting-for-input",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "About to delete the file.\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "Are you sure? (y/n)\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      }
+    ]
+  },
+  {
+    "name": "multi-batch-elicitation",
+    "description": "Elicitation arrives across three separate PTY output batches",
+    "category": "missed-waiting-for-input",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "Do you want to proceed?\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "\u203a 1. Yes\n  2. No\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      },
+      {
+        "action": { "type": "ptyOutput", "data": "Enter to select \u00b7 \u2191/\u2193 to navigate \u00b7 Esc to cancel\n" },
+        "expect": { "agentStatus": "waitingForInput" }
+      }
+    ]
+  },
+  {
+    "name": "switch-to-idle-worktree-unseen",
+    "description": "Worktree finished while unfocused, user clicks to view",
+    "category": "wrong-status-on-focus",
+    "steps": [
+      {
+        "action": { "type": "hookEvent", "state": "idle" },
+        "expect": { "agentStatus": "idle", "effectiveStatus": "done" }
+      }
+    ]
+  },
+  {
+    "name": "switch-to-stale-worktree",
+    "description": "Worktree busy with no output for 31s, user clicks",
+    "category": "wrong-status-on-focus",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "Starting long operation...\n" },
+        "expect": { "agentStatus": "busy", "staleBusy": false }
+      },
+      {
+        "action": { "type": "elapsed", "ms": 31000 },
+        "expect": { "agentStatus": "busy", "staleBusy": true, "effectiveStatus": "stale" }
+      }
+    ]
+  },
+  {
+    "name": "channel-dead-during-focus-switch",
+    "description": "Heartbeat missed while on different worktree",
+    "category": "wrong-status-on-focus",
+    "steps": [
+      {
+        "action": { "type": "ptyOutput", "data": "Working on something...\n" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "noHeartbeat", "ms": 7000 },
+        "expect": { "agentStatus": "busy", "effectiveStatus": "disconnected" }
+      }
+    ]
+  }
+]
