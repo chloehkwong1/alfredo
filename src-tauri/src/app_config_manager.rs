@@ -38,6 +38,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             sidebar_collapsed: None,
             has_seen_orientation: false,
             active_worktree_id: None,
+            linear_oauth: None,
         });
     }
 
@@ -166,6 +167,7 @@ pub async fn migrate_if_needed(
         sidebar_collapsed: None,
         has_seen_orientation: false,
         active_worktree_id: None,
+        linear_oauth: None,
     };
 
     save(app_data_dir, &global).await?;
@@ -216,6 +218,7 @@ mod tests {
             sidebar_collapsed: None,
             active_worktree_id: None,
             has_seen_orientation: false,
+            linear_oauth: None,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -254,6 +257,7 @@ mod tests {
             sidebar_collapsed: None,
             active_worktree_id: None,
             has_seen_orientation: false,
+            linear_oauth: None,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -289,6 +293,7 @@ mod tests {
             sidebar_collapsed: None,
             active_worktree_id: None,
             has_seen_orientation: false,
+            linear_oauth: None,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);
