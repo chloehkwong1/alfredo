@@ -21,86 +21,84 @@ type SoundNote = {
 };
 
 const SOUNDS: Record<string, SoundNote[]> = {
-  // ── Classic ──
-  none:      [],
-  chime:     [{ frequency: 880, duration: 0.25 }, { frequency: 1108, duration: 0.35 }],
-  pop:       [{ frequency: 440, duration: 0.12 }, { frequency: 554, duration: 0.18 }],
-  ding:      [{ frequency: 1047, duration: 0.2 }, { frequency: 1318, duration: 0.3 }],
-  ping:      [{ frequency: 1320, duration: 0.15 }, { frequency: 1568, duration: 0.2 }],
-  woodblock: [{ frequency: 330, duration: 0.08, type: "triangle" }, { frequency: 440, duration: 0.12, type: "triangle" }],
-  // ── Fun ──
-  coin:      [{ frequency: 988, duration: 0.08, type: "square", gain: 0.2 }, { frequency: 1319, duration: 0.3, type: "square", gain: 0.2 }],
-  r2d2:      [
-    { frequency: 800, duration: 0.06, endFrequency: 2400 },
-    { frequency: 2400, duration: 0.06, endFrequency: 1200, delay: 0.02 },
-    { frequency: 1200, duration: 0.06, endFrequency: 1800, delay: 0.02 },
-    { frequency: 1800, duration: 0.08, endFrequency: 600, delay: 0.02 },
+  none:        [],
+  // ── Retro / Gaming ──
+  coin:        [
+    { frequency: 988, duration: 0.08, type: "square", gain: 0.2 },
+    { frequency: 1319, duration: 0.3, type: "square", gain: 0.2 },
   ],
-  zelda:     [
+  zelda:       [
     { frequency: 523, duration: 0.12, type: "triangle" },
     { frequency: 659, duration: 0.12, type: "triangle" },
     { frequency: 784, duration: 0.12, type: "triangle" },
     { frequency: 1047, duration: 0.4, type: "triangle" },
   ],
-  quack:     [
-    { frequency: 800, duration: 0.04, type: "sawtooth", endFrequency: 350, gain: 0.2 },
-    { frequency: 700, duration: 0.06, type: "sawtooth", endFrequency: 300, gain: 0.18, delay: 0.01 },
-    { frequency: 650, duration: 0.05, type: "sawtooth", endFrequency: 250, gain: 0.12, delay: 0.08 },
+  levelup:     [
+    { frequency: 440, duration: 0.1, type: "square", gain: 0.18 },
+    { frequency: 554, duration: 0.1, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 659, duration: 0.1, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 880, duration: 0.12, type: "square", gain: 0.2, delay: 0.0 },
+    { frequency: 1108, duration: 0.12, type: "square", gain: 0.2, delay: 0.0 },
+    { frequency: 1319, duration: 0.35, type: "square", gain: 0.22, delay: 0.0 },
   ],
-  laser:     [
-    { frequency: 2200, duration: 0.06, type: "sawtooth", endFrequency: 800, gain: 0.18 },
-    { frequency: 800, duration: 0.12, type: "sawtooth", endFrequency: 120, gain: 0.15, delay: 0.0 },
+  pinball:     [
+    { frequency: 1200, duration: 0.03, type: "square", gain: 0.25 },
+    { frequency: 1800, duration: 0.03, type: "square", gain: 0.2, delay: 0.0 },
+    { frequency: 2400, duration: 0.05, type: "square", gain: 0.18, delay: 0.0 },
+    { frequency: 1400, duration: 0.08, type: "square", gain: 0.15, delay: 0.06 },
+    { frequency: 1800, duration: 0.12, type: "square", gain: 0.12, delay: 0.0 },
   ],
-  doorbell:  [
-    { frequency: 659, duration: 0.3, type: "sine", gain: 0.25 },
-    { frequency: 523, duration: 0.4, type: "sine", gain: 0.25 },
+  // ── Character ──
+  r2d2:        [
+    { frequency: 800, duration: 0.06, endFrequency: 2400 },
+    { frequency: 2400, duration: 0.06, endFrequency: 1200, delay: 0.02 },
+    { frequency: 1200, duration: 0.06, endFrequency: 1800, delay: 0.02 },
+    { frequency: 1800, duration: 0.08, endFrequency: 600, delay: 0.02 },
   ],
-  bloop:     [
-    { frequency: 150, duration: 0.08, endFrequency: 600, gain: 0.25 },
-    { frequency: 600, duration: 0.12, endFrequency: 200, gain: 0.2, delay: 0.0 },
-    { frequency: 200, duration: 0.06, endFrequency: 400, gain: 0.1, delay: 0.0 },
+  quack:       [
+    { frequency: 600, duration: 0.06, type: "sawtooth", endFrequency: 200, gain: 0.2 },
+    { frequency: 180, duration: 0.04, type: "sawtooth", gain: 0.08, delay: 0.0 },
+    { frequency: 550, duration: 0.06, type: "sawtooth", endFrequency: 180, gain: 0.18, delay: 0.12 },
+    { frequency: 160, duration: 0.04, type: "sawtooth", gain: 0.06, delay: 0.0 },
   ],
-  victory:   [
-    { frequency: 523, duration: 0.15, type: "triangle", gain: 0.25 },
-    { frequency: 659, duration: 0.15, type: "triangle", gain: 0.25 },
-    { frequency: 784, duration: 0.15, type: "triangle", gain: 0.25 },
-    { frequency: 1047, duration: 0.5, type: "triangle", gain: 0.25, delay: 0.01 },
+  submarine:   [
+    { frequency: 1200, duration: 0.15, gain: 0.25 },
+    { frequency: 1200, duration: 0.4, gain: 0.15, delay: 0.3 },
   ],
-  bonk:      [
-    { frequency: 300, duration: 0.03, type: "square", gain: 0.25 },
-    { frequency: 180, duration: 0.05, type: "square", gain: 0.2, delay: 0.0 },
-    { frequency: 100, duration: 0.1, type: "square", gain: 0.12, delay: 0.0 },
+  // ── Transport ──
+  train:       [
+    { frequency: 330, duration: 0.3, type: "sawtooth", endFrequency: 370, gain: 0.15 },
+    { frequency: 370, duration: 0.15, type: "sawtooth", endFrequency: 330, gain: 0.12, delay: 0.08 },
+    { frequency: 340, duration: 0.5, type: "sawtooth", endFrequency: 380, gain: 0.18, delay: 0.1 },
   ],
-  sparkle:   [
+  seatbelt:    [
+    { frequency: 932, duration: 0.18, gain: 0.2 },
+    { frequency: 1245, duration: 0.35, gain: 0.22, delay: 0.02 },
+  ],
+  shipbell:    [
+    { frequency: 2200, duration: 0.12, type: "triangle", gain: 0.2 },
+    { frequency: 2200, duration: 0.12, type: "triangle", gain: 0.18, delay: 0.08 },
+    { frequency: 2200, duration: 0.12, type: "triangle", gain: 0.15, delay: 0.25 },
+    { frequency: 2200, duration: 0.12, type: "triangle", gain: 0.12, delay: 0.08 },
+  ],
+  // ── Objects ──
+  cashregister:[
+    { frequency: 200, duration: 0.02, type: "square", gain: 0.2 },
+    { frequency: 1400, duration: 0.04, type: "triangle", gain: 0.22, delay: 0.0 },
+    { frequency: 2800, duration: 0.08, type: "triangle", gain: 0.18, delay: 0.0 },
+    { frequency: 2800, duration: 0.25, type: "triangle", gain: 0.12, delay: 0.02 },
+  ],
+  typewriter:  [
+    { frequency: 1800, duration: 0.01, type: "square", gain: 0.15 },
+    { frequency: 300, duration: 0.04, type: "square", endFrequency: 100, gain: 0.12, delay: 0.0 },
+    { frequency: 2400, duration: 0.15, type: "triangle", gain: 0.2, delay: 0.06 },
+  ],
+  sparkle:     [
     { frequency: 1568, duration: 0.06, gain: 0.2 },
     { frequency: 1760, duration: 0.06, gain: 0.2, delay: 0.02 },
     { frequency: 1976, duration: 0.06, gain: 0.2, delay: 0.02 },
     { frequency: 2093, duration: 0.06, gain: 0.2, delay: 0.02 },
     { frequency: 2349, duration: 0.2, gain: 0.2, delay: 0.02 },
-  ],
-  ufo:       [
-    { frequency: 400, duration: 0.1, endFrequency: 800 },
-    { frequency: 800, duration: 0.1, endFrequency: 400, delay: 0.0 },
-    { frequency: 400, duration: 0.1, endFrequency: 800, delay: 0.0 },
-    { frequency: 800, duration: 0.15, endFrequency: 300, delay: 0.0 },
-  ],
-  powerup:   [
-    { frequency: 523, duration: 0.06, type: "square", gain: 0.18 },
-    { frequency: 659, duration: 0.06, type: "square", gain: 0.18, delay: 0.0 },
-    { frequency: 784, duration: 0.06, type: "square", gain: 0.18, delay: 0.0 },
-    { frequency: 1047, duration: 0.06, type: "square", gain: 0.18, delay: 0.0 },
-    { frequency: 1319, duration: 0.06, type: "square", gain: 0.18, delay: 0.0 },
-    { frequency: 1568, duration: 0.2, type: "square", gain: 0.2, delay: 0.0 },
-  ],
-  warp:      [
-    { frequency: 200, duration: 0.08, type: "square", endFrequency: 1200, gain: 0.15 },
-    { frequency: 1200, duration: 0.08, type: "square", endFrequency: 200, gain: 0.15, delay: 0.0 },
-    { frequency: 200, duration: 0.06, type: "square", endFrequency: 1600, gain: 0.18, delay: 0.0 },
-  ],
-  spring:    [
-    { frequency: 200, duration: 0.04, type: "triangle", endFrequency: 1200, gain: 0.2 },
-    { frequency: 1200, duration: 0.08, type: "triangle", endFrequency: 600, gain: 0.15, delay: 0.0 },
-    { frequency: 600, duration: 0.06, type: "triangle", endFrequency: 900, gain: 0.1, delay: 0.0 },
   ],
 };
 
@@ -190,7 +188,7 @@ function requestDockBounce() {
 
 const DEFAULT_CONFIG: NotificationConfig = {
   enabled: false,
-  sound: "chime",
+  sound: "coin",
   notifyOnWaiting: true,
   notifyOnIdle: true,
 };
