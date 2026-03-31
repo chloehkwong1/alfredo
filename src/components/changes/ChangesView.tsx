@@ -538,6 +538,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                 }}
                 file={file}
                 expanded={focusedFilePath ? true : !collapsedFiles.has(file.path)}
+                autoExpandAll={focusedFilePath ? expandFullFile : undefined}
                 onToggleExpanded={handleToggleExpanded}
                 viewMode={diffViewMode}
                 annotations={annotations}

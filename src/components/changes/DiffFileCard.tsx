@@ -7,7 +7,7 @@ import { DiffCommentIndicator } from "./DiffCommentIndicator";
 import { DiffCommentThread } from "./DiffCommentThread";
 import { SplitDiffLine } from "./SplitDiffLine";
 import { pairLinesForSplit } from "./splitPairing";
-import { ExpandContextButton, EXPAND_INCREMENT } from "./ExpandContextButton";
+import { ExpandContextButton } from "./ExpandContextButton";
 import { getFileLines } from "../../api";
 import type {
   DiffFile,
@@ -38,7 +38,11 @@ interface DiffFileCardProps {
   searchQuery?: string;
   activeSearchMatch?: { hunkIndex: number; lineIndex: number } | null;
   onDiscardFile?: (path: string, status: string) => void;
+  autoExpandAll?: boolean;
 }
+
+/** Max lines to fetch when expanding to end of file (backend returns fewer if EOF is reached sooner) */
+const MAX_BOTTOM_EXPAND = 10_000;
 
 const STATUS_LABEL: Record<DiffFile["status"], string> = {
   added: "A",
@@ -73,6 +77,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       searchQuery,
       activeSearchMatch,
       onDiscardFile,
+      autoExpandAll,
     },
     ref
   ) {
@@ -211,14 +216,19 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
         }
       }
 
-      // Gap below last hunk
+      // Gap below last hunk (we don't know exact count, so show a generic indicator)
       if (file.status !== "deleted" && !bottomExhausted) {
+        const lastHunk = hunks[hunks.length - 1];
+        const lastLineNum = lastHunk.lines.reduce((max, l) => {
+          const n = l.newLineNumber ?? l.oldLineNumber ?? 0;
+          return Math.max(max, n);
+        }, 0);
         gaps.push({
           key: "bottom",
           position: "bottom",
-          hiddenLines: EXPAND_INCREMENT,
-          startLine: 0,
-          endLine: 0,
+          hiddenLines: 1, // placeholder — we don't know the real count
+          startLine: lastLineNum + 1,
+          endLine: lastLineNum + MAX_BOTTOM_EXPAND,
         });
       }
 
@@ -226,43 +236,12 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
     }, [file.hunks, file.status, expandedGaps, bottomExhausted]);
 
     const handleExpandContext = useCallback(
-      async (gapKey: string, direction: "up" | "down" | "all") => {
+      async (gapKey: string) => {
         const gap = gapInfo.find((g) => g.key === gapKey);
         if (!gap) return;
 
-        let startLine: number;
-        let endLine: number;
-        let requestedCount: number;
-
-        if (gapKey === "bottom") {
-          // Compute from current expanded state to avoid stale closure
-          const lastHunk = file.hunks[file.hunks.length - 1];
-          const lastLineNum = lastHunk.lines.reduce((max, l) => {
-            const n = l.newLineNumber ?? l.oldLineNumber ?? 0;
-            return Math.max(max, n);
-          }, 0);
-          // Read latest expanded count via functional updater pattern below
-          // For the API call, we need the count now — read from gapInfo which is current
-          const alreadyExpanded = expandedGaps.get("bottom")?.length ?? 0;
-          startLine = lastLineNum + 1 + alreadyExpanded;
-          endLine = startLine + EXPAND_INCREMENT - 1;
-          requestedCount = EXPAND_INCREMENT;
-        } else if (direction === "all") {
-          startLine = gap.startLine;
-          endLine = gap.endLine;
-          requestedCount = gap.endLine - gap.startLine + 1;
-        } else if (direction === "down") {
-          startLine = gap.startLine;
-          endLine = Math.min(gap.startLine + EXPAND_INCREMENT - 1, gap.endLine);
-          requestedCount = endLine - startLine + 1;
-        } else {
-          endLine = gap.endLine;
-          startLine = Math.max(gap.endLine - EXPAND_INCREMENT + 1, gap.startLine);
-          requestedCount = endLine - startLine + 1;
-        }
-
         try {
-          const lines = await getFileLines(repoPath, file.path, startLine, endLine, commitHash);
+          const lines = await getFileLines(repoPath, file.path, gap.startLine, gap.endLine, commitHash);
           const contextLines: DiffLine[] = lines.map((l) => ({
             lineType: "context" as const,
             content: l.content,
@@ -270,8 +249,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
             newLineNumber: l.lineNumber,
           }));
 
-          // If we got fewer lines than requested, we've hit EOF
-          if (gapKey === "bottom" && contextLines.length < requestedCount) {
+          if (gapKey === "bottom") {
             setBottomExhausted(true);
           }
 
@@ -279,20 +257,25 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
 
           setExpandedGaps((prev) => {
             const next = new Map(prev);
-            const existing = next.get(gapKey) ?? [];
-            if (direction === "up") {
-              next.set(gapKey, [...contextLines, ...existing]);
-            } else {
-              next.set(gapKey, [...existing, ...contextLines]);
-            }
+            next.set(gapKey, contextLines);
             return next;
           });
         } catch (err) {
           console.error("Failed to expand context:", err);
         }
       },
-      [gapInfo, file.hunks, file.path, repoPath, commitHash, expandedGaps],
+      [gapInfo, file.path, repoPath, commitHash],
     );
+
+    // Auto-expand all context gaps when requested (focused mode "Expand full file")
+    useEffect(() => {
+      if (!autoExpandAll) return;
+      for (const gap of gapInfo) {
+        if (!expandedGaps.has(gap.key)) {
+          handleExpandContext(gap.key);
+        }
+      }
+    }, [autoExpandAll, gapInfo, expandedGaps, handleExpandContext]);
 
     const statusLabel = STATUS_LABEL[file.status];
     const statusColor = STATUS_COLOR[file.status];
@@ -375,8 +358,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                     <ExpandContextButton
                       position={topGap.position}
                       hiddenLineCount={topGap.hiddenLines}
-                      onExpandIncremental={(dir) => handleExpandContext(topGapKey, dir)}
-                      onExpandAll={() => handleExpandContext(topGapKey, "all")}
+                      onExpandAll={() => handleExpandContext(topGapKey)}
                     />
                   )}
 
@@ -581,8 +563,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
               <ExpandContextButton
                 position="bottom"
                 hiddenLineCount={gapInfo.find((g) => g.key === "bottom")!.hiddenLines}
-                onExpandIncremental={(dir) => handleExpandContext("bottom", dir)}
-                onExpandAll={() => handleExpandContext("bottom", "all")}
+                onExpandAll={() => handleExpandContext("bottom")}
               />
             )}
           </div>
@@ -605,7 +586,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   prev.onAddAnnotation === next.onAddAnnotation &&
   prev.onSubmitAnnotation === next.onSubmitAnnotation &&
   prev.onDeleteAnnotation === next.onDeleteAnnotation &&
-  prev.onEditAnnotation === next.onEditAnnotation
+  prev.onEditAnnotation === next.onEditAnnotation &&
+  prev.autoExpandAll === next.autoExpandAll
 );
 
 export { DiffFileCard };
