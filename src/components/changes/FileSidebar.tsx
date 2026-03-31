@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check } from "lucide-react";
 import type { DiffFile, CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 
@@ -7,18 +6,14 @@ type ViewMode = "changes" | "commits";
 
 interface FileSidebarProps {
   viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
   uncommittedFiles: DiffFile[];
   committedFiles: DiffFile[];
-  hasPr: boolean;
   commits: CommitInfo[];
   selectedCommitIndex: number | null;
   onSelectCommit: (index: number) => void;
   activeFilePath: string | null;
   collapsedFiles: Set<string>;
   onSelectFile: (path: string) => void;
-  reviewedFiles: Set<string>;
-  onToggleReviewed: (path: string) => void;
 }
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
@@ -40,19 +35,13 @@ const FileRow = memo(function FileRow({
   filePath,
   isActive,
   isCollapsed,
-  isReviewed,
-  hideReviewCheckbox,
   onSelect,
-  onToggleReviewed,
 }: {
   file: DiffFile;
   filePath: string;
   isActive: boolean;
   isCollapsed: boolean;
-  isReviewed: boolean;
-  hideReviewCheckbox?: boolean;
   onSelect: (path: string) => void;
-  onToggleReviewed: (path: string) => void;
 }) {
   const filename = file.path.split("/").pop() ?? file.path;
 
@@ -64,7 +53,6 @@ const FileRow = memo(function FileRow({
         "hover:bg-bg-hover transition-colors",
         isActive ? "bg-bg-hover text-text-primary" : "text-text-secondary",
         isCollapsed ? "opacity-50" : "",
-        isReviewed ? "opacity-60" : "",
       ].join(" ")}
     >
       <span
@@ -80,45 +68,25 @@ const FileRow = memo(function FileRow({
         {file.additions > 0 && <span className="text-diff-added">+{file.additions}</span>}
         {file.deletions > 0 && <span className="text-diff-removed ml-1">-{file.deletions}</span>}
       </span>
-      {!hideReviewCheckbox && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleReviewed(filePath); }}
-          className={[
-            "flex-shrink-0 w-3.5 h-3.5 rounded-sm border flex items-center justify-center",
-            isReviewed
-              ? "bg-accent-primary/20 border-accent-primary/40 text-accent-primary"
-              : "border-border-subtle text-transparent hover:border-border-hover hover:text-text-tertiary",
-          ].join(" ")}
-        >
-          <Check size={8} />
-        </button>
-      )}
     </button>
   );
 }, (prev, next) =>
   prev.filePath === next.filePath &&
   prev.isActive === next.isActive &&
   prev.isCollapsed === next.isCollapsed &&
-  prev.isReviewed === next.isReviewed &&
-  prev.hideReviewCheckbox === next.hideReviewCheckbox &&
-  prev.onSelect === next.onSelect &&
-  prev.onToggleReviewed === next.onToggleReviewed
+  prev.onSelect === next.onSelect
 );
 
 function FileSidebar({
   viewMode,
-  onViewModeChange,
   uncommittedFiles,
   committedFiles,
-  hasPr,
   commits,
   selectedCommitIndex,
   onSelectCommit,
   activeFilePath,
   collapsedFiles,
   onSelectFile,
-  reviewedFiles,
-  onToggleReviewed,
 }: FileSidebarProps) {
   const [filter, setFilter] = useState("");
   const filterInputRef = useRef<HTMLInputElement>(null);
@@ -146,13 +114,10 @@ function FileSidebar({
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, []);
 
-  const handleViewModeChange = useCallback(
-    (mode: ViewMode) => {
-      setFilter("");
-      onViewModeChange(mode);
-    },
-    [onViewModeChange],
-  );
+  // Clear filter when view mode changes (e.g., switching between files and commits)
+  useEffect(() => {
+    setFilter("");
+  }, [viewMode]);
 
   const filterFile = useCallback(
     (file: DiffFile) =>
@@ -193,7 +158,7 @@ function FileSidebar({
   }, [viewMode]);
 
   const renderFileList = useCallback(
-    (filesToRender: DiffFile[], hideReviewCheckbox: boolean) =>
+    (filesToRender: DiffFile[]) =>
       filesToRender.map((file) => (
         <FileRow
           key={file.path}
@@ -201,43 +166,14 @@ function FileSidebar({
           filePath={file.path}
           isActive={activeFilePath === file.path}
           isCollapsed={collapsedFiles.has(file.path)}
-          isReviewed={reviewedFiles.has(file.path)}
-          hideReviewCheckbox={hideReviewCheckbox}
           onSelect={onSelectFile}
-          onToggleReviewed={onToggleReviewed}
         />
       )),
-    [activeFilePath, collapsedFiles, reviewedFiles, onSelectFile, onToggleReviewed],
+    [activeFilePath, collapsedFiles, onSelectFile],
   );
 
   return (
     <div className="w-full bg-bg-primary border-r border-border-default flex flex-col overflow-y-auto">
-      {/* Files / Commits toggle */}
-      <div className="flex p-1.5 gap-0">
-        <button
-          onClick={() => handleViewModeChange("changes")}
-          className={[
-            "flex-1 px-2 py-1 text-[10px] border border-border-default rounded-l-md",
-            viewMode === "changes"
-              ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-              : "text-text-tertiary",
-          ].join(" ")}
-        >
-          Files{uncommittedFiles.length + committedFiles.length > 0 ? ` (${uncommittedFiles.length + committedFiles.length})` : ""}
-        </button>
-        <button
-          onClick={() => handleViewModeChange("commits")}
-          className={[
-            "flex-1 px-2 py-1 text-[10px] border border-l-0 border-border-default rounded-r-md",
-            viewMode === "commits"
-              ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-              : "text-text-tertiary",
-          ].join(" ")}
-        >
-          Commits{commits.length > 0 ? ` (${commits.length})` : ""}
-        </button>
-      </div>
-
       {totalItems > 5 && (
         <div className="px-1.5 pb-1">
           <input
@@ -317,7 +253,7 @@ function FileSidebar({
                       {filteredUncommitted.length}
                     </span>
                   </div>
-                  {renderFileList(filteredUncommitted, true)}
+                  {renderFileList(filteredUncommitted)}
                 </>
               )}
 
@@ -339,7 +275,6 @@ function FileSidebar({
                   </div>
                   {renderFileList(
                     showAllFiles ? filteredCommitted : filteredCommitted.slice(0, INITIAL_FILE_LIMIT),
-                    !hasPr,
                   )}
                   {filteredCommitted.length > INITIAL_FILE_LIMIT && !showAllFiles && (
                     <button

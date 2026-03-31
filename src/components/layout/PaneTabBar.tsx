@@ -4,7 +4,6 @@ import {
   X,
   Terminal,
   Sparkles,
-  GitCompareArrows,
   Play,
   Square,
   ExternalLink,
@@ -40,7 +39,6 @@ import {
   ContextMenuSeparator,
 } from "../ui/ContextMenu";
 import { useTabStore } from "../../stores/tabStore";
-import { usePrStore } from "../../stores/prStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { TabType, WorkspaceTab } from "../../types";
@@ -51,7 +49,6 @@ const TAB_ICONS: Record<TabType, typeof Terminal> = {
   claude: Sparkles,
   shell: Terminal,
   server: Play,
-  changes: GitCompareArrows,
 };
 
 interface PaneTabBarProps {
@@ -120,7 +117,7 @@ function SortableTab({
             setActiveTabId(worktreeId, tab.id);
           }}
           className={[
-            "group h-full px-4 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
+            "group h-full px-5 min-w-[80px] text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
             isActive
               ? "text-text-primary"
               : "text-text-tertiary hover:text-text-secondary",
@@ -134,7 +131,7 @@ function SortableTab({
               tabIndex={0}
               aria-label={`Close ${tab.label} tab`}
               onClick={(e) => onClose(e, tab.id)}
-              className="ml-0.5 opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary rounded p-0.5 transition-opacity cursor-pointer"
+              className="ml-0.5 opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary rounded p-1 transition-opacity cursor-pointer"
             >
               <X size={12} />
             </button>
@@ -209,7 +206,6 @@ function PaneTabBar({
   const allShellCount = tabs.filter((t) => t.type === "shell").length;
 
   function canClose(tab: WorkspaceTab) {
-    if (tab.type === "changes") return false;
     if (tab.type === "claude" && allClaudeCount <= 1) return false;
     if (tab.type === "shell" && allShellCount <= 1) return false;
     return true;
@@ -243,13 +239,7 @@ function PaneTabBar({
 
   const draggedTab = dragActiveId ? paneTabs.find((t) => t.id === dragActiveId) : null;
 
-  const prSummary = usePrStore((s) => s.prSummary);
-  const commentCount = prSummary[worktreeId]?.unresolvedCommentCount ?? 0;
-
-  const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
-
-  const terminalTabs = paneTabs.filter((t) => t.type !== "changes" && t.type in TAB_ICONS);
-  const changesTab = paneTabs.find((t) => t.type === "changes") ?? null;
+  const terminalTabs = paneTabs.filter((t) => t.type in TAB_ICONS);
   const terminalTabIds = terminalTabs.map((t) => t.id);
 
   return (
@@ -302,7 +292,7 @@ function PaneTabBar({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="h-11 px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
+            className="h-11 px-3 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
           >
             <Plus size={16} />
           </button>
@@ -324,7 +314,7 @@ function PaneTabBar({
             onClick={onToggleServer}
             title={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
             className={[
-              "h-11 px-2 transition-colors cursor-pointer flex items-center",
+              "h-11 px-3 transition-colors cursor-pointer flex items-center",
               isServerRunning
                 ? "text-green-400 hover:text-red-400"
                 : "text-text-tertiary hover:text-text-secondary",
@@ -337,7 +327,7 @@ function PaneTabBar({
               type="button"
               onClick={() => openUrl(runScriptUrl ?? "http://localhost:3000")}
               title={`Open ${runScriptUrl ?? "http://localhost:3000"}`}
-              className="h-11 px-2 transition-colors cursor-pointer flex items-center text-green-400 hover:text-text-primary"
+              className="h-11 px-3 transition-colors cursor-pointer flex items-center text-green-400 hover:text-text-primary"
             >
               <ExternalLink size={14} />
             </button>
@@ -346,38 +336,6 @@ function PaneTabBar({
       )}
 
       <div className="flex-1" />
-
-      {changesTab && (() => {
-        const isActive = changesTab.id === activeTabId;
-        return (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setPaneActiveTab(worktreeId, paneId, changesTab.id);
-              setActivePaneId(worktreeId, paneId);
-              useTabStore.getState().setActiveTabId(worktreeId, changesTab.id);
-            }}
-            className={[
-              "ml-auto h-full px-4 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
-              isActive
-                ? "bg-gradient-to-t from-accent-primary/6 to-transparent border-b-2 border-accent-primary text-text-primary"
-                : "text-text-tertiary border-b-2 border-transparent hover:text-text-secondary",
-            ].join(" ")}
-          >
-            <GitCompareArrows
-              size={14}
-              className={isActive ? "text-accent-primary" : undefined}
-            />
-            <span>{changesTab.label}</span>
-            {commentCount > 0 && (
-              <span className="text-2xs bg-accent-primary/20 text-accent-primary px-1 rounded-full leading-none py-0.5">
-                {commentCount}
-              </span>
-            )}
-          </button>
-        );
-      })()}
     </div>
   );
 }

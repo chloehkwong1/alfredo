@@ -1,6 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState, useEffect, useRef } from "react";
-import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock, SquarePen, TerminalSquare } from "lucide-react";
+import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openInEditor, openInTerminal, getAppConfig } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -397,6 +397,7 @@ function AgentItem({
 
 type PrSummary = {
   failingCheckCount?: number;
+  pendingCheckCount?: number;
   unresolvedCommentCount?: number;
   reviewDecision?: string | null;
   mergeable?: boolean | null;
@@ -414,17 +415,25 @@ function hasPrStats(s: PrSummary): boolean {
 function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
   const {
     failingCheckCount,
+    pendingCheckCount,
     unresolvedCommentCount,
     reviewDecision,
     mergeable,
   } = prSummary;
 
-  const checksPass = failingCheckCount != null && failingCheckCount === 0;
+  const checksRunning = (pendingCheckCount ?? 0) > 0;
+  const checksPass = !checksRunning && failingCheckCount != null && failingCheckCount === 0;
   const checksFail = failingCheckCount != null && failingCheckCount > 0;
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
       {/* Check status */}
+      {checksRunning && !checksFail && (
+        <span className="flex items-center gap-1 text-xs text-status-busy">
+          <Loader size={12} className="animate-spin" />
+          Checks running
+        </span>
+      )}
       {checksPass && (
         <span className="flex items-center gap-1 text-xs text-status-idle">
           <CircleCheck size={12} />

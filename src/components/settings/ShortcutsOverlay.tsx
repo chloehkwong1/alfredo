@@ -22,7 +22,7 @@ const SHORTCUT_GROUPS = [
       { keys: "⌘ W", description: "Close tab" },
       { keys: "⌘ \\", description: "Split pane right" },
       { keys: "⌘ ⇧ \\", description: "Split pane down" },
-      { keys: "⌘ ⇧ C", description: "Switch to Changes tab" },
+      { keys: "⌘ ⇧ C", description: "Toggle changes panel" },
       { keys: "⌘ ⇧ T", description: "Switch to terminal tab" },
     ],
   },

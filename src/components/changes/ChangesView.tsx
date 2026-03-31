@@ -49,7 +49,9 @@ function CommitHeader({ commit }: { commit: CommitInfo }) {
 }
 
 function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
-  const viewMode = useWorkspaceStore((s) => s.changesViewMode[worktreeId]) ?? "changes";
+  const panelTab = useWorkspaceStore((s) => s.changesViewMode[worktreeId]) ?? "changes";
+  // Map panel tab to data view mode — "pr" tab doesn't affect data fetching
+  const viewMode = panelTab === "commits" ? "commits" : "changes";
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeAnnotationLine, setActiveAnnotationLine] = useState<{ filePath: string; lineNumber: number } | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
@@ -64,13 +66,13 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const annotations = useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
   const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
+  const editAnnotation = useWorkspaceStore((s) => s.editAnnotation);
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
   const { config: appCfg } = useAppConfig();
   const defaultDiffView = appCfg?.defaultDiffViewMode ?? "unified";
   const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? defaultDiffView;
   const setDiffViewMode = useWorkspaceStore((s) => s.setDiffViewMode);
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
-  const reviewedFiles = usePrStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
   const setJumpToComment = usePrStore((s) => s.setJumpToComment);
@@ -79,8 +81,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const { commits, displayFiles } = useChangesData(
     repoPath, viewMode, selectedCommitIndex, pr?.baseBranch, pr?.number,
   );
-
-  const reviewedCount = displayFiles.filter((f) => reviewedFiles.has(f.path)).length;
 
   // Auto-collapse all files when the diff is large to prevent UI freeze
   const AUTO_COLLAPSE_THRESHOLD = 15;
@@ -366,6 +366,13 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     [worktreeId, removeAnnotation],
   );
 
+  const handleEditAnnotation = useCallback(
+    (annotationId: string, newText: string) => {
+      editAnnotation(worktreeId, annotationId, newText);
+    },
+    [worktreeId, editAnnotation],
+  );
+
   const handleSendToClaude = useCallback(async () => {
     if (annotations.length === 0) return;
 
@@ -413,6 +420,11 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     const bytes = Array.from(new TextEncoder().encode(message));
     await writePty(session.sessionId, bytes);
     clearAnnotations(worktreeId);
+
+    // Switch to the Claude terminal tab so the user sees the message arrive
+    if (claudeTab) {
+      useTabStore.getState().setActiveTabId(worktreeId, claudeTab.id);
+    }
   }, [worktreeId, repoPath, worktree?.branch, annotations, clearAnnotations]);
 
   const activeCommitHash =
@@ -426,7 +438,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
             <span className="text-[10px] text-text-tertiary">
               {viewMode === "changes"
-                ? `${reviewedCount}/${displayFiles.length} files`
+                ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""}`
                 : selectedCommitIndex !== null
                   ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""} in commit`
                   : "Select a commit"}
@@ -540,6 +552,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
               onAddAnnotation={handleAddAnnotation}
               onSubmitAnnotation={handleSubmitAnnotation}
               onDeleteAnnotation={handleDeleteAnnotation}
+              onEditAnnotation={handleEditAnnotation}
               prComments={prComments}
               repoPath={repoPath}
               commitHash={activeCommitHash}

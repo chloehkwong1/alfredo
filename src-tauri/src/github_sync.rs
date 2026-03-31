@@ -31,6 +31,8 @@ pub struct PrStatusWithColumn {
     pub head_sha: Option<String>,
     /// Number of check runs with a failing conclusion.
     pub failing_check_count: Option<u32>,
+    /// Number of check runs still in progress or queued.
+    pub pending_check_count: Option<u32>,
     /// Number of unresolved line-level review comments.
     pub unresolved_comment_count: Option<u32>,
     /// Derived review decision: "approved", "changes_requested", or "review_required".
@@ -72,6 +74,7 @@ impl PrStatusWithColumn {
             head_sha: pr.head_sha.clone(),
             body: pr.body.clone(),
             failing_check_count: None,
+            pending_check_count: None,
             unresolved_comment_count: None,
             review_decision: None,
             mergeable: None,
@@ -286,6 +289,10 @@ async fn poll_repo(
                 )
             }).count() as u32;
             pr_with_col.failing_check_count = Some(failing);
+            let pending = check_runs.iter().filter(|cr| {
+                cr.status != "completed"
+            }).count() as u32;
+            pr_with_col.pending_check_count = Some(pending);
             // Store full check run objects for the PR panel
             pr_with_col.check_runs = check_runs;
         }

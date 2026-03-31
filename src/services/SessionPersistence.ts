@@ -20,8 +20,8 @@ export interface SessionData {
   columnOverride?: { column: KanbanColumn; githubStateWhenSet: string } | null;
   /** PR panel expanded or collapsed. */
   prPanelState?: PrPanelState;
-  /** Changes tab view mode (changes or commits). */
-  changesViewMode?: "changes" | "commits";
+  /** Changes panel tab (changes, commits, or pr). */
+  changesViewMode?: "changes" | "commits" | "pr";
   /** Whether the changes panel is minimized. */
   changesPanelCollapsed?: boolean;
   /** Whether the user has dismissed the idle indicator for this worktree. */
@@ -69,7 +69,7 @@ export async function saveAllSessions(
   getDiffViewMode?: (worktreeId: string) => DiffViewMode | undefined,
   getColumnOverride?: (worktreeId: string) => { column: KanbanColumn; githubStateWhenSet: string } | null | undefined,
   getPrPanelState?: (worktreeId: string) => PrPanelState | undefined,
-  getChangesViewMode?: (worktreeId: string) => "changes" | "commits" | undefined,
+  getChangesViewMode?: (worktreeId: string) => "changes" | "commits" | "pr" | undefined,
   getChangesPanelCollapsed?: (worktreeId: string) => boolean | undefined,
   getSeenWorktree?: (worktreeId: string) => boolean | undefined,
 ): Promise<void> {

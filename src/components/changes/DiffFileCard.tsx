@@ -1,5 +1,5 @@
 import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { SyntaxDiffLine } from "./SyntaxDiffLine";
 import { AnnotationBubble } from "./AnnotationBubble";
 import { AnnotationInput } from "./AnnotationInput";
@@ -31,11 +31,13 @@ interface DiffFileCardProps {
     text: string
   ) => void;
   onDeleteAnnotation: (annotationId: string) => void;
+  onEditAnnotation: (annotationId: string, newText: string) => void;
   prComments: PrComment[];
   repoPath: string;
   commitHash?: string;
   searchQuery?: string;
   activeSearchMatch?: { hunkIndex: number; lineIndex: number } | null;
+  onDiscardFile?: (path: string, status: string) => void;
 }
 
 const STATUS_LABEL: Record<DiffFile["status"], string> = {
@@ -64,11 +66,13 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       onAddAnnotation,
       onSubmitAnnotation,
       onDeleteAnnotation,
+      onEditAnnotation,
       prComments,
       repoPath,
       commitHash,
       searchQuery,
       activeSearchMatch,
+      onDiscardFile,
     },
     ref
   ) {
@@ -340,6 +344,20 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
               )}
             </span>
           )}
+
+          {/* Discard button */}
+          {onDiscardFile && (
+            <button
+              className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-0.5 rounded text-text-tertiary hover:text-red-400 transition-all"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDiscardFile(file.path, file.status);
+              }}
+              title="Discard changes"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
 
         {/* Diff body — deferred until card has been in/near viewport */}
@@ -437,6 +455,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                               key={ann.id}
                               annotation={ann}
                               onDelete={onDeleteAnnotation}
+                              onEdit={onEditAnnotation}
                             />
                           ))}
                           {isActiveAnnotationLine && lineNumber !== null && (
@@ -513,6 +532,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                               key={ann.id}
                               annotation={ann}
                               onDelete={onDeleteAnnotation}
+                              onEdit={onEditAnnotation}
                             />
                           ))}
 
@@ -584,7 +604,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   prev.onToggleExpanded === next.onToggleExpanded &&
   prev.onAddAnnotation === next.onAddAnnotation &&
   prev.onSubmitAnnotation === next.onSubmitAnnotation &&
-  prev.onDeleteAnnotation === next.onDeleteAnnotation
+  prev.onDeleteAnnotation === next.onDeleteAnnotation &&
+  prev.onEditAnnotation === next.onEditAnnotation
 );
 
 export { DiffFileCard };

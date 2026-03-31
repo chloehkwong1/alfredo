@@ -4,11 +4,8 @@ import { FileSidebar } from "./FileSidebar";
 import { PrPanelContent, PrRailIcons } from "./PrPanel";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useLayoutStore } from "../../stores/layoutStore";
-import { usePrStore } from "../../stores/prStore";
 import { useChangesData } from "../../hooks/useChangesData";
 import type { ViewMode } from "./FileSidebar";
-
-type PanelTab = "files" | "pr";
 
 const EMPTY_COLLAPSED = new Set<string>();
 
@@ -21,21 +18,20 @@ function WorkspacePanel({
   repoPath: string;
   onCollapse: () => void;
 }) {
-  const viewMode = (useWorkspaceStore((s) => s.changesViewMode[worktreeId]) ?? "changes") as ViewMode;
+  const panelTab = useWorkspaceStore((s) => s.changesViewMode[worktreeId]) ?? "changes";
   const setChangesViewMode = useWorkspaceStore((s) => s.setChangesViewMode);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
 
-  const reviewedFiles = usePrStore((s) => s.reviewedFiles[worktreeId]) ?? new Set<string>();
-  const toggleReviewedFile = usePrStore((s) => s.toggleReviewedFile);
+  // Map panel tab to data-fetching view mode
+  const dataViewMode: ViewMode = panelTab === "commits" ? "commits" : "changes";
 
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<PanelTab>("files");
 
   const { uncommittedFiles, committedFiles, commits } = useChangesData(
     repoPath,
-    viewMode,
+    dataViewMode,
     selectedCommitIndex,
     pr?.baseBranch,
     pr?.number,
@@ -91,28 +87,24 @@ function WorkspacePanel({
       );
 
       // Switch back to files tab
-      setActiveTab("files");
+      setChangesViewMode(worktreeId, "changes");
     },
-    [activateChangesTab],
+    [activateChangesTab, setChangesViewMode, worktreeId],
   );
 
-  const handleToggleReviewed = useCallback(
-    (path: string) => {
-      toggleReviewedFile(worktreeId, path);
-    },
-    [worktreeId, toggleReviewedFile],
-  );
-
-  const handleViewModeChange = useCallback(
-    (mode: ViewMode) => {
-      setChangesViewMode(worktreeId, mode);
-      setSelectedCommitIndex(null);
-      setActiveFilePath(null);
+  const handleTabChange = useCallback(
+    (tab: "changes" | "commits" | "pr") => {
+      setChangesViewMode(worktreeId, tab);
+      if (tab !== "pr") {
+        setSelectedCommitIndex(null);
+        setActiveFilePath(null);
+      }
     },
     [worktreeId, setChangesViewMode],
   );
 
   const hasPr = pr !== null;
+  const fileCount = uncommittedFiles.length + committedFiles.length;
 
   return (
     <div className="flex flex-col h-full bg-bg-primary border-l border-border-default overflow-hidden">
@@ -130,59 +122,67 @@ function WorkspacePanel({
         </button>
       </div>
 
-      {/* Tab bar — only shown when PR exists */}
-      {hasPr && (
-        <div className="flex p-1.5 gap-0 flex-shrink-0">
+      {/* Unified tab bar: Files | Commits | PR */}
+      <div className="flex p-1.5 gap-0 flex-shrink-0">
+        <button
+          onClick={() => handleTabChange("changes")}
+          className={[
+            "flex-1 px-2 py-1 text-[10px] border border-border-default rounded-l-md",
+            panelTab === "changes"
+              ? "bg-accent-muted text-accent-primary border-accent-primary/40"
+              : "text-text-tertiary",
+          ].join(" ")}
+        >
+          Files{fileCount > 0 ? ` (${fileCount})` : ""}
+        </button>
+        <button
+          onClick={() => handleTabChange("commits")}
+          className={[
+            "flex-1 px-2 py-1 text-[10px] border border-l-0 border-border-default",
+            hasPr ? "" : "rounded-r-md",
+            panelTab === "commits"
+              ? "bg-accent-muted text-accent-primary border-accent-primary/40"
+              : "text-text-tertiary",
+          ].join(" ")}
+        >
+          Commits{commits.length > 0 ? ` (${commits.length})` : ""}
+        </button>
+        {hasPr && (
           <button
-            onClick={() => setActiveTab("files")}
-            className={[
-              "flex-1 px-2 py-1 text-[10px] border border-border-default rounded-l-md",
-              activeTab === "files"
-                ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-                : "text-text-tertiary",
-            ].join(" ")}
-          >
-            Files
-          </button>
-          <button
-            onClick={() => setActiveTab("pr")}
+            onClick={() => handleTabChange("pr")}
             className={[
               "flex-1 px-2 py-1 text-[10px] border border-l-0 border-border-default rounded-r-md",
-              activeTab === "pr"
+              panelTab === "pr"
                 ? "bg-accent-muted text-accent-primary border-accent-primary/40"
                 : "text-text-tertiary",
             ].join(" ")}
           >
             PR
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Tab content */}
-      {activeTab === "files" || !hasPr ? (
+      {panelTab === "pr" && hasPr ? (
+        <PrPanelContent
+          worktreeId={worktreeId}
+          repoPath={repoPath}
+          onJumpToComment={handleJumpToComment}
+        />
+      ) : (
         <div className="flex-1 overflow-hidden">
           <FileSidebar
-            viewMode={viewMode}
-            onViewModeChange={handleViewModeChange}
+            viewMode={dataViewMode}
             uncommittedFiles={uncommittedFiles}
             committedFiles={committedFiles}
-            hasPr={hasPr}
             commits={commits}
             selectedCommitIndex={selectedCommitIndex}
             onSelectCommit={handleSelectCommit}
             activeFilePath={activeFilePath}
             collapsedFiles={EMPTY_COLLAPSED}
             onSelectFile={handleSelectFile}
-            reviewedFiles={reviewedFiles}
-            onToggleReviewed={handleToggleReviewed}
           />
         </div>
-      ) : (
-        <PrPanelContent
-          worktreeId={worktreeId}
-          repoPath={repoPath}
-          onJumpToComment={handleJumpToComment}
-        />
       )}
     </div>
   );

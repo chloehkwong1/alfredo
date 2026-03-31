@@ -87,6 +87,7 @@ export interface PrUpdatePayload {
 export interface PrStatusWithColumn extends PrStatus {
   autoColumn: KanbanColumn;
   failingCheckCount?: number;
+  pendingCheckCount?: number;
   unresolvedCommentCount?: number;
   reviewDecision?: string | null;
   mergeable?: boolean | null;
@@ -215,7 +216,7 @@ export interface CommitInfo {
 
 // ── Workspace tabs ──────────────────────────────────────────────
 
-export type TabType = "claude" | "shell" | "server" | "changes";
+export type TabType = "claude" | "shell" | "server";
 
 export type DiffViewMode = "unified" | "split";
 export type PrPanelState = "open" | "collapsed";

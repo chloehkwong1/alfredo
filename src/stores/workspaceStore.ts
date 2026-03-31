@@ -15,8 +15,8 @@ interface WorkspaceState {
   annotations: Record<string, Annotation[]>;
   /** Diff view mode per worktree. Keyed by worktreeId. */
   diffViewMode: Record<string, DiffViewMode>;
-  /** Changes tab view mode per worktree. Keyed by worktreeId. */
-  changesViewMode: Record<string, "changes" | "commits">;
+  /** Changes panel tab per worktree. Keyed by worktreeId. */
+  changesViewMode: Record<string, "changes" | "commits" | "pr">;
   /** Whether the changes panel is collapsed per worktree. Keyed by worktreeId. */
   changesPanelCollapsed: Record<string, boolean>;
   /** Whether the sidebar is collapsed. */
@@ -37,10 +37,11 @@ interface WorkspaceState {
   applyWorktreePatches: (patches: Map<string, Partial<Worktree>>) => void;
   markWorktreeSeen: (id: string) => void;
   addAnnotation: (annotation: Annotation) => void;
+  editAnnotation: (worktreeId: string, annotationId: string, newText: string) => void;
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
   clearAnnotations: (worktreeId: string) => void;
   setDiffViewMode: (worktreeId: string, mode: DiffViewMode) => void;
-  setChangesViewMode: (worktreeId: string, mode: "changes" | "commits") => void;
+  setChangesViewMode: (worktreeId: string, mode: "changes" | "commits" | "pr") => void;
   setChangesPanelCollapsed: (worktreeId: string, collapsed: boolean) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -213,6 +214,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
           ...(state.annotations[annotation.worktreeId] || []),
           annotation,
         ],
+      },
+    })),
+
+  editAnnotation: (worktreeId, annotationId, newText) =>
+    set((state) => ({
+      annotations: {
+        ...state.annotations,
+        [worktreeId]: (state.annotations[worktreeId] || []).map((a) =>
+          a.id === annotationId ? { ...a, text: newText } : a,
+        ),
       },
     })),
 

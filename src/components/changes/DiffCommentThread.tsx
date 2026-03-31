@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, GitPullRequest } from "lucide-react";
 import type { PrComment } from "../../types";
 
 interface DiffCommentThreadProps {
@@ -11,6 +11,10 @@ function DiffCommentThread({ comments }: DiffCommentThreadProps) {
       {comments.map((comment) => (
         <div key={comment.id} className="mb-2 last:mb-0">
           <div className="flex items-center gap-2 text-xs">
+            <GitPullRequest size={12} className="flex-shrink-0 text-text-tertiary" />
+            <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wide">
+              PR
+            </span>
             <span className="text-text-secondary font-medium">
               @{comment.author}
             </span>

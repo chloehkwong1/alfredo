@@ -13,7 +13,7 @@ import type { WorkspaceTab } from "../types";
  * - Cmd+B: toggle sidebar
  * - Cmd+\: split pane right (horizontal)
  * - Cmd+Shift+\: split pane down (vertical)
- * - Cmd+Shift+C: switch to Changes tab in active pane
+ * - Cmd+Shift+C: toggle changes side panel
  * - Cmd+Shift+T: switch to first terminal/claude tab in active pane
  */
 export function useKeyboardShortcuts(
@@ -66,42 +66,19 @@ export function useKeyboardShortcuts(
           const activePaneId = layoutState.activePaneId[activeWorktreeId];
           const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
           const paneActiveTab = pane ? tabs.find((t) => t.id === pane.activeTabId) : activeTab;
-          const type = (!paneActiveTab || paneActiveTab.type === "changes") ? "claude" : paneActiveTab.type;
+          const type = !paneActiveTab ? "claude" : paneActiveTab.type;
           lifecycleManager.addTab(activeWorktreeId, type, activePaneId ?? undefined);
         }
         return;
       }
 
-      // Cmd+Shift+C: switch to Changes tab in active pane
+      // Cmd+Shift+C: toggle changes side panel
       if (event.metaKey && event.shiftKey && event.key === "C") {
         event.preventDefault();
         if (activeWorktreeId) {
-          const layoutState = useLayoutStore.getState();
-          const activePaneId = layoutState.activePaneId[activeWorktreeId];
-          if (activePaneId) {
-            const pane = layoutState.panes[activeWorktreeId]?.[activePaneId];
-            const changesTabId = pane?.tabIds.find((id) => tabs.find((t) => t.id === id && t.type === "changes"));
-            if (changesTabId) {
-              layoutState.setPaneActiveTab(activeWorktreeId, activePaneId, changesTabId);
-            }
-          }
-        }
-        return;
-      }
-
-      // Cmd+Shift+T: switch to first terminal/claude tab in active pane
-      if (event.metaKey && event.shiftKey && event.key === "T") {
-        event.preventDefault();
-        if (activeWorktreeId) {
-          const layoutState = useLayoutStore.getState();
-          const activePaneId = layoutState.activePaneId[activeWorktreeId];
-          if (activePaneId) {
-            const pane = layoutState.panes[activeWorktreeId]?.[activePaneId];
-            const termTabId = pane?.tabIds.find((id) => tabs.find((t) => t.id === id && t.type !== "changes"));
-            if (termTabId) {
-              layoutState.setPaneActiveTab(activeWorktreeId, activePaneId, termTabId);
-            }
-          }
+          const wsState = useWorkspaceStore.getState();
+          const current = wsState.changesPanelCollapsed[activeWorktreeId] ?? false;
+          wsState.setChangesPanelCollapsed(activeWorktreeId, !current);
         }
         return;
       }

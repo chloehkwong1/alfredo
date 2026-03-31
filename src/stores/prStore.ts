@@ -13,6 +13,7 @@ interface PrState {
   prDetail: Record<string, PrDetailedStatus>;
   prSummary: Record<string, {
     failingCheckCount?: number;
+    pendingCheckCount?: number;
     unresolvedCommentCount?: number;
     reviewDecision?: string | null;
     mergeable?: boolean | null;
@@ -206,6 +207,7 @@ export const usePrStore = create<PrState>((set, get) => ({
       // Sidebar summary data
       newSummary[wt.id] = {
         failingCheckCount: pr.failingCheckCount,
+        pendingCheckCount: pr.pendingCheckCount,
         unresolvedCommentCount: pr.unresolvedCommentCount,
         reviewDecision: pr.reviewDecision,
         mergeable: pr.mergeable,

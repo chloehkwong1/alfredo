@@ -2,7 +2,7 @@ import { Copy, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 import { useRemoteControlStore } from "../../stores/remoteControlStore";
-import { Button } from "../ui";
+import { Button, Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from "../ui";
 
 interface RemoteControlBarProps {
   worktreeId: string;
@@ -27,10 +27,29 @@ function RemoteControlBar({ worktreeId }: RemoteControlBarProps) {
 
   return (
     <div className="h-14 flex items-center gap-4 px-4 bg-bg-secondary border-t border-border-subtle flex-shrink-0 animate-slide-up">
-      {/* QR Code */}
-      <div className="flex-shrink-0 rounded overflow-hidden bg-white p-1">
-        <QRCodeSVG value={session.sessionUrl} size={40} />
-      </div>
+      {/* QR Code — click to enlarge */}
+      <Dialog>
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            className="flex-shrink-0 rounded overflow-hidden bg-white p-1 cursor-pointer hover:ring-2 hover:ring-accent-primary/50 transition-shadow"
+          >
+            <QRCodeSVG value={session.sessionUrl} size={40} />
+          </button>
+        </DialogTrigger>
+        <DialogContent className="w-auto max-w-xs flex flex-col items-center gap-4">
+          <DialogTitle className="sr-only">Remote Control QR Code</DialogTitle>
+          <DialogDescription className="sr-only">
+            Scan to connect a remote device
+          </DialogDescription>
+          <div className="rounded-lg overflow-hidden bg-white p-3">
+            <QRCodeSVG value={session.sessionUrl} size={200} />
+          </div>
+          <span className="text-xs text-text-secondary font-mono select-all text-center break-all px-2">
+            {session.sessionUrl}
+          </span>
+        </DialogContent>
+      </Dialog>
 
       {/* URL + copy */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
