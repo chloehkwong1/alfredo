@@ -1,0 +1,95 @@
+<h2>How should annotations vs PR comments look on diff lines?</h2>
+<p class="subtitle">Both appear inline on the same diff view — they need to be instantly distinguishable</p>
+
+<div class="section">
+  <h3>Current styling reference</h3>
+  <p style="font-size: 13px; color: var(--text-secondary);">Annotations: blue left-border, "Note" label, StickyNote icon<br>PR comments: neutral border, "PR" label, GitPullRequest icon</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Color-coded left borders</h3>
+      <p>Keep the current pattern but make it stronger. Annotations get a <strong>blue</strong> left-border (already have this). PR comments get a <strong>purple/violet</strong> left-border. Same layout otherwise — the color is the differentiator.</p>
+      <div style="margin-top: 12px; display: flex; gap: 12px;">
+        <!-- Annotation mock -->
+        <div style="flex: 1; border-left: 3px solid #58a6ff; background: rgba(255,255,255,0.03); border-radius: 4px; padding: 8px 12px; font-size: 12px;">
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+            <span style="color: #58a6ff; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">📝 Note</span>
+            <span style="color: #8b949e; font-size: 10px;">2m ago</span>
+          </div>
+          <div style="color: #c9d1d9;">This logic should handle the null case</div>
+        </div>
+        <!-- PR comment mock -->
+        <div style="flex: 1; border-left: 3px solid #a371f7; background: rgba(255,255,255,0.03); border-radius: 4px; padding: 8px 12px; font-size: 12px;">
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+            <span style="color: #a371f7; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">💬 PR</span>
+            <span style="color: #8b949e; font-size: 10px;">@cubic-dev-ai · 1h ago</span>
+          </div>
+          <div style="color: #c9d1d9;">P2: Use the per-date shifts collection here</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Separate visual lanes</h3>
+      <p>Annotations stay as-is (blue left-border, inline). PR comments use a <strong>different shape</strong> — full subtle border with a tinted background header bar showing author + file info. More visually distinct at a glance.</p>
+      <div style="margin-top: 12px; display: flex; gap: 12px;">
+        <!-- Annotation mock -->
+        <div style="flex: 1; border-left: 3px solid #58a6ff; background: rgba(255,255,255,0.03); border-radius: 4px; padding: 8px 12px; font-size: 12px;">
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+            <span style="color: #58a6ff; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">📝 Note</span>
+            <span style="color: #8b949e; font-size: 10px;">2m ago</span>
+          </div>
+          <div style="color: #c9d1d9;">This logic should handle the null case</div>
+        </div>
+        <!-- PR comment mock -->
+        <div style="flex: 1; border: 1px solid rgba(163, 113, 247, 0.25); border-radius: 6px; overflow: hidden; font-size: 12px;">
+          <div style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(163, 113, 247, 0.08); border-bottom: 1px solid rgba(163, 113, 247, 0.15);">
+            <span style="color: #a371f7; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">PR</span>
+            <span style="color: #c9d1d9; font-size: 11px; font-weight: 500;">@cubic-dev-ai</span>
+            <span style="color: #8b949e; font-size: 10px; margin-left: auto;">1h ago</span>
+          </div>
+          <div style="padding: 8px 10px; color: #c9d1d9; background: rgba(255,255,255,0.02);">P2: Use the per-date shifts collection here</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Grouped by type with separator</h3>
+      <p>When a line has both annotations and PR comments, show them in <strong>two groups</strong> with a subtle divider. Annotations first (your notes), then PR comments below. Each group has its own header. Avoids interleaving.</p>
+      <div style="margin-top: 12px; max-width: 400px;">
+        <!-- Annotation -->
+        <div style="border-left: 3px solid #58a6ff; background: rgba(255,255,255,0.03); border-radius: 4px; padding: 8px 12px; font-size: 12px; margin-bottom: 4px;">
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+            <span style="color: #58a6ff; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">📝 Note</span>
+            <span style="color: #8b949e; font-size: 10px;">2m ago</span>
+          </div>
+          <div style="color: #c9d1d9;">This logic should handle the null case</div>
+        </div>
+        <!-- Divider -->
+        <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 0 4px;">
+          <div style="flex: 1; height: 1px; background: rgba(139, 148, 158, 0.2);"></div>
+          <span style="font-size: 9px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px;">PR Review</span>
+          <div style="flex: 1; height: 1px; background: rgba(139, 148, 158, 0.2);"></div>
+        </div>
+        <!-- PR comment -->
+        <div style="border: 1px solid rgba(163, 113, 247, 0.25); border-radius: 6px; overflow: hidden; font-size: 12px;">
+          <div style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(163, 113, 247, 0.08); border-bottom: 1px solid rgba(163, 113, 247, 0.15);">
+            <span style="color: #a371f7; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">PR</span>
+            <span style="color: #c9d1d9; font-size: 11px; font-weight: 500;">@cubic-dev-ai</span>
+            <span style="color: #8b949e; font-size: 10px; margin-left: auto;">1h ago</span>
+          </div>
+          <div style="padding: 8px 10px; color: #c9d1d9; background: rgba(255,255,255,0.02);">P2: Use the per-date shifts collection here</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

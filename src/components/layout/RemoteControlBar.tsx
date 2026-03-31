@@ -37,7 +37,7 @@ function RemoteControlBar({ worktreeId }: RemoteControlBarProps) {
             <QRCodeSVG value={session.sessionUrl} size={40} />
           </button>
         </DialogTrigger>
-        <DialogContent className="w-auto max-w-xs flex flex-col items-center gap-4">
+        <DialogContent className="!w-auto !max-w-none flex flex-col items-center gap-4">
           <DialogTitle className="sr-only">Remote Control QR Code</DialogTitle>
           <DialogDescription className="sr-only">
             Scan to connect a remote device
@@ -45,9 +45,14 @@ function RemoteControlBar({ worktreeId }: RemoteControlBarProps) {
           <div className="rounded-lg overflow-hidden bg-white p-3">
             <QRCodeSVG value={session.sessionUrl} size={200} />
           </div>
-          <span className="text-xs text-text-secondary font-mono select-all text-center break-all px-2">
-            {session.sessionUrl}
-          </span>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="text-xs text-text-secondary hover:text-text-primary font-mono transition-colors"
+            title="Click to copy"
+          >
+            {copied ? "Copied!" : "Click to copy URL"}
+          </button>
         </DialogContent>
       </Dialog>
 
