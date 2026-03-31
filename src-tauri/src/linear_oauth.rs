@@ -17,6 +17,7 @@ const CLIENT_ID: &str = env!("LINEAR_CLIENT_ID");
 const CLIENT_SECRET: &str = env!("LINEAR_CLIENT_SECRET");
 const AUTH_URL: &str = "https://linear.app/oauth/authorize";
 const TOKEN_URL: &str = "https://api.linear.app/oauth/token";
+const REDIRECT_URI: &str = "http://localhost:19284/callback";
 
 /// Save OAuth tokens to app.json.
 pub async fn save_tokens(
@@ -46,8 +47,8 @@ pub async fn clear_tokens(app_data_dir: &std::path::Path) -> Result<(), AppError
 /// Exchange an authorization code for access + refresh tokens.
 pub async fn exchange_code(
     code: &str,
-    redirect_uri: &str,
 ) -> Result<LinearOAuthTokens, AppError> {
+    let redirect_uri = REDIRECT_URI;
     let client = reqwest::Client::new();
 
     let resp = client
@@ -177,7 +178,7 @@ struct CallbackParams {
 }
 
 /// Start the OAuth flow: spin up callback server, return the auth URL.
-pub async fn start_oauth_flow() -> Result<(String, u16, oneshot::Receiver<Result<String, String>>), AppError> {
+pub async fn start_oauth_flow() -> Result<(String, oneshot::Receiver<Result<String, String>>), AppError> {
     let state_param = uuid::Uuid::new_v4().to_string();
     let (result_tx, result_rx) = oneshot::channel();
 
@@ -190,13 +191,9 @@ pub async fn start_oauth_flow() -> Result<(String, u16, oneshot::Receiver<Result
         .route("/callback", get(handle_oauth_callback))
         .with_state(Arc::clone(&shared));
 
-    let listener = TcpListener::bind("127.0.0.1:0")
+    let listener = TcpListener::bind("127.0.0.1:19284")
         .await
-        .map_err(|e| AppError::Linear(format!("failed to bind callback server: {e}")))?;
-
-    let port = listener.local_addr()
-        .map_err(|e| AppError::Linear(format!("failed to get callback port: {e}")))?
-        .port();
+        .map_err(|e| AppError::Linear(format!("failed to bind callback server on port 19284: {e}")))?;
 
     let server_shared = Arc::clone(&shared);
     tokio::spawn(async move {
@@ -210,22 +207,11 @@ pub async fn start_oauth_flow() -> Result<(String, u16, oneshot::Receiver<Result
         }
     });
 
-    let redirect_uri = format!("http://localhost:{port}/callback");
-    let auth_url = reqwest::Url::parse_with_params(
-        AUTH_URL,
-        &[
-            ("client_id", CLIENT_ID),
-            ("redirect_uri", redirect_uri.as_str()),
-            ("response_type", "code"),
-            ("scope", "read"),
-            ("state", state_param.as_str()),
-            ("prompt", "consent"),
-        ],
-    )
-    .map_err(|e| AppError::Linear(format!("failed to build auth URL: {e}")))?
-    .to_string();
+    let auth_url = format!(
+        "{AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=read&state={state_param}&prompt=consent",
+    );
 
-    Ok((auth_url, port, result_rx))
+    Ok((auth_url, result_rx))
 }
 
 /// Handle the OAuth callback from Linear.

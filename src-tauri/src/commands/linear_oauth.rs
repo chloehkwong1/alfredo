@@ -17,7 +17,7 @@ fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf> {
 pub async fn linear_oauth_start(app: AppHandle) -> Result<()> {
     let app_data = app_data_dir(&app)?;
 
-    let (auth_url, port, result_rx) = linear_oauth::start_oauth_flow().await?;
+    let (auth_url, result_rx) = linear_oauth::start_oauth_flow().await?;
 
     app.opener()
         .open_url(&auth_url, None::<&str>)
@@ -27,8 +27,7 @@ pub async fn linear_oauth_start(app: AppHandle) -> Result<()> {
     tokio::spawn(async move {
         match result_rx.await {
             Ok(Ok(code)) => {
-                let redirect_uri = format!("http://localhost:{port}/callback");
-                match linear_oauth::exchange_code(&code, &redirect_uri).await {
+                match linear_oauth::exchange_code(&code).await {
                     Ok(tokens) => {
                         if let Err(e) = linear_oauth::save_tokens(&app_data, tokens).await {
                             let _ = app_clone.emit("linear-oauth-error", format!("Failed to save tokens: {e}"));
