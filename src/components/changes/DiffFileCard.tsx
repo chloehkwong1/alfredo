@@ -39,6 +39,8 @@ interface DiffFileCardProps {
   activeSearchMatch?: { hunkIndex: number; lineIndex: number } | null;
   onDiscardFile?: (path: string, status: string) => void;
   autoExpandAll?: boolean;
+  /** When set, auto-expand the PR comment thread on this line and scroll to it. */
+  highlightCommentLine?: number | null;
 }
 
 /** Max lines to fetch when expanding to end of file (backend returns fewer if EOF is reached sooner) */
@@ -78,12 +80,30 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       activeSearchMatch,
       onDiscardFile,
       autoExpandAll,
+      highlightCommentLine,
     },
     ref
   ) {
     const [expandedCommentLines, setExpandedCommentLines] = useState<
       Set<number>
     >(new Set());
+
+    // Auto-expand the PR comment thread when highlightCommentLine changes
+    const highlightLineRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+      if (highlightCommentLine != null) {
+        setExpandedCommentLines((prev) => {
+          if (prev.has(highlightCommentLine)) return prev;
+          const next = new Set(prev);
+          next.add(highlightCommentLine);
+          return next;
+        });
+        // Scroll to the highlighted line after render
+        requestAnimationFrame(() => {
+          highlightLineRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }
+    }, [highlightCommentLine]);
 
     // Track whether this card has ever been in/near the viewport.
     // Off-screen cards skip rendering their diff body even when expanded,
@@ -432,7 +452,10 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                           searchQuery={searchQuery}
                         >
                           {hasComments && lineNumber !== null && (
-                            <div className="flex justify-end pr-2">
+                            <div
+                              className="flex justify-end pr-2"
+                              ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}
+                            >
                               <DiffCommentIndicator
                                 count={lineComments.length}
                                 onClick={() => toggleCommentLine(lineNumber)}
@@ -505,7 +528,10 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                         >
                           {/* PR comment indicator */}
                           {hasComments && lineNumber !== null && (
-                            <div className="flex justify-end pr-2">
+                            <div
+                              className="flex justify-end pr-2"
+                              ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}
+                            >
                               <DiffCommentIndicator
                                 count={lineComments.length}
                                 onClick={() => toggleCommentLine(lineNumber)}
@@ -598,7 +624,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   prev.onSubmitAnnotation === next.onSubmitAnnotation &&
   prev.onDeleteAnnotation === next.onDeleteAnnotation &&
   prev.onEditAnnotation === next.onEditAnnotation &&
-  prev.autoExpandAll === next.autoExpandAll
+  prev.autoExpandAll === next.autoExpandAll &&
+  prev.highlightCommentLine === next.highlightCommentLine
 );
 
 export { DiffFileCard };

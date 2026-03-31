@@ -527,23 +527,16 @@ function CommentCard({
   const [expanded, setExpanded] = useState(false);
   const isLong = body.length > 150;
 
-  const handleBodyClick = (e: React.MouseEvent) => {
-    if (isLong) {
-      e.stopPropagation();
-      setExpanded((prev) => !prev);
-    }
-  };
-
   return (
     <div
+      onClick={onJump}
       className={`mx-1.5 px-2 py-1.5 bg-bg-secondary rounded-md text-xs ${
         resolved ? "border border-border-subtle opacity-50" : "border border-border-default"
-      }`}
+      } ${onJump ? "cursor-pointer hover:border-accent-primary/40" : ""}`}
     >
-      {/* Author row – clickable to jump to file */}
+      {/* Author row */}
       <div
-        onClick={onJump}
-        className={`flex items-center gap-[5px] mb-[3px] ${onJump ? "cursor-pointer hover:text-accent-primary" : ""}`}
+        className="flex items-center gap-[5px] mb-[3px]"
       >
         <span className="font-semibold text-text-primary">
           {author}
@@ -576,7 +569,6 @@ function CommentCard({
       {/* Body */}
       <p
         className={`m-0 text-text-primary leading-[1.4] ${expanded ? "" : "line-clamp-3"}`}
-        onClick={handleBodyClick}
       >
         {body}
       </p>

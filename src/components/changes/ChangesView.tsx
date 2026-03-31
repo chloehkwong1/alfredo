@@ -95,6 +95,11 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
 
   useEffect(() => {
     setExpandFullFile(false);
+    // Clear PR comment highlight when switching files
+    setHighlightComment((prev) => {
+      if (prev && prev.filePath !== focusedFilePath) return null;
+      return prev;
+    });
   }, [focusedFilePath]);
 
   const {
@@ -168,15 +173,16 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     return () => window.removeEventListener("alfredo:changes-panel-clear-focus", handleClearFocus);
   }, [clearFocusedFile]);
 
+  // State for highlighting a PR comment line (auto-expands the thread and scrolls)
+  const [highlightComment, setHighlightComment] = useState<{ filePath: string; line: number } | null>(null);
+
   // Listen for jump-to-comment from the persistent ChangesPanel
   useEffect(() => {
     function handlePanelJumpToComment(e: Event) {
       const { path, line } = (e as CustomEvent).detail ?? {};
       if (typeof path === "string" && typeof line === "number") {
         handleSelectFile(path);
-        setTimeout(() => {
-          setActiveAnnotationLine({ filePath: path, lineNumber: line });
-        }, 150);
+        setHighlightComment({ filePath: path, line });
       }
     }
     window.addEventListener("alfredo:changes-panel-jump-to-comment", handlePanelJumpToComment);
@@ -186,9 +192,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const handleJumpToComment = useCallback(
     (filePath: string, line: number) => {
       handleSelectFile(filePath);
-      setTimeout(() => {
-        setActiveAnnotationLine({ filePath, lineNumber: line });
-      }, 150);
+      setHighlightComment({ filePath, line });
     },
     [handleSelectFile],
   );
@@ -509,6 +513,9 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                     : null
                 }
                 onDiscardFile={viewMode === "changes" && isUncommitted ? handleDiscardFile : undefined}
+                highlightCommentLine={
+                  highlightComment?.filePath === file.path ? highlightComment.line : null
+                }
               />
               );
             })}
