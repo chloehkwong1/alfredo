@@ -241,7 +241,11 @@ export class SessionManager {
           session.hooksActive = true;
           // Don't let a late "busy" hook (e.g. delayed PreToolUse) override
           // waitingForInput. The flag is cleared when the user provides input.
-          if (event.data === "busy" && session.waitingForInput) break;
+          if (event.data === "busy" && session.waitingForInput) {
+            console.debug(`[status:${worktreeId}] hook "busy" BLOCKED (waitingForInput sticky flag)`);
+            break;
+          }
+          console.debug(`[status:${worktreeId}] hook → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : session.waitingForInput ? " (flag CLEARED)" : ""}`);
           session.waitingForInput = event.data === "waitingForInput";
           session.agentState = event.data;
           useWorkspaceStore
@@ -250,12 +254,16 @@ export class SessionManager {
           break;
         }
         case "agentState": {
-          if (!shouldAcceptDetectorState(session.hooksActive, event.data)) break;
+          if (!shouldAcceptDetectorState(session.hooksActive, event.data)) {
+            console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
+            break;
+          }
           if (event.data === "waitingForInput") {
             session.waitingForInput = true;
           } else if (event.data !== "busy") {
             session.waitingForInput = false;
           }
+          console.debug(`[status:${worktreeId}] detector → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : ""}`);
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
@@ -379,7 +387,11 @@ export class SessionManager {
         }
         case "hookAgentState": {
           session.hooksActive = true;
-          if (event.data === "busy" && session.waitingForInput) break;
+          if (event.data === "busy" && session.waitingForInput) {
+            console.debug(`[status:${worktreeId}] hook "busy" BLOCKED (waitingForInput sticky flag)`);
+            break;
+          }
+          console.debug(`[status:${worktreeId}] hook → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : session.waitingForInput ? " (flag CLEARED)" : ""}`);
           session.waitingForInput = event.data === "waitingForInput";
           session.agentState = event.data;
           useWorkspaceStore
@@ -388,12 +400,16 @@ export class SessionManager {
           break;
         }
         case "agentState": {
-          if (!shouldAcceptDetectorState(session.hooksActive, event.data)) break;
+          if (!shouldAcceptDetectorState(session.hooksActive, event.data)) {
+            console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
+            break;
+          }
           if (event.data === "waitingForInput") {
             session.waitingForInput = true;
           } else if (event.data !== "busy") {
             session.waitingForInput = false;
           }
+          console.debug(`[status:${worktreeId}] detector → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : ""}`);
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
