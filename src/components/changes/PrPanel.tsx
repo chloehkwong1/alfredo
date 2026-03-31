@@ -10,7 +10,7 @@ import {
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import type { CheckRun, PrStatus } from "../../types";
+import type { CheckRun, PrReview, PrStatus } from "../../types";
 import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
 import { rerunFailedChecks, fixFailingChecks, fixMergeConflicts } from "../../services/prActions";
 import { useTabStore } from "../../stores/tabStore";
@@ -28,6 +28,15 @@ export function usePrBadgeCounts(worktreeId: string) {
   const comments = prDetail?.comments ?? [];
   const mergeable = prDetail?.mergeable ?? null;
   const reviewDecision = prDetail?.reviewDecision ?? null;
+  const requestedReviewers = prDetail?.requestedReviewers ?? [];
+
+  // Merge requested reviewers into the reviews list as synthetic "REQUESTED" entries,
+  // excluding anyone who already has a submitted review.
+  const reviewerLogins = new Set(reviews.map((r) => r.reviewer.toLowerCase()));
+  const requestedEntries: PrReview[] = requestedReviewers
+    .filter((login) => !reviewerLogins.has(login.toLowerCase()))
+    .map((login) => ({ reviewer: login, state: "REQUESTED", submittedAt: null }));
+  const allReviews = [...reviews, ...requestedEntries];
 
   const failingChecks = checkRuns.filter(
     (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
@@ -36,7 +45,7 @@ export function usePrBadgeCounts(worktreeId: string) {
   const unresolvedComments = comments.filter((c) => !c.resolved).length;
   const approvals = reviews.filter((r) => r.state === "APPROVED").length;
 
-  return { checkRuns, prDetail, reviews, comments, mergeable, reviewDecision, failingChecks, pendingChecks, unresolvedComments, approvals };
+  return { checkRuns, prDetail, reviews: allReviews, comments, mergeable, reviewDecision, failingChecks, pendingChecks, unresolvedComments, approvals };
 }
 
 // ── PrPanelContent ─────────────────────────────────────────────────
@@ -481,7 +490,9 @@ function ReviewRow({
         ? "Changes requested"
         : state === "DISMISSED"
           ? "Dismissed"
-          : "Pending";
+          : state === "REQUESTED"
+            ? "Requested"
+            : "Pending";
 
   const initial = reviewer.charAt(0).toUpperCase();
 

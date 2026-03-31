@@ -190,6 +190,7 @@ pub struct PrDetailedStatus {
     pub comments: Vec<PrComment>,
     pub mergeable: Option<bool>,
     pub review_decision: Option<String>,
+    pub requested_reviewers: Vec<String>,
 }
 
 // ── Config ──────────────────────────────────────────────────────

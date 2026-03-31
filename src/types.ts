@@ -284,6 +284,7 @@ export interface PrDetailedStatus {
   comments: PrComment[];
   mergeable: boolean | null;
   reviewDecision: string | null;
+  requestedReviewers: string[];
 }
 
 export interface WorkspaceTab {
