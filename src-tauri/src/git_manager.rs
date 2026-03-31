@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use git2::Repository;
@@ -283,43 +282,13 @@ pub fn get_status(worktree_path: &str) -> Result<WorktreeStatus, AppError> {
         Err(_) => "HEAD".to_string(),
     };
 
-    let statuses = repo
-        .statuses(None)
-        .map_err(|e| AppError::Git(format!("failed to get statuses: {e}")))?;
-
-    let mut changed_files: HashMap<String, String> = HashMap::new();
-    for entry in statuses.iter() {
-        let path = entry.path().unwrap_or("?").to_string();
-        let status = entry.status();
-        let label = if status.is_index_new() || status.is_wt_new() {
-            "new"
-        } else if status.is_index_modified() || status.is_wt_modified() {
-            "modified"
-        } else if status.is_index_deleted() || status.is_wt_deleted() {
-            "deleted"
-        } else {
-            "changed"
-        };
-        changed_files.insert(path, label.to_string());
-    }
-
-    let is_clean = changed_files.is_empty();
-
-    Ok(WorktreeStatus {
-        branch,
-        changed_files,
-        is_clean,
-    })
+    Ok(WorktreeStatus { branch })
 }
 
 /// Status info returned by `get_status`.
 #[derive(Debug)]
 pub struct WorktreeStatus {
     pub branch: String,
-    #[allow(dead_code)]
-    pub changed_files: HashMap<String, String>,
-    #[allow(dead_code)]
-    pub is_clean: bool,
 }
 
 /// Helper: open a repo at a path and read the current branch name.
@@ -375,7 +344,7 @@ mod tests {
         let dir = init_test_repo();
         let path_str = dir.path().to_str().expect("temp dir path is valid UTF-8");
         let status = get_status(path_str).expect("get_status should succeed");
-        assert!(status.is_clean);
+        assert!(!status.branch.is_empty());
     }
 
     #[tokio::test]

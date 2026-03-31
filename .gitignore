@@ -33,6 +33,9 @@ src-tauri/gen/
 # Git worktrees
 .worktrees/
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # AI/Superpowers context
 .context/
 .superpowers/
