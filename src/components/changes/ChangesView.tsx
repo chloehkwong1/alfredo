@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DiffFileCard } from "./DiffFileCard";
-import { writePty, getConfig, discardFile, discardAllUncommitted } from "../../api";
-import { resolveSettings, buildClaudeArgs } from "../../services/claudeSettingsResolver";
+import { discardFile, discardAllUncommitted } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { useTabStore } from "../../stores/tabStore";
 import { usePrStore } from "../../stores/prStore";
-import { sessionManager } from "../../services/sessionManager";
 import { Button } from "../ui/Button";
 import { useChangesData } from "../../hooks/useChangesData";
+import { useFileNavigation } from "../../hooks/useFileNavigation";
+import { useDiffSearch } from "../../hooks/useDiffSearch";
+import { useSendToClaude } from "../../hooks/useSendToClaude";
 import { Search, ChevronUp, ChevronDown, X, Trash2 } from "lucide-react";
 import type { CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
@@ -20,12 +20,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "../ui/Dialog";
-
-interface SearchMatch {
-  filePath: string;
-  hunkIndex: number;
-  lineIndex: number;
-}
 
 interface ChangesViewProps {
   worktreeId: string;
@@ -62,14 +56,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const viewMode = panelTab === "commits" ? "commits" : "changes";
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeAnnotationLine, setActiveAnnotationLine] = useState<{ filePath: string; lineNumber: number } | null>(null);
-  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
-  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const annotations = useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
   const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
@@ -89,6 +75,31 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const { commits, displayFiles, uncommittedFiles, refetchUncommitted } = useChangesData(
     repoPath, viewMode, selectedCommitIndex, pr?.baseBranch, pr?.number,
   );
+
+  const {
+    collapsedFiles,
+    setCollapsedFiles,
+    setActiveFilePath,
+    fileRefs,
+    handleToggleExpanded,
+    expandAll,
+    collapseAll,
+    handleSelectFile,
+  } = useFileNavigation(displayFiles, viewMode);
+
+  const {
+    searchOpen,
+    setSearchOpen,
+    searchQuery,
+    setSearchQuery,
+    searchInputRef,
+    matches,
+    currentMatchIndex,
+    navigateMatch,
+    activeSearchMatch,
+  } = useDiffSearch(displayFiles, setCollapsedFiles, setActiveFilePath);
+
+  const { handleSendToClaude } = useSendToClaude(worktreeId, repoPath, worktree?.branch);
 
   // ── Discard state ──────────────────────────────────────────
   const [discardTarget, setDiscardTarget] = useState<
@@ -127,195 +138,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
       setDiscardTarget(null);
     }
   }, [discardTarget, repoPath, uncommittedFiles, refetchUncommitted]);
-
-  // Auto-collapse all files when the diff is large to prevent UI freeze
-  const AUTO_COLLAPSE_THRESHOLD = 15;
-  const hasAutoCollapsed = useRef(false);
-  useEffect(() => {
-    if (!hasAutoCollapsed.current && displayFiles.length > AUTO_COLLAPSE_THRESHOLD) {
-      hasAutoCollapsed.current = true;
-      setCollapsedFiles(new Set(displayFiles.map((f) => f.path)));
-    }
-  }, [displayFiles]);
-
-  // Reset auto-collapse when switching tabs
-  useEffect(() => {
-    hasAutoCollapsed.current = false;
-    setCollapsedFiles(new Set());
-  }, [viewMode]);
-
-  const handleToggleExpanded = useCallback((path: string) => {
-    setCollapsedFiles((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
-  }, []);
-
-  // Keyboard shortcuts: ]/n next file, [/p prev file, x toggle collapse
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-
-      if (e.key === "]" || e.key === "n") {
-        e.preventDefault();
-        const idx = displayFiles.findIndex((f) => f.path === activeFilePath);
-        const next = idx < displayFiles.length - 1 ? idx + 1 : 0;
-        const file = displayFiles[next];
-        if (file) {
-          setActiveFilePath(file.path);
-          setCollapsedFiles((prev) => {
-            if (!prev.has(file.path)) return prev;
-            const s = new Set(prev);
-            s.delete(file.path);
-            return s;
-          });
-          fileRefs.current.get(file.path)?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      } else if (e.key === "[" || e.key === "p") {
-        e.preventDefault();
-        const idx = displayFiles.findIndex((f) => f.path === activeFilePath);
-        const prev = idx > 0 ? idx - 1 : displayFiles.length - 1;
-        const file = displayFiles[prev];
-        if (file) {
-          setActiveFilePath(file.path);
-          setCollapsedFiles((p) => {
-            if (!p.has(file.path)) return p;
-            const s = new Set(p);
-            s.delete(file.path);
-            return s;
-          });
-          fileRefs.current.get(file.path)?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      } else if (e.key === "x" && activeFilePath) {
-        e.preventDefault();
-        handleToggleExpanded(activeFilePath);
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [displayFiles, activeFilePath, handleToggleExpanded]);
-
-  // ── Search within diffs ──────────────────────────────
-  const matches = useMemo(() => {
-    if (!searchQuery) return [];
-    const result: SearchMatch[] = [];
-    const lq = searchQuery.toLowerCase();
-    for (const file of displayFiles) {
-      for (let hi = 0; hi < file.hunks.length; hi++) {
-        for (let li = 0; li < file.hunks[hi].lines.length; li++) {
-          if (file.hunks[hi].lines[li].content.toLowerCase().includes(lq)) {
-            result.push({ filePath: file.path, hunkIndex: hi, lineIndex: li });
-          }
-        }
-      }
-    }
-    return result;
-  }, [displayFiles, searchQuery]);
-
-  // Reset match index when query or matches change
-  useEffect(() => {
-    setCurrentMatchIndex(0);
-  }, [searchQuery]);
-
-  const navigateMatch = useCallback(
-    (direction: "next" | "prev") => {
-      if (matches.length === 0) return;
-      const newIndex =
-        direction === "next"
-          ? (currentMatchIndex + 1) % matches.length
-          : (currentMatchIndex - 1 + matches.length) % matches.length;
-      setCurrentMatchIndex(newIndex);
-
-      const match = matches[newIndex];
-      // Expand the file if collapsed
-      setCollapsedFiles((prev) => {
-        if (!prev.has(match.filePath)) return prev;
-        const next = new Set(prev);
-        next.delete(match.filePath);
-        return next;
-      });
-      setActiveFilePath(match.filePath);
-
-      // Scroll to the active match after render
-      requestAnimationFrame(() => {
-        const el = document.getElementById("active-search-match");
-        el?.scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-    },
-    [matches, currentMatchIndex],
-  );
-
-  // Keyboard: "/" to open search, Escape to close, Enter/Shift+Enter to navigate
-  useEffect(() => {
-    function handleSearchKeys(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      const isInput = tag === "INPUT" || tag === "TEXTAREA";
-
-      // "/" to open search (when not in an input)
-      if (e.key === "/" && !isInput) {
-        e.preventDefault();
-        setSearchOpen(true);
-        requestAnimationFrame(() => searchInputRef.current?.focus());
-        return;
-      }
-
-      // Escape to close search
-      if (e.key === "Escape" && searchOpen) {
-        setSearchOpen(false);
-        setSearchQuery("");
-        return;
-      }
-
-      // Enter / Shift+Enter to navigate matches (when search input is focused)
-      if (
-        e.key === "Enter" &&
-        document.activeElement === searchInputRef.current
-      ) {
-        e.preventDefault();
-        navigateMatch(e.shiftKey ? "prev" : "next");
-      }
-    }
-
-    window.addEventListener("keydown", handleSearchKeys);
-    return () => window.removeEventListener("keydown", handleSearchKeys);
-  }, [searchOpen, navigateMatch]);
-
-  // Compute active search match for the current file (for highlighting the active line)
-  const activeSearchMatch = useMemo(() => {
-    if (matches.length === 0) return null;
-    return matches[currentMatchIndex] ?? null;
-  }, [matches, currentMatchIndex]);
-
-  const expandAll = useCallback(() => {
-    setCollapsedFiles(new Set());
-  }, []);
-
-  const collapseAll = useCallback(() => {
-    setCollapsedFiles(new Set(displayFiles.map((f) => f.path)));
-  }, [displayFiles]);
-
-  const handleSelectFile = useCallback((path: string) => {
-    setActiveFilePath(path);
-    // Uncollapse if collapsed
-    setCollapsedFiles((prev) => {
-      if (!prev.has(path)) return prev;
-      const next = new Set(prev);
-      next.delete(path);
-      return next;
-    });
-    // Scroll to file via ref
-    const el = fileRefs.current.get(path);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, []);
 
   // Listen for file selection from the persistent ChangesPanel
   useEffect(() => {
@@ -418,60 +240,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     },
     [worktreeId, editAnnotation],
   );
-
-  const handleSendToClaude = useCallback(async () => {
-    if (annotations.length === 0) return;
-
-    const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-    const claudeTab = tabs.find((t) => t.type === "claude");
-    const targetKey = claudeTab?.id ?? worktreeId;
-
-    // Auto-spawn session if it doesn't exist yet
-    let session = sessionManager.getSession(targetKey);
-    if (!session) {
-      try {
-        const config = await getConfig(repoPath);
-        const branch = worktree?.branch ?? "";
-        const resolved = resolveSettings(
-          config.claudeDefaults,
-          config.worktreeOverrides?.[branch],
-        );
-        const args = buildClaudeArgs(resolved);
-        session = await sessionManager.getOrSpawn(
-          targetKey, worktreeId, repoPath, "claude", undefined, args,
-        );
-      } catch {
-        return;
-      }
-    }
-
-    // Group annotations by file
-    const byFile = new Map<string, typeof annotations>();
-    for (const a of annotations) {
-      const list = byFile.get(a.filePath) ?? [];
-      list.push(a);
-      byFile.set(a.filePath, list);
-    }
-
-    // Format as markdown grouped by file
-    let message = "\nCode review comments:\n";
-    for (const [filePath, fileAnnotations] of byFile) {
-      message += `\n## ${filePath}\n\n`;
-      const sorted = [...fileAnnotations].sort((a, b) => a.lineNumber - b.lineNumber);
-      for (const a of sorted) {
-        message += `Line ${a.lineNumber}: ${a.text}\n\n`;
-      }
-    }
-
-    const bytes = Array.from(new TextEncoder().encode(message));
-    await writePty(session.sessionId, bytes);
-    clearAnnotations(worktreeId);
-
-    // Switch to the Claude terminal tab so the user sees the message arrive
-    if (claudeTab) {
-      useTabStore.getState().setActiveTabId(worktreeId, claudeTab.id);
-    }
-  }, [worktreeId, repoPath, worktree?.branch, annotations, clearAnnotations]);
 
   const activeCommitHash =
     viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex]
