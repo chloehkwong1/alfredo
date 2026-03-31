@@ -1,0 +1,53 @@
+src/components/layout/AppShell.tsx
+  37e5690847f5255c 435-443
+src-tauri/src/commands/app_config.rs
+  37e5690847f5255c 60-65
+src/components/kanban/CreateWorktreeDialog.tsx
+  37e5690847f5255c 150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "da9568a1e68ca9624ba3fa359afafee23606acb9",
+  "prompts": {
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "37e5690847f5255c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bef426d3-7bfa-4f39-beab-0c540e0292e5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 19,
+      "total_deletions": 4,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    },
+    "8526fe5c26bc5585": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e0086b-f128-4646-8a56-8ffd8f1f273c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
