@@ -44,6 +44,10 @@ pub async fn create_worktree(
     let worktree_path =
         git_manager::create_worktree(&repo_path, &branch_name, &base_branch, base_path).await?;
 
+    // Ensure .claude/context.md and .claude/settings.local.json are in git
+    // excludes so they don't show as uncommitted changes in the UI.
+    ensure_claude_excludes(&repo_path).await;
+
     let path_str = worktree_path.to_string_lossy().to_string();
     let create_scripts: Vec<_> = config
         .setup_scripts
@@ -264,5 +268,54 @@ async fn create_worktree_from_pr(repo_path: String, pr_number: u64) -> Result<Wo
 
     // 5. Create the worktree from the PR's head branch
     create_worktree(repo_path, branch_name.clone(), branch_name).await
+}
+
+/// Ensure the repo's `.git/info/exclude` contains entries for AI tool artifacts
+/// that Alfredo injects into worktrees (context.md, settings.local.json).
+/// These should never appear as uncommitted changes in the UI.
+async fn ensure_claude_excludes(repo_path: &str) {
+    let exclude_path = std::path::Path::new(repo_path)
+        .join(".git")
+        .join("info")
+        .join("exclude");
+
+    let entries = [".claude/context.md", ".claude/settings.local.json"];
+
+    let existing = tokio::fs::read_to_string(&exclude_path)
+        .await
+        .unwrap_or_default();
+
+    let missing: Vec<&str> = entries
+        .iter()
+        .filter(|e| !existing.lines().any(|line| line.trim() == **e))
+        .copied()
+        .collect();
+
+    if missing.is_empty() {
+        return;
+    }
+
+    let mut append = String::new();
+    if !existing.is_empty() && !existing.ends_with('\n') {
+        append.push('\n');
+    }
+    if !existing.contains("# Alfredo AI tool artifacts") {
+        append.push_str("\n# Alfredo AI tool artifacts\n");
+    }
+    for entry in &missing {
+        append.push_str(entry);
+        append.push('\n');
+    }
+
+    if let Some(parent) = exclude_path.parent() {
+        let _ = tokio::fs::create_dir_all(parent).await;
+    }
+
+    if let Err(e) = tokio::fs::write(&exclude_path, format!("{existing}{append}")).await {
+        eprintln!(
+            "[alfredo] failed to update git excludes at {}: {e}",
+            exclude_path.display()
+        );
+    }
 }
 
