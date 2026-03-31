@@ -16,7 +16,7 @@ import { useTabStore } from "../../stores/tabStore";
 
 // ── Shared badge-count helpers ─────────────────────────────────────
 
-function usePrBadgeCounts(worktreeId: string) {
+export function usePrBadgeCounts(worktreeId: string) {
   const checkRuns = usePrStore((s) => s.checkRuns[worktreeId]) ?? [];
   const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
 
@@ -40,15 +40,14 @@ function usePrBadgeCounts(worktreeId: string) {
 
 interface PrPanelContentProps {
   worktreeId: string;
-  repoPath: string;
   onJumpToComment: (filePath: string, line: number) => void;
 }
 
-export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPanelContentProps) {
+export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentProps) {
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
 
-  const { checkRuns, reviews, comments, mergeable, reviewDecision, unresolvedComments } = usePrBadgeCounts(worktreeId);
+  const { checkRuns, reviews, comments, unresolvedComments } = usePrBadgeCounts(worktreeId);
 
   const [descExpanded, setDescExpanded] = useState(false);
 
@@ -109,15 +108,6 @@ export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPane
         </Section>
       </div>
 
-      {/* Merge status banner */}
-      <MergeStatusBanner
-        worktreeId={worktreeId}
-        pr={pr}
-        checkRuns={checkRuns}
-        mergeable={mergeable}
-        reviewDecision={reviewDecision}
-        repoPath={repoPath}
-      />
     </div>
   );
 }
@@ -233,7 +223,7 @@ function PrDescription({
 
   return (
     <div className="px-2.5 py-2 border-b border-border-subtle text-xs text-text-secondary leading-[1.5] overflow-hidden">
-      <div className={expanded ? "" : "line-clamp-3"}>
+      <div className={expanded ? "" : "max-h-[4.5em] overflow-hidden"}>
         {formatPrBody(body)}
       </div>
       <button
@@ -513,7 +503,7 @@ function CommentCard({
   );
 }
 
-function MergeStatusBanner({
+export function MergeStatusBanner({
   worktreeId,
   pr,
   checkRuns,

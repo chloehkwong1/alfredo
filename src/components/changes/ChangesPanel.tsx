@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { FileSidebar } from "./FileSidebar";
-import { PrPanelContent, PrRailIcons } from "./PrPanel";
+import { PrPanelContent, PrRailIcons, MergeStatusBanner, usePrBadgeCounts } from "./PrPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/Dialog";
 import { Button } from "../ui/Button";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -26,6 +26,7 @@ function WorkspacePanel({
   const setChangesViewMode = useWorkspaceStore((s) => s.setChangesViewMode);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
+  const { checkRuns, mergeable, reviewDecision } = usePrBadgeCounts(worktreeId);
 
   // Map panel tab to data-fetching view mode
   const dataViewMode: ViewMode = panelTab === "commits" ? "commits" : "changes";
@@ -218,7 +219,6 @@ function WorkspacePanel({
       {panelTab === "pr" && hasPr ? (
         <PrPanelContent
           worktreeId={worktreeId}
-          repoPath={repoPath}
           onJumpToComment={handleJumpToComment}
         />
       ) : (
@@ -236,6 +236,18 @@ function WorkspacePanel({
             onDiscardFile={handleDiscardFile}
           />
         </div>
+      )}
+
+      {/* Merge status banner — visible across all tabs */}
+      {pr && (
+        <MergeStatusBanner
+          worktreeId={worktreeId}
+          pr={pr}
+          checkRuns={checkRuns}
+          mergeable={mergeable}
+          reviewDecision={reviewDecision}
+          repoPath={repoPath}
+        />
       )}
 
       {/* Discard confirmation dialog */}
