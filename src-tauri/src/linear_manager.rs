@@ -40,6 +40,7 @@ pub async fn search_issues(
       state { name }
       labels { nodes { name } }
       assignee { name }
+      branchName
       updatedAt
     }
   }
@@ -59,6 +60,7 @@ pub async fn search_issues(
       state { name }
       labels { nodes { name } }
       assignee { name }
+      branchName
       updatedAt
     }
   }
@@ -118,6 +120,7 @@ pub async fn get_issue(
     state { name }
     labels { nodes { name } }
     assignee { name }
+    branchName
     updatedAt
   }
 }"#;
@@ -295,6 +298,11 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
         .and_then(|v| v.as_str())
         .map(std::string::ToString::to_string);
 
+    let branch_name = node
+        .get("branchName")
+        .and_then(|v| v.as_str())
+        .map(std::string::ToString::to_string);
+
     let updated_at = node
         .get("updatedAt")
         .and_then(|v| v.as_str())
@@ -309,6 +317,7 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
         state,
         labels,
         assignee,
+        branch_name,
         updated_at,
     })
 }
@@ -416,6 +425,7 @@ mod tests {
             state: "In Progress".into(),
             labels: vec!["bug".into(), "auth".into()],
             assignee: Some("Chloe".into()),
+            branch_name: Some("chloe/ros-42-fix-auth-flow".into()),
             updated_at: Some("2026-03-31T12:00:00.000Z".into()),
         };
 
@@ -460,6 +470,7 @@ mod tests {
             "state": { "name": "In Progress" },
             "labels": { "nodes": [] },
             "assignee": { "name": "Chloe" },
+            "branchName": "chloe/alf-1-test-issue",
             "updatedAt": "2026-03-31T12:00:00.000Z"
         });
 

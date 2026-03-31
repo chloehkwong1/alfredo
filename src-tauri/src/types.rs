@@ -371,6 +371,8 @@ pub struct LinearTicket {
     pub labels: Vec<String>,
     pub assignee: Option<String>,
     #[serde(default)]
+    pub branch_name: Option<String>,
+    #[serde(default)]
     pub updated_at: Option<String>,
 }
 

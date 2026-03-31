@@ -220,13 +220,12 @@ async fn create_worktree_from_linear(repo_path: String, issue_id: &str) -> Resul
     // 2. Fetch full ticket details
     let ticket = linear_manager::get_issue(&api_key, issue_id).await?;
 
-    // 3. Build branch name: {identifier}-{slugified-title}
-    let slug = linear_manager::slugify(&ticket.title);
-    let branch_name = format!(
-        "{}-{}",
-        ticket.identifier.to_lowercase(),
-        slug
-    );
+    // 3. Use Linear's branchName field (matches "Copy git branch name" exactly),
+    //    falling back to {identifier}-{slugified-title} if unavailable.
+    let branch_name = ticket.branch_name.clone().unwrap_or_else(|| {
+        let slug = linear_manager::slugify(&ticket.title);
+        format!("{}-{}", ticket.identifier.to_lowercase(), slug)
+    });
 
     // 4. Create the worktree
     let worktree = create_worktree(repo_path, branch_name.clone(), "main".into()).await?;

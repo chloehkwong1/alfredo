@@ -89,6 +89,7 @@ mod tests {
             state: "In Progress".into(),
             labels: vec![],
             assignee: assignee.map(String::from),
+            branch_name: None,
             updated_at: Some(updated_at.into()),
         }
     }
