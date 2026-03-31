@@ -19,7 +19,6 @@ Download the latest release for your platform from [Releases](../../releases):
 
 - **macOS** — `.dmg` (Apple Silicon & Intel)
 - **Linux** — `.AppImage` or `.deb`
-- **Windows** — `.msi`
 
 ## Development
 
@@ -47,6 +46,17 @@ npm run tauri build
 ```
 
 Output lands in `src-tauri/target/release/bundle/`.
+
+## Git Excludes
+
+The `.gitignore` covers standard project artifacts. If you use Claude Code (or similar AI tools) with git worktrees, add these to `.git/info/exclude` so they're ignored across all worktrees without polluting `.gitignore`:
+
+```
+context.md
+settings.local.json
+```
+
+These files are generated per-worktree and shouldn't be committed.
 
 ## Tech Stack
 
