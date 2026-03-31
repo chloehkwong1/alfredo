@@ -215,7 +215,6 @@ pub async fn list_teams(api_key: &str) -> Result<Vec<LinearTeam>, AppError> {
 }
 
 /// Fetch the authenticated Linear user's display name via the `viewer` query.
-#[allow(dead_code)]
 pub async fn get_viewer_name(api_key: &str) -> Result<Option<String>, AppError> {
     let graphql_query = r#"{ viewer { id name } }"#;
     let body = serde_json::json!({ "query": graphql_query });
