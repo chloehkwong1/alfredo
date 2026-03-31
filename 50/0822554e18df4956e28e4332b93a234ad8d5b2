@@ -1,0 +1,23 @@
+src/components/onboarding/RepoSetupDialog.tsx
+  75ec3d71f6efff86 15,35-52,60,81-83,85,88-90,104-107,109-121,123,125-132,134,139-148,165,169-178,191-211,213-215,217,239,255,257,282-283,285,287,303-304,306-310,314-390,406,458,475,480,485,492,525,545-548
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "500822554e18df4956e28e4332b93a234ad8d5b2",
+  "prompts": {
+    "75ec3d71f6efff86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71668b35-6442-4424-a4a3-7bb33168154f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 211,
+      "total_deletions": 41,
+      "accepted_lines": 211,
+      "overriden_lines": 0
+    }
+  }
+}
