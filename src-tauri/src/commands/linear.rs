@@ -24,15 +24,29 @@ fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf> {
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))
 }
 
-/// Sort Linear issues: assigned-to-me first, then by `updated_at` descending.
+/// Sort Linear issues: assigned-to-me first, then by state priority
+/// (In Progress > Todo > rest), then by `updated_at` descending.
 pub fn sort_linear_issues(tickets: &mut [LinearTicket], viewer_name: Option<&str>) {
     tickets.sort_by(|a, b| {
         let a_mine = is_my_ticket(a, viewer_name);
         let b_mine = is_my_ticket(b, viewer_name);
-        b_mine.cmp(&a_mine).then_with(|| {
-            b.updated_at.cmp(&a.updated_at)
-        })
+        b_mine
+            .cmp(&a_mine)
+            .then_with(|| state_priority(&a.state).cmp(&state_priority(&b.state)))
+            .then_with(|| b.updated_at.cmp(&a.updated_at))
     });
+}
+
+/// Lower number = higher priority.
+fn state_priority(state: &str) -> u8 {
+    let lower = state.to_lowercase();
+    if lower == "in progress" || lower == "started" {
+        0
+    } else if lower == "todo" || lower == "to do" || lower == "unstarted" {
+        1
+    } else {
+        2
+    }
 }
 
 fn is_my_ticket(ticket: &LinearTicket, viewer_name: Option<&str>) -> bool {
@@ -62,7 +76,9 @@ pub async fn search_linear_issues(
 pub async fn list_my_linear_issues(app: AppHandle) -> Result<Vec<LinearTicket>> {
     let app_data = app_data_dir(&app)?;
     let api_key = linear_manager::resolve_token(&app_data, ".").await?;
-    linear_manager::list_assigned_issues(&api_key).await
+    let mut tickets = linear_manager::list_assigned_issues(&api_key).await?;
+    sort_linear_issues(&mut tickets, None);
+    Ok(tickets)
 }
 
 /// Get full details for a single Linear issue.
@@ -127,5 +143,21 @@ mod tests {
 
         let ids: Vec<&str> = tickets.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, vec!["2", "3", "1"]);
+    }
+
+    #[test]
+    fn test_sort_linear_issues_state_priority() {
+        let mut tickets = vec![
+            LinearTicket { state: "Backlog".into(), ..make_ticket("1", None, "2026-03-04T00:00:00Z") },
+            LinearTicket { state: "Todo".into(), ..make_ticket("2", None, "2026-03-01T00:00:00Z") },
+            LinearTicket { state: "In Progress".into(), ..make_ticket("3", None, "2026-03-02T00:00:00Z") },
+            LinearTicket { state: "Todo".into(), ..make_ticket("4", None, "2026-03-03T00:00:00Z") },
+        ];
+
+        super::sort_linear_issues(&mut tickets, None);
+
+        let ids: Vec<&str> = tickets.iter().map(|t| t.id.as_str()).collect();
+        // In Progress first, then Todo (recent first), then Backlog
+        assert_eq!(ids, vec!["3", "4", "2", "1"]);
     }
 }
