@@ -3,6 +3,14 @@ use tokio::process::Command;
 
 use crate::types::{AgentState, AppError, KanbanColumn, Worktree};
 
+/// Check if a branch's last commit was authored by the local git user.
+fn is_my_branch(worktree: &Worktree, git_user: Option<&str>) -> bool {
+    match (worktree.last_commit_author.as_deref(), git_user) {
+        (Some(author), Some(user)) => author.eq_ignore_ascii_case(user),
+        _ => false,
+    }
+}
+
 /// List local branches, returning them as Worktree structs with `is_branch_mode: true`.
 /// The currently checked-out branch is marked by having its name match `active_branch`.
 pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>), AppError> {
@@ -31,11 +39,12 @@ pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>),
             .unwrap_or("unknown")
             .to_string();
 
-        let last_commit_epoch = branch
+        let (last_commit_epoch, last_commit_author) = branch
             .get()
             .peel_to_commit()
             .ok()
-            .map(|c| c.time().seconds() * 1000);
+            .map(|c| (Some(c.time().seconds() * 1000), c.author().name().map(String::from)))
+            .unwrap_or((None, None));
 
         worktrees.push(Worktree {
             id: format!("branch-{name}"),
@@ -50,8 +59,28 @@ pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>),
             additions: None,
             deletions: None,
             last_commit_epoch,
+            last_commit_author,
         });
     }
+
+    // Read the local git user name for "my branches" prioritization
+    let git_user = repo
+        .config()
+        .ok()
+        .and_then(|c| c.get_string("user.name").ok());
+
+    // Filter out default branches (main/master) — not useful as worktree sources
+    worktrees.retain(|w| w.branch != "main" && w.branch != "master");
+
+    // Sort: my branches first (by last commit author), then by recency
+    worktrees.sort_by(|a, b| {
+        let a_mine = is_my_branch(a, git_user.as_deref());
+        let b_mine = is_my_branch(b, git_user.as_deref());
+        b_mine.cmp(&a_mine).then_with(|| {
+            // Within same group, sort by last_commit_epoch descending
+            b.last_commit_epoch.cmp(&a.last_commit_epoch)
+        })
+    });
 
     Ok((worktrees, active_branch))
 }
@@ -95,6 +124,7 @@ pub async fn create_branch(
                 .map(|d| d.as_millis() as i64)
                 .unwrap_or(0),
         ),
+        last_commit_author: None,
     })
 }
 
@@ -177,14 +207,65 @@ mod tests {
     fn test_list_branches() -> Result<(), Box<dyn std::error::Error>> {
         let dir = init_test_repo()?;
         let path = dir.path().to_str().ok_or("non-UTF-8 temp path")?;
+
+        // Create a non-default branch so we have something after filtering
+        StdCommand::new("git")
+            .args(["checkout", "-b", "feat-smoke"])
+            .current_dir(path)
+            .output()?;
+        StdCommand::new("git")
+            .args(["commit", "--allow-empty", "-m", "smoke"])
+            .current_dir(path)
+            .output()?;
+
         let (branches, active) = list_branches(path)?;
-        // Should have at least one branch (main/master)
+        // main/master are filtered; we should have feat-smoke
         assert!(!branches.is_empty());
         assert!(active.is_some());
+        // main/master must not appear
+        assert!(branches.iter().all(|b| b.branch != "main" && b.branch != "master"));
         // All branches should be in branch mode
         for b in &branches {
             assert!(b.is_branch_mode);
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_sort_branches_mine_first_and_filters_default() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = init_test_repo()?;
+        let path = dir.path().to_str().ok_or("non-UTF-8 temp path")?;
+
+        // Create additional branches with commits
+        StdCommand::new("git")
+            .args(["checkout", "-b", "feat-old"])
+            .current_dir(path)
+            .output()?;
+        StdCommand::new("git")
+            .args(["commit", "--allow-empty", "-m", "old work"])
+            .current_dir(path)
+            .output()?;
+
+        StdCommand::new("git")
+            .args(["checkout", "-b", "feat-new"])
+            .current_dir(path)
+            .output()?;
+        StdCommand::new("git")
+            .args(["commit", "--allow-empty", "-m", "new work"])
+            .current_dir(path)
+            .output()?;
+
+        let (branches, _) = list_branches(path)?;
+
+        // main/master should be filtered out
+        assert!(branches.iter().all(|b| b.branch != "main" && b.branch != "master"));
+
+        // Should be sorted by recency (feat-new before feat-old)
+        let names: Vec<&str> = branches.iter().map(|b| b.branch.as_str()).collect();
+        let new_idx = names.iter().position(|n| *n == "feat-new");
+        let old_idx = names.iter().position(|n| *n == "feat-old");
+        assert!(new_idx < old_idx, "feat-new should appear before feat-old");
+
         Ok(())
     }
 
@@ -197,13 +278,22 @@ mod tests {
         assert_eq!(wt.branch, "feat-test");
         assert!(wt.is_branch_mode);
 
-        // Switch back to default branch so we can delete feat-test
-        let (branches, _) = list_branches(path)?;
-        let default_branch = branches
-            .iter()
-            .find(|b| b.branch != "feat-test")
+        // Determine the default branch name by opening the repo directly
+        let repo = Repository::open(path)?;
+        let default_branch = repo
+            .branches(Some(git2::BranchType::Local))?
+            .filter_map(Result::ok)
+            .find(|(b, _)| {
+                b.name()
+                    .ok()
+                    .flatten()
+                    .map(|n| n == "main" || n == "master")
+                    .unwrap_or(false)
+            })
+            .and_then(|(b, _)| b.name().ok().flatten().map(str::to_string))
             .ok_or("should have default branch")?;
-        switch_branch(path, &default_branch.branch).await?;
+
+        switch_branch(path, &default_branch).await?;
 
         delete_branch(path, "feat-test").await?;
         Ok(())

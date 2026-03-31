@@ -76,6 +76,7 @@ pub async fn create_worktree(
                 .map(|d| d.as_millis() as i64)
                 .unwrap_or(0),
         ),
+        last_commit_author: None,
     })
 }
 
@@ -173,6 +174,7 @@ pub async fn get_worktree_status(
         additions,
         deletions,
         last_commit_epoch: None, // Will be populated by list_worktrees on next refresh
+        last_commit_author: None,
     })
 }
 

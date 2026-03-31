@@ -76,6 +76,9 @@ pub struct Worktree {
     /// Epoch milliseconds of the latest commit on this branch.
     #[serde(default)]
     pub last_commit_epoch: Option<i64>,
+    /// Name of the author of the latest commit on this branch (for sorting).
+    #[serde(default)]
+    pub last_commit_author: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

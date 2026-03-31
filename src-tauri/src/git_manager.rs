@@ -263,6 +263,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             additions: None,
             deletions: None,
             last_commit_epoch,
+            last_commit_author: None,
         });
     }
 
