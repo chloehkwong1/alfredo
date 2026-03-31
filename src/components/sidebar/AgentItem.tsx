@@ -150,17 +150,28 @@ function getStatusText(status: AgentState | string): string {
   return statusText[status] ?? "Not running";
 }
 
+export function computeEffectiveStatus(
+  agentStatus: AgentState,
+  channelAlive: boolean | undefined,
+  staleBusy: boolean | undefined,
+  isSeen: boolean,
+): string {
+  const channelStatus = channelAlive === false && agentStatus !== "notRunning"
+    ? "disconnected"
+    : agentStatus;
+  const baseStatus = channelStatus === "busy" && staleBusy ? "stale" : channelStatus;
+  return baseStatus === "idle" && !isSeen ? "done" : baseStatus;
+}
+
 function useAgentItemState(worktree: Worktree) {
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
   const prSummary = usePrStore((s) => s.prSummary[worktree.id]);
   const isServerRunning = useWorkspaceStore(
     (s) => s.runningServer?.worktreeId === worktree.id,
   );
-  const channelStatus = worktree.channelAlive === false && worktree.agentStatus !== "notRunning"
-    ? "disconnected"
-    : worktree.agentStatus;
-  const baseStatus = channelStatus === "busy" && worktree.staleBusy ? "stale" : channelStatus;
-  const effectiveStatus = baseStatus === "idle" && !isSeen ? "done" : baseStatus;
+  const effectiveStatus = computeEffectiveStatus(
+    worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, isSeen,
+  );
   const shouldPulse = effectiveStatus === "busy" || effectiveStatus === "waitingForInput";
   return { prSummary, isServerRunning, effectiveStatus, shouldPulse };
 }

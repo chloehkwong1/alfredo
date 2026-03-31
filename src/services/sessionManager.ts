@@ -133,6 +133,16 @@ function registerKittyProtocol(terminal: Terminal, sessionId: string): void {
   terminal.parser.registerCsiHandler({ prefix: "<", final: "u" }, () => true);
 }
 
+export function shouldAcceptDetectorState(
+  hooksActive: boolean,
+  detectorState: AgentState,
+): boolean {
+  if (!hooksActive) return true;
+  return detectorState === "idle"
+    || detectorState === "notRunning"
+    || detectorState === "waitingForInput";
+}
+
 // ── SessionManager ─────────────────────────────────────────────
 
 export class SessionManager {
@@ -231,26 +241,7 @@ export class SessionManager {
           break;
         }
         case "agentState": {
-          if (session.hooksActive) {
-            // Hooks are authoritative for busy state, but they can miss
-            // downward transitions (e.g. Ctrl+C killing hook commands,
-            // or permission_prompt/elicitation_dialog matchers not firing
-            // for all prompt types). Allow detector idle, notRunning, and
-            // waitingForInput signals through as a safety net — the
-            // detector's prompt/idle matching is highly reliable and
-            // prevents stuck "busy" states.
-            if (
-              event.data === "idle" ||
-              event.data === "notRunning" ||
-              event.data === "waitingForInput"
-            ) {
-              session.agentState = event.data;
-              useWorkspaceStore
-                .getState()
-                .updateWorktree(worktreeId, { agentStatus: event.data });
-            }
-            break;
-          }
+          if (!shouldAcceptDetectorState(session.hooksActive, event.data)) break;
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
@@ -380,26 +371,7 @@ export class SessionManager {
           break;
         }
         case "agentState": {
-          if (session.hooksActive) {
-            // Hooks are authoritative for busy state, but they can miss
-            // downward transitions (e.g. Ctrl+C killing hook commands,
-            // or permission_prompt/elicitation_dialog matchers not firing
-            // for all prompt types). Allow detector idle, notRunning, and
-            // waitingForInput signals through as a safety net — the
-            // detector's prompt/idle matching is highly reliable and
-            // prevents stuck "busy" states.
-            if (
-              event.data === "idle" ||
-              event.data === "notRunning" ||
-              event.data === "waitingForInput"
-            ) {
-              session.agentState = event.data;
-              useWorkspaceStore
-                .getState()
-                .updateWorktree(worktreeId, { agentStatus: event.data });
-            }
-            break;
-          }
+          if (!shouldAcceptDetectorState(session.hooksActive, event.data)) break;
           session.agentState = event.data;
           useWorkspaceStore
             .getState()
