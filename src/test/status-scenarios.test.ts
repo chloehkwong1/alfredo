@@ -13,6 +13,8 @@ interface SimState {
   lastOutputAt: number;
   lastHeartbeat: number;
   isSeen: boolean;
+  /** Mirrors session.waitingForInput — blocks late "busy" hooks. */
+  waitingForInput: boolean;
 }
 
 function createInitialState(): SimState {
@@ -24,6 +26,7 @@ function createInitialState(): SimState {
     lastOutputAt: now,
     lastHeartbeat: now,
     isSeen: false, // unseen by default (tests wrong-status-on-focus scenarios)
+    waitingForInput: false,
   };
 }
 
@@ -44,19 +47,27 @@ function runFrontendScenario(scenario: StatusScenario) {
         // Simulate detector output accepted through priority logic.
         const detectorState = step.expect.agentStatus;
         if (shouldAcceptDetectorState(state.hooksActive, detectorState)) {
+          if (detectorState === "waitingForInput") {
+            state.waitingForInput = true;
+          } else if (detectorState !== "busy") {
+            state.waitingForInput = false;
+          }
           state.agentStatus = detectorState;
         }
         state.lastOutputAt = now;
         break;
       }
       case "hookEvent": {
-        // Hook events always accepted
-        state.agentStatus = action.state as AgentState;
         state.hooksActive = true;
+        // Don't let a late "busy" hook override waitingForInput
+        if (action.state === "busy" && state.waitingForInput) break;
+        state.waitingForInput = action.state === "waitingForInput";
+        state.agentStatus = action.state as AgentState;
         break;
       }
       case "userInput": {
-        // User input doesn't change state directly in frontend
+        // User input clears waitingForInput flag
+        state.waitingForInput = false;
         break;
       }
       case "elapsed": {

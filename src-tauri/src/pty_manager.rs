@@ -515,6 +515,24 @@ fn write_hooks_config(
                 "command": "curl -s -o /dev/null -X POST $ALFREDO_STATE_URL/agent-state/$ALFREDO_WORKTREE_ID/idle"
             }]
         })),
+        // PermissionRequest fires for ALL permission dialogs (file creation,
+        // tool approval, settings changes). This is separate from
+        // Notification(permission_prompt) and has broader coverage.
+        ("PermissionRequest", serde_json::json!({
+            "hooks": [{
+                "type": "command",
+                "command": "curl -s -o /dev/null -X POST $ALFREDO_STATE_URL/agent-state/$ALFREDO_WORKTREE_ID/waitingForInput"
+            }]
+        })),
+        // PostToolUseFailure with is_interrupt — fires when user interrupts a
+        // running tool. Stop hooks do NOT fire on interrupts, so this is the
+        // only hook signal. The grep checks for is_interrupt before signalling.
+        ("PostToolUseFailure", serde_json::json!({
+            "hooks": [{
+                "type": "command",
+                "command": "sh -c 'cat | grep -q '\"'\"'\"is_interrupt\".*true'\"'\"' && curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_WORKTREE_ID/waitingForInput\"'"
+            }]
+        })),
         ("SubagentStart",   cmd("busy")),
         ("SubagentStop",    cmd("busy")),
         ("PostToolUse",     cmd("busy")),

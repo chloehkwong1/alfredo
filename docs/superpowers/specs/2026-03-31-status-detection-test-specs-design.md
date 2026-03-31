@@ -82,15 +82,17 @@ Extract the pure status computation from `useAgentItemState` in `AgentItem.tsx` 
 
 Extract the event dispatch decision logic into a testable function. Test cases:
 
-| hooksActive | event source | event state | → accepted? |
-|---|---|---|---|
-| false | detector | busy | yes |
-| true | detector | busy | **no** (hooks authoritative) |
-| true | detector | idle | yes (safety net) |
-| true | detector | waitingForInput | yes (safety net) |
-| true | detector | notRunning | yes (safety net) |
-| true | hook | waitingForInput | yes |
-| true | hook | busy | yes |
+| hooksActive | event source | event state | waitingForInput flag | → accepted? |
+|---|---|---|---|---|
+| false | detector | busy | false | yes |
+| true | detector | busy | false | **no** (hooks authoritative) |
+| true | detector | idle | false | yes (safety net) |
+| true | detector | waitingForInput | false | yes (safety net) |
+| true | detector | notRunning | false | yes (safety net) |
+| true | hook | waitingForInput | false | yes (sets flag) |
+| true | hook | busy | false | yes |
+| true | hook | busy | **true** | **no** (late hook blocked by sticky flag) |
+| true | hook | idle | true | yes (clears flag) |
 
 **C) staleBusy computation**
 
@@ -105,14 +107,15 @@ Extract from `usePty.ts` polling logic into a pure function. Test cases:
 
 **D) Scenario runner**
 
-Plays `status-scenarios.json` against a lightweight mock of the sessionManager event dispatch + effectiveStatus computation:
-- `hookEvent` → dispatch as hookAgentState
-- `ptyOutput` → dispatch as agentState (simulating detector)
+Plays `status-scenarios.json` against a lightweight mock of the sessionManager event dispatch + effectiveStatus computation. Tracks `waitingForInput` sticky flag to validate race condition protection:
+- `hookEvent` → dispatch as hookAgentState (blocked if "busy" and `waitingForInput` flag set)
+- `ptyOutput` → dispatch as agentState (simulating detector, sets/clears `waitingForInput` flag)
+- `userInput` → clears `waitingForInput` flag
 - `elapsed` → advance lastOutputAt / lastHeartbeat timestamps
 - `noHeartbeat` → set channelAlive false
-- After each step, check effectiveStatus matches expectation
+- After each step, check agentStatus and effectiveStatus match expectations
 
-## Section 3: Scenario Catalog (10 scenarios)
+## Section 3: Scenario Catalog (14 scenarios)
 
 ### Stuck busy
 
@@ -126,12 +129,15 @@ Plays `status-scenarios.json` against a lightweight mock of the sessionManager e
 5. **Elicitation dialog (Enter to select)** — numbered options with navigation hint. Expect: waitingForInput
 6. **Confirmation prompt (y/n)** — simple yes/no. Expect: waitingForInput
 7. **Multi-batch elicitation** — question in batch 1, options in batch 2, navigation hint in batch 3. Expect: stays waitingForInput throughout, not flipped to busy by option lines
+8. **Interrupt prompt** — user interrupts running command, Claude shows "What should Claude do instead?". Expect: waitingForInput
+9. **Esc to cancel prompt** — file creation prompt with "Esc to cancel" navigation hint. Expect: waitingForInput
+10. **Late hook busy after waitingForInput** — hook race condition: detector sets waitingForInput, then a delayed PreToolUse "busy" hook arrives. Expect: stays waitingForInput (blocked by sticky flag)
 
 ### Wrong status on focus
 
-8. **Switch to idle worktree unseen** — worktree finished while unfocused, user clicks it. Expect: effectiveStatus was "done", becomes "idle" after marking seen
-9. **Switch to stale worktree** — worktree busy with no output for 31s, user clicks. Expect: effectiveStatus "stale", then hook/detector resolves to actual state
-10. **Channel dead during focus switch** — heartbeat missed while on different worktree. Expect: "disconnected", not "busy"
+11. **Switch to idle worktree unseen** — worktree finished while unfocused, user clicks it. Expect: effectiveStatus was "done", becomes "idle" after marking seen
+12. **Switch to stale worktree** — worktree busy with no output for 31s, user clicks. Expect: effectiveStatus "stale", then hook/detector resolves to actual state
+13. **Channel dead during focus switch** — heartbeat missed while on different worktree. Expect: "disconnected", not "busy"
 
 ## Refactoring Required
 
