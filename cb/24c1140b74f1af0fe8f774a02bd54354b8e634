@@ -1,0 +1,25 @@
+src/components/layout/AppShell.tsx
+  75ec3d71f6efff86 7,219-222,406-408
+src/components/layout/OrientationBanner.tsx
+  75ec3d71f6efff86 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "cb24c1140b74f1af0fe8f774a02bd54354b8e634",
+  "prompts": {
+    "75ec3d71f6efff86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71668b35-6442-4424-a4a3-7bb33168154f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 1,
+      "accepted_lines": 36,
+      "overriden_lines": 0
+    }
+  }
+}
