@@ -73,6 +73,9 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 if (session.column) {
                   updateWorktree(wt.id, { column: session.column });
                 }
+                if (session.archived) {
+                  updateWorktree(wt.id, { archived: true, archivedAt: session.archivedAt });
+                }
 
                 restoreTabs(wt.id, session.tabs, session.activeTabId);
 
@@ -97,6 +100,14 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 }
                 if (session.seenWorktree) {
                   markWorktreeSeen(wt.id);
+                }
+
+                // Restore inline annotations
+                if (session.annotations?.length) {
+                  const store = useWorkspaceStore.getState();
+                  for (const annotation of session.annotations) {
+                    store.addAnnotation(annotation);
+                  }
                 }
 
                 // Restore column override

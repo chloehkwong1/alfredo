@@ -1,5 +1,5 @@
 import { saveSessionFile, loadSessionFile, deleteSessionFile } from "../api";
-import type { WorkspaceTab, LayoutNode, Pane, KanbanColumn, DiffViewMode, PrPanelState } from "../types";
+import type { Annotation, WorkspaceTab, LayoutNode, Pane, KanbanColumn, DiffViewMode, PrPanelState } from "../types";
 
 export interface SessionData {
   tabs: WorkspaceTab[];
@@ -28,6 +28,12 @@ export interface SessionData {
   seenWorktree?: boolean;
   /** Claude Code session UUID for `--resume` on next spawn. */
   claudeSessionId?: string;
+  /** Whether this worktree is archived (hidden from active view). */
+  archived?: boolean;
+  /** Unix ms timestamp when the worktree was archived. */
+  archivedAt?: number;
+  /** Inline code annotations for this worktree. */
+  annotations?: Annotation[];
 }
 
 export async function saveSession(
@@ -75,6 +81,9 @@ export async function saveAllSessions(
   getChangesPanelCollapsed?: (worktreeId: string) => boolean | undefined,
   getSeenWorktree?: (worktreeId: string) => boolean | undefined,
   getClaudeSessionId?: (worktreeId: string) => string | undefined,
+  getArchived?: (worktreeId: string) => boolean | undefined,
+  getArchivedAt?: (worktreeId: string) => number | undefined,
+  getAnnotations?: (worktreeId: string) => Annotation[] | undefined,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
     const tabs = getTabs(wtId).filter((t) => t.type !== "server");
@@ -124,6 +133,9 @@ export async function saveAllSessions(
       changesPanelCollapsed: getChangesPanelCollapsed?.(wtId),
       seenWorktree: getSeenWorktree?.(wtId),
       claudeSessionId: getClaudeSessionId?.(wtId),
+      archived: getArchived?.(wtId),
+      archivedAt: getArchivedAt?.(wtId),
+      annotations: getAnnotations?.(wtId),
     };
     return saveSession(repoPath, wtId, data);
   });

@@ -56,6 +56,9 @@ function collectAndSaveAllSessions(repoPath: string) {
     (wtId) => state.changesPanelCollapsed[wtId],
     (wtId) => state.seenWorktrees.has(wtId) || undefined,
     (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.claudeSessionId,
+    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.archived || undefined,
+    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.archivedAt,
+    (wtId) => state.annotations[wtId]?.length ? state.annotations[wtId] : undefined,
   );
 }
 
@@ -127,6 +130,33 @@ function AppShell() {
       if (state.sidebarCollapsed !== prev) {
         prev = state.sidebarCollapsed;
         updateConfig({ sidebarCollapsed: state.sidebarCollapsed });
+      }
+    });
+    return unsub;
+  }, [updateConfig]);
+
+  // Restore active worktree from app config (one-time)
+  const worktreeRestored = useRef(false);
+  useEffect(() => {
+    if (worktreeRestored.current || !config?.activeWorktreeId) return;
+    // Only restore once worktrees have loaded so the ID is valid
+    if (worktrees.length > 0) {
+      worktreeRestored.current = true;
+      const exists = worktrees.some((wt) => wt.id === config.activeWorktreeId);
+      if (exists) {
+        useWorkspaceStore.getState().setActiveWorktree(config.activeWorktreeId!);
+      }
+    }
+  }, [config, worktrees]);
+
+  // Persist active worktree to config when it changes
+  useEffect(() => {
+    if (!worktreeRestored.current) return;
+    let prev = useWorkspaceStore.getState().activeWorktreeId;
+    const unsub = useWorkspaceStore.subscribe((state) => {
+      if (state.activeWorktreeId !== prev) {
+        prev = state.activeWorktreeId;
+        updateConfig({ activeWorktreeId: state.activeWorktreeId });
       }
     });
     return unsub;

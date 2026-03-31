@@ -336,6 +336,8 @@ export interface GlobalAppConfig {
   collapsedKanbanColumns?: string[];
   /** Whether the sidebar starts collapsed. */
   sidebarCollapsed?: boolean;
+  /** Last-active worktree ID, restored on app launch. */
+  activeWorktreeId?: string | null;
 }
 
 // ── Inline annotation ────────────────────────────────────────────

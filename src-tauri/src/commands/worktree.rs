@@ -101,7 +101,7 @@ pub async fn delete_worktree(
 #[tauri::command]
 pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>> {
     let config = config_manager::load_config(&repo_path).await?;
-    let base_path = config.worktree_base_path.unwrap_or_else(|| {
+    let base_path = config.worktree_base_path.clone().unwrap_or_else(|| {
         std::path::Path::new(&repo_path)
             .parent()
             .unwrap_or(std::path::Path::new(&repo_path))
@@ -115,7 +115,16 @@ pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>> {
             .await
             .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
 
-    worktrees
+    // Apply persisted column overrides from .alfredo.json so worktrees
+    // arrive on the frontend with the correct kanban column immediately.
+    worktrees.map(|mut wts| {
+        for wt in &mut wts {
+            if let Some(col) = config_manager::get_column_override(&config, &wt.name) {
+                wt.column = col;
+            }
+        }
+        wts
+    })
 }
 
 /// Get diff stats (additions, deletions) for a single worktree. Lightweight — no config or status loading.

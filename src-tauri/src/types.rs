@@ -350,6 +350,8 @@ pub struct GlobalAppConfig {
     pub collapsed_kanban_columns: Vec<String>,
     #[serde(default)]
     pub sidebar_collapsed: Option<bool>,
+    #[serde(default)]
+    pub active_worktree_id: Option<String>,
 }
 
 fn default_editor() -> String { "vscode".into() }
