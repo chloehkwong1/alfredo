@@ -30,7 +30,6 @@ interface WorkspaceState {
   removeWorktree: (id: string) => void;
   archiveWorktree: (id: string) => void;
   updateWorktree: (id: string, patch: Partial<Worktree>) => void;
-  setColumn: (id: string, column: KanbanColumn) => void;
   setManualColumn: (id: string, column: KanbanColumn) => void;
   setActiveWorktree: (id: string | null) => void;
   setWorktrees: (worktrees: Worktree[]) => void;
@@ -161,13 +160,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       };
     }),
 
-  setColumn: (id, column) =>
-    set((state) => ({
-      worktrees: state.worktrees.map((wt) =>
-        wt.id === id ? { ...wt, column } : wt,
-      ),
-    })),
-
   setManualColumn: (id, column) =>
     set((state) => ({
       worktrees: state.worktrees.map((wt) =>
@@ -175,18 +167,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       ),
     })),
 
-  setActiveWorktree: (id) => {
-    const prev = useWorkspaceStore.getState().activeWorktreeId;
-    if (prev !== id) {
-      const clickedSidebar = !!(document.activeElement as HTMLElement)?.closest?.("[data-sidebar]");
-      if (!clickedSidebar) {
-        const stack = new Error().stack ?? "(no stack)";
-        // eslint-disable-next-line no-alert
-        alert(`activeWorktreeId changed WITHOUT sidebar click!\n\nFrom: ${prev}\nTo: ${id}\n\nStack:\n${stack.split("\n").slice(1, 6).join("\n")}`);
-      }
-    }
-    set({ activeWorktreeId: id });
-  },
+  setActiveWorktree: (id) => set({ activeWorktreeId: id }),
 
   setWorktrees: (freshWorktrees) =>
     set((state) => ({
