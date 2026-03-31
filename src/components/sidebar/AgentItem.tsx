@@ -72,31 +72,33 @@ function ThinkingDots() {
   );
 }
 
-const ATTENTION_STATES = new Set(["busy", "waitingForInput", "done", "error"]);
+const NEEDS_YOU_STATES = new Set(["waitingForInput", "done", "error"]);
 
-function isAttentionState(status: string): boolean {
-  return ATTENTION_STATES.has(status);
+function needsAttention(status: string): boolean {
+  return NEEDS_YOU_STATES.has(status);
 }
 
-function getBleedClass(status: string): string {
+function getBorderClass(status: string): string {
   switch (status) {
-    case "busy": return "bleed-busy";
-    case "waitingForInput": return "bleed-waiting";
-    case "done": return "bleed-done";
-    case "error": return "bleed-error";
-    default: return "border-l-[3px] border-l-transparent";
+    case "waitingForInput":
+    case "done":
+      return "border-attn";
+    case "error":
+      return "border-error";
+    default:
+      return "border-l-[3px] border-l-transparent";
   }
 }
 
 function getDotGlowClass(status: string): string {
   switch (status) {
-    case "busy": return "dot-glow-busy";
-    case "waitingForInput": return "dot-glow-waiting";
-    case "done": return "dot-glow-done";
-    case "error": return "dot-glow-error";
-    case "disconnected":
-    case "stale": return "dot-glow-amber";
-    default: return "";
+    case "waitingForInput":
+    case "done":
+      return "dot-glow-attn";
+    case "error":
+      return "dot-glow-error";
+    default:
+      return "";
   }
 }
 
@@ -121,10 +123,10 @@ interface AgentItemProps {
 }
 
 const statusDotColor: Record<string, string> = {
-  waitingForInput: "bg-status-waiting",
+  waitingForInput: "bg-accent-primary",
   busy: "bg-status-busy",
   idle: "bg-status-idle",
-  done: "bg-blue-400",
+  done: "bg-accent-primary",
   error: "bg-status-error",
   notRunning: "bg-text-tertiary",
   disconnected: "bg-amber-400",
@@ -172,12 +174,13 @@ function useAgentItemState(worktree: Worktree) {
   const effectiveStatus = computeEffectiveStatus(
     worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, isSeen,
   );
-  const shouldPulse = effectiveStatus === "busy" || effectiveStatus === "waitingForInput";
+  const shouldPulse = effectiveStatus === "waitingForInput";
   return { prSummary, isServerRunning, effectiveStatus, shouldPulse };
 }
 
 interface AgentItemContentProps {
   worktree: Worktree;
+  isSelected: boolean;
   effectiveStatus: string;
   shouldPulse: boolean;
   isServerRunning: boolean;
@@ -190,7 +193,7 @@ interface AgentItemContentProps {
 }
 
 function AgentItemContent({
-  worktree, effectiveStatus, shouldPulse, isServerRunning, prSummary,
+  worktree, isSelected, effectiveStatus, shouldPulse, isServerRunning, prSummary,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemContentProps) {
   return (
@@ -207,10 +210,10 @@ function AgentItemContent({
         {/* Line 1: branch name, PR number, server indicator, timestamp */}
         <div className="flex items-center gap-2">
           <span className={[
-            "text-sm truncate",
-            isAttentionState(effectiveStatus)
-              ? "font-semibold text-text-primary"
-              : "font-medium text-text-primary",
+            "text-sm truncate text-text-primary",
+            (isSelected || needsAttention(effectiveStatus))
+              ? "font-semibold"
+              : "font-medium",
           ].join(" ")}>
             {worktree.name}
           </span>
@@ -236,7 +239,7 @@ function AgentItemContent({
             (effectiveStatus as string) === "busy"
               ? "text-status-busy font-medium"
               : (effectiveStatus as string) === "waitingForInput"
-                ? "text-status-waiting font-medium"
+                ? "text-accent-primary font-medium"
                 : (effectiveStatus as string) === "done"
                   ? "text-accent-primary font-medium"
                   : (effectiveStatus as string) === "error"
@@ -322,20 +325,15 @@ function AgentItem({
               "w-full text-left py-2 px-3.5 flex items-start gap-2",
               "transition-all duration-[var(--transition-fast)]",
               isDragging ? "opacity-0 pointer-events-none" : "cursor-grab",
-              getBleedClass(effectiveStatus),
-              isSelected && !isAttentionState(effectiveStatus)
-                ? "bg-[rgba(255,255,255,0.05)]"
-                : "",
-              isSelected && isAttentionState(effectiveStatus)
-                ? "brightness-110"
-                : "",
-              !isSelected && !isAttentionState(effectiveStatus)
-                ? "hover:bg-[rgba(255,255,255,0.035)]"
-                : "",
+              getBorderClass(effectiveStatus),
+              isSelected
+                ? "bg-[rgba(255,255,255,0.07)]"
+                : "hover:bg-[rgba(255,255,255,0.035)]",
             ].join(" ")}
           >
             <AgentItemContent
               worktree={worktree}
+              isSelected={isSelected}
               effectiveStatus={effectiveStatus}
               shouldPulse={shouldPulse}
               isServerRunning={isServerRunning}
