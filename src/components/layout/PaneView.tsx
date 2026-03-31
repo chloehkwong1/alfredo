@@ -1,7 +1,9 @@
 import { PaneTabBar } from "./PaneTabBar";
 import { TerminalView } from "../terminal";
+import { ChangesView } from "../changes/ChangesView";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { WorkspaceTab } from "../../types";
 
 interface PaneViewProps {
@@ -29,6 +31,7 @@ function PaneView({
 
   const activeTabId = pane?.activeTabId;
   const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabId);
+  const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -42,9 +45,11 @@ function PaneView({
         runScriptUrl={runScriptUrl}
       />
       <div className="flex-1 min-h-0 min-w-0 relative">
-        {(activeTab?.type === "claude" || activeTab?.type === "shell" || activeTab?.type === "server") && (
+        {activeTab?.type === "changes" ? (
+          <ChangesView worktreeId={worktreeId} repoPath={worktree?.path ?? "."} />
+        ) : (activeTab?.type === "claude" || activeTab?.type === "shell" || activeTab?.type === "server") ? (
           <TerminalView key={activeTab.id} tabId={activeTab.id} tabType={activeTab.type} />
-        )}
+        ) : null}
       </div>
     </div>
   );

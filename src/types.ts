@@ -218,7 +218,7 @@ export interface CommitInfo {
 
 // ── Workspace tabs ──────────────────────────────────────────────
 
-export type TabType = "claude" | "shell" | "server";
+export type TabType = "claude" | "shell" | "server" | "changes";
 
 export type DiffViewMode = "unified" | "split";
 export type PrPanelState = "open" | "collapsed";

@@ -5,6 +5,7 @@ import {
   Terminal,
   Sparkles,
   Play,
+  GitCompareArrows,
   Square,
   ExternalLink,
   PanelRight,
@@ -49,6 +50,7 @@ const TAB_ICONS: Record<TabType, typeof Terminal> = {
   claude: Sparkles,
   shell: Terminal,
   server: Play,
+  changes: GitCompareArrows,
 };
 
 interface PaneTabBarProps {

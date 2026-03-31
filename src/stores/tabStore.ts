@@ -34,7 +34,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     const hasClaude = existing.some((t) => t.type === "claude");
     const hasShell = existing.some((t) => t.type === "shell");
     // Remove stale tabs from before redesigns (e.g. "pr", "changes")
-    const validTypes = new Set(["claude", "shell", "server"]);
+    const validTypes = new Set(["claude", "shell", "server", "changes"]);
     const cleaned = existing.filter((t) => validTypes.has(t.type));
     const hadStale = cleaned.length !== existing.length;
 
