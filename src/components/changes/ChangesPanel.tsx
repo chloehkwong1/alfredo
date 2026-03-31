@@ -2,9 +2,13 @@ import { useCallback, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { FileSidebar } from "./FileSidebar";
 import { PrPanelContent, PrRailIcons } from "./PrPanel";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/Dialog";
+import { Button } from "../ui/Button";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useTabStore } from "../../stores/tabStore";
 import { useChangesData } from "../../hooks/useChangesData";
+import { discardFile } from "../../api";
 import type { ViewMode } from "./FileSidebar";
 
 const EMPTY_COLLAPSED = new Set<string>();
@@ -29,7 +33,7 @@ function WorkspacePanel({
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
-  const { uncommittedFiles, committedFiles, commits } = useChangesData(
+  const { uncommittedFiles, committedFiles, commits, refetchUncommitted } = useChangesData(
     repoPath,
     dataViewMode,
     selectedCommitIndex,
@@ -37,37 +41,80 @@ function WorkspacePanel({
     pr?.number,
   );
 
-  const handleSelectCommit = useCallback((index: number) => {
-    setSelectedCommitIndex(index);
-    setActiveFilePath(null);
-    // Dispatch event so ChangesView can update its commit selection
-    window.dispatchEvent(
-      new CustomEvent("alfredo:changes-panel-select-commit", { detail: { index } }),
-    );
+  // ── Discard state ──────────────────────────────────────────
+  const [discardTarget, setDiscardTarget] = useState<{ path: string; status: string } | null>(null);
+
+  const handleDiscardFile = useCallback((path: string, status: string) => {
+    setDiscardTarget({ path, status });
   }, []);
+
+  const handleConfirmDiscard = useCallback(async () => {
+    if (!discardTarget) return;
+    try {
+      await discardFile(repoPath, discardTarget.path, discardTarget.status);
+      refetchUncommitted();
+    } catch (err) {
+      console.error("Discard failed:", err);
+    } finally {
+      setDiscardTarget(null);
+    }
+  }, [discardTarget, repoPath, refetchUncommitted]);
 
   const activateChangesTab = useCallback(
     () => {
+      const changesTabId = `${worktreeId}:changes`;
+      const tabState = useTabStore.getState();
+      const existingTabs = tabState.tabs[worktreeId] ?? [];
+
+      // Ensure the changes tab exists in the tab store
+      if (!existingTabs.some((t) => t.id === changesTabId)) {
+        const updatedTabs = [...existingTabs, { id: changesTabId, type: "changes" as const, label: "Changes" }];
+        tabState.restoreTabs(
+          worktreeId,
+          updatedTabs,
+          tabState.activeTabId[worktreeId] ?? existingTabs[0]?.id ?? changesTabId,
+        );
+      }
+
       const layoutState = useLayoutStore.getState();
       const activePaneId = layoutState.activePaneId[worktreeId];
-      const changesTabId = `${worktreeId}:changes`;
+      if (!activePaneId) return;
 
-      if (activePaneId) {
+      // Ensure the changes tab is in the pane's tab list
+      const pane = layoutState.panes[worktreeId]?.[activePaneId];
+      if (pane && !pane.tabIds.includes(changesTabId)) {
+        layoutState.addTabToPane(worktreeId, activePaneId, changesTabId);
+      } else {
         layoutState.setPaneActiveTab(worktreeId, activePaneId, changesTabId);
       }
     },
     [worktreeId],
   );
 
+  const handleSelectCommit = useCallback((index: number) => {
+    setSelectedCommitIndex(index);
+    setActiveFilePath(null);
+    activateChangesTab();
+
+    // Dispatch after a frame so ChangesView has time to mount if the tab was just created
+    requestAnimationFrame(() => {
+      window.dispatchEvent(
+        new CustomEvent("alfredo:changes-panel-select-commit", { detail: { index } }),
+      );
+    });
+  }, [activateChangesTab]);
+
   const handleSelectFile = useCallback(
     (path: string) => {
       setActiveFilePath(path);
       activateChangesTab();
 
-      // Dispatch event so ChangesView can scroll/highlight the file
-      window.dispatchEvent(
-        new CustomEvent("alfredo:changes-panel-select-file", { detail: { path } }),
-      );
+      // Dispatch after a frame so ChangesView has time to mount if the tab was just created
+      requestAnimationFrame(() => {
+        window.dispatchEvent(
+          new CustomEvent("alfredo:changes-panel-select-file", { detail: { path } }),
+        );
+      });
     },
     [activateChangesTab],
   );
@@ -76,15 +123,15 @@ function WorkspacePanel({
     (filePath: string, line: number) => {
       activateChangesTab();
 
-      // Select the file in the changes view
-      window.dispatchEvent(
-        new CustomEvent("alfredo:changes-panel-select-file", { detail: { path: filePath } }),
-      );
-
-      // Jump to the specific comment line
-      window.dispatchEvent(
-        new CustomEvent("alfredo:changes-panel-jump-to-comment", { detail: { path: filePath, line } }),
-      );
+      // Dispatch after a frame so ChangesView has time to mount if the tab was just created
+      requestAnimationFrame(() => {
+        window.dispatchEvent(
+          new CustomEvent("alfredo:changes-panel-select-file", { detail: { path: filePath } }),
+        );
+        window.dispatchEvent(
+          new CustomEvent("alfredo:changes-panel-jump-to-comment", { detail: { path: filePath, line } }),
+        );
+      });
 
       // Switch back to files tab
       setChangesViewMode(worktreeId, "changes");
@@ -98,6 +145,11 @@ function WorkspacePanel({
       if (tab !== "pr") {
         setSelectedCommitIndex(null);
         setActiveFilePath(null);
+      }
+      // Always dispatch clear-focus when clicking Files or Commits tab header
+      // This exits focused mode even if already on the same tab
+      if (tab === "changes" || tab === "commits") {
+        window.dispatchEvent(new CustomEvent("alfredo:changes-panel-clear-focus"));
       }
     },
     [worktreeId, setChangesViewMode],
@@ -181,9 +233,28 @@ function WorkspacePanel({
             activeFilePath={activeFilePath}
             collapsedFiles={EMPTY_COLLAPSED}
             onSelectFile={handleSelectFile}
+            onDiscardFile={handleDiscardFile}
           />
         </div>
       )}
+
+      {/* Discard confirmation dialog */}
+      <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Discard changes?</DialogTitle>
+            <DialogDescription>
+              {discardTarget?.status === "added"
+                ? `This will delete "${discardTarget.path}". This action cannot be undone.`
+                : `This will revert all changes to "${discardTarget?.path ?? ""}". This action cannot be undone.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDiscardTarget(null)}>Cancel</Button>
+            <Button variant="danger" onClick={handleConfirmDiscard}>Discard</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
