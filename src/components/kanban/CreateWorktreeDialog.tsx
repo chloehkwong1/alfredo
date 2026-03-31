@@ -147,7 +147,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
             </DialogDescription>
           </DialogHeader>
 
-          {repos && selectedRepos && repoColors && currentRepoPath && (
+          {repos && selectedRepos && selectedRepos.length > 1 && repoColors && currentRepoPath && (
             <RepoDropdown
               repos={repos}
               selectedRepos={selectedRepos}

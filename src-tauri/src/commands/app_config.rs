@@ -57,6 +57,12 @@ pub async fn set_selected_repos(app: AppHandle, paths: Vec<String>) -> Result<Gl
     let dir = app_data_dir(&app)?;
     let mut config = app_config_manager::load(&dir).await?;
     config.selected_repos = paths;
+    // Keep active_repo in sync — if it's no longer selected, switch to the first selected repo
+    if let Some(ref active) = config.active_repo {
+        if !config.selected_repos.contains(active) {
+            config.active_repo = config.selected_repos.first().cloned();
+        }
+    }
     app_config_manager::save(&dir, &config).await?;
     Ok(config)
 }
