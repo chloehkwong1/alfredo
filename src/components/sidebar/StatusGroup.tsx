@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useDroppable } from "@dnd-kit/core";
 import {
@@ -71,6 +72,22 @@ function StatusGroup({
 }: StatusGroupProps) {
   const collapsed = isCollapsed ?? false;
   const { isOver, setNodeRef } = useDroppable({ id: column });
+  const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-expand collapsed section after 500ms hover during drag
+  useEffect(() => {
+    if (collapsed && isOver && dragActiveId != null) {
+      expandTimerRef.current = setTimeout(() => {
+        onToggleCollapsed?.(column);
+      }, 500);
+    }
+    return () => {
+      if (expandTimerRef.current) {
+        clearTimeout(expandTimerRef.current);
+        expandTimerRef.current = null;
+      }
+    };
+  }, [collapsed, isOver, dragActiveId, column, onToggleCollapsed]);
 
   const isVisible =
     worktrees.length > 0 || column === "inProgress" || forceVisible === true;
@@ -83,11 +100,15 @@ function StatusGroup({
   // Show a drop placeholder when dragging over this group from a different group
   const draggedItemIsInThisGroup = dragActiveId != null && worktrees.some((wt) => wt.id === dragActiveId);
   const showDropPlaceholder = isOver && !draggedItemIsInThisGroup && dragActiveId != null;
+  const showCollapsedDropHint = collapsed && isOver && !draggedItemIsInThisGroup && dragActiveId != null;
 
   return (
     <div
       ref={setNodeRef}
-      className="w-full mt-2 first:mt-0 rounded-md transition-colors"
+      className={[
+        "w-full mt-2 first:mt-0 rounded-md transition-colors",
+        showCollapsedDropHint ? "bg-accent-muted/30 ring-1 ring-accent-primary/30" : "",
+      ].join(" ")}
     >
       {/* Group header */}
       <button

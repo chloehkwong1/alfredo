@@ -16,9 +16,11 @@ import { AgentItemOverlay } from "./AgentItemOverlay";
 
 interface SidebarDragContextProps {
   children: (isDragging: boolean, activeId: string | null, dragHeight: number | null) => ReactNode;
+  collapsedColumns?: string[];
+  onExpandColumn?: (column: KanbanColumn) => void;
 }
 
-function SidebarDragContext({ children }: SidebarDragContextProps) {
+function SidebarDragContext({ children, collapsedColumns, onExpandColumn }: SidebarDragContextProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const setManualColumn = useWorkspaceStore((s) => s.setManualColumn);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -55,6 +57,14 @@ function SidebarDragContext({ children }: SidebarDragContextProps) {
       const stateKey = worktree.prStatus?.merged ? "merged" : worktree.prStatus?.draft ? "draft" : "open";
       usePrStore.getState().setManualColumn(worktreeId, targetColumn, stateKey);
       setManualColumn(worktreeId, targetColumn);
+
+      // Move dropped worktree to the front of the array so it appears at top of the target section
+      useWorkspaceStore.getState().moveWorktreeToFront(worktreeId);
+
+      // Expand section if it was collapsed
+      if (collapsedColumns?.includes(targetColumn)) {
+        onExpandColumn?.(targetColumn);
+      }
 
       // Persist column override via Tauri command (fire-and-forget)
       setWorktreeColumn(worktree.repoPath, worktree.name, targetColumn).catch(() => {

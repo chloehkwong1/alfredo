@@ -230,7 +230,7 @@ function Sidebar({
         <>
           {/* Scrollable agent list */}
           <div className="flex-1 overflow-y-auto py-3">
-            <SidebarDragContext>
+            <SidebarDragContext collapsedColumns={collapsedColumns} onExpandColumn={handleToggleCollapsed}>
               {(isDragging, dragActiveId, dragHeight) =>
                 COLUMNS.map((col) => (
                   <StatusGroup

@@ -34,6 +34,7 @@ interface WorkspaceState {
   unarchiveWorktree: (id: string) => void;
   updateWorktree: (id: string, patch: Partial<Worktree>) => void;
   setManualColumn: (id: string, column: KanbanColumn) => void;
+  moveWorktreeToFront: (id: string) => void;
   setActiveWorktree: (id: string | null) => void;
   setWorktrees: (worktrees: Worktree[]) => void;
   applyWorktreePatches: (patches: Map<string, Partial<Worktree>>) => void;
@@ -179,6 +180,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
         wt.id === id ? { ...wt, column } : wt,
       ),
     })),
+
+  moveWorktreeToFront: (id) =>
+    set((state) => {
+      const idx = state.worktrees.findIndex((wt) => wt.id === id);
+      if (idx <= 0) return state;
+      const item = state.worktrees[idx];
+      const rest = [...state.worktrees.slice(0, idx), ...state.worktrees.slice(idx + 1)];
+      return { worktrees: [item, ...rest] };
+    }),
 
   setActiveWorktree: (id) => set({ activeWorktreeId: id }),
 
