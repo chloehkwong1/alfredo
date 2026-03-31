@@ -13,8 +13,8 @@ use tokio::sync::oneshot;
 use crate::app_config_manager;
 use crate::types::{AppError, LinearOAuthTokens};
 
-const CLIENT_ID: &str = "REPLACE_WITH_LINEAR_CLIENT_ID";
-const CLIENT_SECRET: &str = "REPLACE_WITH_LINEAR_CLIENT_SECRET";
+const CLIENT_ID: &str = env!("LINEAR_CLIENT_ID");
+const CLIENT_SECRET: &str = env!("LINEAR_CLIENT_SECRET");
 const AUTH_URL: &str = "https://linear.app/oauth/authorize";
 const TOKEN_URL: &str = "https://api.linear.app/oauth/token";
 

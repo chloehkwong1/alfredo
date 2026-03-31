@@ -19,6 +19,9 @@ src-tauri/gen/
 # Alfredo runtime config (tokens, user prefs)
 .alfredo.json
 
+# Environment secrets
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
