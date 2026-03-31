@@ -158,6 +158,23 @@ export function searchLinearIssues(
   return invoke("search_linear_issues", { query, teamId: teamId ?? null });
 }
 
+export function linearOAuthStart(): Promise<void> {
+  return invoke("linear_oauth_start");
+}
+
+export function linearOAuthDisconnect(): Promise<void> {
+  return invoke("linear_oauth_disconnect");
+}
+
+export interface LinearOAuthStatus {
+  connected: boolean;
+  displayName: string | null;
+}
+
+export function linearOAuthStatus(): Promise<LinearOAuthStatus> {
+  return invoke("linear_oauth_status");
+}
+
 // ── Diff ───────────────────────────────────────────────────────
 
 export function getDiff(repoPath: string, defaultBranch?: string): Promise<DiffFile[]> {
