@@ -1,0 +1,27 @@
+src-tauri/build.rs
+  228ccb7267cff326 2-20
+src-tauri/src/linear_oauth.rs
+  228ccb7267cff326 16-17
+.gitignore
+  228ccb7267cff326 22-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "aab9f6e35de99b2e03da13a0a0220eead0e7fe6c",
+  "prompts": {
+    "228ccb7267cff326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e642408-3d12-4a23-aca9-549d6b2339cc",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 3,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}
