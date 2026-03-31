@@ -119,6 +119,8 @@ pub fn run() {
             diff::get_default_branch,
             diff::get_diff_for_commit,
             diff::get_file_lines,
+            diff::discard_file,
+            diff::discard_all_uncommitted,
             // External Tools
             external_tools::open_in_editor,
             external_tools::open_in_terminal,

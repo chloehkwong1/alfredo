@@ -9,6 +9,7 @@ interface UseChangesDataReturn {
   commits: CommitInfo[];
   commitFiles: DiffFile[];
   displayFiles: DiffFile[];
+  refetchUncommitted: () => void;
 }
 
 export function useChangesData(
@@ -22,6 +23,9 @@ export function useChangesData(
   const [committedFiles, setCommittedFiles] = useState<DiffFile[]>([]);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [commitFiles, setCommitFiles] = useState<DiffFile[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refetchUncommitted = () => setRefreshKey((k) => k + 1);
 
   // Always load uncommitted files (no viewMode guard), poll to pick up new edits
   useEffect(() => {
@@ -34,7 +38,7 @@ export function useChangesData(
     fetch();
     const interval = setInterval(fetch, 3_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [repoPath]);
+  }, [repoPath, refreshKey]);
 
   // Load committed files and commits — from GitHub API when PR exists, local git otherwise.
   // Local git paths poll every 10s to pick up new commits; GitHub API paths fetch once
@@ -120,5 +124,5 @@ export function useChangesData(
     }
   }, [viewMode, uncommittedFiles, committedFiles, commitFiles, selectedCommitIndex]);
 
-  return { uncommittedFiles, committedFiles, commits, commitFiles, displayFiles };
+  return { uncommittedFiles, committedFiles, commits, commitFiles, displayFiles, refetchUncommitted };
 }

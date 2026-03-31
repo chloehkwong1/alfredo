@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use git2::{Delta, DiffFormat, DiffOptions, Repository, Sort};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::types::AppError;
 
@@ -588,6 +588,188 @@ pub async fn get_file_lines(
             .collect();
 
         Ok(lines)
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
+// ── Discard Commands ──────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscardFileInfo {
+    pub path: String,
+    pub old_path: Option<String>,
+    pub status: String,
+}
+
+/// Validate that `file_path` does not escape `repo_path` via path traversal.
+fn validate_path_within_repo(repo_path: &str, file_path: &str) -> Result<()> {
+    let repo = std::path::Path::new(repo_path)
+        .canonicalize()
+        .map_err(|e| AppError::Git(format!("failed to canonicalize repo path: {e}")))?;
+    let full = std::path::Path::new(repo_path)
+        .join(file_path)
+        .canonicalize()
+        .map_err(|e| AppError::Git(format!("failed to canonicalize file path: {e}")))?;
+    if !full.starts_with(&repo) {
+        return Err(AppError::Git("file path escapes repository".into()));
+    }
+    Ok(())
+}
+
+/// Discard uncommitted changes for a single file.
+#[tauri::command]
+pub async fn discard_file(
+    repo_path: String,
+    file_path: String,
+    file_status: String,
+) -> Result<()> {
+    tokio::task::spawn_blocking(move || {
+        match file_status.as_str() {
+            "added" => {
+                // Untracked file — just delete it
+                validate_path_within_repo(&repo_path, &file_path)?;
+                let abs = std::path::Path::new(&repo_path).join(&file_path);
+                std::fs::remove_file(&abs)
+                    .map_err(|e| AppError::Git(format!("failed to delete file: {e}")))?;
+            }
+            "modified" | "deleted" => {
+                // For deleted files the path won't exist on disk, so canonicalize
+                // may fail. Check for traversal patterns as fallback.
+                validate_path_within_repo(&repo_path, &file_path)
+                    .or_else(|_| {
+                        if file_path.contains("..") {
+                            Err(AppError::Git("file path escapes repository".into()))
+                        } else {
+                            Ok(())
+                        }
+                    })?;
+                let output = std::process::Command::new("git")
+                    .args(["checkout", "HEAD", "--", &file_path])
+                    .current_dir(&repo_path)
+                    .output()
+                    .map_err(|e| AppError::Git(format!("failed to run git checkout: {e}")))?;
+                if !output.status.success() {
+                    let err = String::from_utf8_lossy(&output.stderr);
+                    return Err(AppError::Git(format!("git checkout failed: {err}")));
+                }
+            }
+            "renamed" => {
+                // For renamed files, file_path is the new name. We need to restore
+                // via git checkout HEAD -- which handles staged renames.
+                if file_path.contains("..") {
+                    return Err(AppError::Git("file path escapes repository".into()));
+                }
+                // Reset the index first, then checkout
+                let _ = std::process::Command::new("git")
+                    .args(["reset", "HEAD", "--", &file_path])
+                    .current_dir(&repo_path)
+                    .output();
+                let output = std::process::Command::new("git")
+                    .args(["checkout", "HEAD", "--", &file_path])
+                    .current_dir(&repo_path)
+                    .output()
+                    .map_err(|e| AppError::Git(format!("failed to run git checkout: {e}")))?;
+                if !output.status.success() {
+                    // Not fatal — the new path may not exist in HEAD
+                }
+                // Clean up the renamed-to file if it still exists
+                let abs = std::path::Path::new(&repo_path).join(&file_path);
+                if abs.exists() {
+                    let _ = std::fs::remove_file(&abs);
+                }
+            }
+            _ => {
+                return Err(AppError::Git(format!("unknown file status: {file_status}")));
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
+/// Discard all uncommitted changes.
+#[tauri::command]
+pub async fn discard_all_uncommitted(
+    repo_path: String,
+    files: Vec<DiscardFileInfo>,
+) -> Result<()> {
+    tokio::task::spawn_blocking(move || {
+        // Validate all paths first
+        for f in &files {
+            if f.path.contains("..") {
+                return Err(AppError::Git(format!(
+                    "file path escapes repository: {}",
+                    f.path
+                )));
+            }
+            if let Some(ref old) = f.old_path {
+                if old.contains("..") {
+                    return Err(AppError::Git(format!(
+                        "old file path escapes repository: {old}"
+                    )));
+                }
+            }
+        }
+
+        // Collect paths that need git checkout HEAD --
+        let mut checkout_paths: Vec<String> = Vec::new();
+        let mut untracked_paths: Vec<String> = Vec::new();
+        let mut renamed_new_paths: Vec<String> = Vec::new();
+
+        for f in &files {
+            match f.status.as_str() {
+                "added" => {
+                    untracked_paths.push(f.path.clone());
+                }
+                "modified" | "deleted" => {
+                    checkout_paths.push(f.path.clone());
+                }
+                "renamed" => {
+                    if let Some(ref old) = f.old_path {
+                        checkout_paths.push(old.clone());
+                    }
+                    renamed_new_paths.push(f.path.clone());
+                }
+                _ => {}
+            }
+        }
+
+        // Single git checkout for all modified/deleted/renamed-old paths
+        if !checkout_paths.is_empty() {
+            let mut args = vec!["checkout".to_string(), "HEAD".to_string(), "--".to_string()];
+            args.extend(checkout_paths);
+            let output = std::process::Command::new("git")
+                .args(&args)
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| AppError::Git(format!("failed to run git checkout: {e}")))?;
+            if !output.status.success() {
+                let err = String::from_utf8_lossy(&output.stderr);
+                return Err(AppError::Git(format!("git checkout failed: {err}")));
+            }
+        }
+
+        // Delete renamed new paths
+        for path in &renamed_new_paths {
+            let abs = std::path::Path::new(&repo_path).join(path);
+            if abs.exists() {
+                let _ = std::fs::remove_file(&abs);
+            }
+        }
+
+        // Delete untracked (added) files
+        for path in &untracked_paths {
+            let abs = std::path::Path::new(&repo_path).join(path);
+            if abs.exists() {
+                std::fs::remove_file(&abs)
+                    .map_err(|e| AppError::Git(format!("failed to delete {path}: {e}")))?;
+            }
+        }
+
+        Ok(())
     })
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?

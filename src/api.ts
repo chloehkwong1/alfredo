@@ -213,6 +213,27 @@ export function getFileLines(
   });
 }
 
+export interface DiscardFileInfo {
+  path: string;
+  oldPath?: string;
+  status: string;
+}
+
+export function discardFile(
+  repoPath: string,
+  filePath: string,
+  fileStatus: string,
+): Promise<void> {
+  return invoke("discard_file", { repoPath, filePath, fileStatus });
+}
+
+export function discardAllUncommitted(
+  repoPath: string,
+  files: DiscardFileInfo[],
+): Promise<void> {
+  return invoke("discard_all_uncommitted", { repoPath, files });
+}
+
 // ── Repo ───────────────────────────────────────────────────────
 
 export function validateGitRepo(path: string): Promise<boolean> {
