@@ -125,6 +125,65 @@ pub async fn search_issues(
     Ok(tickets)
 }
 
+/// List issues assigned to the authenticated viewer.
+pub async fn list_assigned_issues(
+    api_key: &str,
+) -> Result<Vec<LinearTicket>, AppError> {
+    let graphql_query = r#"query AssignedIssues {
+  viewer {
+    assignedIssues(first: 50, orderBy: updatedAt, filter: { state: { type: { nin: ["completed", "canceled"] } } }) {
+      nodes {
+        id
+        identifier
+        title
+        description
+        url
+        state { name }
+        labels { nodes { name } }
+        assignee { name }
+        branchName
+        updatedAt
+      }
+    }
+  }
+}"#;
+
+    let body = serde_json::json!({ "query": graphql_query });
+
+    let resp = client(api_key)?
+        .post(GRAPHQL_ENDPOINT)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::Linear(format!("request failed: {e}")))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(AppError::Linear(format!(
+            "Linear API returned {status}: {text}"
+        )));
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::Linear(format!("failed to parse response: {e}")))?;
+
+    if let Some(errors) = json.get("errors") {
+        return Err(AppError::Linear(format!("GraphQL errors: {errors}")));
+    }
+
+    let nodes = json
+        .pointer("/data/viewer/assignedIssues/nodes")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let tickets = nodes.iter().map(parse_issue_node).collect::<Result<Vec<_>, _>>()?;
+    Ok(tickets)
+}
+
 /// Fetch full details for a single Linear issue by ID.
 pub async fn get_issue(
     api_key: &str,

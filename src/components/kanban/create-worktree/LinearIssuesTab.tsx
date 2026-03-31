@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "../../ui/Input";
 import { SelectableList, SelectableItem } from "./SelectableList";
-import { searchLinearIssues } from "../../../api";
+import { searchLinearIssues, listMyLinearIssues } from "../../../api";
 import type { LinearTicket } from "../../../types";
 
 interface LinearIssuesTabProps {
@@ -11,17 +11,36 @@ interface LinearIssuesTabProps {
 }
 
 function LinearIssuesTab({ open, selectedIssueId, onSelectIssue }: LinearIssuesTabProps) {
-  const [results, setResults] = useState<LinearTicket[]>([]);
+  const [defaultIssues, setDefaultIssues] = useState<LinearTicket[]>([]);
+  const [searchResults, setSearchResults] = useState<LinearTicket[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Load assigned issues when tab opens
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(true);
+    listMyLinearIssues()
+      .then((issues) => {
+        if (!cancelled) setDefaultIssues(issues);
+      })
+      .catch(() => {
+        // Silently degrade — search still works
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [open]);
+
   const searchLinear = useCallback((q: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (!q.trim()) {
-      setResults([]);
+      setSearchResults(null);
       setError(null);
       setLoading(false);
       return;
@@ -31,11 +50,11 @@ function LinearIssuesTab({ open, selectedIssueId, onSelectIssue }: LinearIssuesT
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await searchLinearIssues(q);
-        setResults(res);
+        setSearchResults(res);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
-        setResults([]);
+        setSearchResults(null);
       } finally {
         setLoading(false);
       }
@@ -52,14 +71,16 @@ function LinearIssuesTab({ open, selectedIssueId, onSelectIssue }: LinearIssuesT
   useEffect(() => {
     if (!open) {
       setQuery("");
-      setResults([]);
+      setSearchResults(null);
+      setDefaultIssues([]);
       setError(null);
     }
   }, [open]);
 
+  const results = searchResults ?? defaultIssues;
   const emptyMessage = query.trim()
     ? "No issues found."
-    : "Type to search Linear issues.";
+    : "No assigned issues.";
 
   return (
     <div className="flex flex-col gap-3">

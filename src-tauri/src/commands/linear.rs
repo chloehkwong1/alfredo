@@ -57,6 +57,14 @@ pub async fn search_linear_issues(
     Ok(tickets)
 }
 
+/// List assigned issues for the current viewer (prepopulates the Linear tab).
+#[tauri::command]
+pub async fn list_my_linear_issues(app: AppHandle) -> Result<Vec<LinearTicket>> {
+    let app_data = app_data_dir(&app)?;
+    let api_key = linear_manager::resolve_token(&app_data, ".").await?;
+    linear_manager::list_assigned_issues(&api_key).await
+}
+
 /// Get full details for a single Linear issue.
 #[tauri::command]
 pub async fn get_linear_issue(app: AppHandle, issue_id: String) -> Result<LinearTicket> {

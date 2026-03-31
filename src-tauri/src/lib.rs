@@ -113,6 +113,7 @@ pub fn run() {
             branch::delete_branch,
             // Linear
             linear::search_linear_issues,
+            linear::list_my_linear_issues,
             linear::get_linear_issue,
             linear::list_linear_teams,
             // Linear OAuth

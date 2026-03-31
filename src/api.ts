@@ -158,6 +158,10 @@ export function searchLinearIssues(
   return invoke("search_linear_issues", { query, teamId: teamId ?? null });
 }
 
+export function listMyLinearIssues(): Promise<LinearTicket[]> {
+  return invoke("list_my_linear_issues");
+}
+
 export function linearOAuthStart(): Promise<void> {
   return invoke("linear_oauth_start");
 }
