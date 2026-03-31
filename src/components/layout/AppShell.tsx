@@ -6,6 +6,7 @@ import { StatusBar } from "./StatusBar";
 import { RemoteControlBar } from "./RemoteControlBar";
 import { LayoutRenderer } from "./LayoutRenderer";
 import { WorkspacePanel, WorkspacePanelMinimized } from "../changes/ChangesPanel";
+
 import { RepoWelcomeScreen } from "../onboarding/RepoWelcomeScreen";
 import { AddRepoModal } from "../onboarding/AddRepoModal";
 import { RepoSetupDialog } from "../onboarding/RepoSetupDialog";
@@ -54,6 +55,7 @@ function collectAndSaveAllSessions(repoPath: string) {
     (wtId) => state.changesViewMode[wtId],
     (wtId) => state.changesPanelCollapsed[wtId],
     (wtId) => state.seenWorktrees.has(wtId) || undefined,
+    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.claudeSessionId,
   );
 }
 
@@ -267,6 +269,12 @@ function AppShell() {
     storage: localStorage,
   });
 
+  const changesPanelLayout = useDefaultLayout({
+    id: "changes-panel",
+    storage: localStorage,
+    panelIds: changesPanelCollapsed ? ["content"] : ["content", "changes"],
+  });
+
   // Show cat logo while loading persisted repo path
   if (loading) {
     return (
@@ -346,8 +354,13 @@ function AppShell() {
         <main className="flex-1 min-h-0 relative flex">
           {activeWorktreeId ? (
             <>
-              <Group orientation="horizontal" className="flex-1 min-h-0">
-                <Panel minSize={changesPanelCollapsed ? "100%" : "50%"}>
+              <Group
+                orientation="horizontal"
+                className="flex-1 min-h-0"
+                defaultLayout={changesPanelLayout.defaultLayout}
+                onLayoutChanged={changesPanelLayout.onLayoutChanged}
+              >
+                <Panel id="content" minSize={changesPanelCollapsed ? "100%" : "50%"}>
                   <LayoutRenderer
                     worktreeId={activeWorktreeId}
                     onToggleServer={handleToggleServer}
@@ -359,7 +372,7 @@ function AppShell() {
                 {!changesPanelCollapsed && (
                   <>
                     <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
-                    <Panel defaultSize="220px" minSize="140px" maxSize="400px">
+                    <Panel id="changes" defaultSize="220px" minSize="140px" maxSize="400px">
                       <WorkspacePanel
                         key={activeWorktreeId}
                         worktreeId={activeWorktreeId}

@@ -28,10 +28,12 @@ function PaneView({
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
   const activePaneId = useLayoutStore((s) => s.activePaneId[worktreeId]);
   const isActivePane = activePaneId === paneId;
+  const worktree = useWorkspaceStore((s) => s.worktrees.find((wt) => wt.id === worktreeId));
 
   const activeTabId = pane?.activeTabId;
   const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabId);
-  const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
+
+  const showChanges = activeTab?.type === "changes";
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -45,11 +47,17 @@ function PaneView({
         runScriptUrl={runScriptUrl}
       />
       <div className="flex-1 min-h-0 min-w-0 relative">
-        {activeTab?.type === "changes" ? (
-          <ChangesView worktreeId={worktreeId} repoPath={worktree?.path ?? "."} />
-        ) : (activeTab?.type === "claude" || activeTab?.type === "shell" || activeTab?.type === "server") ? (
+        {(activeTab?.type === "claude" || activeTab?.type === "shell" || activeTab?.type === "server") ? (
           <TerminalView key={activeTab.id} tabId={activeTab.id} tabType={activeTab.type} />
         ) : null}
+        {showChanges && (
+          <div className="absolute inset-0 z-10 bg-bg-primary">
+            <ChangesView
+              worktreeId={worktreeId}
+              repoPath={worktree?.path ?? "."}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

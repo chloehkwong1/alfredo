@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
   X,
@@ -10,7 +10,9 @@ import {
   ExternalLink,
   PanelRight,
   PanelBottom,
+  Radio,
 } from "lucide-react";
+import { IconButton } from "../ui/IconButton";
 import {
   DndContext,
   type DragEndEvent,
@@ -49,7 +51,7 @@ import { useState } from "react";
 const TAB_ICONS: Record<TabType, typeof Terminal> = {
   claude: Sparkles,
   shell: Terminal,
-  server: Play,
+  server: Radio,
   changes: GitCompareArrows,
 };
 
@@ -210,6 +212,7 @@ function PaneTabBar({
   function canClose(tab: WorkspaceTab) {
     if (tab.type === "claude" && allClaudeCount <= 1) return false;
     if (tab.type === "shell" && allShellCount <= 1) return false;
+    if (tab.type === "changes") return false;
     return true;
   }
 
@@ -309,35 +312,43 @@ function PaneTabBar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {onToggleServer && runScriptName && (
-        <>
-          <button
-            type="button"
-            onClick={onToggleServer}
-            title={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
-            className={[
-              "h-11 px-3 transition-colors cursor-pointer flex items-center",
-              isServerRunning
-                ? "text-green-400 hover:text-red-400"
-                : "text-text-tertiary hover:text-text-secondary",
-            ].join(" ")}
-          >
-            {isServerRunning ? <Square size={14} /> : <Play size={14} />}
-          </button>
-          {isServerRunning && (
-            <button
-              type="button"
-              onClick={() => openUrl(runScriptUrl ?? "http://localhost:3000")}
-              title={`Open ${runScriptUrl ?? "http://localhost:3000"}`}
-              className="h-11 px-3 transition-colors cursor-pointer flex items-center text-green-400 hover:text-text-primary"
-            >
-              <ExternalLink size={14} />
-            </button>
-          )}
-        </>
-      )}
-
       <div className="flex-1" />
+
+      {onToggleServer && runScriptName && (
+        <div className="flex items-center">
+          <AnimatePresence>
+            {isServerRunning && (
+              <motion.div
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: "auto" }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                <IconButton
+                  size="sm"
+                  label={`Open ${runScriptUrl ?? "http://localhost:3000"}`}
+                  onClick={() => openUrl(runScriptUrl ?? "http://localhost:3000")}
+                  className="text-status-idle hover:text-text-primary"
+                >
+                  <ExternalLink />
+                </IconButton>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <IconButton
+            size="sm"
+            label={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
+            onClick={onToggleServer}
+            className={
+              isServerRunning
+                ? "text-status-idle hover:text-red-400"
+                : "text-text-tertiary hover:text-text-secondary"
+            }
+          >
+            {isServerRunning ? <Square /> : <Play />}
+          </IconButton>
+        </div>
+      )}
     </div>
   );
 }
