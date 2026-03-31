@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DiffFileCard } from "./DiffFileCard";
-import { writePty, getConfig } from "../../api";
+import { writePty, getConfig, discardFile, discardAllUncommitted } from "../../api";
 import { resolveSettings, buildClaudeArgs } from "../../services/claudeSettingsResolver";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
@@ -8,10 +8,18 @@ import { usePrStore } from "../../stores/prStore";
 import { sessionManager } from "../../services/sessionManager";
 import { Button } from "../ui/Button";
 import { useChangesData } from "../../hooks/useChangesData";
-import { Search, ChevronUp, ChevronDown, X } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, X, Trash2 } from "lucide-react";
 import type { CommitInfo } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 import { useAppConfig } from "../../hooks/useAppConfig";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../ui/Dialog";
 
 interface SearchMatch {
   filePath: string;
@@ -78,9 +86,47 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const setJumpToComment = usePrStore((s) => s.setJumpToComment);
   const clearJumpToComment = usePrStore((s) => s.clearJumpToComment);
 
-  const { commits, displayFiles } = useChangesData(
+  const { commits, displayFiles, uncommittedFiles, refetchUncommitted } = useChangesData(
     repoPath, viewMode, selectedCommitIndex, pr?.baseBranch, pr?.number,
   );
+
+  // ── Discard state ──────────────────────────────────────────
+  const [discardTarget, setDiscardTarget] = useState<
+    null | { type: "file"; path: string; status: string } | { type: "all" }
+  >(null);
+
+  const handleDiscardFile = useCallback((path: string, status: string) => {
+    setDiscardTarget({ type: "file", path, status });
+  }, []);
+
+  const handleDiscardAll = useCallback(() => {
+    setDiscardTarget({ type: "all" });
+  }, []);
+
+  const handleCancelDiscard = useCallback(() => {
+    setDiscardTarget(null);
+  }, []);
+
+  const handleConfirmDiscard = useCallback(async () => {
+    if (!discardTarget) return;
+    try {
+      if (discardTarget.type === "file") {
+        await discardFile(repoPath, discardTarget.path, discardTarget.status);
+      } else {
+        const files = uncommittedFiles.map((f) => ({
+          path: f.path,
+          oldPath: f.oldPath,
+          status: f.status,
+        }));
+        await discardAllUncommitted(repoPath, files);
+      }
+      refetchUncommitted();
+    } catch (err) {
+      console.error("Discard failed:", err);
+    } finally {
+      setDiscardTarget(null);
+    }
+  }, [discardTarget, repoPath, uncommittedFiles, refetchUncommitted]);
 
   // Auto-collapse all files when the diff is large to prevent UI freeze
   const AUTO_COLLAPSE_THRESHOLD = 15;
@@ -533,37 +579,59 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
             {viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex] && (
               <CommitHeader commit={commits[selectedCommitIndex]} />
             )}
-            {displayFiles.map((file) => (
-            <DiffFileCard
-              key={file.path}
-              ref={(el) => {
-                if (el) {
-                  fileRefs.current.set(file.path, el);
-                } else {
-                  fileRefs.current.delete(file.path);
+            {/* Uncommitted section header with Discard All */}
+            {viewMode === "changes" && uncommittedFiles.length > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default">
+                <span className="text-[10px] font-medium text-text-secondary">
+                  Uncommitted ({uncommittedFiles.length})
+                </span>
+                <div className="ml-auto">
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={handleDiscardAll}
+                  >
+                    <Trash2 size={12} className="mr-1" />
+                    Discard All
+                  </Button>
+                </div>
+              </div>
+            )}
+            {displayFiles.map((file) => {
+              const isUncommitted = uncommittedFiles.some((u) => u.path === file.path);
+              return (
+              <DiffFileCard
+                key={file.path}
+                ref={(el) => {
+                  if (el) {
+                    fileRefs.current.set(file.path, el);
+                  } else {
+                    fileRefs.current.delete(file.path);
+                  }
+                }}
+                file={file}
+                expanded={!collapsedFiles.has(file.path)}
+                onToggleExpanded={handleToggleExpanded}
+                viewMode={diffViewMode}
+                annotations={annotations}
+                activeAnnotationLine={activeAnnotationLine}
+                onAddAnnotation={handleAddAnnotation}
+                onSubmitAnnotation={handleSubmitAnnotation}
+                onDeleteAnnotation={handleDeleteAnnotation}
+                onEditAnnotation={handleEditAnnotation}
+                prComments={prComments}
+                repoPath={repoPath}
+                commitHash={activeCommitHash}
+                searchQuery={searchQuery}
+                activeSearchMatch={
+                  activeSearchMatch?.filePath === file.path
+                    ? { hunkIndex: activeSearchMatch.hunkIndex, lineIndex: activeSearchMatch.lineIndex }
+                    : null
                 }
-              }}
-              file={file}
-              expanded={!collapsedFiles.has(file.path)}
-              onToggleExpanded={handleToggleExpanded}
-              viewMode={diffViewMode}
-              annotations={annotations}
-              activeAnnotationLine={activeAnnotationLine}
-              onAddAnnotation={handleAddAnnotation}
-              onSubmitAnnotation={handleSubmitAnnotation}
-              onDeleteAnnotation={handleDeleteAnnotation}
-              onEditAnnotation={handleEditAnnotation}
-              prComments={prComments}
-              repoPath={repoPath}
-              commitHash={activeCommitHash}
-              searchQuery={searchQuery}
-              activeSearchMatch={
-                activeSearchMatch?.filePath === file.path
-                  ? { hunkIndex: activeSearchMatch.hunkIndex, lineIndex: activeSearchMatch.lineIndex }
-                  : null
-              }
-            />
-            ))}
+                onDiscardFile={viewMode === "changes" && isUncommitted ? handleDiscardFile : undefined}
+              />
+              );
+            })}
 
             {displayFiles.length === 0 && (
               <div className="flex flex-col items-center justify-center flex-1 text-text-tertiary text-sm gap-1">
@@ -576,6 +644,32 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
             )}
           </div>
         </div>
+
+      {/* Discard confirmation dialog */}
+      <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) handleCancelDiscard(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {discardTarget?.type === "all" ? "Discard all changes?" : "Discard changes?"}
+            </DialogTitle>
+            <DialogDescription>
+              {discardTarget?.type === "all"
+                ? `This will revert ${uncommittedFiles.length} file${uncommittedFiles.length !== 1 ? "s" : ""} to their last committed state. This action cannot be undone.`
+                : discardTarget?.type === "file" && discardTarget.status === "added"
+                  ? `This will delete "${discardTarget.path}". This action cannot be undone.`
+                  : `This will revert all changes to "${discardTarget?.type === "file" ? discardTarget.path : ""}". This action cannot be undone.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={handleCancelDiscard}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleConfirmDiscard}>
+              {discardTarget?.type === "all" ? "Discard All" : "Discard"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Floating review comment bar */}
       {annotations.length > 0 && (
