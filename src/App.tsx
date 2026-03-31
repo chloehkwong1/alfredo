@@ -2,6 +2,7 @@ import { Component, type ReactNode } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { useGithubSync } from "./hooks/useGithubSync";
 import { useNotifications } from "./hooks/useNotifications";
+import { useUpdater } from "./hooks/useUpdater";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -34,6 +35,7 @@ class ErrorBoundary extends Component<
 function App() {
   useGithubSync();
   useNotifications();
+  useUpdater();
   return (
     <ErrorBoundary>
       <AppShell />

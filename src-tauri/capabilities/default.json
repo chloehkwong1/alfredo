@@ -10,6 +10,8 @@
     "shell:allow-open",
     "dialog:default",
     "store:default",
-    "notification:default"
+    "notification:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }
