@@ -368,6 +368,8 @@ pub struct LinearTicket {
     pub state: String,
     pub labels: Vec<String>,
     pub assignee: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

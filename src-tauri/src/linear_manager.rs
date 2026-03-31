@@ -52,6 +52,7 @@ pub async fn search_issues(
       assignee {{
         name
       }}
+      updatedAt
     }}
   }}
 }}"#
@@ -117,6 +118,7 @@ pub async fn get_issue(
     assignee {{
       name
     }}
+    updatedAt
   }}
 }}"#
     );
@@ -212,6 +214,34 @@ pub async fn list_teams(api_key: &str) -> Result<Vec<LinearTeam>, AppError> {
     Ok(teams)
 }
 
+/// Fetch the authenticated Linear user's display name via the `viewer` query.
+#[allow(dead_code)]
+pub async fn get_viewer_name(api_key: &str) -> Result<Option<String>, AppError> {
+    let graphql_query = r#"{ viewer { id name } }"#;
+    let body = serde_json::json!({ "query": graphql_query });
+
+    let resp = client(api_key)?
+        .post(GRAPHQL_ENDPOINT)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::Linear(format!("viewer request failed: {e}")))?;
+
+    if !resp.status().is_success() {
+        return Ok(None); // Gracefully degrade — sorting still works by recency
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::Linear(format!("failed to parse viewer response: {e}")))?;
+
+    Ok(json
+        .pointer("/data/viewer/name")
+        .and_then(|v| v.as_str())
+        .map(String::from))
+}
+
 /// Parse a GraphQL issue node into a LinearTicket.
 fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> {
     let id = node
@@ -264,6 +294,11 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
         .and_then(|v| v.as_str())
         .map(std::string::ToString::to_string);
 
+    let updated_at = node
+        .get("updatedAt")
+        .and_then(|v| v.as_str())
+        .map(std::string::ToString::to_string);
+
     Ok(LinearTicket {
         id,
         identifier,
@@ -273,6 +308,7 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
         state,
         labels,
         assignee,
+        updated_at,
     })
 }
 
@@ -379,6 +415,7 @@ mod tests {
             state: "In Progress".into(),
             labels: vec!["bug".into(), "auth".into()],
             assignee: Some("Chloe".into()),
+            updated_at: Some("2026-03-31T12:00:00.000Z".into()),
         };
 
         let md = generate_context_md(&ticket);
@@ -388,5 +425,48 @@ mod tests {
         assert!(md.contains("**Labels:** bug, auth"));
         assert!(md.contains("**Assignee:** Chloe"));
         assert!(md.contains("The auth flow is broken"));
+    }
+
+    #[test]
+    fn test_parse_viewer_response() {
+        let json: serde_json::Value = serde_json::json!({
+            "data": {
+                "viewer": {
+                    "id": "abc-123",
+                    "name": "Chloe",
+                    "email": "chloe@example.com"
+                }
+            }
+        });
+
+        let name = json
+            .pointer("/data/viewer/name")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+
+        assert_eq!(name, Some("Chloe".into()));
+    }
+
+    #[test]
+    #[allow(clippy::panic)]
+    fn test_parse_issue_with_updated_at() {
+        let node = serde_json::json!({
+            "id": "issue-1",
+            "identifier": "ALF-1",
+            "title": "Test issue",
+            "description": null,
+            "url": "https://linear.app/test/issue/ALF-1",
+            "state": { "name": "In Progress" },
+            "labels": { "nodes": [] },
+            "assignee": { "name": "Chloe" },
+            "updatedAt": "2026-03-31T12:00:00.000Z"
+        });
+
+        let ticket = match parse_issue_node(&node) {
+            Ok(t) => t,
+            Err(e) => panic!("parse_issue_node failed: {e}"),
+        };
+        assert_eq!(ticket.updated_at, Some("2026-03-31T12:00:00.000Z".into()));
+        assert_eq!(ticket.assignee, Some("Chloe".into()));
     }
 }

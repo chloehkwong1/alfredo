@@ -168,6 +168,7 @@ export interface LinearTicket {
   state: string;
   labels: string[];
   assignee: string | null;
+  updatedAt?: string | null;
 }
 
 export interface LinearTeam {
