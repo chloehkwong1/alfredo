@@ -288,6 +288,15 @@ pub struct AppConfig {
 
 pub fn default_archive_days() -> Option<u32> { Some(2) }
 
+// ── Linear OAuth ───────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinearOAuthTokens {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
 // ── App-Level Config ────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -355,6 +364,8 @@ pub struct GlobalAppConfig {
     pub has_seen_orientation: bool,
     #[serde(default)]
     pub active_worktree_id: Option<String>,
+    #[serde(default)]
+    pub linear_oauth: Option<LinearOAuthTokens>,
 }
 
 fn default_editor() -> String { "vscode".into() }

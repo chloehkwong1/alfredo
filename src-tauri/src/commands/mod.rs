@@ -7,6 +7,7 @@ pub mod diff;
 pub mod github;
 pub mod github_auth;
 pub mod linear;
+pub mod linear_oauth;
 pub mod pr_detail;
 pub mod pty;
 pub mod repo;

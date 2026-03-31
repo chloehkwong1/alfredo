@@ -1,4 +1,5 @@
-use crate::config_manager;
+use tauri::{AppHandle, Manager};
+
 use crate::linear_manager;
 use crate::types::{AppError, LinearTeam, LinearTicket};
 use tokio::sync::OnceCell;
@@ -17,17 +18,10 @@ async fn get_viewer_name_cached(api_key: &str) -> Option<String> {
         .clone()
 }
 
-/// Read the Linear API key from config, returning an error if not configured.
-async fn get_api_key(repo_path: &str) -> Result<String> {
-    let config = config_manager::load_config(repo_path).await?;
-    config
-        .linear_api_key
-        .filter(|k| !k.is_empty())
-        .ok_or_else(|| {
-            AppError::Linear(
-                "Linear API key not configured. Add it in Settings > Integrations.".into(),
-            )
-        })
+fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf> {
+    app.path()
+        .app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))
 }
 
 /// Sort Linear issues: assigned-to-me first, then by `updated_at` descending.
@@ -51,10 +45,12 @@ fn is_my_ticket(ticket: &LinearTicket, viewer_name: Option<&str>) -> bool {
 /// Search Linear issues by query text, optionally filtered by team.
 #[tauri::command]
 pub async fn search_linear_issues(
+    app: AppHandle,
     query: String,
     team_id: Option<String>,
 ) -> Result<Vec<LinearTicket>> {
-    let api_key = get_api_key(".").await?;
+    let app_data = app_data_dir(&app)?;
+    let api_key = linear_manager::resolve_token(&app_data, ".").await?;
     let mut tickets = linear_manager::search_issues(&api_key, &query, team_id.as_deref()).await?;
     let viewer_name = get_viewer_name_cached(&api_key).await;
     sort_linear_issues(&mut tickets, viewer_name.as_deref());
@@ -63,15 +59,17 @@ pub async fn search_linear_issues(
 
 /// Get full details for a single Linear issue.
 #[tauri::command]
-pub async fn get_linear_issue(issue_id: String) -> Result<LinearTicket> {
-    let api_key = get_api_key(".").await?;
+pub async fn get_linear_issue(app: AppHandle, issue_id: String) -> Result<LinearTicket> {
+    let app_data = app_data_dir(&app)?;
+    let api_key = linear_manager::resolve_token(&app_data, ".").await?;
     linear_manager::get_issue(&api_key, &issue_id).await
 }
 
 /// List available Linear teams (for the team filter dropdown).
 #[tauri::command]
-pub async fn list_linear_teams() -> Result<Vec<LinearTeam>> {
-    let api_key = get_api_key(".").await?;
+pub async fn list_linear_teams(app: AppHandle) -> Result<Vec<LinearTeam>> {
+    let app_data = app_data_dir(&app)?;
+    let api_key = linear_manager::resolve_token(&app_data, ".").await?;
     linear_manager::list_teams(&api_key).await
 }
 

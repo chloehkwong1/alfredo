@@ -21,6 +21,26 @@ fn client(api_key: &str) -> Result<reqwest::Client, AppError> {
         .map_err(|e| AppError::Linear(format!("failed to build HTTP client: {e}")))
 }
 
+/// Resolve a Linear API token: OAuth first (with auto-refresh), then per-repo key.
+pub async fn resolve_token(
+    app_data_dir: &std::path::Path,
+    repo_path: &str,
+) -> Result<String, AppError> {
+    if let Some(tokens) = crate::linear_oauth::refresh_if_needed(app_data_dir).await? {
+        return Ok(tokens.access_token);
+    }
+
+    let config = crate::config_manager::load_config(repo_path).await?;
+    config
+        .linear_api_key
+        .filter(|k| !k.is_empty())
+        .ok_or_else(|| {
+            AppError::Linear(
+                "Linear not connected. Connect via Settings > Integrations, or add an API key.".into(),
+            )
+        })
+}
+
 /// Search Linear issues by query text, optionally filtered by team.
 pub async fn search_issues(
     api_key: &str,
