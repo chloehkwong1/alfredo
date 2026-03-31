@@ -487,6 +487,7 @@ mod tests {
         stale_busy: Option<bool>,
     }
 
+    #[allow(clippy::panic)]
     fn parse_expected_state(s: &str) -> AgentState {
         match s {
             "busy" => AgentState::Busy,
@@ -856,6 +857,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::expect_used)]
     fn shared_status_scenarios() {
         let json = include_str!("../../src/test/status-scenarios.json");
         let scenarios: Vec<StatusScenario> =

@@ -336,6 +336,8 @@ export interface GlobalAppConfig {
   collapsedKanbanColumns?: string[];
   /** Whether the sidebar starts collapsed. */
   sidebarCollapsed?: boolean;
+  /** Whether the user has dismissed the orientation banner. */
+  hasSeenOrientation?: boolean;
   /** Last-active worktree ID, restored on app launch. */
   activeWorktreeId?: string | null;
 }

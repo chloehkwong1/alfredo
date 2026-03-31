@@ -36,6 +36,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             auto_resume: None,
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
+            has_seen_orientation: false,
             active_worktree_id: None,
         });
     }
@@ -163,6 +164,7 @@ pub async fn migrate_if_needed(
         auto_resume: None,
         collapsed_kanban_columns: vec![],
         sidebar_collapsed: None,
+        has_seen_orientation: false,
         active_worktree_id: None,
     };
 
@@ -213,6 +215,7 @@ mod tests {
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
             active_worktree_id: None,
+            has_seen_orientation: false,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -250,6 +253,7 @@ mod tests {
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
             active_worktree_id: None,
+            has_seen_orientation: false,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -284,6 +288,7 @@ mod tests {
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
             active_worktree_id: None,
+            has_seen_orientation: false,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);

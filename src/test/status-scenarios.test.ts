@@ -4,7 +4,7 @@ import type { StatusScenario } from "./status-scenarios";
 import type { AgentState } from "../types";
 import { shouldAcceptDetectorState } from "../services/sessionManager";
 import { computeEffectiveStatus } from "../components/sidebar/AgentItem";
-import { computeStaleBusy, STALE_BUSY_MS } from "../hooks/usePty";
+import { computeStaleBusy } from "../hooks/usePty";
 
 interface SimState {
   agentStatus: AgentState;
@@ -77,10 +77,10 @@ function runFrontendScenario(scenario: StatusScenario) {
     }
 
     // Assert agentStatus
-    expect(state.agentStatus).toBe(
-      step.expect.agentStatus,
+    expect(
+      state.agentStatus,
       `Scenario '${scenario.name}' step ${i}: agentStatus`,
-    );
+    ).toBe(step.expect.agentStatus);
 
     // Assert effectiveStatus if specified
     if (step.expect.effectiveStatus !== undefined) {
@@ -88,19 +88,19 @@ function runFrontendScenario(scenario: StatusScenario) {
       const effective = computeEffectiveStatus(
         state.agentStatus, state.channelAlive, staleBusy, state.isSeen,
       );
-      expect(effective).toBe(
-        step.expect.effectiveStatus,
+      expect(
+        effective,
         `Scenario '${scenario.name}' step ${i}: effectiveStatus`,
-      );
+      ).toBe(step.expect.effectiveStatus);
     }
 
     // Assert staleBusy if specified
     if (step.expect.staleBusy !== undefined) {
       const staleBusy = computeStaleBusy(state.agentStatus, state.channelAlive, state.lastOutputAt, now);
-      expect(staleBusy).toBe(
-        step.expect.staleBusy,
+      expect(
+        staleBusy,
         `Scenario '${scenario.name}' step ${i}: staleBusy`,
-      );
+      ).toBe(step.expect.staleBusy);
     }
   }
 }
