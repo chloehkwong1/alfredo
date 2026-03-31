@@ -247,7 +247,8 @@ fn classify_claude_code(line: &str) -> (Option<AgentType>, Option<AgentState>) {
     }
     // Interactive prompts requiring user action
     if line.contains("Do you want to") || line.contains("(y/n)") || line.contains("[Y/n]")
-        || line.contains("Enter to confirm") || line.contains("trust this folder")
+        || line.contains("Enter to confirm") || line.contains("Enter to select")
+        || line.contains("trust this folder")
     {
         return (None, Some(AgentState::WaitingForInput));
     }
@@ -715,6 +716,20 @@ mod tests {
         assert_eq!(
             result,
             Some((AgentType::ClaudeCode, AgentState::Busy))
+        );
+    }
+
+    #[test]
+    fn elicitation_enter_to_select_detected_as_waiting() {
+        let mut det = AgentDetector::with_agent_type(AgentType::ClaudeCode);
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(1));
+        // AskUserQuestion elicitation dialog with numbered options
+        let result = det.feed(
+            b"Do you have any extra context?\n\xe2\x80\xba 1. No extra context\n  2. I have context\n  3. Type something.\nEnter to select \xc2\xb7 \xe2\x86\x91/\xe2\x86\x93 to navigate \xc2\xb7 Esc to cancel\n",
+        );
+        assert_eq!(
+            result,
+            Some((AgentType::ClaudeCode, AgentState::WaitingForInput))
         );
     }
 
