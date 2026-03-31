@@ -5,6 +5,7 @@ import {
   MessageCircle,
   ExternalLink,
   RefreshCw,
+  GitPullRequestDraft,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { usePrStore } from "../../stores/prStore";
@@ -13,6 +14,8 @@ import type { CheckRun, PrStatus } from "../../types";
 import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
 import { rerunFailedChecks, fixFailingChecks, fixMergeConflicts } from "../../services/prActions";
 import { useTabStore } from "../../stores/tabStore";
+import { IconButton } from "../ui/IconButton";
+import { Button } from "../ui/Button";
 
 // ── Shared badge-count helpers ─────────────────────────────────────
 
@@ -46,12 +49,36 @@ interface PrPanelContentProps {
 export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentProps) {
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
+  const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
 
   const { checkRuns, reviews, comments, unresolvedComments } = usePrBadgeCounts(worktreeId);
 
   const [descExpanded, setDescExpanded] = useState(false);
 
-  if (!pr) return null;
+  // Loading skeleton: prDetail not yet loaded
+  if (prDetail === undefined) {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden py-4">
+        <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-3/4" />
+        <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-1/2" />
+        <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-2/3" />
+        <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-1/2" />
+      </div>
+    );
+  }
+
+  // Empty state: no PR
+  if (!pr) {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 px-4 py-8 text-center">
+        <GitPullRequestDraft className="text-lg text-text-tertiary/30 mb-2" size={32} />
+        <span className="text-xs text-text-tertiary">No pull request</span>
+        <span className="text-[10px] text-text-tertiary/60 mt-1">
+          Push this branch and open a PR to see checks, reviews, and comments.
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -63,11 +90,11 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
         )}
 
         {/* Checks section */}
-        <Section title="Checks" count={checkRuns.length}>
+        <Section title="Checks" count={checkRuns.length} summary={checkRuns.length > 0 ? <CheckRunSummary checkRuns={checkRuns} /> : undefined}>
           {checkRuns.length === 0 ? (
             <EmptyRow text="No checks" />
           ) : (
-            checkRuns.map((run) => <CheckRunRow key={run.id} run={run} />)
+            sortCheckRuns(checkRuns).map((run) => <CheckRunRow key={run.id} run={run} />)
           )}
         </Section>
 
@@ -283,7 +310,7 @@ function RailIcon({
       {count > 0 && (
         <span
           className={[
-            "absolute -top-[5px] -right-[6px] flex items-center justify-center text-[9px] font-bold text-white rounded-md min-w-[13px] h-[13px] px-0.5 leading-none",
+            "absolute -top-[5px] -right-[6px] flex items-center justify-center text-[10px] font-bold text-white rounded-md min-w-[15px] h-[15px] px-0.5 leading-none",
             badgeBgClass(badgeVariant),
           ].join(" ")}
         >
@@ -297,16 +324,18 @@ function RailIcon({
 function Section({
   title,
   count,
+  summary,
   children,
 }: {
   title: string;
   count: number;
+  summary?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="mb-1">
-      <div className="flex items-center gap-1.5 px-2.5 py-1">
-        <span className="text-[9px] uppercase tracking-wider text-text-tertiary font-semibold">
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5">
+        <span className="text-2xs uppercase tracking-wider text-text-tertiary font-semibold leading-normal">
           {title}
         </span>
         {count > 0 && (
@@ -314,10 +343,45 @@ function Section({
             {count}
           </span>
         )}
+        {summary}
       </div>
       {children}
     </div>
   );
+}
+
+function CheckRunSummary({ checkRuns }: { checkRuns: CheckRun[] }) {
+  const passed = checkRuns.filter((r) => r.status === "completed" && r.conclusion === "success").length;
+  const failing = checkRuns.filter((r) => r.status === "completed" && r.conclusion === "failure").length;
+  const pending = checkRuns.filter((r) => r.status !== "completed").length;
+
+  const parts: React.ReactNode[] = [];
+  if (passed > 0) parts.push(<span key="passed" className="text-diff-added">{passed} passed</span>);
+  if (failing > 0) parts.push(<span key="failing" className="text-diff-removed">{failing} failing</span>);
+  if (pending > 0) parts.push(<span key="pending" className="text-status-busy">{pending} pending</span>);
+
+  if (parts.length === 0) return null;
+
+  return (
+    <span className="text-[10px] ml-auto">
+      {parts.reduce<React.ReactNode[]>((acc, part, i) => {
+        if (i > 0) acc.push(<span key={`sep-${i}`} className="text-text-tertiary"> &middot; </span>);
+        acc.push(part);
+        return acc;
+      }, [])}
+    </span>
+  );
+}
+
+function sortCheckRuns(checkRuns: CheckRun[]): CheckRun[] {
+  return [...checkRuns].sort((a, b) => {
+    const priority = (r: CheckRun) => {
+      if (r.status === "completed" && r.conclusion === "failure") return 0;
+      if (r.status !== "completed") return 1;
+      return 2;
+    };
+    return priority(a) - priority(b);
+  });
 }
 
 function EmptyRow({ text }: { text: string }) {
@@ -354,7 +418,7 @@ function CheckRunRow({ run }: { run: CheckRun }) {
       : null;
 
   return (
-    <div className="flex items-center gap-1.5 px-2.5 py-[3px] text-xs">
+    <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs">
       {isPending ? (
         <RefreshCw
           size={10}
@@ -377,16 +441,17 @@ function CheckRunRow({ run }: { run: CheckRun }) {
         </span>
       )}
       {isFailed && run.htmlUrl && (
-        <button
-          className="text-diff-removed leading-none shrink-0 cursor-pointer"
-          title="View logs"
+        <IconButton
+          size="sm"
+          label="View logs"
+          className="h-auto w-auto p-0 text-diff-removed hover:text-diff-removed/80 shrink-0"
           onClick={(e) => {
             e.stopPropagation();
             openUrl(run.htmlUrl!);
           }}
         >
           <ExternalLink size={11} />
-        </button>
+        </IconButton>
       )}
     </div>
   );
@@ -420,7 +485,7 @@ function ReviewRow({
   const initial = reviewer.charAt(0).toUpperCase();
 
   return (
-    <div className="flex items-center gap-[7px] px-2.5 py-1 text-xs">
+    <div className="flex items-center gap-2 px-2.5 py-1 text-xs">
       {/* Avatar */}
       <div className="w-5 h-5 rounded-full bg-bg-hover flex items-center justify-center text-[10px] font-bold text-text-primary shrink-0">
         {initial}
@@ -459,15 +524,27 @@ function CommentCard({
   htmlUrl: string;
   onJump?: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = body.length > 150;
+
+  const handleBodyClick = (e: React.MouseEvent) => {
+    if (isLong) {
+      e.stopPropagation();
+      setExpanded((prev) => !prev);
+    }
+  };
+
   return (
     <div
-      onClick={onJump}
-      className={`mx-1.5 px-2 py-1.5 bg-bg-secondary rounded-md text-xs hover:bg-bg-hover ${
+      className={`mx-1.5 px-2 py-1.5 bg-bg-secondary rounded-md text-xs ${
         resolved ? "border border-border-subtle opacity-50" : "border border-border-default"
-      } ${onJump ? "cursor-pointer" : "cursor-default"}`}
+      }`}
     >
-      {/* Author row */}
-      <div className="flex items-center gap-[5px] mb-[3px]">
+      {/* Author row – clickable to jump to file */}
+      <div
+        onClick={onJump}
+        className={`flex items-center gap-[5px] mb-[3px] ${onJump ? "cursor-pointer hover:text-accent-primary" : ""}`}
+      >
         <span className="font-semibold text-text-primary">
           {author}
         </span>
@@ -483,22 +560,37 @@ function CommentCard({
         <span className="text-text-tertiary text-[10px] shrink-0">
           {formatTimeAgo(createdAt)}
         </span>
-        <button
-          className="text-text-tertiary leading-none shrink-0 cursor-pointer"
-          title="Open on GitHub"
+        <IconButton
+          size="sm"
+          label="Open on GitHub"
+          className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary shrink-0"
           onClick={(e) => {
             e.stopPropagation();
             openUrl(htmlUrl);
           }}
         >
           <ExternalLink size={10} />
-        </button>
+        </IconButton>
       </div>
 
       {/* Body */}
-      <p className="m-0 text-text-primary leading-[1.4] line-clamp-3">
+      <p
+        className={`m-0 text-text-primary leading-[1.4] ${expanded ? "" : "line-clamp-3"}`}
+        onClick={handleBodyClick}
+      >
         {body}
       </p>
+      {isLong && (
+        <button
+          className="text-accent-primary text-[10px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((prev) => !prev);
+          }}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
     </div>
   );
 }
@@ -584,13 +676,15 @@ export function MergeStatusBanner({
     return (
       <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0 flex items-center gap-2">
         <span className="flex-1">Merge conflict</span>
-        <button
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={handleFixConflicts}
           disabled={loading !== null}
-          className="text-[10px] px-2 py-0.5 rounded bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 transition-colors disabled:opacity-50 font-medium"
+          className="text-[10px] px-2 py-0.5 h-auto bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 disabled:opacity-50 font-medium"
         >
           {loading === "conflicts" ? "Sending…" : "Fix conflicts"}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -600,20 +694,24 @@ export function MergeStatusBanner({
     return (
       <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0 flex items-center gap-2">
         <span className="flex-1">{failedChecks.length} check{failedChecks.length !== 1 ? "s" : ""} failing</span>
-        <button
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={handleRerun}
           disabled={loading !== null}
-          className="text-[10px] px-2 py-0.5 rounded bg-bg-secondary border border-border-default text-text-secondary hover:bg-bg-hover transition-colors disabled:opacity-50 font-medium"
+          className="text-[10px] px-2 py-0.5 h-auto bg-bg-secondary border border-border-default text-text-secondary hover:bg-bg-hover disabled:opacity-50 font-medium"
         >
           {loading === "rerun" ? "Rerunning…" : "Rerun"}
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={handleFixChecks}
           disabled={loading !== null}
-          className="text-[10px] px-2 py-0.5 rounded bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 transition-colors disabled:opacity-50 font-medium"
+          className="text-[10px] px-2 py-0.5 h-auto bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 disabled:opacity-50 font-medium"
         >
           {loading === "fix" ? "Sending…" : "Fix with agent"}
-        </button>
+        </Button>
       </div>
     );
   }
