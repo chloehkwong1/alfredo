@@ -26,6 +26,12 @@ fn pr_status_from_octocrab(pr: octocrab::models::pulls::PullRequest) -> PrStatus
         body: pr.body.clone(),
         updated_at: pr.updated_at.map(|dt| dt.to_rfc3339()),
         author: pr.user.as_ref().map(|u| u.login.clone()),
+        requested_reviewers: pr
+            .requested_reviewers
+            .unwrap_or_default()
+            .iter()
+            .map(|r| r.login.clone())
+            .collect(),
     }
 }
 
@@ -822,6 +828,7 @@ mod tests {
             body: None,
             updated_at: None,
             author: Some("chloe".into()),
+            requested_reviewers: vec![],
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::DraftPr);
     }
@@ -842,6 +849,7 @@ mod tests {
             body: None,
             updated_at: None,
             author: Some("chloe".into()),
+            requested_reviewers: vec![],
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::OpenPr);
     }
@@ -862,6 +870,7 @@ mod tests {
             body: None,
             updated_at: None,
             author: Some("teammate".into()),
+            requested_reviewers: vec![],
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::NeedsReview);
     }
@@ -882,6 +891,7 @@ mod tests {
             body: None,
             updated_at: None,
             author: Some("anyone".into()),
+            requested_reviewers: vec![],
         };
         assert_eq!(determine_column(Some(&pr), None), KanbanColumn::OpenPr);
     }
@@ -902,6 +912,7 @@ mod tests {
             body: None,
             updated_at: None,
             author: Some("chloe".into()),
+            requested_reviewers: vec![],
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::Done);
     }

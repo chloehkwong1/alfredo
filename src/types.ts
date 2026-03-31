@@ -76,6 +76,7 @@ export interface PrStatus {
   headSha?: string;
   body?: string;
   author?: string;
+  requestedReviewers?: string[];
 }
 
 /** Payload emitted by the `github:pr-update` Tauri event. */

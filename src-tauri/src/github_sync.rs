@@ -314,6 +314,7 @@ mod tests {
             body: None,
             updated_at: None,
             author: Some("chloe".into()),
+            requested_reviewers: vec![],
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "draftPr");
@@ -335,6 +336,7 @@ mod tests {
             body: None,
             updated_at: None,
             author: Some("chloe".into()),
+            requested_reviewers: vec![],
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "openPr");
@@ -356,6 +358,7 @@ mod tests {
             body: None,
             updated_at: None,
             author: Some("teammate".into()),
+            requested_reviewers: vec![],
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "needsReview");
@@ -377,6 +380,7 @@ mod tests {
             body: None,
             updated_at: None,
             author: Some("chloe".into()),
+            requested_reviewers: vec![],
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "done");

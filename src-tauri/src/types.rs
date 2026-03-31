@@ -129,6 +129,9 @@ pub struct PrStatus {
     /// GitHub login of the PR author (used for "In Review" vs "Needs Review" column).
     #[serde(default)]
     pub author: Option<String>,
+    /// GitHub logins of users requested to review this PR.
+    #[serde(default)]
+    pub requested_reviewers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
