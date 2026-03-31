@@ -278,7 +278,7 @@ async fn poll_repo(
 }
 
 /// Resolve the authenticated GitHub username via `gh api user`.
-async fn resolve_github_username() -> Option<String> {
+pub async fn resolve_github_username() -> Option<String> {
     tokio::process::Command::new("gh")
         .args(["api", "user", "--jq", ".login"])
         .output()
