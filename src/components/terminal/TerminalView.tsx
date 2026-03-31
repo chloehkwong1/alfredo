@@ -58,9 +58,12 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   // Track whether the initial spawn has happened — restarts should NOT auto-resume
   const hasSpawnedRef = useRef(false);
 
-  const claudeSessionId = useWorkspaceStore((s) => {
-    if (!activeWorktreeId) return undefined;
-    return s.worktrees.find((wt) => wt.id === activeWorktreeId)?.claudeSessionId;
+  // Read resumeSessionId from the tab — only set on tabs restored from a saved
+  // session, so new tabs created via Cmd+T won't auto-resume.
+  const claudeSessionId = useTabStore((s) => {
+    if (!activeWorktreeId || !tabId) return undefined;
+    const tabs = s.tabs[activeWorktreeId] ?? [];
+    return tabs.find((t) => t.id === tabId)?.resumeSessionId;
   });
 
   const [resolvedArgs, setResolvedArgs] = useState<string[] | null>(null);

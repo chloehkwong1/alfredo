@@ -16,6 +16,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
   const clearWorktreesForRepo = useWorkspaceStore((s) => s.clearWorktreesForRepo);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useTabStore((s) => s.restoreTabs);
+  const updateTab = useTabStore((s) => s.updateTab);
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   const markWorktreeSeen = useWorkspaceStore((s) => s.markWorktreeSeen);
   const restoredRepos = useRef(new Set<string>());
@@ -139,6 +140,12 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 // Restore persisted Claude session ID immediately
                 if (session.claudeSessionId) {
                   updateWorktree(wt.id, { claudeSessionId: session.claudeSessionId });
+                  // Stamp resumeSessionId on the first Claude tab so only
+                  // restored tabs auto-resume (new tabs via Cmd+T won't have it)
+                  const firstClaudeTab = session.tabs.find((t) => t.type === "claude");
+                  if (firstClaudeTab) {
+                    updateTab(wt.id, firstClaudeTab.id, { resumeSessionId: session.claudeSessionId });
+                  }
                 }
 
                 // Also scan filesystem for a newer session ID (fire and forget)
@@ -146,6 +153,12 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   .then((claudeSessionId) => {
                     if (claudeSessionId) {
                       updateWorktree(wt.id, { claudeSessionId });
+                      // Update the first Claude tab with the latest session ID
+                      const tabs = useTabStore.getState().tabs[wt.id] ?? [];
+                      const firstClaudeTab = tabs.find((t) => t.type === "claude");
+                      if (firstClaudeTab) {
+                        updateTab(wt.id, firstClaudeTab.id, { resumeSessionId: claudeSessionId });
+                      }
                     }
                   })
                   .catch((e) => console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e));

@@ -299,6 +299,8 @@ export interface WorkspaceTab {
     permissionMode?: string;
     outputStyle?: string;
   };
+  /** Set only on tabs restored from a saved session — triggers --resume on first spawn. */
+  resumeSessionId?: string;
 }
 
 // ── App Config (multi-repo) ──────────────────────────────────────
