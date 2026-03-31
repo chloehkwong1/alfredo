@@ -12,7 +12,7 @@ mod pty_manager;
 mod state_server;
 mod types;
 
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
 
 use commands::{app_config, branch, checks, config, diff, external_tools, github, github_auth, linear, pr_detail, pty, repo, session, worktree};
 use github_sync::SyncState;
@@ -133,9 +133,18 @@ pub fn run() {
             session::ensure_alfredo_gitignore,
             session::find_claude_session,
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .unwrap_or_else(|e| {
             eprintln!("error while running tauri application: {e}");
             std::process::exit(1);
+        })
+        .run(|app, event| {
+            if let RunEvent::Exit = event {
+                // Remove Alfredo hooks from all worktrees so standalone
+                // Claude Code sessions don't inherit stale hook config.
+                if let Some(manager) = app.try_state::<PtyManager>() {
+                    manager.cleanup_all_hooks();
+                }
+            }
         });
 }

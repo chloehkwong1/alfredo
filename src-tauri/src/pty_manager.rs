@@ -26,6 +26,8 @@ struct PtySession {
     child: Box<dyn Child + Send + Sync>,
     command: String,
     worktree_id: String,
+    /// Filesystem path to the worktree — needed for hook cleanup on close.
+    worktree_path: String,
     /// Set to true when the reader thread detects the child has exited.
     exited: Arc<Mutex<Option<i32>>>,
     /// Shared flag to signal the reader thread to stop.
@@ -239,6 +241,7 @@ impl PtyManager {
             child,
             command,
             worktree_id,
+            worktree_path,
             exited,
             stop_flag,
             detector_signals,
@@ -334,6 +337,12 @@ impl PtyManager {
             .remove(session_id)
             .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?;
 
+        // Remove Alfredo hooks from the worktree's settings.local.json so
+        // standalone Claude Code sessions don't inherit stale hooks.
+        if let Err(e) = remove_hooks_config(&session.worktree_path) {
+            eprintln!("[alfredo] failed to clean hooks on close: {e}");
+        }
+
         // Signal the reader thread to stop before killing the child.
         session.stop_flag.store(true, Ordering::Relaxed);
 
@@ -367,6 +376,27 @@ impl PtyManager {
         });
 
         Ok(())
+    }
+
+    /// Remove Alfredo hooks from all active sessions' worktree directories.
+    /// Called on app exit to ensure no stale hooks are left behind.
+    pub fn cleanup_all_hooks(&self) {
+        let sessions = match self.sessions.lock() {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+
+        // Deduplicate paths — multiple sessions may share the same worktree.
+        let paths: std::collections::HashSet<String> = sessions
+            .values()
+            .map(|s| s.worktree_path.clone())
+            .collect();
+
+        for path in paths {
+            if let Err(e) = remove_hooks_config(&path) {
+                eprintln!("[alfredo] failed to clean hooks for {path}: {e}");
+            }
+        }
     }
 
     /// List all sessions with current status.
@@ -504,6 +534,54 @@ fn write_hooks_config(
             arr.retain(|item| !is_alfredo_hook_entry(item));
             // Append our fresh entry
             arr.push(entry);
+        }
+    }
+
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    std::fs::write(&path, json)?;
+
+    Ok(())
+}
+
+/// Remove Alfredo's hooks from `.claude/settings.local.json` in the given
+/// worktree directory. Leaves user-defined hooks intact. If the hooks object
+/// becomes empty after cleanup, removes it to keep the file tidy.
+fn remove_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
+    let path = std::path::Path::new(worktree_path)
+        .join(".claude")
+        .join("settings.local.json");
+
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let contents = std::fs::read_to_string(&path)?;
+    let mut config: serde_json::Value =
+        serde_json::from_str(&contents).unwrap_or_else(|_| serde_json::json!({}));
+
+    let Some(hooks) = config.get_mut("hooks").and_then(|h| h.as_object_mut()) else {
+        return Ok(());
+    };
+
+    // Strip Alfredo entries from each hook array; collect empty keys.
+    let mut empty_keys = Vec::new();
+    for (key, value) in hooks.iter_mut() {
+        if let Some(arr) = value.as_array_mut() {
+            arr.retain(|item| !is_alfredo_hook_entry(item));
+            if arr.is_empty() {
+                empty_keys.push(key.clone());
+            }
+        }
+    }
+    for key in &empty_keys {
+        hooks.remove(key);
+    }
+
+    // If hooks is now empty, remove the key entirely.
+    if hooks.is_empty() {
+        if let Some(obj) = config.as_object_mut() {
+            obj.remove("hooks");
         }
     }
 
