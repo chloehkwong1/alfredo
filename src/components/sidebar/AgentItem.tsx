@@ -1,6 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState, useEffect, useRef } from "react";
-import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus } from "lucide-react";
+import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus, X } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openInEditor, openInTerminal, getAppConfig } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -283,10 +283,64 @@ function AgentItemContent({
   );
 }
 
+function CreatingItem({ worktree }: { worktree: Worktree }) {
+  return (
+    <div className="w-full text-left py-2 px-3.5 flex items-start gap-2 opacity-55 pointer-events-none">
+      <Loader className="mt-1 h-[8px] w-[8px] flex-shrink-0 animate-spin text-text-tertiary" size={8} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm truncate text-text-primary font-medium">
+            {worktree.name}
+          </span>
+        </div>
+        <div className="text-xs text-text-tertiary mt-1">Setting up…</div>
+      </div>
+    </div>
+  );
+}
+
+function CreateErrorItem({ worktree }: { worktree: Worktree }) {
+  const removeWorktree = useWorkspaceStore((s) => s.removeWorktree);
+
+  return (
+    <div className="w-full text-left py-2 px-3.5 flex items-start gap-2 border-l-[3px] border-l-status-error">
+      <span className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-status-error" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm truncate text-text-primary font-medium">
+            {worktree.name}
+          </span>
+          <button
+            type="button"
+            onClick={() => removeWorktree(worktree.id)}
+            className="ml-auto flex-shrink-0 text-text-tertiary hover:text-text-secondary cursor-pointer"
+          >
+            <X size={12} />
+          </button>
+        </div>
+        <div className="text-xs text-status-error mt-1">Setup failed</div>
+        {worktree.createError && (
+          <div className="text-2xs text-text-tertiary mt-0.5 truncate">
+            {worktree.createError}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AgentItem({
   worktree, isSelected, onClick, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
+  // Short-circuit for placeholder states
+  if (worktree.creating) {
+    return <CreatingItem worktree={worktree} />;
+  }
+  if (worktree.createError) {
+    return <CreateErrorItem worktree={worktree} />;
+  }
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { prSummary, isServerRunning, effectiveStatus, shouldPulse } = useAgentItemState(worktree);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
