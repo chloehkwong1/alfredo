@@ -101,6 +101,7 @@ function SortableTab({
   onSplit,
   onMoveToSibling,
   isSplit,
+  isPreview,
 }: {
   tab: WorkspaceTab;
   isActive: boolean;
@@ -111,6 +112,7 @@ function SortableTab({
   onSplit: (tabId: string, direction: "horizontal" | "vertical") => void;
   onMoveToSibling: (tabId: string) => void;
   isSplit: boolean;
+  isPreview: boolean;
 }) {
   const {
     attributes,
@@ -131,10 +133,13 @@ function SortableTab({
   const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
   const setActiveTabId = useTabStore((s) => s.setActiveTabId);
+  const pinPreviewTab = useLayoutStore((s) => s.pinPreviewTab);
 
   const layout = useLayoutStore((s) => s.layout[worktreeId]);
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
   const canSplit = (pane?.tabIds.length ?? 0) > 1 && layout?.type === "leaf";
+
+  const effectiveCanClose = canClose && !isPreview;
 
   return (
     <ContextMenu>
@@ -150,6 +155,11 @@ function SortableTab({
             setActivePaneId(worktreeId, paneId);
             setActiveTabId(worktreeId, tab.id);
           }}
+          onDoubleClick={() => {
+            if (isPreview) {
+              pinPreviewTab(worktreeId, paneId);
+            }
+          }}
           className={[
             "group h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
             isActive
@@ -158,15 +168,15 @@ function SortableTab({
           ].join(" ")}
         >
           <Icon size={14} />
-          <span>{tab.label}</span>
+          <span className={isPreview ? "italic opacity-80" : ""}>{tab.label}</span>
           <button
             type="button"
-            tabIndex={canClose ? 0 : -1}
+            tabIndex={effectiveCanClose ? 0 : -1}
             aria-label={`Close ${tab.label} tab`}
-            onClick={(e) => canClose && onClose(e, tab.id)}
+            onClick={(e) => effectiveCanClose && onClose(e, tab.id)}
             className={[
               "ml-0.5 rounded p-1 transition-opacity",
-              canClose
+              effectiveCanClose
                 ? "opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary cursor-pointer"
                 : "opacity-0 pointer-events-none",
             ].join(" ")}
@@ -203,7 +213,7 @@ function SortableTab({
             Move to Other Pane
           </ContextMenuItem>
         )}
-        {canClose && (
+        {effectiveCanClose && (
           <>
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={(e) => onClose(e as unknown as React.MouseEvent, tab.id)}>
@@ -354,6 +364,7 @@ function PaneTabBar({
                 onSplit={handleSplit}
                 onMoveToSibling={handleMoveToSibling}
                 isSplit={isSplit}
+                isPreview={pane?.previewTabId === tab.id}
               />
             );
           })}

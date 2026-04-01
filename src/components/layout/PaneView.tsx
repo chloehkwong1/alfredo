@@ -76,7 +76,7 @@ function PaneView({
         {showChanges && (
           <div className="absolute inset-0 z-10 bg-bg-primary">
             <ChangesView
-              key={worktreeId}
+              key={activeTab.id}
               worktreeId={worktreeId}
               repoPath={worktree?.path ?? "."}
             />
