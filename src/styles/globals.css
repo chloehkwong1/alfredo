@@ -228,8 +228,14 @@ body {
 .border-attn {
   border-left: 3px solid var(--accent-primary);
 }
+.border-attn-dashed {
+  border-left: 3px dashed var(--accent-primary);
+}
 .border-error {
   border-left: 3px solid var(--status-error);
+}
+.border-error-dashed {
+  border-left: 3px dashed var(--status-error);
 }
 
 @keyframes thinking-dot {

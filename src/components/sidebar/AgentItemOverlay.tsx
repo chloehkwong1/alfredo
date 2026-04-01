@@ -7,14 +7,14 @@ interface AgentItemOverlayProps {
 }
 
 function AgentItemOverlay({ worktree, width }: AgentItemOverlayProps) {
-  const { prSummary, isServerRunning, effectiveStatus, shouldPulse } = useAgentItemState(worktree);
+  const { prSummary, isServerRunning, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
 
   return (
     <div
       className={[
         "w-full text-left py-2 px-3.5 flex items-start gap-2",
         "bg-bg-elevated shadow-xl cursor-grabbing",
-        getBorderClass(effectiveStatus),
+        getBorderClass(effectiveStatus, isUnread),
       ].join(" ")}
       style={width ? { width } : undefined}
     >

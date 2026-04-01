@@ -81,7 +81,20 @@ function needsAttention(status: string): boolean {
   return NEEDS_YOU_STATES.has(status);
 }
 
-function getBorderClass(status: string): string {
+function getBorderClass(status: string, isUnread?: boolean): string {
+  if (isUnread) {
+    // Manually marked unread — dashed border to distinguish from organic state
+    switch (status) {
+      case "waitingForInput":
+      case "done":
+      case "ready":
+        return "border-attn-dashed";
+      case "error":
+        return "border-error-dashed";
+      default:
+        return "border-attn-dashed";
+    }
+  }
   switch (status) {
     case "waitingForInput":
     case "done":
@@ -151,10 +164,6 @@ const statusText: Record<string, string> = {
   stale: "Unresponsive",
 };
 
-function getDotColor(status: AgentState | string): string {
-  return statusDotColor[status] ?? "bg-text-tertiary";
-}
-
 function getStatusText(status: AgentState | string): string {
   return statusText[status] ?? "Not running";
 }
@@ -176,20 +185,23 @@ export function computeEffectiveStatus(
 
 function useAgentItemState(worktree: Worktree) {
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
+  const isUnread = useWorkspaceStore((s) => s.unreadWorktrees.has(worktree.id));
   const prSummary = usePrStore((s) => s.prSummary[worktree.id]);
   const isServerRunning = useWorkspaceStore(
     (s) => s.runningServer?.worktreeId === worktree.id,
   );
+  // When manually marked unread, treat as unseen so the attention state re-activates
   const effectiveStatus = computeEffectiveStatus(
-    worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, isSeen, worktree.justCreated,
+    worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, isSeen && !isUnread, worktree.justCreated,
   );
   const shouldPulse = effectiveStatus === "waitingForInput";
-  return { prSummary, isServerRunning, effectiveStatus, shouldPulse };
+  return { prSummary, isServerRunning, effectiveStatus, shouldPulse, isUnread };
 }
 
 interface AgentItemContentProps {
   worktree: Worktree;
   effectiveStatus: string;
+
   shouldPulse: boolean;
   isServerRunning: boolean;
   prSummary: PrSummary | undefined;
@@ -198,6 +210,10 @@ interface AgentItemContentProps {
   repoDisplayNames?: Record<string, string>;
   repoIndex?: number;
   showRepoTag?: boolean;
+}
+
+function getDotColor(status: AgentState | string): string {
+  return statusDotColor[status] ?? "bg-text-tertiary";
 }
 
 function AgentItemContent({
@@ -215,7 +231,7 @@ function AgentItemContent({
         ].join(" ")}
       />
       <div className="flex-1 min-w-0">
-        {/* Line 1: branch name, PR number, server indicator, timestamp */}
+        {/* Line 1: branch name, PR number, timestamp */}
         <div className="flex items-center gap-2">
           <span className={[
             "text-sm truncate text-text-primary",
@@ -228,7 +244,6 @@ function AgentItemContent({
           {worktree.prStatus && (
             <span className="text-xs text-text-tertiary flex-shrink-0">#{worktree.prStatus.number}</span>
           )}
-          {isServerRunning && <ServerIndicator />}
           <RelativeTime
             timestamp={worktree.lastActivityAt}
             className="text-2xs text-text-tertiary ml-auto flex-shrink-0 tabular-nums"
@@ -242,19 +257,22 @@ function AgentItemContent({
         )}
         {/* Line 3: status text, diff stats, repo tag */}
         <div className="flex items-center gap-2 mt-1">
-          <span className={[
-            "text-xs truncate",
-            (effectiveStatus as string) === "busy"
-              ? "text-status-busy font-medium"
-              : (effectiveStatus as string) === "waitingForInput"
-                ? "text-accent-primary font-medium"
-                : (effectiveStatus as string) === "done" || (effectiveStatus as string) === "ready"
+          <span className="flex items-center gap-1.5">
+            <span className={[
+              "text-xs truncate",
+              (effectiveStatus as string) === "busy"
+                ? "text-status-busy font-medium"
+                : (effectiveStatus as string) === "waitingForInput"
                   ? "text-accent-primary font-medium"
-                  : (effectiveStatus as string) === "error"
-                    ? "text-status-error font-medium"
-                    : "text-text-tertiary",
-          ].join(" ")}>
-            {effectiveStatus === "busy" ? <><ThinkingText /><ThinkingDots /></> : getStatusText(effectiveStatus)}
+                  : (effectiveStatus as string) === "done" || (effectiveStatus as string) === "ready"
+                    ? "text-accent-primary font-medium"
+                    : (effectiveStatus as string) === "error"
+                      ? "text-status-error font-medium"
+                      : "text-text-tertiary",
+            ].join(" ")}>
+              {effectiveStatus === "busy" ? <><ThinkingText /><ThinkingDots /></> : getStatusText(effectiveStatus)}
+            </span>
+            {isServerRunning && <ServerIndicator />}
           </span>
 
           <span className="flex items-center gap-1 text-xs ml-auto flex-shrink-0">
@@ -379,7 +397,9 @@ const AgentItem = memo(function AgentItem({
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFromOpen, setCreateFromOpen] = useState(false);
-  const { prSummary, isServerRunning, effectiveStatus, shouldPulse } = useAgentItemState(worktree);
+  const { prSummary, isServerRunning, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
+  const markUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
+  const markRead = useWorkspaceStore((s) => s.markWorktreeRead);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: worktree.id,
   });
@@ -451,7 +471,7 @@ const AgentItem = memo(function AgentItem({
                     "w-full text-left py-2 px-3.5 flex items-start gap-2",
                     "transition-all duration-[var(--transition-fast)]",
                     "cursor-grab",
-                    getBorderClass(effectiveStatus),
+                    getBorderClass(effectiveStatus, isUnread),
                     isSelected
                       ? "bg-[rgba(255,255,255,0.07)]"
                       : "hover:bg-[rgba(255,255,255,0.035)]",
@@ -484,6 +504,12 @@ const AgentItem = memo(function AgentItem({
           <ContextMenuItem onSelect={handleOpenTerminal}>
             <TerminalSquare className="h-4 w-4" />
             Open in Terminal
+          </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={() => isUnread ? markRead(worktree.id) : markUnread(worktree.id)}
+          >
+            <Eye className="h-4 w-4" />
+            {isUnread ? "Mark as Read" : "Mark as Unread"}
           </ContextMenuItem>
           <ContextMenuSeparator />
           {worktree.linearTicketUrl && (
