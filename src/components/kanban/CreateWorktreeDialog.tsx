@@ -12,7 +12,7 @@ import { Button } from "../ui/Button";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
-import { createWorktreeFrom, getConfig, getDefaultBranch } from "../../api";
+import { createWorktreeFrom, getDefaultBranch } from "../../api";
 import type { RepoEntry, Worktree, WorktreeSource } from "../../types";
 import { NewBranchTab, getNewBranchSource } from "./create-worktree/NewBranchTab";
 import { BranchesTab } from "./create-worktree/BranchesTab";
@@ -86,9 +86,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
 
-  // Setup scripts
-  const [runSetup, setRunSetup] = useState(true);
-  const [hasSetupScripts, setHasSetupScripts] = useState(false);
 
   // Reset currentRepoPath when dialog opens
   useEffect(() => {
@@ -106,14 +103,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
     }
   }, [open, currentRepoPath]);
 
-  // Load config to check for setup scripts
-  useEffect(() => {
-    if (open && currentRepoPath) {
-      getConfig(currentRepoPath)
-        .then((config) => setHasSetupScripts(config.setupScripts.length > 0))
-        .catch(() => setHasSetupScripts(false));
-    }
-  }, [open, currentRepoPath]);
 
   // Reset selection state when dialog closes
   useEffect(() => {
@@ -256,17 +245,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
             )}
           </div>
 
-          {hasSetupScripts && (
-            <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                checked={runSetup}
-                onChange={(e) => setRunSetup(e.target.checked)}
-                className="rounded border-border-default accent-accent-primary"
-              />
-              Auto-run setup scripts
-            </label>
-          )}
 
         </div>
 
