@@ -41,7 +41,7 @@ pub async fn create_worktree(
     branch_name: String,
     base_branch: String,
 ) -> Result<Worktree> {
-    let config = config_manager::load_config(&repo_path).await?;
+    let mut config = config_manager::load_config(&repo_path).await?;
     let base_path = config.worktree_base_path.as_deref();
 
     let worktree_path =
@@ -65,6 +65,24 @@ pub async fn create_worktree(
     // Use the sanitized directory name as the ID/name so it matches
     // what list_worktrees returns (git uses the dir name internally).
     let dir_name = branch_name.replace('/', "-");
+
+    // Detect stack parent: if the base branch is not the repo's default,
+    // this is a stacked branch — persist the relationship.
+    let default_remote = git_manager::resolve_default_remote_branch(&repo_path);
+    let default_short = default_remote.strip_prefix("origin/").unwrap_or(&default_remote);
+    let is_stacked = base_branch != default_short
+        && base_branch != default_remote
+        && !base_branch.is_empty();
+
+    let stack_parent = if is_stacked {
+        let parent = base_branch.strip_prefix("origin/").unwrap_or(&base_branch);
+        config_manager::set_stack_parent(&mut config, &dir_name, parent);
+        config_manager::save_config(&repo_path, &config).await?;
+        Some(parent.to_string())
+    } else {
+        None
+    };
+
     Ok(Worktree {
         id: dir_name.clone(),
         name: dir_name,
@@ -86,7 +104,7 @@ pub async fn create_worktree(
         last_commit_author: None,
         linear_ticket_url: None,
         linear_ticket_identifier: None,
-        stack_parent: None,
+        stack_parent,
         stack_children: vec![],
         stack_rebase_status: None,
     })
@@ -126,10 +144,29 @@ pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>> {
     // Apply persisted column overrides from .alfredo.json so worktrees
     // arrive on the frontend with the correct kanban column immediately.
     worktrees.map(|mut wts| {
+        // Apply column overrides
         for wt in &mut wts {
             if let Some(col) = config_manager::get_column_override(&config, &wt.name) {
                 wt.column = col;
             }
+        }
+        // Apply stack parents from config
+        for wt in &mut wts {
+            if let Some(parent) = config_manager::get_stack_parent(&config, &wt.name) {
+                wt.stack_parent = Some(parent);
+            }
+        }
+        // Compute stack children: for each worktree, find others whose stack_parent matches this branch
+        let parent_map: Vec<(String, String)> = wts
+            .iter()
+            .filter_map(|wt| wt.stack_parent.as_ref().map(|p| (wt.id.clone(), p.clone())))
+            .collect();
+        for wt in &mut wts {
+            wt.stack_children = parent_map
+                .iter()
+                .filter(|(_, parent)| *parent == wt.branch)
+                .map(|(id, _)| id.clone())
+                .collect();
         }
         wts
     })
