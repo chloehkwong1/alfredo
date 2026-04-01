@@ -18,15 +18,15 @@ pub async fn create_worktree_from(
 ) -> Result<Worktree> {
     match source {
         WorktreeSource::NewBranch { name, base } => {
-            create_worktree(repo_path, name, base).await
+            create_worktree(app, repo_path, name, base).await
         }
         WorktreeSource::ExistingBranch { name } => {
             // For an existing branch, use it as both branch and base
             // (git worktree add will check it out)
-            create_worktree(repo_path, name.clone(), name).await
+            create_worktree(app, repo_path, name.clone(), name).await
         }
         WorktreeSource::PullRequest { number } => {
-            create_worktree_from_pr(repo_path, number).await
+            create_worktree_from_pr(&app, repo_path, number).await
         }
         WorktreeSource::LinearTicket { id, base } => {
             create_worktree_from_linear(&app, repo_path, &id, base).await
@@ -37,6 +37,7 @@ pub async fn create_worktree_from(
 /// Create a worktree with an explicit branch name and base.
 #[tauri::command]
 pub async fn create_worktree(
+    app: AppHandle,
     repo_path: String,
     branch_name: String,
     base_branch: String,
@@ -59,7 +60,30 @@ pub async fn create_worktree(
         .cloned()
         .collect();
     if !create_scripts.is_empty() {
-        config_manager::run_setup_scripts(&path_str, &create_scripts).await?;
+        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+        let script_list = create_scripts
+            .iter()
+            .map(|s| format!("• {} — {}", s.name, s.command))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let confirmed = app
+            .dialog()
+            .message(format!(
+                "This repo wants to run the following setup scripts:\n\n{script_list}\n\nOnly proceed if you trust this repository."
+            ))
+            .title("Run Setup Scripts?")
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                "Run Scripts".into(),
+                "Cancel".into(),
+            ))
+            .blocking_show();
+
+        if confirmed {
+            config_manager::run_setup_scripts(&path_str, &create_scripts).await?;
+        }
     }
 
     // Use the sanitized directory name as the ID/name so it matches
@@ -319,7 +343,7 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
         Some(b) if !b.is_empty() => b,
         _ => crate::commands::diff::get_default_branch(repo_path.clone()).await?,
     };
-    let mut worktree = create_worktree(repo_path, branch_name.clone(), base_branch).await?;
+    let mut worktree = create_worktree(app.clone(), repo_path, branch_name.clone(), base_branch).await?;
 
     // 4b. Attach Linear ticket metadata so the frontend can link back
     worktree.linear_ticket_url = Some(ticket.url.clone());
@@ -341,7 +365,7 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
 }
 
 /// Create a worktree from a GitHub pull request by fetching the PR's head branch.
-async fn create_worktree_from_pr(repo_path: String, pr_number: u64) -> Result<Worktree> {
+async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: u64) -> Result<Worktree> {
     // 1. Get GitHub token (gh CLI or config)
     let config = config_manager::load_config(&repo_path).await?;
     let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await?;
@@ -371,7 +395,7 @@ async fn create_worktree_from_pr(repo_path: String, pr_number: u64) -> Result<Wo
     let _ = fetch_output;
 
     // 5. Create the worktree from the PR's head branch
-    create_worktree(repo_path, branch_name.clone(), branch_name).await
+    create_worktree(app.clone(), repo_path, branch_name.clone(), branch_name).await
 }
 
 /// Ensure the repo's `.git/info/exclude` contains entries for AI tool artifacts
