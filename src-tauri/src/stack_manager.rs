@@ -96,7 +96,7 @@ pub async fn check_and_rebase(app_handle: &AppHandle, repo_paths: &[String]) {
             let sorted = topological_sort(children, &config.stack_parent_overrides);
 
             for child_name in &sorted {
-                rebase_child(child_name, repo_path, parent_branch, app_handle).await;
+                rebase_child(child_name, repo_path, parent_branch, app_handle, config.worktree_base_path.as_deref()).await;
             }
         }
     }
@@ -145,10 +145,19 @@ pub async fn check_merged_parents(
             continue;
         }
 
+        // Resolve the default branch once for this repo before iterating children
+        let default_remote = tokio::task::spawn_blocking({
+            let rp = repo_path.clone();
+            move || git_manager::resolve_default_remote_branch(&rp)
+        })
+        .await
+        .unwrap_or_else(|_| "origin/main".to_string());
+        let default_short = default_remote.strip_prefix("origin/").unwrap_or(&default_remote).to_string();
+
         let mut config_changed = false;
         for (child_name, _merged_parent) in &affected {
             // Rebase child onto the default branch instead
-            rebase_child(child_name, repo_path, "main", app_handle).await;
+            rebase_child(child_name, repo_path, &default_short, app_handle, config.worktree_base_path.as_deref()).await;
 
             // Emit parent-merged event
             let _ = app_handle.emit("stack:parent-merged", child_name.clone());
@@ -312,21 +321,27 @@ fn resolve_worktree_path(repo_path: &str, worktree_name: &str, config: &crate::t
 }
 
 /// Rebase a child worktree onto `parent_branch`. Emits success or conflict events.
+/// `worktree_base_path` — if the caller already knows the base path, pass it to skip a
+/// redundant config file read. Pass `None` to have it resolved from config.
 async fn rebase_child(
     worktree_name: &str,
     repo_path: &str,
     parent_branch: &str,
     app_handle: &AppHandle,
+    worktree_base_path: Option<&str>,
 ) {
-    let config = match config_manager::load_config(repo_path).await {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("[stack_manager] load_config for rebase_child: {e}");
-            return;
-        }
+    let worktree_path = if let Some(base) = worktree_base_path {
+        std::path::Path::new(base).join(worktree_name).to_string_lossy().to_string()
+    } else {
+        let config = match config_manager::load_config(repo_path).await {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("[stack_manager] load_config for rebase_child: {e}");
+                return;
+            }
+        };
+        resolve_worktree_path(repo_path, worktree_name, &config)
     };
-
-    let worktree_path = resolve_worktree_path(repo_path, worktree_name, &config);
 
     if !std::path::Path::new(&worktree_path).exists() {
         eprintln!("[stack_manager] worktree path does not exist: {worktree_path}");

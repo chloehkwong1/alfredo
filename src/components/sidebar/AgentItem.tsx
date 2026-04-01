@@ -424,8 +424,8 @@ const AgentItem = memo(function AgentItem({
     try {
       await setStackParent(worktree.repoPath, worktree.name, null);
       useWorkspaceStore.getState().updateWorktree(worktree.id, {
-        stackParent: undefined,
-        stackRebaseStatus: undefined,
+        stackParent: null,
+        stackRebaseStatus: null,
       });
     } catch (e) {
       console.error("Failed to detach from stack:", e);

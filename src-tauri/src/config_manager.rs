@@ -138,17 +138,14 @@ pub fn set_column_override(
         .insert(worktree_name.to_string(), column);
 }
 
-#[allow(dead_code)]
 pub fn get_stack_parent(config: &AppConfig, worktree_name: &str) -> Option<String> {
     config.stack_parent_overrides.get(worktree_name).cloned()
 }
 
-#[allow(dead_code)]
 pub fn set_stack_parent(config: &mut AppConfig, worktree_name: &str, parent_branch: &str) {
     config.stack_parent_overrides.insert(worktree_name.to_string(), parent_branch.to_string());
 }
 
-#[allow(dead_code)]
 pub fn clear_stack_parent(config: &mut AppConfig, worktree_name: &str) {
     config.stack_parent_overrides.remove(worktree_name);
 }

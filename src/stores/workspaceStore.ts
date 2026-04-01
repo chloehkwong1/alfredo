@@ -110,9 +110,9 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         linearTicketUrl: old.linearTicketUrl,
         linearTicketIdentifier: old.linearTicketIdentifier,
         justCreated: old.justCreated,
-        stackParent: wt.stackParent ?? old.stackParent,
-        stackChildren: wt.stackChildren ?? old.stackChildren,
-        stackRebaseStatus: wt.stackRebaseStatus ?? old.stackRebaseStatus,
+        stackParent: wt.stackParent !== undefined ? wt.stackParent : old.stackParent,
+        stackChildren: wt.stackChildren !== undefined ? wt.stackChildren : old.stackChildren,
+        stackRebaseStatus: wt.stackRebaseStatus !== undefined ? wt.stackRebaseStatus : old.stackRebaseStatus,
       };
     }
     return wt;
