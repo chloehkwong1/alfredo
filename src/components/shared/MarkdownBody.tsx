@@ -1,7 +1,24 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { useMemo } from "react";
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames ?? []),
+    "details", "summary", "picture", "source", "del", "ins", "sup", "sub", "kbd", "var", "samp", "ruby", "rt", "rp",
+  ],
+  attributes: {
+    ...defaultSchema.attributes,
+    source: ["srcSet", "media", "type"],
+    img: ["src", "alt", "width", "height"],
+    td: ["align", "colSpan", "rowSpan"],
+    th: ["align", "colSpan", "rowSpan"],
+    details: ["open"],
+    code: ["className"],
+  },
+};
 
 /**
  * Strip HTML comments (<!-- ... -->) and image-link buttons
@@ -55,7 +72,7 @@ function MarkdownBody({ text, compact = false }: MarkdownBodyProps) {
     <div className={baseClass}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
+        rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
         children={cleaned}
         components={{
           a: ({ children, href, ...props }) => (
