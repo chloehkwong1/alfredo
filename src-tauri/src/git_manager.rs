@@ -7,6 +7,10 @@ use crate::types::{AppError, Worktree, AgentState, KanbanColumn};
 
 /// Create a worktree by shelling out to `git worktree add`.
 /// Returns the absolute path of the new worktree directory.
+///
+/// When `base_branch` is a plain branch name (e.g. "main"), this function
+/// fetches from origin first and uses `origin/<base_branch>` so the worktree
+/// starts from the latest remote state rather than a potentially stale local ref.
 pub async fn create_worktree(
     repo_path: &str,
     branch_name: &str,
@@ -26,6 +30,29 @@ pub async fn create_worktree(
         })
         .join(&dir_name);
 
+    // Use the remote tracking branch so worktrees start from the latest
+    // remote state, not a potentially stale local branch.
+    let effective_base = if base_branch.contains('/') {
+        // Already a qualified ref (e.g. "origin/main") — use as-is
+        base_branch.to_string()
+    } else {
+        // Fetch from origin to ensure the tracking ref is up-to-date
+        let fetch_ok = Command::new("git")
+            .args(["fetch", "origin", base_branch])
+            .current_dir(repo_path)
+            .output()
+            .await
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        if fetch_ok {
+            format!("origin/{base_branch}")
+        } else {
+            // No remote available (e.g. local-only repo) — fall back to local ref
+            base_branch.to_string()
+        }
+    };
+
     // Try creating with a new branch first; if the branch already exists,
     // fall back to using the existing branch.
     let output = Command::new("git")
@@ -35,7 +62,7 @@ pub async fn create_worktree(
             "-b",
             branch_name,
             worktree_dir.to_str().unwrap_or_default(),
-            base_branch,
+            &effective_base,
         ])
         .current_dir(repo_path)
         .output()
@@ -148,12 +175,43 @@ pub async fn delete_worktree(
     Ok(())
 }
 
-/// Count how many commits the current branch is behind origin/main.
-/// Uses the locally cached origin/main ref (no fetch) for speed.
-/// Returns 0 if up to date or if origin/main doesn't exist.
-pub fn commits_behind_main(worktree_path: &str) -> Result<u32, AppError> {
+/// Resolve the default remote branch for a repo (e.g. "origin/main" or "origin/master").
+/// Tries origin/main, origin/master, then origin/HEAD. Falls back to "origin/main".
+pub fn resolve_default_remote_branch(repo_or_worktree_path: &str) -> String {
+    for name in &["origin/main", "origin/master"] {
+        let output = std::process::Command::new("git")
+            .args(["rev-parse", "--verify", &format!("refs/remotes/{name}")])
+            .current_dir(repo_or_worktree_path)
+            .output();
+        if let Ok(output) = output {
+            if output.status.success() {
+                return name.to_string();
+            }
+        }
+    }
+    // Try origin/HEAD symbolic ref
     let output = std::process::Command::new("git")
-        .args(["rev-list", "--count", "HEAD..origin/main"])
+        .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
+        .current_dir(repo_or_worktree_path)
+        .output();
+    if let Ok(output) = output {
+        if output.status.success() {
+            let refname = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if let Some(short) = refname.strip_prefix("refs/remotes/") {
+                return short.to_string();
+            }
+        }
+    }
+    "origin/main".to_string()
+}
+
+/// Count how many commits the current branch is behind the default remote branch.
+/// Uses the locally cached remote ref (no fetch) for speed.
+/// Returns 0 if up to date or if the remote ref doesn't exist.
+pub fn commits_behind_main(worktree_path: &str) -> Result<u32, AppError> {
+    let default_branch = resolve_default_remote_branch(worktree_path);
+    let output = std::process::Command::new("git")
+        .args(["rev-list", "--count", &format!("HEAD..{default_branch}")])
         .current_dir(worktree_path)
         .output()
         .map_err(|e| AppError::Git(format!("failed to spawn git rev-list: {e}")))?;
@@ -170,13 +228,16 @@ pub fn commits_behind_main(worktree_path: &str) -> Result<u32, AppError> {
     Ok(count)
 }
 
-/// Rebase the current branch onto origin/main.
-/// Fetches origin first, then runs `git rebase origin/main`.
+/// Rebase the current branch onto the default remote branch.
+/// Fetches origin first, then runs `git rebase origin/<default>`.
 /// Returns Ok(()) on success, or an error with stderr on failure.
 pub async fn rebase_onto_main(worktree_path: &str) -> Result<(), AppError> {
+    let default_branch = resolve_default_remote_branch(worktree_path);
+    let short_name = default_branch.strip_prefix("origin/").unwrap_or(&default_branch);
+
     // Fetch latest from origin
     let fetch = Command::new("git")
-        .args(["fetch", "origin", "main"])
+        .args(["fetch", "origin", short_name])
         .current_dir(worktree_path)
         .output()
         .await
@@ -187,9 +248,9 @@ pub async fn rebase_onto_main(worktree_path: &str) -> Result<(), AppError> {
         return Err(AppError::Git(format!("git fetch failed: {stderr}")));
     }
 
-    // Rebase onto origin/main
+    // Rebase onto default remote branch
     let rebase = Command::new("git")
-        .args(["rebase", "origin/main"])
+        .args(["rebase", &default_branch])
         .current_dir(worktree_path)
         .output()
         .await
@@ -214,36 +275,22 @@ pub async fn rebase_onto_main(worktree_path: &str) -> Result<(), AppError> {
 /// what users expect the badge to represent — the scope of work on the branch.
 /// Uses git CLI instead of git2, which has known issues with worktree diff accuracy.
 pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
-    // Try three-dot diff against common default branch names.
-    // `git diff --shortstat origin/main...HEAD` = diff between merge-base and HEAD.
-    //
-    // Prefer remote tracking branches (origin/main) over local branches because
-    // local `main` can be stale (not pulled recently), causing the diff to include
-    // all commits from remote main that the local branch doesn't have — producing
-    // wildly inflated stats after a rebase.
-    //
-    // Resolution order matches resolve_default_branch() in diff.rs.
-    for branch in &[
-        "origin/main", "origin/master", "origin/HEAD",
-        "main", "master",
-    ] {
-        let output = std::process::Command::new("git")
-            .args(["diff", "--shortstat", &format!("{branch}...HEAD")])
-            .current_dir(worktree_path)
-            .output();
+    // Use the resolved remote default branch for the diff base.
+    // Previous approach tried a cascade of candidates including local `main`/`master`,
+    // but local branches can be stale (not pulled), causing wildly inflated stats
+    // when HEAD is rebased onto origin/main but local main is still behind.
+    let default_branch = resolve_default_remote_branch(worktree_path);
 
-        if let Ok(output) = output {
-            if output.status.success() {
-                let stats = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
-                if stats != (0, 0) {
-                    return Ok(stats);
-                }
-                // (0, 0) might mean the branch ref exists but there are no
-                // committed changes — fall through to try the next candidate
-                // only if this was a remote ref (local hits are authoritative).
-                if !branch.starts_with("origin/") {
-                    return Ok(stats);
-                }
+    let output = std::process::Command::new("git")
+        .args(["diff", "--shortstat", &format!("{default_branch}...HEAD")])
+        .current_dir(worktree_path)
+        .output();
+
+    if let Ok(output) = output {
+        if output.status.success() {
+            let stats = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
+            if stats != (0, 0) {
+                return Ok(stats);
             }
         }
     }

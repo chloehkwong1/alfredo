@@ -244,8 +244,9 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
         format!("{}-{}", ticket.identifier.to_lowercase(), slug)
     });
 
-    // 4. Create the worktree
-    let mut worktree = create_worktree(repo_path, branch_name.clone(), "main".into()).await?;
+    // 4. Create the worktree from the repo's default branch
+    let default_branch = crate::commands::diff::get_default_branch(repo_path.clone()).await?;
+    let mut worktree = create_worktree(repo_path, branch_name.clone(), default_branch).await?;
 
     // 4b. Attach Linear ticket metadata so the frontend can link back
     worktree.linear_ticket_url = Some(ticket.url.clone());
