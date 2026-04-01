@@ -152,6 +152,8 @@ impl GithubManager {
     pub fn new(token: &str) -> Result<Self, AppError> {
         let client = Octocrab::builder()
             .personal_token(token.to_string())
+            .set_connect_timeout(Some(std::time::Duration::from_secs(10)))
+            .set_read_timeout(Some(std::time::Duration::from_secs(30)))
             .build()
             .map_err(|e| AppError::Github(format!("failed to build octocrab client: {e}")))?;
         let http_client = reqwest::Client::builder()
