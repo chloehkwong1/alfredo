@@ -327,19 +327,29 @@ async fn enrich_repo_with_comments(
 }
 
 /// Resolve the authenticated GitHub username via `gh api user`.
+/// Caches the result for the lifetime of the process.
 pub async fn resolve_github_username() -> Option<String> {
-    tokio::process::Command::new("gh")
-        .args(["api", "user", "--jq", ".login"])
-        .output()
-        .await
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
-            } else {
-                None
-            }
+    use tokio::sync::OnceCell;
+
+    static CACHED_USERNAME: OnceCell<Option<String>> = OnceCell::const_new();
+
+    CACHED_USERNAME
+        .get_or_init(|| async {
+            tokio::process::Command::new("gh")
+                .args(["api", "user", "--jq", ".login"])
+                .output()
+                .await
+                .ok()
+                .and_then(|o| {
+                    if o.status.success() {
+                        String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+                    } else {
+                        None
+                    }
+                })
         })
+        .await
+        .clone()
 }
 
 #[cfg(test)]
