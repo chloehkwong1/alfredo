@@ -79,6 +79,7 @@ function PaneView({
               key={activeTab.id}
               worktreeId={worktreeId}
               repoPath={worktree?.path ?? "."}
+              diffTarget={activeTab.diffTarget}
             />
           </div>
         )}

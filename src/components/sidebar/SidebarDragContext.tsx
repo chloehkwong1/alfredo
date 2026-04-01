@@ -16,6 +16,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import type { KanbanColumn, Worktree } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
@@ -272,7 +273,7 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn }: Side
     >
       {children(activeId !== null, activeId)}
       {createPortal(
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
           {activeWorktree ? (
             <AgentItemOverlay worktree={activeWorktree} width={dragSize?.width} />
           ) : null}

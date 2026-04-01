@@ -98,6 +98,7 @@ function StatusGroup({
 
   const draggedItemIsInThisGroup = dragActiveId != null && worktrees.some((wt) => wt.id === dragActiveId);
   const showCollapsedDropHint = collapsed && isOver && !draggedItemIsInThisGroup && dragActiveId != null;
+  const showDropZoneHighlight = !collapsed && isOver && !draggedItemIsInThisGroup && dragActiveId != null;
 
   return (
     <div
@@ -105,6 +106,7 @@ function StatusGroup({
       className={[
         "w-full mt-2 first:mt-0 rounded-md transition-colors",
         showCollapsedDropHint ? "bg-accent-muted/30 ring-1 ring-accent-primary/30" : "",
+        "",
       ].join(" ")}
     >
       {/* Group header */}
@@ -118,7 +120,10 @@ function StatusGroup({
       >
         <span className="flex items-center gap-2">
           <Icon className="h-4 w-4" />
-          <span className="text-xs font-semibold uppercase tracking-[0.08em]">
+          <span className={[
+            "text-xs font-semibold uppercase tracking-[0.08em]",
+            showDropZoneHighlight ? "text-accent-primary" : "",
+          ].join(" ")}>
             {label}
           </span>
         </span>

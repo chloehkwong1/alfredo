@@ -9,10 +9,11 @@ import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { useSendToClaude } from "../../hooks/useSendToClaude";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
-import { Search, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Maximize2, Minimize2, MessageSquare } from "lucide-react";
+import { Search, Trash2, Maximize2, Minimize2, MessageSquare } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { DiffSearchBar } from "./DiffSearchBar";
-import type { CommitInfo, PrComment } from "../../types";
+import type { CommitInfo, DiffTarget, PrComment } from "../../types";
+import { lifecycleManager } from "../../services/lifecycleManager";
 
 const EMPTY_COMMENTS: PrComment[] = [];
 import { formatRelativeTime } from "./formatRelativeTime";
@@ -29,6 +30,7 @@ import {
 interface ChangesViewProps {
   worktreeId: string;
   repoPath: string;
+  diffTarget?: DiffTarget;
 }
 
 function CommitHeader({ commit }: { commit: CommitInfo }) {
@@ -55,7 +57,7 @@ function CommitHeader({ commit }: { commit: CommitInfo }) {
   );
 }
 
-function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
+function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   const panelTab = useWorkspaceStore((s) => s.changesViewMode[worktreeId]) ?? "changes";
   // Map panel tab to data view mode — "pr" tab doesn't affect data fetching
   const viewMode = panelTab === "commits" ? "commits" : "changes";
@@ -88,7 +90,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     setCollapsedFiles,
     setActiveFilePath,
     focusedFilePath,
-    clearFocusedFile,
     fileRefs,
     handleToggleExpanded,
     expandAll,
@@ -166,40 +167,8 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     }
   }, [discardTarget, repoPath, uncommittedFiles, refetchUncommitted]);
 
-  // Listen for file selection from the persistent ChangesPanel
-  useEffect(() => {
-    function handlePanelSelectFile(e: Event) {
-      const path = (e as CustomEvent).detail?.path;
-      if (typeof path === "string") {
-        handleSelectFile(path);
-      }
-    }
-    window.addEventListener("alfredo:changes-panel-select-file", handlePanelSelectFile);
-    return () => window.removeEventListener("alfredo:changes-panel-select-file", handlePanelSelectFile);
-  }, [handleSelectFile]);
-
-  // Listen for clear-focus from the persistent ChangesPanel
-  useEffect(() => {
-    function handleClearFocus() { clearFocusedFile(); }
-    window.addEventListener("alfredo:changes-panel-clear-focus", handleClearFocus);
-    return () => window.removeEventListener("alfredo:changes-panel-clear-focus", handleClearFocus);
-  }, [clearFocusedFile]);
-
   // State for highlighting a PR comment line (auto-expands the thread and scrolls)
   const [highlightComment, setHighlightComment] = useState<{ filePath: string; line: number } | null>(null);
-
-  // Listen for jump-to-comment from the persistent ChangesPanel
-  useEffect(() => {
-    function handlePanelJumpToComment(e: Event) {
-      const { path, line } = (e as CustomEvent).detail ?? {};
-      if (typeof path === "string" && typeof line === "number") {
-        handleSelectFile(path);
-        setHighlightComment({ filePath: path, line });
-      }
-    }
-    window.addEventListener("alfredo:changes-panel-jump-to-comment", handlePanelJumpToComment);
-    return () => window.removeEventListener("alfredo:changes-panel-jump-to-comment", handlePanelJumpToComment);
-  }, [handleSelectFile]);
 
   const handleJumpToComment = useCallback(
     (filePath: string, line: number) => {
@@ -219,25 +188,45 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     setActiveAnnotationLine(null);
   }, []);
 
-  // Listen for commit selection from the persistent ChangesPanel
+  // Drive display from diffTarget prop (replaces DOM event listeners)
   useEffect(() => {
-    function handlePanelSelectCommit(e: Event) {
-      const index = (e as CustomEvent).detail?.index;
-      if (typeof index === "number") {
-        handleSelectCommit(index);
+    if (!diffTarget) return;
+    if (diffTarget.type === "file" && diffTarget.filePath) {
+      handleSelectFile(diffTarget.filePath);
+      if (diffTarget.scrollToLine) {
+        requestAnimationFrame(() => {
+          const el = fileRefs.current.get(diffTarget.filePath!);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+    } else if (diffTarget.type === "commit" && diffTarget.commitHash) {
+      const commitIndex = commits.findIndex((c) => c.hash === diffTarget.commitHash);
+      if (commitIndex !== -1) {
+        handleSelectCommit(commitIndex);
+      }
+      if (diffTarget.scrollToFile) {
+        const scrollPath = diffTarget.scrollToFile;
+        requestAnimationFrame(() => {
+          const el = fileRefs.current.get(scrollPath);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
       }
     }
-    window.addEventListener("alfredo:changes-panel-select-commit", handlePanelSelectCommit);
-    return () => window.removeEventListener("alfredo:changes-panel-select-commit", handlePanelSelectCommit);
-  }, [handleSelectCommit]);
+  }, [diffTarget, handleSelectFile, handleSelectCommit, commits, fileRefs]);
+
 
   const handleAddAnnotation = useCallback(
     (filePath: string, lineNumber: number, side: import("../../types").DiffSide) => {
-      setActiveAnnotationLine((prev) =>
-        prev?.filePath === filePath && prev?.lineNumber === lineNumber && prev?.side === side ? null : { filePath, lineNumber, side }
-      );
+      setActiveAnnotationLine((prev) => {
+        const toggling = prev?.filePath === filePath && prev?.lineNumber === lineNumber && prev?.side === side;
+        if (!toggling) {
+          // Opening annotation input — pin the preview tab so it isn't replaced
+          lifecycleManager.pinCurrentPreview(worktreeId);
+        }
+        return toggling ? null : { filePath, lineNumber, side };
+      });
     },
-    [],
+    [worktreeId],
   );
 
   const handleSubmitAnnotation = useCallback(
@@ -275,21 +264,6 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
     [worktreeId, editAnnotation],
   );
 
-  const focusedFileIndex = focusedFilePath ? displayFiles.findIndex((f) => f.path === focusedFilePath) : -1;
-
-  const goToNextFile = useCallback(() => {
-    if (focusedFileIndex === -1) return;
-    const next = focusedFileIndex < displayFiles.length - 1 ? focusedFileIndex + 1 : 0;
-    const file = displayFiles[next];
-    if (file) handleSelectFile(file.path);
-  }, [focusedFileIndex, displayFiles, handleSelectFile]);
-
-  const goToPrevFile = useCallback(() => {
-    if (focusedFileIndex === -1) return;
-    const prev = focusedFileIndex > 0 ? focusedFileIndex - 1 : displayFiles.length - 1;
-    const file = displayFiles[prev];
-    if (file) handleSelectFile(file.path);
-  }, [focusedFileIndex, displayFiles, handleSelectFile]);
 
   const focusedFile = focusedFilePath ? displayFiles.find((f) => f.path === focusedFilePath) : null;
   const filesToRender = focusedFile ? [focusedFile] : displayFiles;
@@ -305,45 +279,13 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
             {focusedFilePath ? (
               <>
-                {/* Focused file toolbar - left side */}
-                <IconButton
-                  size="sm"
-                  label="Back to all files (Esc)"
-                  className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary flex-shrink-0"
-                  onClick={clearFocusedFile}
-                >
-                  <ArrowLeft size={14} />
-                </IconButton>
+                {/* Focused file toolbar */}
                 <span className="text-[11px] font-mono text-text-primary truncate">
                   {focusedFilePath.split("/").pop()}
                 </span>
                 <span className="text-[10px] text-text-tertiary truncate hidden sm:inline">
                   {focusedFilePath.split("/").slice(0, -1).join("/")}
                 </span>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <IconButton
-                    size="sm"
-                    label="Previous file"
-                    className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
-                    onClick={goToPrevFile}
-                    disabled={displayFiles.length <= 1}
-                  >
-                    <ChevronLeft size={14} />
-                  </IconButton>
-                  <span className="text-[10px] text-text-tertiary tabular-nums">
-                    {focusedFileIndex + 1}/{displayFiles.length}
-                  </span>
-                  <IconButton
-                    size="sm"
-                    label="Next file"
-                    className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
-                    onClick={goToNextFile}
-                    disabled={displayFiles.length <= 1}
-                  >
-                    <ChevronRight size={14} />
-                  </IconButton>
-                </div>
-                {/* Focused file toolbar - right side */}
                 <div className="flex items-center gap-1.5 ml-auto">
                   <IconButton
                     size="sm"
@@ -504,6 +446,37 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
           <div className="flex-1 overflow-y-auto min-w-0">
             {viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex] && (
               <CommitHeader commit={commits[selectedCommitIndex]} />
+            )}
+            {/* Jump bar for commit diffs with multiple files */}
+            {viewMode === "commits" && selectedCommitIndex !== null && displayFiles.length > 1 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-secondary border-b border-border-default overflow-x-auto">
+                {displayFiles.map((file) => (
+                  <button
+                    key={file.path}
+                    type="button"
+                    onClick={() => {
+                      const el = fileRefs.current.get(file.path);
+                      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className={[
+                      "px-2 py-0.5 rounded text-xs whitespace-nowrap transition-colors",
+                      file.path === focusedFilePath
+                        ? "bg-accent-primary/20 text-accent-primary"
+                        : "bg-bg-tertiary text-text-secondary hover:text-text-primary",
+                    ].join(" ")}
+                  >
+                    <span className={`mr-1 font-semibold ${
+                      file.status === "added" ? "text-diff-added"
+                        : file.status === "deleted" ? "text-diff-removed"
+                        : file.status === "modified" ? "text-accent-primary"
+                        : "text-text-secondary"
+                    }`}>
+                      {file.status === "added" ? "A" : file.status === "modified" ? "M" : file.status === "deleted" ? "D" : "R"}
+                    </span>
+                    {file.path.split("/").pop()}
+                  </button>
+                ))}
+              </div>
             )}
             {/* Uncommitted section header with Discard All */}
             {!focusedFilePath && viewMode === "changes" && uncommittedFiles.length > 0 && (

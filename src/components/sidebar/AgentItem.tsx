@@ -443,17 +443,24 @@ const AgentItem = memo(function AgentItem({
             onClick={onClick}
             {...attributes}
             {...listeners}
-            style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0 : 1 }}
+            style={{ transform: CSS.Transform.toString(transform), transition }}
             className={[
-              "w-full text-left py-2 px-3.5 flex items-start gap-2",
-              "transition-all duration-[var(--transition-fast)]",
-              isDragging ? "pointer-events-none" : "cursor-grab",
-              getBorderClass(effectiveStatus),
-              isSelected
-                ? "bg-[rgba(255,255,255,0.07)]"
-                : "hover:bg-[rgba(255,255,255,0.035)]",
+              isDragging
+                ? "w-full pointer-events-none mx-3.5 my-1 rounded-md border border-dashed border-accent-primary/30 bg-accent-muted/[0.04]"
+                : [
+                    "w-full text-left py-2 px-3.5 flex items-start gap-2",
+                    "transition-all duration-[var(--transition-fast)]",
+                    "cursor-grab",
+                    getBorderClass(effectiveStatus),
+                    isSelected
+                      ? "bg-[rgba(255,255,255,0.07)]"
+                      : "hover:bg-[rgba(255,255,255,0.035)]",
+                  ].join(" "),
             ].join(" ")}
           >
+            {isDragging ? (
+              <div className="h-10" />
+            ) : (
             <AgentItemContent
               worktree={worktree}
               effectiveStatus={effectiveStatus}
@@ -466,6 +473,7 @@ const AgentItem = memo(function AgentItem({
               repoIndex={repoIndex}
               showRepoTag={showRepoTag}
             />
+            )}
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
