@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { PrUpdatePayload } from "../types";
+import type { PrUpdatePayload, StackRebaseStatus } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
 import { getPrFiles, setSyncRepoPaths } from "../api";
@@ -79,6 +79,63 @@ export function useGithubSync() {
     return () => {
       unlisten.then((fn) => fn());
     };
+  }, []);
+
+  // stack:rebase-complete — mark worktree status as upToDate
+  useEffect(() => {
+    const unlisten = listen<string>("stack:rebase-complete", (event) => {
+      const worktreeName = event.payload;
+      const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+      if (wt) {
+        useWorkspaceStore.getState().updateWorktree(wt.id, {
+          stackRebaseStatus: { kind: "upToDate" },
+        });
+      }
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
+  // stack:rebase-conflict — mark worktree status as conflict
+  useEffect(() => {
+    const unlisten = listen<string>("stack:rebase-conflict", (event) => {
+      const worktreeName = event.payload;
+      const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+      if (wt) {
+        useWorkspaceStore.getState().updateWorktree(wt.id, {
+          stackRebaseStatus: { kind: "conflict" },
+        });
+      }
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
+  // stack:parent-merged — clear stackParent from the worktree
+  useEffect(() => {
+    const unlisten = listen<string>("stack:parent-merged", (event) => {
+      const worktreeName = event.payload;
+      const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+      if (wt) {
+        useWorkspaceStore.getState().updateWorktree(wt.id, {
+          stackParent: null,
+        });
+      }
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
+  // stack:status-update — update stackRebaseStatus for a worktree
+  useEffect(() => {
+    const unlisten = listen<{ worktreeName: string; status: StackRebaseStatus }>(
+      "stack:status-update",
+      (event) => {
+        const { worktreeName, status } = event.payload;
+        const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+        if (wt) {
+          useWorkspaceStore.getState().updateWorktree(wt.id, { stackRebaseStatus: status });
+        }
+      },
+    );
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   // Re-sync when the window regains focus so PR data catches up after

@@ -188,6 +188,9 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
             .map_err(|e| format!("failed to emit event: {e}"))?;
     }
 
+    // Task 11: check for merged parents and auto-clear stack parent config
+    crate::stack_manager::check_merged_parents(app_handle, &repo_paths, &all_prs).await;
+
     // Phase 2: enrich with comments (separate API calls, one PR at a time)
     for repo_path in &repo_paths {
         enrich_repo_with_comments(&mut all_prs, repo_path, &active_branches).await;
@@ -199,6 +202,12 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
             .emit("github:pr-update", &PrUpdatePayload { prs: all_prs })
             .map_err(|e| format!("failed to emit event: {e}"))?;
     }
+
+    // Task 10: detect parent HEAD changes and auto-rebase stacked worktrees
+    crate::stack_manager::check_and_rebase(app_handle, &repo_paths).await;
+
+    // Task 12: compute and emit stack rebase statuses
+    crate::stack_manager::compute_stack_statuses(app_handle, &repo_paths).await;
 
     Ok(())
 }

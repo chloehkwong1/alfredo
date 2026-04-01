@@ -10,6 +10,7 @@ mod linear_manager;
 mod linear_oauth;
 mod patch_parser;
 mod pty_manager;
+mod stack_manager;
 mod state_server;
 mod types;
 
@@ -18,6 +19,7 @@ use tauri::{Manager, RunEvent};
 use commands::{app_config, branch, checks, config, diff, external_tools, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
+use stack_manager::StackState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -34,6 +36,7 @@ pub fn run() {
             repo_paths: std::sync::Mutex::new(Vec::new()),
             active_branches: std::sync::Mutex::new(std::collections::HashSet::new()),
         })
+        .manage(StackState::new())
         .setup(|app| {
             // Migrate legacy single-repo config to app.json
             let app_data = app.path().app_data_dir()
