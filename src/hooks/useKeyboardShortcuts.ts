@@ -75,7 +75,7 @@ export function useKeyboardShortcuts(
           const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
           const paneActiveTab = pane ? tabs.find((t) => t.id === pane.activeTabId) : activeTab;
           const type = !paneActiveTab ? "claude" : paneActiveTab.type;
-          lifecycleManager.addTab(activeWorktreeId, type, activePaneId ?? undefined);
+          lifecycleManager.addTab(activeWorktreeId, type, activePaneId);
         }
         return;
       }

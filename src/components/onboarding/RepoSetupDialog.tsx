@@ -173,7 +173,7 @@ function RepoSetupDialog({
                 setGithubConnected(status.username);
               }
             })
-            .catch(() => {});
+            .catch((e) => console.warn('[repo-setup] Failed to check GitHub auth:', e));
         }
       });
 

@@ -216,7 +216,7 @@ export function useNotifications() {
             configRef.current = appConfig.notifications ?? DEFAULT_CONFIG;
           }
         })
-        .catch(() => {});
+        .catch((e) => console.warn('[notifications] Failed to fetch config:', e));
     }
     fetchConfig();
     const interval = setInterval(fetchConfig, 30_000);

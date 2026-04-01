@@ -99,7 +99,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
     if (open && currentRepoPath) {
       getDefaultBranch(currentRepoPath)
         .then((branch) => setBaseBranch(branch))
-        .catch(() => {});
+        .catch((e) => console.warn('[create-worktree] Failed to get default branch:', e));
     }
   }, [open, currentRepoPath]);
 

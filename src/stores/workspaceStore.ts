@@ -84,7 +84,7 @@ function withActivityTimestamps(
       candidates.push(Date.now());
     }
 
-    const lastActivityAt = candidates.length > 0 ? Math.max(...candidates) : wt.lastCommitEpoch ?? undefined;
+    const lastActivityAt = candidates.length > 0 ? Math.max(...candidates) : wt.lastCommitEpoch;
 
     return { ...wt, lastActivityAt };
   });

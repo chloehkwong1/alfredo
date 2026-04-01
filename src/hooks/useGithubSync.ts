@@ -71,7 +71,7 @@ export function useGithubSync() {
           );
 
         for (const wt of toDelete) {
-          await lifecycleManager.removeWorktree(wt.id, wt.repoPath, wt.name).catch(() => {});
+          await lifecycleManager.removeWorktree(wt.id, wt.repoPath, wt.name).catch((e) => console.warn('[github-sync] Failed to remove worktree:', wt.name, e));
         }
       }
     });
@@ -90,7 +90,7 @@ export function useGithubSync() {
       const repos = [...new Set(worktrees.map((wt) => wt.repoPath))];
       if (repos.length === 0) return;
       const branches = worktrees.filter((wt) => !wt.archived).map((wt) => wt.branch);
-      setSyncRepoPaths(repos, branches).catch(() => {});
+      setSyncRepoPaths(repos, branches).catch((e) => console.warn('[github-sync] Failed to re-sync on focus:', e));
     });
 
     return () => {

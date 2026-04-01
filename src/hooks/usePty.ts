@@ -234,13 +234,13 @@ export function usePty({
                   const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
                   useWorkspaceStore.getState().updateWorktree(worktreeId, { additions, deletions });
                 })
-                .catch(() => {});
+                .catch((e) => console.warn('[pty] Failed to fetch PR diff stats:', e));
             } else {
               getWorktreeDiffStats(worktreePath)
                 .then(([additions, deletions]) => {
                   useWorkspaceStore.getState().updateWorktree(worktreeId, { additions, deletions });
                 })
-                .catch(() => {});
+                .catch((e) => console.warn('[pty] Failed to fetch worktree diff stats:', e));
             }
           }
         }

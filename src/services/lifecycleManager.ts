@@ -67,7 +67,7 @@ class LifecycleManager {
 
     // 2. Close PTY sessions (async, best-effort)
     for (const tab of tabs) {
-      await sessionManager.closeSession(tab.id).catch(() => {});
+      await sessionManager.closeSession(tab.id).catch((e) => console.warn('[lifecycle] Failed to close session:', tab.id, e));
     }
 
     // 3. Delete git worktree (async, log failure)

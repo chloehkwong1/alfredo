@@ -182,6 +182,11 @@ function Sidebar({
   }
 
   const effectiveSelectedRepos = selectedRepos ?? (activeRepo ? [activeRepo] : []);
+  const defaultRepoPath =
+    worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
+    ?? effectiveSelectedRepos[0]
+    ?? activeRepo
+    ?? undefined;
   const effectiveRepoColors = repoColors ?? {};
   const repoIndexMap = Object.fromEntries(repos.map((r, i) => [r.path, i]));
   const showRepoTags = effectiveSelectedRepos.length > 1;
@@ -301,12 +306,7 @@ function Sidebar({
         repoColors={effectiveRepoColors}
         repoDisplayNames={repoDisplayNames ?? {}}
         onSetRepoDisplayName={onSetRepoDisplayName}
-        defaultRepoPath={
-          worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
-          ?? effectiveSelectedRepos[0]
-          ?? activeRepo
-          ?? undefined
-        }
+        defaultRepoPath={defaultRepoPath}
       />
       {hasRepo && (
         <CreateWorktreeDialog
@@ -316,12 +316,7 @@ function Sidebar({
           repos={repos}
           selectedRepos={effectiveSelectedRepos}
           repoColors={effectiveRepoColors}
-          defaultRepoPath={
-            worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
-            ?? effectiveSelectedRepos[0]
-            ?? activeRepo
-            ?? undefined
-          }
+          defaultRepoPath={defaultRepoPath}
         />
       )}
     </div>
