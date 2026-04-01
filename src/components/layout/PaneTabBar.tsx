@@ -396,9 +396,6 @@ function PaneTabBar({
           <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
             <Terminal size={14} /> New terminal tab
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => handleAddTab("diff")}>
-            <GitCompareArrows size={14} /> New changes tab
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
