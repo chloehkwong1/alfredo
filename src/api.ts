@@ -80,8 +80,11 @@ export function deleteWorktree(
   return invoke("delete_worktree", { repoPath, worktreeName, force });
 }
 
-export function getCommitsBehindMain(worktreePath: string): Promise<number> {
-  return invoke("get_commits_behind_main", { worktreePath });
+export function getCommitsBehindMain(
+  worktreePath: string,
+  stackParent?: string | null,
+): Promise<number> {
+  return invoke("get_commits_behind_main", { worktreePath, stackParent: stackParent ?? null });
 }
 
 export function rebaseWorktree(worktreePath: string): Promise<void> {
@@ -94,8 +97,9 @@ export function listWorktrees(repoPath: string): Promise<Worktree[]> {
 
 export function getWorktreeDiffStats(
   worktreePath: string,
+  stackParent?: string | null,
 ): Promise<[number, number]> {
-  return invoke("get_worktree_diff_stats", { worktreePath });
+  return invoke("get_worktree_diff_stats", { worktreePath, stackParent: stackParent ?? null });
 }
 
 export function setWorktreeColumn(

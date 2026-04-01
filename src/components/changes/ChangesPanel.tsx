@@ -18,14 +18,14 @@ import type { PrComment } from "../../types";
 const EMPTY_COMMENTS: PrComment[] = [];
 
 
-function RebaseBanner({ worktreePath }: { worktreePath: string }) {
+function RebaseBanner({ worktreePath, stackParent }: { worktreePath: string; stackParent?: string | null }) {
   const [behindCount, setBehindCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const fetch = () => {
-      getCommitsBehindMain(worktreePath).then((n) => {
+      getCommitsBehindMain(worktreePath, stackParent).then((n) => {
         if (!cancelled) setBehindCount(n);
       }).catch(() => {
         if (!cancelled) setBehindCount(null);
@@ -304,7 +304,7 @@ function WorkspacePanel({
       )}
 
       {/* Rebase banner — hidden when merge conflict already shown (conflict implies behind main) */}
-      {worktree && mergeable !== false && <RebaseBanner worktreePath={worktree.path} />}
+      {worktree && mergeable !== false && <RebaseBanner worktreePath={worktree.path} stackParent={worktree.stackParent} />}
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>

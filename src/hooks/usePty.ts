@@ -236,7 +236,7 @@ export function usePty({
                 })
                 .catch((e) => console.warn('[pty] Failed to fetch PR diff stats:', e));
             } else {
-              getWorktreeDiffStats(worktreePath)
+              getWorktreeDiffStats(worktreePath, wt?.stackParent)
                 .then(([additions, deletions]) => {
                   useWorkspaceStore.getState().updateWorktree(worktreeId, { additions, deletions });
                 })

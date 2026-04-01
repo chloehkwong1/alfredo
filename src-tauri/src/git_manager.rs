@@ -205,13 +205,35 @@ pub fn resolve_default_remote_branch(repo_or_worktree_path: &str) -> String {
     "origin/main".to_string()
 }
 
-/// Count how many commits the current branch is behind the default remote branch.
+/// Count how many commits the current branch is behind the default remote branch (or stack parent).
 /// Uses the locally cached remote ref (no fetch) for speed.
 /// Returns 0 if up to date or if the remote ref doesn't exist.
-pub fn commits_behind_main(worktree_path: &str) -> Result<u32, AppError> {
-    let default_branch = resolve_default_remote_branch(worktree_path);
+pub fn commits_behind(worktree_path: &str, stack_parent: Option<&str>) -> Result<u32, AppError> {
+    let target = if let Some(parent) = stack_parent {
+        let remote_ref = format!("origin/{parent}");
+        let check = std::process::Command::new("git")
+            .args(["rev-parse", "--verify", &format!("refs/remotes/{remote_ref}")])
+            .current_dir(worktree_path)
+            .output();
+        if check.map(|o| o.status.success()).unwrap_or(false) {
+            remote_ref
+        } else {
+            let local_check = std::process::Command::new("git")
+                .args(["rev-parse", "--verify", parent])
+                .current_dir(worktree_path)
+                .output();
+            if local_check.map(|o| o.status.success()).unwrap_or(false) {
+                parent.to_string()
+            } else {
+                resolve_default_remote_branch(worktree_path)
+            }
+        }
+    } else {
+        resolve_default_remote_branch(worktree_path)
+    };
+
     let output = std::process::Command::new("git")
-        .args(["rev-list", "--count", &format!("HEAD..{default_branch}")])
+        .args(["rev-list", "--count", &format!("HEAD..{target}")])
         .current_dir(worktree_path)
         .output()
         .map_err(|e| AppError::Git(format!("failed to spawn git rev-list: {e}")))?;
@@ -271,18 +293,41 @@ pub async fn rebase_onto_main(worktree_path: &str) -> Result<(), AppError> {
 }
 
 /// Get diff stats (additions, deletions) for a worktree's branch changes.
-/// Shows committed changes vs the default branch (main/master), which is
-/// what users expect the badge to represent — the scope of work on the branch.
+/// Shows committed changes vs the default branch (main/master) or the stack parent branch,
+/// which is what users expect the badge to represent — the scope of work on the branch.
 /// Uses git CLI instead of git2, which has known issues with worktree diff accuracy.
-pub fn get_diff_stats(worktree_path: &str) -> Result<(u32, u32), AppError> {
-    // Use the resolved remote default branch for the diff base.
-    // Previous approach tried a cascade of candidates including local `main`/`master`,
-    // but local branches can be stale (not pulled), causing wildly inflated stats
-    // when HEAD is rebased onto origin/main but local main is still behind.
-    let default_branch = resolve_default_remote_branch(worktree_path);
+pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result<(u32, u32), AppError> {
+    // If a stack parent is provided, diff against that instead of the default branch.
+    // Try origin/<parent> first (preferred — avoids stale local refs), then local <parent>.
+    let diff_base = if let Some(parent) = stack_parent {
+        let remote_ref = format!("origin/{parent}");
+        let check = std::process::Command::new("git")
+            .args(["rev-parse", "--verify", &format!("refs/remotes/{remote_ref}")])
+            .current_dir(worktree_path)
+            .output();
+        if check.map(|o| o.status.success()).unwrap_or(false) {
+            remote_ref
+        } else {
+            let local_check = std::process::Command::new("git")
+                .args(["rev-parse", "--verify", parent])
+                .current_dir(worktree_path)
+                .output();
+            if local_check.map(|o| o.status.success()).unwrap_or(false) {
+                parent.to_string()
+            } else {
+                resolve_default_remote_branch(worktree_path)
+            }
+        }
+    } else {
+        // Use the resolved remote default branch for the diff base.
+        // Previous approach tried a cascade of candidates including local `main`/`master`,
+        // but local branches can be stale (not pulled), causing wildly inflated stats
+        // when HEAD is rebased onto origin/main but local main is still behind.
+        resolve_default_remote_branch(worktree_path)
+    };
 
     let output = std::process::Command::new("git")
-        .args(["diff", "--shortstat", &format!("{default_branch}...HEAD")])
+        .args(["diff", "--shortstat", &format!("{diff_base}...HEAD")])
         .current_dir(worktree_path)
         .output();
 

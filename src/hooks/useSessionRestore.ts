@@ -190,7 +190,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
 
           for (const wt of wts) {
             if (wt.column === "done") continue;
-            getWorktreeDiffStats(wt.path)
+            getWorktreeDiffStats(wt.path, wt.stackParent)
               .then(([additions, deletions]) => {
                 updateWorktree(wt.id, { additions, deletions });
               })

@@ -174,8 +174,12 @@ pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>> {
 
 /// Get diff stats (additions, deletions) for a single worktree. Lightweight — no config or status loading.
 #[tauri::command]
-pub async fn get_worktree_diff_stats(worktree_path: String) -> Result<(u32, u32)> {
-    tokio::task::spawn_blocking(move || get_diff_stats(&worktree_path))
+pub async fn get_worktree_diff_stats(
+    worktree_path: String,
+    stack_parent: Option<String>,
+) -> Result<(u32, u32)> {
+    let parent = stack_parent;
+    tokio::task::spawn_blocking(move || get_diff_stats(&worktree_path, parent.as_deref()))
         .await
         .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
@@ -211,7 +215,7 @@ pub async fn get_worktree_status(
 
     let path_str = worktree_path.to_string_lossy().to_string();
     let diff_path = path_str.clone();
-    let (additions, deletions) = tokio::task::spawn_blocking(move || get_diff_stats(&diff_path))
+    let (additions, deletions) = tokio::task::spawn_blocking(move || get_diff_stats(&diff_path, None))
         .await
         .map_err(|e| AppError::Git(format!("task join error: {e}")))?
         .map(|(a, d)| (Some(a), Some(d)))
@@ -243,10 +247,14 @@ pub async fn get_worktree_status(
     })
 }
 
-/// Count how many commits a worktree's branch is behind origin/main.
+/// Count how many commits a worktree's branch is behind origin/main (or the stack parent).
 #[tauri::command]
-pub async fn get_commits_behind_main(worktree_path: String) -> Result<u32> {
-    tokio::task::spawn_blocking(move || git_manager::commits_behind_main(&worktree_path))
+pub async fn get_commits_behind_main(
+    worktree_path: String,
+    stack_parent: Option<String>,
+) -> Result<u32> {
+    let parent = stack_parent;
+    tokio::task::spawn_blocking(move || git_manager::commits_behind(&worktree_path, parent.as_deref()))
         .await
         .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
