@@ -31,12 +31,20 @@ export const useTabStore = create<TabState>((set, get) => ({
   ensureDefaultTabs: (worktreeId) => {
     const state = get();
     const existing = state.tabs[worktreeId] ?? [];
-    const hasClaude = existing.some((t) => t.type === "claude");
-    const hasShell = existing.some((t) => t.type === "shell");
-    // Remove stale tabs from before redesigns (e.g. "pr", "changes")
+
+    // Migrate old "changes" tabs to "diff" type (from persisted sessions)
+    const migrated = existing.map((t) =>
+      (t.type as string) === "changes"
+        ? { ...t, type: "diff" as TabType, label: t.label === "Changes" ? "Diff" : t.label }
+        : t,
+    );
+
+    const hasClaude = migrated.some((t) => t.type === "claude");
+    const hasShell = migrated.some((t) => t.type === "shell");
+    // Remove stale tabs from before redesigns (e.g. "pr")
     const validTypes = new Set(["claude", "shell", "server", "diff"]);
-    const cleaned = existing.filter((t) => validTypes.has(t.type));
-    const hadStale = cleaned.length !== existing.length;
+    const cleaned = migrated.filter((t) => validTypes.has(t.type));
+    const hadStale = cleaned.length !== migrated.length;
 
     if (hasClaude && hasShell && !hadStale) return;
 
@@ -107,7 +115,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       const filtered = existing.filter((t) => t.id !== tabId);
       // Don't allow removing the last tab
       if (filtered.length === 0) return state;
-      // Don't allow removing the last claude, shell, or changes tab
+      // Don't allow removing the last claude or shell tab
       if (
         (tabToRemove.type === "claude" && filtered.filter((t) => t.type === "claude").length === 0) ||
         (tabToRemove.type === "shell" && filtered.filter((t) => t.type === "shell").length === 0)
