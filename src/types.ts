@@ -81,7 +81,7 @@ export type WorktreeSource =
   | { kind: "newBranch"; name: string; base: string }
   | { kind: "existingBranch"; name: string }
   | { kind: "pullRequest"; number: number }
-  | { kind: "linearTicket"; id: string };
+  | { kind: "linearTicket"; id: string; base?: string };
 
 // ── GitHub ──────────────────────────────────────────────────────
 

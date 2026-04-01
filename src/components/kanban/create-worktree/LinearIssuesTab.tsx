@@ -8,9 +8,12 @@ interface LinearIssuesTabProps {
   open: boolean;
   selectedIssueId: string | null;
   onSelectIssue: (issueId: string | null) => void;
+  baseBranch: string;
+  onBaseBranchChange: (base: string) => void;
+  lockedBaseBranch?: boolean;
 }
 
-function LinearIssuesTab({ open, selectedIssueId, onSelectIssue }: LinearIssuesTabProps) {
+function LinearIssuesTab({ open, selectedIssueId, onSelectIssue, baseBranch, onBaseBranchChange, lockedBaseBranch }: LinearIssuesTabProps) {
   const [defaultIssues, setDefaultIssues] = useState<LinearTicket[]>([]);
   const [searchResults, setSearchResults] = useState<LinearTicket[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -123,6 +126,23 @@ function LinearIssuesTab({ open, selectedIssueId, onSelectIssue }: LinearIssuesT
           </SelectableItem>
         ))}
       </SelectableList>
+      <div>
+        <label className="block text-xs font-medium text-text-tertiary mb-1">
+          Base branch
+        </label>
+        <Input
+          placeholder="e.g. main, develop"
+          value={baseBranch}
+          onChange={(e) => onBaseBranchChange(e.target.value)}
+          disabled={lockedBaseBranch}
+          className="!text-xs !py-1.5"
+        />
+        {lockedBaseBranch && (
+          <p className="text-xs text-accent-primary mt-1">
+            Stacking on <span className="font-medium">{baseBranch}</span>
+          </p>
+        )}
+      </div>
     </div>
   );
 }

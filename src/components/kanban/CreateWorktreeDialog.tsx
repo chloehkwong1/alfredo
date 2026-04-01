@@ -61,10 +61,10 @@ function placeholderFromSource(
 }
 
 const tabDefs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "newBranch", label: "New Branch", icon: <Plus className="h-3.5 w-3.5" /> },
-  { id: "branches", label: "Branches", icon: <GitBranch className="h-3.5 w-3.5" /> },
-  { id: "pullRequests", label: "PRs", icon: <GitPullRequest className="h-3.5 w-3.5" /> },
   { id: "linearIssues", label: "Linear Issues", icon: <Ticket className="h-3.5 w-3.5" /> },
+  { id: "pullRequests", label: "PRs", icon: <GitPullRequest className="h-3.5 w-3.5" /> },
+  { id: "branches", label: "Branches", icon: <GitBranch className="h-3.5 w-3.5" /> },
+  { id: "newBranch", label: "New Branch", icon: <Plus className="h-3.5 w-3.5" /> },
 ];
 
 function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRepos, repoColors, defaultRepoPath, lockedBaseBranch }: CreateWorktreeDialogProps) {
@@ -127,7 +127,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
       case "pullRequests":
         return selectedPrNumber ? { kind: "pullRequest", number: selectedPrNumber } : null;
       case "linearIssues":
-        return selectedIssueId ? { kind: "linearTicket", id: selectedIssueId } : null;
+        return selectedIssueId ? { kind: "linearTicket", id: selectedIssueId, base: baseBranch || undefined } : null;
     }
   }
 
@@ -246,6 +246,9 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
                 open={open}
                 selectedIssueId={selectedIssueId}
                 onSelectIssue={setSelectedIssueId}
+                baseBranch={baseBranch}
+                onBaseBranchChange={setBaseBranch}
+                lockedBaseBranch={!!lockedBaseBranch}
               />
             )}
           </div>

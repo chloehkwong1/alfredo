@@ -121,7 +121,7 @@ pub enum WorktreeSource {
     NewBranch { name: String, base: String },
     ExistingBranch { name: String },
     PullRequest { number: u64 },
-    LinearTicket { id: String },
+    LinearTicket { id: String, base: Option<String> },
 }
 
 // ── GitHub ──────────────────────────────────────────────────────

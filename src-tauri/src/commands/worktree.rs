@@ -28,8 +28,8 @@ pub async fn create_worktree_from(
         WorktreeSource::PullRequest { number } => {
             create_worktree_from_pr(repo_path, number).await
         }
-        WorktreeSource::LinearTicket { id } => {
-            create_worktree_from_linear(&app, repo_path, &id).await
+        WorktreeSource::LinearTicket { id, base } => {
+            create_worktree_from_linear(&app, repo_path, &id, base).await
         }
     }
 }
@@ -298,7 +298,7 @@ pub async fn set_worktree_column(
 }
 
 /// Create a worktree from a Linear ticket, injecting ticket context.
-async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_id: &str) -> Result<Worktree> {
+async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_id: &str, base_override: Option<String>) -> Result<Worktree> {
     // 1. Resolve Linear API token (OAuth first, then config fallback)
     let app_data = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
@@ -314,9 +314,12 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
         format!("{}-{}", ticket.identifier.to_lowercase(), slug)
     });
 
-    // 4. Create the worktree from the repo's default branch
-    let default_branch = crate::commands::diff::get_default_branch(repo_path.clone()).await?;
-    let mut worktree = create_worktree(repo_path, branch_name.clone(), default_branch).await?;
+    // 4. Create the worktree from the specified base (or repo's default branch)
+    let base_branch = match base_override {
+        Some(b) if !b.is_empty() => b,
+        _ => crate::commands::diff::get_default_branch(repo_path.clone()).await?,
+    };
+    let mut worktree = create_worktree(repo_path, branch_name.clone(), base_branch).await?;
 
     // 4b. Attach Linear ticket metadata so the frontend can link back
     worktree.linear_ticket_url = Some(ticket.url.clone());
