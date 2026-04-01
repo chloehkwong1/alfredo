@@ -3,10 +3,28 @@ import { resolveSettings, buildClaudeArgs } from "../services/claudeSettingsReso
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { sessionManager } from "../services/sessionManager";
-import { stripCommentNoise } from "../components/shared/MarkdownBody";
+import { stripToPlainText } from "../components/shared/MarkdownBody";
 import type { PrComment } from "../types";
 
+/** Guard against double-sends from rapid clicks */
+let sending = false;
+
 export async function sendPrCommentToClaude(
+  worktreeId: string,
+  repoPath: string,
+  branch: string | undefined,
+  comment: PrComment,
+): Promise<void> {
+  if (sending) return;
+  sending = true;
+  try {
+    await _sendPrCommentToClaude(worktreeId, repoPath, branch, comment);
+  } finally {
+    sending = false;
+  }
+}
+
+async function _sendPrCommentToClaude(
   worktreeId: string,
   repoPath: string,
   branch: string | undefined,
@@ -35,7 +53,7 @@ export async function sendPrCommentToClaude(
   }
 
   // Format as quote block with attribution
-  const cleanedBody = stripCommentNoise(comment.body);
+  const cleanedBody = stripToPlainText(comment.body);
   const fileRef = comment.path
     ? `${comment.path}${comment.line != null ? `:${comment.line}` : ""}`
     : "general";
