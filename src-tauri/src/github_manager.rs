@@ -1,5 +1,8 @@
 use octocrab::Octocrab;
 
+/// Safety limit for paginated GitHub API calls.
+const MAX_PAGES: u32 = 50;
+
 use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
 /// Convert an octocrab PR model into our `PrStatus` type.
@@ -534,6 +537,10 @@ impl GithubManager {
                 break;
             }
             page += 1;
+            if page > MAX_PAGES {
+                eprintln!("[github] get_pr_files: hit {MAX_PAGES}-page safety limit for PR #{pr_number}");
+                break;
+            }
         }
 
         Ok(all_files)
@@ -592,6 +599,10 @@ impl GithubManager {
                 break;
             }
             page += 1;
+            if page > MAX_PAGES {
+                eprintln!("[github] get_pr_commits: hit {MAX_PAGES}-page safety limit for PR #{pr_number}");
+                break;
+            }
         }
 
         Ok(all_commits)
