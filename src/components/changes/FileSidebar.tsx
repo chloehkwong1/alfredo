@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Undo2 } from "lucide-react";
-import type { DiffFile, CommitInfo } from "../../types";
+import { MessageCircle, Undo2 } from "lucide-react";
+import type { DiffFile, CommitInfo, PrComment } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 
 type ViewMode = "changes" | "commits";
@@ -13,9 +13,9 @@ interface FileSidebarProps {
   selectedCommitIndex: number | null;
   onSelectCommit: (index: number) => void;
   activeFilePath: string | null;
-  collapsedFiles: Set<string>;
   onSelectFile: (path: string) => void;
   onDiscardFile?: (path: string, status: string) => void;
+  prComments?: PrComment[];
 }
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
@@ -36,14 +36,14 @@ const FileRow = memo(function FileRow({
   file,
   filePath,
   isActive,
-  isCollapsed,
+  commentCount,
   onSelect,
   onDiscard,
 }: {
   file: DiffFile;
   filePath: string;
   isActive: boolean;
-  isCollapsed: boolean;
+  commentCount: number;
   onSelect: (path: string) => void;
   onDiscard?: (path: string, status: string) => void;
 }) {
@@ -58,11 +58,6 @@ const FileRow = memo(function FileRow({
       ].join(" ")}
       onClick={() => onSelect(filePath)}
     >
-      {isCollapsed ? (
-        <ChevronRight size={12} className="flex-shrink-0 text-text-tertiary" />
-      ) : (
-        <ChevronDown size={12} className="flex-shrink-0 text-text-tertiary" />
-      )}
       <span
         className={[
           "text-[9px] font-semibold px-1 py-px rounded-sm flex-shrink-0",
@@ -72,6 +67,12 @@ const FileRow = memo(function FileRow({
         {STATUS_LETTER[file.status] ?? "?"}
       </span>
       <span className="truncate flex-1" title={file.path}>{filename}</span>
+      {commentCount > 0 && (
+        <span className="flex items-center gap-0.5 text-[10px] text-[var(--color-pr-comment)] flex-shrink-0" title={`${commentCount} comment${commentCount > 1 ? "s" : ""}`}>
+          <MessageCircle size={10} />
+          {commentCount > 1 && commentCount}
+        </span>
+      )}
       <span className="text-text-tertiary text-[10px] flex-shrink-0 group-hover:hidden">
         {file.additions > 0 && <span className="text-diff-added">+{file.additions}</span>}
         {file.deletions > 0 && <span className="text-diff-removed ml-1">-{file.deletions}</span>}
@@ -90,7 +91,7 @@ const FileRow = memo(function FileRow({
 }, (prev, next) =>
   prev.filePath === next.filePath &&
   prev.isActive === next.isActive &&
-  prev.isCollapsed === next.isCollapsed &&
+  prev.commentCount === next.commentCount &&
   prev.onSelect === next.onSelect &&
   prev.onDiscard === next.onDiscard
 );
@@ -103,11 +104,22 @@ function FileSidebar({
   selectedCommitIndex,
   onSelectCommit,
   activeFilePath,
-  collapsedFiles,
   onSelectFile,
   onDiscardFile,
+  prComments = [],
 }: FileSidebarProps) {
   const [filter, setFilter] = useState("");
+
+  // Build per-file comment counts from PR comments
+  const commentCountByFile = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const comment of prComments) {
+      if (comment.path) {
+        counts.set(comment.path, (counts.get(comment.path) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [prComments]);
   const filterInputRef = useRef<HTMLInputElement>(null);
 
   // Cmd+F focuses the filter input when this component is visible
@@ -184,12 +196,12 @@ function FileSidebar({
           file={file}
           filePath={file.path}
           isActive={activeFilePath === file.path}
-          isCollapsed={collapsedFiles.has(file.path)}
+          commentCount={commentCountByFile.get(file.path) ?? 0}
           onSelect={onSelectFile}
           onDiscard={onDiscard}
         />
       )),
-    [activeFilePath, collapsedFiles, onSelectFile],
+    [activeFilePath, commentCountByFile, onSelectFile],
   );
 
   return (

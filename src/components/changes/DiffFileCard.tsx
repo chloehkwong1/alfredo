@@ -89,7 +89,15 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   ) {
     const [expandedCommentLines, setExpandedCommentLines] = useState<
       Set<number>
-    >(new Set());
+    >(() => {
+      const lines = new Set<number>();
+      for (const comment of prComments) {
+        if (comment.path === file.path && comment.line !== null) {
+          lines.add(comment.line);
+        }
+      }
+      return lines;
+    });
 
     // Auto-expand the PR comment thread when highlightCommentLine changes
     const highlightLineRef = useRef<HTMLDivElement | null>(null);

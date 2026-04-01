@@ -13,6 +13,8 @@ import { Search, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Maximize2, Minimi
 import { IconButton } from "../ui/IconButton";
 import { DiffSearchBar } from "./DiffSearchBar";
 import type { CommitInfo, PrComment } from "../../types";
+
+const EMPTY_COMMENTS: PrComment[] = [];
 import { formatRelativeTime } from "./formatRelativeTime";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import {
@@ -69,7 +71,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const defaultDiffView = appCfg?.defaultDiffViewMode ?? "unified";
   const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? defaultDiffView;
   const setDiffViewMode = useWorkspaceStore((s) => s.setDiffViewMode);
-  const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
+  const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments ?? EMPTY_COMMENTS);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
   const showPrComments = useWorkspaceStore((s) => s.showPrComments[worktreeId] ?? (pr !== null));

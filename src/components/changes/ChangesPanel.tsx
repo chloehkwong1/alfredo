@@ -6,13 +6,16 @@ import { PrPanelContent, PrRailIcons, MergeStatusBanner, usePrBadgeCounts } from
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/Dialog";
 import { Button } from "../ui/Button";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { usePrStore } from "../../stores/prStore";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChangesData } from "../../hooks/useChangesData";
 import { discardFile } from "../../api";
 import type { ViewMode } from "./FileSidebar";
+import type { PrComment } from "../../types";
 
-const EMPTY_COLLAPSED = new Set<string>();
+const EMPTY_COMMENTS: PrComment[] = [];
+
 
 function WorkspacePanel({
   worktreeId,
@@ -27,6 +30,7 @@ function WorkspacePanel({
   const setChangesViewMode = useWorkspaceStore((s) => s.setChangesViewMode);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
+  const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments ?? EMPTY_COMMENTS);
   const { checkRuns, mergeable, reviewDecision } = usePrBadgeCounts(worktreeId);
 
   // Map panel tab to data-fetching view mode
@@ -226,9 +230,9 @@ function WorkspacePanel({
             selectedCommitIndex={selectedCommitIndex}
             onSelectCommit={handleSelectCommit}
             activeFilePath={activeFilePath}
-            collapsedFiles={EMPTY_COLLAPSED}
             onSelectFile={handleSelectFile}
             onDiscardFile={handleDiscardFile}
+            prComments={prComments}
           />
         </div>
       )}
