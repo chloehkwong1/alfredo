@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { GitBranch, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { GitBranch, PanelLeftClose, PanelLeftOpen, Trash2 } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
 import { PrPanelContent, PrRailIcons, usePrBadgeCounts } from "./PrPanel";
@@ -10,7 +10,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { useChangesData } from "../../hooks/useChangesData";
-import { discardFile, getCommitsBehindMain, rebaseWorktree } from "../../api";
+import { discardFile, discardAllUncommitted, getCommitsBehindMain, rebaseWorktree } from "../../api";
 import type { ViewMode } from "./FileSidebar";
 import type { PrComment } from "../../types";
 
@@ -102,6 +102,7 @@ function WorkspacePanel({
 
   // ── Discard state ──────────────────────────────────────────
   const [discardTarget, setDiscardTarget] = useState<{ path: string; status: string } | null>(null);
+  const [showDiscardAllDialog, setShowDiscardAllDialog] = useState(false);
 
   const handleDiscardFile = useCallback((path: string, status: string) => {
     setDiscardTarget({ path, status });
@@ -118,6 +119,17 @@ function WorkspacePanel({
       setDiscardTarget(null);
     }
   }, [discardTarget, repoPath, refetchUncommitted]);
+
+  const handleConfirmDiscardAll = useCallback(async () => {
+    try {
+      await discardAllUncommitted(repoPath, uncommittedFiles);
+      refetchUncommitted();
+    } catch (err) {
+      console.error("Discard all failed:", err);
+    } finally {
+      setShowDiscardAllDialog(false);
+    }
+  }, [repoPath, uncommittedFiles, refetchUncommitted]);
 
   const handleSelectCommit = useCallback((index: number) => {
     setSelectedCommitIndex(index);
@@ -237,21 +249,38 @@ function WorkspacePanel({
           onJumpToComment={handleJumpToComment}
         />
       ) : (
-        <div className="flex-1 overflow-hidden">
-          <FileSidebar
-            viewMode={dataViewMode}
-            uncommittedFiles={uncommittedFiles}
-            committedFiles={committedFiles}
-            commits={commits}
-            selectedCommitIndex={selectedCommitIndex}
-            onSelectCommit={handleSelectCommit}
-            activeFilePath={activeFilePath}
-            onSelectFile={handleSelectFile}
-            onDiscardFile={handleDiscardFile}
-            prComments={prComments}
-            onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
-            onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
-          />
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {panelTab === "changes" && uncommittedFiles.length > 0 && (
+            <div className="flex items-center gap-2 px-2 py-1 border-b border-border-default flex-shrink-0">
+              <span className="text-[10px] text-text-tertiary">
+                {uncommittedFiles.length} uncommitted
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowDiscardAllDialog(true)}
+                className="ml-auto text-[10px] text-red-400 hover:text-red-300 transition-colors cursor-pointer"
+                title="Discard all uncommitted changes"
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
+          )}
+          <div className="flex-1 overflow-hidden">
+            <FileSidebar
+              viewMode={dataViewMode}
+              uncommittedFiles={uncommittedFiles}
+              committedFiles={committedFiles}
+              commits={commits}
+              selectedCommitIndex={selectedCommitIndex}
+              onSelectCommit={handleSelectCommit}
+              activeFilePath={activeFilePath}
+              onSelectFile={handleSelectFile}
+              onDiscardFile={handleDiscardFile}
+              prComments={prComments}
+              onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
+              onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
+            />
+          </div>
         </div>
       )}
 
@@ -284,6 +313,22 @@ function WorkspacePanel({
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDiscardTarget(null)}>Cancel</Button>
             <Button variant="danger" onClick={handleConfirmDiscard}>Discard</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discard all confirmation dialog */}
+      <Dialog open={showDiscardAllDialog} onOpenChange={(open) => { if (!open) setShowDiscardAllDialog(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Discard all uncommitted changes?</DialogTitle>
+            <DialogDescription>
+              This will revert all {uncommittedFiles.length} uncommitted file{uncommittedFiles.length !== 1 ? "s" : ""}. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowDiscardAllDialog(false)}>Cancel</Button>
+            <Button variant="danger" onClick={handleConfirmDiscardAll}>Discard All</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
