@@ -6,6 +6,7 @@ import {
   ExternalLink,
   RefreshCw,
   GitPullRequestDraft,
+  Bot,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { usePrStore } from "../../stores/prStore";
@@ -13,6 +14,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { CheckRun, PrReview, PrStatus } from "../../types";
 import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
 import { rerunFailedChecks, fixFailingChecks, fixMergeConflicts } from "../../services/prActions";
+import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { IconButton } from "../ui/IconButton";
@@ -137,6 +139,11 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
                 onJump={
                   c.path && c.line != null
                     ? () => onJumpToComment(c.path!, c.line!)
+                    : undefined
+                }
+                onSendToClaude={
+                  worktree
+                    ? () => sendPrCommentToClaude(worktreeId, worktree.repoPath, worktree.branch, c)
                     : undefined
                 }
               />
@@ -526,6 +533,7 @@ function CommentCard({
   resolved,
   htmlUrl,
   onJump,
+  onSendToClaude,
 }: {
   author: string;
   body: string;
@@ -535,6 +543,7 @@ function CommentCard({
   resolved: boolean;
   htmlUrl: string;
   onJump?: () => void;
+  onSendToClaude?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = body.length > 150;
@@ -576,6 +585,19 @@ function CommentCard({
         >
           <ExternalLink size={10} />
         </IconButton>
+        {onSendToClaude && (
+          <IconButton
+            size="sm"
+            label="Send to Claude"
+            className="h-auto w-auto p-0 text-text-tertiary hover:text-accent-primary shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSendToClaude();
+            }}
+          >
+            <Bot size={10} />
+          </IconButton>
+        )}
       </div>
 
       {/* Body */}

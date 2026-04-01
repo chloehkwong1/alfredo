@@ -8,10 +8,11 @@ import { useChangesData } from "../../hooks/useChangesData";
 import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { useSendToClaude } from "../../hooks/useSendToClaude";
+import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { Search, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Maximize2, Minimize2, MessageSquare } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { DiffSearchBar } from "./DiffSearchBar";
-import type { CommitInfo } from "../../types";
+import type { CommitInfo, PrComment } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import {
@@ -117,6 +118,13 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   } = useDiffSearch(displayFiles, setCollapsedFiles, setActiveFilePath);
 
   const { handleSendToClaude } = useSendToClaude(worktreeId, repoPath, worktree?.branch);
+
+  const handleSendPrComment = useCallback(
+    (comment: PrComment) => {
+      sendPrCommentToClaude(worktreeId, repoPath, worktree?.branch, comment);
+    },
+    [worktreeId, repoPath, worktree?.branch],
+  );
 
   // ── Discard state ──────────────────────────────────────────
   const [discardTarget, setDiscardTarget] = useState<
@@ -549,6 +557,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                 highlightCommentLine={
                   highlightComment?.filePath === file.path ? highlightComment.line : null
                 }
+                onSendToClaude={handleSendPrComment}
               />
               );
             })}

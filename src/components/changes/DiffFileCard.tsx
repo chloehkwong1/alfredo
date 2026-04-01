@@ -42,6 +42,7 @@ interface DiffFileCardProps {
   autoExpandAll?: boolean;
   /** When set, auto-expand the PR comment thread on this line and scroll to it. */
   highlightCommentLine?: number | null;
+  onSendToClaude?: (comment: PrComment) => void;
 }
 
 /** Max lines to fetch when expanding to end of file (backend returns fewer if EOF is reached sooner) */
@@ -82,6 +83,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       onDiscardFile,
       autoExpandAll,
       highlightCommentLine,
+      onSendToClaude,
     },
     ref
   ) {
@@ -468,7 +470,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                             </div>
                           )}
                           {hasComments && commentsExpanded && (
-                            <DiffCommentThread comments={lineComments} />
+                            <DiffCommentThread comments={lineComments} onSendToClaude={onSendToClaude} />
                           )}
                           {lineAnnotations.map((ann) => (
                             <AnnotationBubble
@@ -549,7 +551,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
 
                           {/* PR comment thread */}
                           {hasComments && commentsExpanded && (
-                            <DiffCommentThread comments={lineComments} />
+                            <DiffCommentThread comments={lineComments} onSendToClaude={onSendToClaude} />
                           )}
 
                           {/* Existing annotations */}
@@ -633,7 +635,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   prev.onDeleteAnnotation === next.onDeleteAnnotation &&
   prev.onEditAnnotation === next.onEditAnnotation &&
   prev.autoExpandAll === next.autoExpandAll &&
-  prev.highlightCommentLine === next.highlightCommentLine
+  prev.highlightCommentLine === next.highlightCommentLine &&
+  prev.onSendToClaude === next.onSendToClaude
 );
 
 export { DiffFileCard };
