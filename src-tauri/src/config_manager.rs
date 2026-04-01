@@ -45,8 +45,8 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
     let config_path = Path::new(repo_path).join(CONFIG_FILE);
 
     if !config_path.exists() {
-        let github_token = crate::keychain::retrieve("github_token").unwrap_or(None);
-        let linear_api_key = crate::keychain::retrieve("linear_api_key").unwrap_or(None);
+        let github_token = crate::keychain::retrieve("github_token")?;
+        let linear_api_key = crate::keychain::retrieve("linear_api_key")?;
         return Ok(AppConfig {
             repo_path: repo_path.to_string(),
             setup_scripts: vec![],
@@ -120,13 +120,11 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
     // Persist tokens to keychain rather than JSON.
     match &config.github_token {
         Some(token) if !token.is_empty() => crate::keychain::store("github_token", token)?,
-        None => crate::keychain::delete("github_token")?,
-        _ => {}
+        _ => crate::keychain::delete("github_token")?,
     }
     match &config.linear_api_key {
         Some(key) if !key.is_empty() => crate::keychain::store("linear_api_key", key)?,
-        None => crate::keychain::delete("linear_api_key")?,
-        _ => {}
+        _ => crate::keychain::delete("linear_api_key")?,
     }
 
     let file = ConfigFile {
