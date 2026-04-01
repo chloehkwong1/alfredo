@@ -16,7 +16,6 @@ function AgentItemOverlay({ worktree, width }: AgentItemOverlayProps) {
     >
       <AgentItemContent
         worktree={worktree}
-        isSelected={false}
         effectiveStatus={effectiveStatus}
         shouldPulse={shouldPulse}
         isServerRunning={isServerRunning}

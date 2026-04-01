@@ -333,6 +333,8 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             deletions: None,
             last_commit_epoch,
             last_commit_author: None,
+            linear_ticket_url: None,
+            linear_ticket_identifier: None,
         });
     }
 

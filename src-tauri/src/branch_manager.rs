@@ -60,6 +60,8 @@ pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>),
             deletions: None,
             last_commit_epoch,
             last_commit_author,
+            linear_ticket_url: None,
+            linear_ticket_identifier: None,
         });
     }
 
@@ -125,6 +127,8 @@ pub async fn create_branch(
                 .unwrap_or(0),
         ),
         last_commit_author: None,
+        linear_ticket_url: None,
+        linear_ticket_identifier: None,
     })
 }
 

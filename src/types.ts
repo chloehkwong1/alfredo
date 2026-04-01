@@ -51,6 +51,10 @@ export interface Worktree {
   creating?: boolean;
   /** Error message if background creation failed. */
   createError?: string;
+  /** URL of the Linear ticket this worktree was created from. */
+  linearTicketUrl?: string;
+  /** Human-readable Linear identifier (e.g. "ROS-42"). */
+  linearTicketIdentifier?: string;
 }
 
 export type KanbanColumn =

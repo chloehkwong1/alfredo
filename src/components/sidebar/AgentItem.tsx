@@ -1,7 +1,8 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, CircleCheck, CircleX, Eye, GitBranch, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus, X } from "lucide-react";
+import { Archive, Trash2, CircleCheck, CircleX, ExternalLink, Eye, GitBranch, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus, X } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { openInEditor, openInTerminal, getAppConfig, rebaseWorktree } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
@@ -180,7 +181,6 @@ function useAgentItemState(worktree: Worktree) {
 
 interface AgentItemContentProps {
   worktree: Worktree;
-  isSelected: boolean;
   effectiveStatus: string;
   shouldPulse: boolean;
   isServerRunning: boolean;
@@ -193,7 +193,7 @@ interface AgentItemContentProps {
 }
 
 function AgentItemContent({
-  worktree, isSelected, effectiveStatus, shouldPulse, isServerRunning, prSummary,
+  worktree, effectiveStatus, shouldPulse, isServerRunning, prSummary,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemContentProps) {
   return (
@@ -211,9 +211,9 @@ function AgentItemContent({
         <div className="flex items-center gap-2">
           <span className={[
             "text-sm truncate text-text-primary",
-            (isSelected || needsAttention(effectiveStatus))
+            needsAttention(effectiveStatus)
               ? "font-semibold"
-              : "font-medium",
+              : "font-normal",
           ].join(" ")}>
             {worktree.name}
           </span>
@@ -398,7 +398,6 @@ const AgentItem = memo(function AgentItem({
           >
             <AgentItemContent
               worktree={worktree}
-              isSelected={isSelected}
               effectiveStatus={effectiveStatus}
               shouldPulse={shouldPulse}
               isServerRunning={isServerRunning}
@@ -421,6 +420,19 @@ const AgentItem = memo(function AgentItem({
             Open in Terminal
           </ContextMenuItem>
           <ContextMenuSeparator />
+          {worktree.linearTicketUrl && (
+            <ContextMenuItem onSelect={() => openUrl(worktree.linearTicketUrl!)}>
+              <ExternalLink className="h-4 w-4" />
+              Open in Linear
+            </ContextMenuItem>
+          )}
+          {worktree.prStatus && (
+            <ContextMenuItem onSelect={() => openUrl(worktree.prStatus!.url)}>
+              <ExternalLink className="h-4 w-4" />
+              View PR on GitHub
+            </ContextMenuItem>
+          )}
+          {(worktree.linearTicketUrl || worktree.prStatus) && <ContextMenuSeparator />}
           <ContextMenuItem onSelect={handleRebase}>
             <GitBranch className="h-4 w-4" />
             Rebase onto main

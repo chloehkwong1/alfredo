@@ -84,6 +84,8 @@ pub async fn create_worktree(
                 .unwrap_or(0),
         ),
         last_commit_author: None,
+        linear_ticket_url: None,
+        linear_ticket_identifier: None,
     })
 }
 
@@ -193,6 +195,8 @@ pub async fn get_worktree_status(
         deletions,
         last_commit_epoch: None, // Will be populated by list_worktrees on next refresh
         last_commit_author: None,
+        linear_ticket_url: None,
+        linear_ticket_identifier: None,
     })
 }
 
@@ -241,7 +245,11 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
     });
 
     // 4. Create the worktree
-    let worktree = create_worktree(repo_path, branch_name.clone(), "main".into()).await?;
+    let mut worktree = create_worktree(repo_path, branch_name.clone(), "main".into()).await?;
+
+    // 4b. Attach Linear ticket metadata so the frontend can link back
+    worktree.linear_ticket_url = Some(ticket.url.clone());
+    worktree.linear_ticket_identifier = Some(ticket.identifier.clone());
 
     // 5. Inject .claude/context.md into the worktree
     let claude_dir = std::path::Path::new(&worktree.path).join(".claude");

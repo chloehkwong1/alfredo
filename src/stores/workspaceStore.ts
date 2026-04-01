@@ -107,6 +107,8 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         archived: old.archived,
         archivedAt: old.archivedAt,
         claudeSessionId: old.claudeSessionId,
+        linearTicketUrl: old.linearTicketUrl,
+        linearTicketIdentifier: old.linearTicketIdentifier,
       };
     }
     return wt;

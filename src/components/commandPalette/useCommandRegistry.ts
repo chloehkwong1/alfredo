@@ -155,8 +155,8 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       enabled: () => !!activeWorktreeId,
     },
     {
-      id: "toggle-pr-panel",
-      label: "Toggle PR panel",
+      id: "toggle-changes-panel",
+      label: "Toggle changes panel",
       category: "actions",
       shortcut: "⌘I",
       icon: GitPullRequest,
@@ -340,6 +340,20 @@ function buildRepoCommands(
   });
 }
 
+function buildLinearCommands(activeWorktree: Worktree | undefined): Command[] {
+  if (!activeWorktree?.linearTicketUrl) return [];
+  return [
+    {
+      id: "view-ticket-linear",
+      label: "View ticket in Linear",
+      category: "pr" as const,
+      icon: ExternalLink,
+      action: () => openUrl(activeWorktree.linearTicketUrl!),
+      enabled: () => true,
+    },
+  ];
+}
+
 function buildPrCommands(
   activeWorktree: Worktree | undefined,
   checkRuns: CheckRun[],
@@ -434,9 +448,10 @@ export function useCommandRegistry(
       ? buildRepoCommands(deps.repos, deps.repoDisplayNames, deps.switchRepo)
       : [];
 
+    const linearCommands = buildLinearCommands(activeWorktree);
     const prCommands = buildPrCommands(activeWorktree, checkRuns);
 
-    const all = [...staticCommands, ...repoCommands, ...worktreeCommands, ...prCommands];
+    const all = [...staticCommands, ...repoCommands, ...worktreeCommands, ...linearCommands, ...prCommands];
     const filtered = all.filter((cmd) => cmd.enabled());
 
     const grouped: GroupedCommands[] = [];

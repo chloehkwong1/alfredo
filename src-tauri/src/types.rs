@@ -79,6 +79,12 @@ pub struct Worktree {
     /// Name of the author of the latest commit on this branch (for sorting).
     #[serde(default)]
     pub last_commit_author: Option<String>,
+    /// URL of the Linear ticket this worktree was created from (if any).
+    #[serde(default)]
+    pub linear_ticket_url: Option<String>,
+    /// Human-readable Linear identifier (e.g. "ROS-42").
+    #[serde(default)]
+    pub linear_ticket_identifier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
