@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { AppShell } from "./components/layout/AppShell";
+import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { useGithubSync } from "./hooks/useGithubSync";
 import { useNotifications } from "./hooks/useNotifications";
 
@@ -98,7 +99,9 @@ function App() {
   useNotifications();
   return (
     <ErrorBoundary>
-      <AppShell />
+      <SectionErrorBoundary name="App">
+        <AppShell />
+      </SectionErrorBoundary>
     </ErrorBoundary>
   );
 }
