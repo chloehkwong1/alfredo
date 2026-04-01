@@ -148,6 +148,67 @@ pub async fn delete_worktree(
     Ok(())
 }
 
+/// Count how many commits the current branch is behind origin/main.
+/// Uses the locally cached origin/main ref (no fetch) for speed.
+/// Returns 0 if up to date or if origin/main doesn't exist.
+pub fn commits_behind_main(worktree_path: &str) -> Result<u32, AppError> {
+    let output = std::process::Command::new("git")
+        .args(["rev-list", "--count", "HEAD..origin/main"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git rev-list: {e}")))?;
+
+    if !output.status.success() {
+        return Ok(0);
+    }
+
+    let count = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse::<u32>()
+        .unwrap_or(0);
+
+    Ok(count)
+}
+
+/// Rebase the current branch onto origin/main.
+/// Fetches origin first, then runs `git rebase origin/main`.
+/// Returns Ok(()) on success, or an error with stderr on failure.
+pub async fn rebase_onto_main(worktree_path: &str) -> Result<(), AppError> {
+    // Fetch latest from origin
+    let fetch = Command::new("git")
+        .args(["fetch", "origin", "main"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git fetch: {e}")))?;
+
+    if !fetch.status.success() {
+        let stderr = String::from_utf8_lossy(&fetch.stderr);
+        return Err(AppError::Git(format!("git fetch failed: {stderr}")));
+    }
+
+    // Rebase onto origin/main
+    let rebase = Command::new("git")
+        .args(["rebase", "origin/main"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git rebase: {e}")))?;
+
+    if !rebase.status.success() {
+        let stderr = String::from_utf8_lossy(&rebase.stderr);
+        // Abort the failed rebase so the worktree isn't left in a broken state
+        let _ = Command::new("git")
+            .args(["rebase", "--abort"])
+            .current_dir(worktree_path)
+            .output()
+            .await;
+        return Err(AppError::Git(format!("rebase failed (aborted): {stderr}")));
+    }
+
+    Ok(())
+}
+
 /// Get diff stats (additions, deletions) for a worktree's branch changes.
 /// Shows committed changes vs the default branch (main/master), which is
 /// what users expect the badge to represent — the scope of work on the branch.

@@ -168,10 +168,12 @@ pub async fn get_worktree_status(
     let status = status?;
 
     let path_str = worktree_path.to_string_lossy().to_string();
-    let (additions, deletions) = match get_diff_stats(&path_str) {
-        Ok((a, d)) => (Some(a), Some(d)),
-        Err(_) => (None, None),
-    };
+    let diff_path = path_str.clone();
+    let (additions, deletions) = tokio::task::spawn_blocking(move || get_diff_stats(&diff_path))
+        .await
+        .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+        .map(|(a, d)| (Some(a), Some(d)))
+        .unwrap_or((None, None));
 
     // Determine column from config overrides or default
     let column = config_manager::get_column_override(&config, &wt_name)
@@ -192,6 +194,20 @@ pub async fn get_worktree_status(
         last_commit_epoch: None, // Will be populated by list_worktrees on next refresh
         last_commit_author: None,
     })
+}
+
+/// Count how many commits a worktree's branch is behind origin/main.
+#[tauri::command]
+pub async fn get_commits_behind_main(worktree_path: String) -> Result<u32> {
+    tokio::task::spawn_blocking(move || git_manager::commits_behind_main(&worktree_path))
+        .await
+        .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
+/// Rebase a worktree's branch onto origin/main.
+#[tauri::command]
+pub async fn rebase_worktree(worktree_path: String) -> Result<()> {
+    git_manager::rebase_onto_main(&worktree_path).await
 }
 
 /// Manually override a worktree's kanban column (e.g. drag to "Blocked").

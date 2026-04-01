@@ -84,6 +84,8 @@ pub fn run() {
             worktree::get_worktree_diff_stats,
             worktree::get_worktree_status,
             worktree::set_worktree_column,
+            worktree::get_commits_behind_main,
+            worktree::rebase_worktree,
             // GitHub
             github::sync_pr_status,
             github::get_pr_for_branch,

@@ -1,8 +1,8 @@
 import { useDraggable } from "@dnd-kit/core";
-import { useState, useEffect, useRef } from "react";
-import { Archive, Trash2, CircleCheck, CircleX, Eye, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus, X } from "lucide-react";
+import { useState, useEffect, useRef, memo } from "react";
+import { Archive, Trash2, CircleCheck, CircleX, Eye, GitBranch, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus, X } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
-import { openInEditor, openInTerminal, getAppConfig } from "../../api";
+import { openInEditor, openInTerminal, getAppConfig, rebaseWorktree } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import {
@@ -329,7 +329,7 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
   );
 }
 
-function AgentItem({
+const AgentItem = memo(function AgentItem({
   worktree, isSelected, onClick, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
@@ -362,6 +362,17 @@ function AgentItem({
       await openInTerminal(worktree.path, appCfg.preferredTerminal, appCfg.customTerminalPath ?? undefined);
     } catch (e) {
       console.error("Failed to open terminal:", e);
+    }
+  };
+
+  const handleRebase = async () => {
+    try {
+      await rebaseWorktree(worktree.path);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Rebase failed:", msg);
+      // Surface the error since the user needs to know
+      new Notification("Alfredo", { body: `Rebase failed for ${worktree.branch}: ${msg}` });
     }
   };
 
@@ -410,6 +421,11 @@ function AgentItem({
             Open in Terminal
           </ContextMenuItem>
           <ContextMenuSeparator />
+          <ContextMenuItem onSelect={handleRebase}>
+            <GitBranch className="h-4 w-4" />
+            Rebase onto main
+          </ContextMenuItem>
+          <ContextMenuSeparator />
           {onArchive && (
             <>
               <ContextMenuItem onSelect={() => onArchive(worktree.id)}>
@@ -455,7 +471,7 @@ function AgentItem({
       </Dialog>
     </>
   );
-}
+});
 
 type PrSummary = {
   failingCheckCount?: number;

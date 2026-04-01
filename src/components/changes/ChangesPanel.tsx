@@ -1,8 +1,9 @@
-import { useCallback, useState } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { GitBranch, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
-import { PrPanelContent, PrRailIcons, MergeStatusBanner, usePrBadgeCounts } from "./PrPanel";
+import { PrPanelContent, PrRailIcons, usePrBadgeCounts } from "./PrPanel";
+import { MergeStatusBanner } from "./MergeStatusBanner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/Dialog";
 import { Button } from "../ui/Button";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -10,12 +11,65 @@ import { usePrStore } from "../../stores/prStore";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChangesData } from "../../hooks/useChangesData";
-import { discardFile } from "../../api";
+import { discardFile, getCommitsBehindMain, rebaseWorktree } from "../../api";
 import type { ViewMode } from "./FileSidebar";
 import type { PrComment } from "../../types";
 
 const EMPTY_COMMENTS: PrComment[] = [];
 
+
+function RebaseBanner({ worktreePath }: { worktreePath: string }) {
+  const [behindCount, setBehindCount] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetch = () => {
+      getCommitsBehindMain(worktreePath).then((n) => {
+        if (!cancelled) setBehindCount(n);
+      }).catch(() => {
+        if (!cancelled) setBehindCount(null);
+      });
+    };
+    fetch();
+    const id = setInterval(fetch, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [worktreePath]);
+
+  const handleRebase = async () => {
+    setLoading(true);
+    try {
+      await rebaseWorktree(worktreePath);
+      setBehindCount(0);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Rebase failed:", msg);
+      new Notification("Alfredo", { body: `Rebase failed: ${msg}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (behindCount == null || behindCount === 0) return null;
+
+  return (
+    <div className="px-2.5 py-1.5 bg-accent-primary/[0.08] border-t border-accent-primary/20 text-xs font-semibold shrink-0 flex items-center gap-2 text-text-secondary">
+      <GitBranch size={13} className="shrink-0" />
+      <span className="flex-1 text-[11px]">
+        {behindCount} commit{behindCount !== 1 ? "s" : ""} behind main
+      </span>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={handleRebase}
+        disabled={loading}
+        className="text-[10px] px-2 py-0.5 h-auto bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 disabled:opacity-50 font-medium"
+      >
+        {loading ? "Rebasing…" : "Rebase"}
+      </Button>
+    </div>
+  );
+}
 
 function WorkspacePanel({
   worktreeId,
@@ -248,6 +302,9 @@ function WorkspacePanel({
           repoPath={repoPath}
         />
       )}
+
+      {/* Rebase banner — hidden when merge conflict already shown (conflict implies behind main) */}
+      {worktree && mergeable !== false && <RebaseBanner worktreePath={worktree.path} />}
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>

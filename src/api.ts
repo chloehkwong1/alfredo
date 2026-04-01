@@ -80,6 +80,14 @@ export function deleteWorktree(
   return invoke("delete_worktree", { repoPath, worktreeName, force });
 }
 
+export function getCommitsBehindMain(worktreePath: string): Promise<number> {
+  return invoke("get_commits_behind_main", { worktreePath });
+}
+
+export function rebaseWorktree(worktreePath: string): Promise<void> {
+  return invoke("rebase_worktree", { worktreePath });
+}
+
 export function listWorktrees(repoPath: string): Promise<Worktree[]> {
   return invoke("list_worktrees", { repoPath });
 }
