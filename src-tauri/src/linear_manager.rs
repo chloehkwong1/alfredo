@@ -401,11 +401,12 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
     })
 }
 
-/// Generate the content for `.claude/context.md` from a Linear ticket.
+/// Generate the content for `.claude/CLAUDE.local.md` from a Linear ticket.
 pub fn generate_context_md(ticket: &LinearTicket) -> String {
     let mut content = String::new();
 
     content.push_str(&format!("# {} {}\n\n", ticket.identifier, ticket.title));
+    content.push_str("This worktree was created from a Linear ticket. Use the details below as context for your work.\n\n");
 
     if !ticket.url.is_empty() {
         content.push_str(&format!("**Link:** {}\n", ticket.url));

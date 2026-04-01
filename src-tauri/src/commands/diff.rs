@@ -387,7 +387,7 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
 
         // 3. Filter out files that should never appear as uncommitted changes.
         //
-        // a) Alfredo-injected artifacts (.claude/context.md, .claude/settings.local.json)
+        // a) Alfredo-injected artifacts (.claude/CLAUDE.local.md, .claude/settings.local.json)
         //    are added to .git/info/exclude, but that only affects untracked files.
         //    If they were ever committed, `git diff HEAD` still reports them — so we
         //    need a hardcoded filter here.
@@ -395,7 +395,7 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
         // b) Also filter via `git check-ignore` for any other gitignored paths that
         //    slip through (e.g. tracked files matching .gitignore).
         const HIDDEN_PATHS: &[&str] = &[
-            ".claude/context.md",
+            ".claude/CLAUDE.local.md",
             ".claude/settings.local.json",
         ];
         files.retain(|f| !HIDDEN_PATHS.contains(&f.path.as_str()));

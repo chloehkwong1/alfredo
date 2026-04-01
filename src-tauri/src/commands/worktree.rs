@@ -47,7 +47,7 @@ pub async fn create_worktree(
     let worktree_path =
         git_manager::create_worktree(&repo_path, &branch_name, &base_branch, base_path).await?;
 
-    // Ensure .claude/context.md and .claude/settings.local.json are in git
+    // Ensure .claude/CLAUDE.local.md and .claude/settings.local.json are in git
     // excludes so they don't show as uncommitted changes in the UI.
     ensure_claude_excludes(&repo_path).await;
 
@@ -322,16 +322,17 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
     worktree.linear_ticket_url = Some(ticket.url.clone());
     worktree.linear_ticket_identifier = Some(ticket.identifier.clone());
 
-    // 5. Inject .claude/context.md into the worktree
+    // 5. Inject .claude/CLAUDE.local.md into the worktree so Claude Code
+    //    automatically picks up the ticket context at conversation start.
     let claude_dir = std::path::Path::new(&worktree.path).join(".claude");
     tokio::fs::create_dir_all(&claude_dir)
         .await
         .map_err(|e| AppError::Linear(format!("failed to create .claude dir: {e}")))?;
 
     let context_md = linear_manager::generate_context_md(&ticket);
-    tokio::fs::write(claude_dir.join("context.md"), context_md)
+    tokio::fs::write(claude_dir.join("CLAUDE.local.md"), context_md)
         .await
-        .map_err(|e| AppError::Linear(format!("failed to write context.md: {e}")))?;
+        .map_err(|e| AppError::Linear(format!("failed to write CLAUDE.local.md: {e}")))?;
 
     Ok(worktree)
 }
@@ -371,7 +372,7 @@ async fn create_worktree_from_pr(repo_path: String, pr_number: u64) -> Result<Wo
 }
 
 /// Ensure the repo's `.git/info/exclude` contains entries for AI tool artifacts
-/// that Alfredo injects into worktrees (context.md, settings.local.json).
+/// that Alfredo injects into worktrees (CLAUDE.local.md, settings.local.json).
 /// These should never appear as uncommitted changes in the UI.
 async fn ensure_claude_excludes(repo_path: &str) {
     let exclude_path = std::path::Path::new(repo_path)
@@ -379,7 +380,7 @@ async fn ensure_claude_excludes(repo_path: &str) {
         .join("info")
         .join("exclude");
 
-    let entries = [".claude/context.md", ".claude/settings.local.json"];
+    let entries = [".claude/CLAUDE.local.md", ".claude/settings.local.json"];
 
     let existing = tokio::fs::read_to_string(&exclude_path)
         .await
