@@ -214,7 +214,7 @@ function Sidebar({
           {/* Scrollable agent list */}
           <div className="flex-1 overflow-y-auto py-3">
             <SidebarDragContext collapsedColumns={collapsedColumns} onExpandColumn={handleToggleCollapsed}>
-              {(isDragging, dragActiveId, dragHeight) =>
+              {(isDragging, dragActiveId) =>
                 COLUMNS.map((col) => (
                   <StatusGroup
                     key={col}
@@ -226,7 +226,6 @@ function Sidebar({
                     onArchiveWorktree={archiveWorktree}
                     forceVisible={isDragging}
                     dragActiveId={dragActiveId}
-                    dragHeight={dragHeight}
                     repoColors={effectiveRepoColors}
                     repoDisplayNames={repoDisplayNames}
                     showRepoTags={showRepoTags}

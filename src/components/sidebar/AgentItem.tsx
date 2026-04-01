@@ -1,4 +1,5 @@
-import { useDraggable } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
 import { Archive, Trash2, CircleCheck, CircleX, ExternalLink, Eye, GitBranch, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus, X, Unlink } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
@@ -379,7 +380,7 @@ const AgentItem = memo(function AgentItem({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFromOpen, setCreateFromOpen] = useState(false);
   const { prSummary, isServerRunning, effectiveStatus, shouldPulse } = useAgentItemState(worktree);
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: worktree.id,
   });
 
@@ -442,10 +443,11 @@ const AgentItem = memo(function AgentItem({
             onClick={onClick}
             {...attributes}
             {...listeners}
+            style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0 : 1 }}
             className={[
               "w-full text-left py-2 px-3.5 flex items-start gap-2",
               "transition-all duration-[var(--transition-fast)]",
-              isDragging ? "opacity-0 pointer-events-none" : "cursor-grab",
+              isDragging ? "pointer-events-none" : "cursor-grab",
               getBorderClass(effectiveStatus),
               isSelected
                 ? "bg-[rgba(255,255,255,0.07)]"
@@ -668,5 +670,5 @@ function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
   );
 }
 
-export { AgentItem, AgentItemContent, useAgentItemState };
+export { AgentItem, AgentItemContent, useAgentItemState, getBorderClass };
 export type { AgentItemProps };

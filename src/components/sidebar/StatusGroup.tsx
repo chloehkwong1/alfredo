@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import {
   CircleDot,
   Circle,
@@ -24,7 +25,6 @@ interface StatusGroupProps {
   onArchiveWorktree?: (id: string) => void;
   forceVisible?: boolean;
   dragActiveId?: string | null;
-  dragHeight?: number | null;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
   showRepoTags?: boolean;
@@ -62,7 +62,6 @@ function StatusGroup({
   onArchiveWorktree,
   forceVisible,
   dragActiveId,
-  dragHeight,
   repoColors,
   repoDisplayNames,
   showRepoTags,
@@ -97,9 +96,7 @@ function StatusGroup({
   const Icon = columnIcon[column];
   const label = columnLabel[column];
 
-  // Show a drop placeholder when dragging over this group from a different group
   const draggedItemIsInThisGroup = dragActiveId != null && worktrees.some((wt) => wt.id === dragActiveId);
-  const showDropPlaceholder = isOver && !draggedItemIsInThisGroup && dragActiveId != null;
   const showCollapsedDropHint = collapsed && isOver && !draggedItemIsInThisGroup && dragActiveId != null;
 
   return (
@@ -149,27 +146,23 @@ function StatusGroup({
             transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            {worktrees.map((wt) => (
-              <AgentItem
-                key={wt.id}
-                worktree={wt}
-                isSelected={wt.id === activeWorktreeId}
-                onClick={() => onSelectWorktree(wt.id)}
-                onDelete={onDeleteWorktree}
-                onArchive={onArchiveWorktree}
-                repoPath={wt.repoPath}
-                repoColors={repoColors}
-                repoDisplayNames={repoDisplayNames}
-                repoIndex={repoIndexMap?.[wt.repoPath ?? ""] ?? 0}
-                showRepoTag={showRepoTags ?? false}
-              />
-            ))}
-            {showDropPlaceholder && (
-              <div
-                className="mx-3 my-1 rounded-md border border-dashed border-accent-primary/40 bg-accent-muted/30 transition-all"
-                style={dragHeight ? { height: dragHeight } : { height: 40 }}
-              />
-            )}
+            <SortableContext items={worktrees.map((wt) => wt.id)} strategy={verticalListSortingStrategy}>
+              {worktrees.map((wt) => (
+                <AgentItem
+                  key={wt.id}
+                  worktree={wt}
+                  isSelected={wt.id === activeWorktreeId}
+                  onClick={() => onSelectWorktree(wt.id)}
+                  onDelete={onDeleteWorktree}
+                  onArchive={onArchiveWorktree}
+                  repoPath={wt.repoPath}
+                  repoColors={repoColors}
+                  repoDisplayNames={repoDisplayNames}
+                  repoIndex={repoIndexMap?.[wt.repoPath ?? ""] ?? 0}
+                  showRepoTag={showRepoTags ?? false}
+                />
+              ))}
+            </SortableContext>
           </motion.div>
         )}
       </AnimatePresence>
