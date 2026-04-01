@@ -197,7 +197,7 @@
   },
   {
     "name": "late-hook-busy-after-waiting-for-input",
-    "description": "Hook busy arrives after detector already set waitingForInput (race condition)",
+    "description": "Late busy hook blocked by waitingForInput sticky flag",
     "category": "missed-waiting-for-input",
     "steps": [
       {
@@ -205,7 +205,7 @@
         "expect": { "agentStatus": "busy" }
       },
       {
-        "action": { "type": "ptyOutput", "data": "Do you want to proceed?\n\u203a 1. Yes\n  2. No\nEsc to cancel\n" },
+        "action": { "type": "hookEvent", "state": "waitingForInput" },
         "expect": { "agentStatus": "waitingForInput" }
       },
       {

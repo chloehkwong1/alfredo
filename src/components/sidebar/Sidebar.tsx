@@ -118,29 +118,7 @@ function Sidebar({
 
       if ((document.activeElement as HTMLElement)?.closest?.('.xterm')) return;
 
-      // Only handle arrow keys when focus is inside the sidebar
-      const inSidebar = (document.activeElement as HTMLElement)?.closest?.('[data-sidebar]');
-      if (!inSidebar && (event.key === "ArrowUp" || event.key === "ArrowDown")) return;
-
-      const currentIndex = flatWorktrees.findIndex(
-        (wt) => wt.id === activeWorktreeId,
-      );
-
-      if (event.key === "ArrowUp" && !event.metaKey) {
-        event.preventDefault();
-        if (flatWorktrees.length === 0) return;
-        const nextIndex =
-          currentIndex <= 0 ? flatWorktrees.length - 1 : currentIndex - 1;
-        setActiveWorktree(flatWorktrees[nextIndex].id);
-      } else if (event.key === "ArrowDown" && !event.metaKey) {
-        event.preventDefault();
-        if (flatWorktrees.length === 0) return;
-        const nextIndex =
-          currentIndex < 0 || currentIndex >= flatWorktrees.length - 1
-            ? 0
-            : currentIndex + 1;
-        setActiveWorktree(flatWorktrees[nextIndex].id);
-      } else if (event.metaKey && event.key >= "1" && event.key <= "9") {
+      if (event.metaKey && event.key >= "1" && event.key <= "9") {
         const idx = parseInt(event.key, 10) - 1;
         if (idx < flatWorktrees.length) {
           event.preventDefault();
