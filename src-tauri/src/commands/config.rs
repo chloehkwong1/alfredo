@@ -1,3 +1,4 @@
+use crate::commands::setup_script_dialog;
 use crate::config_manager;
 use crate::types::{AppConfig, AppError};
 
@@ -23,8 +24,6 @@ pub async fn run_setup_scripts(
     repo_path: String,
     worktree_path: String,
 ) -> Result<()> {
-    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
-
     let config = config_manager::load_config(&repo_path).await?;
     let create_scripts: Vec<_> = config
         .setup_scripts
@@ -37,29 +36,9 @@ pub async fn run_setup_scripts(
         return Ok(());
     }
 
-    let script_list = create_scripts
-        .iter()
-        .map(|s| format!("• {} — {}", s.name, s.command))
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let confirmed = app
-        .dialog()
-        .message(format!(
-            "This repo wants to run the following setup scripts:\n\n{script_list}\n\nOnly proceed if you trust this repository."
-        ))
-        .title("Run Setup Scripts?")
-        .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom(
-            "Run Scripts".into(),
-            "Cancel".into(),
-        ))
-        .blocking_show();
-
-    if !confirmed {
-        return Err(AppError::Config(
-            "setup scripts cancelled by user".into(),
-        ));
+    // User cancelled — not an error, just a no-op.
+    if !setup_script_dialog::confirm_setup_scripts(&app, &create_scripts).await {
+        return Ok(());
     }
 
     config_manager::run_setup_scripts(&worktree_path, &create_scripts).await

@@ -1,5 +1,6 @@
 use tauri::{AppHandle, Manager};
 
+use crate::commands::setup_script_dialog;
 use crate::config_manager;
 use crate::git_manager;
 use crate::git_manager::get_diff_stats;
@@ -59,31 +60,10 @@ pub async fn create_worktree(
         .filter(|s| s.run_on == "create")
         .cloned()
         .collect();
-    if !create_scripts.is_empty() {
-        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
-
-        let script_list = create_scripts
-            .iter()
-            .map(|s| format!("• {} — {}", s.name, s.command))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let confirmed = app
-            .dialog()
-            .message(format!(
-                "This repo wants to run the following setup scripts:\n\n{script_list}\n\nOnly proceed if you trust this repository."
-            ))
-            .title("Run Setup Scripts?")
-            .kind(MessageDialogKind::Warning)
-            .buttons(MessageDialogButtons::OkCancelCustom(
-                "Run Scripts".into(),
-                "Cancel".into(),
-            ))
-            .blocking_show();
-
-        if confirmed {
-            config_manager::run_setup_scripts(&path_str, &create_scripts).await?;
-        }
+    if !create_scripts.is_empty()
+        && setup_script_dialog::confirm_setup_scripts(&app, &create_scripts).await
+    {
+        config_manager::run_setup_scripts(&path_str, &create_scripts).await?;
     }
 
     // Use the sanitized directory name as the ID/name so it matches
