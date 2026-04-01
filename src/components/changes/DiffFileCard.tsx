@@ -1,11 +1,11 @@
-import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { SyntaxDiffLine } from "./SyntaxDiffLine";
 import { AnnotationBubble } from "./AnnotationBubble";
 import { AnnotationInput } from "./AnnotationInput";
 import { DiffCommentIndicator } from "./DiffCommentIndicator";
 import { DiffCommentThread } from "./DiffCommentThread";
-import { SplitDiffLine } from "./SplitDiffLine";
+import { SplitSideContent } from "./SplitDiffLine";
 import { pairLinesForSplit } from "./splitPairing";
 import { ExpandContextButton } from "./ExpandContextButton";
 import { getFileLines } from "../../api";
@@ -121,6 +121,23 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
     // so "Expand all" doesn't mount all 42 cards at once.
     const cardRef = useRef<HTMLDivElement | null>(null);
     const [hasBeenVisible, setHasBeenVisible] = useState(false);
+    const isSyncing = useRef(false);
+
+    const syncSplitScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+      if (isSyncing.current) return;
+      const target = e.currentTarget;
+      const scrollLeft = target.scrollLeft;
+      const isLeft = target.classList.contains('split-left-col');
+      const oppositeClass = isLeft ? '.split-right-col' : '.split-left-col';
+      isSyncing.current = true;
+      const body = target.closest('.split-diff-body');
+      if (body) {
+        body.querySelectorAll<HTMLDivElement>(oppositeClass).forEach(el => {
+          el.scrollLeft = scrollLeft;
+        });
+      }
+      requestAnimationFrame(() => { isSyncing.current = false; });
+    }, []);
 
     useEffect(() => {
       const node = cardRef.current;
@@ -386,240 +403,327 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
         {/* Diff body — deferred until card has been in/near viewport */}
         {expanded && hasBeenVisible && (
           <div className="bg-bg-primary overflow-x-auto">
-            {file.hunks.map((hunk, hunkIndex) => {
-              const topGapKey = hunkIndex === 0 ? "top" : `between-${hunkIndex - 1}-${hunkIndex}`;
-              const topGap = gapInfo.find((g) => g.key === topGapKey);
-              const topExpandedLines = expandedGaps.get(topGapKey) ?? [];
+            {viewMode !== "split" ? (
+              <div className="min-w-max">
+                {file.hunks.map((hunk, hunkIndex) => {
+                  const topGapKey = hunkIndex === 0 ? "top" : `between-${hunkIndex - 1}-${hunkIndex}`;
+                  const topGap = gapInfo.find((g) => g.key === topGapKey);
+                  const topExpandedLines = expandedGaps.get(topGapKey) ?? [];
 
-              return (
-                <div key={hunkIndex}>
-                  {/* Expand button above this hunk */}
-                  {topGap && (
-                    <ExpandContextButton
-                      position={topGap.position}
-                      hiddenLineCount={topGap.hiddenLines}
-                      onExpandAll={() => handleExpandContext(topGapKey)}
-                      loading={loadingGaps.has(topGapKey)}
-                    />
-                  )}
+                  return (
+                    <div key={hunkIndex}>
+                      {/* Expand button above this hunk */}
+                      {topGap && (
+                        <ExpandContextButton
+                          position={topGap.position}
+                          hiddenLineCount={topGap.hiddenLines}
+                          onExpandAll={() => handleExpandContext(topGapKey)}
+                          loading={loadingGaps.has(topGapKey)}
+                        />
+                      )}
 
-                  {/* Expanded lines above this hunk */}
-                  {topExpandedLines.map((line, li) =>
-                    viewMode === "split" ? (
-                      <SplitDiffLine
-                        key={`exp-${topGapKey}-${li}`}
-                        left={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
-                        right={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
-                        filePath={file.path}
-                        searchQuery={searchQuery}
-                      />
-                    ) : (
-                      <SyntaxDiffLine
-                        key={`exp-${topGapKey}-${li}`}
-                        content={line.content}
-                        lineType={line.lineType}
-                        oldLineNumber={line.oldLineNumber}
-                        newLineNumber={line.newLineNumber}
-                        filePath={file.path}
-                        searchQuery={searchQuery}
-                      />
-                    )
-                  )}
-
-                  {/* Hunk separator */}
-                  <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-y border-border-default font-mono text-[10px] text-text-tertiary select-none">
-                    <span>{hunk.header}</span>
-                  </div>
-
-                  {/* Lines */}
-                  {viewMode === "split" ? (
-                    pairLinesForSplit(hunk.lines).map((row, rowIndex) => {
-                      // Split view: clicks only on right side, so annotations use "new" side
-                      const side: import("../../types").DiffSide = "new";
-                      const lineNumber = row.right?.lineNumber ?? row.left?.lineNumber ?? null;
-                      const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
-                      const lineAnnotations = annotationKey !== null
-                        ? (annotationsByLine.get(annotationKey) ?? [])
-                        : [];
-                      const lineComments = lineNumber !== null
-                        ? (prCommentsByLine.get(lineNumber) ?? [])
-                        : [];
-                      const isActiveAnnotationLine =
-                        lineNumber !== null &&
-                        activeAnnotationLine?.filePath === file.path &&
-                        activeAnnotationLine?.lineNumber === lineNumber &&
-                        activeAnnotationLine?.side === side;
-                      const hasComments = lineComments.length > 0;
-                      const commentsExpanded =
-                        lineNumber !== null && expandedCommentLines.has(lineNumber);
-
-                      return (
-                        <SplitDiffLine
-                          key={rowIndex}
-                          left={row.left}
-                          right={row.right}
-                          filePath={file.path}
-                          onClickLine={
-                            lineNumber !== null
-                              ? (ln) => onAddAnnotation(file.path, ln, side)
-                              : undefined
-                          }
-                          searchQuery={searchQuery}
-                        >
-                          {hasComments && lineNumber !== null && (
-                            <div
-                              className="flex justify-end pr-2"
-                              ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}
-                            >
-                              <DiffCommentIndicator
-                                count={lineComments.length}
-                                onClick={() => toggleCommentLine(lineNumber)}
-                              />
-                            </div>
-                          )}
-                          {hasComments && commentsExpanded && (
-                            <DiffCommentThread comments={lineComments} onSendToClaude={onSendToClaude} />
-                          )}
-                          {lineAnnotations.map((ann) => (
-                            <AnnotationBubble
-                              key={ann.id}
-                              annotation={ann}
-                              onDelete={onDeleteAnnotation}
-                              onEdit={onEditAnnotation}
-                            />
-                          ))}
-                          {isActiveAnnotationLine && lineNumber !== null && (
-                            <AnnotationInput
-                              onSubmit={(text) =>
-                                onSubmitAnnotation(file.path, lineNumber, side, text)
-                              }
-                              onCancel={() => onAddAnnotation(file.path, lineNumber, side)}
-                            />
-                          )}
-                        </SplitDiffLine>
-                      );
-                    })
-                  ) : (
-                    hunk.lines.map((line, lineIndex) => {
-                      // Determine side and line number based on line type
-                      const side: import("../../types").DiffSide = line.lineType === "deletion" ? "old" : "new";
-                      const lineNumber =
-                        line.newLineNumber ?? line.oldLineNumber ?? null;
-                      const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
-
-                      const lineAnnotations = annotationKey !== null
-                        ? (annotationsByLine.get(annotationKey) ?? [])
-                        : [];
-                      const lineComments = lineNumber !== null
-                        ? (prCommentsByLine.get(lineNumber) ?? [])
-                        : [];
-                      const isActiveAnnotationLine =
-                        lineNumber !== null &&
-                        activeAnnotationLine?.filePath === file.path &&
-                        activeAnnotationLine?.lineNumber === lineNumber &&
-                        activeAnnotationLine?.side === side;
-                      const hasComments = lineComments.length > 0;
-                      const commentsExpanded =
-                        lineNumber !== null &&
-                        expandedCommentLines.has(lineNumber);
-
-                      const isActiveMatch = activeSearchMatch !== null &&
-                        activeSearchMatch !== undefined &&
-                        activeSearchMatch.hunkIndex === hunkIndex &&
-                        activeSearchMatch.lineIndex === lineIndex;
-
-                      return (
+                      {/* Expanded lines above this hunk */}
+                      {topExpandedLines.map((line, li) => (
                         <SyntaxDiffLine
-                          key={lineIndex}
+                          key={`exp-${topGapKey}-${li}`}
                           content={line.content}
                           lineType={line.lineType}
                           oldLineNumber={line.oldLineNumber}
                           newLineNumber={line.newLineNumber}
                           filePath={file.path}
-                          onClickLine={
-                            lineNumber !== null
-                              ? () => onAddAnnotation(file.path, lineNumber, side)
-                              : undefined
-                          }
                           searchQuery={searchQuery}
-                          isActiveSearchMatch={isActiveMatch}
-                        >
-                          {/* PR comment indicator */}
-                          {hasComments && lineNumber !== null && (
-                            <div
-                              className="flex justify-end pr-2"
-                              ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}
-                            >
-                              <DiffCommentIndicator
-                                count={lineComments.length}
-                                onClick={() => toggleCommentLine(lineNumber)}
+                        />
+                      ))}
+
+                      {/* Hunk separator */}
+                      <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-y border-border-default font-mono text-[10px] text-text-tertiary select-none">
+                        <span>{hunk.header}</span>
+                      </div>
+
+                      {/* Lines — unified mode */}
+                      {hunk.lines.map((line, lineIndex) => {
+                        // Determine side and line number based on line type
+                        const side: import("../../types").DiffSide = line.lineType === "deletion" ? "old" : "new";
+                        const lineNumber =
+                          line.newLineNumber ?? line.oldLineNumber ?? null;
+                        const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
+
+                        const lineAnnotations = annotationKey !== null
+                          ? (annotationsByLine.get(annotationKey) ?? [])
+                          : [];
+                        const lineComments = lineNumber !== null
+                          ? (prCommentsByLine.get(lineNumber) ?? [])
+                          : [];
+                        const isActiveAnnotationLine =
+                          lineNumber !== null &&
+                          activeAnnotationLine?.filePath === file.path &&
+                          activeAnnotationLine?.lineNumber === lineNumber &&
+                          activeAnnotationLine?.side === side;
+                        const hasComments = lineComments.length > 0;
+                        const commentsExpanded =
+                          lineNumber !== null &&
+                          expandedCommentLines.has(lineNumber);
+
+                        const isActiveMatch = activeSearchMatch !== null &&
+                          activeSearchMatch !== undefined &&
+                          activeSearchMatch.hunkIndex === hunkIndex &&
+                          activeSearchMatch.lineIndex === lineIndex;
+
+                        return (
+                          <SyntaxDiffLine
+                            key={lineIndex}
+                            content={line.content}
+                            lineType={line.lineType}
+                            oldLineNumber={line.oldLineNumber}
+                            newLineNumber={line.newLineNumber}
+                            filePath={file.path}
+                            onClickLine={
+                              lineNumber !== null
+                                ? () => onAddAnnotation(file.path, lineNumber, side)
+                                : undefined
+                            }
+                            searchQuery={searchQuery}
+                            isActiveSearchMatch={isActiveMatch}
+                          >
+                            {/* PR comment indicator */}
+                            {hasComments && lineNumber !== null && (
+                              <div
+                                className="flex justify-end pr-2"
+                                ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}
+                              >
+                                <DiffCommentIndicator
+                                  count={lineComments.length}
+                                  onClick={() => toggleCommentLine(lineNumber)}
+                                />
+                              </div>
+                            )}
+
+                            {/* PR comment thread */}
+                            {hasComments && commentsExpanded && (
+                              <DiffCommentThread comments={lineComments} onSendToClaude={onSendToClaude} />
+                            )}
+
+                            {/* Existing annotations */}
+                            {lineAnnotations.map((ann) => (
+                              <AnnotationBubble
+                                key={ann.id}
+                                annotation={ann}
+                                onDelete={onDeleteAnnotation}
+                                onEdit={onEditAnnotation}
                               />
+                            ))}
+
+                            {/* Active annotation input (only on additions/context, not deletions — avoids duplicates on modified lines) */}
+                            {isActiveAnnotationLine && lineNumber !== null && line.lineType !== "deletion" && (
+                              <AnnotationInput
+                                onSubmit={(text) =>
+                                  onSubmitAnnotation(file.path, lineNumber, side, text)
+                                }
+                                onCancel={() => onAddAnnotation(file.path, lineNumber, side)}
+                              />
+                            )}
+                          </SyntaxDiffLine>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+
+                {/* Expanded lines below last hunk */}
+                {(expandedGaps.get("bottom") ?? []).map((line, li) => (
+                  <SyntaxDiffLine
+                    key={`exp-bottom-${li}`}
+                    content={line.content}
+                    lineType={line.lineType}
+                    oldLineNumber={line.oldLineNumber}
+                    newLineNumber={line.newLineNumber}
+                    filePath={file.path}
+                    searchQuery={searchQuery}
+                  />
+                ))}
+
+                {/* Expand button below last hunk */}
+                {gapInfo.find((g) => g.key === "bottom") && (
+                  <ExpandContextButton
+                    position="bottom"
+                    hiddenLineCount={gapInfo.find((g) => g.key === "bottom")!.hiddenLines}
+                    onExpandAll={() => handleExpandContext("bottom")}
+                    loading={loadingGaps.has("bottom")}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="split-diff-body">
+                {file.hunks.map((hunk, hunkIndex) => {
+                  const topGapKey = hunkIndex === 0 ? "top" : `between-${hunkIndex - 1}-${hunkIndex}`;
+                  const topGap = gapInfo.find((g) => g.key === topGapKey);
+                  const topExpandedLines = expandedGaps.get(topGapKey) ?? [];
+
+                  return (
+                    <React.Fragment key={hunkIndex}>
+                      {/* Full-width: expand button above this hunk */}
+                      {topGap && (
+                        <ExpandContextButton
+                          position={topGap.position}
+                          hiddenLineCount={topGap.hiddenLines}
+                          onExpandAll={() => handleExpandContext(topGapKey)}
+                          loading={loadingGaps.has(topGapKey)}
+                        />
+                      )}
+
+                      {/* Two-column: expanded context lines above hunk */}
+                      {topExpandedLines.length > 0 && (
+                        <div className="flex">
+                          <div className="flex-1 min-w-0 overflow-x-auto split-left-col" onScroll={syncSplitScroll}>
+                            {topExpandedLines.map((line, li) => (
+                              <SplitSideContent
+                                key={li}
+                                side={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
+                                filePath={file.path}
+                                align="left"
+                                searchQuery={searchQuery}
+                              />
+                            ))}
+                          </div>
+                          <div className="w-px bg-border-default flex-shrink-0" />
+                          <div className="flex-1 min-w-0 overflow-x-auto split-right-col" onScroll={syncSplitScroll}>
+                            {topExpandedLines.map((line, li) => (
+                              <SplitSideContent
+                                key={li}
+                                side={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
+                                filePath={file.path}
+                                align="right"
+                                searchQuery={searchQuery}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Full-width: hunk separator */}
+                      <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-y border-border-default font-mono text-[10px] text-text-tertiary select-none">
+                        <span>{hunk.header}</span>
+                      </div>
+
+                      {/* Two-column: hunk lines */}
+                      {(() => {
+                        const pairedRows = pairLinesForSplit(hunk.lines);
+                        return (
+                          <div className="flex">
+                            <div className="flex-1 min-w-0 overflow-x-auto split-left-col" onScroll={syncSplitScroll}>
+                              {pairedRows.map((row, rowIndex) => (
+                                <SplitSideContent
+                                  key={rowIndex}
+                                  side={row.left}
+                                  filePath={file.path}
+                                  align="left"
+                                  searchQuery={searchQuery}
+                                />
+                              ))}
                             </div>
-                          )}
+                            <div className="w-px bg-border-default flex-shrink-0" />
+                            <div className="flex-1 min-w-0 overflow-x-auto split-right-col" onScroll={syncSplitScroll}>
+                              {pairedRows.map((row, rowIndex) => {
+                                const side: import("../../types").DiffSide = "new";
+                                const lineNumber = row.right?.lineNumber ?? row.left?.lineNumber ?? null;
+                                const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
+                                const lineAnnotations = annotationKey !== null ? (annotationsByLine.get(annotationKey) ?? []) : [];
+                                const lineComments = lineNumber !== null ? (prCommentsByLine.get(lineNumber) ?? []) : [];
+                                const isActiveAnnotationLine =
+                                  lineNumber !== null &&
+                                  activeAnnotationLine?.filePath === file.path &&
+                                  activeAnnotationLine?.lineNumber === lineNumber &&
+                                  activeAnnotationLine?.side === side;
+                                const hasComments = lineComments.length > 0;
+                                const commentsExpanded = lineNumber !== null && expandedCommentLines.has(lineNumber);
 
-                          {/* PR comment thread */}
-                          {hasComments && commentsExpanded && (
-                            <DiffCommentThread comments={lineComments} onSendToClaude={onSendToClaude} />
-                          )}
+                                return (
+                                  <div key={rowIndex}>
+                                    <SplitSideContent
+                                      side={row.right}
+                                      filePath={file.path}
+                                      align="right"
+                                      onClickLine={lineNumber !== null ? (ln) => onAddAnnotation(file.path, ln, side) : undefined}
+                                      searchQuery={searchQuery}
+                                    />
+                                    {hasComments && lineNumber !== null && (
+                                      <div
+                                        className="flex justify-end pr-2"
+                                        ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}
+                                      >
+                                        <DiffCommentIndicator
+                                          count={lineComments.length}
+                                          onClick={() => toggleCommentLine(lineNumber)}
+                                        />
+                                      </div>
+                                    )}
+                                    {hasComments && commentsExpanded && (
+                                      <DiffCommentThread comments={lineComments} onSendToClaude={onSendToClaude} />
+                                    )}
+                                    {lineAnnotations.map((ann) => (
+                                      <AnnotationBubble
+                                        key={ann.id}
+                                        annotation={ann}
+                                        onDelete={onDeleteAnnotation}
+                                        onEdit={onEditAnnotation}
+                                      />
+                                    ))}
+                                    {isActiveAnnotationLine && lineNumber !== null && (
+                                      <AnnotationInput
+                                        onSubmit={(text) => onSubmitAnnotation(file.path, lineNumber, side, text)}
+                                        onCancel={() => onAddAnnotation(file.path, lineNumber, side)}
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </React.Fragment>
+                  );
+                })}
 
-                          {/* Existing annotations */}
-                          {lineAnnotations.map((ann) => (
-                            <AnnotationBubble
-                              key={ann.id}
-                              annotation={ann}
-                              onDelete={onDeleteAnnotation}
-                              onEdit={onEditAnnotation}
-                            />
-                          ))}
+                {/* Two-column: expanded lines below last hunk */}
+                {(expandedGaps.get("bottom") ?? []).length > 0 && (
+                  <div className="flex">
+                    <div className="flex-1 min-w-0 overflow-x-auto split-left-col" onScroll={syncSplitScroll}>
+                      {(expandedGaps.get("bottom") ?? []).map((line, li) => (
+                        <SplitSideContent
+                          key={li}
+                          side={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
+                          filePath={file.path}
+                          align="left"
+                          searchQuery={searchQuery}
+                        />
+                      ))}
+                    </div>
+                    <div className="w-px bg-border-default flex-shrink-0" />
+                    <div className="flex-1 min-w-0 overflow-x-auto split-right-col" onScroll={syncSplitScroll}>
+                      {(expandedGaps.get("bottom") ?? []).map((line, li) => (
+                        <SplitSideContent
+                          key={li}
+                          side={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
+                          filePath={file.path}
+                          align="right"
+                          searchQuery={searchQuery}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                          {/* Active annotation input (only on additions/context, not deletions — avoids duplicates on modified lines) */}
-                          {isActiveAnnotationLine && lineNumber !== null && line.lineType !== "deletion" && (
-                            <AnnotationInput
-                              onSubmit={(text) =>
-                                onSubmitAnnotation(file.path, lineNumber, side, text)
-                              }
-                              onCancel={() => onAddAnnotation(file.path, lineNumber, side)}
-                            />
-                          )}
-                        </SyntaxDiffLine>
-                      );
-                    })
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Expanded lines below last hunk */}
-            {(expandedGaps.get("bottom") ?? []).map((line, li) =>
-              viewMode === "split" ? (
-                <SplitDiffLine
-                  key={`exp-bottom-${li}`}
-                  left={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
-                  right={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
-                  filePath={file.path}
-                  searchQuery={searchQuery}
-                />
-              ) : (
-                <SyntaxDiffLine
-                  key={`exp-bottom-${li}`}
-                  content={line.content}
-                  lineType={line.lineType}
-                  oldLineNumber={line.oldLineNumber}
-                  newLineNumber={line.newLineNumber}
-                  filePath={file.path}
-                  searchQuery={searchQuery}
-                />
-              )
-            )}
-
-            {/* Expand button below last hunk */}
-            {gapInfo.find((g) => g.key === "bottom") && (
-              <ExpandContextButton
-                position="bottom"
-                hiddenLineCount={gapInfo.find((g) => g.key === "bottom")!.hiddenLines}
-                onExpandAll={() => handleExpandContext("bottom")}
-                loading={loadingGaps.has("bottom")}
-              />
+                {/* Full-width: expand button below last hunk */}
+                {gapInfo.find((g) => g.key === "bottom") && (
+                  <ExpandContextButton
+                    position="bottom"
+                    hiddenLineCount={gapInfo.find((g) => g.key === "bottom")!.hiddenLines}
+                    onExpandAll={() => handleExpandContext("bottom")}
+                    loading={loadingGaps.has("bottom")}
+                  />
+                )}
+              </div>
             )}
           </div>
         )}
