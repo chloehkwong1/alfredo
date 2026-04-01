@@ -162,6 +162,7 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRes
           <>
             <SettingsChip
               label={displayLabel(EFFORT_OPTIONS, resolved.effort, CLAUDE_DEFAULTS.effort)}
+              prefix="Effort"
               options={EFFORT_OPTIONS}
               value={resolved.effort ?? ""}
               isOpen={openDropdown === "effort"}
@@ -170,6 +171,7 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRes
             />
             <SettingsChip
               label={displayLabel(PERMISSION_OPTIONS, resolved.permissionMode, CLAUDE_DEFAULTS.permissionMode)}
+              prefix="Permissions"
               options={PERMISSION_OPTIONS}
               value={resolved.permissionMode ?? ""}
               isOpen={openDropdown === "permissionMode"}
@@ -178,6 +180,7 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRes
             />
             <SettingsChip
               label={displayLabel(OUTPUT_OPTIONS, resolved.outputStyle, CLAUDE_DEFAULTS.outputStyle)}
+              prefix="Output Style"
               options={OUTPUT_OPTIONS}
               value={resolved.outputStyle ?? ""}
               isOpen={openDropdown === "outputStyle"}

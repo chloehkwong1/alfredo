@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 
 interface SettingsChipProps {
   label: string;
+  prefix?: string;
   options: { value: string; label: string }[];
   value: string;
   isOpen: boolean;
@@ -9,7 +10,7 @@ interface SettingsChipProps {
   onChange: (value: string) => void;
 }
 
-function SettingsChip({ label, options, value, isOpen, onToggle, onChange }: SettingsChipProps) {
+function SettingsChip({ label, prefix, options, value, isOpen, onToggle, onChange }: SettingsChipProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
@@ -43,6 +44,7 @@ function SettingsChip({ label, options, value, isOpen, onToggle, onChange }: Set
         onClick={onToggle}
         className="flex items-center gap-1 px-2 py-0.5 text-xs text-text-secondary bg-bg-hover border border-border-default rounded-[var(--radius-sm)] hover:text-text-primary hover:border-border-hover transition-colors cursor-pointer"
       >
+        {prefix && <span className="text-[10px] text-text-tertiary font-normal">{prefix}</span>}
         {label}
         <span className="text-[10px] opacity-60">▾</span>
       </button>

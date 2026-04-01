@@ -53,10 +53,10 @@ function RebaseBanner({ worktreePath, stackParent }: { worktreePath: string; sta
   if (behindCount == null || behindCount === 0) return null;
 
   return (
-    <div className="px-2.5 py-1.5 bg-accent-primary/[0.08] border-t border-accent-primary/20 text-xs font-semibold shrink-0 flex items-center gap-2 text-text-secondary">
+    <div className="px-2.5 py-1.5 bg-accent-primary/15 border-t border-accent-primary/30 border-l-2 border-l-accent-primary text-xs font-semibold shrink-0 flex items-center gap-2 text-text-secondary">
       <GitBranch size={13} className="shrink-0" />
       <span className="flex-1 text-[11px]">
-        {behindCount} commit{behindCount !== 1 ? "s" : ""} behind main
+        <span className="text-accent-primary">{behindCount} commit{behindCount !== 1 ? "s" : ""}</span> behind main
       </span>
       <Button
         size="sm"

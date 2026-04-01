@@ -111,9 +111,9 @@ function RepoSelector({
             })
           )}
         </span>
-        {selectedRepos.length === 1 && (
-          <span className="text-2xs text-text-tertiary">
-            {selectedRepos.length} of {repos.length}
+        {selectedRepos.length === 1 && repos.length > 1 && (
+          <span className="text-2xs text-text-tertiary px-1.5 py-px rounded-full bg-bg-elevated border border-border-default">
+            {repos.length} repos
           </span>
         )}
         <ChevronDown

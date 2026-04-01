@@ -17,6 +17,7 @@ interface PrState {
     unresolvedCommentCount?: number;
     reviewDecision?: string | null;
     mergeable?: boolean | null;
+    requestedReviewers?: string[];
   }>;
   prPanelState: Record<string, PrPanelState>;
   reviewedFiles: Record<string, Set<string>>;
@@ -211,6 +212,7 @@ export const usePrStore = create<PrState>((set, get) => ({
         unresolvedCommentCount: pr.unresolvedCommentCount,
         reviewDecision: pr.reviewDecision,
         mergeable: pr.mergeable,
+        requestedReviewers: pr.requestedReviewers,
       };
 
       // PR panel full data (only update if enrichment data is present)

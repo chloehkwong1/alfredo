@@ -566,6 +566,7 @@ type PrSummary = {
   unresolvedCommentCount?: number;
   reviewDecision?: string | null;
   mergeable?: boolean | null;
+  requestedReviewers?: string[];
 };
 
 function hasPrStats(s: PrSummary): boolean {
@@ -628,7 +629,11 @@ function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
       {reviewDecision === "review_requested" && (
         <span className="flex items-center gap-1 text-xs text-status-busy">
           <UserPlus size={12} />
-          Review requested
+          {prSummary.requestedReviewers && prSummary.requestedReviewers.length > 0
+            ? prSummary.requestedReviewers.length === 1
+              ? prSummary.requestedReviewers[0]
+              : `${prSummary.requestedReviewers[0]} + ${prSummary.requestedReviewers.length - 1} other${prSummary.requestedReviewers.length > 2 ? "s" : ""}`
+            : "Review requested"}
         </span>
       )}
       {reviewDecision === "review_required" && (
