@@ -1,0 +1,79 @@
+src/components/sidebar/AgentItem.tsx
+  430e82cea60eba17 208
+src/styles/themes.css
+  430e82cea60eba17 32,86,140,194,248,302,356
+src/styles/theme.css
+  430e82cea60eba17 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "843b7e92d7b4778ad74ee98ff5be7b366af88ed7",
+  "prompts": {
+    "17e371d189bc31bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3ff416ea-e174-4959-ba79-4f07e3aac3a5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    },
+    "1b1fd1c4761dd6c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "276eaf04-e47f-48a4-a191-0669d1c9bf9b",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    },
+    "2bcb68898ef15941": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ae7902c-1196-43e8-8264-b2467d071815",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    },
+    "430e82cea60eba17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84a3c332-feb9-4a25-ac29-0c2e0d3a13c2",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 9,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    },
+    "e4aaf2593cb32d35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66762a83-880c-47fb-8155-ec8013554cc1",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 287,
+      "total_deletions": 228,
+      "accepted_lines": 460,
+      "overriden_lines": 0
+    }
+  }
+}
