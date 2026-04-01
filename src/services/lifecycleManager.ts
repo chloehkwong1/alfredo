@@ -5,7 +5,7 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { sessionManager } from "./sessionManager";
 import { deleteWorktree as deleteWorktreeApi } from "../api";
 import { deleteSession as deleteSessionFile } from "./SessionPersistence";
-import type { TabType } from "../types";
+import type { TabType, DiffTarget, WorkspaceTab } from "../types";
 
 /**
  * Coordinates lifecycle operations across workspaceStore, layoutStore,
@@ -99,6 +99,66 @@ class LifecycleManager {
         layoutState.initLayout(worktreeId, tabs.map((t) => t.id), activeTabId);
       }
     }
+  }
+
+  /**
+   * Open a diff preview tab in the active pane for the given worktree.
+   * If a preview tab already exists, updates its diffTarget in place.
+   * Returns the tab ID, or null if no active pane exists.
+   */
+  openDiffPreview(worktreeId: string, diffTarget: DiffTarget): string | null {
+    const layoutState = useLayoutStore.getState();
+    const activePaneId = layoutState.activePaneId[worktreeId];
+    if (!activePaneId) return null;
+
+    const pane = layoutState.getPane(worktreeId, activePaneId);
+    const existingPreviewId = pane?.previewTabId;
+
+    // If there's an existing preview tab, update its diffTarget instead of creating a new one
+    if (existingPreviewId) {
+      const label = diffTarget.type === "file"
+        ? (diffTarget.filePath?.split("/").pop() ?? "Diff")
+        : (diffTarget.commitHash?.slice(0, 7) ?? "Commit");
+      useTabStore.getState().updateTab(worktreeId, existingPreviewId, {
+        diffTarget,
+        label,
+      });
+      layoutState.setPaneActiveTab(worktreeId, activePaneId, existingPreviewId);
+      return existingPreviewId;
+    }
+
+    // Create a new diff tab
+    const label = diffTarget.type === "file"
+      ? (diffTarget.filePath?.split("/").pop() ?? "Diff")
+      : (diffTarget.commitHash?.slice(0, 7) ?? "Commit");
+
+    const tabId = `${worktreeId}:diff:${crypto.randomUUID().slice(0, 8)}`;
+    const tab: WorkspaceTab = {
+      id: tabId,
+      type: "diff",
+      label,
+      diffTarget,
+    };
+
+    // Add to tab store directly (append to existing tabs)
+    const existingTabs = useTabStore.getState().tabs[worktreeId] ?? [];
+    useTabStore.getState().restoreTabs(worktreeId, [...existingTabs, tab], tabId);
+
+    // Open as preview in active pane
+    layoutState.openPreviewTab(worktreeId, activePaneId, tabId);
+
+    return tabId;
+  }
+
+  /**
+   * Pin the current preview tab in the active pane (implicit pinning when
+   * the user interacts with diff content).
+   */
+  pinCurrentPreview(worktreeId: string): void {
+    const layoutState = useLayoutStore.getState();
+    const activePaneId = layoutState.activePaneId[worktreeId];
+    if (!activePaneId) return;
+    layoutState.pinPreviewTab(worktreeId, activePaneId);
   }
 
   /**
