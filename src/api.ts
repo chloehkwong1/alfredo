@@ -91,6 +91,14 @@ export function rebaseWorktree(worktreePath: string): Promise<void> {
   return invoke("rebase_worktree", { worktreePath });
 }
 
+export function setStackParent(
+  repoPath: string,
+  worktreeName: string,
+  parentBranch: string | null,
+): Promise<void> {
+  return invoke("set_stack_parent", { repoPath, worktreeName, parentBranch });
+}
+
 export function listWorktrees(repoPath: string): Promise<Worktree[]> {
   return invoke("list_worktrees", { repoPath });
 }

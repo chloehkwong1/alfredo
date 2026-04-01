@@ -29,6 +29,7 @@ interface CreateWorktreeDialogProps {
   selectedRepos?: string[];
   repoColors?: Record<string, string>;
   defaultRepoPath?: string;
+  lockedBaseBranch?: string;
 }
 
 /** Derive a placeholder worktree ID and display name from the creation source. */
@@ -66,7 +67,7 @@ const tabDefs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "linearIssues", label: "Linear Issues", icon: <Ticket className="h-3.5 w-3.5" /> },
 ];
 
-function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRepos, repoColors, defaultRepoPath }: CreateWorktreeDialogProps) {
+function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRepos, repoColors, defaultRepoPath, lockedBaseBranch }: CreateWorktreeDialogProps) {
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
   const replaceWorktree = useWorkspaceStore((s) => s.replaceWorktree);
   const failWorktree = useWorkspaceStore((s) => s.failWorktree);
@@ -96,11 +97,16 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
   // Detect default branch for the selected repo
   useEffect(() => {
     if (open && currentRepoPath) {
-      getDefaultBranch(currentRepoPath)
-        .then((branch) => setBaseBranch(branch))
-        .catch((e) => console.warn('[create-worktree] Failed to get default branch:', e));
+      if (lockedBaseBranch) {
+        setBaseBranch(lockedBaseBranch);
+        setActiveTab("newBranch");
+      } else {
+        getDefaultBranch(currentRepoPath)
+          .then((branch) => setBaseBranch(branch))
+          .catch((e) => console.warn('[create-worktree] Failed to get default branch:', e));
+      }
     }
-  }, [open, currentRepoPath]);
+  }, [open, currentRepoPath, lockedBaseBranch]);
 
 
   // Reset selection state when dialog closes
@@ -212,6 +218,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
                 baseBranch={baseBranch}
                 onBranchNameChange={setBranchName}
                 onBaseBranchChange={setBaseBranch}
+                locked={!!lockedBaseBranch}
               />
             )}
 

@@ -265,6 +265,22 @@ pub async fn rebase_worktree(worktree_path: String) -> Result<()> {
     git_manager::rebase_onto_main(&worktree_path).await
 }
 
+/// Set or clear the stack parent for a worktree.
+#[tauri::command]
+pub async fn set_stack_parent(
+    repo_path: String,
+    worktree_name: String,
+    parent_branch: Option<String>,
+) -> Result<()> {
+    let mut config = config_manager::load_config(&repo_path).await?;
+    match parent_branch {
+        Some(parent) => config_manager::set_stack_parent(&mut config, &worktree_name, &parent),
+        None => config_manager::clear_stack_parent(&mut config, &worktree_name),
+    }
+    config_manager::save_config(&repo_path, &config).await?;
+    Ok(())
+}
+
 /// Manually override a worktree's kanban column (e.g. drag to "Blocked").
 #[tauri::command]
 pub async fn set_worktree_column(

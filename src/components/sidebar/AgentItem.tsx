@@ -1,9 +1,9 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, CircleCheck, CircleX, ExternalLink, Eye, GitBranch, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus, X } from "lucide-react";
+import { Archive, Trash2, CircleCheck, CircleX, ExternalLink, Eye, GitBranch, MessageCircle, AlertTriangle, Clock, Loader, SquarePen, TerminalSquare, UserPlus, X, Unlink } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { openInEditor, openInTerminal, getAppConfig, rebaseWorktree } from "../../api";
+import { openInEditor, openInTerminal, getAppConfig, rebaseWorktree, setStackParent } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import {
@@ -25,6 +25,7 @@ import { Button } from "../ui";
 import { ServerIndicator } from "./ServerIndicator";
 import { RelativeTime } from "../ui/RelativeTime";
 import { RepoTag } from "./RepoTag";
+import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 
 const THINKING_VERBS = [
   "Thinking…",
@@ -278,6 +279,42 @@ function AgentItemContent({
             )}
           </span>
         </div>
+        {/* Stack indicator */}
+        {worktree.stackParent && (
+          <div className="flex items-center gap-1 mt-1 text-[10px] text-text-tertiary">
+            <span>on</span>
+            <button
+              type="button"
+              className="hover:text-text-secondary transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                const parent = useWorkspaceStore.getState().worktrees.find(
+                  (wt) => wt.branch === worktree.stackParent
+                );
+                if (parent) {
+                  useWorkspaceStore.getState().setActiveWorktree(parent.id);
+                }
+              }}
+            >
+              {worktree.stackParent}
+            </button>
+            {worktree.stackRebaseStatus?.kind === "behind" && (
+              <span>· {worktree.stackRebaseStatus.count} behind</span>
+            )}
+            {worktree.stackRebaseStatus?.kind === "rebasing" && (
+              <span className="animate-pulse">· rebasing...</span>
+            )}
+            {worktree.stackRebaseStatus?.kind === "conflict" && (
+              <span className="text-status-error">· conflict</span>
+            )}
+          </div>
+        )}
+        {/* Stack children indicator */}
+        {worktree.stackChildren && worktree.stackChildren.length > 0 && (
+          <div className="flex items-center gap-1 mt-1 text-[10px] text-accent-primary">
+            <span>↓ {worktree.stackChildren.length} stacked</span>
+          </div>
+        )}
         {/* Line 4: PR stats row — separated by border */}
         {prSummary && hasPrStats(prSummary) && (
           <div className="pt-2 mt-2.5 border-t border-border-subtle">
@@ -340,6 +377,7 @@ const AgentItem = memo(function AgentItem({
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [createFromOpen, setCreateFromOpen] = useState(false);
   const { prSummary, isServerRunning, effectiveStatus, shouldPulse } = useAgentItemState(worktree);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: worktree.id,
@@ -379,6 +417,18 @@ const AgentItem = memo(function AgentItem({
       console.error("Rebase failed:", msg);
       // Surface the error since the user needs to know
       new Notification("Alfredo", { body: `Rebase failed for ${worktree.branch}: ${msg}` });
+    }
+  };
+
+  const handleDetachFromStack = async () => {
+    try {
+      await setStackParent(worktree.repoPath, worktree.name, null);
+      useWorkspaceStore.getState().updateWorktree(worktree.id, {
+        stackParent: undefined,
+        stackRebaseStatus: undefined,
+      });
+    } catch (e) {
+      console.error("Failed to detach from stack:", e);
     }
   };
 
@@ -441,8 +491,20 @@ const AgentItem = memo(function AgentItem({
           {(worktree.linearTicketUrl || worktree.prStatus) && <ContextMenuSeparator />}
           <ContextMenuItem onSelect={handleRebase}>
             <GitBranch className="h-4 w-4" />
-            Rebase onto main
+            {worktree.stackParent
+              ? `Rebase onto ${worktree.stackParent}`
+              : "Rebase onto main"}
           </ContextMenuItem>
+          <ContextMenuItem onSelect={() => setCreateFromOpen(true)}>
+            <GitBranch className="h-4 w-4" />
+            Create branch from this
+          </ContextMenuItem>
+          {worktree.stackParent && (
+            <ContextMenuItem onSelect={handleDetachFromStack}>
+              <Unlink className="h-4 w-4" />
+              Detach from stack
+            </ContextMenuItem>
+          )}
           <ContextMenuSeparator />
           {onArchive && (
             <>
@@ -487,6 +549,13 @@ const AgentItem = memo(function AgentItem({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CreateWorktreeDialog
+        open={createFromOpen}
+        onOpenChange={setCreateFromOpen}
+        repoPath={repoPath ?? worktree.repoPath}
+        lockedBaseBranch={worktree.branch}
+      />
     </>
   );
 });

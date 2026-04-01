@@ -6,9 +6,10 @@ interface NewBranchTabProps {
   baseBranch: string;
   onBranchNameChange: (name: string) => void;
   onBaseBranchChange: (base: string) => void;
+  locked?: boolean;
 }
 
-function NewBranchTab({ branchName, baseBranch, onBranchNameChange, onBaseBranchChange }: NewBranchTabProps) {
+function NewBranchTab({ branchName, baseBranch, onBranchNameChange, onBaseBranchChange, locked }: NewBranchTabProps) {
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -30,7 +31,13 @@ function NewBranchTab({ branchName, baseBranch, onBranchNameChange, onBaseBranch
           placeholder="e.g. main, develop"
           value={baseBranch}
           onChange={(e) => onBaseBranchChange(e.target.value)}
+          disabled={locked}
         />
+        {locked && (
+          <p className="text-xs text-accent-primary mt-1.5">
+            Stacking on <span className="font-medium">{baseBranch}</span>
+          </p>
+        )}
       </div>
     </div>
   );
