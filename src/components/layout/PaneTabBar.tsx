@@ -139,7 +139,7 @@ function SortableTab({
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
   const canSplit = (pane?.tabIds.length ?? 0) > 1 && layout?.type === "leaf";
 
-  const effectiveCanClose = canClose && !isPreview;
+  const effectiveCanClose = canClose || tab.type === "diff";
 
   return (
     <ContextMenu>

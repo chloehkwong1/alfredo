@@ -112,6 +112,25 @@ class LifecycleManager {
     if (!activePaneId) return null;
 
     const pane = layoutState.getPane(worktreeId, activePaneId);
+
+    // Check if a pinned tab already exists for this target in the same pane
+    const allTabs = useTabStore.getState().tabs[worktreeId] ?? [];
+    const existingPinned = pane?.tabIds
+      .filter((id) => id !== pane.previewTabId)
+      .map((id) => allTabs.find((t) => t.id === id))
+      .find((t) => {
+        if (!t || t.type !== "diff" || !t.diffTarget) return false;
+        if (diffTarget.type === "file") return t.diffTarget.type === "file" && t.diffTarget.filePath === diffTarget.filePath;
+        if (diffTarget.type === "commit") return t.diffTarget.type === "commit" && t.diffTarget.commitHash === diffTarget.commitHash;
+        return false;
+      });
+
+    if (existingPinned) {
+      // Focus the existing pinned tab instead of creating a duplicate
+      layoutState.setPaneActiveTab(worktreeId, activePaneId, existingPinned.id);
+      return existingPinned.id;
+    }
+
     const existingPreviewId = pane?.previewTabId;
 
     // If there's an existing preview tab, update its diffTarget instead of creating a new one
@@ -174,13 +193,27 @@ class LifecycleManager {
     }
 
     const wtTabs = useTabStore.getState().tabs[worktreeId] ?? [];
+    const wtTabIds = new Set(wtTabs.map((t) => t.id));
     const allPaneTabIds = new Set(
       Object.values(layoutState.panes[worktreeId] ?? {}).flatMap((p) => p.tabIds),
     );
     const activePaneId = layoutState.activePaneId[worktreeId];
+
+    // Add orphaned tabs (in tabStore but not in any pane) to the active pane
     for (const tab of wtTabs) {
       if (!allPaneTabIds.has(tab.id) && activePaneId) {
         layoutState.addTabToPane(worktreeId, activePaneId, tab.id);
+      }
+    }
+
+    // Prune stale tabIds from panes and collapse any that become empty
+    const panes = layoutState.panes[worktreeId] ?? {};
+    for (const [, pane] of Object.entries(panes)) {
+      const staleIds = pane.tabIds.filter((id) => !wtTabIds.has(id));
+      if (staleIds.length > 0) {
+        for (const staleId of staleIds) {
+          layoutState.removeTabFromPane(worktreeId, staleId);
+        }
       }
     }
   }
