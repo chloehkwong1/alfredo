@@ -32,6 +32,8 @@ interface WorkspaceState {
   runningServer: { worktreeId: string; sessionId: string; tabId: string } | null;
 
   addWorktree: (worktree: Worktree) => void;
+  replaceWorktree: (tempId: string, realWorktree: Worktree) => void;
+  failWorktree: (tempId: string, error: string) => void;
   removeWorktree: (id: string) => void;
   archiveWorktree: (id: string) => void;
   unarchiveWorktree: (id: string) => void;
@@ -109,7 +111,9 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
     }
     return wt;
   });
-  return withActivityTimestamps(merged, existing);
+  // Preserve creating/errored placeholders — they don't exist on disk yet
+  const placeholders = existing.filter((wt) => wt.creating || wt.createError);
+  return [...withActivityTimestamps(merged, existing), ...placeholders];
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
@@ -128,6 +132,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
+
+  replaceWorktree: (tempId, realWorktree) =>
+    set((state) => ({
+      worktrees: state.worktrees.map((wt) =>
+        wt.id === tempId
+          ? { ...realWorktree, creating: undefined, createError: undefined }
+          : wt,
+      ),
+    })),
+
+  failWorktree: (tempId, error) =>
+    set((state) => ({
+      worktrees: state.worktrees.map((wt) =>
+        wt.id === tempId
+          ? { ...wt, creating: undefined, createError: error }
+          : wt,
+      ),
+    })),
 
   removeWorktree: (id) =>
     set((state) => {

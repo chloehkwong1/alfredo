@@ -40,7 +40,9 @@ function collectAndSaveAllSessions(repoPath: string) {
   const state = useWorkspaceStore.getState();
   const tabState = useTabStore.getState();
   const prState = usePrStore.getState();
-  const worktreeIds = state.worktrees.map((wt) => wt.id);
+  const worktreeIds = state.worktrees
+    .filter((wt) => !wt.creating && !wt.createError)
+    .map((wt) => wt.id);
   return saveAllSessions(
     repoPath,
     worktreeIds,
