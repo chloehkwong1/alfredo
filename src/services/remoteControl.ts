@@ -2,7 +2,7 @@ import { writePty } from "../api";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
 import { sessionManager } from "./sessionManager";
 
-const SESSION_URL_RE = /https:\/\/claude\.ai\/code\/[^\s\x1b]+/;
+export const SESSION_URL_RE = /https:\/\/claude\.ai\/code\/[^\s\x1b]+/;
 
 /** Active polling intervals per worktreeId — cleared on re-toggle or disable. */
 const activePolls = new Map<string, ReturnType<typeof setInterval>>();

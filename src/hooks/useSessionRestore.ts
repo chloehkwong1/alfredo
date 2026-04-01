@@ -5,6 +5,8 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getConfig } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
+import { useRemoteControlStore } from "../stores/remoteControlStore";
+import { SESSION_URL_RE } from "../services/remoteControl";
 import { usePrStore } from "../stores/prStore";
 
 /**
@@ -52,7 +54,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
           const allWorktrees = useWorkspaceStore.getState().worktrees;
           const branches = allWorktrees.filter((wt) => !wt.archived).map((wt) => wt.branch);
           const repos = selectedRepos.length > 0 ? selectedRepos : [repoPath];
-          setSyncRepoPaths(repos, branches).catch(() => {});
+          setSyncRepoPaths(repos, branches).catch((e) => console.warn('[session-restore] Failed to set sync repo paths:', e));
 
           if (!restoredRepos.current.has(repo)) {
             restoredRepos.current.add(repo);
@@ -65,7 +67,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
               if (cfg.deleteAfterDays != null) {
                 useWorkspaceStore.setState({ deleteAfterDays: cfg.deleteAfterDays });
               }
-            }).catch(() => {});
+            }).catch((e) => console.warn('[session-restore] Failed to load repo config:', e));
             for (const wt of wts) {
               const session = await loadSession(repo, wt.id);
               if (session) {
@@ -85,6 +87,17 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   for (const [tabId, termData] of Object.entries(session.terminals)) {
                     if (termData.scrollback) {
                       sessionManager.loadScrollbackOnly(tabId, termData.scrollback);
+                      // Restore remote-control state if the session URL is still
+                      // visible in the scrollback (app was closed while RC was active)
+                      try {
+                        const scrollbackText = atob(termData.scrollback);
+                        const match = scrollbackText.match(SESSION_URL_RE);
+                        if (match) {
+                          useRemoteControlStore.getState().enable(wt.id, match[0]);
+                        }
+                      } catch {
+                        // Invalid base64 — skip
+                      }
                     }
                   }
                 }
