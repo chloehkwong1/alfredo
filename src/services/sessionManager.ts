@@ -11,6 +11,39 @@ import { useRemoteControlStore } from "../stores/remoteControlStore";
 import { loadTerminalPreferences } from "./terminalPreferences";
 import type { TerminalPreferences } from "./terminalPreferences";
 
+// ── Helpers ───────────────────────────────────────────────────
+
+/**
+ * Strip ESC[3J (clear scrollback buffer) sequences from PTY output.
+ * Claude Code sends these during TUI re-renders, which wipes xterm's
+ * scrollback and makes it impossible to scroll up to earlier output.
+ * ESC[2J (clear visible screen) is left intact — the TUI needs it.
+ */
+function stripClearScrollback(bytes: Uint8Array): Uint8Array {
+  // ESC[3J = 0x1b 0x5b 0x33 0x4a
+  const indices: number[] = [];
+  for (let i = 0; i <= bytes.length - 4; i++) {
+    if (bytes[i] === 0x1b && bytes[i + 1] === 0x5b && bytes[i + 2] === 0x33 && bytes[i + 3] === 0x4a) {
+      indices.push(i);
+    }
+  }
+  if (indices.length === 0) return bytes;
+
+  const result = new Uint8Array(bytes.length - indices.length * 4);
+  let src = 0;
+  let dst = 0;
+  for (const idx of indices) {
+    const chunk = bytes.subarray(src, idx);
+    result.set(chunk, dst);
+    dst += chunk.length;
+    src = idx + 4;
+  }
+  if (src < bytes.length) {
+    result.set(bytes.subarray(src), dst);
+  }
+  return result;
+}
+
 // ── Types ──────────────────────────────────────────────────────
 
 /** Maximum bytes retained in the circular output buffer for replay on re-attach. */
@@ -164,6 +197,66 @@ export function shouldAcceptDetectorState(
   return !hooksActive;
 }
 
+/**
+ * Create a Tauri channel wired to pump PTY events into a ManagedSession
+ * and the workspace store. Shared by getOrSpawn and spawnForExisting
+ * so the callback logic lives in exactly one place.
+ */
+function createSessionChannel(
+  sessionManager: SessionManager,
+  session: ManagedSession,
+  worktreeId: string,
+): ReturnType<typeof createPtyChannel> {
+  return createPtyChannel((event) => {
+    switch (event.event) {
+      case "output": {
+        const bytes = stripClearScrollback(new Uint8Array(event.data));
+        session.lastOutputAt = Date.now();
+        sessionManager.scheduleWrite(session, bytes);
+        sessionManager.appendToBuffer(session, bytes);
+        break;
+      }
+      case "heartbeat": {
+        session.lastHeartbeat = Date.now();
+        break;
+      }
+      case "hookAgentState": {
+        session.hooksActive = true;
+        // Don't let a late "busy" hook (e.g. delayed PreToolUse) override
+        // waitingForInput. The flag is cleared when the user provides input.
+        if (event.data === "busy" && session.waitingForInput) {
+          console.debug(`[status:${worktreeId}] hook "busy" BLOCKED (waitingForInput sticky flag)`);
+          break;
+        }
+        console.debug(`[status:${worktreeId}] hook → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : session.waitingForInput ? " (flag CLEARED)" : ""}`);
+        session.waitingForInput = event.data === "waitingForInput";
+        session.agentState = event.data;
+        useWorkspaceStore
+          .getState()
+          .updateWorktree(worktreeId, { agentStatus: event.data });
+        break;
+      }
+      case "agentState": {
+        if (!shouldAcceptDetectorState(session.hooksActive, event.data)) {
+          console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
+          break;
+        }
+        if (event.data === "waitingForInput") {
+          session.waitingForInput = true;
+        } else if (event.data !== "busy") {
+          session.waitingForInput = false;
+        }
+        console.debug(`[status:${worktreeId}] detector → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : ""}`);
+        session.agentState = event.data;
+        useWorkspaceStore
+          .getState()
+          .updateWorktree(worktreeId, { agentStatus: event.data });
+        break;
+      }
+    }
+  });
+}
+
 // ── SessionManager ─────────────────────────────────────────────
 
 export class SessionManager {
@@ -241,54 +334,7 @@ export class SessionManager {
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
-    const channel = createPtyChannel((event) => {
-      switch (event.event) {
-        case "output": {
-          const bytes = new Uint8Array(event.data);
-          session.lastOutputAt = Date.now();
-          this.scheduleWrite(session, bytes);
-          this.appendToBuffer(session, bytes);
-          break;
-        }
-        case "heartbeat": {
-          session.lastHeartbeat = Date.now();
-          break;
-        }
-        case "hookAgentState": {
-          session.hooksActive = true;
-          // Don't let a late "busy" hook (e.g. delayed PreToolUse) override
-          // waitingForInput. The flag is cleared when the user provides input.
-          if (event.data === "busy" && session.waitingForInput) {
-            console.debug(`[status:${worktreeId}] hook "busy" BLOCKED (waitingForInput sticky flag)`);
-            break;
-          }
-          console.debug(`[status:${worktreeId}] hook → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : session.waitingForInput ? " (flag CLEARED)" : ""}`);
-          session.waitingForInput = event.data === "waitingForInput";
-          session.agentState = event.data;
-          useWorkspaceStore
-            .getState()
-            .updateWorktree(worktreeId, { agentStatus: event.data });
-          break;
-        }
-        case "agentState": {
-          if (!shouldAcceptDetectorState(session.hooksActive, event.data)) {
-            console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
-            break;
-          }
-          if (event.data === "waitingForInput") {
-            session.waitingForInput = true;
-          } else if (event.data !== "busy") {
-            session.waitingForInput = false;
-          }
-          console.debug(`[status:${worktreeId}] detector → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : ""}`);
-          session.agentState = event.data;
-          useWorkspaceStore
-            .getState()
-            .updateWorktree(worktreeId, { agentStatus: event.data });
-          break;
-        }
-      }
-    });
+    const channel = createSessionChannel(this, session, worktreeId);
 
     const agentType = mode === "claude" ? "claudeCode" : undefined;
 
@@ -313,11 +359,15 @@ export class SessionManager {
     session.sessionId = sessionId;
     registerKittyProtocol(terminal, sessionId);
 
-    // Push initial state for Claude sessions
+    // Push initial state for Claude sessions. The "busy" status clears
+    // seenWorktrees in the store, so re-mark as seen to prevent the
+    // upcoming busy→idle transition from triggering a false "finished"
+    // notification — this is a boot, not task completion.
     if (mode === "claude") {
       useWorkspaceStore
         .getState()
         .updateWorktree(worktreeId, { agentStatus: session.agentState });
+      useWorkspaceStore.getState().markWorktreeSeen(worktreeId);
     }
 
     return session;
@@ -389,52 +439,7 @@ export class SessionManager {
     // content doesn't persist above the new prompt.
     session.terminal.clear();
 
-    const channel = createPtyChannel((event) => {
-      switch (event.event) {
-        case "output": {
-          const bytes = new Uint8Array(event.data);
-          session.lastOutputAt = Date.now();
-          this.scheduleWrite(session, bytes);
-          this.appendToBuffer(session, bytes);
-          break;
-        }
-        case "heartbeat": {
-          session.lastHeartbeat = Date.now();
-          break;
-        }
-        case "hookAgentState": {
-          session.hooksActive = true;
-          if (event.data === "busy" && session.waitingForInput) {
-            console.debug(`[status:${worktreeId}] hook "busy" BLOCKED (waitingForInput sticky flag)`);
-            break;
-          }
-          console.debug(`[status:${worktreeId}] hook → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : session.waitingForInput ? " (flag CLEARED)" : ""}`);
-          session.waitingForInput = event.data === "waitingForInput";
-          session.agentState = event.data;
-          useWorkspaceStore
-            .getState()
-            .updateWorktree(worktreeId, { agentStatus: event.data });
-          break;
-        }
-        case "agentState": {
-          if (!shouldAcceptDetectorState(session.hooksActive, event.data)) {
-            console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
-            break;
-          }
-          if (event.data === "waitingForInput") {
-            session.waitingForInput = true;
-          } else if (event.data !== "busy") {
-            session.waitingForInput = false;
-          }
-          console.debug(`[status:${worktreeId}] detector → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : ""}`);
-          session.agentState = event.data;
-          useWorkspaceStore
-            .getState()
-            .updateWorktree(worktreeId, { agentStatus: event.data });
-          break;
-        }
-      }
-    });
+    const channel = createSessionChannel(this, session, worktreeId);
 
     const agentType = mode === "claude" ? "claudeCode" : undefined;
 
@@ -471,10 +476,12 @@ export class SessionManager {
       resizePty(sessionId, rows, cols).catch(e => console.warn(`[sessionManager] Failed to resize PTY for ${sessionId}:`, e));
     }
 
+    // Push initial state and re-mark as seen (same rationale as getOrSpawn).
     if (mode === "claude") {
       useWorkspaceStore
         .getState()
         .updateWorktree(worktreeId, { agentStatus: session.agentState });
+      useWorkspaceStore.getState().markWorktreeSeen(worktreeId);
     }
 
     return session;
@@ -501,6 +508,19 @@ export class SessionManager {
       // Session may already be dead on the Rust side — that's fine.
     }
     session.sessionId = "";
+
+    // Reset session state so a subsequent spawnForExisting starts clean.
+    // Without this, stale hooksActive=true would permanently reject detector
+    // events, and a stuck waitingForInput flag would block busy hooks.
+    session.hooksActive = false;
+    session.waitingForInput = false;
+    session.agentState = "notRunning";
+
+    // Mirror closeSession's store update so the sidebar reflects "Not running"
+    // and the notification hook's notRunning→busy filter suppresses the next spawn.
+    useWorkspaceStore
+      .getState()
+      .updateWorktree(worktreeId, { agentStatus: "notRunning" });
   }
 
   /** Close a single PTY session and dispose its terminal. */
@@ -540,7 +560,8 @@ export class SessionManager {
    * loop can process click/input events between frames. Without this, rapid
    * PTY output (hundreds of IPC events/sec) can starve the main thread.
    */
-  private scheduleWrite(session: ManagedSession, bytes: Uint8Array): void {
+  /** @internal Exposed for createSessionChannel — not part of the public API. */
+  scheduleWrite(session: ManagedSession, bytes: Uint8Array): void {
     session.pendingOutput.push(bytes);
     if (session.writeScheduled) return;
     session.writeScheduled = true;
@@ -563,8 +584,8 @@ export class SessionManager {
     });
   }
 
-  /** Append bytes to the circular output buffer for later replay. */
-  private appendToBuffer(session: ManagedSession, bytes: Uint8Array): void {
+  /** @internal Exposed for createSessionChannel — not part of the public API. */
+  appendToBuffer(session: ManagedSession, bytes: Uint8Array): void {
     const buf = session.outputBuffer;
     const cap = buf.length;
 
@@ -629,11 +650,20 @@ export class SessionManager {
   }
 }
 
-// ── Singleton ──────────────────────────────────────────────────
+// ── Singleton (HMR-safe) ───────────────────────────────────────
+// Preserve the session manager across Vite HMR reloads so active PTY
+// sessions aren't orphaned when editing this file during development.
 
-export const sessionManager = new SessionManager();
+const HMR_KEY = "__alfredo_sessionManager";
+
+export const sessionManager: SessionManager =
+  (window as any)[HMR_KEY] ?? ((window as any)[HMR_KEY] = new SessionManager());
 
 // Live-update all terminals when preferences change in settings
 window.addEventListener("terminal-preferences-changed", ((e: CustomEvent<TerminalPreferences>) => {
   sessionManager.applyPreferences(e.detail);
 }) as EventListener);
+
+if (import.meta.hot) {
+  import.meta.hot.accept();
+}
