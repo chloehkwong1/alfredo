@@ -76,7 +76,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
   const [currentRepoPath, setCurrentRepoPath] = useState<string | undefined>(
     defaultRepoPath ?? repoPath,
   );
-  const [activeTab, setActiveTab] = useState<Tab>("newBranch");
+  const [activeTab, setActiveTab] = useState<Tab>("linearIssues");
   // New branch state (lifted because it's needed for Create button + handleCreate)
   const [branchName, setBranchName] = useState("");
   const [baseBranch, setBaseBranch] = useState("");
@@ -212,13 +212,15 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
 
           {/* Tab content */}
           <div className="min-h-[200px]">
-            {activeTab === "newBranch" && (
+            {activeTab === "newBranch" && currentRepoPath && (
               <NewBranchTab
+                repoPath={currentRepoPath}
                 branchName={branchName}
                 baseBranch={baseBranch}
                 onBranchNameChange={setBranchName}
                 onBaseBranchChange={setBaseBranch}
                 locked={!!lockedBaseBranch}
+                open={open}
               />
             )}
 
@@ -241,8 +243,9 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
               />
             )}
 
-            {activeTab === "linearIssues" && (
+            {activeTab === "linearIssues" && currentRepoPath && (
               <LinearIssuesTab
+                repoPath={currentRepoPath}
                 open={open}
                 selectedIssueId={selectedIssueId}
                 onSelectIssue={setSelectedIssueId}

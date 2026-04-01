@@ -1,15 +1,18 @@
 import { Input } from "../../ui/Input";
+import { BaseBranchPicker } from "./BaseBranchPicker";
 import type { WorktreeSource } from "../../../types";
 
 interface NewBranchTabProps {
+  repoPath: string;
   branchName: string;
   baseBranch: string;
   onBranchNameChange: (name: string) => void;
   onBaseBranchChange: (base: string) => void;
   locked?: boolean;
+  open: boolean;
 }
 
-function NewBranchTab({ branchName, baseBranch, onBranchNameChange, onBaseBranchChange, locked }: NewBranchTabProps) {
+function NewBranchTab({ repoPath, branchName, baseBranch, onBranchNameChange, onBaseBranchChange, locked, open }: NewBranchTabProps) {
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -23,22 +26,13 @@ function NewBranchTab({ branchName, baseBranch, onBranchNameChange, onBaseBranch
           autoFocus
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium text-text-secondary mb-2">
-          Base branch
-        </label>
-        <Input
-          placeholder="e.g. main, develop"
-          value={baseBranch}
-          onChange={(e) => onBaseBranchChange(e.target.value)}
-          disabled={locked}
-        />
-        {locked && (
-          <p className="text-xs text-accent-primary mt-1.5">
-            Stacking on <span className="font-medium">{baseBranch}</span>
-          </p>
-        )}
-      </div>
+      <BaseBranchPicker
+        repoPath={repoPath}
+        baseBranch={baseBranch}
+        onBaseBranchChange={onBaseBranchChange}
+        locked={locked}
+        open={open}
+      />
     </div>
   );
 }

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "../../ui/Input";
 import { SelectableList, SelectableItem } from "./SelectableList";
+import { BaseBranchPicker } from "./BaseBranchPicker";
 import { searchLinearIssues, listMyLinearIssues } from "../../../api";
 import type { LinearTicket } from "../../../types";
 
 interface LinearIssuesTabProps {
+  repoPath: string;
   open: boolean;
   selectedIssueId: string | null;
   onSelectIssue: (issueId: string | null) => void;
@@ -13,7 +15,7 @@ interface LinearIssuesTabProps {
   lockedBaseBranch?: boolean;
 }
 
-function LinearIssuesTab({ open, selectedIssueId, onSelectIssue, baseBranch, onBaseBranchChange, lockedBaseBranch }: LinearIssuesTabProps) {
+function LinearIssuesTab({ repoPath, open, selectedIssueId, onSelectIssue, baseBranch, onBaseBranchChange, lockedBaseBranch }: LinearIssuesTabProps) {
   const [defaultIssues, setDefaultIssues] = useState<LinearTicket[]>([]);
   const [searchResults, setSearchResults] = useState<LinearTicket[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -126,23 +128,13 @@ function LinearIssuesTab({ open, selectedIssueId, onSelectIssue, baseBranch, onB
           </SelectableItem>
         ))}
       </SelectableList>
-      <div>
-        <label className="block text-xs font-medium text-text-tertiary mb-1">
-          Base branch
-        </label>
-        <Input
-          placeholder="e.g. main, develop"
-          value={baseBranch}
-          onChange={(e) => onBaseBranchChange(e.target.value)}
-          disabled={lockedBaseBranch}
-          className="!text-xs !py-1.5"
-        />
-        {lockedBaseBranch && (
-          <p className="text-xs text-accent-primary mt-1">
-            Stacking on <span className="font-medium">{baseBranch}</span>
-          </p>
-        )}
-      </div>
+      <BaseBranchPicker
+        repoPath={repoPath}
+        baseBranch={baseBranch}
+        onBaseBranchChange={onBaseBranchChange}
+        locked={lockedBaseBranch}
+        open={open}
+      />
     </div>
   );
 }
