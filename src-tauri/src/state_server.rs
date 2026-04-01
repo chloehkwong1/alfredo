@@ -111,11 +111,13 @@ fn parse_state(s: &str) -> Option<AgentState> {
     }
 }
 
-/// POST /agent-state/{worktree_id...}/{state}
+/// POST /agent-state/{session_id}/{worktree_id...}/{state}
 ///
+/// Routes hook events to the specific session that originated them, preventing
+/// stale hooks from a dying process from polluting a replacement session.
 /// The worktree ID may contain slashes (e.g. "chloe/test-worktree"), so we
-/// use a wildcard route and split: everything before the last `/` is the
-/// worktree ID, the last segment is the state.
+/// split: first segment is session_id, last segment is state, middle is
+/// worktree_id.
 async fn handle_state_update(
     State(registry): State<Arc<Mutex<ChannelRegistry>>>,
     uri: Uri,
@@ -123,9 +125,13 @@ async fn handle_state_update(
     let path = uri.path();
     let rest = path.strip_prefix("/agent-state/").unwrap_or("");
 
-    // Split off the last segment as the state
-    let (worktree_id, state_str) = match rest.rsplit_once('/') {
-        Some((id, st)) => (id, st),
+    // Split: session_id / worktree_id (may contain slashes) / state
+    let (session_id, remainder) = match rest.split_once('/') {
+        Some((sid, rem)) => (sid, rem),
+        None => return StatusCode::BAD_REQUEST,
+    };
+    let (_worktree_id, state_str) = match remainder.rsplit_once('/') {
+        Some((wid, st)) => (wid, st),
         None => return StatusCode::BAD_REQUEST,
     };
 
@@ -138,18 +144,15 @@ async fn handle_state_update(
         eprintln!("[state-server] registry lock poisoned in handle_state_update");
         return StatusCode::INTERNAL_SERVER_ERROR;
     };
-    if let Some(session_ids) = reg.worktree_sessions.get(worktree_id) {
-        for session_id in session_ids {
-            if let Some(channel) = reg.channels.get(session_id) {
-                if let Err(e) = channel.send(PtyEvent::HookAgentState(state.clone())) {
-                    eprintln!(
-                        "[state-server] failed to send state to session {session_id}: {e}"
-                    );
-                }
-            }
+    // Deliver to the specific session only — not fan-out by worktree.
+    // When a session is unregistered (tab closed), stale hooks are silently dropped.
+    if let Some(channel) = reg.channels.get(session_id) {
+        if let Err(e) = channel.send(PtyEvent::HookAgentState(state)) {
+            eprintln!(
+                "[state-server] failed to send state to session {session_id}: {e}"
+            );
         }
     }
-    // No channels registered — session(s) may have closed. Not an error.
     StatusCode::OK
 }
 
@@ -163,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn fan_out_sends_to_all_sessions_for_worktree() {
+    fn register_multiple_sessions_for_worktree() {
         let handle = StateServerHandle::new_for_test();
 
         let ch1 = dummy_channel();
