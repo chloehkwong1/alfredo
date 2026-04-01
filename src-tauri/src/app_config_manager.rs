@@ -96,6 +96,7 @@ pub fn add_repo(config: &mut GlobalAppConfig, path: String, mode: RepoMode) -> R
 /// Remove a repo from the config.
 pub fn remove_repo(config: &mut GlobalAppConfig, path: &str) {
     config.repos.retain(|r| r.path != path);
+    config.selected_repos.retain(|r| r != path);
     if config.active_repo.as_deref() == Some(path) {
         config.active_repo = config.repos.first().map(|r| r.path.clone());
     }
