@@ -11,6 +11,7 @@ import {
   PanelRight,
   PanelBottom,
   Radio,
+  Combine,
 } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import {
@@ -46,7 +47,32 @@ import { useLayoutStore } from "../../stores/layoutStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+
+// ── Cross-pane drag state (module-level pub/sub) ──
+interface CrossPaneDrag {
+  worktreeId: string;
+  paneId: string;
+  tabId: string;
+}
+
+let crossPaneDragState: CrossPaneDrag | null = null;
+const crossPaneDragListeners = new Set<() => void>();
+
+function setCrossPaneDrag(state: CrossPaneDrag | null) {
+  crossPaneDragState = state;
+  crossPaneDragListeners.forEach((l) => l());
+}
+
+function useCrossPaneDrag(): CrossPaneDrag | null {
+  return useSyncExternalStore(
+    (cb) => {
+      crossPaneDragListeners.add(cb);
+      return () => crossPaneDragListeners.delete(cb);
+    },
+    () => crossPaneDragState,
+  );
+}
 
 const TAB_ICONS: Record<TabType, typeof Terminal> = {
   claude: Sparkles,
@@ -73,6 +99,8 @@ function SortableTab({
   paneId,
   onClose,
   onSplit,
+  onMoveToSibling,
+  isSplit,
 }: {
   tab: WorkspaceTab;
   isActive: boolean;
@@ -81,6 +109,8 @@ function SortableTab({
   paneId: string;
   onClose: (e: React.MouseEvent, tabId: string) => void;
   onSplit: (tabId: string, direction: "horizontal" | "vertical") => void;
+  onMoveToSibling: (tabId: string) => void;
+  isSplit: boolean;
 }) {
   const {
     attributes,
@@ -164,6 +194,12 @@ function SortableTab({
           <PanelBottom size={14} />
           Split Down
         </ContextMenuItem>
+        {isSplit && (
+          <ContextMenuItem onSelect={() => onMoveToSibling(tab.id)}>
+            <Combine size={14} />
+            Move to Other Pane
+          </ContextMenuItem>
+        )}
         {canClose && (
           <>
             <ContextMenuSeparator />
@@ -192,9 +228,12 @@ function PaneTabBar({
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
   const reorderTabs = useLayoutStore((s) => s.reorderTabs);
   const splitPane = useLayoutStore((s) => s.splitPane);
+  const moveTabToSiblingPane = useLayoutStore((s) => s.moveTabToSiblingPane);
+  const layout = useLayoutStore((s) => s.layout[worktreeId]);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
+  const crossDrag = useCrossPaneDrag();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -208,11 +247,12 @@ function PaneTabBar({
 
   const allClaudeCount = tabs.filter((t) => t.type === "claude").length;
   const allShellCount = tabs.filter((t) => t.type === "shell").length;
+  const allChangesCount = tabs.filter((t) => t.type === "changes").length;
 
   function canClose(tab: WorkspaceTab) {
     if (tab.type === "claude" && allClaudeCount <= 1) return false;
     if (tab.type === "shell" && allShellCount <= 1) return false;
-    if (tab.type === "changes") return false;
+    if (tab.type === "changes" && allChangesCount <= 1) return false;
     return true;
   }
 
@@ -229,9 +269,43 @@ function PaneTabBar({
     splitPane(worktreeId, paneId, tabId, direction);
   }
 
+  function handleMoveToSibling(tabId: string) {
+    moveTabToSiblingPane(worktreeId, paneId, tabId);
+  }
+
+  const isSplit = layout?.type === "split";
+  const showDropZone = isSplit && crossDrag != null && crossDrag.paneId !== paneId && crossDrag.worktreeId === worktreeId;
+
+  function handleDragStart(tabId: string) {
+    setDragActiveId(tabId);
+    if (isSplit) {
+      setCrossPaneDrag({ worktreeId, paneId, tabId });
+    }
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    const draggedTabId = dragActiveId;
     setDragActiveId(null);
+    setCrossPaneDrag(null);
+
     const { active, over } = event;
+
+    // If dropped outside sortable items, check for cross-pane drop
+    if (!over && draggedTabId && isSplit) {
+      const activatorEvent = event.activatorEvent as PointerEvent;
+      const finalX = activatorEvent.clientX + event.delta.x;
+      const finalY = activatorEvent.clientY + event.delta.y;
+      const elements = document.elementsFromPoint(finalX, finalY);
+      const targetBar = elements.find((el) => {
+        const dropPaneId = (el as HTMLElement).dataset?.paneDropTarget;
+        return dropPaneId && dropPaneId !== paneId;
+      });
+      if (targetBar) {
+        moveTabToSiblingPane(worktreeId, paneId, draggedTabId);
+        return;
+      }
+    }
+
     if (!over || active.id === over.id) return;
 
     const tabIds = pane?.tabIds ?? [];
@@ -249,18 +323,20 @@ function PaneTabBar({
 
   return (
     <div
+      data-pane-drop-target={paneId}
       className={[
-        "flex items-center w-full h-11 bg-bg-bar border-b flex-shrink-0",
+        "flex items-center w-full h-11 bg-bg-bar border-b flex-shrink-0 relative",
         isActivePane ? "border-accent-primary/30" : "border-border-subtle",
+        showDropZone ? "ring-1 ring-inset ring-accent-primary/50" : "",
       ].join(" ")}
       onClick={() => setActivePaneId(worktreeId, paneId)}
     >
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        onDragStart={({ active }) => setDragActiveId(active.id as string)}
+        onDragStart={({ active }) => handleDragStart(active.id as string)}
         onDragEnd={handleDragEnd}
-        onDragCancel={() => setDragActiveId(null)}
+        onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
       >
         <SortableContext
           items={terminalTabIds}
@@ -278,6 +354,8 @@ function PaneTabBar({
                 paneId={paneId}
                 onClose={handleCloseTab}
                 onSplit={handleSplit}
+                onMoveToSibling={handleMoveToSibling}
+                isSplit={isSplit}
               />
             );
           })}
@@ -315,7 +393,7 @@ function PaneTabBar({
       <div className="flex-1" />
 
       {onToggleServer && runScriptName && (
-        <div className="flex items-center">
+        <div className="flex items-center gap-1 mr-2">
           <AnimatePresence>
             {isServerRunning && (
               <motion.div
@@ -325,10 +403,10 @@ function PaneTabBar({
                 transition={{ duration: 0.15 }}
               >
                 <IconButton
-                  size="sm"
+                  size="md"
                   label={`Open in browser (${runScriptUrl ?? "http://localhost:3000"})`}
                   onClick={() => openUrl(runScriptUrl ?? "http://localhost:3000")}
-                  className="text-status-idle hover:text-text-primary"
+                  className="text-text-secondary hover:text-text-primary bg-bg-tertiary/50 hover:bg-bg-tertiary"
                 >
                   <ExternalLink />
                 </IconButton>
@@ -336,13 +414,13 @@ function PaneTabBar({
             )}
           </AnimatePresence>
           <IconButton
-            size="sm"
+            size="md"
             label={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
             onClick={onToggleServer}
             className={
               isServerRunning
-                ? "text-red-400 hover:text-red-300"
-                : "text-green-500 hover:text-green-400"
+                ? "text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20"
+                : "text-green-500 hover:text-green-400 bg-green-500/10 hover:bg-green-500/20"
             }
           >
             {isServerRunning ? <Square /> : <Play />}

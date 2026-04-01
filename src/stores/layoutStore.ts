@@ -36,6 +36,7 @@ interface LayoutState {
   setPaneActiveTab: (worktreeId: string, paneId: string, tabId: string) => void;
   addTabToPane: (worktreeId: string, paneId: string, tabId: string) => void;
   removeTabFromPane: (worktreeId: string, tabId: string) => void;
+  moveTabToSiblingPane: (worktreeId: string, paneId: string, tabId: string) => void;
   reorderTabs: (worktreeId: string, paneId: string, fromIndex: number, toIndex: number) => void;
 
   // ── Queries ──
@@ -45,6 +46,14 @@ interface LayoutState {
 
 function generatePaneId(): string {
   return `pane-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function findSiblingPaneId(node: LayoutNode, paneId: string): string | null {
+  if (node.type === "leaf") return null;
+  const [left, right] = node.children;
+  if (left.type === "leaf" && left.paneId === paneId && right.type === "leaf") return right.paneId;
+  if (right.type === "leaf" && right.paneId === paneId && left.type === "leaf") return left.paneId;
+  return findSiblingPaneId(left, paneId) ?? findSiblingPaneId(right, paneId);
 }
 
 function treeDepth(node: LayoutNode): number {
@@ -289,6 +298,54 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         },
       },
     }));
+  },
+
+  moveTabToSiblingPane: (worktreeId, paneId, tabId) => {
+    const state = get();
+    const tree = state.layout[worktreeId];
+    const worktreePanes = state.panes[worktreeId];
+    if (!tree || !worktreePanes) return;
+
+    const siblingPaneId = findSiblingPaneId(tree, paneId);
+    if (!siblingPaneId) return;
+
+    const sourcePane = worktreePanes[paneId];
+    const targetPane = worktreePanes[siblingPaneId];
+    if (!sourcePane || !targetPane) return;
+
+    // Add tab to sibling pane
+    const newTargetTabIds = [...targetPane.tabIds, tabId];
+
+    // Remove tab from source pane
+    const newSourceTabIds = sourcePane.tabIds.filter((id) => id !== tabId);
+
+    if (newSourceTabIds.length === 0) {
+      // Source pane is now empty — collapse the split
+      set((s) => ({
+        panes: {
+          ...s.panes,
+          [worktreeId]: {
+            ...worktreePanes,
+            [siblingPaneId]: { tabIds: newTargetTabIds, activeTabId: tabId },
+          },
+        },
+      }));
+      get().closePane(worktreeId, paneId);
+    } else {
+      const newSourceActiveTab =
+        sourcePane.activeTabId === tabId ? newSourceTabIds[0] : sourcePane.activeTabId;
+      set((s) => ({
+        panes: {
+          ...s.panes,
+          [worktreeId]: {
+            ...worktreePanes,
+            [paneId]: { tabIds: newSourceTabIds, activeTabId: newSourceActiveTab },
+            [siblingPaneId]: { tabIds: newTargetTabIds, activeTabId: tabId },
+          },
+        },
+        activePaneId: { ...s.activePaneId, [worktreeId]: siblingPaneId },
+      }));
+    }
   },
 
   reorderTabs: (worktreeId, paneId, fromIndex, toIndex) => {
