@@ -72,6 +72,14 @@ function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon } {
     letterSpacing: prefs.letterSpacing,
     cursorStyle: prefs.cursorStyle,
     cursorBlink: prefs.cursorBlink,
+    linkHandler: {
+      activate(_event: MouseEvent, uri: string) {
+        // Only open http(s) links to prevent javascript: or other dangerous URIs
+        if (/^https?:\/\//i.test(uri)) {
+          openUrl(uri).catch(console.error);
+        }
+      },
+    },
   });
 
   // Suppress terminal bell sound (BEL character from agent output)
