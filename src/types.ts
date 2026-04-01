@@ -260,6 +260,7 @@ export type LayoutNode =
 export interface Pane {
   tabIds: string[];
   activeTabId: string;
+  previewTabId: string | null;
 }
 
 export interface CheckRun {

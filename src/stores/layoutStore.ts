@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { LayoutNode, Pane } from "../types";
+import { useTabStore } from "./tabStore";
 
 const MAX_SPLIT_DEPTH = 1;
 
@@ -38,6 +39,8 @@ interface LayoutState {
   removeTabFromPane: (worktreeId: string, tabId: string) => void;
   moveTabToSiblingPane: (worktreeId: string, paneId: string, tabId: string) => void;
   reorderTabs: (worktreeId: string, paneId: string, fromIndex: number, toIndex: number) => void;
+  openPreviewTab: (worktreeId: string, paneId: string, tabId: string) => void;
+  pinPreviewTab: (worktreeId: string, paneId: string) => void;
 
   // ── Queries ──
   findPaneForTab: (worktreeId: string, tabId: string) => string | null;
@@ -110,7 +113,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       layout: { ...s.layout, [worktreeId]: { type: "leaf", paneId } },
       panes: {
         ...s.panes,
-        [worktreeId]: { [paneId]: { tabIds, activeTabId } },
+        [worktreeId]: { [paneId]: { tabIds, activeTabId, previewTabId: null } },
       },
       activePaneId: { ...s.activePaneId, [worktreeId]: paneId },
     }));
@@ -121,9 +124,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const validatedPanes = Object.fromEntries(
       Object.entries(panes).map(([paneId, pane]) => [
         paneId,
-        pane.tabIds.includes(pane.activeTabId)
-          ? pane
-          : { ...pane, activeTabId: pane.tabIds[0] ?? pane.activeTabId },
+        {
+          ...(pane.tabIds.includes(pane.activeTabId)
+            ? pane
+            : { ...pane, activeTabId: pane.tabIds[0] ?? pane.activeTabId }),
+          previewTabId: pane.previewTabId ?? null,
+        },
       ]),
     );
     set((s) => ({
@@ -180,8 +186,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         ...s.panes,
         [worktreeId]: {
           ...worktreePanes,
-          [paneId]: { tabIds: newSourceTabIds, activeTabId: newSourceActiveTab },
-          [newPaneId]: { tabIds: [tabId], activeTabId: tabId },
+          [paneId]: { tabIds: newSourceTabIds, activeTabId: newSourceActiveTab, previewTabId: null },
+          [newPaneId]: { tabIds: [tabId], activeTabId: tabId, previewTabId: null },
         },
       },
       activePaneId: { ...s.activePaneId, [worktreeId]: newPaneId },
@@ -261,6 +267,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             [targetPaneId]: {
               tabIds: [...pane.tabIds, tabId],
               activeTabId: tabId,
+              previewTabId: pane.previewTabId ?? null,
             },
           },
         },
@@ -288,13 +295,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
     const newActiveTabId =
       pane.activeTabId === tabId ? newTabIds[0] : pane.activeTabId;
+    const newPreviewTabId =
+      pane.previewTabId === tabId ? null : pane.previewTabId ?? null;
 
     set((s) => ({
       panes: {
         ...s.panes,
         [worktreeId]: {
           ...worktreePanes,
-          [paneId]: { tabIds: newTabIds, activeTabId: newActiveTabId },
+          [paneId]: { tabIds: newTabIds, activeTabId: newActiveTabId, previewTabId: newPreviewTabId },
         },
       },
     }));
@@ -319,6 +328,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     // Remove tab from source pane
     const newSourceTabIds = sourcePane.tabIds.filter((id) => id !== tabId);
 
+    // If the moved tab was the source pane's preview, clear it (auto-pin on drag)
+    const newSourcePreviewTabId =
+      sourcePane.previewTabId === tabId ? null : sourcePane.previewTabId ?? null;
+
     if (newSourceTabIds.length === 0) {
       // Source pane is now empty — collapse the split
       set((s) => ({
@@ -326,7 +339,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
           ...s.panes,
           [worktreeId]: {
             ...worktreePanes,
-            [siblingPaneId]: { tabIds: newTargetTabIds, activeTabId: tabId },
+            [siblingPaneId]: { tabIds: newTargetTabIds, activeTabId: tabId, previewTabId: targetPane.previewTabId ?? null },
           },
         },
       }));
@@ -339,8 +352,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
           ...s.panes,
           [worktreeId]: {
             ...worktreePanes,
-            [paneId]: { tabIds: newSourceTabIds, activeTabId: newSourceActiveTab },
-            [siblingPaneId]: { tabIds: newTargetTabIds, activeTabId: tabId },
+            [paneId]: { tabIds: newSourceTabIds, activeTabId: newSourceActiveTab, previewTabId: newSourcePreviewTabId },
+            [siblingPaneId]: { tabIds: newTargetTabIds, activeTabId: tabId, previewTabId: targetPane.previewTabId ?? null },
           },
         },
         activePaneId: { ...s.activePaneId, [worktreeId]: siblingPaneId },
@@ -364,6 +377,55 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
           [worktreeId]: {
             ...worktreePanes,
             [paneId]: { ...pane, tabIds },
+          },
+        },
+      };
+    });
+  },
+
+  openPreviewTab: (worktreeId, paneId, tabId) => {
+    const state = get();
+    const worktreePanes = state.panes[worktreeId];
+    if (!worktreePanes) return;
+    const pane = worktreePanes[paneId];
+    if (!pane) return;
+
+    let newTabIds = [...pane.tabIds];
+
+    // Remove the old preview tab if it exists and is different from the new one
+    if (pane.previewTabId && pane.previewTabId !== tabId) {
+      newTabIds = newTabIds.filter((id) => id !== pane.previewTabId);
+      // Also remove from tab store
+      useTabStore.getState().removeTab(worktreeId, pane.previewTabId);
+    }
+
+    // Add the new tab if not already in pane
+    if (!newTabIds.includes(tabId)) {
+      newTabIds.push(tabId);
+    }
+
+    set((s) => ({
+      panes: {
+        ...s.panes,
+        [worktreeId]: {
+          ...worktreePanes,
+          [paneId]: { tabIds: newTabIds, activeTabId: tabId, previewTabId: tabId },
+        },
+      },
+    }));
+  },
+
+  pinPreviewTab: (worktreeId, paneId) => {
+    set((s) => {
+      const worktreePanes = s.panes[worktreeId];
+      const pane = worktreePanes?.[paneId];
+      if (!pane || !pane.previewTabId) return s;
+      return {
+        panes: {
+          ...s.panes,
+          [worktreeId]: {
+            ...worktreePanes,
+            [paneId]: { ...pane, previewTabId: null },
           },
         },
       };
