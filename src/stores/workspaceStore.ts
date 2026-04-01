@@ -19,6 +19,9 @@ interface WorkspaceState {
   changesViewMode: Record<string, "changes" | "commits" | "pr">;
   /** Whether the changes panel is collapsed per worktree. Keyed by worktreeId. */
   changesPanelCollapsed: Record<string, boolean>;
+  /** Whether to show PR comments inline in the diff view. Keyed by worktreeId. */
+  showPrComments: Record<string, boolean>;
+  setShowPrComments: (worktreeId: string, show: boolean) => void;
   /** Whether the sidebar is collapsed. */
   sidebarCollapsed: boolean;
   /** Number of days after merging before a worktree is auto-archived. */
@@ -117,6 +120,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   diffViewMode: {},
   changesViewMode: {},
   changesPanelCollapsed: {},
+  showPrComments: {},
   sidebarCollapsed: false,
   archiveAfterDays: 2,
   deleteAfterDays: 7,
@@ -264,6 +268,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       changesPanelCollapsed: { ...state.changesPanelCollapsed, [worktreeId]: collapsed },
     })),
 
+  setShowPrComments: (worktreeId, show) =>
+    set((s) => ({ showPrComments: { ...s.showPrComments, [worktreeId]: show } })),
+
   toggleSidebar: () =>
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
@@ -291,6 +298,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       diffViewMode: {},
       changesViewMode: {},
       changesPanelCollapsed: {},
+      showPrComments: {},
       sidebarCollapsed: false,
       archiveAfterDays: 2,
       deleteAfterDays: 7,

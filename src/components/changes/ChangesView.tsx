@@ -8,7 +8,7 @@ import { useChangesData } from "../../hooks/useChangesData";
 import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { useSendToClaude } from "../../hooks/useSendToClaude";
-import { Search, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Maximize2, Minimize2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Trash2, ArrowLeft, Maximize2, Minimize2, MessageSquare } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { DiffSearchBar } from "./DiffSearchBar";
 import type { CommitInfo } from "../../types";
@@ -71,6 +71,8 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments) ?? [];
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
+  const showPrComments = useWorkspaceStore((s) => s.showPrComments[worktreeId] ?? (pr !== null));
+  const setShowPrComments = useWorkspaceStore((s) => s.setShowPrComments);
   const setJumpToComment = usePrStore((s) => s.setJumpToComment);
   const clearJumpToComment = usePrStore((s) => s.clearJumpToComment);
 
@@ -365,6 +367,21 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                     </IconButton>
                   )}
                   <span className="text-text-tertiary/50">|</span>
+                  {pr && (
+                    <>
+                      <IconButton
+                        size="sm"
+                        label={showPrComments ? "Hide PR comments" : "Show PR comments"}
+                        className={`h-auto w-auto p-0 ${
+                          showPrComments ? "text-[var(--color-pr-comment)]" : "text-text-tertiary hover:text-text-primary"
+                        }`}
+                        onClick={() => setShowPrComments(worktreeId, !showPrComments)}
+                      >
+                        <MessageSquare size={12} />
+                      </IconButton>
+                      <span className="text-text-tertiary/50">|</span>
+                    </>
+                  )}
                   <div className="flex border border-border-default rounded overflow-hidden">
                     <button
                       className={`px-2 py-0.5 text-[10px] transition-colors ${
@@ -432,6 +449,21 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                       Collapse all
                     </Button>
                     <span className="text-text-tertiary/50 mx-1">|</span>
+                    {pr && (
+                      <>
+                        <IconButton
+                          size="sm"
+                          label={showPrComments ? "Hide PR comments" : "Show PR comments"}
+                          className={`h-auto w-auto p-0 ${
+                            showPrComments ? "text-[var(--color-pr-comment)]" : "text-text-tertiary hover:text-text-primary"
+                          }`}
+                          onClick={() => setShowPrComments(worktreeId, !showPrComments)}
+                        >
+                          <MessageSquare size={12} />
+                        </IconButton>
+                        <span className="text-text-tertiary/50">|</span>
+                      </>
+                    )}
                     <div className="flex border border-border-default rounded overflow-hidden">
                       <button
                         className={`px-2 py-0.5 text-[10px] transition-colors ${
@@ -504,7 +536,7 @@ function ChangesView({ worktreeId, repoPath }: ChangesViewProps) {
                 onSubmitAnnotation={handleSubmitAnnotation}
                 onDeleteAnnotation={handleDeleteAnnotation}
                 onEditAnnotation={handleEditAnnotation}
-                prComments={prComments}
+                prComments={showPrComments ? prComments : []}
                 repoPath={repoPath}
                 commitHash={activeCommitHash}
                 searchQuery={searchQuery}
