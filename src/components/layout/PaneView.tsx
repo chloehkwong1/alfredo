@@ -38,7 +38,7 @@ function PaneView({
   const isSplit = layout?.type === "split";
   const showDropZone = isSplit && crossDrag != null && crossDrag.paneId !== paneId && crossDrag.worktreeId === worktreeId;
 
-  const showChanges = activeTab?.type === "changes";
+  const showChanges = activeTab?.type === "diff";
 
   return (
     <div

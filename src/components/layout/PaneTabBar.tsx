@@ -78,7 +78,7 @@ const TAB_ICONS: Record<TabType, typeof Terminal> = {
   claude: Sparkles,
   shell: Terminal,
   server: Radio,
-  changes: GitCompareArrows,
+  diff: GitCompareArrows,
 };
 
 interface PaneTabBarProps {
@@ -385,7 +385,7 @@ function PaneTabBar({
           <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
             <Terminal size={14} /> New terminal tab
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => handleAddTab("changes")}>
+          <DropdownMenuItem onSelect={() => handleAddTab("diff")}>
             <GitCompareArrows size={14} /> New changes tab
           </DropdownMenuItem>
         </DropdownMenuContent>

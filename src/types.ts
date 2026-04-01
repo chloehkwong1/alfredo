@@ -241,7 +241,7 @@ export interface CommitInfo {
 
 // ── Workspace tabs ──────────────────────────────────────────────
 
-export type TabType = "claude" | "shell" | "server" | "changes";
+export type TabType = "claude" | "shell" | "server" | "diff";
 
 export type DiffViewMode = "unified" | "split";
 export type PrPanelState = "open" | "collapsed";
@@ -306,6 +306,14 @@ export interface PrDetailedStatus {
   requestedReviewers: string[];
 }
 
+export interface DiffTarget {
+  type: "file" | "commit";
+  filePath?: string;
+  commitHash?: string;
+  scrollToFile?: string;
+  scrollToLine?: number;
+}
+
 export interface WorkspaceTab {
   id: string;
   type: TabType;
@@ -320,6 +328,7 @@ export interface WorkspaceTab {
   };
   /** Set only on tabs restored from a saved session — triggers --resume on first spawn. */
   resumeSessionId?: string;
+  diffTarget?: DiffTarget;
 }
 
 // ── App Config (multi-repo) ──────────────────────────────────────

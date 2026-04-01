@@ -33,13 +33,12 @@ export const useTabStore = create<TabState>((set, get) => ({
     const existing = state.tabs[worktreeId] ?? [];
     const hasClaude = existing.some((t) => t.type === "claude");
     const hasShell = existing.some((t) => t.type === "shell");
-    const hasChanges = existing.some((t) => t.type === "changes");
-    // Remove stale tabs from before redesigns (e.g. "pr")
-    const validTypes = new Set(["claude", "shell", "server", "changes"]);
+    // Remove stale tabs from before redesigns (e.g. "pr", "changes")
+    const validTypes = new Set(["claude", "shell", "server", "diff"]);
     const cleaned = existing.filter((t) => validTypes.has(t.type));
     const hadStale = cleaned.length !== existing.length;
 
-    if (hasClaude && hasShell && hasChanges && !hadStale) return;
+    if (hasClaude && hasShell && !hadStale) return;
 
     const tabs = [...cleaned];
     let claudeTabId = state.activeTabId[worktreeId];
@@ -66,15 +65,6 @@ export const useTabStore = create<TabState>((set, get) => ({
       tabs.splice(lastClaudeIdx + 1, 0, shellTab);
     }
 
-    if (!hasChanges) {
-      const changesTab: WorkspaceTab = {
-        id: `${worktreeId}:changes:${crypto.randomUUID().slice(0, 8)}`,
-        type: "changes",
-        label: "Changes",
-      };
-      tabs.push(changesTab);
-    }
-
     set({
       tabs: { ...state.tabs, [worktreeId]: tabs },
       // Set active tab to Claude if no active tab was set
@@ -94,7 +84,9 @@ export const useTabStore = create<TabState>((set, get) => ({
           ? count > 0 ? `Claude ${count + 1}` : "Claude"
           : type === "shell"
             ? count > 0 ? `Terminal ${count + 1}` : "Terminal"
-            : "Server";
+            : type === "diff"
+              ? "Diff"
+              : "Server";
       const tab: WorkspaceTab = {
         id: `${worktreeId}:${type}:${crypto.randomUUID().slice(0, 8)}`,
         type,
@@ -118,8 +110,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       // Don't allow removing the last claude, shell, or changes tab
       if (
         (tabToRemove.type === "claude" && filtered.filter((t) => t.type === "claude").length === 0) ||
-        (tabToRemove.type === "shell" && filtered.filter((t) => t.type === "shell").length === 0) ||
-        (tabToRemove.type === "changes" && filtered.filter((t) => t.type === "changes").length === 0)
+        (tabToRemove.type === "shell" && filtered.filter((t) => t.type === "shell").length === 0)
       )
         return state;
       const newActiveId =

@@ -125,7 +125,7 @@ function WorkspacePanel({
     setActiveFilePath(null);
     // Switch the active tab to the changes tab first so ChangesView mounts
     const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-    const changesTab = tabs.find((t) => t.type === "changes");
+    const changesTab = tabs.find((t) => t.type === "diff");
     if (changesTab) {
       const layoutState = useLayoutStore.getState();
       const activePaneId = layoutState.activePaneId[worktreeId];
@@ -146,7 +146,7 @@ function WorkspacePanel({
       setActiveFilePath(path);
       // Switch the active tab to the changes tab first so ChangesView mounts
       const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-      const changesTab = tabs.find((t) => t.type === "changes");
+      const changesTab = tabs.find((t) => t.type === "diff");
       if (changesTab) {
         const layoutState = useLayoutStore.getState();
         const activePaneId = layoutState.activePaneId[worktreeId];
@@ -171,7 +171,7 @@ function WorkspacePanel({
       setChangesViewMode(worktreeId, "changes");
       // Switch the active tab to the changes tab first
       const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-      const changesTab = tabs.find((t) => t.type === "changes");
+      const changesTab = tabs.find((t) => t.type === "diff");
       if (changesTab) {
         const layoutState = useLayoutStore.getState();
         const activePaneId = layoutState.activePaneId[worktreeId];
