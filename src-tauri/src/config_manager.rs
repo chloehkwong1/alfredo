@@ -36,6 +36,8 @@ struct ConfigFile {
     pub worktree_overrides: Option<HashMap<String, ClaudeOverrides>>,
     #[serde(default)]
     pub run_script: Option<RunScript>,
+    #[serde(default)]
+    pub stack_parent_overrides: HashMap<String, String>,
 }
 
 /// Load the `.alfredo.json` config from a repo root.
@@ -58,6 +60,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
             claude_defaults: None,
             worktree_overrides: None,
             run_script: None,
+            stack_parent_overrides: HashMap::new(),
         });
     }
 
@@ -82,6 +85,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
         claude_defaults: file.claude_defaults,
         worktree_overrides: file.worktree_overrides,
         run_script: file.run_script,
+        stack_parent_overrides: file.stack_parent_overrides,
     })
 }
 
@@ -102,6 +106,7 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
         claude_defaults: config.claude_defaults.clone(),
         worktree_overrides: config.worktree_overrides.clone(),
         run_script: config.run_script.clone(),
+        stack_parent_overrides: config.stack_parent_overrides.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -131,6 +136,21 @@ pub fn set_column_override(
     config
         .column_overrides
         .insert(worktree_name.to_string(), column);
+}
+
+#[allow(dead_code)]
+pub fn get_stack_parent(config: &AppConfig, worktree_name: &str) -> Option<String> {
+    config.stack_parent_overrides.get(worktree_name).cloned()
+}
+
+#[allow(dead_code)]
+pub fn set_stack_parent(config: &mut AppConfig, worktree_name: &str, parent_branch: &str) {
+    config.stack_parent_overrides.insert(worktree_name.to_string(), parent_branch.to_string());
+}
+
+#[allow(dead_code)]
+pub fn clear_stack_parent(config: &mut AppConfig, worktree_name: &str) {
+    config.stack_parent_overrides.remove(worktree_name);
 }
 
 /// Run setup scripts sequentially in the given worktree directory.
@@ -204,6 +224,7 @@ mod tests {
             }),
             worktree_overrides: None,
             run_script: None,
+            stack_parent_overrides: HashMap::new(),
         };
         config
             .column_overrides

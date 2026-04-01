@@ -59,6 +59,15 @@ pub enum AgentState {
 
 // ── Worktree / Kanban ───────────────────────────────────────────
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum StackRebaseStatus {
+    UpToDate,
+    Behind { count: u32 },
+    Rebasing,
+    Conflict,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Worktree {
@@ -85,6 +94,12 @@ pub struct Worktree {
     /// Human-readable Linear identifier (e.g. "ROS-42").
     #[serde(default)]
     pub linear_ticket_identifier: Option<String>,
+    #[serde(default)]
+    pub stack_parent: Option<String>,
+    #[serde(default)]
+    pub stack_children: Vec<String>,
+    #[serde(default)]
+    pub stack_rebase_status: Option<StackRebaseStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -290,6 +305,9 @@ pub struct AppConfig {
     pub claude_defaults: Option<ClaudeDefaults>,
     #[serde(default)]
     pub worktree_overrides: Option<HashMap<String, ClaudeOverrides>>,
+    /// Maps worktree name → parent branch name for stacked branches.
+    #[serde(default)]
+    pub stack_parent_overrides: HashMap<String, String>,
 }
 
 pub fn default_archive_days() -> Option<u32> { Some(2) }

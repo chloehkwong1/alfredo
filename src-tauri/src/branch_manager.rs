@@ -62,6 +62,9 @@ pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>),
             last_commit_author,
             linear_ticket_url: None,
             linear_ticket_identifier: None,
+            stack_parent: None,
+            stack_children: vec![],
+            stack_rebase_status: None,
         });
     }
 
@@ -129,6 +132,9 @@ pub async fn create_branch(
         last_commit_author: None,
         linear_ticket_url: None,
         linear_ticket_identifier: None,
+        stack_parent: None,
+        stack_children: vec![],
+        stack_rebase_status: None,
     })
 }
 

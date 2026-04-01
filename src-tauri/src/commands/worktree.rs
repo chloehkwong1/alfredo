@@ -86,6 +86,9 @@ pub async fn create_worktree(
         last_commit_author: None,
         linear_ticket_url: None,
         linear_ticket_identifier: None,
+        stack_parent: None,
+        stack_children: vec![],
+        stack_rebase_status: None,
     })
 }
 
@@ -197,6 +200,9 @@ pub async fn get_worktree_status(
         last_commit_author: None,
         linear_ticket_url: None,
         linear_ticket_identifier: None,
+        stack_parent: None,
+        stack_children: vec![],
+        stack_rebase_status: None,
     })
 }
 

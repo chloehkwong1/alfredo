@@ -382,6 +382,9 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             last_commit_author: None,
             linear_ticket_url: None,
             linear_ticket_identifier: None,
+            stack_parent: None,
+            stack_children: vec![],
+            stack_rebase_status: None,
         });
     }
 

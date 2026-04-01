@@ -27,6 +27,12 @@ export type AgentState = "idle" | "busy" | "waitingForInput" | "notRunning";
 
 // ── Worktree / Kanban ───────────────────────────────────────────
 
+export type StackRebaseStatus =
+  | { kind: "upToDate" }
+  | { kind: "behind"; count: number }
+  | { kind: "rebasing" }
+  | { kind: "conflict" };
+
 export interface Worktree {
   id: string;
   name: string;
@@ -57,6 +63,9 @@ export interface Worktree {
   linearTicketUrl?: string;
   /** Human-readable Linear identifier (e.g. "ROS-42"). */
   linearTicketIdentifier?: string;
+  stackParent?: string | null;
+  stackChildren?: string[];
+  stackRebaseStatus?: StackRebaseStatus | null;
 }
 
 export type KanbanColumn =
