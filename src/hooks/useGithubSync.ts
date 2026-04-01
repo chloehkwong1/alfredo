@@ -1,9 +1,10 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { PrUpdatePayload } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
-import { getPrFiles } from "../api";
+import { getPrFiles, setSyncRepoPaths } from "../api";
 import { lifecycleManager } from "../services/lifecycleManager";
 
 /**
@@ -73,6 +74,23 @@ export function useGithubSync() {
           await lifecycleManager.removeWorktree(wt.id, wt.repoPath, wt.name).catch(() => {});
         }
       }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  // Re-sync when the window regains focus so PR data catches up after
+  // macOS App Nap or long background periods.
+  useEffect(() => {
+    const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (!focused) return;
+      const worktrees = useWorkspaceStore.getState().worktrees;
+      const repos = [...new Set(worktrees.map((wt) => wt.repoPath))];
+      if (repos.length === 0) return;
+      const branches = worktrees.filter((wt) => !wt.archived).map((wt) => wt.branch);
+      setSyncRepoPaths(repos, branches).catch(() => {});
     });
 
     return () => {
