@@ -11,6 +11,8 @@ interface WorkspaceState {
   activeWorktreeId: string | null;
   /** Tracks which worktrees the user has "seen" while idle/waiting. */
   seenWorktrees: Set<string>;
+  /** Tracks worktrees the user has manually marked as unread. */
+  unreadWorktrees: Set<string>;
   /** Inline annotations per worktree. Keyed by worktreeId. */
   annotations: Record<string, Annotation[]>;
   /** Diff view mode per worktree. Keyed by worktreeId. */
@@ -45,6 +47,8 @@ interface WorkspaceState {
   setWorktrees: (worktrees: Worktree[]) => void;
   applyWorktreePatches: (patches: Map<string, Partial<Worktree>>) => void;
   markWorktreeSeen: (id: string) => void;
+  markWorktreeUnread: (id: string) => void;
+  markWorktreeRead: (id: string) => void;
   addAnnotation: (annotation: Annotation) => void;
   editAnnotation: (worktreeId: string, annotationId: string, newText: string) => void;
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
@@ -131,6 +135,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   worktrees: [],
   activeWorktreeId: null,
   seenWorktrees: new Set<string>(),
+  unreadWorktrees: new Set<string>(),
   annotations: {},
   diffViewMode: {},
   changesViewMode: {},
@@ -167,11 +172,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       const { [id]: _annotations, ...restAnnotations } = state.annotations;
       const newSeen = new Set(state.seenWorktrees);
       newSeen.delete(id);
+      const newUnread = new Set(state.unreadWorktrees);
+      newUnread.delete(id);
       return {
         worktrees: state.worktrees.filter((wt) => wt.id !== id),
         activeWorktreeId: state.activeWorktreeId === id ? null : state.activeWorktreeId,
         annotations: restAnnotations,
         seenWorktrees: newSeen,
+        unreadWorktrees: newUnread,
         runningServer: state.runningServer?.worktreeId === id ? null : state.runningServer,
       };
     }),
@@ -230,12 +238,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   reorderWorktrees: (reordered) => set({ worktrees: reordered }),
 
   setActiveWorktree: (id) =>
-    set((state) => ({
-      activeWorktreeId: id,
-      worktrees: state.worktrees.map((wt) =>
-        wt.id === id && wt.justCreated ? { ...wt, justCreated: undefined } : wt,
-      ),
-    })),
+    set((state) => {
+      const newUnread = new Set(state.unreadWorktrees);
+      if (id) newUnread.delete(id);
+      return {
+        activeWorktreeId: id,
+        unreadWorktrees: newUnread,
+        worktrees: state.worktrees.map((wt) =>
+          wt.id === id && wt.justCreated ? { ...wt, justCreated: undefined } : wt,
+        ),
+      };
+    }),
 
   setWorktrees: (freshWorktrees) =>
     set((state) => ({
@@ -254,6 +267,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     set((state) => ({
       seenWorktrees: new Set(state.seenWorktrees).add(id),
     })),
+
+  markWorktreeUnread: (id) =>
+    set((state) => ({
+      unreadWorktrees: new Set(state.unreadWorktrees).add(id),
+    })),
+
+  markWorktreeRead: (id) =>
+    set((state) => {
+      const next = new Set(state.unreadWorktrees);
+      next.delete(id);
+      return { unreadWorktrees: next };
+    }),
 
   addAnnotation: (annotation) =>
     set((state) => ({
@@ -335,6 +360,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       worktrees: [],
       activeWorktreeId: null,
       seenWorktrees: new Set<string>(),
+      unreadWorktrees: new Set<string>(),
       annotations: {},
       diffViewMode: {},
       changesViewMode: {},

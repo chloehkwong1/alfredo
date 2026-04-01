@@ -26,6 +26,8 @@ export interface SessionData {
   changesPanelCollapsed?: boolean;
   /** Whether the user has dismissed the idle indicator for this worktree. */
   seenWorktree?: boolean;
+  /** Whether the user has manually marked this worktree as unread. */
+  unreadWorktree?: boolean;
   /** Claude Code session UUID for `--resume` on next spawn. */
   claudeSessionId?: string;
   /** Whether this worktree is archived (hidden from active view). */
@@ -80,6 +82,7 @@ export async function saveAllSessions(
   getChangesViewMode?: (worktreeId: string) => "changes" | "commits" | "pr" | undefined,
   getChangesPanelCollapsed?: (worktreeId: string) => boolean | undefined,
   getSeenWorktree?: (worktreeId: string) => boolean | undefined,
+  getUnreadWorktree?: (worktreeId: string) => boolean | undefined,
   getClaudeSessionId?: (worktreeId: string) => string | undefined,
   getArchived?: (worktreeId: string) => boolean | undefined,
   getArchivedAt?: (worktreeId: string) => number | undefined,
@@ -132,6 +135,7 @@ export async function saveAllSessions(
       changesViewMode: getChangesViewMode?.(wtId),
       changesPanelCollapsed: getChangesPanelCollapsed?.(wtId),
       seenWorktree: getSeenWorktree?.(wtId),
+      unreadWorktree: getUnreadWorktree?.(wtId),
       claudeSessionId: getClaudeSessionId?.(wtId),
       archived: getArchived?.(wtId),
       archivedAt: getArchivedAt?.(wtId),

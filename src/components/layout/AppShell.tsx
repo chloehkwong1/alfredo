@@ -59,6 +59,7 @@ function collectAndSaveAllSessions(repoPath: string) {
     (wtId) => state.changesViewMode[wtId],
     (wtId) => state.changesPanelCollapsed[wtId],
     (wtId) => state.seenWorktrees.has(wtId) || undefined,
+    (wtId) => state.unreadWorktrees.has(wtId) || undefined,
     (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.claudeSessionId,
     (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.archived || undefined,
     (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.archivedAt,
