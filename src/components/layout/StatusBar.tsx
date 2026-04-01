@@ -1,5 +1,6 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Copy, Check } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useState } from "react";
 import type { Worktree } from "../../types";
 
 interface StatusBarProps {
@@ -8,17 +9,36 @@ interface StatusBarProps {
 }
 
 function StatusBar({ worktree, annotationCount }: StatusBarProps) {
+  const [copied, setCopied] = useState(false);
+
   if (!worktree) {
     return <div className="h-8 bg-bg-bar border-b border-border-subtle flex-shrink-0" />;
   }
 
   const pr = worktree.prStatus;
 
+  const handleCopyBranch = () => {
+    navigator.clipboard.writeText(worktree.branch);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-b border-border-subtle text-xs text-text-tertiary flex-shrink-0">
       {/* Left side */}
       <div className="flex items-center gap-3">
-        <span className="font-medium text-text-secondary max-w-[300px] truncate">{worktree.branch}</span>
+        <button
+          type="button"
+          onClick={handleCopyBranch}
+          title="Copy branch name"
+          className="group flex items-center gap-1 font-medium text-text-secondary max-w-[300px] truncate hover:text-text-primary transition-colors"
+        >
+          <span className="truncate">{worktree.branch}</span>
+          {copied
+            ? <Check size={11} className="shrink-0 text-diff-added" />
+            : <Copy size={11} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+          }
+        </button>
         {worktree.additions != null && worktree.additions > 0 && (
           <span className="text-diff-added">+{worktree.additions}</span>
         )}
