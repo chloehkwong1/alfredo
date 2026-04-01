@@ -314,24 +314,45 @@ async fn enrich_repo_with_comments(
     let Ok(manager) = GithubManager::new(&token) else { return; };
     let Ok((owner, repo)) = crate::github_manager::resolve_owner_repo(repo_path).await else { return; };
 
-    for pr_with_col in prs.iter_mut() {
-        if pr_with_col.repo_path != repo_path { continue; }
-        if pr_with_col.merged { continue; }
-        if !active_branches.contains(&pr_with_col.branch) { continue; }
+    // Collect indices + PR numbers for active, unmerged PRs
+    let targets: Vec<(usize, u64)> = prs
+        .iter()
+        .enumerate()
+        .filter(|(_, pr)| {
+            pr.repo_path == repo_path
+                && !pr.merged
+                && active_branches.contains(&pr.branch)
+        })
+        .map(|(i, pr)| (i, pr.number))
+        .collect();
 
-        let pr_number = pr_with_col.number;
+    // Fire all comment fetches concurrently
+    let futures: Vec<_> = targets
+        .iter()
+        .map(|&(_, pr_number)| {
+            let mgr = &manager;
+            let o = &owner;
+            let r = &repo;
+            async move {
+                let (line_result, issue_result) = tokio::join!(
+                    mgr.get_pr_comments(o, r, pr_number),
+                    mgr.get_pr_issue_comments(o, r, pr_number),
+                );
+                let mut comments = line_result.unwrap_or_default();
+                comments.extend(issue_result.unwrap_or_default());
+                comments
+            }
+        })
+        .collect();
 
-        let (line_comments_result, issue_comments_result) = tokio::join!(
-            manager.get_pr_comments(&owner, &repo, pr_number),
-            manager.get_pr_issue_comments(&owner, &repo, pr_number),
+    let results = futures::future::join_all(futures).await;
+
+    // Apply results back to the mutable slice
+    for ((idx, _), comments) in targets.into_iter().zip(results) {
+        prs[idx].unresolved_comment_count = Some(
+            comments.iter().filter(|c| !c.resolved).count() as u32,
         );
-
-        let mut all_comments = line_comments_result.unwrap_or_default();
-        all_comments.extend(issue_comments_result.unwrap_or_default());
-        pr_with_col.unresolved_comment_count = Some(
-            all_comments.iter().filter(|c| !c.resolved).count() as u32
-        );
-        pr_with_col.comments = Some(all_comments);
+        prs[idx].comments = Some(comments);
     }
 }
 
