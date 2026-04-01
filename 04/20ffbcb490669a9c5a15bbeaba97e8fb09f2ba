@@ -1,0 +1,40 @@
+src/styles/globals.css
+  430e82cea60eba17 231-233,237-238
+src/components/sidebar/AgentItem.tsx
+  430e82cea60eba17 84-97,188,193,195,198,204,215-218,234,260-265,267-275,400-402,474,508-513
+src/components/sidebar/AgentItemOverlay.tsx
+  430e82cea60eba17 10,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "0420ffbcb490669a9c5a15bbeaba97e8fb09f2ba",
+  "prompts": {
+    "430e82cea60eba17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84a3c332-feb9-4a25-ac29-0c2e0d3a13c2",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 62,
+      "overriden_lines": 0
+    },
+    "e4aaf2593cb32d35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "66762a83-880c-47fb-8155-ec8013554cc1",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
