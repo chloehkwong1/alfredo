@@ -39,7 +39,7 @@ function RebaseBanner({ worktreePath, stackParent }: { worktreePath: string; sta
   const handleRebase = async () => {
     setLoading(true);
     try {
-      await rebaseWorktree(worktreePath);
+      await rebaseWorktree(worktreePath, stackParent);
       setBehindCount(0);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

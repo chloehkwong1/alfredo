@@ -411,7 +411,7 @@ const AgentItem = memo(function AgentItem({
 
   const handleRebase = async () => {
     try {
-      await rebaseWorktree(worktree.path);
+      await rebaseWorktree(worktree.path, worktree.stackParent);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("Rebase failed:", msg);

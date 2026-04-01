@@ -87,8 +87,11 @@ export function getCommitsBehindMain(
   return invoke("get_commits_behind_main", { worktreePath, stackParent: stackParent ?? null });
 }
 
-export function rebaseWorktree(worktreePath: string): Promise<void> {
-  return invoke("rebase_worktree", { worktreePath });
+export function rebaseWorktree(
+  worktreePath: string,
+  stackParent?: string | null,
+): Promise<void> {
+  return invoke("rebase_worktree", { worktreePath, stackParent: stackParent ?? null });
 }
 
 export function setStackParent(

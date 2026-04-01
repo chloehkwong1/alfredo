@@ -250,16 +250,21 @@ pub fn commits_behind(worktree_path: &str, stack_parent: Option<&str>) -> Result
     Ok(count)
 }
 
-/// Rebase the current branch onto the default remote branch.
-/// Fetches origin first, then runs `git rebase origin/<default>`.
+/// Rebase the current branch onto a target branch (or the default remote branch if None).
+/// Fetches origin first, then runs `git rebase origin/<target>`.
 /// Returns Ok(()) on success, or an error with stderr on failure.
-pub async fn rebase_onto_main(worktree_path: &str) -> Result<(), AppError> {
-    let default_branch = resolve_default_remote_branch(worktree_path);
-    let short_name = default_branch.strip_prefix("origin/").unwrap_or(&default_branch);
+pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<(), AppError> {
+    let (fetch_ref, rebase_ref) = if let Some(parent) = target {
+        (parent.to_string(), format!("origin/{parent}"))
+    } else {
+        let default_branch = resolve_default_remote_branch(worktree_path);
+        let short = default_branch.strip_prefix("origin/").unwrap_or(&default_branch).to_string();
+        (short, default_branch)
+    };
 
     // Fetch latest from origin
     let fetch = Command::new("git")
-        .args(["fetch", "origin", short_name])
+        .args(["fetch", "origin", &fetch_ref])
         .current_dir(worktree_path)
         .output()
         .await
@@ -270,9 +275,9 @@ pub async fn rebase_onto_main(worktree_path: &str) -> Result<(), AppError> {
         return Err(AppError::Git(format!("git fetch failed: {stderr}")));
     }
 
-    // Rebase onto default remote branch
+    // Rebase
     let rebase = Command::new("git")
-        .args(["rebase", &default_branch])
+        .args(["rebase", &rebase_ref])
         .current_dir(worktree_path)
         .output()
         .await
@@ -280,7 +285,6 @@ pub async fn rebase_onto_main(worktree_path: &str) -> Result<(), AppError> {
 
     if !rebase.status.success() {
         let stderr = String::from_utf8_lossy(&rebase.stderr);
-        // Abort the failed rebase so the worktree isn't left in a broken state
         let _ = Command::new("git")
             .args(["rebase", "--abort"])
             .current_dir(worktree_path)

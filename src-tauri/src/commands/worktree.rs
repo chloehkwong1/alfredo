@@ -259,10 +259,13 @@ pub async fn get_commits_behind_main(
         .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
 
-/// Rebase a worktree's branch onto origin/main.
+/// Rebase a worktree's branch onto a target branch (or the default branch if None).
 #[tauri::command]
-pub async fn rebase_worktree(worktree_path: String) -> Result<()> {
-    git_manager::rebase_onto_main(&worktree_path).await
+pub async fn rebase_worktree(
+    worktree_path: String,
+    stack_parent: Option<String>,
+) -> Result<()> {
+    git_manager::rebase_onto(&worktree_path, stack_parent.as_deref()).await
 }
 
 /// Set or clear the stack parent for a worktree.
