@@ -197,7 +197,9 @@ impl PtyManager {
             }
 
             // Notify the frontend that the agent is no longer running.
-            if let Err(e) = reader_channel.send(PtyEvent::AgentState(AgentState::NotRunning)) {
+            // Sent as HookAgentState (authoritative) rather than AgentState
+            // (detector) so it bypasses the detector filter when hooks are active.
+            if let Err(e) = reader_channel.send(PtyEvent::HookAgentState(AgentState::NotRunning)) {
                 eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");
             }
 

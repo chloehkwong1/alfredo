@@ -147,12 +147,21 @@ function registerKittyProtocol(terminal: Terminal, sessionId: string): void {
 
 export function shouldAcceptDetectorState(
   hooksActive: boolean,
-  detectorState: AgentState,
+  _detectorState: AgentState,
 ): boolean {
-  if (!hooksActive) return true;
-  return detectorState === "idle"
-    || detectorState === "notRunning"
-    || detectorState === "waitingForInput";
+  // Once hooks have fired, they are the sole source of truth.
+  // Every state the detector could provide is already covered:
+  //   idle            → Stop hook, Notification(idle_prompt)
+  //   busy            → PreToolUse, PostToolUse, UserPromptSubmit, etc.
+  //   waitingForInput → Notification(permission_prompt, elicitation_dialog),
+  //                     PermissionRequest, PostToolUseFailure(interrupt)
+  //   notRunning      → PTY reader thread sends NotRunning on EOF/exit
+  //
+  // Accepting ANY detector event when hooks are active creates a class of
+  // false-positive bugs — terminal redraws, cursor chars, partial ANSI
+  // sequences all produce spurious state flips. The detector exists solely
+  // as a fallback for agents that lack hook support (Codex, Aider, etc.).
+  return !hooksActive;
 }
 
 // ── SessionManager ─────────────────────────────────────────────
@@ -218,7 +227,7 @@ export class SessionManager {
       fitAddon,
       searchAddon,
       webglLoaded: false,
-      agentState: mode === "shell" ? "notRunning" : "idle",
+      agentState: mode === "shell" ? "notRunning" : "busy",
       hooksActive: false,
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
@@ -446,7 +455,7 @@ export class SessionManager {
       throw e;
     }
     session.sessionId = sessionId;
-    session.agentState = mode === "shell" ? "notRunning" : "idle";
+    session.agentState = mode === "shell" ? "notRunning" : "busy";
     session.lastHeartbeat = Date.now();
     // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the
     // PTY actually produces output, rather than seeing the stale value from

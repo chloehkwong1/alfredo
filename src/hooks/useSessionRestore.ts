@@ -5,8 +5,6 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getConfig } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
-import { useRemoteControlStore } from "../stores/remoteControlStore";
-import { SESSION_URL_RE } from "../services/remoteControl";
 import { usePrStore } from "../stores/prStore";
 
 /**
@@ -87,17 +85,6 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   for (const [tabId, termData] of Object.entries(session.terminals)) {
                     if (termData.scrollback) {
                       sessionManager.loadScrollbackOnly(tabId, termData.scrollback);
-                      // Restore remote-control state if the session URL is still
-                      // visible in the scrollback (app was closed while RC was active)
-                      try {
-                        const scrollbackText = atob(termData.scrollback);
-                        const match = scrollbackText.match(SESSION_URL_RE);
-                        if (match) {
-                          useRemoteControlStore.getState().enable(wt.id, match[0]);
-                        }
-                      } catch {
-                        // Invalid base64 — skip
-                      }
                     }
                   }
                 }

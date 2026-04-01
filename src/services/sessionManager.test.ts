@@ -9,19 +9,10 @@ describe("shouldAcceptDetectorState", () => {
     expect(shouldAcceptDetectorState(false, "notRunning")).toBe(true);
   });
 
-  it("rejects detector busy when hooks are active", () => {
+  it("rejects all detector states when hooks are active", () => {
     expect(shouldAcceptDetectorState(true, "busy")).toBe(false);
-  });
-
-  it("accepts detector idle when hooks are active (safety net)", () => {
-    expect(shouldAcceptDetectorState(true, "idle")).toBe(true);
-  });
-
-  it("accepts detector waitingForInput when hooks are active (safety net)", () => {
-    expect(shouldAcceptDetectorState(true, "waitingForInput")).toBe(true);
-  });
-
-  it("accepts detector notRunning when hooks are active (safety net)", () => {
-    expect(shouldAcceptDetectorState(true, "notRunning")).toBe(true);
+    expect(shouldAcceptDetectorState(true, "idle")).toBe(false);
+    expect(shouldAcceptDetectorState(true, "waitingForInput")).toBe(false);
+    expect(shouldAcceptDetectorState(true, "notRunning")).toBe(false);
   });
 });
