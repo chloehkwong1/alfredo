@@ -71,7 +71,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
   const replaceWorktree = useWorkspaceStore((s) => s.replaceWorktree);
   const failWorktree = useWorkspaceStore((s) => s.failWorktree);
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
-  const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
 
   const [currentRepoPath, setCurrentRepoPath] = useState<string | undefined>(
     defaultRepoPath ?? repoPath,
@@ -157,7 +156,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
       .then((realWorktree) => {
         replaceWorktree(tempId, realWorktree);
         ensureDefaultTabs(realWorktree.id);
-        setActiveWorktree(realWorktree.id);
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : String(err);

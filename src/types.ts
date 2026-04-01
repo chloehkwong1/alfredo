@@ -51,6 +51,8 @@ export interface Worktree {
   creating?: boolean;
   /** Error message if background creation failed. */
   createError?: string;
+  /** True when background creation just finished — cleared on first select. */
+  justCreated?: boolean;
   /** URL of the Linear ticket this worktree was created from. */
   linearTicketUrl?: string;
   /** Human-readable Linear identifier (e.g. "ROS-42"). */

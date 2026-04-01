@@ -109,6 +109,7 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         claudeSessionId: old.claudeSessionId,
         linearTicketUrl: old.linearTicketUrl,
         linearTicketIdentifier: old.linearTicketIdentifier,
+        justCreated: old.justCreated,
       };
     }
     return wt;
@@ -141,7 +142,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     set((state) => ({
       worktrees: state.worktrees.map((wt) =>
         wt.id === tempId
-          ? { ...realWorktree, creating: undefined, createError: undefined }
+          ? { ...realWorktree, creating: undefined, createError: undefined, justCreated: true }
           : wt,
       ),
     })),
@@ -220,7 +221,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       return { worktrees: [item, ...rest] };
     }),
 
-  setActiveWorktree: (id) => set({ activeWorktreeId: id }),
+  setActiveWorktree: (id) =>
+    set((state) => ({
+      activeWorktreeId: id,
+      worktrees: state.worktrees.map((wt) =>
+        wt.id === id && wt.justCreated ? { ...wt, justCreated: undefined } : wt,
+      ),
+    })),
 
   setWorktrees: (freshWorktrees) =>
     set((state) => ({

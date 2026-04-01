@@ -73,7 +73,7 @@ function ThinkingDots() {
   );
 }
 
-const NEEDS_YOU_STATES = new Set(["waitingForInput", "done", "error"]);
+const NEEDS_YOU_STATES = new Set(["waitingForInput", "done", "error", "ready"]);
 
 function needsAttention(status: string): boolean {
   return NEEDS_YOU_STATES.has(status);
@@ -83,6 +83,7 @@ function getBorderClass(status: string): string {
   switch (status) {
     case "waitingForInput":
     case "done":
+    case "ready":
       return "border-attn";
     case "error":
       return "border-error";
@@ -95,6 +96,7 @@ function getDotGlowClass(status: string): string {
   switch (status) {
     case "waitingForInput":
     case "done":
+    case "ready":
       return "dot-glow-attn";
     case "error":
       return "dot-glow-error";
@@ -128,6 +130,7 @@ const statusDotColor: Record<string, string> = {
   busy: "bg-status-busy",
   idle: "bg-status-idle",
   done: "bg-accent-primary",
+  ready: "bg-accent-primary",
   error: "bg-status-error",
   notRunning: "bg-text-tertiary",
   disconnected: "bg-amber-400",
@@ -139,6 +142,7 @@ const statusText: Record<string, string> = {
   busy: "Thinking...",
   idle: "Idle",
   done: "Done",
+  ready: "Ready",
   error: "Error",
   notRunning: "Not running",
   disconnected: "Disconnected",
@@ -158,7 +162,9 @@ export function computeEffectiveStatus(
   channelAlive: boolean | undefined,
   staleBusy: boolean | undefined,
   isSeen: boolean,
+  justCreated?: boolean,
 ): string {
+  if (justCreated) return "ready";
   const channelStatus = channelAlive === false && agentStatus !== "notRunning"
     ? "disconnected"
     : agentStatus;
@@ -173,7 +179,7 @@ function useAgentItemState(worktree: Worktree) {
     (s) => s.runningServer?.worktreeId === worktree.id,
   );
   const effectiveStatus = computeEffectiveStatus(
-    worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, isSeen,
+    worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, isSeen, worktree.justCreated,
   );
   const shouldPulse = effectiveStatus === "waitingForInput";
   return { prSummary, isServerRunning, effectiveStatus, shouldPulse };
@@ -240,7 +246,7 @@ function AgentItemContent({
               ? "text-status-busy font-medium"
               : (effectiveStatus as string) === "waitingForInput"
                 ? "text-accent-primary font-medium"
-                : (effectiveStatus as string) === "done"
+                : (effectiveStatus as string) === "done" || (effectiveStatus as string) === "ready"
                   ? "text-accent-primary font-medium"
                   : (effectiveStatus as string) === "error"
                     ? "text-status-error font-medium"
