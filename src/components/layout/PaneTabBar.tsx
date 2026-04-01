@@ -326,7 +326,7 @@ function PaneTabBar({
               >
                 <IconButton
                   size="sm"
-                  label={`Open ${runScriptUrl ?? "http://localhost:3000"}`}
+                  label={`Open in browser (${runScriptUrl ?? "http://localhost:3000"})`}
                   onClick={() => openUrl(runScriptUrl ?? "http://localhost:3000")}
                   className="text-status-idle hover:text-text-primary"
                 >
@@ -341,8 +341,8 @@ function PaneTabBar({
             onClick={onToggleServer}
             className={
               isServerRunning
-                ? "text-status-idle hover:text-red-400"
-                : "text-text-tertiary hover:text-text-secondary"
+                ? "text-red-400 hover:text-red-300"
+                : "text-green-500 hover:text-green-400"
             }
           >
             {isServerRunning ? <Square /> : <Play />}

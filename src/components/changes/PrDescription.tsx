@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type React from "react";
 
 /** Count media items in a PR body string. */
@@ -52,16 +53,14 @@ function formatPrBody(body: string): React.ReactNode[] {
 export function PrDescription({
   body,
   prUrl,
-  expanded,
-  onToggle,
 }: {
   body: string;
   prUrl: string;
-  expanded: boolean;
-  onToggle: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const { images, videos } = countMedia(body);
   const hasMedia = images + videos > 0;
+  const isLong = body.split("\n").length > 6;
 
   const mediaSummary = [
     images > 0 ? `${images} image${images !== 1 ? "s" : ""}` : null,
@@ -69,16 +68,18 @@ export function PrDescription({
   ].filter(Boolean).join(", ");
 
   return (
-    <div className="px-2.5 py-2 border-b border-border-subtle text-xs text-text-secondary leading-[1.5] overflow-hidden">
-      <div className={expanded ? "" : "max-h-[4.5em] overflow-hidden"}>
+    <div className="px-2.5 py-1.5 text-xs text-text-secondary leading-[1.5] overflow-hidden">
+      <div className={expanded || !isLong ? "" : "max-h-[4.5em] overflow-hidden"}>
         {formatPrBody(body)}
       </div>
-      <button
-        onClick={onToggle}
-        className="text-accent-primary text-[10px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
-      >
-        {expanded ? "Show less" : "Show more"}
-      </button>
+      {isLong && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-accent-primary text-[10px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
       {hasMedia && (
         <div className="mt-1.5 pt-1.5 border-t border-border-subtle">
           <a

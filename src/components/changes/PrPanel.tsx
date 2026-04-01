@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ChevronRight,
   CircleCheck,
   Eye,
   MessageCircle,
@@ -59,8 +60,6 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
 
   const { checkRuns, reviews, comments, unresolvedComments } = usePrBadgeCounts(worktreeId);
 
-  const [descExpanded, setDescExpanded] = useState(false);
-
   // Loading skeleton: prDetail not yet loaded
   if (prDetail === undefined) {
     return (
@@ -89,10 +88,12 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto py-2 flex flex-col">
-        {/* Description */}
+      <div className="flex-1 overflow-y-auto py-1 flex flex-col">
+        {/* Description section */}
         {pr.body && (
-          <PrDescription body={pr.body} prUrl={pr.url} expanded={descExpanded} onToggle={() => setDescExpanded(!descExpanded)} />
+          <Section title="Description">
+            <PrDescription body={pr.body} prUrl={pr.url} />
+          </Section>
         )}
 
         {/* Checks section */}
@@ -234,6 +235,16 @@ function RailIcon({
   );
 }
 
+const STORAGE_KEY = "pr-panel-collapsed";
+
+function readCollapsedMap(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
 function Section({
   title,
   count,
@@ -241,24 +252,41 @@ function Section({
   children,
 }: {
   title: string;
-  count: number;
+  count?: number;
   summary?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const [collapsed, setCollapsed] = useState(() => readCollapsedMap()[title] ?? false);
+
+  function toggle() {
+    const next = !collapsed;
+    setCollapsed(next);
+    const map = readCollapsedMap();
+    map[title] = next;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  }
+
   return (
-    <div className="mb-1">
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5">
-        <span className="text-2xs uppercase tracking-wider text-text-tertiary font-semibold leading-normal">
+    <div className="mb-0.5">
+      <button
+        onClick={toggle}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
+      >
+        <ChevronRight
+          size={14}
+          className={`text-text-tertiary shrink-0 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
+        />
+        <span className="text-xs text-text-secondary font-semibold leading-normal">
           {title}
         </span>
-        {count > 0 && (
+        {count != null && count > 0 && (
           <span className="text-[10px] bg-bg-secondary text-text-tertiary rounded-full px-1.5 py-px">
             {count}
           </span>
         )}
         {summary}
-      </div>
-      {children}
+      </button>
+      {!collapsed && children}
     </div>
   );
 }
