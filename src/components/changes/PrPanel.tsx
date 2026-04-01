@@ -13,6 +13,7 @@ import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { CheckRun, PrReview, PrStatus } from "../../types";
 import { formatDuration, formatTimeAgo } from "./formatRelativeTime";
+import { MarkdownBody } from "../shared/MarkdownBody";
 import { rerunFailedChecks, fixFailingChecks, fixMergeConflicts } from "../../services/prActions";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { useTabStore } from "../../stores/tabStore";
@@ -601,11 +602,14 @@ function CommentCard({
       </div>
 
       {/* Body */}
-      <p
-        className={`m-0 text-text-primary leading-[1.4] ${expanded ? "" : "line-clamp-3"}`}
+      <div
+        className={`relative text-text-primary ${expanded ? "" : "max-h-[60px] overflow-hidden"}`}
       >
-        {body}
-      </p>
+        <MarkdownBody text={body} compact />
+        {!expanded && isLong && (
+          <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[var(--bg-secondary)] to-transparent pointer-events-none" />
+        )}
+      </div>
       {isLong && (
         <button
           className="text-accent-primary text-[10px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
