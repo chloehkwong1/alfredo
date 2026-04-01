@@ -9,13 +9,13 @@ const SHORTCUT_GROUPS = [
   {
     label: "Navigation",
     shortcuts: [
-      { keys: "↑ / ↓", description: "Navigate between worktrees" },
       { keys: "⌘ 1–9", description: "Jump to worktree by position" },
     ],
   },
   {
     label: "Tabs & Panes",
     shortcuts: [
+      { keys: "⌘ ⇧ P", description: "Command palette" },
       { keys: "⌘ R", description: "Add repository" },
       { keys: "⌘ N", description: "New worktree" },
       { keys: "⌘ T", description: "New tab" },
@@ -30,7 +30,7 @@ const SHORTCUT_GROUPS = [
     label: "Panels",
     shortcuts: [
       { keys: "⌘ B", description: "Toggle sidebar" },
-      { keys: "⌘ I", description: "Toggle PR panel" },
+      { keys: "⌘ I", description: "Toggle changes panel" },
     ],
   },
   {
@@ -67,7 +67,7 @@ function ShortcutsOverlay({ open, onOpenChange }: ShortcutsOverlayProps) {
         <DialogHeader>
           <DialogTitle>Keyboard Shortcuts</DialogTitle>
         </DialogHeader>
-        <div className="space-y-0">
+        <div className="space-y-0 overflow-y-auto max-h-[70vh]">
           {SHORTCUT_GROUPS.map((group, index) => (
             <div key={group.label} className={index > 0 ? "pt-5 mt-5 border-t border-border-default" : ""}>
               <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-2">
