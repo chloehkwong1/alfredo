@@ -1,5 +1,6 @@
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { PaneView } from "./PaneView";
+import { SectionErrorBoundary } from "../shared/SectionErrorBoundary";
 import { useLayoutStore } from "../../stores/layoutStore";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { LayoutNode } from "../../types";
@@ -31,14 +32,16 @@ function RenderNode({
 }) {
   if (node.type === "leaf") {
     return (
-      <PaneView
-        paneId={node.paneId}
-        worktreeId={worktreeId}
-        onToggleServer={isFirstLeaf ? onToggleServer : undefined}
-        isServerRunning={isFirstLeaf ? isServerRunning : undefined}
-        runScriptName={isFirstLeaf ? runScriptName : undefined}
-        runScriptUrl={isFirstLeaf ? runScriptUrl : undefined}
-      />
+      <SectionErrorBoundary name={node.paneId}>
+        <PaneView
+          paneId={node.paneId}
+          worktreeId={worktreeId}
+          onToggleServer={isFirstLeaf ? onToggleServer : undefined}
+          isServerRunning={isFirstLeaf ? isServerRunning : undefined}
+          runScriptName={isFirstLeaf ? runScriptName : undefined}
+          runScriptUrl={isFirstLeaf ? runScriptUrl : undefined}
+        />
+      </SectionErrorBoundary>
     );
   }
 
