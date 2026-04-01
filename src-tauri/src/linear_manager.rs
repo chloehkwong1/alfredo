@@ -17,6 +17,7 @@ fn client(api_key: &str) -> Result<reqwest::Client, AppError> {
 
     reqwest::Client::builder()
         .default_headers(headers)
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| AppError::Linear(format!("failed to build HTTP client: {e}")))
 }

@@ -151,7 +151,11 @@ impl GithubManager {
             .personal_token(token.to_string())
             .build()
             .map_err(|e| AppError::Github(format!("failed to build octocrab client: {e}")))?;
-        Ok(Self { client, http_client: reqwest::Client::new(), token: token.to_string() })
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| AppError::Github(format!("failed to build HTTP client: {e}")))?;
+        Ok(Self { client, http_client, token: token.to_string() })
     }
 
     fn token(&self) -> &str {
