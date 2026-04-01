@@ -16,6 +16,8 @@ interface FileSidebarProps {
   onSelectFile: (path: string) => void;
   onDiscardFile?: (path: string, status: string) => void;
   prComments?: PrComment[];
+  onDoubleClickFile?: (path: string) => void;
+  onDoubleClickCommit?: (index: number) => void;
 }
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
@@ -39,6 +41,7 @@ const FileRow = memo(function FileRow({
   commentCount,
   onSelect,
   onDiscard,
+  onDoubleClick,
 }: {
   file: DiffFile;
   filePath: string;
@@ -46,6 +49,7 @@ const FileRow = memo(function FileRow({
   commentCount: number;
   onSelect: (path: string) => void;
   onDiscard?: (path: string, status: string) => void;
+  onDoubleClick?: (path: string) => void;
 }) {
   const filename = file.path.split("/").pop() ?? file.path;
 
@@ -57,6 +61,7 @@ const FileRow = memo(function FileRow({
         isActive ? "bg-bg-hover text-text-primary" : "text-text-secondary",
       ].join(" ")}
       onClick={() => onSelect(filePath)}
+      onDoubleClick={() => onDoubleClick?.(filePath)}
     >
       <span
         className={[
@@ -93,7 +98,8 @@ const FileRow = memo(function FileRow({
   prev.isActive === next.isActive &&
   prev.commentCount === next.commentCount &&
   prev.onSelect === next.onSelect &&
-  prev.onDiscard === next.onDiscard
+  prev.onDiscard === next.onDiscard &&
+  prev.onDoubleClick === next.onDoubleClick
 );
 
 function FileSidebar({
@@ -107,6 +113,8 @@ function FileSidebar({
   onSelectFile,
   onDiscardFile,
   prComments = [],
+  onDoubleClickFile,
+  onDoubleClickCommit,
 }: FileSidebarProps) {
   const [filter, setFilter] = useState("");
 
@@ -199,9 +207,10 @@ function FileSidebar({
           commentCount={commentCountByFile.get(file.path) ?? 0}
           onSelect={onSelectFile}
           onDiscard={onDiscard}
+          onDoubleClick={onDoubleClickFile}
         />
       )),
-    [activeFilePath, commentCountByFile, onSelectFile],
+    [activeFilePath, commentCountByFile, onSelectFile, onDoubleClickFile],
   );
 
   return (
@@ -230,6 +239,7 @@ function FileSidebar({
               <button
                 key={commit.hash}
                 onClick={() => onSelectCommit(originalIndex)}
+                onDoubleClick={() => onDoubleClickCommit?.(originalIndex)}
                 className={[
                   "w-full px-2.5 py-1.5 text-left border-l-2",
                   "hover:bg-bg-hover transition-colors",

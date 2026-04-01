@@ -8,8 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "../ui/Button";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
-import { useTabStore } from "../../stores/tabStore";
-import { useLayoutStore } from "../../stores/layoutStore";
+import { lifecycleManager } from "../../services/lifecycleManager";
 import { useChangesData } from "../../hooks/useChangesData";
 import { discardFile, getCommitsBehindMain, rebaseWorktree } from "../../api";
 import type { ViewMode } from "./FileSidebar";
@@ -123,43 +122,20 @@ function WorkspacePanel({
   const handleSelectCommit = useCallback((index: number) => {
     setSelectedCommitIndex(index);
     setActiveFilePath(null);
-    // Switch the active tab to the changes tab first so ChangesView mounts
-    const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-    const changesTab = tabs.find((t) => t.type === "diff");
-    if (changesTab) {
-      const layoutState = useLayoutStore.getState();
-      const activePaneId = layoutState.activePaneId[worktreeId];
-      if (activePaneId) {
-        layoutState.setPaneActiveTab(worktreeId, activePaneId, changesTab.id);
-      }
-      useTabStore.getState().setActiveTabId(worktreeId, changesTab.id);
-    }
-    requestAnimationFrame(() => {
-      window.dispatchEvent(
-        new CustomEvent("alfredo:changes-panel-select-commit", { detail: { index } }),
-      );
+    const commit = commits[index];
+    if (!commit) return;
+    lifecycleManager.openDiffPreview(worktreeId, {
+      type: "commit",
+      commitHash: commit.hash,
     });
-  }, [worktreeId]);
+  }, [worktreeId, commits]);
 
   const handleSelectFile = useCallback(
     (path: string) => {
       setActiveFilePath(path);
-      // Switch the active tab to the changes tab first so ChangesView mounts
-      const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-      const changesTab = tabs.find((t) => t.type === "diff");
-      if (changesTab) {
-        const layoutState = useLayoutStore.getState();
-        const activePaneId = layoutState.activePaneId[worktreeId];
-        if (activePaneId) {
-          layoutState.setPaneActiveTab(worktreeId, activePaneId, changesTab.id);
-        }
-        useTabStore.getState().setActiveTabId(worktreeId, changesTab.id);
-      }
-      // Dispatch after a frame so ChangesView has time to mount and attach its listener
-      requestAnimationFrame(() => {
-        window.dispatchEvent(
-          new CustomEvent("alfredo:changes-panel-select-file", { detail: { path } }),
-        );
+      lifecycleManager.openDiffPreview(worktreeId, {
+        type: "file",
+        filePath: path,
       });
     },
     [worktreeId],
@@ -169,24 +145,10 @@ function WorkspacePanel({
     (filePath: string, line: number) => {
       // Switch back to files tab
       setChangesViewMode(worktreeId, "changes");
-      // Switch the active tab to the changes tab first
-      const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-      const changesTab = tabs.find((t) => t.type === "diff");
-      if (changesTab) {
-        const layoutState = useLayoutStore.getState();
-        const activePaneId = layoutState.activePaneId[worktreeId];
-        if (activePaneId) {
-          layoutState.setPaneActiveTab(worktreeId, activePaneId, changesTab.id);
-        }
-        useTabStore.getState().setActiveTabId(worktreeId, changesTab.id);
-      }
-      requestAnimationFrame(() => {
-        window.dispatchEvent(
-          new CustomEvent("alfredo:changes-panel-select-file", { detail: { path: filePath } }),
-        );
-        window.dispatchEvent(
-          new CustomEvent("alfredo:changes-panel-jump-to-comment", { detail: { path: filePath, line } }),
-        );
+      lifecycleManager.openDiffPreview(worktreeId, {
+        type: "file",
+        filePath,
+        scrollToLine: line,
       });
     },
     [setChangesViewMode, worktreeId],
@@ -287,6 +249,8 @@ function WorkspacePanel({
             onSelectFile={handleSelectFile}
             onDiscardFile={handleDiscardFile}
             prComments={prComments}
+            onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
+            onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
           />
         </div>
       )}
