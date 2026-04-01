@@ -100,7 +100,7 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
       >
         <span
           className={[
-            "w-[36px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px]",
+            "w-[36px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px] sticky left-0 z-10",
             GUTTER_BG[lineType],
           ].join(" ")}
         >
@@ -108,7 +108,7 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
         </span>
         <span
           className={[
-            "w-[36px] text-right pr-2 text-text-tertiary select-none flex-shrink-0 text-[10px]",
+            "w-[36px] text-right pr-2 text-text-tertiary select-none flex-shrink-0 text-[10px] sticky left-[36px] z-10",
             GUTTER_BG[lineType],
           ].join(" ")}
         >
@@ -124,7 +124,7 @@ const SyntaxDiffLine = memo(function SyntaxDiffLine({
             </span>
           )}
         </span>
-        <span className="flex-1 px-2 whitespace-pre overflow-x-auto">
+        <span className="flex-1 px-2 whitespace-pre">
           {tokens ? (
             tokens.map((token, i) => (
               <span key={i} style={token.color ? { color: token.color } : undefined}>

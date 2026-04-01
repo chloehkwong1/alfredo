@@ -32,7 +32,7 @@ const GUTTER_BG: Record<string, string> = {
   empty: "",
 };
 
-function SplitSideContent({
+export function SplitSideContent({
   side,
   filePath,
   onClickLine,
@@ -98,7 +98,7 @@ function SplitSideContent({
     <div
       ref={ref}
       className={[
-        "flex-1 flex font-mono text-xs leading-5 group/split min-w-0",
+        "flex-1 flex font-mono text-xs leading-5 group/split",
         bgClass,
         canClick ? "cursor-pointer hover:bg-bg-hover/50" : "",
       ].join(" ")}
@@ -106,13 +106,13 @@ function SplitSideContent({
     >
       <span
         className={[
-          "w-[36px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px]",
+          "w-[36px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px] sticky left-0 z-10",
           gutterBgClass,
         ].join(" ")}
       >
         {side.lineNumber ?? ""}
       </span>
-      <span className="flex-1 px-2 whitespace-pre overflow-x-auto">
+      <span className="flex-1 px-2 whitespace-pre">
         {tokens ? (
           tokens.map((token, i) => (
             <span key={i} style={token.color ? { color: token.color } : undefined}>
