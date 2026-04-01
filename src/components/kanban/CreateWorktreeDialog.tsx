@@ -13,7 +13,7 @@ import { RepoDropdown } from "../ui/RepoDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { createWorktreeFrom, getConfig, getDefaultBranch } from "../../api";
-import type { RepoEntry, WorktreeSource } from "../../types";
+import type { RepoEntry, Worktree, WorktreeSource } from "../../types";
 import { NewBranchTab, getNewBranchSource } from "./create-worktree/NewBranchTab";
 import { BranchesTab } from "./create-worktree/BranchesTab";
 import { PullRequestsTab } from "./create-worktree/PullRequestsTab";
@@ -31,6 +31,34 @@ interface CreateWorktreeDialogProps {
   defaultRepoPath?: string;
 }
 
+/** Derive a placeholder worktree ID and display name from the creation source. */
+function placeholderFromSource(
+  source: WorktreeSource,
+  _repoPath: string,
+): { id: string; name: string; branch: string } {
+  switch (source.kind) {
+    case "newBranch":
+    case "existingBranch":
+      return {
+        id: source.name.replace(/\//g, "-"),
+        name: source.name,
+        branch: source.name,
+      };
+    case "pullRequest":
+      return {
+        id: `creating-pr-${source.number}`,
+        name: `PR #${source.number}`,
+        branch: "",
+      };
+    case "linearTicket":
+      return {
+        id: `creating-${source.id}`,
+        name: source.id,
+        branch: "",
+      };
+  }
+}
+
 const tabDefs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "newBranch", label: "New Branch", icon: <Plus className="h-3.5 w-3.5" /> },
   { id: "branches", label: "Branches", icon: <GitBranch className="h-3.5 w-3.5" /> },
@@ -40,6 +68,8 @@ const tabDefs: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRepos, repoColors, defaultRepoPath }: CreateWorktreeDialogProps) {
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
+  const replaceWorktree = useWorkspaceStore((s) => s.replaceWorktree);
+  const failWorktree = useWorkspaceStore((s) => s.failWorktree);
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
 
@@ -47,9 +77,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
     defaultRepoPath ?? repoPath,
   );
   const [activeTab, setActiveTab] = useState<Tab>("newBranch");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   // New branch state (lifted because it's needed for Create button + handleCreate)
   const [branchName, setBranchName] = useState("");
   const [baseBranch, setBaseBranch] = useState("");
@@ -94,8 +121,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
       setSelectedBranch(null);
       setSelectedPrNumber(null);
       setSelectedIssueId(null);
-      setCreating(false);
-      setError(null);
     }
   }, [open]);
 
@@ -112,28 +137,43 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
     }
   }
 
-  async function handleCreate() {
+  function handleCreate() {
     const source = getSource();
     if (!currentRepoPath || !source) return;
 
-    setCreating(true);
-    setError(null);
-    try {
-      const worktree = await createWorktreeFrom(currentRepoPath, source);
-      if (worktree) {
-        addWorktree(worktree);
-        ensureDefaultTabs(worktree.id);
-        setActiveWorktree(worktree.id);
-        onOpenChange(false);
-        setBranchName("");
-      } else {
-        setError("Failed to create worktree. Please try again.");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setCreating(false);
-    }
+    const { id: tempId, name, branch } = placeholderFromSource(source, currentRepoPath);
+
+    // Build placeholder and add to store immediately
+    const placeholder: Worktree = {
+      id: tempId,
+      name,
+      path: "",
+      branch,
+      prStatus: null,
+      agentStatus: "notRunning",
+      column: "inProgress",
+      isBranchMode: false,
+      additions: null,
+      deletions: null,
+      repoPath: currentRepoPath,
+      creating: true,
+    };
+
+    addWorktree(placeholder);
+    onOpenChange(false);
+    setBranchName("");
+
+    // Fire Tauri command in the background
+    createWorktreeFrom(currentRepoPath, source)
+      .then((realWorktree) => {
+        replaceWorktree(tempId, realWorktree);
+        ensureDefaultTabs(realWorktree.id);
+        setActiveWorktree(realWorktree.id);
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        failWorktree(tempId, message);
+      });
   }
 
   return (
@@ -228,11 +268,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
             </label>
           )}
 
-          {error && (
-            <div className="text-xs text-danger bg-danger/10 rounded-[var(--radius-sm)] px-3 py-2">
-              {error}
-            </div>
-          )}
         </div>
 
         <DialogFooter>
@@ -241,9 +276,9 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={creating || !getSource()}
+            disabled={!getSource()}
           >
-            {creating ? "Creating..." : "Create Worktree"}
+            Create Worktree
           </Button>
         </DialogFooter>
       </DialogContent>
