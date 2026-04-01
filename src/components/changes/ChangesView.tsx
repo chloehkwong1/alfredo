@@ -9,7 +9,7 @@ import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { useSendToClaude } from "../../hooks/useSendToClaude";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
-import { Search, Trash2, Maximize2, Minimize2, MessageSquare } from "lucide-react";
+import { Search, Trash2, Maximize2, Minimize2, MessageSquare, Copy, Check } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { DiffSearchBar } from "./DiffSearchBar";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
@@ -37,6 +37,13 @@ function CommitHeader({ commit }: { commit: CommitInfo }) {
   const firstNewline = commit.message.indexOf("\n");
   const subject = firstNewline === -1 ? commit.message : commit.message.slice(0, firstNewline);
   const body = firstNewline === -1 ? "" : commit.message.slice(firstNewline + 1).trim();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(commit.hash);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="px-4 py-3 border-b border-border-default bg-bg-secondary">
@@ -49,7 +56,17 @@ function CommitHeader({ commit }: { commit: CommitInfo }) {
         </div>
       )}
       <div className="flex items-center gap-2 mt-1.5 text-[10px] text-text-tertiary">
-        <span className="font-mono">{commit.shortHash}</span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 font-mono hover:text-text-primary transition-colors group"
+          title="Copy full hash"
+        >
+          <span>{commit.hash}</span>
+          {copied
+            ? <Check size={10} className="text-diff-added" />
+            : <Copy size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+          }
+        </button>
         <span>·</span>
         <span>{formatRelativeTime(commit.timestamp)}</span>
       </div>
@@ -443,40 +460,40 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
               </>
             )}
           </div>
+          {/* Jump bar for commit diffs with multiple files — outside scroll container so it's always visible */}
+          {viewMode === "commits" && selectedCommitIndex !== null && displayFiles.length > 1 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-secondary border-b border-border-default overflow-x-auto flex-shrink-0">
+              {displayFiles.map((file) => (
+                <button
+                  key={file.path}
+                  type="button"
+                  onClick={() => {
+                    const el = fileRefs.current.get(file.path);
+                    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className={[
+                    "px-2 py-0.5 rounded text-xs whitespace-nowrap transition-colors",
+                    file.path === focusedFilePath
+                      ? "bg-accent-primary/20 text-accent-primary"
+                      : "bg-bg-tertiary text-text-secondary hover:text-text-primary",
+                  ].join(" ")}
+                >
+                  <span className={`mr-1 font-semibold ${
+                    file.status === "added" ? "text-diff-added"
+                      : file.status === "deleted" ? "text-diff-removed"
+                      : file.status === "modified" ? "text-accent-primary"
+                      : "text-text-secondary"
+                  }`}>
+                    {file.status === "added" ? "A" : file.status === "modified" ? "M" : file.status === "deleted" ? "D" : "R"}
+                  </span>
+                  {file.path.split("/").pop()}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto min-w-0">
             {viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex] && (
               <CommitHeader commit={commits[selectedCommitIndex]} />
-            )}
-            {/* Jump bar for commit diffs with multiple files */}
-            {viewMode === "commits" && selectedCommitIndex !== null && displayFiles.length > 1 && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-secondary border-b border-border-default overflow-x-auto">
-                {displayFiles.map((file) => (
-                  <button
-                    key={file.path}
-                    type="button"
-                    onClick={() => {
-                      const el = fileRefs.current.get(file.path);
-                      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                    className={[
-                      "px-2 py-0.5 rounded text-xs whitespace-nowrap transition-colors",
-                      file.path === focusedFilePath
-                        ? "bg-accent-primary/20 text-accent-primary"
-                        : "bg-bg-tertiary text-text-secondary hover:text-text-primary",
-                    ].join(" ")}
-                  >
-                    <span className={`mr-1 font-semibold ${
-                      file.status === "added" ? "text-diff-added"
-                        : file.status === "deleted" ? "text-diff-removed"
-                        : file.status === "modified" ? "text-accent-primary"
-                        : "text-text-secondary"
-                    }`}>
-                      {file.status === "added" ? "A" : file.status === "modified" ? "M" : file.status === "deleted" ? "D" : "R"}
-                    </span>
-                    {file.path.split("/").pop()}
-                  </button>
-                ))}
-              </div>
             )}
             {/* Uncommitted section header with Discard All */}
             {!focusedFilePath && viewMode === "changes" && uncommittedFiles.length > 0 && (
