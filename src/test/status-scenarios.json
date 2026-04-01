@@ -213,5 +213,27 @@
         "expect": { "agentStatus": "waitingForInput" }
       }
     ]
+  },
+  {
+    "name": "stale-notRunning-reconciled-to-idle",
+    "description": "Store stuck at notRunning after stale callback, poll reconciles when session reports idle",
+    "category": "stale-notRunning",
+    "steps": [
+      {
+        "action": { "type": "hookEvent", "state": "idle" },
+        "expect": { "agentStatus": "idle", "effectiveStatus": "done" }
+      }
+    ]
+  },
+  {
+    "name": "stale-notRunning-reconciled-to-busy",
+    "description": "Store stuck at notRunning after stale callback, poll reconciles when session reports busy",
+    "category": "stale-notRunning",
+    "steps": [
+      {
+        "action": { "type": "hookEvent", "state": "busy" },
+        "expect": { "agentStatus": "busy" }
+      }
+    ]
   }
 ]

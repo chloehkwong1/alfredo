@@ -104,6 +104,8 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         prStatus: old.prStatus,
         column: old.column,
         agentStatus: old.agentStatus,
+        channelAlive: old.channelAlive,
+        staleBusy: old.staleBusy,
         archived: old.archived,
         archivedAt: old.archivedAt,
         claudeSessionId: old.claudeSessionId,

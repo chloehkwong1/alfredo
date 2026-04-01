@@ -4,7 +4,7 @@ import type { AgentState } from "../types";
 export interface StatusScenario {
   name: string;
   description: string;
-  category: "stuck-busy" | "wrong-status-on-focus" | "missed-waiting-for-input";
+  category: "stuck-busy" | "wrong-status-on-focus" | "missed-waiting-for-input" | "stale-notRunning";
   steps: ScenarioStep[];
 }
 

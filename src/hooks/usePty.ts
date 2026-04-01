@@ -219,6 +219,15 @@ export function usePty({
         const staleBusy = computeStaleBusy(currentState, alive, session.lastOutputAt, Date.now());
 
         if (mode === "claude") {
+          // Self-heal: if the store is stuck at "notRunning" but the session
+          // reports a live state, push the session's state to the store.
+          // This recovers from stale channel callbacks (e.g. after Vite HMR).
+          // Only reconcile notRunning → live to avoid clearing seenWorktrees
+          // or triggering false notifications on normal transitions.
+          const storeStatus = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId)?.agentStatus;
+          if (storeStatus === "notRunning" && currentState !== "notRunning") {
+            useWorkspaceStore.getState().updateWorktree(worktreeId, { agentStatus: currentState });
+          }
           useWorkspaceStore.getState().updateWorktree(worktreeId, {
             channelAlive: alive,
             staleBusy,
