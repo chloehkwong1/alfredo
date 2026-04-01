@@ -111,8 +111,10 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
     }
     return wt;
   });
-  // Preserve creating/errored placeholders — they don't exist on disk yet
-  const placeholders = existing.filter((wt) => wt.creating || wt.createError);
+  // Preserve creating/errored placeholders — they don't exist on disk yet.
+  // Exclude any whose ID already appears in the fresh data (creation completed between refreshes).
+  const freshIds = new Set(fresh.map((wt) => wt.id));
+  const placeholders = existing.filter((wt) => (wt.creating || wt.createError) && !freshIds.has(wt.id));
   return [...withActivityTimestamps(merged, existing), ...placeholders];
 }
 

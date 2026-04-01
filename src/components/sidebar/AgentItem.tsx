@@ -333,19 +333,19 @@ function AgentItem({
   worktree, isSelected, onClick, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
-  // Short-circuit for placeholder states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const { prSummary, isServerRunning, effectiveStatus, shouldPulse } = useAgentItemState(worktree);
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: worktree.id,
+  });
+
+  // Short-circuit for placeholder states (after hooks to satisfy Rules of Hooks)
   if (worktree.creating) {
     return <CreatingItem worktree={worktree} />;
   }
   if (worktree.createError) {
     return <CreateErrorItem worktree={worktree} />;
   }
-
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const { prSummary, isServerRunning, effectiveStatus, shouldPulse } = useAgentItemState(worktree);
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: worktree.id,
-  });
 
   const handleOpenEditor = async () => {
     try {
