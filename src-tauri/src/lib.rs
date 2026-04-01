@@ -6,6 +6,7 @@ mod config_manager;
 mod git_manager;
 mod github_manager;
 mod github_sync;
+mod keychain;
 mod linear_manager;
 mod linear_oauth;
 mod patch_parser;
