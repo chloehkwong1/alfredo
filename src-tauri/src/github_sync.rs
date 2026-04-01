@@ -48,7 +48,8 @@ pub struct PrStatusWithColumn {
     /// Full review objects for the PR panel.
     pub reviews: Vec<PrReview>,
     /// Line comments + issue comments merged, for the PR panel.
-    pub comments: Vec<PrComment>,
+    /// None means comments were not fetched in this sync batch (frontend preserves cache).
+    pub comments: Option<Vec<PrComment>>,
     /// ISO 8601 timestamp of the last update to this PR.
     pub updated_at: Option<String>,
     /// GitHub login of the PR author.
@@ -83,7 +84,7 @@ impl PrStatusWithColumn {
             repo_path: repo_path.to_string(),
             check_runs: Vec::new(),
             reviews: Vec::new(),
-            comments: Vec::new(),
+            comments: None,
             updated_at: pr.updated_at.clone(),
             author: pr.author.clone(),
             requested_reviewers: pr.requested_reviewers.clone(),
@@ -154,7 +155,13 @@ pub async fn set_sync_repo_paths(
     Ok(())
 }
 
-/// Single poll iteration: fetch PRs for all repos and emit event.
+/// Single poll iteration: fetch PRs for all repos and emit two events.
+///
+/// Phase 1 (fast): Fetches PR list + mergeable/reviews/checks, emits immediately.
+/// This unblocks the UI — worktrees get their prStatus and can start loading PR files.
+///
+/// Phase 2 (slower): Fetches comments for active PRs, emits an update.
+/// The frontend preserves cached comments until this arrives.
 async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
     let (repo_paths, active_branches) = get_sync_state(app_handle);
     if repo_paths.is_empty() {
@@ -173,6 +180,20 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
         }
     }
 
+    // Emit immediately — frontend gets prStatus/prNumber/baseBranch and can start loading files.
+    // comments is None in these payloads; the frontend will preserve its cached comment data.
+    if !all_prs.is_empty() {
+        app_handle
+            .emit("github:pr-update", &PrUpdatePayload { prs: all_prs.clone() })
+            .map_err(|e| format!("failed to emit event: {e}"))?;
+    }
+
+    // Phase 2: enrich with comments (separate API calls, one PR at a time)
+    for repo_path in &repo_paths {
+        enrich_repo_with_comments(&mut all_prs, repo_path, &active_branches).await;
+    }
+
+    // Emit again with comment data populated
     if !all_prs.is_empty() {
         app_handle
             .emit("github:pr-update", &PrUpdatePayload { prs: all_prs })
@@ -228,7 +249,7 @@ async fn poll_repo(
 
         let pr_number = pr_with_col.number;
 
-        let (mergeable_result, reviews_result, checks_result, line_comments_result, issue_comments_result) = tokio::join!(
+        let (mergeable_result, reviews_result, checks_result) = tokio::join!(
             manager.get_pr_mergeable(&owner, &repo, pr_number),
             manager.get_pr_reviews(&owner, &repo, pr_number),
             async {
@@ -238,8 +259,6 @@ async fn poll_repo(
                     Ok(Vec::new())
                 }
             },
-            manager.get_pr_comments(&owner, &repo, pr_number),
-            manager.get_pr_issue_comments(&owner, &repo, pr_number),
         );
 
         if let Ok(mergeable) = mergeable_result {
@@ -268,16 +287,43 @@ async fn poll_repo(
             pr_with_col.check_runs = check_runs;
         }
 
-        // Merge line comments and issue comments
+        // comments remain None — fetched separately in enrich_repo_with_comments
+    }
+
+    Ok(payload_prs)
+}
+
+/// Second-pass enrichment: fetch PR comments for active PRs in a repo and update the
+/// payloads in-place. Called after poll_repo so the initial emit is not delayed.
+async fn enrich_repo_with_comments(
+    prs: &mut [PrStatusWithColumn],
+    repo_path: &str,
+    active_branches: &std::collections::HashSet<String>,
+) {
+    let Ok(config) = config_manager::load_config(repo_path).await else { return; };
+    let Ok(token) = crate::github_manager::resolve_token(config.github_token.as_deref()).await else { return; };
+    let Ok(manager) = GithubManager::new(&token) else { return; };
+    let Ok((owner, repo)) = crate::github_manager::resolve_owner_repo(repo_path).await else { return; };
+
+    for pr_with_col in prs.iter_mut() {
+        if pr_with_col.repo_path != repo_path { continue; }
+        if pr_with_col.merged { continue; }
+        if !active_branches.contains(&pr_with_col.branch) { continue; }
+
+        let pr_number = pr_with_col.number;
+
+        let (line_comments_result, issue_comments_result) = tokio::join!(
+            manager.get_pr_comments(&owner, &repo, pr_number),
+            manager.get_pr_issue_comments(&owner, &repo, pr_number),
+        );
+
         let mut all_comments = line_comments_result.unwrap_or_default();
         all_comments.extend(issue_comments_result.unwrap_or_default());
         pr_with_col.unresolved_comment_count = Some(
             all_comments.iter().filter(|c| !c.resolved).count() as u32
         );
-        pr_with_col.comments = all_comments;
+        pr_with_col.comments = Some(all_comments);
     }
-
-    Ok(payload_prs)
 }
 
 /// Resolve the authenticated GitHub username via `gh api user`.

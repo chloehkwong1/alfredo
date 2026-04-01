@@ -47,6 +47,10 @@ export interface Worktree {
   repoPath: string;
   /** Claude Code session UUID for `--resume` on next spawn. */
   claudeSessionId?: string;
+  /** True while the worktree is being created in the background. */
+  creating?: boolean;
+  /** Error message if background creation failed. */
+  createError?: string;
 }
 
 export type KanbanColumn =
@@ -101,8 +105,8 @@ export interface PrStatusWithColumn extends PrStatus {
   checkRuns: CheckRun[];
   /** Full review objects (deduplicated, latest per reviewer). */
   reviews: PrReview[];
-  /** Line comments + issue comments merged. */
-  comments: PrComment[];
+  /** Line comments + issue comments merged. null = not fetched yet in this batch. */
+  comments: PrComment[] | null;
   /** ISO 8601 timestamp of the last update to this PR. */
   updatedAt?: string;
 }
