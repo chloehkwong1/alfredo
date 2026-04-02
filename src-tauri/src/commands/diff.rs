@@ -57,31 +57,21 @@ fn open_repo(repo_path: &str) -> Result<Repository> {
     Repository::open(repo_path).map_err(|e| AppError::Git(format!("failed to open repo: {e}")))
 }
 
-/// Resolve the default branch OID, trying the provided name, then `main`, `master`,
-/// and finally `refs/remotes/origin/HEAD`.
+/// Resolve the default branch OID, trying the provided name, then `origin/HEAD`,
+/// then `main`/`master`.
 ///
 /// Prefers remote tracking branches (`origin/main`) over local branches because
 /// local `main` can be stale (not pulled recently), causing diffs and commit
 /// lists to include other people's commits that landed on main since the last pull.
 fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Result<git2::Oid> {
-    let candidates: Vec<String> = if let Some(name) = default_branch {
-        vec![name.to_string()]
-    } else {
-        vec![
-            "main".to_string(),
-            "master".to_string(),
-        ]
-    };
-
-    for name in &candidates {
-        // Prefer remote tracking branch — it reflects the latest fetched state
+    // When an explicit name is provided, try it directly.
+    if let Some(name) = default_branch {
         let remote_ref = format!("refs/remotes/origin/{name}");
         if let Ok(reference) = repo.find_reference(&remote_ref) {
             if let Some(oid) = reference.target() {
                 return Ok(oid);
             }
         }
-        // Fall back to local branch
         if let Ok(reference) = repo.find_branch(name, git2::BranchType::Local) {
             if let Some(oid) = reference.get().target() {
                 return Ok(oid);
@@ -89,7 +79,7 @@ fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Re
         }
     }
 
-    // Last resort: origin/HEAD
+    // origin/HEAD is authoritative — it reflects the remote's configured default branch.
     if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
         if let Ok(resolved) = reference.resolve() {
             if let Some(oid) = resolved.target() {
@@ -98,8 +88,23 @@ fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Re
         }
     }
 
+    // Fallback: common default branch names.
+    for name in &["main", "master"] {
+        let remote_ref = format!("refs/remotes/origin/{name}");
+        if let Ok(reference) = repo.find_reference(&remote_ref) {
+            if let Some(oid) = reference.target() {
+                return Ok(oid);
+            }
+        }
+        if let Ok(reference) = repo.find_branch(name, git2::BranchType::Local) {
+            if let Some(oid) = reference.get().target() {
+                return Ok(oid);
+            }
+        }
+    }
+
     Err(AppError::Git(
-        "could not resolve default branch (tried main, master, origin/HEAD)".into(),
+        "could not resolve default branch (tried origin/HEAD, main, master)".into(),
     ))
 }
 
@@ -415,22 +420,14 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
 
 /// Return the name of the default branch for the given repo.
 ///
-/// Resolution order matches `resolve_default_branch` and `get_diff_stats`:
-/// prefer remote tracking branches over local ones to avoid stale-local-main issues.
+/// Resolution order: `origin/HEAD` first (authoritative), then `origin/main`/`origin/master`,
+/// then local branches as last resort. Matches the priority in `resolve_default_branch`.
 #[tauri::command]
 pub async fn get_default_branch(repo_path: String) -> Result<String> {
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
 
-        // Prefer remote tracking branches — local main can be stale.
-        for name in &["main", "master"] {
-            let remote_ref = format!("refs/remotes/origin/{name}");
-            if repo.find_reference(&remote_ref).is_ok() {
-                return Ok(name.to_string());
-            }
-        }
-
-        // origin/HEAD symbolic ref (e.g. refs/remotes/origin/develop)
+        // origin/HEAD is authoritative — it reflects the remote's configured default branch.
         if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
             if let Ok(resolved) = reference.resolve() {
                 if let Some(name) = resolved.name() {
@@ -438,6 +435,14 @@ pub async fn get_default_branch(repo_path: String) -> Result<String> {
                         return Ok(short.to_string());
                     }
                 }
+            }
+        }
+
+        // Fallback: check for common default branch names on the remote.
+        for name in &["main", "master"] {
+            let remote_ref = format!("refs/remotes/origin/{name}");
+            if repo.find_reference(&remote_ref).is_ok() {
+                return Ok(name.to_string());
             }
         }
 
