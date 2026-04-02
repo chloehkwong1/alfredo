@@ -17,8 +17,9 @@
 
 ---
 
+<!-- TODO: Replace with actual screenshot -->
 <p align="center">
-  <img src="docs/screenshots/main-session.png" alt="Alfredo — main session view" width="800" />
+  <em>Screenshot coming soon</em>
 </p>
 
 ## Features
