@@ -10,7 +10,8 @@ import type { WorkspaceTab } from "../types";
  * - Cmd+N: open Create Worktree dialog
  * - Cmd+T: new tab of same type as active pane's current tab
  * - Cmd+W: close active tab (unless last tab in pane)
- * - Cmd+R: open Add Repository modal
+ * - Cmd+R: reload/refresh the app
+ * - Cmd+Shift+R: open Add Repository modal
  * - Cmd+B: toggle sidebar
  * - Cmd+\: split pane right (horizontal)
  * - Cmd+Shift+\: split pane down (vertical)
@@ -53,8 +54,15 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // Cmd+R: open Add Repository modal
+      // Cmd+R: reload/refresh the app
       if (event.metaKey && !event.shiftKey && event.key === "r") {
+        event.preventDefault();
+        window.location.reload();
+        return;
+      }
+
+      // Cmd+Shift+R: open Add Repository modal
+      if (event.metaKey && event.shiftKey && event.key.toLowerCase() === "r") {
         event.preventDefault();
         onAddRepo?.();
         return;

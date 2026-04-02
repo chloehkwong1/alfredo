@@ -16,7 +16,8 @@ const SHORTCUT_GROUPS = [
     label: "Tabs & Panes",
     shortcuts: [
       { keys: "⌘ ⇧ P", description: "Command palette" },
-      { keys: "⌘ R", description: "Add repository" },
+      { keys: "⌘ R", description: "Reload app" },
+      { keys: "⌘ ⇧ R", description: "Add repository" },
       { keys: "⌘ N", description: "New worktree" },
       { keys: "⌘ T", description: "New tab" },
       { keys: "⌘ W", description: "Close tab" },
