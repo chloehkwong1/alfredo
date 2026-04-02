@@ -90,7 +90,7 @@ fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Re
     }
 
     // Fallback: common default branch names.
-    for name in &["main", "master"] {
+    for name in &["main", "develop", "master"] {
         let remote_ref = format!("refs/remotes/origin/{name}");
         if let Ok(reference) = repo.find_reference(&remote_ref) {
             if let Some(oid) = reference.target() {
@@ -105,7 +105,7 @@ fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Re
     }
 
     Err(AppError::Git(
-        "could not resolve default branch (tried origin/HEAD, main, master)".into(),
+        "could not resolve default branch (tried origin/HEAD, main, develop, master)".into(),
     ))
 }
 
@@ -425,7 +425,7 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
 /// then local branches as last resort. Matches the priority in `resolve_default_branch`.
 #[tauri::command]
 pub async fn get_default_branch(repo_path: String) -> Result<String> {
-    // First try the fast path: origin/HEAD already set locally.
+    // Fast path: return cached origin/HEAD instantly for snappy UI.
     let path_clone = repo_path.clone();
     let fast_result = tokio::task::spawn_blocking(move || {
         let repo = open_repo(&path_clone)?;
@@ -435,45 +435,58 @@ pub async fn get_default_branch(repo_path: String) -> Result<String> {
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
 
     if let Ok(Some(branch)) = fast_result {
+        // Refresh origin/HEAD in the background so the next call picks up any
+        // remote default-branch changes (e.g. main → develop).
+        let bg_path = repo_path;
+        tokio::spawn(async move {
+            let _ = crate::platform::git_command()
+                .args(["remote", "set-head", "origin", "--auto"])
+                .current_dir(&bg_path)
+                .output()
+                .await;
+        });
         return Ok(branch);
     }
 
-    // origin/HEAD is missing — ask the remote for the default branch and set it locally.
-    // This is a network call but only happens once per repo.
+    // origin/HEAD not cached — must hit the network synchronously.
     let set_head_result = crate::platform::git_command()
         .args(["remote", "set-head", "origin", "--auto"])
         .current_dir(&repo_path)
         .output()
         .await;
 
-    if let Ok(output) = set_head_result {
-        if output.status.success() {
-            let path_clone = repo_path.clone();
-            let retry_result = tokio::task::spawn_blocking(move || {
-                let repo = open_repo(&path_clone)?;
-                resolve_origin_head(&repo)
-            })
-            .await
-            .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
-
-            if let Ok(Some(branch)) = retry_result {
-                return Ok(branch);
-            }
+    if let Ok(output) = &set_head_result {
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("[alfredo] git remote set-head origin --auto failed: {stderr}");
         }
+    }
+
+    // Re-read origin/HEAD after network refresh.
+    let path_clone = repo_path.clone();
+    let head_result = tokio::task::spawn_blocking(move || {
+        let repo = open_repo(&path_clone)?;
+        resolve_origin_head(&repo)
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
+
+    if let Ok(Some(branch)) = head_result {
+        return Ok(branch);
     }
 
     // Offline fallback: guess from existing remote-tracking branches.
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
 
-        for name in &["main", "master"] {
+        for name in &["main", "develop", "master"] {
             let remote_ref = format!("refs/remotes/origin/{name}");
             if repo.find_reference(&remote_ref).is_ok() {
                 return Ok(name.to_string());
             }
         }
 
-        for name in &["main", "master"] {
+        for name in &["main", "develop", "master"] {
             if repo.find_branch(name, git2::BranchType::Local).is_ok() {
                 return Ok(name.to_string());
             }
