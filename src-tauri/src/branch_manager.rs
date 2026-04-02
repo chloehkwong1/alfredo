@@ -13,7 +13,7 @@ fn is_my_branch(worktree: &Worktree, git_user: Option<&str>) -> bool {
 
 /// List local branches, returning them as Worktree structs with `is_branch_mode: true`.
 /// The currently checked-out branch is marked by having its name match `active_branch`.
-pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>), AppError> {
+pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<(Vec<Worktree>, Option<String>), AppError> {
     let repo = Repository::open(repo_path)
         .map_err(|e| AppError::Git(format!("failed to open repo: {e}")))?;
 
@@ -74,8 +74,11 @@ pub fn list_branches(repo_path: &str) -> Result<(Vec<Worktree>, Option<String>),
         .ok()
         .and_then(|c| c.get_string("user.name").ok());
 
-    // Filter out default branches (main/master) — not useful as worktree sources
-    worktrees.retain(|w| w.branch != "main" && w.branch != "master");
+    // Filter out default branches (main/master) — not useful as worktree sources,
+    // but keep them when listing for the base branch picker.
+    if !include_default_branches {
+        worktrees.retain(|w| w.branch != "main" && w.branch != "master");
+    }
 
     // Sort: my branches first (by last commit author), then by recency
     worktrees.sort_by(|a, b| {
@@ -228,7 +231,7 @@ mod tests {
             .current_dir(path)
             .output()?;
 
-        let (branches, active) = list_branches(path)?;
+        let (branches, active) = list_branches(path, false)?;
         // main/master are filtered; we should have feat-smoke
         assert!(!branches.is_empty());
         assert!(active.is_some());
@@ -265,7 +268,7 @@ mod tests {
             .current_dir(path)
             .output()?;
 
-        let (branches, _) = list_branches(path)?;
+        let (branches, _) = list_branches(path, false)?;
 
         // main/master should be filtered out
         assert!(branches.iter().all(|b| b.branch != "main" && b.branch != "master"));

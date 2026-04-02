@@ -41,7 +41,7 @@ function BaseBranchPicker({
   useEffect(() => {
     if (expanded && repoPath && branches.length === 0) {
       setLoading(true);
-      listBranches(repoPath)
+      listBranches(repoPath, true)
         .then((result) => {
           setBranches(result);
           setError(null);

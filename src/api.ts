@@ -123,8 +123,8 @@ export function setWorktreeColumn(
 
 // ── Branch Mode ─────────────────────────────────────────────────
 
-export function listBranches(repoPath: string): Promise<Worktree[]> {
-  return invoke("list_branches", { repoPath });
+export function listBranches(repoPath: string, includeDefaultBranches?: boolean): Promise<Worktree[]> {
+  return invoke("list_branches", { repoPath, includeDefaultBranches });
 }
 
 export function getActiveBranch(repoPath: string): Promise<string | null> {
