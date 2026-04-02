@@ -239,7 +239,7 @@ function AgentItemContent({
               ? "font-semibold"
               : "font-normal",
           ].join(" ")}>
-            {worktree.name}
+            {worktree.branch || worktree.name}
           </span>
           {worktree.prStatus && (
             <span className="text-xs text-text-tertiary flex-shrink-0">#{worktree.prStatus.number}</span>
