@@ -1,0 +1,42 @@
+src/services/agentMessenger.ts
+  f4db504223f96e0f 1-62
+src/services/sendPrCommentToClaude.ts
+  f4db504223f96e0f 1,29-33,35,50-51
+src/hooks/useSendToClaude.ts
+  f4db504223f96e0f 2,20-24,26,47,49
+src/services/prActions.ts
+  f4db504223f96e0f 3,98,103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "d718076138808e94eae59317d53eb3bb00adc2f1",
+  "prompts": {
+    "e0d13830790890fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea768d81-f5eb-4511-89bc-85307f192886",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 76,
+      "total_deletions": 22,
+      "accepted_lines": 59,
+      "overriden_lines": 0
+    },
+    "f4db504223f96e0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c189465c-0247-4b9b-b582-2919d6573ed5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 181,
+      "total_deletions": 126,
+      "accepted_lines": 161,
+      "overriden_lines": 0
+    }
+  }
+}
