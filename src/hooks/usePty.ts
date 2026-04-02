@@ -170,8 +170,10 @@ export function usePty({
       setAgentState(session.agentState);
       setIsConnected(true);
 
-      // Write startup command after shell produces its first output (prompt ready)
-      if (startupCommandRef.current && session.sessionId) {
+      // Write startup command after shell produces its first output (prompt ready).
+      // Guard with startupCommandSent to prevent StrictMode double-fire.
+      if (startupCommandRef.current && session.sessionId && !session.startupCommandSent) {
+        session.startupCommandSent = true;
         let startupAttempts = 0;
         const waitForReady = setInterval(() => {
           startupAttempts++;

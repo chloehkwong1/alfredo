@@ -81,6 +81,9 @@ export interface ManagedSession {
    *  "busy" hook events (e.g. a delayed PreToolUse) from overriding
    *  waitingForInput. Cleared when user provides input (writePty). */
   waitingForInput: boolean;
+  /** True once a startup command has been written to this session's PTY.
+   *  Prevents StrictMode double-fire from executing the command twice. */
+  startupCommandSent: boolean;
 }
 
 /**
@@ -331,6 +334,7 @@ export class SessionManager {
       writeScheduled: false,
       restoredFromScrollback: false,
       waitingForInput: false,
+      startupCommandSent: false,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -414,6 +418,7 @@ export class SessionManager {
       writeScheduled: false,
       restoredFromScrollback: true,
       waitingForInput: false,
+      startupCommandSent: false,
     };
 
     this.sessions.set(sessionKey, session);
