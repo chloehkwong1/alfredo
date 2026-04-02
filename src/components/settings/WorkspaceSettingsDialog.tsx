@@ -44,7 +44,6 @@ interface WorkspaceSettingsDialogProps {
   onOpenChange: (open: boolean) => void;
   repoPath: string;
   repos: RepoEntry[];
-  selectedRepos: string[];
   repoColors: Record<string, string>;
   repoDisplayNames: Record<string, string>;
   onSetRepoDisplayName?: (repoPath: string, name: string | null) => void;
@@ -56,7 +55,6 @@ function WorkspaceSettingsDialog({
   onOpenChange,
   repoPath,
   repos,
-  selectedRepos,
   repoColors,
   repoDisplayNames,
   onSetRepoDisplayName,
@@ -161,7 +159,6 @@ function WorkspaceSettingsDialog({
           <h2 className="text-base font-semibold text-text-primary mb-3.5">Repository Settings</h2>
           <RepoDropdown
             repos={repos}
-            selectedRepos={selectedRepos}
             repoColors={repoColors}
             repoDisplayNames={repoDisplayNames}
             value={currentRepoPath}

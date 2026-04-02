@@ -489,7 +489,6 @@ function AppShell() {
         onOpenChange={setCreateDialogOpen}
         repoPath={repoPath ?? undefined}
         repos={repos}
-        selectedRepos={selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : [])}
         repoColors={repoColors ?? {}}
         defaultRepoPath={
           worktrees.find((w) => w.id === activeWorktreeId)?.repoPath

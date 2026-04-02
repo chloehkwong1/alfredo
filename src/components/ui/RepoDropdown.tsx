@@ -15,7 +15,6 @@ import {
 
 interface RepoDropdownProps {
   repos: RepoEntry[];
-  selectedRepos: string[];
   repoColors: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
   value: string;
@@ -36,15 +35,11 @@ function getColorForRepo(
 
 function RepoDropdown({
   repos,
-  selectedRepos,
   repoColors,
   repoDisplayNames,
   value,
   onChange,
 }: RepoDropdownProps) {
-  // Only render when multiple repos are selected
-  if (selectedRepos.length <= 1) return null;
-
   const activeColor = getColorForRepo(value, repos, repoColors);
 
   return (
@@ -70,7 +65,7 @@ function RepoDropdown({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
           <DropdownMenuLabel>Switch repository</DropdownMenuLabel>
-          {selectedRepos.map((path) => {
+          {repos.map(({ path }) => {
             const color = getColorForRepo(path, repos, repoColors);
             const isSelected = path === value;
             return (

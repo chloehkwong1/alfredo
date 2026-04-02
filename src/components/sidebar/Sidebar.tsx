@@ -279,7 +279,6 @@ function Sidebar({
         onOpenChange={setWorkspaceSettingsOpen}
         repoPath={repoPath || "."}
         repos={repos}
-        selectedRepos={effectiveSelectedRepos}
         repoColors={effectiveRepoColors}
         repoDisplayNames={repoDisplayNames ?? {}}
         onSetRepoDisplayName={onSetRepoDisplayName}
@@ -291,7 +290,6 @@ function Sidebar({
           onOpenChange={setCreateWorktreeOpen}
           repoPath={repoPath ?? undefined}
           repos={repos}
-          selectedRepos={effectiveSelectedRepos}
           repoColors={effectiveRepoColors}
           defaultRepoPath={defaultRepoPath}
         />

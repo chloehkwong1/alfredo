@@ -26,7 +26,6 @@ interface CreateWorktreeDialogProps {
   onOpenChange: (open: boolean) => void;
   repoPath?: string;
   repos?: RepoEntry[];
-  selectedRepos?: string[];
   repoColors?: Record<string, string>;
   defaultRepoPath?: string;
   lockedBaseBranch?: string;
@@ -67,7 +66,7 @@ const tabDefs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "newBranch", label: "New Branch", icon: <Plus className="h-3.5 w-3.5" /> },
 ];
 
-function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRepos, repoColors, defaultRepoPath, lockedBaseBranch }: CreateWorktreeDialogProps) {
+function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors, defaultRepoPath, lockedBaseBranch }: CreateWorktreeDialogProps) {
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
   const replaceWorktree = useWorkspaceStore((s) => s.replaceWorktree);
   const failWorktree = useWorkspaceStore((s) => s.failWorktree);
@@ -180,10 +179,9 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, selectedRep
             </DialogDescription>
           </DialogHeader>
 
-          {repos && selectedRepos && selectedRepos.length > 1 && repoColors && currentRepoPath && (
+          {repos && repos.length > 1 && repoColors && currentRepoPath && (
             <RepoDropdown
               repos={repos}
-              selectedRepos={selectedRepos}
               repoColors={repoColors}
               value={currentRepoPath}
               onChange={setCurrentRepoPath}
