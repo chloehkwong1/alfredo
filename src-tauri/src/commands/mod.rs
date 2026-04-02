@@ -12,5 +12,4 @@ pub mod pr_detail;
 pub mod pty;
 pub mod repo;
 pub mod session;
-pub mod setup_script_dialog;
 pub mod worktree;

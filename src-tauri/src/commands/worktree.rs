@@ -1,6 +1,5 @@
 use tauri::{AppHandle, Manager};
 
-use crate::commands::setup_script_dialog;
 use crate::config_manager;
 use crate::git_manager;
 use crate::git_manager::git_command;
@@ -39,7 +38,7 @@ pub async fn create_worktree_from(
 /// Create a worktree with an explicit branch name and base.
 #[tauri::command]
 pub async fn create_worktree(
-    app: AppHandle,
+    _app: AppHandle,
     repo_path: String,
     branch_name: String,
     base_branch: String,
@@ -61,9 +60,7 @@ pub async fn create_worktree(
         .filter(|s| s.run_on == "create")
         .cloned()
         .collect();
-    if !create_scripts.is_empty()
-        && setup_script_dialog::confirm_setup_scripts(&app, &create_scripts).await
-    {
+    if !create_scripts.is_empty() {
         config_manager::run_setup_scripts(&path_str, &create_scripts).await?;
     }
 

@@ -1,4 +1,3 @@
-use crate::commands::setup_script_dialog;
 use crate::config_manager;
 use crate::types::{AppConfig, AppError};
 
@@ -20,7 +19,6 @@ pub async fn save_config(repo_path: String, config: AppConfig) -> Result<()> {
 /// Scripts are never accepted from the frontend to prevent arbitrary command execution.
 #[tauri::command]
 pub async fn run_setup_scripts(
-    app: tauri::AppHandle,
     repo_path: String,
     worktree_path: String,
 ) -> Result<()> {
@@ -33,11 +31,6 @@ pub async fn run_setup_scripts(
         .collect();
 
     if create_scripts.is_empty() {
-        return Ok(());
-    }
-
-    // User cancelled — not an error, just a no-op.
-    if !setup_script_dialog::confirm_setup_scripts(&app, &create_scripts).await {
         return Ok(());
     }
 
