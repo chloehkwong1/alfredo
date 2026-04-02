@@ -1,0 +1,23 @@
+src-tauri/src/commands/worktree.rs
+  66e4034e539fd123 172,366,379-380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "55f4197e60ecb9c246993b63f2c3e43c60183dee",
+  "prompts": {
+    "66e4034e539fd123": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "99b39594-c6a4-4f02-8913-d7f44dcadfaf",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 3,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
