@@ -1,0 +1,29 @@
+src-tauri/src/commands/branch.rs
+  f383bc5badaa2df6 8,10-11,13,25
+src/components/kanban/create-worktree/BaseBranchPicker.tsx
+  f383bc5badaa2df6 44
+src/api.ts
+  f383bc5badaa2df6 126-127
+src-tauri/src/branch_manager.rs
+  f383bc5badaa2df6 16,77-81,234,271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "4f9bfa6312b40ea64e1d5211c4006d9372c3d17d",
+  "prompts": {
+    "f383bc5badaa2df6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb4bb472-7bbd-45ba-b283-04ea60049677",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 48,
+      "overriden_lines": 0
+    }
+  }
+}
