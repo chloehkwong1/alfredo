@@ -1,0 +1,36 @@
+src/components/commandPalette/useCommandRegistry.ts
+  f4db504223f96e0f 147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "1799f02ce324b02874fc90673bb503920c03e414",
+  "prompts": {
+    "e0d13830790890fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea768d81-f5eb-4511-89bc-85307f192886",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 59,
+      "overriden_lines": 0
+    },
+    "f4db504223f96e0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c189465c-0247-4b9b-b582-2919d6573ed5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 78,
+      "overriden_lines": 0
+    }
+  }
+}
