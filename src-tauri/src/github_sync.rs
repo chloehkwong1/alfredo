@@ -5,6 +5,7 @@ use tokio::time;
 
 use crate::config_manager;
 use crate::github_manager::{dedup_reviews, derive_review_decision, determine_column, GithubManager};
+use crate::platform::gh_command;
 use crate::types::{PrStatus, CheckRun, PrReview, PrComment};
 
 /// Payload emitted on the `github:pr-update` Tauri event.
@@ -365,7 +366,7 @@ pub async fn resolve_github_username() -> Option<String> {
 
     CACHED_USERNAME
         .get_or_init(|| async {
-            tokio::process::Command::new("gh")
+            gh_command()
                 .args(["api", "user", "--jq", ".login"])
                 .output()
                 .await

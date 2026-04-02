@@ -5,6 +5,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::config_manager;
 use crate::git_manager;
+use crate::git_manager::git_command;
 use crate::types::{StackRebaseStatus};
 
 // ── State ────────────────────────────────────────────────────────
@@ -257,7 +258,7 @@ pub async fn detect_stale_parents(repo_path: &str) -> Result<(), String> {
         let ancestor_ref = format!("origin/{parent_branch}");
 
         // `git merge-base --is-ancestor <ancestor> <descendant>` exits 0 if ancestor, 1 if not
-        let result = tokio::process::Command::new("git")
+        let result = git_command()
             .args(["merge-base", "--is-ancestor", &ancestor_ref, &default_branch])
             .current_dir(repo_path)
             .output()
@@ -290,7 +291,7 @@ pub async fn detect_stale_parents(repo_path: &str) -> Result<(), String> {
 /// Get the current SHA for `origin/<branch>` in the given repo.
 async fn get_branch_head(repo_path: &str, branch: &str) -> Option<String> {
     let refspec = format!("origin/{branch}");
-    let output = tokio::process::Command::new("git")
+    let output = git_command()
         .args(["rev-parse", &refspec])
         .current_dir(repo_path)
         .output()
@@ -349,7 +350,7 @@ async fn rebase_child(
     }
 
     // Check for dirty working tree
-    let dirty_check = tokio::process::Command::new("git")
+    let dirty_check = git_command()
         .args(["status", "--porcelain"])
         .current_dir(&worktree_path)
         .output()

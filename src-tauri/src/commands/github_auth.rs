@@ -1,4 +1,5 @@
 use crate::config_manager;
+use crate::platform::gh_command;
 use crate::types::AppError;
 
 type Result<T> = std::result::Result<T, AppError>;
@@ -8,7 +9,7 @@ type Result<T> = std::result::Result<T, AppError>;
 #[tauri::command]
 pub async fn github_auth_status() -> Result<GhCliStatus> {
     // Check if gh is installed
-    let installed = tokio::process::Command::new("gh")
+    let installed = gh_command()
         .arg("--version")
         .output()
         .await
@@ -24,7 +25,7 @@ pub async fn github_auth_status() -> Result<GhCliStatus> {
     }
 
     // Check if gh is authenticated
-    let auth_output = tokio::process::Command::new("gh")
+    let auth_output = gh_command()
         .args(["auth", "status"])
         .output()
         .await
@@ -33,7 +34,7 @@ pub async fn github_auth_status() -> Result<GhCliStatus> {
     let authenticated = auth_output.status.success();
 
     let username = if authenticated {
-        tokio::process::Command::new("gh")
+        gh_command()
             .args(["api", "user", "--jq", ".login"])
             .output()
             .await
@@ -59,7 +60,7 @@ pub async fn github_auth_status() -> Result<GhCliStatus> {
 /// Get the GitHub token from `gh auth token`.
 #[tauri::command]
 pub async fn github_auth_token() -> Result<String> {
-    let output = tokio::process::Command::new("gh")
+    let output = gh_command()
         .args(["auth", "token"])
         .output()
         .await

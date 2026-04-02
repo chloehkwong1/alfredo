@@ -3,6 +3,7 @@ use tauri::{AppHandle, Manager};
 use crate::commands::setup_script_dialog;
 use crate::config_manager;
 use crate::git_manager;
+use crate::git_manager::git_command;
 use crate::git_manager::get_diff_stats;
 use crate::github_manager::{self, GithubManager};
 use crate::linear_manager;
@@ -364,7 +365,7 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
     let branch_name = pr.branch.clone();
 
     // 4. Fetch the branch from remote so it's available locally
-    let fetch_output = tokio::process::Command::new("git")
+    let fetch_output = git_command()
         .args(["fetch", "origin", &format!("{branch_name}:{branch_name}")])
         .current_dir(&repo_path)
         .output()

@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use git2::{Delta, DiffFormat, DiffOptions, Repository, Sort};
 use serde::{Deserialize, Serialize};
 
+use crate::git_manager::git_command_sync;
 use crate::types::AppError;
 
 type Result<T> = std::result::Result<T, AppError>;
@@ -238,7 +239,7 @@ fn ignored_paths(repo_path: &str, paths: &[String]) -> HashSet<String> {
         return HashSet::new();
     }
 
-    let mut cmd = std::process::Command::new("git");
+    let mut cmd = git_command_sync();
     cmd.args(["check-ignore", "--stdin"])
         .current_dir(repo_path)
         .stdin(std::process::Stdio::piped())
@@ -321,7 +322,7 @@ pub async fn get_diff(
 pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
     tokio::task::spawn_blocking(move || {
         // 1. Get tracked file changes via git diff HEAD
-        let output = std::process::Command::new("git")
+        let output = git_command_sync()
             .args(["diff", "HEAD", "--no-ext-diff", "-p", "--no-color"])
             .current_dir(&repo_path)
             .output()
@@ -341,7 +342,7 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
         };
 
         // 2. Get untracked files (new files not yet git-added)
-        let untracked_output = std::process::Command::new("git")
+        let untracked_output = git_command_sync()
             .args(["ls-files", "--others", "--exclude-standard"])
             .current_dir(&repo_path)
             .output()
@@ -573,7 +574,7 @@ pub async fn get_file_lines(
 ) -> Result<Vec<FileLine>> {
     tokio::task::spawn_blocking(move || {
         let content = if let Some(hash) = commit_hash {
-            let output = std::process::Command::new("git")
+            let output = git_command_sync()
                 .args(["show", &format!("{hash}:{file_path}")])
                 .current_dir(&repo_path)
                 .output()
@@ -665,7 +666,7 @@ pub async fn discard_file(
                             Ok(())
                         }
                     })?;
-                let output = std::process::Command::new("git")
+                let output = git_command_sync()
                     .args(["checkout", "HEAD", "--", &file_path])
                     .current_dir(&repo_path)
                     .output()
@@ -682,11 +683,11 @@ pub async fn discard_file(
                     return Err(AppError::Git("file path escapes repository".into()));
                 }
                 // Reset the index first, then checkout
-                let _ = std::process::Command::new("git")
+                let _ = git_command_sync()
                     .args(["reset", "HEAD", "--", &file_path])
                     .current_dir(&repo_path)
                     .output();
-                let output = std::process::Command::new("git")
+                let output = git_command_sync()
                     .args(["checkout", "HEAD", "--", &file_path])
                     .current_dir(&repo_path)
                     .output()
@@ -761,7 +762,7 @@ pub async fn discard_all_uncommitted(
         if !checkout_paths.is_empty() {
             let mut args = vec!["checkout".to_string(), "HEAD".to_string(), "--".to_string()];
             args.extend(checkout_paths);
-            let output = std::process::Command::new("git")
+            let output = git_command_sync()
                 .args(&args)
                 .current_dir(&repo_path)
                 .output()

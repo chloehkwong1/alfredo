@@ -3,6 +3,7 @@ use octocrab::Octocrab;
 /// Safety limit for paginated GitHub API calls.
 const MAX_PAGES: u32 = 50;
 
+use crate::platform::{gh_command, git_command};
 use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
 /// Convert an octocrab PR model into our `PrStatus` type.
@@ -107,7 +108,7 @@ fn parse_github_timestamp(date: &str) -> i64 {
 /// Get a GitHub token: tries `gh auth token` first, falls back to the provided config token.
 pub async fn resolve_token(config_token: Option<&str>) -> Result<String, AppError> {
     // Try gh CLI first
-    if let Ok(output) = tokio::process::Command::new("gh")
+    if let Ok(output) = gh_command()
         .args(["auth", "token"])
         .output()
         .await
@@ -796,7 +797,7 @@ async fn cached_token(repo_path: &str) -> Result<String, AppError> {
 }
 
 pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), AppError> {
-    let output = tokio::process::Command::new("git")
+    let output = git_command()
         .args(["remote", "get-url", "origin"])
         .current_dir(repo_path)
         .output()

@@ -1,4 +1,5 @@
 mod agent_detector;
+mod platform;
 mod app_config_manager;
 mod branch_manager;
 mod commands;

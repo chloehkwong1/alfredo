@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use git2::Repository;
-use tokio::process::Command;
 
+pub(crate) use crate::platform::{git_command, git_command_sync};
 use crate::types::{AppError, Worktree, AgentState, KanbanColumn};
 
 /// Create a worktree by shelling out to `git worktree add`.
@@ -37,7 +37,7 @@ pub async fn create_worktree(
         base_branch.to_string()
     } else {
         // Fetch from origin to ensure the tracking ref is up-to-date
-        let fetch_ok = Command::new("git")
+        let fetch_ok = git_command()
             .args(["fetch", "origin", base_branch])
             .current_dir(repo_path)
             .output()
@@ -55,7 +55,7 @@ pub async fn create_worktree(
 
     // Try creating with a new branch first; if the branch already exists,
     // fall back to using the existing branch.
-    let output = Command::new("git")
+    let output = git_command()
         .args([
             "worktree",
             "add",
@@ -73,7 +73,7 @@ pub async fn create_worktree(
         let stderr = String::from_utf8_lossy(&output.stderr);
         if stderr.contains("already exists") {
             // Branch exists locally — create worktree using existing branch
-            let output2 = Command::new("git")
+            let output2 = git_command()
                 .args([
                     "worktree",
                     "add",
@@ -118,7 +118,7 @@ pub async fn delete_worktree(
         .join(&dir_name);
 
     // Prune stale worktree entries first so a previous partial delete doesn't block us
-    let _ = Command::new("git")
+    let _ = git_command()
         .args(["worktree", "prune"])
         .current_dir(repo_path)
         .output()
@@ -130,7 +130,7 @@ pub async fn delete_worktree(
     }
     args.push(worktree_path.to_str().unwrap_or_default());
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(&args)
         .current_dir(repo_path)
         .output()
@@ -156,7 +156,7 @@ pub async fn delete_worktree(
 
     if force {
         // Delete the local branch; ignore "not found" errors
-        let branch_output = Command::new("git")
+        let branch_output = git_command()
             .args(["branch", "-D", worktree_name])
             .current_dir(repo_path)
             .output()
@@ -179,7 +179,7 @@ pub async fn delete_worktree(
 /// Tries origin/main, origin/master, then origin/HEAD. Falls back to "origin/main".
 pub fn resolve_default_remote_branch(repo_or_worktree_path: &str) -> String {
     for name in &["origin/main", "origin/master"] {
-        let output = std::process::Command::new("git")
+        let output = git_command_sync()
             .args(["rev-parse", "--verify", &format!("refs/remotes/{name}")])
             .current_dir(repo_or_worktree_path)
             .output();
@@ -190,7 +190,7 @@ pub fn resolve_default_remote_branch(repo_or_worktree_path: &str) -> String {
         }
     }
     // Try origin/HEAD symbolic ref
-    let output = std::process::Command::new("git")
+    let output = git_command_sync()
         .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
         .current_dir(repo_or_worktree_path)
         .output();
@@ -211,14 +211,14 @@ pub fn resolve_default_remote_branch(repo_or_worktree_path: &str) -> String {
 fn resolve_diff_base(worktree_path: &str, stack_parent: Option<&str>) -> String {
     if let Some(parent) = stack_parent {
         let remote_ref = format!("origin/{parent}");
-        let check = std::process::Command::new("git")
+        let check = git_command_sync()
             .args(["rev-parse", "--verify", &format!("refs/remotes/{remote_ref}")])
             .current_dir(worktree_path)
             .output();
         if check.map(|o| o.status.success()).unwrap_or(false) {
             return remote_ref;
         }
-        let local_check = std::process::Command::new("git")
+        let local_check = git_command_sync()
             .args(["rev-parse", "--verify", parent])
             .current_dir(worktree_path)
             .output();
@@ -235,7 +235,7 @@ fn resolve_diff_base(worktree_path: &str, stack_parent: Option<&str>) -> String 
 pub fn commits_behind(worktree_path: &str, stack_parent: Option<&str>) -> Result<u32, AppError> {
     let target = resolve_diff_base(worktree_path, stack_parent);
 
-    let output = std::process::Command::new("git")
+    let output = git_command_sync()
         .args(["rev-list", "--count", &format!("HEAD..{target}")])
         .current_dir(worktree_path)
         .output()
@@ -266,7 +266,7 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
     };
 
     // Fetch latest from origin
-    let fetch = Command::new("git")
+    let fetch = git_command()
         .args(["fetch", "origin", &fetch_ref])
         .current_dir(worktree_path)
         .output()
@@ -279,7 +279,7 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
     }
 
     // Rebase
-    let rebase = Command::new("git")
+    let rebase = git_command()
         .args(["rebase", &rebase_ref])
         .current_dir(worktree_path)
         .output()
@@ -288,7 +288,7 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
 
     if !rebase.status.success() {
         let stderr = String::from_utf8_lossy(&rebase.stderr);
-        let _ = Command::new("git")
+        let _ = git_command()
             .args(["rebase", "--abort"])
             .current_dir(worktree_path)
             .output()
@@ -308,7 +308,7 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
     // Avoids stale local refs which would cause wildly inflated diff stats.
     let diff_base = resolve_diff_base(worktree_path, stack_parent);
 
-    let output = std::process::Command::new("git")
+    let output = git_command_sync()
         .args(["diff", "--shortstat", &format!("{diff_base}...HEAD")])
         .current_dir(worktree_path)
         .output();
@@ -323,7 +323,7 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
     }
 
     // Fallback: show uncommitted changes if no default branch found
-    let output = std::process::Command::new("git")
+    let output = git_command_sync()
         .args(["diff", "--shortstat", "HEAD"])
         .current_dir(worktree_path)
         .output()

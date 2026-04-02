@@ -1,6 +1,6 @@
 use git2::Repository;
-use tokio::process::Command;
 
+use crate::git_manager::git_command;
 use crate::types::{AgentState, AppError, KanbanColumn, Worktree};
 
 /// Check if a branch's last commit was authored by the local git user.
@@ -97,7 +97,7 @@ pub async fn create_branch(
     base_branch: &str,
 ) -> Result<Worktree, AppError> {
     // Create the branch from base
-    let output = Command::new("git")
+    let output = git_command()
         .args(["checkout", "-b", branch_name, base_branch])
         .current_dir(repo_path)
         .output()
@@ -160,7 +160,7 @@ pub async fn switch_branch(repo_path: &str, branch_name: &str) -> Result<(), App
         ));
     }
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(["checkout", branch_name])
         .current_dir(repo_path)
         .output()
@@ -178,7 +178,7 @@ pub async fn switch_branch(repo_path: &str, branch_name: &str) -> Result<(), App
 /// Delete a local branch via git CLI.
 /// Refuses to delete the currently checked-out branch.
 pub async fn delete_branch(repo_path: &str, branch_name: &str) -> Result<(), AppError> {
-    let output = Command::new("git")
+    let output = git_command()
         .args(["branch", "-d", branch_name])
         .current_dir(repo_path)
         .output()
