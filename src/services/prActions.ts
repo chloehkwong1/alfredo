@@ -1,8 +1,7 @@
 import type { CheckRun, WorkflowRunLog } from "../types";
 import { rerunFailedChecks as apiRerunFailedChecks, getWorkflowLog } from "../api";
-import { writePty } from "../api";
+import { getClaudeSessionInfo, writeToSession } from "./agentMessenger";
 import { sessionManager } from "./sessionManager";
-import { useTabStore } from "../stores/tabStore";
 
 /**
  * Rerun all failed CI checks by calling the GitHub API for each unique check suite.
@@ -96,14 +95,11 @@ export async function fixMergeConflicts(
  * (the caller should spawn one).
  */
 function sendToAgent(worktreeId: string, prompt: string): boolean {
-  const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-  const claudeTab = tabs.find((t) => t.type === "claude");
-  const sessionKey = claudeTab?.id ?? worktreeId;
+  const { sessionKey } = getClaudeSessionInfo(worktreeId);
 
   const session = sessionManager.getSession(sessionKey);
   if (!session || !session.sessionId) return false;
 
-  const bytes = Array.from(new TextEncoder().encode(prompt));
-  writePty(session.sessionId, bytes).catch(console.error);
+  writeToSession(session.sessionId, prompt).catch(console.error);
   return true;
 }
