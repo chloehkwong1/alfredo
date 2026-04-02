@@ -80,9 +80,10 @@ fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Re
     }
 
     // origin/HEAD is authoritative — it reflects the remote's configured default branch.
-    if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
-        if let Ok(resolved) = reference.resolve() {
-            if let Some(oid) = resolved.target() {
+    if let Ok(Some(branch_name)) = resolve_origin_head(repo) {
+        let remote_ref = format!("refs/remotes/origin/{branch_name}");
+        if let Ok(reference) = repo.find_reference(&remote_ref) {
+            if let Some(oid) = reference.target() {
                 return Ok(oid);
             }
         }
@@ -424,21 +425,47 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
 /// then local branches as last resort. Matches the priority in `resolve_default_branch`.
 #[tauri::command]
 pub async fn get_default_branch(repo_path: String) -> Result<String> {
+    // First try the fast path: origin/HEAD already set locally.
+    let path_clone = repo_path.clone();
+    let fast_result = tokio::task::spawn_blocking(move || {
+        let repo = open_repo(&path_clone)?;
+        resolve_origin_head(&repo)
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
+
+    if let Ok(Some(branch)) = fast_result {
+        return Ok(branch);
+    }
+
+    // origin/HEAD is missing — ask the remote for the default branch and set it locally.
+    // This is a network call but only happens once per repo.
+    let set_head_result = crate::platform::git_command()
+        .args(["remote", "set-head", "origin", "--auto"])
+        .current_dir(&repo_path)
+        .output()
+        .await;
+
+    if let Ok(output) = set_head_result {
+        if output.status.success() {
+            let path_clone = repo_path.clone();
+            let retry_result = tokio::task::spawn_blocking(move || {
+                let repo = open_repo(&path_clone)?;
+                resolve_origin_head(&repo)
+            })
+            .await
+            .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
+
+            if let Ok(Some(branch)) = retry_result {
+                return Ok(branch);
+            }
+        }
+    }
+
+    // Offline fallback: guess from existing remote-tracking branches.
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
 
-        // origin/HEAD is authoritative — it reflects the remote's configured default branch.
-        if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
-            if let Ok(resolved) = reference.resolve() {
-                if let Some(name) = resolved.name() {
-                    if let Some(short) = name.strip_prefix("refs/remotes/origin/") {
-                        return Ok(short.to_string());
-                    }
-                }
-            }
-        }
-
-        // Fallback: check for common default branch names on the remote.
         for name in &["main", "master"] {
             let remote_ref = format!("refs/remotes/origin/{name}");
             if repo.find_reference(&remote_ref).is_ok() {
@@ -446,7 +473,6 @@ pub async fn get_default_branch(repo_path: String) -> Result<String> {
             }
         }
 
-        // Last resort: local branch
         for name in &["main", "master"] {
             if repo.find_branch(name, git2::BranchType::Local).is_ok() {
                 return Ok(name.to_string());
@@ -457,6 +483,20 @@ pub async fn get_default_branch(repo_path: String) -> Result<String> {
     })
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
+/// Extract the branch name from refs/remotes/origin/HEAD if it exists.
+fn resolve_origin_head(repo: &git2::Repository) -> Result<Option<String>> {
+    if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
+        if let Ok(resolved) = reference.resolve() {
+            if let Some(name) = resolved.name() {
+                if let Some(short) = name.strip_prefix("refs/remotes/origin/") {
+                    return Ok(Some(short.to_string()));
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// Get commits from HEAD back to the merge base with the default branch.
