@@ -1,8 +1,21 @@
-# Alfredo
+<p align="center">
+  <img src="src-tauri/icons/icon.png" alt="Alfredo" width="128" />
+</p>
 
-A desktop app for managing AI coding agents. Monitor sessions, review diffs, manage PRs, and control terminals — all from one window.
+<h1 align="center">Alfredo</h1>
 
-Built with Tauri v2, React 19, and Rust.
+<p align="center">
+  A desktop app for managing AI coding agents.<br/>
+  Monitor sessions, review diffs, manage PRs, and control terminals — all from one window.
+</p>
+
+<p align="center">
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/chloehkwong1/alfredo?style=flat-square" alt="Latest Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/chloehkwong1/alfredo?style=flat-square" alt="License" /></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue?style=flat-square" alt="Platform" />
+</p>
+
+---
 
 ## Features
 
@@ -15,14 +28,15 @@ Built with Tauri v2, React 19, and Rust.
 
 ## Install
 
-Download the latest release for your platform from [Releases](../../releases):
+Download the latest release for your platform from [Releases](../../releases/latest):
 
-- **macOS** — `.dmg` (Apple Silicon & Intel)
-- **Linux** — `.AppImage` or `.deb`
+| Platform | Format |
+|----------|--------|
+| **macOS** (Apple Silicon) | `.dmg` |
+| **macOS** (Intel) | `.dmg` |
+| **Linux** | `.AppImage` or `.deb` |
 
 ## Development
-
-If you want to build from source or contribute:
 
 ### Prerequisites
 
@@ -33,7 +47,7 @@ If you want to build from source or contribute:
 ### Setup
 
 ```bash
-git clone git@github.com:chloehkwong1/alfredo.git
+git clone https://github.com/chloehkwong1/alfredo.git
 cd alfredo
 npm install
 npm run tauri dev
@@ -47,16 +61,11 @@ npm run tauri build
 
 Output lands in `src-tauri/target/release/bundle/`.
 
-## Git Excludes
+### Testing
 
-The `.gitignore` covers standard project artifacts. If you use Claude Code (or similar AI tools) with git worktrees, add these to `.git/info/exclude` so they're ignored across all worktrees without polluting `.gitignore`:
-
+```bash
+npm test
 ```
-context.md
-settings.local.json
-```
-
-These files are generated per-worktree and shouldn't be committed.
 
 ## Tech Stack
 
@@ -68,3 +77,7 @@ These files are generated per-worktree and shouldn't be committed.
 | Terminal | xterm.js, portable-pty |
 | Git | git2, Octocrab (GitHub API) |
 | UI | Radix UI, Framer Motion, Lucide icons |
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
