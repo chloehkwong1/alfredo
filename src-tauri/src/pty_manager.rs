@@ -10,6 +10,7 @@ use tauri::ipc::Channel;
 use uuid::Uuid;
 
 use crate::agent_detector::AgentDetector;
+use crate::platform::augmented_path;
 use crate::types::{AgentState, AgentType, AppError, PtyEvent, Session, SessionStatus};
 
 /// Shared timestamps for signalling resize/input events to the reader thread's
@@ -98,6 +99,11 @@ impl PtyManager {
         let mut cmd = CommandBuilder::new(&command);
         cmd.args(&args);
         cmd.cwd(&worktree_path);
+
+        // GUI apps on macOS don't inherit the user's shell PATH, so CLI tools
+        // like `claude`, `codex`, `aider` won't be found. Use the same
+        // augmented PATH that git/gh commands use.
+        cmd.env("PATH", augmented_path());
 
         // Set env vars for hook callbacks and write hooks config
         if let Some(port) = state_server_port {

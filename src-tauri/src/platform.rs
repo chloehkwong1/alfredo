@@ -1,14 +1,33 @@
-/// Build a PATH string that includes common Homebrew locations so that CLI tools
-/// installed via Homebrew are discoverable from a GUI app, which does not
-/// inherit the user's shell PATH on macOS. Also use this when spawning `sh -c`
-/// so that user-defined scripts can reference Homebrew-installed tools.
+/// Build a PATH string that includes common tool locations so that CLI tools
+/// are discoverable from a GUI app, which does not inherit the user's shell
+/// PATH on macOS. Also use this when spawning `sh -c` so that user-defined
+/// scripts can reference tools installed via Homebrew, npm, pip, cargo, etc.
 pub(crate) fn augmented_path() -> String {
     let current = std::env::var("PATH").unwrap_or_default();
-    let homebrew_paths = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin";
+    let home = std::env::var("HOME").unwrap_or_default();
+
+    // Common locations for CLI tools installed by package managers:
+    //   ~/.local/bin         — Claude Code standalone installer, pipx
+    //   ~/.cargo/bin         — Rust tools (aider, etc.)
+    //   /opt/homebrew/bin    — Homebrew on Apple Silicon
+    //   /usr/local/bin       — Homebrew on Intel, manual installs
+    let mut extra_paths: Vec<String> = Vec::new();
+    if !home.is_empty() {
+        extra_paths.push(format!("{home}/.local/bin"));
+        extra_paths.push(format!("{home}/.cargo/bin"));
+    }
+    extra_paths.extend([
+        "/opt/homebrew/bin".to_string(),
+        "/opt/homebrew/sbin".to_string(),
+        "/usr/local/bin".to_string(),
+        "/usr/local/sbin".to_string(),
+    ]);
+
+    let prefix = extra_paths.join(":");
     if current.is_empty() {
-        format!("{homebrew_paths}:/usr/bin:/bin:/usr/sbin:/sbin")
+        format!("{prefix}:/usr/bin:/bin:/usr/sbin:/sbin")
     } else {
-        format!("{homebrew_paths}:{current}")
+        format!("{prefix}:{current}")
     }
 }
 
