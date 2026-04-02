@@ -95,21 +95,34 @@ impl PrStatusWithColumn {
 
 /// Start the background GitHub PR sync loop.
 ///
-/// Polls every 30 seconds. Gracefully skips if:
-/// - No repo path is managed yet
-/// - No GitHub token is configured
-/// - GitHub API calls fail (logs warning, continues polling)
+/// Polls every 30 seconds normally. When all repos fail (e.g. GitHub outage),
+/// backs off: 30s → 60s → 2min (stays at 2min until a successful sync).
 pub fn start_sync_loop(app_handle: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(30));
+        let mut consecutive_failures: u32 = 0;
 
         loop {
-            interval.tick().await;
+            let success = match poll_once(&app_handle).await {
+                Ok(any_repo_ok) => any_repo_ok,
+                Err(e) => {
+                    eprintln!("[github_sync] poll error: {e}");
+                    false
+                }
+            };
 
-            if let Err(e) = poll_once(&app_handle).await {
-                // Log but don't crash — token may not be configured yet
-                eprintln!("[github_sync] poll error: {e}");
+            if success {
+                consecutive_failures = 0;
+            } else if consecutive_failures < 2 {
+                consecutive_failures += 1;
+                eprintln!("[github_sync] all repos failed, backing off (tier {consecutive_failures})");
             }
+
+            let delay = match consecutive_failures {
+                0 => Duration::from_secs(30),
+                1 => Duration::from_secs(60),
+                _ => Duration::from_secs(120),
+            };
+            time::sleep(delay).await;
         }
     });
 }
@@ -163,17 +176,24 @@ pub async fn set_sync_repo_paths(
 ///
 /// Phase 2 (slower): Fetches comments for active PRs, emits an update.
 /// The frontend preserves cached comments until this arrives.
-async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
+///
+/// Returns `Ok(true)` if at least one repo synced successfully,
+/// `Ok(false)` if all repos failed (triggers backoff in the sync loop).
+async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
     let (repo_paths, active_branches) = get_sync_state(app_handle);
     if repo_paths.is_empty() {
-        return Ok(()); // No repos configured yet — silently skip
+        return Ok(true); // No repos configured yet — not a failure
     }
 
     let mut all_prs: Vec<PrStatusWithColumn> = Vec::new();
+    let mut any_repo_succeeded = false;
 
     for repo_path in &repo_paths {
         match poll_repo(repo_path, &active_branches).await {
-            Ok(prs) => all_prs.extend(prs),
+            Ok(prs) => {
+                any_repo_succeeded = true;
+                all_prs.extend(prs);
+            }
             Err(e) => {
                 eprintln!("[github_sync] error syncing {repo_path}: {e}");
                 // Continue with other repos
@@ -210,7 +230,7 @@ async fn poll_once(app_handle: &AppHandle) -> Result<(), String> {
     // Task 12: compute and emit stack rebase statuses
     crate::stack_manager::compute_stack_statuses(app_handle, &repo_paths).await;
 
-    Ok(())
+    Ok(any_repo_succeeded)
 }
 
 /// Fetch and enrich PRs for a single repo. Returns the enriched PR list.
