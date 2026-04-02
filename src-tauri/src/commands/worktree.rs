@@ -77,6 +77,7 @@ pub async fn create_worktree(
     let default_short = default_remote.strip_prefix("origin/").unwrap_or(&default_remote);
     let is_stacked = base_branch != default_short
         && base_branch != default_remote
+        && base_branch != branch_name
         && !base_branch.is_empty();
 
     let stack_parent = if is_stacked {
@@ -155,10 +156,12 @@ pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>> {
                 wt.column = col;
             }
         }
-        // Apply stack parents from config
+        // Apply stack parents from config, ignoring self-references
         for wt in &mut wts {
             if let Some(parent) = config_manager::get_stack_parent(&config, &wt.name) {
-                wt.stack_parent = Some(parent);
+                if parent != wt.branch {
+                    wt.stack_parent = Some(parent);
+                }
             }
         }
         // Compute stack children: for each worktree, find others whose stack_parent matches this branch
@@ -363,7 +366,9 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
         .ok_or_else(|| AppError::Github(format!("PR #{pr_number} not found")))?;
 
     let branch_name = pr.branch.clone();
-    let base = pr.base_branch.clone().unwrap_or_else(|| branch_name.clone());
+    let default_branch = git_manager::resolve_default_remote_branch(&repo_path);
+    let default_short = default_branch.strip_prefix("origin/").unwrap_or(&default_branch).to_string();
+    let base = pr.base_branch.clone().unwrap_or(default_short);
 
     // 4. Fetch the branch from remote so it's available locally
     let fetch_output = git_command()

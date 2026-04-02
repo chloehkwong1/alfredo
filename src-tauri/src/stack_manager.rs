@@ -59,6 +59,12 @@ pub async fn check_and_rebase(app_handle: &AppHandle, repo_paths: &[String]) {
         // children_by_parent: parent_branch → Vec<worktree_name>
         let mut children_by_parent: HashMap<String, Vec<String>> = HashMap::new();
         for (child_name, parent_branch) in &config.stack_parent_overrides {
+            // Skip self-references (historically corrupted data).
+            // child_name is the worktree dir name (branch with / → -),
+            // parent_branch is the raw branch name.
+            if *child_name == parent_branch.replace('/', "-") {
+                continue;
+            }
             children_by_parent
                 .entry(parent_branch.clone())
                 .or_default()

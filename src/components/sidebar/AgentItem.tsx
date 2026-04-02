@@ -352,7 +352,7 @@ function CreatingItem({ worktree }: { worktree: Worktree }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm truncate text-text-primary font-medium">
-            {worktree.name}
+            {worktree.branch || worktree.name}
           </span>
         </div>
         <div className="text-xs text-text-tertiary mt-1">Setting up…</div>
@@ -370,7 +370,7 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm truncate text-text-primary font-medium">
-            {worktree.name}
+            {worktree.branch || worktree.name}
           </span>
           <button
             type="button"
