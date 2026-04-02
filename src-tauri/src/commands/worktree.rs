@@ -169,7 +169,7 @@ pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>> {
         for wt in &mut wts {
             wt.stack_children = parent_map
                 .iter()
-                .filter(|(_, parent)| *parent == wt.branch)
+                .filter(|(id, parent)| *parent == wt.branch && *id != wt.id)
                 .map(|(id, _)| id.clone())
                 .collect();
         }
@@ -363,6 +363,7 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
         .ok_or_else(|| AppError::Github(format!("PR #{pr_number} not found")))?;
 
     let branch_name = pr.branch.clone();
+    let base = pr.base_branch.clone().unwrap_or_else(|| branch_name.clone());
 
     // 4. Fetch the branch from remote so it's available locally
     let fetch_output = git_command()
@@ -375,8 +376,8 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
     // Ignore fetch errors if branch already exists locally
     let _ = fetch_output;
 
-    // 5. Create the worktree from the PR's head branch
-    create_worktree(app.clone(), repo_path, branch_name.clone(), branch_name).await
+    // 5. Create the worktree from the PR's head branch, using the PR's base for stack detection
+    create_worktree(app.clone(), repo_path, branch_name, base).await
 }
 
 /// Ensure the repo's `.git/info/exclude` contains entries for AI tool artifacts
