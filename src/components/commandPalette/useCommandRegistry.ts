@@ -10,7 +10,6 @@ import {
   PanelLeft,
   Settings,
   Keyboard,
-  GitPullRequest,
   ExternalLink,
   RefreshCw,
   Wrench,
@@ -144,22 +143,8 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       id: "toggle-changes-panel",
       label: "Toggle changes panel",
       category: "actions",
-      shortcut: "⌘⇧C",
-      icon: PanelRight,
-      action: () => {
-        if (!activeWorktreeId) return;
-        const wsState = useWorkspaceStore.getState();
-        const current = wsState.changesPanelCollapsed[activeWorktreeId] ?? false;
-        wsState.setChangesPanelCollapsed(activeWorktreeId, !current);
-      },
-      enabled: () => !!activeWorktreeId,
-    },
-    {
-      id: "toggle-changes-panel",
-      label: "Toggle changes panel",
-      category: "actions",
       shortcut: "⌘I",
-      icon: GitPullRequest,
+      icon: PanelRight,
       action: () => {
         if (!activeWorktreeId) return;
         const wsState = useWorkspaceStore.getState();
