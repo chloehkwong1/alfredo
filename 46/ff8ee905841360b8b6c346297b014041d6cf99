@@ -1,0 +1,25 @@
+src-tauri/src/commands/external_tools.rs
+  91f91ceb55de82b7 3,52,75
+src-tauri/src/config_manager.rs
+  91f91ceb55de82b7 6,196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "46ff8ee905841360b8b6c346297b014041d6cf99",
+  "prompts": {
+    "91f91ceb55de82b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47ee441e-1387-404e-b189-30b2072863a8",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    }
+  }
+}
