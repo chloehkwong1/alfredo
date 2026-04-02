@@ -35,11 +35,11 @@
 
 Download the latest release for your platform from [Releases](../../releases/latest):
 
-| Platform | Format |
-|----------|--------|
-| **macOS** (Apple Silicon) | `.dmg` |
-| **macOS** (Intel) | `.dmg` |
-| **Linux** | `.AppImage` or `.deb` |
+| Platform | Filename |
+|----------|----------|
+| **macOS** (Apple Silicon) | `Alfredo_x.x.x_aarch64.dmg` |
+| **macOS** (Intel) | `Alfredo_x.x.x_x64.dmg` |
+| **Linux** | `Alfredo_x.x.x_amd64.AppImage` or `.deb` |
 
 ## Development
 
