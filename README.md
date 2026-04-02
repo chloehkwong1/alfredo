@@ -17,6 +17,10 @@
 
 ---
 
+<p align="center">
+  <img src="docs/screenshots/main-session.png" alt="Alfredo — main session view" width="800" />
+</p>
+
 ## Features
 
 - **Multi-agent sessions** — Run and monitor multiple AI coding agents side by side
