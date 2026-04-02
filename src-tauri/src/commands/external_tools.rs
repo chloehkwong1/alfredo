@@ -1,5 +1,6 @@
 use std::process::Command;
 
+use crate::platform::augmented_path;
 use crate::types::AppError;
 
 fn editor_command(editor: &str, path: &str, custom_path: Option<&str>) -> Result<(String, Vec<String>), AppError> {
@@ -48,6 +49,7 @@ pub fn open_in_editor(
 
     Command::new(&cmd)
         .args(&args)
+        .env("PATH", augmented_path())
         .spawn()
         .map_err(|e| AppError::Config(format!("Failed to open editor ({cmd}): {e}")))?;
 
@@ -70,6 +72,7 @@ pub fn open_in_terminal(
 
     Command::new(&cmd)
         .args(&args)
+        .env("PATH", augmented_path())
         .spawn()
         .map_err(|e| AppError::Config(format!("Failed to open terminal ({cmd}): {e}")))?;
 
