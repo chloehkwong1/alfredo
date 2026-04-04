@@ -1,0 +1,62 @@
+src/components/layout/PaneView.tsx
+  207b529a73bc7339 73
+src/stores/tabStore.ts
+  207b529a73bc7339 2,9,60,86,133,135
+src/services/SessionPersistence.ts
+  207b529a73bc7339 2,96
+src/services/prActions.ts
+  207b529a73bc7339 3,98
+src/types.ts
+  207b529a73bc7339 247-259
+src/hooks/useSendToClaude.ts
+  207b529a73bc7339 2,49
+src/components/layout/PaneTabBar.tsx
+  207b529a73bc7339 52,267,270
+src/services/agentMessenger.ts
+  207b529a73bc7339 6,9,11,13-15,27,53,55-57,59,61
+src/services/sendPrCommentToClaude.ts
+  207b529a73bc7339 1,51
+src-tauri/src/pty_manager.rs
+  207b529a73bc7339 600-606,648-650,652-653,657
+src/components/changes/MergeStatusBanner.tsx
+  207b529a73bc7339 2,31,33-34,36,38,56,66
+src/components/terminal/TerminalView.tsx
+  207b529a73bc7339 19-20,22,24-26,126,128-129
+src/components/commandPalette/useCommandRegistry.ts
+  207b529a73bc7339 30,357,359-361,392
+src/hooks/useSessionRestore.ts
+  207b529a73bc7339 9,147,149-151,160,162-164,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "f7a05b060c5e71c8450901b4980e67f30ad107cf",
+  "prompts": {
+    "207b529a73bc7339": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8893ecd-64da-48ee-a527-c1dbc2688044",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 92,
+      "total_deletions": 150,
+      "accepted_lines": 90,
+      "overriden_lines": 0
+    },
+    "921ec66f30c89152": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4812d2e-6aaf-413a-9339-5fea8f6b5284",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
