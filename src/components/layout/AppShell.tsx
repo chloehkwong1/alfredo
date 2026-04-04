@@ -31,7 +31,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { CommandPalette } from "../commandPalette/CommandPalette";
 import logoSvg from "../../assets/logo-cat.svg";
-import type { WorkspaceTab, AppConfig } from "../../types";
+import type { WorkspaceTab, AppConfig, RepoMode } from "../../types";
 
 const EMPTY_TABS: WorkspaceTab[] = [];
 const AUTO_SAVE_INTERVAL_MS = 30_000;
@@ -215,11 +215,11 @@ function AppShell() {
   }, [addRepo, repoColors, repos]);
 
   // When repo setup is configured
-  const handleRepoConfigured = useCallback(async (result: { selectedWorktreeIds: string[] } | "createNew") => {
+  const handleRepoConfigured = useCallback(async (result: { mode: RepoMode; selectedWorktreeIds?: string[] }) => {
     if (!setupRepoPath) return;
-    await updateRepoMode(setupRepoPath, "worktree");
+    await updateRepoMode(setupRepoPath, result.mode);
     setSetupDialogOpen(false);
-    if (result === "createNew") {
+    if (result.mode === "worktree" && !result.selectedWorktreeIds) {
       setCreateDialogOpen(true);
     }
     // If result has selectedWorktreeIds, worktrees will be loaded by useSessionRestore
