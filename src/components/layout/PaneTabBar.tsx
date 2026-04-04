@@ -12,6 +12,8 @@ import {
   PanelBottom,
   Radio,
   Combine,
+  Bot,
+  Hexagon,
 } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import {
@@ -34,6 +36,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "../ui/DropdownMenu";
 import {
   ContextMenu,
@@ -44,10 +47,11 @@ import {
 } from "../ui/ContextMenu";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 
 // ── Cross-pane drag state (module-level pub/sub) ──
 interface CrossPaneDrag {
@@ -76,6 +80,8 @@ export function useCrossPaneDrag(): CrossPaneDrag | null {
 
 const TAB_ICONS: Record<TabType, typeof Terminal> = {
   claude: Sparkles,
+  codex: Bot,
+  gemini: Hexagon,
   shell: Terminal,
   server: Radio,
   diff: GitCompareArrows,
@@ -284,6 +290,14 @@ function PaneTabBar({
 
   const isSplit = layout?.type === "split";
 
+  const availableAgents = useAgentStore((s) => s.availableAgents);
+
+  const agentMenuItems: { type: TabType; agentId: string; label: string; icon: ReactNode }[] = [
+    { type: "claude", agentId: "claudeCode", label: "Claude", icon: <Sparkles size={14} /> },
+    { type: "codex", agentId: "codex", label: "Codex", icon: <Bot size={14} /> },
+    { type: "gemini", agentId: "geminiCli", label: "Gemini", icon: <Hexagon size={14} /> },
+  ];
+
   function handleDragStart(tabId: string) {
     setDragActiveId(tabId);
     if (isSplit) {
@@ -390,9 +404,14 @@ function PaneTabBar({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuItem onSelect={() => handleAddTab("claude")}>
-            <Sparkles size={14} /> New Claude tab
-          </DropdownMenuItem>
+          {agentMenuItems
+            .filter((item) => availableAgents.includes(item.agentId))
+            .map((item) => (
+              <DropdownMenuItem key={item.type} onSelect={() => handleAddTab(item.type)}>
+                {item.icon} New {item.label} tab
+              </DropdownMenuItem>
+            ))}
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
             <Terminal size={14} /> New terminal tab
           </DropdownMenuItem>

@@ -27,6 +27,7 @@ import { REPO_COLOR_PALETTE } from "../sidebar/RepoSelector";
 import { saveAllSessions } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import { usePrStore } from "../../stores/prStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { CommandPalette } from "../commandPalette/CommandPalette";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -81,6 +82,11 @@ function AppShell() {
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   useDensity();
   const updater = useUpdater();
+  const refreshAgents = useAgentStore((s) => s.refresh);
+
+  useEffect(() => {
+    refreshAgents();
+  }, [refreshAgents]);
 
   const {
     loading,
