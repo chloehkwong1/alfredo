@@ -391,6 +391,8 @@ pub struct GlobalAppConfig {
     pub active_worktree_id: Option<String>,
     #[serde(default)]
     pub linear_oauth: Option<LinearOAuthTokens>,
+    #[serde(default)]
+    pub default_agent: Option<String>,
 }
 
 fn default_editor() -> String { "vscode".into() }

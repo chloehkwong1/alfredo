@@ -39,6 +39,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             has_seen_orientation: false,
             active_worktree_id: None,
             linear_oauth: None,
+            default_agent: None,
         });
     }
 
@@ -169,6 +170,7 @@ pub async fn migrate_if_needed(
         has_seen_orientation: false,
         active_worktree_id: None,
         linear_oauth: None,
+        default_agent: None,
     };
 
     save(app_data_dir, &global).await?;
