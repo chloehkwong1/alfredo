@@ -23,6 +23,9 @@ export function useAppConfig() {
       .then((c) => {
         if (!cancelled) {
           setConfig(c);
+          if (c.defaultAgent) {
+            localStorage.setItem("alfredo-default-agent", c.defaultAgent);
+          }
           setLoading(false);
         }
       })

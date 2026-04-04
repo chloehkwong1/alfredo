@@ -1,4 +1,5 @@
-import type { ClaudeDefaults } from "../../types";
+import { useAgentStore } from "../../stores/agentStore";
+import type { ClaudeDefaults, TabType } from "../../types";
 
 const MODEL_OPTIONS = [
   { value: "", label: "Default" },
@@ -30,14 +31,28 @@ const selectClass = [
   "cursor-pointer",
 ].join(" ");
 
+const AGENT_OPTIONS = [
+  { value: "claude", label: "Claude Code", agentId: "claudeCode" },
+  { value: "codex", label: "Codex", agentId: "codex" },
+  { value: "gemini", label: "Gemini CLI", agentId: "geminiCli" },
+] as const;
+
 interface AgentSettingsProps {
   settings: ClaudeDefaults;
   onChange: (settings: ClaudeDefaults) => void;
+  defaultAgent: TabType;
+  onDefaultAgentChange: (agent: TabType) => void;
 }
 
-function AgentSettings({ settings, onChange }: AgentSettingsProps) {
+function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange }: AgentSettingsProps) {
   const update = (patch: Partial<ClaudeDefaults>) =>
     onChange({ ...settings, ...patch });
+
+  const availableAgents = useAgentStore((s) => s.availableAgents);
+
+  const agentOptions = AGENT_OPTIONS.filter((opt) =>
+    availableAgents.includes(opt.agentId),
+  );
 
   const permissionValue = settings.permissionMode ?? "default";
 
@@ -46,6 +61,26 @@ function AgentSettings({ settings, onChange }: AgentSettingsProps) {
       <p className="text-xs text-text-tertiary mb-5">
         Defaults for all new sessions. Override per worktree via the status bar.
       </p>
+
+      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
+        Default Agent
+      </div>
+
+      <div className="mb-8">
+        <div className="text-[13px] font-medium text-text-primary mb-1.5">Default agent</div>
+        <select
+          value={defaultAgent}
+          onChange={(e) => onDefaultAgentChange(e.target.value as TabType)}
+          className={selectClass}
+        >
+          {agentOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <p className="text-xs text-text-tertiary mt-[5px]">
+          Agent used when opening a new worktree tab.
+        </p>
+      </div>
 
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
         Model & Performance

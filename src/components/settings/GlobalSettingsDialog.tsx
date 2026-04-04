@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AppConfig, GlobalAppConfig } from "../../types";
+import type { AppConfig, GlobalAppConfig, TabType } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig } from "../../api";
 import { Button } from "../ui/Button";
 import { Dialog, DialogContent } from "../ui/Dialog";
@@ -338,6 +338,11 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                     verbose: claudeDefaults.verbose ?? null,
                   })
                 }
+                defaultAgent={(appConfig.defaultAgent as TabType) ?? "claude"}
+                onDefaultAgentChange={(agent) => {
+                  updateAppConfig({ defaultAgent: agent });
+                  localStorage.setItem("alfredo-default-agent", agent);
+                }}
               />
             )}
 
