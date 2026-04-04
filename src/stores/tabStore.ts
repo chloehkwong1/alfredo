@@ -1,6 +1,19 @@
 import { create } from "zustand";
 import type { TabType, WorkspaceTab } from "../types";
 
+/** Read the default agent from localStorage. Falls back to "claude". */
+function getDefaultAgent(): TabType {
+  try {
+    const stored = localStorage.getItem("alfredo-default-agent");
+    if (stored && ["claude", "codex", "gemini"].includes(stored)) {
+      return stored as TabType;
+    }
+  } catch {
+    // Ignore
+  }
+  return "claude";
+}
+
 interface TabState {
   /** Tabs per worktree. Keyed by worktreeId. */
   tabs: Record<string, WorkspaceTab[]>;
@@ -39,27 +52,29 @@ export const useTabStore = create<TabState>((set, get) => ({
         : t,
     );
 
-    const hasClaude = migrated.some((t) => t.type === "claude");
-    const hasShell = migrated.some((t) => t.type === "shell");
-    // Remove stale tabs from before redesigns (e.g. "pr")
-    const validTypes = new Set(["claude", "shell", "server", "diff"]);
+    const validTypes = new Set(["claude", "codex", "gemini", "shell", "server", "diff"]);
     const cleaned = migrated.filter((t) => validTypes.has(t.type));
     const hadStale = cleaned.length !== migrated.length;
 
-    if (hasClaude && hasShell && !hadStale) return;
+    const agentTypes = new Set(["claude", "codex", "gemini"]);
+    const hasAgent = cleaned.some((t) => agentTypes.has(t.type));
+    const hasShell = cleaned.some((t) => t.type === "shell");
 
+    if (hasAgent && hasShell && !hadStale) return;
+
+    const defaultAgent = getDefaultAgent();
     const tabs = [...cleaned];
-    let claudeTabId = state.activeTabId[worktreeId];
+    let agentTabId = state.activeTabId[worktreeId];
 
-    if (!hasClaude) {
-      const claudeTab: WorkspaceTab = {
-        id: `${worktreeId}:claude:${crypto.randomUUID().slice(0, 8)}`,
-        type: "claude",
-        label: "Claude",
+    if (!hasAgent) {
+      const labelMap: Record<string, string> = { claude: "Claude", codex: "Codex", gemini: "Gemini" };
+      const agentTab: WorkspaceTab = {
+        id: `${worktreeId}:${defaultAgent}:${crypto.randomUUID().slice(0, 8)}`,
+        type: defaultAgent,
+        label: labelMap[defaultAgent] ?? "Claude",
       };
-      // Insert Claude tab at the beginning
-      tabs.unshift(claudeTab);
-      claudeTabId = claudeTab.id;
+      tabs.unshift(agentTab);
+      agentTabId = agentTab.id;
     }
 
     if (!hasShell) {
@@ -68,17 +83,15 @@ export const useTabStore = create<TabState>((set, get) => ({
         type: "shell",
         label: "Terminal",
       };
-      // Insert shell tab after claude tabs
-      const lastClaudeIdx = tabs.reduce((acc, t, i) => (t.type === "claude" ? i : acc), -1);
-      tabs.splice(lastClaudeIdx + 1, 0, shellTab);
+      const lastAgentIdx = tabs.reduce((acc, t, i) => (agentTypes.has(t.type) ? i : acc), -1);
+      tabs.splice(lastAgentIdx + 1, 0, shellTab);
     }
 
     set({
       tabs: { ...state.tabs, [worktreeId]: tabs },
-      // Set active tab to Claude if no active tab was set
       activeTabId: {
         ...state.activeTabId,
-        [worktreeId]: state.activeTabId[worktreeId] ?? claudeTabId,
+        [worktreeId]: state.activeTabId[worktreeId] ?? agentTabId,
       },
     });
   },
@@ -87,14 +100,16 @@ export const useTabStore = create<TabState>((set, get) => ({
     set((state) => {
       const existing = state.tabs[worktreeId] ?? [];
       const count = existing.filter((t) => t.type === type).length;
-      const label =
-        type === "claude"
-          ? count > 0 ? `Claude ${count + 1}` : "Claude"
-          : type === "shell"
-            ? count > 0 ? `Terminal ${count + 1}` : "Terminal"
-            : type === "diff"
-              ? "Diff"
-              : "Server";
+      const labelMap: Record<string, string> = {
+        claude: "Claude",
+        codex: "Codex",
+        gemini: "Gemini",
+        shell: "Terminal",
+        diff: "Diff",
+        server: "Server",
+      };
+      const base = labelMap[type] ?? type;
+      const label = count > 0 ? `${base} ${count + 1}` : base;
       const tab: WorkspaceTab = {
         id: `${worktreeId}:${type}:${crypto.randomUUID().slice(0, 8)}`,
         type,
