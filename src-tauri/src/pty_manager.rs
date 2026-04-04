@@ -112,10 +112,24 @@ impl PtyManager {
             cmd.env("ALFREDO_SESSION_ID", &session_id);
             cmd.env("ALFREDO_WORKTREE_ID", &worktree_id);
 
-            // Write .claude/settings.local.json with hook config
-            if let Err(e) = write_hooks_config(&worktree_path, &base_url, &worktree_id) {
-                eprintln!("[alfredo] failed to write hooks config: {e}");
-                // Non-fatal — agent detection falls back to PTY output parsing
+            // Write agent-specific hooks config
+            match agent_type {
+                AgentType::ClaudeCode => {
+                    if let Err(e) = write_hooks_config(&worktree_path, &base_url, &worktree_id) {
+                        eprintln!("[pty] failed to write Claude hooks config: {e}");
+                    }
+                }
+                AgentType::GeminiCli => {
+                    if let Err(e) = write_gemini_hooks_config(&worktree_path) {
+                        eprintln!("[pty] failed to write Gemini hooks config: {e}");
+                    }
+                }
+                AgentType::Codex => {
+                    if let Err(e) = write_codex_hooks_config(&worktree_path) {
+                        eprintln!("[pty] failed to write Codex hooks config: {e}");
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -610,6 +624,113 @@ fn remove_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
         if let Some(obj) = config.as_object_mut() {
             obj.remove("hooks");
         }
+    }
+
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    std::fs::write(&path, json)?;
+
+    Ok(())
+}
+
+/// Write Alfredo state hooks to `.gemini/settings.json` in the worktree.
+/// Gemini CLI hooks use stdin/stdout JSON protocol — the command drains
+/// stdin, POSTs to the state server, and prints `{}` to stdout.
+fn write_gemini_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
+    let gemini_dir = std::path::Path::new(worktree_path).join(".gemini");
+    std::fs::create_dir_all(&gemini_dir)?;
+
+    let path = gemini_dir.join("settings.json");
+
+    let mut config: serde_json::Value = if path.exists() {
+        let contents = std::fs::read_to_string(&path)?;
+        serde_json::from_str(&contents).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    if !config.get("hooks").is_some_and(serde_json::Value::is_object) {
+        config["hooks"] = serde_json::json!({});
+    }
+    let hooks = config["hooks"]
+        .as_object_mut()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "hooks is not an object"))?;
+
+    // Gemini hooks: command receives JSON on stdin, must print JSON to stdout.
+    // We drain stdin, curl the state server, and print {} (success, no modifications).
+    let cmd = |state: &str| -> serde_json::Value {
+        serde_json::json!([{
+            "hooks": [{
+                "type": "command",
+                "command": format!(
+                    "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
+                )
+            }]
+        }])
+    };
+
+    let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
+        ("SessionStart", cmd("idle")),
+        ("BeforeAgent",  cmd("busy")),
+        ("AfterAgent",   cmd("idle")),
+        ("BeforeTool",   cmd("busy")),
+        ("AfterTool",    cmd("busy")),
+        ("SessionEnd",   cmd("notRunning")),
+    ];
+
+    for (hook_name, entry) in alfredo_hooks {
+        hooks.insert(hook_name.to_string(), entry);
+    }
+
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    std::fs::write(&path, json)?;
+
+    Ok(())
+}
+
+/// Write Alfredo state hooks to `.codex/hooks.json` in the worktree.
+/// Codex CLI hooks use the same stdin/stdout JSON protocol as Gemini.
+fn write_codex_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
+    let codex_dir = std::path::Path::new(worktree_path).join(".codex");
+    std::fs::create_dir_all(&codex_dir)?;
+
+    let path = codex_dir.join("hooks.json");
+
+    let mut config: serde_json::Value = if path.exists() {
+        let contents = std::fs::read_to_string(&path)?;
+        serde_json::from_str(&contents).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    if !config.get("hooks").is_some_and(serde_json::Value::is_object) {
+        config["hooks"] = serde_json::json!({});
+    }
+    let hooks = config["hooks"]
+        .as_object_mut()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "hooks is not an object"))?;
+
+    let cmd = |state: &str| -> serde_json::Value {
+        serde_json::json!([{
+            "hooks": [{
+                "type": "command",
+                "command": format!(
+                    "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
+                )
+            }]
+        }])
+    };
+
+    let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
+        ("SessionStart",     cmd("idle")),
+        ("UserPromptSubmit", cmd("busy")),
+        ("PreToolUse",       cmd("busy")),
+        ("Stop",             cmd("idle")),
+    ];
+
+    for (hook_name, entry) in alfredo_hooks {
+        hooks.insert(hook_name.to_string(), entry);
     }
 
     let json = serde_json::to_string_pretty(&config)
