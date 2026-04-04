@@ -128,6 +128,14 @@ class LifecycleManager {
     if (existingPinned) {
       // Focus the existing pinned tab instead of creating a duplicate
       layoutState.setPaneActiveTab(worktreeId, activePaneId, existingPinned.id);
+
+      // Clean up the orphaned preview tab — the user navigated away from it
+      const previewTabId = pane?.previewTabId;
+      if (previewTabId) {
+        layoutState.removeTabFromPane(worktreeId, previewTabId);
+        useTabStore.getState().removeTab(worktreeId, previewTabId);
+      }
+
       return existingPinned.id;
     }
 
