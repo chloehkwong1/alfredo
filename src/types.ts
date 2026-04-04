@@ -21,7 +21,7 @@ export type PtyEvent =
 
 // ── Agent ───────────────────────────────────────────────────────
 
-export type AgentType = "claudeCode" | "codex" | "aider" | "unknown";
+export type AgentType = "claudeCode" | "codex" | "geminiCli" | "aider" | "unknown";
 
 export type AgentState = "idle" | "busy" | "waitingForInput" | "notRunning";
 
@@ -178,6 +178,7 @@ export interface AppConfig {
   deleteAfterDays?: number;
   claudeDefaults?: ClaudeDefaults;
   worktreeOverrides?: Record<string, ClaudeOverrides>;
+  defaultAgent?: TabType;
 }
 
 // ── Linear ──────────────────────────────────────────────────────
@@ -241,7 +242,7 @@ export interface CommitInfo {
 
 // ── Workspace tabs ──────────────────────────────────────────────
 
-export type TabType = "claude" | "shell" | "server" | "diff";
+export type TabType = "claude" | "codex" | "gemini" | "shell" | "server" | "diff";
 
 export type DiffViewMode = "unified" | "split";
 export type PrPanelState = "open" | "collapsed";

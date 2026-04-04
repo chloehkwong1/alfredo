@@ -1,5 +1,6 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import type {
+  AgentType,
   AppConfig,
   CheckRun,
   CommitInfo,
@@ -22,10 +23,10 @@ import type {
 export function spawnPty(
   worktreeId: string,
   worktreePath: string,
-  mode: "shell" | "claude" | "codex" | "aider",
+  mode: "shell" | "claude" | "codex" | "gemini" | "aider",
   args: string[],
   onData: Channel<PtyEvent>,
-  agentType?: "claudeCode" | "codex" | "aider",
+  agentType?: AgentType,
 ): Promise<string> {
   return invoke("spawn_pty", { worktreeId, worktreePath, mode, args, onData, agentType });
 }
@@ -44,6 +45,10 @@ export function resizePty(
 
 export function closePty(sessionId: string): Promise<void> {
   return invoke("close_pty", { sessionId });
+}
+
+export function detectAvailableAgents(): Promise<string[]> {
+  return invoke("detect_available_agents");
 }
 
 /** Helper: create a Channel for PTY events with a callback. */
