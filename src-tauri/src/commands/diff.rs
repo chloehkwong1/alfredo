@@ -853,3 +853,305 @@ pub async fn discard_all_uncommitted(
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::Repository;
+
+    fn create_test_repo() -> (tempfile::TempDir, Repository) {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", "Test").unwrap();
+        config.set_str("user.email", "test@test.com").unwrap();
+
+        (dir, repo)
+    }
+
+    fn create_commit(repo: &Repository, message: &str) -> git2::Oid {
+        let sig = repo.signature().unwrap();
+        let tree_id = repo.index().unwrap().write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+
+        let parents: Vec<git2::Commit> = match repo.head() {
+            Ok(head) => vec![head.peel_to_commit().unwrap()],
+            Err(_) => vec![],
+        };
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+
+        repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parent_refs)
+            .unwrap()
+    }
+
+    // ── delta_to_status ──────────────────────────────────────
+
+    #[test]
+    fn delta_to_status_added() {
+        assert_eq!(delta_to_status(Delta::Added), "added");
+    }
+
+    #[test]
+    fn delta_to_status_deleted() {
+        assert_eq!(delta_to_status(Delta::Deleted), "deleted");
+    }
+
+    #[test]
+    fn delta_to_status_renamed() {
+        assert_eq!(delta_to_status(Delta::Renamed), "renamed");
+    }
+
+    #[test]
+    fn delta_to_status_modified() {
+        assert_eq!(delta_to_status(Delta::Modified), "modified");
+    }
+
+    #[test]
+    fn delta_to_status_typechange() {
+        assert_eq!(delta_to_status(Delta::Typechange), "modified");
+    }
+
+    #[test]
+    fn delta_to_status_copied() {
+        assert_eq!(delta_to_status(Delta::Copied), "modified");
+    }
+
+    // ── validate_path_within_repo ────────────────────────────
+
+    #[test]
+    fn validate_path_normal_file_passes() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hello.txt");
+        std::fs::write(&file, "hi").unwrap();
+
+        let result = validate_path_within_repo(dir.path().to_str().unwrap(), "hello.txt");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_path_nested_file_passes() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("src/lib")).unwrap();
+        let file = dir.path().join("src/lib/mod.rs");
+        std::fs::write(&file, "// code").unwrap();
+
+        let result = validate_path_within_repo(dir.path().to_str().unwrap(), "src/lib/mod.rs");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_path_traversal_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        // Create a subdirectory to use as "repo" and a file outside it
+        let inside = dir.path().join("repo");
+        std::fs::create_dir(&inside).unwrap();
+        std::fs::write(dir.path().join("secret.txt"), "secret").unwrap();
+
+        let result = validate_path_within_repo(inside.to_str().unwrap(), "../secret.txt");
+        assert!(result.is_err());
+        let err_msg = format!("{:?}", result.unwrap_err());
+        assert!(
+            err_msg.contains("escapes repository"),
+            "expected 'escapes repository' in: {err_msg}"
+        );
+    }
+
+    // ── diff_to_files ────────────────────────────────────────
+
+    #[test]
+    fn diff_to_files_detects_modified_file() {
+        let (dir, repo) = create_test_repo();
+
+        // First commit: create a file
+        let file_path = dir.path().join("readme.txt");
+        std::fs::write(&file_path, "line one\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("readme.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        // Second commit: modify the file
+        std::fs::write(&file_path, "line one\nline two\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("readme.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "add line two");
+
+        let tree1 = repo.find_commit(oid1).unwrap().tree().unwrap();
+        let tree2 = repo.find_commit(oid2).unwrap().tree().unwrap();
+        let mut opts = DiffOptions::new();
+        let diff = repo
+            .diff_tree_to_tree(Some(&tree1), Some(&tree2), Some(&mut opts))
+            .unwrap();
+
+        let files = diff_to_files(&diff).unwrap();
+        assert_eq!(files.len(), 1);
+
+        let f = &files[0];
+        assert_eq!(f.path, "readme.txt");
+        assert_eq!(f.status, "modified");
+        assert_eq!(f.additions, 1);
+        assert_eq!(f.deletions, 0);
+        assert!(!f.hunks.is_empty(), "should have at least one hunk");
+
+        let hunk = &f.hunks[0];
+        assert!(hunk.new_start > 0);
+        let addition_lines: Vec<_> = hunk
+            .lines
+            .iter()
+            .filter(|l| l.line_type == "addition")
+            .collect();
+        assert_eq!(addition_lines.len(), 1);
+        assert!(addition_lines[0].new_line_number.is_some());
+    }
+
+    #[test]
+    fn diff_to_files_detects_added_file() {
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("dummy.txt"), "x").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("dummy.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        std::fs::write(dir.path().join("new.txt"), "hello\nworld\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("new.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "add new file");
+
+        let tree1 = repo.find_commit(oid1).unwrap().tree().unwrap();
+        let tree2 = repo.find_commit(oid2).unwrap().tree().unwrap();
+        let mut opts = DiffOptions::new();
+        let diff = repo
+            .diff_tree_to_tree(Some(&tree1), Some(&tree2), Some(&mut opts))
+            .unwrap();
+
+        let files = diff_to_files(&diff).unwrap();
+        let added = files.iter().find(|f| f.path == "new.txt").unwrap();
+        assert_eq!(added.status, "added");
+        assert_eq!(added.additions, 2);
+        assert_eq!(added.deletions, 0);
+    }
+
+    #[test]
+    fn diff_to_files_detects_deleted_file() {
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("keep.txt"), "stay").unwrap();
+        std::fs::write(dir.path().join("remove.txt"), "gone\nsoon\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("keep.txt")).unwrap();
+        index.add_path(std::path::Path::new("remove.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        let mut index = repo.index().unwrap();
+        index.remove_path(std::path::Path::new("remove.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "remove file");
+
+        let tree1 = repo.find_commit(oid1).unwrap().tree().unwrap();
+        let tree2 = repo.find_commit(oid2).unwrap().tree().unwrap();
+        let mut opts = DiffOptions::new();
+        let diff = repo
+            .diff_tree_to_tree(Some(&tree1), Some(&tree2), Some(&mut opts))
+            .unwrap();
+
+        let files = diff_to_files(&diff).unwrap();
+        let deleted = files.iter().find(|f| f.path == "remove.txt").unwrap();
+        assert_eq!(deleted.status, "deleted");
+        assert_eq!(deleted.deletions, 2);
+        assert_eq!(deleted.additions, 0);
+    }
+
+    // ── resolve_default_branch ───────────────────────────────
+
+    #[test]
+    fn resolve_default_branch_finds_local_main() {
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("f.txt"), "x").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("f.txt")).unwrap();
+        index.write().unwrap();
+        create_commit(&repo, "init");
+
+        let head_commit = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("main", &head_commit, true).unwrap();
+
+        let result = resolve_default_branch(&repo, None);
+        assert!(result.is_ok(), "should resolve: {:?}", result);
+    }
+
+    #[test]
+    fn resolve_default_branch_with_explicit_name() {
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("f.txt"), "x").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("f.txt")).unwrap();
+        index.write().unwrap();
+        create_commit(&repo, "init");
+
+        let head_commit = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("develop", &head_commit, true).unwrap();
+
+        let result = resolve_default_branch(&repo, Some("develop"));
+        assert!(result.is_ok(), "should resolve explicit branch: {:?}", result);
+    }
+
+    #[test]
+    fn resolve_default_branch_errors_when_no_branches_match() {
+        let (_dir, repo) = create_test_repo();
+
+        // No commits, no branches
+        let result = resolve_default_branch(&repo, None);
+        assert!(result.is_err());
+    }
+
+    // ── resolve_origin_head ──────────────────────────────────
+
+    #[test]
+    fn resolve_origin_head_returns_none_without_remote() {
+        let (_dir, repo) = create_test_repo();
+        let result = resolve_origin_head(&repo).unwrap();
+        assert!(result.is_none(), "should be None without origin/HEAD");
+    }
+
+    // ── ignored_paths ────────────────────────────────────────
+
+    #[test]
+    fn ignored_paths_respects_gitignore() {
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join(".gitignore"), "*.log\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new(".gitignore")).unwrap();
+        index.write().unwrap();
+        create_commit(&repo, "add gitignore");
+
+        let repo_path = dir.path().to_str().unwrap();
+        let paths = vec!["foo.log".to_string(), "foo.txt".to_string()];
+        let result = ignored_paths(repo_path, &paths);
+
+        assert!(
+            result.contains("foo.log"),
+            "foo.log should be ignored, got: {result:?}"
+        );
+        assert!(
+            !result.contains("foo.txt"),
+            "foo.txt should NOT be ignored, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn ignored_paths_empty_input_returns_empty() {
+        let (dir, _repo) = create_test_repo();
+        let repo_path = dir.path().to_str().unwrap();
+        let result = ignored_paths(repo_path, &[]);
+        assert!(result.is_empty());
+    }
+}
