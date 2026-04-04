@@ -1,0 +1,23 @@
+src-tauri/src/patch_parser.rs
+  b79ea0eb96783402 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "348533482a4089275a097d9cf35720c0e500f23b",
+  "prompts": {
+    "b79ea0eb96783402": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7102d5dd-0e33-4c48-9f0f-9e46844217fe",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
