@@ -1,0 +1,23 @@
+src/components/changes/DiffFileCard.tsx
+  10164104cdf78cdc 744-745
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "2c84f5ce11372890649cb84689ef7c0faacd3eb5",
+  "prompts": {
+    "10164104cdf78cdc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6701ad2b-e1a6-4ff1-876c-d7aee1d2f693",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 1,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
