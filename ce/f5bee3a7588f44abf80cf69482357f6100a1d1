@@ -1,0 +1,42 @@
+src/hooks/usePty.ts
+  3970cd14fdecaf23 48-49,72,95,97,170-177,283,295
+src/services/sessionManager.ts
+  3970cd14fdecaf23 96-97,228,230-233
+src/components/terminal/TerminalView.tsx
+  3970cd14fdecaf23 15,113-115,269-271
+src/components/terminal/TerminalLoadingScreen.tsx
+  3970cd14fdecaf23 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "cef5bee3a7588f44abf80cf69482357f6100a1d1",
+  "prompts": {
+    "3970cd14fdecaf23": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e66e872f-8530-403c-b5cf-efb2a164130c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 88,
+      "total_deletions": 6,
+      "accepted_lines": 87,
+      "overriden_lines": 0
+    },
+    "921ec66f30c89152": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4812d2e-6aaf-413a-9339-5fea8f6b5284",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
