@@ -309,6 +309,8 @@ pub struct AppConfig {
     /// Maps worktree name → parent branch name for stacked branches.
     #[serde(default)]
     pub stack_parent_overrides: HashMap<String, String>,
+    #[serde(default)]
+    pub archive_script: Option<String>,
 }
 
 pub fn default_archive_days() -> Option<u32> { Some(2) }

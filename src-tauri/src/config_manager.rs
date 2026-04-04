@@ -39,6 +39,8 @@ struct ConfigFile {
     pub run_script: Option<RunScript>,
     #[serde(default)]
     pub stack_parent_overrides: HashMap<String, String>,
+    #[serde(default)]
+    pub archive_script: Option<String>,
 }
 
 /// Load the `.alfredo.json` config from a repo root.
@@ -63,6 +65,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
             worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
+            archive_script: None,
         });
     }
 
@@ -104,6 +107,7 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
         worktree_overrides: file.worktree_overrides,
         run_script: file.run_script,
         stack_parent_overrides: file.stack_parent_overrides,
+        archive_script: file.archive_script,
     };
 
     if needs_resave {
@@ -142,6 +146,7 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
         worktree_overrides: config.worktree_overrides.clone(),
         run_script: config.run_script.clone(),
         stack_parent_overrides: config.stack_parent_overrides.clone(),
+        archive_script: config.archive_script.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
