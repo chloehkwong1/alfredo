@@ -15,6 +15,7 @@ import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
+import { runArchiveScript } from "../../api";
 
 const COLUMNS: KanbanColumn[] = [
   "toDo",
@@ -81,6 +82,18 @@ function Sidebar({
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
   const unarchiveWorktree = useWorkspaceStore((s) => s.unarchiveWorktree);
   const repoPath = activeRepo;
+
+  const handleArchiveWorktree = useCallback(async (id: string) => {
+    const wt = worktrees.find((w) => w.id === id);
+    if (wt && repoPath) {
+      try {
+        await runArchiveScript(repoPath, wt.path);
+      } catch (e) {
+        console.warn("[sidebar] Archive script failed:", e);
+      }
+    }
+    archiveWorktree(id);
+  }, [worktrees, repoPath, archiveWorktree]);
 
   const { config, updateConfig } = useAppConfig();
   const collapsedColumns = config?.collapsedKanbanColumns ?? [];
@@ -223,7 +236,7 @@ function Sidebar({
                     activeWorktreeId={activeWorktreeId}
                     onSelectWorktree={setActiveWorktree}
                     onDeleteWorktree={handleDeleteWorktree}
-                    onArchiveWorktree={archiveWorktree}
+                    onArchiveWorktree={handleArchiveWorktree}
                     forceVisible={isDragging}
                     dragActiveId={dragActiveId}
                     repoColors={effectiveRepoColors}

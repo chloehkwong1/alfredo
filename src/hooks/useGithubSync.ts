@@ -4,7 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { PrUpdatePayload, StackRebaseStatus } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
-import { getPrFiles, setSyncRepoPaths } from "../api";
+import { getPrFiles, setSyncRepoPaths, runArchiveScript } from "../api";
 import { lifecycleManager } from "../services/lifecycleManager";
 
 /**
@@ -53,6 +53,16 @@ export function useGithubSync() {
         .map((wt) => wt.id);
 
       if (toArchive.length > 0) {
+        // Run archive scripts before marking as archived
+        const worktreesToArchive = state.worktrees.filter((wt) => toArchive.includes(wt.id));
+        for (const wt of worktreesToArchive) {
+          try {
+            await runArchiveScript(wt.repoPath, wt.path);
+          } catch (e) {
+            console.warn("[github-sync] Archive script failed for", wt.id, e);
+          }
+        }
+
         useWorkspaceStore.setState((s) => ({
           worktrees: s.worktrees.map((wt) =>
             toArchive.includes(wt.id) ? { ...wt, archived: true, archivedAt: now } : wt,
