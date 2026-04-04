@@ -523,4 +523,118 @@ mod tests {
         let branch = repo.find_branch("test-branch", git2::BranchType::Local);
         assert!(branch.is_err());
     }
+
+    // ── parse_shortstat ─────────────────────────────────────────
+
+    #[test]
+    fn parse_shortstat_full_output() {
+        let input = " 3 files changed, 10 insertions(+), 5 deletions(-)";
+        assert_eq!(parse_shortstat(input), (10, 5));
+    }
+
+    #[test]
+    fn parse_shortstat_insertions_only() {
+        let input = " 1 file changed, 7 insertions(+)";
+        assert_eq!(parse_shortstat(input), (7, 0));
+    }
+
+    #[test]
+    fn parse_shortstat_deletions_only() {
+        let input = " 2 files changed, 3 deletions(-)";
+        assert_eq!(parse_shortstat(input), (0, 3));
+    }
+
+    #[test]
+    fn parse_shortstat_empty_input() {
+        assert_eq!(parse_shortstat(""), (0, 0));
+    }
+
+    #[test]
+    fn parse_shortstat_whitespace_only() {
+        assert_eq!(parse_shortstat("  \n  "), (0, 0));
+    }
+
+    // ── list_worktrees with linked worktree ─────────────────────
+
+    #[tokio::test]
+    async fn test_list_worktrees_returns_linked_worktree() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+
+        // Create a worktree — this exercises git2::Repository::worktrees()
+        // and git2::Repository::find_worktree() in list_worktrees.
+        let wt_path = create_worktree(repo_path, "linked-branch", "main", None)
+            .await
+            .expect("create_worktree should succeed");
+        assert!(wt_path.exists());
+
+        let worktrees = list_worktrees(repo_path, None).expect("list_worktrees should succeed");
+        assert_eq!(worktrees.len(), 1, "should find exactly the linked worktree");
+        assert_eq!(worktrees[0].name, "linked-branch");
+        assert_eq!(worktrees[0].branch, "linked-branch");
+        assert!(!worktrees[0].path.is_empty());
+
+        // Clean up
+        delete_worktree(repo_path, "linked-branch", true, None)
+            .await
+            .expect("delete should succeed");
+    }
+
+    #[tokio::test]
+    async fn test_list_worktrees_filters_by_base_path() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+
+        // Use a custom base_path so the worktree is created inside a known temp dir
+        // (avoids collisions with other tests that create worktrees in the repo parent).
+        let base_dir = TempDir::new().expect("create base temp dir");
+        let base_path = base_dir.path().to_str().unwrap();
+        let branch = "filter-test-wt";
+
+        let wt_path = create_worktree(repo_path, branch, "main", Some(base_path))
+            .await
+            .expect("create_worktree should succeed");
+        assert!(wt_path.exists());
+
+        // Filter with the actual base — should return the worktree
+        let found = list_worktrees(repo_path, Some(base_path))
+            .expect("list_worktrees should succeed");
+        assert_eq!(found.len(), 1, "should find the worktree under the base path");
+
+        // Filter with a different existing directory — should return empty
+        let other_dir = TempDir::new().expect("create other temp dir");
+        let other_path = other_dir.path().to_str().unwrap();
+        let filtered = list_worktrees(repo_path, Some(other_path))
+            .expect("list_worktrees should succeed");
+        assert!(
+            filtered.is_empty(),
+            "should find no worktrees under a different base path"
+        );
+
+        // Clean up
+        delete_worktree(repo_path, branch, true, Some(base_path))
+            .await
+            .expect("delete should succeed");
+    }
+
+    // ── get_status exercises git2 branch resolution ─────────────
+
+    #[tokio::test]
+    async fn test_get_status_on_worktree() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+
+        let wt_path = create_worktree(repo_path, "status-branch", "main", None)
+            .await
+            .expect("create_worktree should succeed");
+
+        let wt_path_str = wt_path.to_str().unwrap();
+        let status = get_status(wt_path_str).expect("get_status should succeed on worktree");
+        assert_eq!(status.branch, "status-branch");
+
+        // Clean up
+        delete_worktree(repo_path, "status-branch", true, None)
+            .await
+            .expect("delete should succeed");
+    }
 }

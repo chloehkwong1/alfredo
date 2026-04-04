@@ -267,6 +267,7 @@ mod tests {
             worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
+            archive_script: None,
         };
         config
             .column_overrides

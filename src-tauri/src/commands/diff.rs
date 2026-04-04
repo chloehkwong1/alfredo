@@ -1154,4 +1154,238 @@ mod tests {
         let result = ignored_paths(repo_path, &[]);
         assert!(result.is_empty());
     }
+
+    // ── Diff::from_buffer (exercises the get_uncommitted_diff code path) ─
+
+    /// Generate a real unified diff using git CLI (same approach as get_uncommitted_diff).
+    fn generate_cli_diff(repo_path: &str, old_hash: &str, new_hash: &str) -> Vec<u8> {
+        let output = std::process::Command::new("git")
+            .args(["diff", old_hash, new_hash, "--no-ext-diff", "-p", "--no-color"])
+            .current_dir(repo_path)
+            .output()
+            .expect("git diff should succeed");
+        assert!(output.status.success(), "git diff failed: {}", String::from_utf8_lossy(&output.stderr));
+        output.stdout
+    }
+
+    #[test]
+    fn diff_from_buffer_round_trips_through_parse() {
+        // Generate a real diff via git CLI, then parse via Diff::from_buffer +
+        // diff_to_files — exactly the code path get_uncommitted_diff uses.
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("hello.txt"), "line one\nline three\nline four\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("hello.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        std::fs::write(dir.path().join("hello.txt"), "line one\nline two\nline three\nline four\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("hello.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "add line two");
+
+        let repo_path = dir.path().to_str().unwrap();
+        let patch_bytes = generate_cli_diff(repo_path, &oid1.to_string(), &oid2.to_string());
+
+        // Parse via from_buffer — this is the API boundary under test
+        let parsed_diff = git2::Diff::from_buffer(&patch_bytes)
+            .expect("from_buffer should round-trip a real CLI diff");
+        let files = diff_to_files(&parsed_diff).expect("diff_to_files should succeed");
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "hello.txt");
+        assert_eq!(files[0].status, "modified");
+        assert_eq!(files[0].additions, 1);
+        assert_eq!(files[0].deletions, 0);
+        assert_eq!(files[0].hunks.len(), 1);
+
+        let addition = files[0].hunks[0]
+            .lines
+            .iter()
+            .find(|l| l.line_type == "addition")
+            .expect("should have an addition line");
+        assert!(addition.content.contains("line two"));
+        assert!(addition.new_line_number.is_some());
+    }
+
+    #[test]
+    fn diff_from_buffer_handles_multiple_files() {
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("a.txt"), "existing\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("a.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        std::fs::write(dir.path().join("a.txt"), "existing\nadded in a\n").unwrap();
+        std::fs::write(dir.path().join("b.txt"), "new file line 1\nnew file line 2\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("a.txt")).unwrap();
+        index.add_path(std::path::Path::new("b.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "multi-file change");
+
+        let repo_path = dir.path().to_str().unwrap();
+        let patch_bytes = generate_cli_diff(repo_path, &oid1.to_string(), &oid2.to_string());
+
+        let parsed_diff = git2::Diff::from_buffer(&patch_bytes)
+            .expect("from_buffer should parse multi-file diff");
+        let files = diff_to_files(&parsed_diff).expect("diff_to_files should succeed");
+
+        assert_eq!(files.len(), 2);
+
+        let a = files.iter().find(|f| f.path == "a.txt").expect("should have a.txt");
+        assert_eq!(a.status, "modified");
+        assert_eq!(a.additions, 1);
+
+        let b = files.iter().find(|f| f.path == "b.txt").expect("should have b.txt");
+        assert_eq!(b.status, "added");
+        assert_eq!(b.additions, 2);
+        assert_eq!(b.deletions, 0);
+    }
+
+    #[test]
+    fn diff_from_buffer_handles_deletion_diff() {
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("gone.txt"), "line one\nline two\nline three\n").unwrap();
+        std::fs::write(dir.path().join("keep.txt"), "stay\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("gone.txt")).unwrap();
+        index.add_path(std::path::Path::new("keep.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        let mut index = repo.index().unwrap();
+        index.remove_path(std::path::Path::new("gone.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "delete file");
+
+        let repo_path = dir.path().to_str().unwrap();
+        let patch_bytes = generate_cli_diff(repo_path, &oid1.to_string(), &oid2.to_string());
+
+        let parsed_diff = git2::Diff::from_buffer(&patch_bytes)
+            .expect("from_buffer should parse deletion diff");
+        let files = diff_to_files(&parsed_diff).expect("diff_to_files should succeed");
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "gone.txt");
+        assert_eq!(files[0].status, "deleted");
+        assert_eq!(files[0].additions, 0);
+        assert_eq!(files[0].deletions, 3);
+    }
+
+    #[test]
+    fn diff_from_buffer_empty_input_yields_no_files() {
+        let diff = git2::Diff::from_buffer(b"").expect("from_buffer should handle empty input");
+        let files = diff_to_files(&diff).expect("diff_to_files should succeed");
+        assert!(files.is_empty());
+    }
+
+    // ── get_commits (exercises git2 revwalk API) ────────────────
+
+    #[test]
+    fn get_commits_returns_branch_only_commits() {
+        let (dir, repo) = create_test_repo();
+
+        // Create initial commit on main
+        std::fs::write(dir.path().join("f.txt"), "v1").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("f.txt")).unwrap();
+        index.write().unwrap();
+        let base_oid = create_commit(&repo, "base commit");
+
+        // Create a "main" branch at this commit for resolve_default_branch
+        let base_commit = repo.find_commit(base_oid).unwrap();
+        repo.branch("main", &base_commit, true).unwrap();
+
+        // Create a feature branch and add commits
+        repo.set_head("refs/heads/main").unwrap();
+        let feature_branch = repo.branch("feature", &base_commit, false).unwrap();
+        repo.set_head(feature_branch.get().name().unwrap()).unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force())).unwrap();
+
+        std::fs::write(dir.path().join("f.txt"), "v2").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("f.txt")).unwrap();
+        index.write().unwrap();
+        let _feat_oid = create_commit(&repo, "feature commit 1");
+
+        std::fs::write(dir.path().join("f.txt"), "v3").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("f.txt")).unwrap();
+        index.write().unwrap();
+        let _feat_oid2 = create_commit(&repo, "feature commit 2");
+
+        // Exercise the revwalk API the same way get_commits does
+        let default_oid = resolve_default_branch(&repo, Some("main")).unwrap();
+        let head_oid = repo.head().unwrap().resolve().unwrap().target().unwrap();
+
+        let mut revwalk = repo.revwalk().unwrap();
+        revwalk.push(head_oid).unwrap();
+        revwalk.hide(default_oid).unwrap();
+        revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME).unwrap();
+
+        let commits: Vec<git2::Oid> = revwalk.filter_map(|r| r.ok()).collect();
+        assert_eq!(commits.len(), 2, "should find exactly the 2 feature commits");
+
+        // Verify we can read commit data (exercises find_commit + author/message APIs)
+        for oid in &commits {
+            let commit = repo.find_commit(*oid).unwrap();
+            assert!(!commit.message().unwrap_or("").is_empty());
+            assert!(commit.author().name().is_some());
+            assert!(commit.time().seconds() > 0);
+        }
+    }
+
+    // ── get_diff_for_commit (exercises tree-to-tree diff for single commit) ─
+
+    #[test]
+    fn diff_for_commit_against_parent() {
+        let (dir, repo) = create_test_repo();
+
+        // Initial commit
+        std::fs::write(dir.path().join("file.rs"), "fn main() {}\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("file.rs")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        // Second commit modifies the file
+        std::fs::write(dir.path().join("file.rs"), "fn main() {\n    println!(\"hello\");\n}\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("file.rs")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "add println");
+
+        // Replicate get_diff_for_commit logic: diff commit vs parent
+        let commit = repo.find_commit(oid2).unwrap();
+        let commit_tree = commit.tree().unwrap();
+        let parent_tree = commit.parent(0).unwrap().tree().unwrap();
+
+        let mut opts = DiffOptions::new();
+        let diff = repo
+            .diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), Some(&mut opts))
+            .unwrap();
+
+        let files = diff_to_files(&diff).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "file.rs");
+        assert!(files[0].additions > 0, "should have additions");
+
+        // First commit (no parent): diff against empty tree
+        let first_commit = repo.find_commit(oid1).unwrap();
+        let first_tree = first_commit.tree().unwrap();
+        assert_eq!(first_commit.parent_count(), 0);
+
+        let diff_initial = repo
+            .diff_tree_to_tree(None, Some(&first_tree), Some(&mut opts))
+            .unwrap();
+        let initial_files = diff_to_files(&diff_initial).unwrap();
+        assert_eq!(initial_files.len(), 1);
+        assert_eq!(initial_files[0].status, "added");
+    }
 }

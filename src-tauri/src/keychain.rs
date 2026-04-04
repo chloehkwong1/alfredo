@@ -110,3 +110,77 @@ pub fn delete(account: &str) -> Result<(), AppError> {
     secrets.remove(account);
     save_secrets(&secrets)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // In debug builds, keychain operations use file-based storage.
+    // In release builds, they use the real OS keychain (keyring crate).
+    //
+    // These tests exercise whichever backend is active for the current
+    // build profile. For debug (cargo test), that means file-based.
+    // For release (cargo test --release), that means the real keyring
+    // crate API — which is exactly what we want to catch breakage on
+    // crate updates.
+
+    const TEST_ACCOUNT: &str = "alfredo-test-keychain-unit";
+
+    /// Clean up any leftover test entry before/after each test.
+    fn cleanup() {
+        let _ = delete(TEST_ACCOUNT);
+    }
+
+    #[test]
+    fn store_and_retrieve_round_trip() {
+        cleanup();
+        store(TEST_ACCOUNT, "s3cret-value").expect("store should succeed");
+        let retrieved = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        assert_eq!(retrieved, Some("s3cret-value".to_string()));
+        cleanup();
+    }
+
+    #[test]
+    fn retrieve_missing_returns_none() {
+        cleanup();
+        let result = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn delete_existing_entry() {
+        cleanup();
+        store(TEST_ACCOUNT, "to-be-deleted").expect("store should succeed");
+        delete(TEST_ACCOUNT).expect("delete should succeed");
+        let result = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn delete_nonexistent_is_noop() {
+        cleanup();
+        // Should not error when deleting something that doesn't exist
+        let result = delete(TEST_ACCOUNT);
+        assert!(result.is_ok(), "delete of nonexistent entry should succeed");
+    }
+
+    #[test]
+    fn overwrite_existing_entry() {
+        cleanup();
+        store(TEST_ACCOUNT, "first").expect("store should succeed");
+        store(TEST_ACCOUNT, "second").expect("overwrite should succeed");
+        let retrieved = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        assert_eq!(retrieved, Some("second".to_string()));
+        cleanup();
+    }
+
+    #[test]
+    fn handles_special_characters_in_secret() {
+        cleanup();
+        let special = "p@$$w0rd!#%^&*()_+-=[]{}|;':\",./<>?`~";
+        store(TEST_ACCOUNT, special).expect("store should succeed");
+        let retrieved = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        assert_eq!(retrieved, Some(special.to_string()));
+        cleanup();
+    }
+}
