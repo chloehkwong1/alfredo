@@ -12,6 +12,7 @@ import { Button } from "../ui/Button";
 import logoSvg from "../../assets/logo-cat.svg";
 import { SettingsStatusBar } from "./SettingsStatusBar";
 import { TerminalSearchBar } from "./TerminalSearchBar";
+import { TerminalLoadingScreen } from "./TerminalLoadingScreen";
 import {
   resolveSettings,
   buildClaudeArgs,
@@ -109,7 +110,9 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const [showSearch, setShowSearch] = useState(false);
 
-  const { channelAlive, isConnected, searchAddon } = usePty({
+  const isAgentTab = mode !== "shell";
+
+  const { channelAlive, isConnected, searchAddon, hasOutput } = usePty({
     sessionKey,
     worktreeId: activeWorktreeId ?? "",
     worktreePath: worktree?.path ?? "",
@@ -262,6 +265,9 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
             searchAddon={searchAddon}
             onClose={() => setShowSearch(false)}
           />
+        )}
+        {isAgentTab && (
+          <TerminalLoadingScreen tabType={tabType} visible={!hasOutput} />
         )}
         <div ref={containerRef} className="h-full pl-1 pr-0.5" />
       </div>

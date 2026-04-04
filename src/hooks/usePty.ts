@@ -45,6 +45,8 @@ interface UsePtyReturn {
   agentState: AgentState;
   isConnected: boolean;
   channelAlive: boolean;
+  /** True once the PTY session has produced at least one byte of output. */
+  hasOutput: boolean;
 }
 
 /**
@@ -67,6 +69,7 @@ export function usePty({
   const [agentState, setAgentState] = useState<AgentState>("notRunning");
   const [isConnected, setIsConnected] = useState(false);
   const [channelAlive, setChannelAlive] = useState(true);
+  const [hasOutput, setHasOutput] = useState(false);
   const sessionRef = useRef<ManagedSession | null>(null);
 
   // Use refs for args and startupCommand so they don't trigger re-attach cycles.
@@ -89,10 +92,9 @@ export function usePty({
     let resizeObserver: ResizeObserver | null = null;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Reset channelAlive immediately so the disconnect banner disappears
-    // while we spin up the new session. Only claude tabs should update the
-    // worktree's channelAlive — shell/server tabs are independent processes.
+    // Reset state immediately so UI updates while we spin up the new session.
     setChannelAlive(true);
+    setHasOutput(false);
     if (mode === "claude") {
       useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: true });
     }
@@ -164,6 +166,14 @@ export function usePty({
         }
       });
       resizeObserver.observe(container);
+
+      // If the session already has output (re-attach), mark immediately.
+      // Otherwise register a callback to fire on first output byte.
+      if (session.lastOutputAt > 0) {
+        setHasOutput(true);
+      } else {
+        session.onFirstOutput = () => { if (!disposed) setHasOutput(true); };
+      }
 
       setTerminal(term);
       setSearchAddon(session.searchAddon);
@@ -270,6 +280,7 @@ export function usePty({
       // Detach the terminal DOM element — do NOT close the PTY session.
       // Move the terminal element out of the container so xterm keeps its state.
       const session = sessionRef.current;
+      if (session) session.onFirstOutput = undefined;
       if (session?.terminal.element && container.contains(session.terminal.element)) {
         container.removeChild(session.terminal.element);
       }
@@ -281,5 +292,5 @@ export function usePty({
     };
   }, [sessionKey, worktreeId, worktreePath, mode, containerRef, reconnectKey, argsResolved]);
 
-  return { terminal, searchAddon, agentState, isConnected, channelAlive };
+  return { terminal, searchAddon, agentState, isConnected, channelAlive, hasOutput };
 }

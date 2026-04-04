@@ -93,6 +93,8 @@ export interface ManagedSession {
   /** True once a startup command has been written to this session's PTY.
    *  Prevents StrictMode double-fire from executing the command twice. */
   startupCommandSent: boolean;
+  /** Optional callback fired once when the first output byte arrives. */
+  onFirstOutput?: () => void;
 }
 
 /**
@@ -223,7 +225,12 @@ function createSessionChannel(
     switch (event.event) {
       case "output": {
         const bytes = stripClearScrollback(new Uint8Array(event.data));
+        const wasFirst = session.lastOutputAt === 0;
         session.lastOutputAt = Date.now();
+        if (wasFirst && session.onFirstOutput) {
+          session.onFirstOutput();
+          session.onFirstOutput = undefined;
+        }
         sessionManager.scheduleWrite(session, bytes);
         sessionManager.appendToBuffer(session, bytes);
         break;
