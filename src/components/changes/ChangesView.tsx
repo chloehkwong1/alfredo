@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DiffFileCard } from "./DiffFileCard";
-import { discardFile, discardAllUncommitted } from "../../api";
+import { discardFile, discardAllUncommitted, openInEditor } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import { Button } from "../ui/Button";
@@ -9,7 +9,7 @@ import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { useSendToClaude } from "../../hooks/useSendToClaude";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
-import { Search, Trash2, Maximize2, Minimize2, MessageSquare, Copy, Check } from "lucide-react";
+import { Search, Trash2, Maximize2, Minimize2, MessageSquare, Copy, Check, ExternalLink } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { DiffSearchBar } from "./DiffSearchBar";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
@@ -115,9 +115,11 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   } = useFileNavigation(displayFiles, viewMode);
 
   const [expandFullFile, setExpandFullFile] = useState(false);
+  const [copiedPath, setCopiedPath] = useState(false);
 
   useEffect(() => {
     setExpandFullFile(false);
+    setCopiedPath(false);
     // Clear PR comment highlight when switching files
     setHighlightComment((prev) => {
       if (prev && prev.filePath !== focusedFilePath) return null;
@@ -301,14 +303,46 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
           <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
             {focusedFilePath ? (
               <>
-                {/* Focused file toolbar */}
-                <span className="text-[11px] font-mono text-text-primary truncate">
-                  {focusedFilePath.split("/").pop()}
-                </span>
-                <span className="text-[10px] text-text-tertiary truncate hidden sm:inline">
-                  {focusedFilePath.split("/").slice(0, -1).join("/")}
-                </span>
+                {/* Focused file toolbar — click path to copy */}
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 min-w-0 cursor-copy group/path"
+                  onClick={() => {
+                    navigator.clipboard.writeText(focusedFilePath);
+                    setCopiedPath(true);
+                    setTimeout(() => setCopiedPath(false), 1500);
+                  }}
+                  title="Click to copy file path"
+                >
+                  <span className="text-[11px] font-mono text-text-primary truncate">
+                    {focusedFilePath.split("/").pop()}
+                  </span>
+                  <span className="text-[10px] text-text-tertiary truncate hidden sm:inline">
+                    {focusedFilePath.split("/").slice(0, -1).join("/")}
+                  </span>
+                  {copiedPath
+                    ? <Check size={11} className="flex-shrink-0 text-diff-added" />
+                    : <Copy size={11} className="flex-shrink-0 text-text-tertiary opacity-0 group-hover/path:opacity-100 transition-opacity" />
+                  }
+                </button>
                 <div className="flex items-center gap-1.5 ml-auto">
+                  <IconButton
+                    size="sm"
+                    label="Open in editor"
+                    className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
+                    onClick={() => {
+                      if (appCfg) {
+                        openInEditor(
+                          `${repoPath}/${focusedFilePath}`,
+                          appCfg.preferredEditor,
+                          appCfg.customEditorPath ?? undefined,
+                        );
+                      }
+                    }}
+                  >
+                    <ExternalLink size={12} />
+                  </IconButton>
+                  <span className="text-text-tertiary/50">|</span>
                   <IconButton
                     size="sm"
                     label={expandFullFile ? "Show diffs only" : "Expand full file"}
