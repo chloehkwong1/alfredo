@@ -35,6 +35,16 @@ pub async fn create_worktree_from(
     }
 }
 
+/// Determine whether a branch is stacked on another feature branch
+/// (i.e. its base is neither the repo default branch nor itself).
+fn is_stacked_branch(base_branch: &str, default_remote: &str, branch_name: &str) -> bool {
+    let default_short = default_remote.strip_prefix("origin/").unwrap_or(default_remote);
+    base_branch != default_short
+        && base_branch != default_remote
+        && base_branch != branch_name
+        && !base_branch.is_empty()
+}
+
 /// Create a worktree with an explicit branch name and base.
 #[tauri::command]
 pub async fn create_worktree(
@@ -71,11 +81,7 @@ pub async fn create_worktree(
     // Detect stack parent: if the base branch is not the repo's default,
     // this is a stacked branch — persist the relationship.
     let default_remote = git_manager::resolve_default_remote_branch(&repo_path);
-    let default_short = default_remote.strip_prefix("origin/").unwrap_or(&default_remote);
-    let is_stacked = base_branch != default_short
-        && base_branch != default_remote
-        && base_branch != branch_name
-        && !base_branch.is_empty();
+    let is_stacked = is_stacked_branch(&base_branch, &default_remote, &branch_name);
 
     let stack_parent = if is_stacked {
         let parent = base_branch.strip_prefix("origin/").unwrap_or(&base_branch);
@@ -428,6 +434,112 @@ async fn ensure_claude_excludes(repo_path: &str) {
             "[alfredo] failed to update git excludes at {}: {e}",
             exclude_path.display()
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── is_stacked_branch ──────────────────────────────────────
+
+    #[test]
+    fn not_stacked_when_base_is_default_short() {
+        assert!(!is_stacked_branch("main", "origin/main", "feature-1"));
+    }
+
+    #[test]
+    fn not_stacked_when_base_is_default_remote() {
+        assert!(!is_stacked_branch("origin/main", "origin/main", "feature-1"));
+    }
+
+    #[test]
+    fn not_stacked_when_base_equals_branch() {
+        assert!(!is_stacked_branch("feature-1", "origin/main", "feature-1"));
+    }
+
+    #[test]
+    fn not_stacked_when_base_empty() {
+        assert!(!is_stacked_branch("", "origin/main", "feature-1"));
+    }
+
+    #[test]
+    fn stacked_when_base_is_different_feature() {
+        assert!(is_stacked_branch("feature-base", "origin/main", "feature-child"));
+    }
+
+    #[test]
+    fn stacked_with_develop_default() {
+        assert!(is_stacked_branch("feature-1", "origin/develop", "feature-2"));
+    }
+
+    // ── ensure_claude_excludes ─────────────────────────────────
+
+    #[tokio::test]
+    async fn adds_exclude_entries_to_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo_path = dir.path().to_str().unwrap();
+
+        let info_dir = dir.path().join(".git").join("info");
+        std::fs::create_dir_all(&info_dir).unwrap();
+        std::fs::write(info_dir.join("exclude"), "").unwrap();
+
+        ensure_claude_excludes(repo_path).await;
+
+        let content = std::fs::read_to_string(info_dir.join("exclude")).unwrap();
+        assert!(content.contains(".claude/CLAUDE.local.md"));
+        assert!(content.contains(".claude/settings.local.json"));
+    }
+
+    #[tokio::test]
+    async fn does_not_duplicate_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo_path = dir.path().to_str().unwrap();
+
+        let info_dir = dir.path().join(".git").join("info");
+        std::fs::create_dir_all(&info_dir).unwrap();
+        std::fs::write(info_dir.join("exclude"), "").unwrap();
+
+        ensure_claude_excludes(repo_path).await;
+        ensure_claude_excludes(repo_path).await;
+
+        let content = std::fs::read_to_string(info_dir.join("exclude")).unwrap();
+        let count = content.matches(".claude/CLAUDE.local.md").count();
+        assert_eq!(count, 1, "entry should appear exactly once");
+    }
+
+    #[tokio::test]
+    async fn preserves_existing_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo_path = dir.path().to_str().unwrap();
+
+        let info_dir = dir.path().join(".git").join("info");
+        std::fs::create_dir_all(&info_dir).unwrap();
+        std::fs::write(info_dir.join("exclude"), "*.log\n").unwrap();
+
+        ensure_claude_excludes(repo_path).await;
+
+        let content = std::fs::read_to_string(info_dir.join("exclude")).unwrap();
+        assert!(content.contains("*.log"));
+        assert!(content.contains(".claude/CLAUDE.local.md"));
+    }
+
+    #[tokio::test]
+    async fn handles_file_without_trailing_newline() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo_path = dir.path().to_str().unwrap();
+
+        let info_dir = dir.path().join(".git").join("info");
+        std::fs::create_dir_all(&info_dir).unwrap();
+        std::fs::write(info_dir.join("exclude"), "*.log").unwrap();
+
+        ensure_claude_excludes(repo_path).await;
+
+        let content = std::fs::read_to_string(info_dir.join("exclude")).unwrap();
+        assert!(content.contains("*.log"));
+        assert!(content.contains(".claude/CLAUDE.local.md"));
+        // Should have a newline between existing and new content
+        assert!(!content.contains("*.log.claude"));
     }
 }
 
