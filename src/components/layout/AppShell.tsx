@@ -97,6 +97,7 @@ function AppShell() {
     addRepo,
     removeRepo,
     updateRepoMode,
+    switchRepo,
     selectedRepos,
     repoColors,
     repoDisplayNames,
@@ -218,6 +219,7 @@ function AppShell() {
   const handleRepoConfigured = useCallback(async (result: { mode: RepoMode; selectedWorktreeIds?: string[] }) => {
     if (!setupRepoPath) return;
     await updateRepoMode(setupRepoPath, result.mode);
+    await switchRepo(setupRepoPath);
     setSetupDialogOpen(false);
     if (result.mode === "worktree" && !result.selectedWorktreeIds) {
       setCreateDialogOpen(true);
@@ -225,7 +227,7 @@ function AppShell() {
     // If result has selectedWorktreeIds, worktrees will be loaded by useSessionRestore
     // when the repo becomes active — no extra action needed here.
     setSetupRepoPath(null);
-  }, [setupRepoPath, updateRepoMode]);
+  }, [setupRepoPath, updateRepoMode, switchRepo]);
 
 
   // When removing a repo
