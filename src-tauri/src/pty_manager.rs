@@ -597,13 +597,13 @@ fn write_hooks_config(
     Ok(())
 }
 
-/// Remove Alfredo's hooks from `.claude/settings.local.json` in the given
-/// worktree directory. Leaves user-defined hooks intact. If the hooks object
-/// becomes empty after cleanup, removes it to keep the file tidy.
-fn remove_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
-    let path = std::path::Path::new(worktree_path)
-        .join(".claude")
-        .join("settings.local.json");
+/// Remove Alfredo's hooks from an agent config file in the given worktree
+/// directory. `config_subpath` is the relative path from the worktree root
+/// (e.g. `.claude/settings.local.json`). Leaves user-defined hooks intact.
+/// If the hooks object becomes empty after cleanup, removes it to keep the
+/// file tidy.
+fn remove_agent_hooks_config(worktree_path: &str, config_subpath: &str) -> Result<(), std::io::Error> {
+    let path = std::path::Path::new(worktree_path).join(config_subpath);
 
     if !path.exists() {
         return Ok(());
@@ -645,94 +645,16 @@ fn remove_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-/// Remove Alfredo's hooks from `.gemini/settings.json` in the given worktree
-/// directory. Leaves user-defined hooks intact.
-fn remove_gemini_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
-    let path = std::path::Path::new(worktree_path)
-        .join(".gemini")
-        .join("settings.json");
-
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let contents = std::fs::read_to_string(&path)?;
-    let mut config: serde_json::Value =
-        serde_json::from_str(&contents).unwrap_or_else(|_| serde_json::json!({}));
-
-    let Some(hooks) = config.get_mut("hooks").and_then(|h| h.as_object_mut()) else {
-        return Ok(());
-    };
-
-    let mut empty_keys = Vec::new();
-    for (key, value) in hooks.iter_mut() {
-        if let Some(arr) = value.as_array_mut() {
-            arr.retain(|item| !is_alfredo_hook_entry(item));
-            if arr.is_empty() {
-                empty_keys.push(key.clone());
-            }
-        }
-    }
-    for key in &empty_keys {
-        hooks.remove(key);
-    }
-
-    if hooks.is_empty() {
-        if let Some(obj) = config.as_object_mut() {
-            obj.remove("hooks");
-        }
-    }
-
-    let json = serde_json::to_string_pretty(&config)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-    std::fs::write(&path, json)?;
-
-    Ok(())
+fn remove_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
+    remove_agent_hooks_config(worktree_path, ".claude/settings.local.json")
 }
 
-/// Remove Alfredo's hooks from `.codex/hooks.json` in the given worktree
-/// directory. Leaves user-defined hooks intact.
+fn remove_gemini_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
+    remove_agent_hooks_config(worktree_path, ".gemini/settings.json")
+}
+
 fn remove_codex_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
-    let path = std::path::Path::new(worktree_path)
-        .join(".codex")
-        .join("hooks.json");
-
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let contents = std::fs::read_to_string(&path)?;
-    let mut config: serde_json::Value =
-        serde_json::from_str(&contents).unwrap_or_else(|_| serde_json::json!({}));
-
-    let Some(hooks) = config.get_mut("hooks").and_then(|h| h.as_object_mut()) else {
-        return Ok(());
-    };
-
-    let mut empty_keys = Vec::new();
-    for (key, value) in hooks.iter_mut() {
-        if let Some(arr) = value.as_array_mut() {
-            arr.retain(|item| !is_alfredo_hook_entry(item));
-            if arr.is_empty() {
-                empty_keys.push(key.clone());
-            }
-        }
-    }
-    for key in &empty_keys {
-        hooks.remove(key);
-    }
-
-    if hooks.is_empty() {
-        if let Some(obj) = config.as_object_mut() {
-            obj.remove("hooks");
-        }
-    }
-
-    let json = serde_json::to_string_pretty(&config)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-    std::fs::write(&path, json)?;
-
-    Ok(())
+    remove_agent_hooks_config(worktree_path, ".codex/hooks.json")
 }
 
 /// Write Alfredo state hooks to `.gemini/settings.json` in the worktree.

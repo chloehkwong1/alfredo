@@ -1,11 +1,12 @@
 import { create } from "zustand";
+import { AGENT_TAB_TYPES, isAgentTab } from "../types";
 import type { TabType, WorkspaceTab } from "../types";
 
 /** Read the default agent from localStorage. Falls back to "claude". */
 function getDefaultAgent(): TabType {
   try {
     const stored = localStorage.getItem("alfredo-default-agent");
-    if (stored && ["claude", "codex", "gemini"].includes(stored)) {
+    if (stored && AGENT_TAB_TYPES.has(stored as TabType)) {
       return stored as TabType;
     }
   } catch {
@@ -56,8 +57,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     const cleaned = migrated.filter((t) => validTypes.has(t.type));
     const hadStale = cleaned.length !== migrated.length;
 
-    const agentTypes = new Set(["claude", "codex", "gemini"]);
-    const hasAgent = cleaned.some((t) => agentTypes.has(t.type));
+    const hasAgent = cleaned.some((t) => isAgentTab(t));
     const hasShell = cleaned.some((t) => t.type === "shell");
 
     if (hasAgent && hasShell && !hadStale) return;
@@ -83,7 +83,7 @@ export const useTabStore = create<TabState>((set, get) => ({
         type: "shell",
         label: "Terminal",
       };
-      const lastAgentIdx = tabs.reduce((acc, t, i) => (agentTypes.has(t.type) ? i : acc), -1);
+      const lastAgentIdx = tabs.reduce((acc, t, i) => (isAgentTab(t) ? i : acc), -1);
       tabs.splice(lastAgentIdx + 1, 0, shellTab);
     }
 
@@ -130,9 +130,9 @@ export const useTabStore = create<TabState>((set, get) => ({
       const filtered = existing.filter((t) => t.id !== tabId);
       // Don't allow removing the last tab
       if (filtered.length === 0) return state;
-      // Don't allow removing the last claude or shell tab
+      // Don't allow removing the last agent or shell tab
       if (
-        (tabToRemove.type === "claude" && filtered.filter((t) => t.type === "claude").length === 0) ||
+        (isAgentTab(tabToRemove) && !filtered.some((t) => isAgentTab(t))) ||
         (tabToRemove.type === "shell" && filtered.filter((t) => t.type === "shell").length === 0)
       )
         return state;

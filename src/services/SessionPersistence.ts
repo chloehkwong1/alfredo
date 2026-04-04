@@ -1,4 +1,5 @@
 import { saveSessionFile, loadSessionFile, deleteSessionFile } from "../api";
+import { isAgentTab } from "../types";
 import type { Annotation, WorkspaceTab, LayoutNode, Pane, KanbanColumn, DiffViewMode, PrPanelState } from "../types";
 
 export interface SessionData {
@@ -92,7 +93,7 @@ export async function saveAllSessions(
     const tabs = getTabs(wtId).filter((t) => t.type !== "server");
     const terminals: Record<string, { scrollback: string }> = {};
     for (const tab of tabs) {
-      if (tab.type === "claude" || tab.type === "shell") {
+      if (isAgentTab(tab) || tab.type === "shell") {
         const scrollback = getScrollback(tab.id);
         if (scrollback) {
           terminals[tab.id] = { scrollback };

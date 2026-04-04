@@ -1,6 +1,6 @@
 import type { CheckRun, WorkflowRunLog } from "../types";
 import { rerunFailedChecks as apiRerunFailedChecks, getWorkflowLog } from "../api";
-import { getClaudeSessionInfo, writeToSession } from "./agentMessenger";
+import { getAgentSessionInfo, writeToSession } from "./agentMessenger";
 import { sessionManager } from "./sessionManager";
 
 /**
@@ -95,7 +95,7 @@ export async function fixMergeConflicts(
  * (the caller should spawn one).
  */
 function sendToAgent(worktreeId: string, prompt: string): boolean {
-  const { sessionKey } = getClaudeSessionInfo(worktreeId);
+  const { sessionKey } = getAgentSessionInfo(worktreeId);
 
   const session = sessionManager.getSession(sessionKey);
   if (!session || !session.sessionId) return false;

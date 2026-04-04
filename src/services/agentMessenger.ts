@@ -3,15 +3,16 @@ import { resolveSettings, buildClaudeArgs } from "./claudeSettingsResolver";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { sessionManager } from "./sessionManager";
+import { findAgentTab } from "../types";
 
 /**
- * Find the Claude tab and its session key for a given worktree.
+ * Find the first agent tab and its session key for a given worktree.
  */
-export function getClaudeSessionInfo(worktreeId: string) {
+export function getAgentSessionInfo(worktreeId: string) {
   const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-  const claudeTab = tabs.find((t) => t.type === "claude");
-  const sessionKey = claudeTab?.id ?? worktreeId;
-  return { claudeTab, sessionKey };
+  const agentTab = findAgentTab(tabs);
+  const sessionKey = agentTab?.id ?? worktreeId;
+  return { agentTab, sessionKey };
 }
 
 /**
@@ -23,7 +24,7 @@ export async function ensureAgentSession(
   repoPath: string,
   branch: string | undefined,
 ) {
-  const { sessionKey } = getClaudeSessionInfo(worktreeId);
+  const { sessionKey } = getAgentSessionInfo(worktreeId);
 
   const existing = sessionManager.getSession(sessionKey);
   if (existing) return existing;
@@ -49,14 +50,14 @@ export async function writeToSession(sessionId: string, message: string): Promis
 }
 
 /**
- * Focus the Claude tab in the layout for a given worktree.
+ * Focus the first agent tab in the layout for a given worktree.
  */
-export function focusClaudeTab(worktreeId: string): void {
-  const { claudeTab } = getClaudeSessionInfo(worktreeId);
-  if (!claudeTab) return;
+export function focusAgentTab(worktreeId: string): void {
+  const { agentTab } = getAgentSessionInfo(worktreeId);
+  if (!agentTab) return;
   const layout = useLayoutStore.getState();
-  const paneId = layout.findPaneForTab(worktreeId, claudeTab.id);
+  const paneId = layout.findPaneForTab(worktreeId, agentTab.id);
   if (paneId) {
-    layout.setPaneActiveTab(worktreeId, paneId, claudeTab.id);
+    layout.setPaneActiveTab(worktreeId, paneId, agentTab.id);
   }
 }

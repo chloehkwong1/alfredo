@@ -16,13 +16,14 @@ import {
   resolveSettings,
   buildClaudeArgs,
 } from "../../services/claudeSettingsResolver";
-import type { AgentType, Annotation, TabType } from "../../types";
+import { findAgentTab } from "../../types";
+import type { Annotation, TabType } from "../../types";
 
-function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell"; agentType?: AgentType } {
+function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell" } {
   switch (tabType) {
-    case "claude": return { mode: "claude", agentType: "claudeCode" };
-    case "codex": return { mode: "codex", agentType: "codex" };
-    case "gemini": return { mode: "gemini", agentType: "geminiCli" };
+    case "claude": return { mode: "claude" };
+    case "codex": return { mode: "codex" };
+    case "gemini": return { mode: "gemini" };
     case "shell":
     case "server":
     default: return { mode: "shell" };
@@ -122,10 +123,10 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const handleSendFeedback = useCallback(async () => {
     if (!activeWorktreeId || annotations.length === 0) return;
 
-    // Find the first Claude session for this worktree to send feedback to
+    // Find the first agent session for this worktree to send feedback to
     const tabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
-    const claudeTab = tabs.find((t) => t.type === "claude");
-    const targetKey = claudeTab?.id ?? activeWorktreeId;
+    const agentTab = findAgentTab(tabs);
+    const targetKey = agentTab?.id ?? activeWorktreeId;
 
     const session = sessionManager.getSession(targetKey);
     if (!session) return;

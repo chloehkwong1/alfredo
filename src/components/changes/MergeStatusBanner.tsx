@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { findAgentTab } from "../../types";
 import type { CheckRun, PrStatus } from "../../types";
 import { formatTimeAgo } from "./formatRelativeTime";
 import { rerunFailedChecks, fixFailingChecks, fixMergeConflicts } from "../../services/prActions";
@@ -27,14 +28,14 @@ export function MergeStatusBanner({
     (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
   );
 
-  const switchToClaudeTab = () => {
+  const switchToAgentTab = () => {
     const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-    const claudeTab = tabs.find((t) => t.type === "claude");
-    if (claudeTab) {
+    const agentTab = findAgentTab(tabs);
+    if (agentTab) {
       const layout = useLayoutStore.getState();
-      const paneId = layout.findPaneForTab(worktreeId, claudeTab.id);
+      const paneId = layout.findPaneForTab(worktreeId, agentTab.id);
       if (paneId) {
-        layout.setPaneActiveTab(worktreeId, paneId, claudeTab.id);
+        layout.setPaneActiveTab(worktreeId, paneId, agentTab.id);
       }
     }
   };
@@ -52,7 +53,7 @@ export function MergeStatusBanner({
     setLoading("fix");
     try {
       const sent = await fixFailingChecks(worktreeId, repoPath, failedChecks);
-      if (sent) switchToClaudeTab();
+      if (sent) switchToAgentTab();
     } finally {
       setLoading(null);
     }
@@ -62,7 +63,7 @@ export function MergeStatusBanner({
     setLoading("conflicts");
     try {
       const sent = await fixMergeConflicts(worktreeId, pr.baseBranch ?? "main");
-      if (sent) switchToClaudeTab();
+      if (sent) switchToAgentTab();
     } finally {
       setLoading(null);
     }

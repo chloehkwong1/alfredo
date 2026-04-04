@@ -49,6 +49,7 @@ import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
+import { isAgentTab } from "../../types";
 import type { TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
@@ -263,10 +264,10 @@ function PaneTabBar({
 
   const activeTabId = pane?.activeTabId;
 
-  const allClaudeCount = tabs.filter((t) => t.type === "claude").length;
+  const allAgentCount = tabs.filter((t) => isAgentTab(t)).length;
   const allShellCount = tabs.filter((t) => t.type === "shell").length;
   function canClose(tab: WorkspaceTab) {
-    if (tab.type === "claude" && allClaudeCount <= 1) return false;
+    if (isAgentTab(tab) && allAgentCount <= 1) return false;
     if (tab.type === "shell" && allShellCount <= 1) return false;
     return true;
   }

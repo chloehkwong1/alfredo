@@ -244,6 +244,19 @@ export interface CommitInfo {
 
 export type TabType = "claude" | "codex" | "gemini" | "shell" | "server" | "diff";
 
+/** Tab types that represent an AI agent session. */
+export const AGENT_TAB_TYPES: ReadonlySet<TabType> = new Set(["claude", "codex", "gemini"]);
+
+/** Check whether a tab type is an AI agent (Claude, Codex, or Gemini). */
+export function isAgentTab(tab: { type: TabType }): boolean {
+  return AGENT_TAB_TYPES.has(tab.type);
+}
+
+/** Find the first agent tab in a list. */
+export function findAgentTab(tabs: { type: TabType; id: string }[]): typeof tabs[number] | undefined {
+  return tabs.find((t) => AGENT_TAB_TYPES.has(t.type));
+}
+
 export type DiffViewMode = "unified" | "split";
 export type PrPanelState = "open" | "collapsed";
 

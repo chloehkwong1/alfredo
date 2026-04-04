@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import { ensureAgentSession, writeToSession, focusClaudeTab } from "../services/agentMessenger";
+import { ensureAgentSession, writeToSession, focusAgentTab } from "../services/agentMessenger";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
 export function useSendToClaude(
@@ -46,7 +46,7 @@ export function useSendToClaude(
       session.waitingForInput = false;
       await writeToSession(session.sessionId, message);
       clearAnnotations(worktreeId);
-      focusClaudeTab(worktreeId);
+      focusAgentTab(worktreeId);
     } finally {
       sendingRef.current = false;
     }

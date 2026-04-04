@@ -6,6 +6,7 @@ import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRep
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
+import { findAgentTab, isAgentTab } from "../types";
 
 /**
  * Loads worktrees for all selected repos, restores persisted sessions
@@ -143,11 +144,11 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 // Restore persisted Claude session ID immediately
                 if (session.claudeSessionId) {
                   updateWorktree(wt.id, { claudeSessionId: session.claudeSessionId });
-                  // Stamp resumeSessionId on the first Claude tab so only
+                  // Stamp resumeSessionId on the first agent tab so only
                   // restored tabs auto-resume (new tabs via Cmd+T won't have it)
-                  const firstClaudeTab = session.tabs.find((t) => t.type === "claude");
-                  if (firstClaudeTab) {
-                    updateTab(wt.id, firstClaudeTab.id, { resumeSessionId: session.claudeSessionId });
+                  const firstAgentTab = findAgentTab(session.tabs);
+                  if (firstAgentTab) {
+                    updateTab(wt.id, firstAgentTab.id, { resumeSessionId: session.claudeSessionId });
                   }
                 }
 
@@ -156,11 +157,11 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   .then((claudeSessionId) => {
                     if (claudeSessionId) {
                       updateWorktree(wt.id, { claudeSessionId });
-                      // Update the first Claude tab with the latest session ID
+                      // Update the first agent tab with the latest session ID
                       const tabs = useTabStore.getState().tabs[wt.id] ?? [];
-                      const firstClaudeTab = tabs.find((t) => t.type === "claude");
-                      if (firstClaudeTab) {
-                        updateTab(wt.id, firstClaudeTab.id, { resumeSessionId: claudeSessionId });
+                      const firstAgentTab = findAgentTab(tabs);
+                      if (firstAgentTab) {
+                        updateTab(wt.id, firstAgentTab.id, { resumeSessionId: claudeSessionId });
                       }
                     }
                   })
@@ -171,7 +172,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 // Eager spawning on restore causes multiple concurrent PTY
                 // processes that can freeze the app.
                 for (const tab of session.tabs) {
-                  if (tab.type === "claude") {
+                  if (isAgentTab(tab)) {
                     markWorktreeSeen(wt.id);
                   }
                 }

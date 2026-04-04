@@ -1,4 +1,4 @@
-import { ensureAgentSession, writeToSession, focusClaudeTab } from "./agentMessenger";
+import { ensureAgentSession, writeToSession, focusAgentTab } from "./agentMessenger";
 import { stripToPlainText } from "../components/shared/MarkdownBody";
 import type { PrComment } from "../types";
 
@@ -48,5 +48,5 @@ async function _sendPrCommentToClaude(
 
   session.waitingForInput = false;
   await writeToSession(session.sessionId, message);
-  focusClaudeTab(worktreeId);
+  focusAgentTab(worktreeId);
 }

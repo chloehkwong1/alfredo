@@ -27,6 +27,7 @@ import { useTabStore } from "../../stores/tabStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { rerunFailedChecks, fixFailingChecks } from "../../services/prActions";
 import { openInEditor, openInTerminal, getAppConfig } from "../../api";
+import { findAgentTab } from "../../types";
 import type { Worktree, CheckRun, RepoEntry } from "../../types";
 
 const EMPTY_CHECK_RUNS: CheckRun[] = [];
@@ -353,11 +354,11 @@ function buildPrCommands(
     (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
   );
 
-  const switchToClaudeTab = () => {
+  const switchToAgentTab = () => {
     const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-    const claudeTab = tabs.find((t) => t.type === "claude");
-    if (claudeTab) {
-      useTabStore.getState().setActiveTabId(worktreeId, claudeTab.id);
+    const agentTab = findAgentTab(tabs);
+    if (agentTab) {
+      useTabStore.getState().setActiveTabId(worktreeId, agentTab.id);
     }
   };
 
@@ -388,7 +389,7 @@ function buildPrCommands(
       icon: Wrench,
       action: async () => {
         const sent = await fixFailingChecks(worktreeId, repoPath, failedChecks);
-        if (sent) switchToClaudeTab();
+        if (sent) switchToAgentTab();
       },
       enabled: () => true,
     });
