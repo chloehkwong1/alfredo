@@ -45,6 +45,7 @@ pub enum AgentType {
     ClaudeCode,
     Codex,
     Aider,
+    GeminiCli,
     Unknown,
 }
 

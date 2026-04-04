@@ -31,6 +31,7 @@ pub async fn spawn_pty(
         "claude" => "claude".to_string(),
         "codex" => "codex".to_string(),
         "aider" => "aider".to_string(),
+        "gemini" => "gemini".to_string(),
         _ => return Err(AppError::Pty(format!("unknown PTY mode: {mode}"))),
     };
 

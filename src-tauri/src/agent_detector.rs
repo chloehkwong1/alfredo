@@ -214,12 +214,16 @@ impl AgentDetector {
         if is_agent_launch(trimmed, "aider") {
             return (Some(AgentType::Aider), Some(AgentState::Busy));
         }
+        if is_agent_launch(trimmed, "gemini") {
+            return (Some(AgentType::GeminiCli), Some(AgentState::Busy));
+        }
 
         // ── Per-agent state detection ───────────────────────────────
         match current_type {
             AgentType::ClaudeCode => classify_claude_code(trimmed),
             AgentType::Codex => classify_codex(trimmed),
             AgentType::Aider => classify_aider(trimmed),
+            AgentType::GeminiCli => classify_gemini_cli(trimmed),
             AgentType::Unknown => classify_shell(trimmed),
         }
     }
@@ -342,6 +346,23 @@ fn classify_aider(line: &str) -> (Option<AgentType>, Option<AgentState>) {
         return (Some(AgentType::Unknown), Some(AgentState::NotRunning));
     }
 
+    if line.len() > 3 {
+        return (None, Some(AgentState::Busy));
+    }
+
+    (None, None)
+}
+
+/// Gemini CLI state detection.
+/// Gemini uses an Ink-based TUI so terminal output is complex.
+/// Hooks are the primary state source; this classifier is minimal fallback.
+fn classify_gemini_cli(line: &str) -> (Option<AgentType>, Option<AgentState>) {
+    // Exit detection
+    if line.contains("exited") || line.contains("Goodbye") || line.contains("Session ended") {
+        return (Some(AgentType::Unknown), Some(AgentState::NotRunning));
+    }
+
+    // Substantial output means busy
     if line.len() > 3 {
         return (None, Some(AgentState::Busy));
     }
@@ -573,6 +594,21 @@ mod tests {
         let mut det = AgentDetector::new();
         let result = det.feed(b"$ aider\n");
         assert_eq!(result, Some((AgentType::Aider, AgentState::Busy)));
+    }
+
+    #[test]
+    fn detects_gemini_launch() {
+        let mut det = AgentDetector::new();
+        let result = det.feed(b"$ gemini\n");
+        assert_eq!(result, Some((AgentType::GeminiCli, AgentState::Busy)));
+    }
+
+    #[test]
+    fn detects_gemini_exit() {
+        let mut det = AgentDetector::new();
+        det.feed(b"$ gemini\n");
+        let result = det.feed(b"Session ended\n");
+        assert_eq!(result, Some((AgentType::Unknown, AgentState::NotRunning)));
     }
 
     #[test]
