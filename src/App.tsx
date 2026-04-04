@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
+import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
 import { useNotifications } from "./hooks/useNotifications";
 
@@ -100,7 +101,9 @@ function App() {
   return (
     <ErrorBoundary>
       <SectionErrorBoundary name="App">
-        <AppShell />
+        <TooltipProvider>
+          <AppShell />
+        </TooltipProvider>
       </SectionErrorBoundary>
     </ErrorBoundary>
   );
