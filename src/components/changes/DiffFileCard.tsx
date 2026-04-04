@@ -741,7 +741,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   prev.activeAnnotationLine === next.activeAnnotationLine &&
   prev.prComments.length === next.prComments.length &&
   prev.searchQuery === next.searchQuery &&
-  prev.activeSearchMatch === next.activeSearchMatch &&
+  prev.activeSearchMatch?.hunkIndex === next.activeSearchMatch?.hunkIndex &&
+  prev.activeSearchMatch?.lineIndex === next.activeSearchMatch?.lineIndex &&
   prev.onToggleExpanded === next.onToggleExpanded &&
   prev.onAddAnnotation === next.onAddAnnotation &&
   prev.onSubmitAnnotation === next.onSubmitAnnotation &&
