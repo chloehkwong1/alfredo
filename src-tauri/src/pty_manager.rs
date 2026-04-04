@@ -360,10 +360,16 @@ impl PtyManager {
             .remove(session_id)
             .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?;
 
-        // Remove Alfredo hooks from the worktree's settings.local.json so
-        // standalone Claude Code sessions don't inherit stale hooks.
+        // Remove Alfredo hooks from the worktree's config files so
+        // standalone agent sessions don't inherit stale hooks.
         if let Err(e) = remove_hooks_config(&session.worktree_path) {
-            eprintln!("[alfredo] failed to clean hooks on close: {e}");
+            eprintln!("[alfredo] failed to clean claude hooks on close: {e}");
+        }
+        if let Err(e) = remove_gemini_hooks_config(&session.worktree_path) {
+            eprintln!("[alfredo] failed to clean gemini hooks on close: {e}");
+        }
+        if let Err(e) = remove_codex_hooks_config(&session.worktree_path) {
+            eprintln!("[alfredo] failed to clean codex hooks on close: {e}");
         }
 
         // Signal the reader thread to stop before killing the child.
@@ -417,7 +423,13 @@ impl PtyManager {
 
         for path in paths {
             if let Err(e) = remove_hooks_config(&path) {
-                eprintln!("[alfredo] failed to clean hooks for {path}: {e}");
+                eprintln!("[alfredo] failed to clean claude hooks for {path}: {e}");
+            }
+            if let Err(e) = remove_gemini_hooks_config(&path) {
+                eprintln!("[alfredo] failed to clean gemini hooks for {path}: {e}");
+            }
+            if let Err(e) = remove_codex_hooks_config(&path) {
+                eprintln!("[alfredo] failed to clean codex hooks for {path}: {e}");
             }
         }
     }
@@ -633,6 +645,96 @@ fn remove_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+/// Remove Alfredo's hooks from `.gemini/settings.json` in the given worktree
+/// directory. Leaves user-defined hooks intact.
+fn remove_gemini_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
+    let path = std::path::Path::new(worktree_path)
+        .join(".gemini")
+        .join("settings.json");
+
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let contents = std::fs::read_to_string(&path)?;
+    let mut config: serde_json::Value =
+        serde_json::from_str(&contents).unwrap_or_else(|_| serde_json::json!({}));
+
+    let Some(hooks) = config.get_mut("hooks").and_then(|h| h.as_object_mut()) else {
+        return Ok(());
+    };
+
+    let mut empty_keys = Vec::new();
+    for (key, value) in hooks.iter_mut() {
+        if let Some(arr) = value.as_array_mut() {
+            arr.retain(|item| !is_alfredo_hook_entry(item));
+            if arr.is_empty() {
+                empty_keys.push(key.clone());
+            }
+        }
+    }
+    for key in &empty_keys {
+        hooks.remove(key);
+    }
+
+    if hooks.is_empty() {
+        if let Some(obj) = config.as_object_mut() {
+            obj.remove("hooks");
+        }
+    }
+
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    std::fs::write(&path, json)?;
+
+    Ok(())
+}
+
+/// Remove Alfredo's hooks from `.codex/hooks.json` in the given worktree
+/// directory. Leaves user-defined hooks intact.
+fn remove_codex_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
+    let path = std::path::Path::new(worktree_path)
+        .join(".codex")
+        .join("hooks.json");
+
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let contents = std::fs::read_to_string(&path)?;
+    let mut config: serde_json::Value =
+        serde_json::from_str(&contents).unwrap_or_else(|_| serde_json::json!({}));
+
+    let Some(hooks) = config.get_mut("hooks").and_then(|h| h.as_object_mut()) else {
+        return Ok(());
+    };
+
+    let mut empty_keys = Vec::new();
+    for (key, value) in hooks.iter_mut() {
+        if let Some(arr) = value.as_array_mut() {
+            arr.retain(|item| !is_alfredo_hook_entry(item));
+            if arr.is_empty() {
+                empty_keys.push(key.clone());
+            }
+        }
+    }
+    for key in &empty_keys {
+        hooks.remove(key);
+    }
+
+    if hooks.is_empty() {
+        if let Some(obj) = config.as_object_mut() {
+            obj.remove("hooks");
+        }
+    }
+
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    std::fs::write(&path, json)?;
+
+    Ok(())
+}
+
 /// Write Alfredo state hooks to `.gemini/settings.json` in the worktree.
 /// Gemini CLI hooks use stdin/stdout JSON protocol — the command drains
 /// stdin, POSTs to the state server, and prints `{}` to stdout.
@@ -659,14 +761,14 @@ fn write_gemini_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> 
     // Gemini hooks: command receives JSON on stdin, must print JSON to stdout.
     // We drain stdin, curl the state server, and print {} (success, no modifications).
     let cmd = |state: &str| -> serde_json::Value {
-        serde_json::json!([{
+        serde_json::json!({
             "hooks": [{
                 "type": "command",
                 "command": format!(
                     "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
                 )
             }]
-        }])
+        })
     };
 
     let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
@@ -679,7 +781,15 @@ fn write_gemini_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> 
     ];
 
     for (hook_name, entry) in alfredo_hooks {
-        hooks.insert(hook_name.to_string(), entry);
+        let arr = hooks
+            .entry(hook_name)
+            .or_insert_with(|| serde_json::json!([]))
+            .as_array_mut();
+
+        if let Some(arr) = arr {
+            arr.retain(|item| !is_alfredo_hook_entry(item));
+            arr.push(entry);
+        }
     }
 
     let json = serde_json::to_string_pretty(&config)
@@ -712,14 +822,14 @@ fn write_codex_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "hooks is not an object"))?;
 
     let cmd = |state: &str| -> serde_json::Value {
-        serde_json::json!([{
+        serde_json::json!({
             "hooks": [{
                 "type": "command",
                 "command": format!(
                     "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
                 )
             }]
-        }])
+        })
     };
 
     let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
@@ -730,7 +840,15 @@ fn write_codex_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
     ];
 
     for (hook_name, entry) in alfredo_hooks {
-        hooks.insert(hook_name.to_string(), entry);
+        let arr = hooks
+            .entry(hook_name)
+            .or_insert_with(|| serde_json::json!([]))
+            .as_array_mut();
+
+        if let Some(arr) = arr {
+            arr.retain(|item| !is_alfredo_hook_entry(item));
+            arr.push(entry);
+        }
     }
 
     let json = serde_json::to_string_pretty(&config)

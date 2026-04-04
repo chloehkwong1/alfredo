@@ -11,6 +11,15 @@ import { useRemoteControlStore } from "../stores/remoteControlStore";
 import { loadTerminalPreferences } from "./terminalPreferences";
 import type { TerminalPreferences } from "./terminalPreferences";
 
+// ── Constants ────────────────────────────────────────────────
+
+/** Maps frontend tab mode names to Rust AgentType enum variants. */
+const AGENT_TYPE_MAP: Record<string, string> = {
+  claude: "claudeCode",
+  codex: "codex",
+  gemini: "geminiCli",
+};
+
 // ── Helpers ───────────────────────────────────────────────────
 
 /**
@@ -340,12 +349,7 @@ export class SessionManager {
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
     const channel = createSessionChannel(this, session, worktreeId);
 
-    const agentTypeMap: Record<string, string> = {
-      claude: "claudeCode",
-      codex: "codex",
-      gemini: "geminiCli",
-    };
-    const agentType = agentTypeMap[mode] as AgentType | undefined;
+    const agentType = AGENT_TYPE_MAP[mode] as AgentType | undefined;
 
     this.sessions.set(sessionKey, session);
 
@@ -451,12 +455,7 @@ export class SessionManager {
 
     const channel = createSessionChannel(this, session, worktreeId);
 
-    const agentTypeMap: Record<string, string> = {
-      claude: "claudeCode",
-      codex: "codex",
-      gemini: "geminiCli",
-    };
-    const agentType = agentTypeMap[mode] as AgentType | undefined;
+    const agentType = AGENT_TYPE_MAP[mode] as AgentType | undefined;
 
     let sessionId: string;
     try {

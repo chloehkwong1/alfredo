@@ -67,7 +67,6 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
       </div>
 
       <div className="mb-8">
-        <div className="text-[13px] font-medium text-text-primary mb-1.5">Default agent</div>
         <select
           value={defaultAgent}
           onChange={(e) => onDefaultAgentChange(e.target.value as TabType)}
