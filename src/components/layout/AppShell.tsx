@@ -479,7 +479,6 @@ function AppShell() {
           onOpenChange={setSetupDialogOpen}
           repoPath={setupRepoPath}
           existingGithubToken={previousRepoConfig?.githubToken ?? null}
-          existingLinearKey={previousRepoConfig?.linearApiKey ?? null}
           previousRepoConfig={previousRepoConfig}
           onConfigured={handleRepoConfigured}
         />
