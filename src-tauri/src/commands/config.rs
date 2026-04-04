@@ -36,3 +36,29 @@ pub async fn run_setup_scripts(
 
     config_manager::run_setup_scripts(&worktree_path, &create_scripts).await
 }
+
+/// Run the archive script for a worktree, reading it from the repo's config file.
+/// The script command is never accepted from the frontend to prevent arbitrary command execution.
+#[tauri::command]
+pub async fn run_archive_script(
+    repo_path: String,
+    worktree_path: String,
+) -> Result<()> {
+    let config = config_manager::load_config(&repo_path).await?;
+
+    let Some(ref script_command) = config.archive_script else {
+        return Ok(());
+    };
+
+    if script_command.trim().is_empty() {
+        return Ok(());
+    }
+
+    let script = crate::types::SetupScript {
+        name: "Archive".to_string(),
+        command: script_command.clone(),
+        run_on: "archive".to_string(),
+    };
+
+    config_manager::run_setup_scripts(&worktree_path, &[script]).await
+}
