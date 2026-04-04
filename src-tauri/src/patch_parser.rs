@@ -3,7 +3,7 @@ use crate::commands::diff::{DiffHunk, DiffLine};
 /// Parse a GitHub unified diff patch string into a list of DiffHunks.
 ///
 /// GitHub returns patches like:
-/// ```
+/// ```text
 /// @@ -1,4 +1,5 @@
 ///  import { foo } from "bar";
 /// +import { baz } from "qux";
