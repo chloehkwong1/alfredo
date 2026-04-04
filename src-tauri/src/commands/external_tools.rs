@@ -5,8 +5,8 @@ use crate::types::AppError;
 
 fn editor_command(editor: &str, path: &str, custom_path: Option<&str>) -> Result<(String, Vec<String>), AppError> {
     match editor {
-        "vscode" => Ok(("code".into(), vec![path.into()])),
-        "cursor" => Ok(("cursor".into(), vec![path.into()])),
+        "vscode" => Ok(("code".into(), vec!["--goto".into(), path.into()])),
+        "cursor" => Ok(("cursor".into(), vec!["--goto".into(), path.into()])),
         "zed" => Ok(("zed".into(), vec![path.into()])),
         "vim" => Ok(("nvim".into(), vec![path.into()])),
         "custom" => {
