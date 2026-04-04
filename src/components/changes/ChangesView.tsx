@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DiffFileCard } from "./DiffFileCard";
 import { discardFile, discardAllUncommitted } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -246,11 +246,16 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     [worktreeId],
   );
 
+  // Use ref to avoid re-creating callback when commits array changes from polling
+  const commitsRef = useRef(commits);
+  commitsRef.current = commits;
+
   const handleSubmitAnnotation = useCallback(
     (filePath: string, lineNumber: number, side: import("../../types").DiffSide, text: string) => {
+      const currentCommits = commitsRef.current;
       const commitHash =
-        viewMode === "commits" && selectedCommitIndex !== null && commits.length > 0
-          ? commits[selectedCommitIndex].hash
+        viewMode === "commits" && selectedCommitIndex !== null && currentCommits.length > 0
+          ? currentCommits[selectedCommitIndex].hash
           : null;
       addAnnotation({
         id: crypto.randomUUID(),
@@ -264,7 +269,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
       });
       setActiveAnnotationLine(null);
     },
-    [worktreeId, viewMode, selectedCommitIndex, commits, addAnnotation],
+    [worktreeId, viewMode, selectedCommitIndex, addAnnotation],
   );
 
   const handleDeleteAnnotation = useCallback(

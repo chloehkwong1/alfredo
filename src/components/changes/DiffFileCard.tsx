@@ -205,11 +205,12 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
     const [expandedGaps, setExpandedGaps] = useState<Map<string, DiffLine[]>>(new Map());
     const [bottomExhausted, setBottomExhausted] = useState(false);
 
-    // Reset expanded gaps when file data changes
+    // Reset expanded gaps when file content actually changes (not just object reference from polling)
+    const fileContentKey = `${file.path}:${file.additions}:${file.deletions}:${file.hunks.length}:${file.hunks.map((h) => `${h.oldStart},${h.newStart},${h.lines.length}`).join(";")}`;
     useEffect(() => {
       setExpandedGaps(new Map());
       setBottomExhausted(false);
-    }, [file]);
+    }, [fileContentKey]);
 
     // Compute gap info: how many hidden lines between each hunk
     const gapInfo = useMemo(() => {
