@@ -81,6 +81,7 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
         </p>
       </div>
 
+      {defaultAgent === "claude" && (<>
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
         Model & Performance
       </div>
@@ -196,6 +197,7 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
       <p className="text-xs text-text-tertiary border-t border-border-default pt-4 mt-7">
         Applies to new sessions — existing sessions keep their settings.
       </p>
+      </>)}
     </div>
   );
 }
