@@ -204,7 +204,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-bg-primary">
+    <div className="flex flex-col h-full bg-bg-primary overflow-hidden">
       {annotations.length > 0 && (
         <div className="flex items-center gap-3 px-3 py-1.5 bg-accent-primary/8 border-b border-accent-primary/20 flex-shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-accent-primary font-medium">
