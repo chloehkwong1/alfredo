@@ -70,7 +70,7 @@ function PaneView({
         runScriptUrl={runScriptUrl}
       />
       <div className="flex-1 min-h-0 min-w-0 relative overflow-hidden">
-        {(activeTab?.type === "claude" || activeTab?.type === "shell" || activeTab?.type === "server") ? (
+        {(activeTab?.type === "claude" || activeTab?.type === "codex" || activeTab?.type === "gemini" || activeTab?.type === "shell" || activeTab?.type === "server") ? (
           <TerminalView key={activeTab.id} tabId={activeTab.id} tabType={activeTab.type} />
         ) : null}
         {showChanges && (
