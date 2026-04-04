@@ -66,6 +66,7 @@ fn secrets_path() -> Result<std::path::PathBuf, AppError> {
 fn load_secrets() -> Result<std::collections::HashMap<String, String>, AppError> {
     let path = secrets_path()?;
     match std::fs::read_to_string(&path) {
+        Ok(s) if s.trim().is_empty() => Ok(Default::default()),
         Ok(s) => serde_json::from_str(&s)
             .map_err(|e| AppError::Config(format!("failed to parse secrets file: {e}"))),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Default::default()),
