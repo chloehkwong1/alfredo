@@ -30,7 +30,7 @@ interface UsePtyOptions {
   worktreePath: string;
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** "claude" spawns Claude Code; "shell" spawns user's default shell. */
-  mode?: "claude" | "shell";
+  mode?: "claude" | "codex" | "gemini" | "shell";
   /** CLI args to pass to the spawned process. Null means settings are still loading — defer spawn. */
   args?: string[] | null;
   /** Increment to force the hook to re-run and re-wire the session. */

@@ -4,7 +4,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { AgentState } from "../types";
+import type { AgentState, AgentType } from "../types";
 import { spawnPty, closePty, createPtyChannel, resizePty, writePty } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
@@ -279,7 +279,7 @@ export class SessionManager {
     sessionKey: string,
     worktreeId: string,
     worktreePath: string,
-    mode: "claude" | "shell" = "claude",
+    mode: "claude" | "codex" | "gemini" | "shell" = "claude",
     initialScrollback?: string,
     args?: string[],
   ): Promise<ManagedSession> {
@@ -340,7 +340,12 @@ export class SessionManager {
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
     const channel = createSessionChannel(this, session, worktreeId);
 
-    const agentType = mode === "claude" ? "claudeCode" : undefined;
+    const agentTypeMap: Record<string, string> = {
+      claude: "claudeCode",
+      codex: "codex",
+      gemini: "geminiCli",
+    };
+    const agentType = agentTypeMap[mode] as AgentType | undefined;
 
     this.sessions.set(sessionKey, session);
 
@@ -433,7 +438,7 @@ export class SessionManager {
     sessionKey: string,
     worktreeId: string,
     worktreePath: string,
-    mode: "claude" | "shell" = "claude",
+    mode: "claude" | "codex" | "gemini" | "shell" = "claude",
     args?: string[],
   ): Promise<ManagedSession> {
     const session = this.sessions.get(sessionKey);
@@ -446,7 +451,12 @@ export class SessionManager {
 
     const channel = createSessionChannel(this, session, worktreeId);
 
-    const agentType = mode === "claude" ? "claudeCode" : undefined;
+    const agentTypeMap: Record<string, string> = {
+      claude: "claudeCode",
+      codex: "codex",
+      gemini: "geminiCli",
+    };
+    const agentType = agentTypeMap[mode] as AgentType | undefined;
 
     let sessionId: string;
     try {

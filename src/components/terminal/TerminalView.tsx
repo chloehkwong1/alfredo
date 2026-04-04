@@ -16,7 +16,18 @@ import {
   resolveSettings,
   buildClaudeArgs,
 } from "../../services/claudeSettingsResolver";
-import type { Annotation, TabType } from "../../types";
+import type { AgentType, Annotation, TabType } from "../../types";
+
+function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell"; agentType?: AgentType } {
+  switch (tabType) {
+    case "claude": return { mode: "claude", agentType: "claudeCode" };
+    case "codex": return { mode: "codex", agentType: "codex" };
+    case "gemini": return { mode: "gemini", agentType: "geminiCli" };
+    case "shell":
+    case "server":
+    default: return { mode: "shell" };
+  }
+}
 
 interface TerminalViewProps {
   /** The tab ID, used as the session key. */
@@ -42,7 +53,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionKey = tabId ?? activeWorktreeId ?? "";
-  const mode = (tabType === "shell" || tabType === "server") ? "shell" : "claude";
+  const { mode } = tabTypeToPtyMode(tabType ?? "claude");
 
   // Read the tab's command field (used by server tabs to auto-execute a command)
   const tabCommand = useTabStore((s) => {
