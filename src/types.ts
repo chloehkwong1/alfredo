@@ -373,6 +373,8 @@ export interface GlobalAppConfig {
   hasSeenOrientation?: boolean;
   /** Last-active worktree ID, restored on app launch. */
   activeWorktreeId?: string | null;
+  /** Which agent to spawn by default for new worktrees. */
+  defaultAgent?: TabType;
 }
 
 // ── Inline annotation ────────────────────────────────────────────
