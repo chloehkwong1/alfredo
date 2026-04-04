@@ -1,0 +1,36 @@
+src/services/lifecycleManager.ts
+  dd6fa6841a01da7d 131-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "5934befe97121e1e9367127fa106916459313157",
+  "prompts": {
+    "6dce41df7b65b01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a1a3541f-2503-4ee7-bbb6-594198d188af",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 136,
+      "total_deletions": 73,
+      "accepted_lines": 52,
+      "overriden_lines": 1
+    },
+    "dd6fa6841a01da7d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cb77574-72cc-482b-9b25-10a19eb51725",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}
