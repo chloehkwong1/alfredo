@@ -222,6 +222,7 @@ mod tests {
             active_worktree_id: None,
             has_seen_orientation: false,
             linear_oauth: None,
+            default_agent: None,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -261,6 +262,7 @@ mod tests {
             active_worktree_id: None,
             has_seen_orientation: false,
             linear_oauth: None,
+            default_agent: None,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -297,6 +299,7 @@ mod tests {
             active_worktree_id: None,
             has_seen_orientation: false,
             linear_oauth: None,
+            default_agent: None,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);
