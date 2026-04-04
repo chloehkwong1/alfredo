@@ -207,6 +207,10 @@ export function linearOAuthStatus(): Promise<LinearOAuthStatus> {
   return invoke("linear_oauth_status");
 }
 
+export function runArchiveScript(repoPath: string, worktreePath: string): Promise<void> {
+  return invoke("run_archive_script", { repoPath, worktreePath });
+}
+
 // ── Diff ───────────────────────────────────────────────────────
 
 export function getDiff(repoPath: string, defaultBranch?: string): Promise<DiffFile[]> {

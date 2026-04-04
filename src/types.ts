@@ -179,6 +179,7 @@ export interface AppConfig {
   claudeDefaults?: ClaudeDefaults;
   worktreeOverrides?: Record<string, ClaudeOverrides>;
   defaultAgent?: TabType;
+  archiveScript?: string | null;
 }
 
 // ── Linear ──────────────────────────────────────────────────────
