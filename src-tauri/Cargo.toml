@@ -4,6 +4,7 @@ version = "0.2.4"
 description = "AI Agent Management Desktop App"
 authors = ["Chloe"]
 edition = "2021"
+publish = false
 
 [lib]
 name = "alfredo_lib"
