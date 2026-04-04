@@ -1,0 +1,25 @@
+src/stores/workspaceStore.test.ts
+  b79ea0eb96783402 1
+.github/workflows/ci.yml
+  b79ea0eb96783402 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "6235303e35557766087269f3460c960aed873f95",
+  "prompts": {
+    "b79ea0eb96783402": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7102d5dd-0e33-4c48-9f0f-9e46844217fe",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 226,
+      "total_deletions": 2,
+      "accepted_lines": 226,
+      "overriden_lines": 0
+    }
+  }
+}
