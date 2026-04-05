@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import type { RepoEntry } from "../../types";
 
 const REPO_COLOR_PALETTE = [
@@ -57,7 +57,7 @@ function RepoSelector({
   repoDisplayNames,
   onToggleRepo,
   onAddRepo,
-  onRemoveRepo: _onRemoveRepo,
+  onRemoveRepo,
   worktreeCountByRepo,
 }: RepoSelectorProps) {
   const [open, setOpen] = useState(false);
@@ -136,7 +136,7 @@ function RepoSelector({
                 type="button"
                 onClick={() => onToggleRepo(repo.path)}
                 className={[
-                  "flex items-center gap-2 w-full px-2.5 py-1.5 text-left cursor-pointer transition-colors",
+                  "group/repo flex items-center gap-2 w-full px-2.5 py-1.5 text-left cursor-pointer transition-colors",
                   isSelected ? "bg-[rgba(255,255,255,0.03)]" : "hover:bg-bg-hover",
                 ].join(" ")}
               >
@@ -156,6 +156,20 @@ function RepoSelector({
                 <span className="text-2xs text-text-tertiary flex-shrink-0">
                   {count} worktree{count !== 1 ? "s" : ""}
                 </span>
+                {onRemoveRepo && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpen(false);
+                      onRemoveRepo(repo.path);
+                    }}
+                    className="opacity-0 group-hover/repo:opacity-100 p-0.5 rounded hover:bg-[rgba(255,255,255,0.08)] text-text-tertiary hover:text-text-secondary transition-all flex-shrink-0"
+                    title="Remove repository"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
               </button>
             );
           })}
