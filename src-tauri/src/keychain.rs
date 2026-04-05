@@ -114,17 +114,13 @@ pub fn delete(account: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
-    // In debug builds, keychain operations use file-based storage.
-    // In release builds, they use the real OS keychain (keyring crate).
-    //
-    // These tests exercise whichever backend is active for the current
-    // build profile. For debug (cargo test), that means file-based.
-    // For release (cargo test --release), that means the real keyring
-    // crate API — which is exactly what we want to catch breakage on
-    // crate updates.
+    // In debug builds, keychain operations use file-based storage
+    // (shared JSON file), so tests must run serially to avoid corruption.
 
     #[test]
+    #[serial]
     fn store_and_retrieve_round_trip() {
         let account = "alfredo-test-roundtrip";
         let _ = delete(account);
@@ -135,6 +131,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn retrieve_missing_returns_none() {
         let account = "alfredo-test-missing";
         let _ = delete(account);
@@ -143,6 +140,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn delete_existing_entry() {
         let account = "alfredo-test-delete";
         let _ = delete(account);
@@ -153,6 +151,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn delete_nonexistent_is_noop() {
         let account = "alfredo-test-delete-noop";
         let _ = delete(account);
@@ -161,6 +160,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn overwrite_existing_entry() {
         let account = "alfredo-test-overwrite";
         let _ = delete(account);
@@ -172,6 +172,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn handles_special_characters_in_secret() {
         let account = "alfredo-test-special-chars";
         let _ = delete(account);

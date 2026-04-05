@@ -52,3 +52,4 @@ uninlined_format_args = "warn"
 
 [dev-dependencies]
 tempfile = "3"
+serial_test = "3"
