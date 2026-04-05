@@ -323,7 +323,10 @@ function AppShell() {
     : 0;
 
   const hasNoRepos = !loading && repos.length === 0;
-  const activeRepoEntry = repos.find((r) => r.path === repoPath);
+  const effectiveSelectedRepos = selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : []);
+  const hasWorktreeRepos = repos.some(
+    (r) => effectiveSelectedRepos.includes(r.path) && r.mode === "worktree",
+  );
 
   const sidebarLayout = useDefaultLayout({
     id: "sidebar",
@@ -393,13 +396,6 @@ function AppShell() {
               setRemoveRepoPath(path);
               setRemoveDialogOpen(true);
             }}
-            activeRepoMode={activeRepoEntry?.mode ?? "worktree"}
-            onEnableWorktrees={() => {
-              if (repoPath) {
-                setSetupRepoPath(repoPath);
-                setSetupDialogOpen(true);
-              }
-            }}
             selectedRepos={selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : [])}
             onToggleRepo={toggleRepo}
             repoColors={repoColors ?? {}}
@@ -430,6 +426,7 @@ function AppShell() {
                     isServerRunning={isServerRunningHere}
                     runScriptName={runScript?.name}
                     runScriptUrl={runScript?.url}
+                    hasWorktreeRepos={hasWorktreeRepos}
                   />
                 </Panel>
                 {!changesPanelCollapsed && (
@@ -458,8 +455,14 @@ function AppShell() {
             <div className="flex flex-col items-center justify-center h-full w-full text-text-tertiary gap-3">
               <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
               <div className="flex flex-col items-center gap-1">
-                <span className="text-sm">Select a worktree to get started</span>
-                <span className="text-xs">Each worktree gets its own branch, terminal, and agent · <kbd className="px-1.5 py-0.5 rounded bg-bg-elevated border border-border-default font-mono text-[11px]">⌘N</kbd> to create new worktree</span>
+                <span className="text-sm">
+                  {hasWorktreeRepos
+                    ? "Select a worktree to get started"
+                    : "Select a repo to get started"}
+                </span>
+                {hasWorktreeRepos && (
+                  <span className="text-xs">Each worktree gets its own branch, terminal, and agent · <kbd className="px-1.5 py-0.5 rounded bg-bg-elevated border border-border-default font-mono text-[11px]">⌘N</kbd> to create new worktree</span>
+                )}
               </div>
             </div>
           )}
