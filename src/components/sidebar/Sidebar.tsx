@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Settings, Plus, HelpCircle, BarChart3 } from "lucide-react";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { IconButton } from "../ui";
 import logoSvg from "../../assets/logo-cat.svg";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -48,19 +48,8 @@ function groupByColumn(
 }
 
 
-async function openUsageWindow() {
-  const existing = await WebviewWindow.getByLabel("usage");
-  if (existing) {
-    await existing.setFocus();
-    return;
-  }
-  new WebviewWindow("usage", {
-    url: "https://claude.ai/settings/usage",
-    title: "Usage — Claude",
-    width: 900,
-    height: 700,
-    center: true,
-  });
+function openUsagePage() {
+  openUrl("https://claude.ai/settings/usage");
 }
 
 interface SidebarProps {
@@ -206,7 +195,7 @@ function Sidebar({
           <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
         </div>
         <div className="flex items-center gap-2">
-          <IconButton size="sm" label="Usage" className="rounded-[6px]" onClick={openUsageWindow}>
+          <IconButton size="sm" label="Usage" className="rounded-[6px]" onClick={openUsagePage}>
             <BarChart3 />
           </IconButton>
           <IconButton size="sm" label="Keyboard shortcuts" className="rounded-[6px]" onClick={() => setShortcutsOpen(true)}>
