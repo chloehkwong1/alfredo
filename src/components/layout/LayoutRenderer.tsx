@@ -11,6 +11,7 @@ interface LayoutRendererProps {
   isServerRunning?: boolean;
   runScriptName?: string;
   runScriptUrl?: string;
+  hasWorktreeRepos?: boolean;
 }
 
 function RenderNode({
@@ -90,6 +91,7 @@ function LayoutRenderer({
   isServerRunning,
   runScriptName,
   runScriptUrl,
+  hasWorktreeRepos,
 }: LayoutRendererProps) {
   const layout = useLayoutStore((s) => s.layout[worktreeId]);
 
@@ -98,8 +100,14 @@ function LayoutRenderer({
       <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-3">
         <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
         <div className="flex flex-col items-center gap-1">
-          <span className="text-sm">Select a worktree to get started</span>
-          <span className="text-xs">Each worktree gets its own branch, terminal, and agent</span>
+          <span className="text-sm">
+            {hasWorktreeRepos === false
+              ? "Select a repo to get started"
+              : "Select a worktree to get started"}
+          </span>
+          {hasWorktreeRepos !== false && (
+            <span className="text-xs">Each worktree gets its own branch, terminal, and agent</span>
+          )}
         </div>
       </div>
     );
