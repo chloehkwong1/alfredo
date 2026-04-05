@@ -8,7 +8,8 @@ import { StatusGroup } from "./StatusGroup";
 import { SidebarDragContext } from "./SidebarDragContext";
 import { ArchiveSection } from "./ArchiveSection";
 import { RepoSelector } from "./RepoSelector";
-import { BranchModeView } from "./BranchModeView";
+import { BranchSection } from "./BranchSection";
+import { useBranchRepos } from "../../hooks/useBranchRepos";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
 import { ShortcutsOverlay } from "../settings/ShortcutsOverlay";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
@@ -60,8 +61,6 @@ interface SidebarProps {
   onToggleRepo?: (path: string) => void;
   onAddRepo: () => void;
   onRemoveRepo: (path: string) => void;
-  activeRepoMode: "worktree" | "branch";
-  onEnableWorktrees: () => void;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
   onSetRepoDisplayName?: (repoPath: string, name: string | null) => void;
@@ -75,8 +74,6 @@ function Sidebar({
   onToggleRepo,
   onAddRepo,
   onRemoveRepo,
-  activeRepoMode,
-  onEnableWorktrees,
   repoColors,
   repoDisplayNames,
   onSetRepoDisplayName,
@@ -186,6 +183,11 @@ function Sidebar({
   const effectiveRepoColors = repoColors ?? {};
   const repoIndexMap = Object.fromEntries(repos.map((r, i) => [r.path, i]));
   const showRepoTags = effectiveSelectedRepos.length > 1;
+  const branchRepos = useBranchRepos(repos, effectiveSelectedRepos);
+  const hasWorktreeRepos = repos.some(
+    (r) => effectiveSelectedRepos.includes(r.path) && r.mode === "worktree",
+  );
+  const hasWorktreeItems = activeWorktrees.length > 0;
 
   return (
     <div data-sidebar className="relative flex flex-col w-full h-full sidebar-bg border-r border-border-subtle flex-shrink-0">
@@ -223,17 +225,10 @@ function Sidebar({
         />
       )}
 
-      {/* Main content — branch mode vs worktree mode */}
-      {activeRepoMode === "branch" ? (
-        <BranchModeView
-          repoPath={activeRepo ?? ""}
-          onEnableWorktrees={onEnableWorktrees}
-          onOpenWorkspaceSettings={() => setWorkspaceSettingsOpen(true)}
-        />
-      ) : (
-        <>
-          {/* Scrollable agent list */}
-          <div className="flex-1 overflow-y-auto py-3">
+      <>
+        {/* Scrollable agent list */}
+        <div className="flex-1 overflow-y-auto py-3">
+          {hasWorktreeRepos && (
             <SidebarDragContext collapsedColumns={collapsedColumns} onExpandColumn={handleToggleCollapsed}>
               {(isDragging, dragActiveId) =>
                 COLUMNS.map((col) => (
@@ -257,37 +252,53 @@ function Sidebar({
                 ))
               }
             </SidebarDragContext>
-          </div>
-
-          {/* Footer — only show worktree actions when a repo is configured */}
-          {hasRepo && (
-            <div className="px-4 pt-3 pb-4 border-t border-border-subtle flex-shrink-0">
-              <ArchiveSection
-                worktrees={archivedWorktrees}
-                onDelete={handleDeleteWorktree}
-                onDeleteAll={handleDeleteAllArchived}
-                onUnarchive={unarchiveWorktree}
-                deletingCount={deletingCount}
-              />
-              <button
-                type="button"
-                className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] border border-dashed border-accent-primary/25 text-accent-primary/70 text-sm font-medium hover:bg-accent-muted hover:border-accent-primary/40 hover:text-accent-primary transition-all cursor-pointer"
-                onClick={() => setCreateWorktreeOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                New worktree
-              </button>
-              <button
-                type="button"
-                className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary hover:underline mt-2 cursor-pointer transition-colors"
-                onClick={() => setWorkspaceSettingsOpen(true)}
-              >
-                Repository settings
-              </button>
-            </div>
           )}
-        </>
-      )}
+
+          {/* Branch-mode repos — below kanban columns */}
+          <BranchSection
+            branchRepos={branchRepos}
+            activeRepoId={activeWorktreeId}
+            onSelectRepo={setActiveWorktree}
+            repoColors={effectiveRepoColors}
+            repoDisplayNames={repoDisplayNames}
+            repoIndexMap={repoIndexMap}
+            showRepoTags={showRepoTags}
+            hasWorktreeItems={hasWorktreeItems}
+          />
+        </div>
+
+        {/* Footer */}
+        {hasRepo && (
+          <div className="px-4 pt-3 pb-4 border-t border-border-subtle flex-shrink-0">
+            {hasWorktreeRepos && (
+              <>
+                <ArchiveSection
+                  worktrees={archivedWorktrees}
+                  onDelete={handleDeleteWorktree}
+                  onDeleteAll={handleDeleteAllArchived}
+                  onUnarchive={unarchiveWorktree}
+                  deletingCount={deletingCount}
+                />
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] border border-dashed border-accent-primary/25 text-accent-primary/70 text-sm font-medium hover:bg-accent-muted hover:border-accent-primary/40 hover:text-accent-primary transition-all cursor-pointer"
+                  onClick={() => setCreateWorktreeOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  New worktree
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary hover:underline mt-2 cursor-pointer transition-colors"
+              onClick={() => setWorkspaceSettingsOpen(true)}
+            >
+              Repository settings
+            </button>
+          </div>
+        )}
+      </>
 
       {/* Dialogs */}
       <GlobalSettingsDialog
