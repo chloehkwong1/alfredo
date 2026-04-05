@@ -467,12 +467,12 @@ mod tests {
         let dir = TempDir::new().expect("create temp dir");
         let path = dir.path();
         StdCommand::new("git")
-            .args(["init"])
+            .args(["init", "-b", "main"])
             .current_dir(path)
             .output()
             .expect("git init");
         StdCommand::new("git")
-            .args(["commit", "--allow-empty", "-m", "init"])
+            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "--allow-empty", "-m", "init"])
             .current_dir(path)
             .output()
             .expect("git initial commit");

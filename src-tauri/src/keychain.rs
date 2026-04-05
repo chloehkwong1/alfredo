@@ -124,63 +124,61 @@ mod tests {
     // crate API — which is exactly what we want to catch breakage on
     // crate updates.
 
-    const TEST_ACCOUNT: &str = "alfredo-test-keychain-unit";
-
-    /// Clean up any leftover test entry before/after each test.
-    fn cleanup() {
-        let _ = delete(TEST_ACCOUNT);
-    }
-
     #[test]
     fn store_and_retrieve_round_trip() {
-        cleanup();
-        store(TEST_ACCOUNT, "s3cret-value").expect("store should succeed");
-        let retrieved = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        let account = "alfredo-test-roundtrip";
+        let _ = delete(account);
+        store(account, "s3cret-value").expect("store should succeed");
+        let retrieved = retrieve(account).expect("retrieve should succeed");
         assert_eq!(retrieved, Some("s3cret-value".to_string()));
-        cleanup();
+        let _ = delete(account);
     }
 
     #[test]
     fn retrieve_missing_returns_none() {
-        cleanup();
-        let result = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        let account = "alfredo-test-missing";
+        let _ = delete(account);
+        let result = retrieve(account).expect("retrieve should succeed");
         assert_eq!(result, None);
     }
 
     #[test]
     fn delete_existing_entry() {
-        cleanup();
-        store(TEST_ACCOUNT, "to-be-deleted").expect("store should succeed");
-        delete(TEST_ACCOUNT).expect("delete should succeed");
-        let result = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        let account = "alfredo-test-delete";
+        let _ = delete(account);
+        store(account, "to-be-deleted").expect("store should succeed");
+        delete(account).expect("delete should succeed");
+        let result = retrieve(account).expect("retrieve should succeed");
         assert_eq!(result, None);
     }
 
     #[test]
     fn delete_nonexistent_is_noop() {
-        cleanup();
-        // Should not error when deleting something that doesn't exist
-        let result = delete(TEST_ACCOUNT);
+        let account = "alfredo-test-delete-noop";
+        let _ = delete(account);
+        let result = delete(account);
         assert!(result.is_ok(), "delete of nonexistent entry should succeed");
     }
 
     #[test]
     fn overwrite_existing_entry() {
-        cleanup();
-        store(TEST_ACCOUNT, "first").expect("store should succeed");
-        store(TEST_ACCOUNT, "second").expect("overwrite should succeed");
-        let retrieved = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        let account = "alfredo-test-overwrite";
+        let _ = delete(account);
+        store(account, "first").expect("store should succeed");
+        store(account, "second").expect("overwrite should succeed");
+        let retrieved = retrieve(account).expect("retrieve should succeed");
         assert_eq!(retrieved, Some("second".to_string()));
-        cleanup();
+        let _ = delete(account);
     }
 
     #[test]
     fn handles_special_characters_in_secret() {
-        cleanup();
+        let account = "alfredo-test-special-chars";
+        let _ = delete(account);
         let special = "p@$$w0rd!#%^&*()_+-=[]{}|;':\",./<>?`~";
-        store(TEST_ACCOUNT, special).expect("store should succeed");
-        let retrieved = retrieve(TEST_ACCOUNT).expect("retrieve should succeed");
+        store(account, special).expect("store should succeed");
+        let retrieved = retrieve(account).expect("retrieve should succeed");
         assert_eq!(retrieved, Some(special.to_string()));
-        cleanup();
+        let _ = delete(account);
     }
 }

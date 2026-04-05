@@ -206,11 +206,11 @@ mod tests {
         let dir = TempDir::new()?;
         let path = dir.path();
         StdCommand::new("git")
-            .args(["init"])
+            .args(["init", "-b", "main"])
             .current_dir(path)
             .output()?;
         StdCommand::new("git")
-            .args(["commit", "--allow-empty", "-m", "init"])
+            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "--allow-empty", "-m", "init"])
             .current_dir(path)
             .output()?;
         Ok(dir)
@@ -227,7 +227,7 @@ mod tests {
             .current_dir(path)
             .output()?;
         StdCommand::new("git")
-            .args(["commit", "--allow-empty", "-m", "smoke"])
+            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "--allow-empty", "-m", "smoke"])
             .current_dir(path)
             .output()?;
 
@@ -255,7 +255,7 @@ mod tests {
             .current_dir(path)
             .output()?;
         StdCommand::new("git")
-            .args(["commit", "--allow-empty", "-m", "old work"])
+            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "--allow-empty", "-m", "old work"])
             .current_dir(path)
             .output()?;
 
@@ -264,7 +264,7 @@ mod tests {
             .current_dir(path)
             .output()?;
         StdCommand::new("git")
-            .args(["commit", "--allow-empty", "-m", "new work"])
+            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "--allow-empty", "-m", "new work"])
             .current_dir(path)
             .output()?;
 
