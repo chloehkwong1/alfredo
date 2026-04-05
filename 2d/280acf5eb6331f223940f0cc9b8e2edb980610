@@ -1,0 +1,36 @@
+.github/workflows/ci.yml
+  b79ea0eb96783402 53-55,60-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "2d280acf5eb6331f223940f0cc9b8e2edb980610",
+  "prompts": {
+    "b79ea0eb96783402": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7102d5dd-0e33-4c48-9f0f-9e46844217fe",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "e65b31ed8a6869ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23b9e03a-3138-4447-83b2-266345815dce",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}
