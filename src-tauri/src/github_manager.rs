@@ -105,6 +105,148 @@ fn parse_github_timestamp(date: &str) -> i64 {
         .unwrap_or(0)
 }
 
+// ── Extracted JSON parsers ────────────────────────────────────
+
+/// Parse the JSON response from the check-runs API into `Vec<CheckRun>`.
+fn parse_check_runs_response(response: &serde_json::Value) -> Vec<CheckRun> {
+    response
+        .get("check_runs")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|run| {
+                    Some(CheckRun {
+                        id: run.get("id")?.as_u64()?,
+                        name: run.get("name")?.as_str()?.to_string(),
+                        status: run.get("status")?.as_str()?.to_string(),
+                        conclusion: run
+                            .get("conclusion")
+                            .and_then(|v| v.as_str())
+                            .map(std::string::ToString::to_string),
+                        html_url: run.get("html_url")?.as_str()?.to_string(),
+                        started_at: run
+                            .get("started_at")
+                            .and_then(|v| v.as_str())
+                            .map(std::string::ToString::to_string),
+                        completed_at: run
+                            .get("completed_at")
+                            .and_then(|v| v.as_str())
+                            .map(std::string::ToString::to_string),
+                        check_suite_id: run
+                            .pointer("/check_suite/id")
+                            .and_then(serde_json::Value::as_u64),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parse the JSON response from the PR reviews API into `Vec<PrReview>`.
+fn parse_reviews_response(response: &serde_json::Value) -> Vec<PrReview> {
+    response
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|review| {
+                    Some(PrReview {
+                        reviewer: review.get("user")?.get("login")?.as_str()?.to_string(),
+                        state: review.get("state")?.as_str()?.to_lowercase(),
+                        submitted_at: review.get("submitted_at").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parse the JSON response from the PR review comments API into `Vec<PrComment>`.
+fn parse_pr_comments_response(response: &serde_json::Value) -> Vec<PrComment> {
+    response
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|c| {
+                    Some(PrComment {
+                        id: c.get("id")?.as_u64()?,
+                        author: c.get("user")?.get("login")?.as_str()?.to_string(),
+                        body: c.get("body")?.as_str()?.to_string(),
+                        path: c.get("path").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
+                        line: c.get("line").and_then(serde_json::Value::as_u64).map(|n| n as u32),
+                        resolved: false,
+                        created_at: c.get("created_at")?.as_str()?.to_string(),
+                        updated_at: c.get("updated_at")?.as_str()?.to_string(),
+                        html_url: c.get("html_url")?.as_str()?.to_string(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parse the JSON response from the issue comments API into `Vec<PrComment>`.
+fn parse_issue_comments_response(response: &serde_json::Value) -> Vec<PrComment> {
+    response
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|c| {
+                    Some(PrComment {
+                        id: c.get("id")?.as_u64()?,
+                        author: c.get("user")?.get("login")?.as_str()?.to_string(),
+                        body: c.get("body")?.as_str()?.to_string(),
+                        path: None,
+                        line: None,
+                        resolved: false,
+                        created_at: c.get("created_at")?.as_str()?.to_string(),
+                        updated_at: c.get("updated_at")?.as_str()?.to_string(),
+                        html_url: c.get("html_url")?.as_str()?.to_string(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Map a deserialized `GithubPrFile` into our `DiffFile` type.
+fn map_github_file(file: GithubPrFile) -> crate::commands::diff::DiffFile {
+    let status = match file.status.as_str() {
+        "added" => "added",
+        "removed" => "deleted",
+        "renamed" => "renamed",
+        _ => "modified",
+    };
+
+    let (hunks, truncated) = if let Some(ref patch) = file.patch {
+        (crate::patch_parser::parse_patch(patch), false)
+    } else {
+        (Vec::new(), true)
+    };
+
+    crate::commands::diff::DiffFile {
+        path: file.filename,
+        old_path: file.previous_filename,
+        status: status.to_string(),
+        additions: file.additions,
+        deletions: file.deletions,
+        hunks,
+        truncated,
+    }
+}
+
+/// Map a deserialized `GithubPrCommit` into our `CommitInfo` type.
+fn map_github_commit(commit: GithubPrCommit) -> crate::commands::diff::CommitInfo {
+    let hash = commit.sha.clone();
+    let short_hash = hash[..7.min(hash.len())].to_string();
+    crate::commands::diff::CommitInfo {
+        hash,
+        short_hash,
+        message: commit.commit.message,
+        author: commit.commit.author.name,
+        timestamp: parse_github_timestamp(&commit.commit.author.date),
+    }
+}
+
 /// Get a GitHub token: tries `gh auth token` first, falls back to the provided config token.
 pub async fn resolve_token(config_token: Option<&str>) -> Result<String, AppError> {
     // Try gh CLI first
@@ -253,39 +395,7 @@ impl GithubManager {
             .await
             .map_err(|e| format_octocrab_error("failed to fetch check runs", &e))?;
 
-        let check_runs = response
-            .get("check_runs")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|run| {
-                        Some(CheckRun {
-                            id: run.get("id")?.as_u64()?,
-                            name: run.get("name")?.as_str()?.to_string(),
-                            status: run.get("status")?.as_str()?.to_string(),
-                            conclusion: run
-                                .get("conclusion")
-                                .and_then(|v| v.as_str())
-                                .map(std::string::ToString::to_string),
-                            html_url: run.get("html_url")?.as_str()?.to_string(),
-                            started_at: run
-                                .get("started_at")
-                                .and_then(|v| v.as_str())
-                                .map(std::string::ToString::to_string),
-                            completed_at: run
-                                .get("completed_at")
-                                .and_then(|v| v.as_str())
-                                .map(std::string::ToString::to_string),
-                            check_suite_id: run
-                                .pointer("/check_suite/id")
-                                .and_then(serde_json::Value::as_u64),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Ok(check_runs)
+        Ok(parse_check_runs_response(&response))
     }
 
     /// Fetch reviews for a PR.
@@ -302,22 +412,7 @@ impl GithubManager {
             .await
             .map_err(|e| format_octocrab_error("failed to fetch PR reviews", &e))?;
 
-        let reviews = response
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|review| {
-                        Some(PrReview {
-                            reviewer: review.get("user")?.get("login")?.as_str()?.to_string(),
-                            state: review.get("state")?.as_str()?.to_lowercase(),
-                            submitted_at: review.get("submitted_at").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Ok(reviews)
+        Ok(parse_reviews_response(&response))
     }
 
     /// Fetch line-level review comments for a PR.
@@ -334,33 +429,7 @@ impl GithubManager {
             .await
             .map_err(|e| format_octocrab_error("failed to fetch PR comments", &e))?;
 
-        let comments = response
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|c| {
-                        Some(PrComment {
-                            id: c.get("id")?.as_u64()?,
-                            author: c.get("user")?.get("login")?.as_str()?.to_string(),
-                            body: c.get("body")?.as_str()?.to_string(),
-                            path: c.get("path").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
-                            line: c.get("line").and_then(serde_json::Value::as_u64).map(|n| n as u32),
-                            // GitHub's REST API for pull request review comments does not expose a
-                            // "resolved" field. The resolved/unresolved state of a review thread is
-                            // only available via the GraphQL API (`pullRequest.reviewThreads.isResolved`).
-                            // Until we add a GraphQL call, all comments are treated as unresolved so
-                            // none are accidentally hidden from the user.
-                            resolved: false,
-                            created_at: c.get("created_at")?.as_str()?.to_string(),
-                            updated_at: c.get("updated_at")?.as_str()?.to_string(),
-                            html_url: c.get("html_url")?.as_str()?.to_string(),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Ok(comments)
+        Ok(parse_pr_comments_response(&response))
     }
 
     /// Fetch general (non-line-level) comments on a PR.
@@ -377,31 +446,7 @@ impl GithubManager {
             .await
             .map_err(|e| format_octocrab_error("failed to fetch issue comments", &e))?;
 
-        let comments = response
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|c| {
-                        Some(PrComment {
-                            id: c.get("id")?.as_u64()?,
-                            author: c.get("user")?.get("login")?.as_str()?.to_string(),
-                            body: c.get("body")?.as_str()?.to_string(),
-                            path: None,
-                            line: None,
-                            // Issue comments on a PR (general discussion) have no "resolved"
-                            // concept in the REST API; always false. See the note in
-                            // `get_pr_comments` for full context.
-                            resolved: false,
-                            created_at: c.get("created_at")?.as_str()?.to_string(),
-                            updated_at: c.get("updated_at")?.as_str()?.to_string(),
-                            html_url: c.get("html_url")?.as_str()?.to_string(),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Ok(comments)
+        Ok(parse_issue_comments_response(&response))
     }
 
     /// Fetch only the `mergeable` field for a PR (single API call).
@@ -509,31 +554,7 @@ impl GithubManager {
             let count = files.len();
 
             for file in files {
-                let status = match file.status.as_str() {
-                    "added" => "added",
-                    "removed" => "deleted",
-                    "renamed" => "renamed",
-                    _ => "modified",
-                };
-
-                let (hunks, truncated) = if let Some(ref patch) = file.patch {
-                    (crate::patch_parser::parse_patch(patch), false)
-                } else {
-                    (Vec::new(), true)
-                };
-
-                let additions = file.additions;
-                let deletions = file.deletions;
-
-                all_files.push(crate::commands::diff::DiffFile {
-                    path: file.filename,
-                    old_path: file.previous_filename,
-                    status: status.to_string(),
-                    additions,
-                    deletions,
-                    hunks,
-                    truncated,
-                });
+                all_files.push(map_github_file(file));
             }
 
             if count < 100 {
@@ -587,15 +608,7 @@ impl GithubManager {
             let count = commits.len();
 
             for commit in commits {
-                let hash = commit.sha.clone();
-                let short_hash = hash[..7.min(hash.len())].to_string();
-                all_commits.push(crate::commands::diff::CommitInfo {
-                    hash,
-                    short_hash,
-                    message: commit.commit.message,
-                    author: commit.commit.author.name,
-                    timestamp: parse_github_timestamp(&commit.commit.author.date),
-                });
+                all_commits.push(map_github_commit(commit));
             }
 
             if count < 100 {
@@ -971,5 +984,385 @@ mod tests {
             requested_reviewers: vec![],
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::Done);
+    }
+
+    // --- dedup_reviews tests ---
+
+    #[test]
+    fn test_dedup_reviews_keeps_latest() {
+        let reviews = vec![
+            PrReview {
+                reviewer: "alice".into(),
+                state: "approved".into(),
+                submitted_at: Some("2026-03-29T10:00:00Z".into()),
+            },
+            PrReview {
+                reviewer: "alice".into(),
+                state: "changes_requested".into(),
+                submitted_at: Some("2026-03-29T12:00:00Z".into()),
+            },
+        ];
+        let result = dedup_reviews(reviews);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].state, "changes_requested");
+    }
+
+    #[test]
+    fn test_dedup_reviews_different_reviewers() {
+        let reviews = vec![
+            PrReview {
+                reviewer: "alice".into(),
+                state: "approved".into(),
+                submitted_at: Some("2026-03-29T10:00:00Z".into()),
+            },
+            PrReview {
+                reviewer: "bob".into(),
+                state: "changes_requested".into(),
+                submitted_at: Some("2026-03-29T11:00:00Z".into()),
+            },
+        ];
+        let result = dedup_reviews(reviews);
+        assert_eq!(result.len(), 2);
+    }
+
+    // --- derive_review_decision tests ---
+
+    #[test]
+    fn test_derive_review_decision_changes_requested() {
+        let reviews = vec![PrReview {
+            reviewer: "alice".into(),
+            state: "changes_requested".into(),
+            submitted_at: Some("2026-03-29T10:00:00Z".into()),
+        }];
+        assert_eq!(
+            derive_review_decision(&reviews, &[]),
+            Some("changes_requested".into())
+        );
+    }
+
+    #[test]
+    fn test_derive_review_decision_approved() {
+        let reviews = vec![PrReview {
+            reviewer: "alice".into(),
+            state: "approved".into(),
+            submitted_at: Some("2026-03-29T10:00:00Z".into()),
+        }];
+        assert_eq!(
+            derive_review_decision(&reviews, &[]),
+            Some("approved".into())
+        );
+    }
+
+    #[test]
+    fn test_derive_review_decision_review_requested() {
+        let reviews = vec![PrReview {
+            reviewer: "alice".into(),
+            state: "commented".into(),
+            submitted_at: Some("2026-03-29T10:00:00Z".into()),
+        }];
+        let requested = vec!["bob".to_string()];
+        assert_eq!(
+            derive_review_decision(&reviews, &requested),
+            Some("review_requested".into())
+        );
+    }
+
+    #[test]
+    fn test_derive_review_decision_review_required() {
+        let reviews: Vec<PrReview> = vec![];
+        let requested: Vec<String> = vec![];
+        assert_eq!(
+            derive_review_decision(&reviews, &requested),
+            Some("review_required".into())
+        );
+    }
+
+    // --- parse_github_timestamp tests ---
+
+    #[test]
+    fn test_parse_github_timestamp_valid() {
+        let ts = parse_github_timestamp("2026-03-29T10:30:00Z");
+        assert_eq!(ts, 1774780200);
+    }
+
+    #[test]
+    fn test_parse_github_timestamp_invalid() {
+        assert_eq!(parse_github_timestamp("not-a-date"), 0);
+    }
+
+    // --- parse_workflow_logs tests ---
+
+    fn build_test_zip(entries: &[(&str, &str)]) -> Vec<u8> {
+        use std::io::Write;
+        let buf = std::io::Cursor::new(Vec::new());
+        let mut zip = zip::ZipWriter::new(buf);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        for (name, content) in entries {
+            zip.start_file(*name, options).unwrap();
+            zip.write_all(content.as_bytes()).unwrap();
+        }
+        zip.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn test_parse_workflow_logs_with_failure() {
+        let zip_bytes = build_test_zip(&[(
+            "build/1_Run tests.txt",
+            "Running tests...\nFAIL src/foo.test.ts\nProcess completed with exit code 1",
+        )]);
+        let logs = GithubManager::parse_workflow_logs(42, &zip_bytes).unwrap();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].run_id, 42);
+        assert_eq!(logs[0].job_name, "build");
+        assert_eq!(logs[0].step_name, "Run tests");
+        assert!(logs[0].log_excerpt.contains("FAIL"));
+    }
+
+    #[test]
+    fn test_parse_workflow_logs_no_failures() {
+        let zip_bytes = build_test_zip(&[(
+            "build/1_Run tests.txt",
+            "Running tests...\nAll 42 tests passed.",
+        )]);
+        let logs = GithubManager::parse_workflow_logs(42, &zip_bytes).unwrap();
+        assert!(logs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_workflow_logs_skips_non_txt() {
+        let zip_bytes = build_test_zip(&[(
+            "build/1_Run tests.log",
+            "FAIL this should be skipped",
+        )]);
+        let logs = GithubManager::parse_workflow_logs(42, &zip_bytes).unwrap();
+        assert!(logs.is_empty());
+    }
+
+    // --- parse_check_runs_response tests ---
+
+    #[test]
+    fn test_parse_check_runs_response() {
+        let json = serde_json::json!({
+            "check_runs": [
+                {
+                    "id": 101,
+                    "name": "build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "html_url": "https://github.com/acme/repo/runs/101",
+                    "started_at": "2026-03-29T10:00:00Z",
+                    "completed_at": "2026-03-29T10:05:00Z",
+                    "check_suite": { "id": 500 }
+                },
+                {
+                    "id": 102,
+                    "name": "lint",
+                    "status": "in_progress",
+                    "conclusion": null,
+                    "html_url": "https://github.com/acme/repo/runs/102",
+                    "started_at": "2026-03-29T10:01:00Z",
+                    "completed_at": null
+                }
+            ]
+        });
+
+        let runs = parse_check_runs_response(&json);
+        assert_eq!(runs.len(), 2);
+
+        assert_eq!(runs[0].id, 101);
+        assert_eq!(runs[0].name, "build");
+        assert_eq!(runs[0].status, "completed");
+        assert_eq!(runs[0].conclusion.as_deref(), Some("success"));
+        assert_eq!(runs[0].started_at.as_deref(), Some("2026-03-29T10:00:00Z"));
+        assert_eq!(runs[0].completed_at.as_deref(), Some("2026-03-29T10:05:00Z"));
+        assert_eq!(runs[0].check_suite_id, Some(500));
+
+        assert_eq!(runs[1].id, 102);
+        assert_eq!(runs[1].name, "lint");
+        assert_eq!(runs[1].status, "in_progress");
+        assert_eq!(runs[1].conclusion, None);
+        assert_eq!(runs[1].completed_at, None);
+        assert_eq!(runs[1].check_suite_id, None);
+    }
+
+    #[test]
+    fn test_parse_check_runs_empty() {
+        let json = serde_json::json!({ "check_runs": [] });
+        assert!(parse_check_runs_response(&json).is_empty());
+    }
+
+    #[test]
+    fn test_parse_check_runs_missing_fields() {
+        let json = serde_json::json!({
+            "check_runs": [
+                { "name": "no-id", "status": "completed", "conclusion": "success", "html_url": "u" },
+                { "id": 200, "name": "ok", "status": "completed", "conclusion": null, "html_url": "u2" }
+            ]
+        });
+        let runs = parse_check_runs_response(&json);
+        // First entry skipped (missing id), second kept
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].id, 200);
+    }
+
+    // --- parse_reviews_response tests ---
+
+    #[test]
+    fn test_parse_reviews_response() {
+        let json = serde_json::json!([
+            {
+                "user": { "login": "alice" },
+                "state": "APPROVED",
+                "submitted_at": "2026-03-29T11:00:00Z"
+            },
+            {
+                "user": { "login": "bob" },
+                "state": "CHANGES_REQUESTED",
+                "submitted_at": null
+            }
+        ]);
+
+        let reviews = parse_reviews_response(&json);
+        assert_eq!(reviews.len(), 2);
+        assert_eq!(reviews[0].reviewer, "alice");
+        assert_eq!(reviews[0].state, "approved");
+        assert_eq!(reviews[0].submitted_at.as_deref(), Some("2026-03-29T11:00:00Z"));
+        assert_eq!(reviews[1].reviewer, "bob");
+        assert_eq!(reviews[1].state, "changes_requested");
+        assert_eq!(reviews[1].submitted_at, None);
+    }
+
+    #[test]
+    fn test_parse_reviews_empty() {
+        let json = serde_json::json!([]);
+        assert!(parse_reviews_response(&json).is_empty());
+    }
+
+    // --- parse_pr_comments_response tests ---
+
+    #[test]
+    fn test_parse_pr_comments_response() {
+        let json = serde_json::json!([
+            {
+                "id": 301,
+                "user": { "login": "carol" },
+                "body": "Looks good",
+                "path": "src/main.rs",
+                "line": 42,
+                "created_at": "2026-03-29T12:00:00Z",
+                "updated_at": "2026-03-29T12:05:00Z",
+                "html_url": "https://github.com/acme/repo/pull/1#comment-301"
+            }
+        ]);
+
+        let comments = parse_pr_comments_response(&json);
+        assert_eq!(comments.len(), 1);
+        assert_eq!(comments[0].id, 301);
+        assert_eq!(comments[0].author, "carol");
+        assert_eq!(comments[0].body, "Looks good");
+        assert_eq!(comments[0].path.as_deref(), Some("src/main.rs"));
+        assert_eq!(comments[0].line, Some(42));
+        assert!(!comments[0].resolved);
+        assert_eq!(comments[0].created_at, "2026-03-29T12:00:00Z");
+        assert_eq!(comments[0].html_url, "https://github.com/acme/repo/pull/1#comment-301");
+    }
+
+    // --- parse_issue_comments_response tests ---
+
+    #[test]
+    fn test_parse_issue_comments_response() {
+        let json = serde_json::json!([
+            {
+                "id": 401,
+                "user": { "login": "dave" },
+                "body": "General feedback",
+                "created_at": "2026-03-29T13:00:00Z",
+                "updated_at": "2026-03-29T13:01:00Z",
+                "html_url": "https://github.com/acme/repo/issues/1#comment-401"
+            }
+        ]);
+
+        let comments = parse_issue_comments_response(&json);
+        assert_eq!(comments.len(), 1);
+        assert_eq!(comments[0].id, 401);
+        assert_eq!(comments[0].author, "dave");
+        assert_eq!(comments[0].path, None);
+        assert_eq!(comments[0].line, None);
+        assert!(!comments[0].resolved);
+    }
+
+    // --- map_github_file tests ---
+
+    #[test]
+    fn test_map_github_file_added() {
+        let file = GithubPrFile {
+            filename: "src/new.rs".into(),
+            status: "added".into(),
+            additions: 10,
+            deletions: 0,
+            patch: Some("@@ -0,0 +1,10 @@\n+line1".into()),
+            previous_filename: None,
+        };
+        let diff = map_github_file(file);
+        assert_eq!(diff.path, "src/new.rs");
+        assert_eq!(diff.status, "added");
+        assert_eq!(diff.additions, 10);
+        assert_eq!(diff.deletions, 0);
+        assert!(!diff.truncated);
+        assert!(!diff.hunks.is_empty());
+        assert_eq!(diff.old_path, None);
+    }
+
+    #[test]
+    fn test_map_github_file_renamed() {
+        let file = GithubPrFile {
+            filename: "src/new_name.rs".into(),
+            status: "renamed".into(),
+            additions: 2,
+            deletions: 1,
+            patch: Some("@@ -1,3 +1,4 @@\n context\n-old\n+new\n+extra".into()),
+            previous_filename: Some("src/old_name.rs".into()),
+        };
+        let diff = map_github_file(file);
+        assert_eq!(diff.status, "renamed");
+        assert_eq!(diff.old_path.as_deref(), Some("src/old_name.rs"));
+    }
+
+    #[test]
+    fn test_map_github_file_no_patch() {
+        let file = GithubPrFile {
+            filename: "binary.png".into(),
+            status: "modified".into(),
+            additions: 0,
+            deletions: 0,
+            patch: None,
+            previous_filename: None,
+        };
+        let diff = map_github_file(file);
+        assert!(diff.truncated);
+        assert!(diff.hunks.is_empty());
+    }
+
+    // --- map_github_commit tests ---
+
+    #[test]
+    fn test_map_github_commit() {
+        let commit = GithubPrCommit {
+            sha: "abc1234567890".into(),
+            commit: GithubCommitDetail {
+                message: "feat: add feature".into(),
+                author: GithubCommitAuthor {
+                    name: "Chloe".into(),
+                    date: "2026-03-29T14:00:00Z".into(),
+                },
+            },
+        };
+        let info = map_github_commit(commit);
+        assert_eq!(info.hash, "abc1234567890");
+        assert_eq!(info.short_hash, "abc1234");
+        assert_eq!(info.message, "feat: add feature");
+        assert_eq!(info.author, "Chloe");
+        assert_eq!(info.timestamp, 1774792800);
     }
 }
