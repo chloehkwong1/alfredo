@@ -1,0 +1,38 @@
+src-tauri/Cargo.toml
+  b79ea0eb96783402 55
+src-tauri/src/keychain.rs
+  b79ea0eb96783402 117,119-120,123,134,143,154,163,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "265f8abc2e0d103759a1862412ac3abc61fa19ca",
+  "prompts": {
+    "b79ea0eb96783402": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7102d5dd-0e33-4c48-9f0f-9e46844217fe",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 8,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "e65b31ed8a6869ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23b9e03a-3138-4447-83b2-266345815dce",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}
