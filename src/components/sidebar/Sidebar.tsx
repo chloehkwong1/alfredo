@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, HelpCircle } from "lucide-react";
+import { Settings, Plus, HelpCircle, BarChart3 } from "lucide-react";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { IconButton } from "../ui";
 import logoSvg from "../../assets/logo-cat.svg";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -46,6 +47,21 @@ function groupByColumn(
   return groups;
 }
 
+
+async function openUsageWindow() {
+  const existing = await WebviewWindow.getByLabel("usage");
+  if (existing) {
+    await existing.setFocus();
+    return;
+  }
+  new WebviewWindow("usage", {
+    url: "https://claude.ai/settings/usage",
+    title: "Usage — Claude",
+    width: 900,
+    height: 700,
+    center: true,
+  });
+}
 
 interface SidebarProps {
   hasRepo: boolean;
@@ -190,6 +206,9 @@ function Sidebar({
           <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
         </div>
         <div className="flex items-center gap-2">
+          <IconButton size="sm" label="Usage" className="rounded-[6px]" onClick={openUsageWindow}>
+            <BarChart3 />
+          </IconButton>
           <IconButton size="sm" label="Keyboard shortcuts" className="rounded-[6px]" onClick={() => setShortcutsOpen(true)}>
             <HelpCircle />
           </IconButton>
