@@ -50,10 +50,16 @@ jobs:
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy --lib -- -D warnings
+        env:
+          LINEAR_CLIENT_ID: placeholder
+          LINEAR_CLIENT_SECRET: placeholder
 
       - name: Run tests
         working-directory: src-tauri
         run: cargo test
+        env:
+          LINEAR_CLIENT_ID: placeholder
+          LINEAR_CLIENT_SECRET: placeholder
 
   supply-chain:
     name: Supply Chain
