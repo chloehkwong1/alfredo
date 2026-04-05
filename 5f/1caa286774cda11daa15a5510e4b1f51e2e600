@@ -1,0 +1,25 @@
+.github/workflows/dependabot-auto-merge.yml
+  b79ea0eb96783402 1-26
+.github/dependabot.yml
+  b79ea0eb96783402 8-15,22-29,36-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "5f1caa286774cda11daa15a5510e4b1f51e2e600",
+  "prompts": {
+    "b79ea0eb96783402": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7102d5dd-0e33-4c48-9f0f-9e46844217fe",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    }
+  }
+}
