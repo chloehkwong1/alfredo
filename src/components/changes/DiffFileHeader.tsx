@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Check, ChevronDown, ChevronRight, Copy, Trash2 } from "lucide-react";
 import type { DiffFile } from "../../types";
 
 interface DiffFileHeaderProps {
@@ -25,10 +26,11 @@ const STATUS_COLOR: Record<DiffFile["status"], string> = {
 function DiffFileHeader({ file, expanded, onToggleExpanded, onDiscardFile }: DiffFileHeaderProps) {
   const statusLabel = STATUS_LABEL[file.status];
   const statusColor = STATUS_COLOR[file.status];
+  const [copied, setCopied] = useState(false);
 
   return (
     <div
-      className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default cursor-pointer select-none hover:bg-bg-hover transition-colors"
+      className="group/header sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default cursor-pointer select-none hover:bg-bg-hover transition-colors"
       onClick={() => onToggleExpanded(file.path)}
     >
       <span className="text-text-tertiary flex-shrink-0">
@@ -45,6 +47,18 @@ function DiffFileHeader({ file, expanded, onToggleExpanded, onDiscardFile }: Dif
       <span className="flex-1 font-mono text-xs text-text-primary truncate">
         {file.path}
       </span>
+      <button
+        className="flex-shrink-0 opacity-0 group-hover/header:opacity-100 p-0.5 rounded text-text-tertiary hover:text-text-primary transition-all"
+        onClick={(e) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(file.path);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+        title="Copy file path"
+      >
+        {copied ? <Check size={13} className="text-diff-added" /> : <Copy size={13} />}
+      </button>
       {(file.additions > 0 || file.deletions > 0) && (
         <span className="flex items-center gap-1.5 flex-shrink-0 text-[11px] font-mono">
           {file.additions > 0 && (
@@ -57,7 +71,7 @@ function DiffFileHeader({ file, expanded, onToggleExpanded, onDiscardFile }: Dif
       )}
       {onDiscardFile && (
         <button
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 p-0.5 rounded text-text-tertiary hover:text-danger transition-all"
+          className="flex-shrink-0 opacity-0 group-hover/header:opacity-100 group-focus-within:opacity-100 p-0.5 rounded text-text-tertiary hover:text-danger transition-all"
           onClick={(e) => {
             e.stopPropagation();
             onDiscardFile(file.path, file.status);
