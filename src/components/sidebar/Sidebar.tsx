@@ -114,7 +114,7 @@ function Sidebar({
     await lifecycleManager.removeWorktree(id, repoPath, wt.name);
   }
 
-  const activeWorktrees = worktrees.filter((wt) => !wt.archived);
+  const activeWorktrees = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode);
   const archivedWorktrees = worktrees.filter((wt) => wt.archived);
   const grouped = groupByColumn(activeWorktrees);
 
