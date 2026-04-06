@@ -13,18 +13,13 @@ import { Trash2, Check, Copy } from "lucide-react";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
 import { useAnnotationActions } from "./useAnnotationActions";
 import { ChangesToolbar } from "./ChangesToolbar";
+import { CommitJumpBar } from "./CommitJumpBar";
+import { DiscardDialog } from "./DiscardDialog";
+import { AnnotationBar } from "./AnnotationBar";
 
 const EMPTY_COMMENTS: PrComment[] = [];
 import { formatRelativeTime } from "./formatRelativeTime";
 import { useAppConfig } from "../../hooks/useAppConfig";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "../ui/Dialog";
 
 interface ChangesViewProps {
   worktreeId: string;
@@ -248,34 +243,11 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
           />
           {/* Jump bar for commit diffs with multiple files — outside scroll container so it's always visible */}
           {viewMode === "commits" && selectedCommitIndex !== null && displayFiles.length > 1 && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-secondary border-b border-border-default overflow-x-auto flex-shrink-0">
-              {displayFiles.map((file) => (
-                <button
-                  key={file.path}
-                  type="button"
-                  onClick={() => {
-                    const el = fileRefs.current.get(file.path);
-                    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                  className={[
-                    "px-2 py-0.5 rounded text-xs whitespace-nowrap transition-colors",
-                    file.path === focusedFilePath
-                      ? "bg-accent-primary/20 text-accent-primary"
-                      : "bg-bg-tertiary text-text-secondary hover:text-text-primary",
-                  ].join(" ")}
-                >
-                  <span className={`mr-1 font-semibold ${
-                    file.status === "added" ? "text-diff-added"
-                      : file.status === "deleted" ? "text-diff-removed"
-                      : file.status === "modified" ? "text-accent-primary"
-                      : "text-text-secondary"
-                  }`}>
-                    {file.status === "added" ? "A" : file.status === "modified" ? "M" : file.status === "deleted" ? "D" : "R"}
-                  </span>
-                  {file.path.split("/").pop()}
-                </button>
-              ))}
-            </div>
+            <CommitJumpBar
+              displayFiles={displayFiles}
+              focusedFilePath={focusedFilePath}
+              fileRefs={fileRefs}
+            />
           )}
           <div className="flex-1 overflow-y-auto min-w-0">
             {viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex] && (
@@ -353,51 +325,20 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
         </div>
 
       {/* Discard confirmation dialog */}
-      <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) handleCancelDiscard(); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {discardTarget?.type === "all" ? "Discard all changes?" : "Discard changes?"}
-            </DialogTitle>
-            <DialogDescription>
-              {discardTarget?.type === "all"
-                ? `This will revert ${uncommittedFiles.length} file${uncommittedFiles.length !== 1 ? "s" : ""} to their last committed state. This action cannot be undone.`
-                : discardTarget?.type === "file" && discardTarget.status === "added"
-                  ? `This will delete "${discardTarget.path}". This action cannot be undone.`
-                  : `This will revert all changes to "${discardTarget?.type === "file" ? discardTarget.path : ""}". This action cannot be undone.`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={handleCancelDiscard}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleConfirmDiscard}>
-              {discardTarget?.type === "all" ? "Discard All" : "Discard"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DiscardDialog
+        discardTarget={discardTarget}
+        uncommittedCount={uncommittedFiles.length}
+        onCancel={handleCancelDiscard}
+        onConfirm={handleConfirmDiscard}
+      />
 
       {/* Floating review comment bar */}
       {annotations.length > 0 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 bg-bg-primary border border-accent-primary/30 rounded-lg shadow-lg">
-          <div className="flex items-center gap-2">
-            <span className="bg-accent-primary text-text-on-accent text-[11px] font-bold px-2 py-0.5 rounded-full">
-              {annotations.length}
-            </span>
-            <span className="text-xs text-text-secondary">
-              review comment{annotations.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" variant="ghost" onClick={() => clearAnnotations(worktreeId)}>
-              Clear all
-            </Button>
-            <Button size="sm" variant="primary" onClick={handleSendToClaude}>
-              Send to agent ⏎
-            </Button>
-          </div>
-        </div>
+        <AnnotationBar
+          count={annotations.length}
+          onClearAll={() => clearAnnotations(worktreeId)}
+          onSendToClaude={handleSendToClaude}
+        />
       )}
     </div>
   );
