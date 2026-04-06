@@ -2,7 +2,6 @@ import React from "react";
 import { SplitSideContent } from "./SplitDiffLine";
 import { pairLinesForSplit } from "./splitPairing";
 import { AnnotationBubble } from "./AnnotationBubble";
-import { AnnotationInput } from "./AnnotationInput";
 import { DiffCommentIndicator } from "./DiffCommentIndicator";
 import { DiffCommentThread } from "./DiffCommentThread";
 import { ExpandContextButton } from "./ExpandContextButton";
@@ -17,7 +16,6 @@ interface SplitDiffBodyProps {
   handleExpandContext: (gapKey: string) => void;
   annotationsByLine: Map<string, Annotation[]>;
   prCommentsByLine: Map<number, PrComment[]>;
-  activeAnnotationLine: { filePath: string; lineNumber: number; side: DiffSide } | null;
   expandedCommentLines: Set<number>;
   toggleCommentLine: (lineNumber: number) => void;
   highlightCommentLine?: number | null;
@@ -25,7 +23,6 @@ interface SplitDiffBodyProps {
   searchQuery?: string;
   syncSplitScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   onAddAnnotation: (filePath: string, lineNumber: number, side: DiffSide) => void;
-  onSubmitAnnotation: (filePath: string, lineNumber: number, side: DiffSide, text: string) => void;
   onDeleteAnnotation: (id: string) => void;
   onEditAnnotation: (id: string, text: string) => void;
   onSendToClaude?: (comment: PrComment) => void;
@@ -39,7 +36,6 @@ function SplitDiffBody({
   handleExpandContext,
   annotationsByLine,
   prCommentsByLine,
-  activeAnnotationLine,
   expandedCommentLines,
   toggleCommentLine,
   highlightCommentLine,
@@ -47,7 +43,6 @@ function SplitDiffBody({
   searchQuery,
   syncSplitScroll,
   onAddAnnotation,
-  onSubmitAnnotation,
   onDeleteAnnotation,
   onEditAnnotation,
   onSendToClaude,
@@ -125,11 +120,6 @@ function SplitDiffBody({
                       const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
                       const lineAnnotations = annotationKey !== null ? (annotationsByLine.get(annotationKey) ?? []) : [];
                       const lineComments = lineNumber !== null ? (prCommentsByLine.get(lineNumber) ?? []) : [];
-                      const isActiveAnnotationLine =
-                        lineNumber !== null &&
-                        activeAnnotationLine?.filePath === file.path &&
-                        activeAnnotationLine?.lineNumber === lineNumber &&
-                        activeAnnotationLine?.side === side;
                       const hasComments = lineComments.length > 0;
                       const commentsExpanded = lineNumber !== null && expandedCommentLines.has(lineNumber);
 
@@ -164,12 +154,7 @@ function SplitDiffBody({
                               onEdit={onEditAnnotation}
                             />
                           ))}
-                          {isActiveAnnotationLine && lineNumber !== null && (
-                            <AnnotationInput
-                              onSubmit={(text) => onSubmitAnnotation(file.path, lineNumber, side, text)}
-                              onCancel={() => onAddAnnotation(file.path, lineNumber, side)}
-                            />
-                          )}
+                          {/* AnnotationInput is rendered sticky in DiffFileCard, outside the overflow-x-auto container */}
                         </div>
                       );
                     })}

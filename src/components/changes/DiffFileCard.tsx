@@ -3,6 +3,7 @@ import { DiffFileHeader } from "./DiffFileHeader";
 import { useContextExpansion } from "./useContextExpansion";
 import { UnifiedDiffBody } from "./UnifiedDiffBody";
 import { SplitDiffBody } from "./SplitDiffBody";
+import { AnnotationInput } from "./AnnotationInput";
 import type {
   DiffFile,
   DiffViewMode,
@@ -208,7 +209,6 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 handleExpandContext={handleExpandContext}
                 annotationsByLine={annotationsByLine}
                 prCommentsByLine={prCommentsByLine}
-                activeAnnotationLine={activeAnnotationLine}
                 expandedCommentLines={expandedCommentLines}
                 toggleCommentLine={toggleCommentLine}
                 highlightCommentLine={highlightCommentLine}
@@ -216,7 +216,6 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 searchQuery={searchQuery}
                 activeSearchMatch={activeSearchMatch}
                 onAddAnnotation={onAddAnnotation}
-                onSubmitAnnotation={onSubmitAnnotation}
                 onDeleteAnnotation={onDeleteAnnotation}
                 onEditAnnotation={onEditAnnotation}
                 onSendToClaude={onSendToClaude}
@@ -230,7 +229,6 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 handleExpandContext={handleExpandContext}
                 annotationsByLine={annotationsByLine}
                 prCommentsByLine={prCommentsByLine}
-                activeAnnotationLine={activeAnnotationLine}
                 expandedCommentLines={expandedCommentLines}
                 toggleCommentLine={toggleCommentLine}
                 highlightCommentLine={highlightCommentLine}
@@ -238,12 +236,34 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 searchQuery={searchQuery}
                 syncSplitScroll={syncSplitScroll}
                 onAddAnnotation={onAddAnnotation}
-                onSubmitAnnotation={onSubmitAnnotation}
                 onDeleteAnnotation={onDeleteAnnotation}
                 onEditAnnotation={onEditAnnotation}
                 onSendToClaude={onSendToClaude}
               />
             )}
+          </div>
+        )}
+
+        {/* Sticky annotation input — rendered outside overflow-x-auto so sticky works against the outer scroll container */}
+        {expanded && hasBeenVisible && activeAnnotationLine?.filePath === file.path && (
+          <div className="sticky bottom-0 z-20">
+            <AnnotationInput
+              onSubmit={(text) =>
+                onSubmitAnnotation(
+                  file.path,
+                  activeAnnotationLine.lineNumber,
+                  activeAnnotationLine.side,
+                  text,
+                )
+              }
+              onCancel={() =>
+                onAddAnnotation(
+                  file.path,
+                  activeAnnotationLine.lineNumber,
+                  activeAnnotationLine.side,
+                )
+              }
+            />
           </div>
         )}
       </div>
