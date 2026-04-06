@@ -86,18 +86,16 @@ function WorkspacePanel({
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments ?? EMPTY_COMMENTS);
   const { checkRuns, mergeable, reviewDecision } = usePrBadgeCounts(worktreeId);
 
-  // Map panel tab to data-fetching view mode
-  const dataViewMode: ViewMode = panelTab === "commits" ? "commits" : "changes";
+  // Branch-mode repos on the default branch have no meaningful committed diff —
+  // skip the fetch entirely so only uncommitted changes are shown.
+  const isBranchModeDefault = !!(worktree?.isBranchMode && !pr);
+  const effectiveBaseBranch = pr?.baseBranch;
+
+  // Map panel tab to data-fetching view mode — force "changes" when tabs are hidden
+  const dataViewMode: ViewMode = isBranchModeDefault ? "changes" : (panelTab === "commits" ? "commits" : "changes");
 
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
-
-  // In branch mode without a PR, pass the current branch as baseBranch so the
-  // committed diff compares the branch against itself (= empty).  Without this,
-  // resolve_default_branch falls back to origin/HEAD which may be stale, showing
-  // a huge spurious diff.
-  const effectiveBaseBranch = pr?.baseBranch
-    ?? (worktree?.isBranchMode ? worktree.branch : undefined);
 
   const { uncommittedFiles, committedFiles, commits, refetchUncommitted } = useChangesData(
     repoPath,
@@ -105,6 +103,7 @@ function WorkspacePanel({
     selectedCommitIndex,
     effectiveBaseBranch,
     pr?.number,
+    isBranchModeDefault,
   );
 
   // ── Discard state ──────────────────────────────────────────
@@ -209,45 +208,47 @@ function WorkspacePanel({
         </IconButton>
       </div>
 
-      {/* Unified tab bar: Files | Commits | PR */}
-      <div className="flex px-2.5 py-1.5 gap-0 flex-shrink-0">
-        <button
-          onClick={() => handleTabChange("changes")}
-          className={[
-            "flex-1 px-2 py-1 text-[11px] border border-border-default rounded-l-md",
-            panelTab === "changes"
-              ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-              : "text-text-tertiary",
-          ].join(" ")}
-        >
-          Files{fileCount > 0 ? ` (${fileCount})` : ""}
-        </button>
-        <button
-          onClick={() => handleTabChange("commits")}
-          className={[
-            "flex-1 px-2 py-1 text-[11px] border border-l-0 border-border-default",
-            hasPr ? "" : "rounded-r-md",
-            panelTab === "commits"
-              ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-              : "text-text-tertiary",
-          ].join(" ")}
-        >
-          Commits{commits.length > 0 ? ` (${commits.length})` : ""}
-        </button>
-        {hasPr && (
+      {/* Tab bar — hidden when only uncommitted changes exist (branch-mode on default branch) */}
+      {!isBranchModeDefault && (
+        <div className="flex px-2.5 py-1.5 gap-0 flex-shrink-0">
           <button
-            onClick={() => handleTabChange("pr")}
+            onClick={() => handleTabChange("changes")}
             className={[
-              "flex-1 px-2 py-1 text-[11px] border border-l-0 border-border-default rounded-r-md",
-              panelTab === "pr"
+              "flex-1 px-2 py-1 text-[11px] border border-border-default rounded-l-md",
+              panelTab === "changes"
                 ? "bg-accent-muted text-accent-primary border-accent-primary/40"
                 : "text-text-tertiary",
             ].join(" ")}
           >
-            PR
+            Files{fileCount > 0 ? ` (${fileCount})` : ""}
           </button>
-        )}
-      </div>
+          <button
+            onClick={() => handleTabChange("commits")}
+            className={[
+              "flex-1 px-2 py-1 text-[11px] border border-l-0 border-border-default",
+              hasPr ? "" : "rounded-r-md",
+              panelTab === "commits"
+                ? "bg-accent-muted text-accent-primary border-accent-primary/40"
+                : "text-text-tertiary",
+            ].join(" ")}
+          >
+            Commits{commits.length > 0 ? ` (${commits.length})` : ""}
+          </button>
+          {hasPr && (
+            <button
+              onClick={() => handleTabChange("pr")}
+              className={[
+                "flex-1 px-2 py-1 text-[11px] border border-l-0 border-border-default rounded-r-md",
+                panelTab === "pr"
+                  ? "bg-accent-muted text-accent-primary border-accent-primary/40"
+                  : "text-text-tertiary",
+              ].join(" ")}
+            >
+              PR
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Tab content */}
       {panelTab === "pr" && hasPr ? (
@@ -303,8 +304,8 @@ function WorkspacePanel({
         />
       )}
 
-      {/* Rebase banner — hidden when merge conflict already shown (conflict implies behind main) */}
-      {worktree && mergeable !== false && <RebaseBanner worktreePath={worktree.path} stackParent={worktree.stackParent} />}
+      {/* Rebase banner — hidden for branch-mode (already on main) and merge conflicts */}
+      {worktree && !isBranchModeDefault && mergeable !== false && <RebaseBanner worktreePath={worktree.path} stackParent={worktree.stackParent} />}
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>
@@ -354,8 +355,8 @@ function WorkspacePanelMinimized({
 }) {
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
-  const minimizedBaseBranch = pr?.baseBranch
-    ?? (worktree?.isBranchMode ? worktree.branch : undefined);
+  const isBranchModeDefault = !!(worktree?.isBranchMode && !pr);
+  const minimizedBaseBranch = pr?.baseBranch ?? undefined;
 
   const { uncommittedFiles, committedFiles } = useChangesData(
     repoPath,
@@ -363,6 +364,7 @@ function WorkspacePanelMinimized({
     null,
     minimizedBaseBranch,
     pr?.number,
+    isBranchModeDefault,
   );
 
   const fileCount = uncommittedFiles.length + committedFiles.length;

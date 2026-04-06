@@ -20,6 +20,7 @@ export function useChangesData(
   selectedCommitIndex: number | null,
   baseBranch?: string,
   prNumber?: number,
+  skipCommitted?: boolean,
 ): UseChangesDataReturn {
   const [uncommittedFiles, setUncommittedFiles] = useState<DiffFile[]>([]);
   const [committedFiles, setCommittedFiles] = useState<DiffFile[]>([]);
@@ -46,7 +47,13 @@ export function useChangesData(
   // Load committed files and commits — from GitHub API when PR exists, local git otherwise.
   // Local git paths poll every 10s to pick up new commits; GitHub API paths fetch once
   // (refreshed by github_sync on a longer cadence).
+  // Skipped entirely for branch-mode repos on the default branch (no meaningful committed diff).
   useEffect(() => {
+    if (skipCommitted) {
+      setCommittedFiles([]);
+      setCommits([]);
+      return;
+    }
     let cancelled = false;
 
     if (prNumber) {
@@ -100,7 +107,7 @@ export function useChangesData(
     fetchLocal();
     const interval = setInterval(fetchLocal, 10_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [repoPath, baseBranch, prNumber]);
+  }, [repoPath, baseBranch, prNumber, skipCommitted]);
 
   useEffect(() => {
     if (viewMode !== "commits" || selectedCommitIndex === null || commits.length === 0) {
