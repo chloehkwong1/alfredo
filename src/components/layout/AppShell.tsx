@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { RemoteControlBar } from "./RemoteControlBar";
@@ -24,49 +23,14 @@ import { useUpdater } from "../../hooks/useUpdater";
 import { UpdateBanner } from "./UpdateBanner";
 import { setRepoColor as setRepoColorApi, getConfig } from "../../api";
 import { REPO_COLOR_PALETTE } from "../sidebar/RepoSelector";
-import { saveAllSessions } from "../../services/SessionPersistence";
-import { sessionManager } from "../../services/sessionManager";
-import { usePrStore } from "../../stores/prStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { useSessionAutoSave } from "./useSessionAutoSave";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { CommandPalette } from "../commandPalette/CommandPalette";
 import logoSvg from "../../assets/logo-cat.svg";
 import type { WorkspaceTab, AppConfig, RepoMode } from "../../types";
 
 const EMPTY_TABS: WorkspaceTab[] = [];
-const AUTO_SAVE_INTERVAL_MS = 30_000;
-
-/** Snapshot current workspace + layout state and persist all sessions to disk. */
-function collectAndSaveAllSessions(repoPath: string) {
-  const state = useWorkspaceStore.getState();
-  const tabState = useTabStore.getState();
-  const prState = usePrStore.getState();
-  const worktreeIds = state.worktrees
-    .filter((wt) => !wt.creating && !wt.createError)
-    .map((wt) => wt.id);
-  return saveAllSessions(
-    repoPath,
-    worktreeIds,
-    (wtId) => tabState.tabs[wtId] ?? [],
-    (wtId) => tabState.activeTabId[wtId] ?? "",
-    (tabId) => sessionManager.getBufferedOutputBase64(tabId),
-    (wtId) => useLayoutStore.getState().layout[wtId],
-    (wtId) => useLayoutStore.getState().panes[wtId],
-    (wtId) => useLayoutStore.getState().activePaneId[wtId],
-    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.column,
-    (wtId) => state.diffViewMode[wtId],
-    (wtId) => prState.columnOverrides[wtId] ?? null,
-    (wtId) => prState.prPanelState[wtId],
-    (wtId) => state.changesViewMode[wtId],
-    (wtId) => state.changesPanelCollapsed[wtId],
-    (wtId) => state.seenWorktrees.has(wtId) || undefined,
-    (wtId) => state.unreadWorktrees.has(wtId) || undefined,
-    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.claudeSessionId,
-    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.archived || undefined,
-    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.archivedAt,
-    (wtId) => state.annotations[wtId]?.length ? state.annotations[wtId] : undefined,
-  );
-}
 
 function AppShell() {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
@@ -139,6 +103,7 @@ function AppShell() {
   }, [setupRepoPath, repos]);
 
   const hasWorktrees = worktrees.length > 0;
+  useSessionAutoSave(repoPath, hasWorktrees);
 
   // Restore sidebar collapsed state from app config (one-time)
   const sidebarRestored = useRef(false);
@@ -261,34 +226,6 @@ function AppShell() {
       });
     }
   }, [loading, worktrees.length]);
-
-  // Save sessions on app quit (only when worktrees exist — not during onboarding)
-  useEffect(() => {
-    if (!repoPath || !hasWorktrees) return;
-
-    const currentWindow = getCurrentWindow();
-    const unlisten = currentWindow.onCloseRequested(async (event) => {
-      event.preventDefault();
-      await collectAndSaveAllSessions(repoPath);
-      await currentWindow.destroy();
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [repoPath, hasWorktrees]);
-
-  // Debounced auto-save every 30s (only when worktrees exist)
-  useEffect(() => {
-    if (!repoPath || !hasWorktrees) return;
-
-    const interval = setInterval(() => {
-      collectAndSaveAllSessions(repoPath)
-        .catch((err) => console.error("Auto-save failed:", err));
-    }, AUTO_SAVE_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [repoPath, hasWorktrees]);
 
   // Clean up layout state for removed worktrees (skip branch-mode IDs)
   const worktreeIds = worktrees.map((wt) => wt.id);
