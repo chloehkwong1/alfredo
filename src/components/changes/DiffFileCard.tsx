@@ -1,5 +1,5 @@
 import React, { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { DiffFileHeader } from "./DiffFileHeader";
 import { SyntaxDiffLine } from "./SyntaxDiffLine";
 import { AnnotationBubble } from "./AnnotationBubble";
 import { AnnotationInput } from "./AnnotationInput";
@@ -44,19 +44,6 @@ interface DiffFileCardProps {
   onSendToClaude?: (comment: PrComment) => void;
 }
 
-const STATUS_LABEL: Record<DiffFile["status"], string> = {
-  added: "A",
-  modified: "M",
-  deleted: "D",
-  renamed: "R",
-};
-
-const STATUS_COLOR: Record<DiffFile["status"], string> = {
-  added: "text-diff-added bg-diff-added/10",
-  modified: "text-accent-primary bg-accent-primary/10",
-  deleted: "text-diff-removed bg-diff-removed/10",
-  renamed: "text-text-secondary bg-bg-hover",
-};
 
 const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   function DiffFileCard(
@@ -201,9 +188,6 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       file, repoPath, commitHash, autoExpandAll,
     );
 
-    const statusLabel = STATUS_LABEL[file.status];
-    const statusColor = STATUS_COLOR[file.status];
-
     return (
       <div ref={(node) => {
         // Merge forwarded ref + local cardRef
@@ -211,61 +195,12 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
         if (typeof ref === "function") ref(node);
         else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
       }} className="border-b border-border-default">
-        {/* Sticky header */}
-        <div
-          className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default cursor-pointer select-none hover:bg-bg-hover transition-colors"
-          onClick={() => onToggleExpanded(file.path)}
-        >
-          {/* Chevron */}
-          <span className="text-text-tertiary flex-shrink-0">
-            {expanded ? (
-              <ChevronDown size={14} />
-            ) : (
-              <ChevronRight size={14} />
-            )}
-          </span>
-
-          {/* Status badge */}
-          <span
-            className={[
-              "flex-shrink-0 w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center",
-              statusColor,
-            ].join(" ")}
-          >
-            {statusLabel}
-          </span>
-
-          {/* File path */}
-          <span className="flex-1 font-mono text-xs text-text-primary truncate">
-            {file.path}
-          </span>
-
-          {/* +/- stats */}
-          {(file.additions > 0 || file.deletions > 0) && (
-            <span className="flex items-center gap-1.5 flex-shrink-0 text-[11px] font-mono">
-              {file.additions > 0 && (
-                <span className="text-diff-added">+{file.additions}</span>
-              )}
-              {file.deletions > 0 && (
-                <span className="text-diff-removed">-{file.deletions}</span>
-              )}
-            </span>
-          )}
-
-          {/* Discard button */}
-          {onDiscardFile && (
-            <button
-              className="flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 p-0.5 rounded text-text-tertiary hover:text-danger transition-all"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDiscardFile(file.path, file.status);
-              }}
-              title="Discard changes"
-            >
-              <Trash2 size={13} />
-            </button>
-          )}
-        </div>
+        <DiffFileHeader
+          file={file}
+          expanded={expanded}
+          onToggleExpanded={onToggleExpanded}
+          onDiscardFile={onDiscardFile}
+        />
 
         {/* Diff body — deferred until card has been in/near viewport */}
         {expanded && hasBeenVisible && (
