@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DiffFileCard } from "./DiffFileCard";
 import { openInEditor } from "../../api";
 import { useDiscardChanges } from "./useDiscardChanges";
@@ -14,7 +14,7 @@ import { Search, Trash2, Maximize2, Minimize2, MessageSquare, Copy, Check, Exter
 import { IconButton } from "../ui/IconButton";
 import { DiffSearchBar } from "./DiffSearchBar";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
-import { lifecycleManager } from "../../services/lifecycleManager";
+import { useAnnotationActions } from "./useAnnotationActions";
 
 const EMPTY_COMMENTS: PrComment[] = [];
 import { formatRelativeTime } from "./formatRelativeTime";
@@ -80,13 +80,6 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   // Map panel tab to data view mode — "pr" tab doesn't affect data fetching
   const viewMode = panelTab === "commits" ? "commits" : "changes";
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
-  const [activeAnnotationLine, setActiveAnnotationLine] = useState<{ filePath: string; lineNumber: number; side: import("../../types").DiffSide } | null>(null);
-
-  const annotations = useWorkspaceStore((s) => s.annotations[worktreeId]) ?? [];
-  const addAnnotation = useWorkspaceStore((s) => s.addAnnotation);
-  const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
-  const editAnnotation = useWorkspaceStore((s) => s.editAnnotation);
-  const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
   const { config: appCfg } = useAppConfig();
   const defaultDiffView = appCfg?.defaultDiffViewMode ?? "unified";
   const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? defaultDiffView;
@@ -102,6 +95,17 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   const { commits, displayFiles, uncommittedFiles, refetchUncommitted } = useChangesData(
     repoPath, viewMode, selectedCommitIndex, pr?.baseBranch, pr?.number,
   );
+
+  const {
+    annotations,
+    activeAnnotationLine,
+    handleAddAnnotation,
+    handleSubmitAnnotation,
+    handleDeleteAnnotation,
+    handleEditAnnotation,
+    clearAnnotations,
+    resetActiveAnnotation,
+  } = useAnnotationActions(worktreeId, viewMode, selectedCommitIndex, commits);
 
   const {
     collapsedFiles,
@@ -175,8 +179,8 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
 
   const handleSelectCommit = useCallback((index: number) => {
     setSelectedCommitIndex(index);
-    setActiveAnnotationLine(null);
-  }, []);
+    resetActiveAnnotation();
+  }, [resetActiveAnnotation]);
 
   // Drive display from diffTarget prop (replaces DOM event listeners)
   useEffect(() => {
@@ -203,61 +207,6 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
       }
     }
   }, [diffTarget, handleSelectFile, handleSelectCommit, commits, fileRefs]);
-
-
-  const handleAddAnnotation = useCallback(
-    (filePath: string, lineNumber: number, side: import("../../types").DiffSide) => {
-      setActiveAnnotationLine((prev) => {
-        const toggling = prev?.filePath === filePath && prev?.lineNumber === lineNumber && prev?.side === side;
-        if (!toggling) {
-          // Opening annotation input — pin the preview tab so it isn't replaced
-          lifecycleManager.pinCurrentPreview(worktreeId);
-        }
-        return toggling ? null : { filePath, lineNumber, side };
-      });
-    },
-    [worktreeId],
-  );
-
-  // Use ref to avoid re-creating callback when commits array changes from polling
-  const commitsRef = useRef(commits);
-  commitsRef.current = commits;
-
-  const handleSubmitAnnotation = useCallback(
-    (filePath: string, lineNumber: number, side: import("../../types").DiffSide, text: string) => {
-      const currentCommits = commitsRef.current;
-      const commitHash =
-        viewMode === "commits" && selectedCommitIndex !== null && currentCommits.length > 0
-          ? currentCommits[selectedCommitIndex].hash
-          : null;
-      addAnnotation({
-        id: crypto.randomUUID(),
-        worktreeId,
-        filePath,
-        lineNumber,
-        side,
-        commitHash,
-        text,
-        createdAt: Date.now(),
-      });
-      setActiveAnnotationLine(null);
-    },
-    [worktreeId, viewMode, selectedCommitIndex, addAnnotation],
-  );
-
-  const handleDeleteAnnotation = useCallback(
-    (annotationId: string) => {
-      removeAnnotation(worktreeId, annotationId);
-    },
-    [worktreeId, removeAnnotation],
-  );
-
-  const handleEditAnnotation = useCallback(
-    (annotationId: string, newText: string) => {
-      editAnnotation(worktreeId, annotationId, newText);
-    },
-    [worktreeId, editAnnotation],
-  );
 
 
   const focusedFile = focusedFilePath ? displayFiles.find((f) => f.path === focusedFilePath) : null;
