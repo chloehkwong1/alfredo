@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DiffFileCard } from "./DiffFileCard";
-import { discardFile, discardAllUncommitted, openInEditor } from "../../api";
+import { openInEditor } from "../../api";
+import { useDiscardChanges } from "./useDiscardChanges";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import { Button } from "../ui/Button";
@@ -148,43 +149,13 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     [worktreeId, repoPath, worktree?.branch],
   );
 
-  // ── Discard state ──────────────────────────────────────────
-  const [discardTarget, setDiscardTarget] = useState<
-    null | { type: "file"; path: string; status: string } | { type: "all" }
-  >(null);
-
-  const handleDiscardFile = useCallback((path: string, status: string) => {
-    setDiscardTarget({ type: "file", path, status });
-  }, []);
-
-  const handleDiscardAll = useCallback(() => {
-    setDiscardTarget({ type: "all" });
-  }, []);
-
-  const handleCancelDiscard = useCallback(() => {
-    setDiscardTarget(null);
-  }, []);
-
-  const handleConfirmDiscard = useCallback(async () => {
-    if (!discardTarget) return;
-    try {
-      if (discardTarget.type === "file") {
-        await discardFile(repoPath, discardTarget.path, discardTarget.status);
-      } else {
-        const files = uncommittedFiles.map((f) => ({
-          path: f.path,
-          oldPath: f.oldPath,
-          status: f.status,
-        }));
-        await discardAllUncommitted(repoPath, files);
-      }
-      refetchUncommitted();
-    } catch (err) {
-      console.error("Discard failed:", err);
-    } finally {
-      setDiscardTarget(null);
-    }
-  }, [discardTarget, repoPath, uncommittedFiles, refetchUncommitted]);
+  const {
+    discardTarget,
+    handleDiscardFile,
+    handleDiscardAll,
+    handleCancelDiscard,
+    handleConfirmDiscard,
+  } = useDiscardChanges(repoPath, uncommittedFiles, refetchUncommitted);
 
   // State for highlighting a PR comment line (auto-expands the thread and scrolls)
   const [highlightComment, setHighlightComment] = useState<{ filePath: string; line: number } | null>(null);
