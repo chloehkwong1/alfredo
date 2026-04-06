@@ -2,17 +2,18 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getConfig } from "../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getConfig, getActiveBranch } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
 import { findAgentTab, isAgentTab } from "../types";
+import type { RepoEntry, Worktree } from "../types";
 
 /**
  * Loads worktrees for all selected repos, restores persisted sessions
  * (once per app lifecycle), and fetches diff stats in the background.
  */
-export function useSessionRestore(repoPath: string | null, selectedRepos: string[]) {
+export function useSessionRestore(repoPath: string | null, selectedRepos: string[], repos: RepoEntry[]) {
   const setWorktreesForRepo = useWorkspaceStore((s) => s.setWorktreesForRepo);
   const clearWorktreesForRepo = useWorkspaceStore((s) => s.clearWorktreesForRepo);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
@@ -23,6 +24,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
   const restoredRepos = useRef(new Set<string>());
 
   const selectedReposKey = selectedRepos.join(",");
+  const repoModeKey = repos.map((r) => `${r.path}:${r.mode}`).join(",");
   useEffect(() => {
     if (!repoPath) return;
     const reposToSync = selectedRepos.length > 0 ? selectedRepos : [repoPath];
@@ -43,7 +45,35 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
       }
     }
 
+    const repoModeMap = new Map(repos.map((r) => [r.path, r.mode]));
+
     for (const repo of reposToLoad) {
+      const isBranchMode = repoModeMap.get(repo) === "branch";
+
+      // For branch-mode repos, create a synthetic worktree entry so the rest
+      // of the app (TerminalView, ChangesPanel) can find it in the store.
+      if (isBranchMode) {
+        getActiveBranch(repo).then((branch) => {
+          const id = `branch::${repo}`;
+          const name = repo.split("/").pop() ?? repo;
+          const synthetic: Worktree = {
+            id,
+            name,
+            path: repo,
+            branch: branch ?? "main",
+            prStatus: null,
+            agentStatus: "notRunning",
+            column: "inProgress",
+            isBranchMode: true,
+            additions: null,
+            deletions: null,
+            repoPath: repo,
+          };
+          setWorktreesForRepo(repo, [synthetic]);
+        }).catch((e) => console.warn(`[session-restore] Failed to get active branch for ${repo}:`, e));
+        continue;
+      }
+
       listWorktrees(repo).then(async (wts) => {
         if (wts.length > 0) {
           setWorktreesForRepo(repo, wts);
@@ -205,5 +235,5 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
         console.warn(`[AppShell] Failed to list worktrees for ${repo}:`, e);
       });
     }
-  }, [repoPath, selectedReposKey, setWorktreesForRepo, clearWorktreesForRepo, updateWorktree, restoreTabs, ensureDefaultTabs]);
+  }, [repoPath, selectedReposKey, repoModeKey, setWorktreesForRepo, clearWorktreesForRepo, updateWorktree, restoreTabs, ensureDefaultTabs]);
 }

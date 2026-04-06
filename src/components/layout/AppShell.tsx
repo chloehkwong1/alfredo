@@ -190,7 +190,7 @@ function AppShell() {
   }, [updateConfig]);
 
   // Extracted hooks
-  useSessionRestore(repoPath, selectedRepos);
+  useSessionRestore(repoPath, selectedRepos, repos);
   const { runScript, isServerRunningHere, handleToggleServer } = useServer(activeWorktreeId);
 
   const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabIdValue);
@@ -290,16 +290,25 @@ function AppShell() {
     return () => clearInterval(interval);
   }, [repoPath, hasWorktrees]);
 
-  // Clean up layout state for removed worktrees
+  // Clean up layout state for removed worktrees (skip branch-mode IDs)
   const worktreeIds = worktrees.map((wt) => wt.id);
   useEffect(() => {
     const layoutState = useLayoutStore.getState();
     for (const wtId of Object.keys(layoutState.layout)) {
-      if (!worktreeIds.includes(wtId)) {
+      if (!wtId.startsWith("branch::") && !worktreeIds.includes(wtId)) {
         layoutState.removeLayout(wtId);
       }
     }
   }, [JSON.stringify(worktreeIds)]);
+
+  // Initialize layout for branch-mode repos when selected
+  useEffect(() => {
+    if (!activeWorktreeId?.startsWith("branch::")) return;
+    const layoutState = useLayoutStore.getState();
+    if (!layoutState.layout[activeWorktreeId]) {
+      lifecycleManager.initWorktreeDefaults(activeWorktreeId);
+    }
+  }, [activeWorktreeId]);
 
   const changesPanelCollapsed = useWorkspaceStore((s) => s.changesPanelCollapsed[activeWorktreeId ?? ""] ?? false);
   const setChangesPanelCollapsed = useWorkspaceStore((s) => s.setChangesPanelCollapsed);
@@ -327,6 +336,10 @@ function AppShell() {
   const hasWorktreeRepos = repos.some(
     (r) => effectiveSelectedRepos.includes(r.path) && r.mode === "worktree",
   );
+
+  // For branch-mode repos, extract the repo path from the ID ("branch::/path/to/repo")
+  const activeRepoPath = worktree?.path
+    ?? (activeWorktreeId?.startsWith("branch::") ? activeWorktreeId.slice(8) : null);
 
   const sidebarLayout = useDefaultLayout({
     id: "sidebar",
@@ -436,7 +449,7 @@ function AppShell() {
                       <WorkspacePanel
                         key={activeWorktreeId}
                         worktreeId={activeWorktreeId}
-                        repoPath={worktree?.path ?? "."}
+                        repoPath={activeRepoPath ?? "."}
                         onCollapse={() => setChangesPanelCollapsed(activeWorktreeId, true)}
                       />
                     </Panel>
@@ -446,7 +459,7 @@ function AppShell() {
               {changesPanelCollapsed && (
                 <WorkspacePanelMinimized
                   worktreeId={activeWorktreeId}
-                  repoPath={worktree?.path ?? "."}
+                  repoPath={activeRepoPath ?? "."}
                   onExpand={() => setChangesPanelCollapsed(activeWorktreeId, false)}
                 />
               )}
@@ -462,6 +475,9 @@ function AppShell() {
                 </span>
                 {hasWorktreeRepos && (
                   <span className="text-xs">Each worktree gets its own branch, terminal, and agent · <kbd className="px-1.5 py-0.5 rounded bg-bg-elevated border border-border-default font-mono text-[11px]">⌘N</kbd> to create new worktree</span>
+                )}
+                {!hasWorktreeRepos && repos.length > 0 && (
+                  <span className="text-xs">Click a repo in the sidebar to open it</span>
                 )}
               </div>
             </div>

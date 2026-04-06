@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getActiveBranch, getWorktreeDiffStats } from "../api";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { RepoEntry } from "../types";
 
 export interface BranchRepoState {
@@ -53,6 +54,15 @@ export function useBranchRepos(
         }),
       );
       setStates(results);
+
+      // Sync branch & diff stats back to the workspace store so TerminalView
+      // and ChangesPanel stay current when the user switches branches externally.
+      const updateWorktree = useWorkspaceStore.getState().updateWorktree;
+      for (const r of results) {
+        if (r.branch != null) {
+          updateWorktree(r.id, { branch: r.branch, additions: r.additions, deletions: r.deletions });
+        }
+      }
     }
 
     poll();
