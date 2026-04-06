@@ -154,7 +154,7 @@ function RepoSetupDialog({
                 setGithubConnected(status.username);
               }
             })
-            .catch(() => {});
+            .catch((e) => console.warn("[repo-setup] Failed to check GitHub auth status:", e));
         }
         if (config.setupScripts?.length > 0) {
           setSetupScript(config.setupScripts[0].command);
@@ -172,7 +172,7 @@ function RepoSetupDialog({
           setMode("branch");
         }
       })
-      .catch(() => {});
+      .catch((e) => console.warn("[repo-setup] Failed to load repo config:", e));
 
     // Check carry-forward GitHub token
     if (previousRepoConfig?.githubToken) {
@@ -183,7 +183,7 @@ function RepoSetupDialog({
             setGithubConnected(status.username);
           }
         })
-        .catch(() => {});
+        .catch((e) => console.warn("[repo-setup] Failed to check carry-forward GitHub auth:", e));
     }
 
     // Resolve username for existing token
@@ -194,7 +194,7 @@ function RepoSetupDialog({
             setExistingGithubUsername(status.username);
           }
         })
-        .catch(() => {});
+        .catch((e) => console.warn("[repo-setup] Failed to check existing GitHub auth:", e));
     }
   }, [isOpen, repoPath, existingGithubToken, previousRepoConfig]);
 

@@ -33,7 +33,7 @@ export function useGithubSync() {
                 const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
                 useWorkspaceStore.getState().updateWorktree(wtId, { additions, deletions });
               })
-              .catch(() => {}); // Silently fall back to existing local stats
+              .catch((e) => console.warn("[github-sync] Failed to fetch PR files for", wtId, e));
           }
         }
       }
