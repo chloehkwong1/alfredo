@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { DiffFileCard } from "./DiffFileCard";
-import { openInEditor } from "../../api";
 import { useDiscardChanges } from "./useDiscardChanges";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
@@ -10,11 +9,10 @@ import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { useSendToClaude } from "../../hooks/useSendToClaude";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
-import { Search, Trash2, Maximize2, Minimize2, MessageSquare, Copy, Check, ExternalLink } from "lucide-react";
-import { IconButton } from "../ui/IconButton";
-import { DiffSearchBar } from "./DiffSearchBar";
+import { Trash2, Check, Copy } from "lucide-react";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
 import { useAnnotationActions } from "./useAnnotationActions";
+import { ChangesToolbar } from "./ChangesToolbar";
 
 const EMPTY_COMMENTS: PrComment[] = [];
 import { formatRelativeTime } from "./formatRelativeTime";
@@ -220,205 +218,34 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   return (
     <div className="flex flex-col h-full relative">
         <div className="flex-1 flex flex-col min-w-0 h-full">
-          <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
-            {focusedFilePath ? (
-              <>
-                {/* Focused file toolbar — click path to copy */}
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 min-w-0 cursor-copy group/path"
-                  onClick={() => {
-                    navigator.clipboard.writeText(focusedFilePath);
-                    setCopiedPath(true);
-                    setTimeout(() => setCopiedPath(false), 1500);
-                  }}
-                  title="Click to copy file path"
-                >
-                  <span className="text-[11px] font-mono text-text-primary truncate">
-                    {focusedFilePath.split("/").pop()}
-                  </span>
-                  <span className="text-[10px] text-text-tertiary truncate hidden sm:inline">
-                    {focusedFilePath.split("/").slice(0, -1).join("/")}
-                  </span>
-                  {copiedPath
-                    ? <Check size={11} className="flex-shrink-0 text-diff-added" />
-                    : <Copy size={11} className="flex-shrink-0 text-text-tertiary opacity-0 group-hover/path:opacity-100 transition-opacity" />
-                  }
-                </button>
-                <div className="flex items-center gap-1.5 ml-auto">
-                  <IconButton
-                    size="sm"
-                    label="Open in editor"
-                    className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
-                    onClick={() => {
-                      if (appCfg) {
-                        openInEditor(
-                          `${repoPath}/${focusedFilePath}`,
-                          appCfg.preferredEditor,
-                          appCfg.customEditorPath ?? undefined,
-                        );
-                      }
-                    }}
-                  >
-                    <ExternalLink size={12} />
-                  </IconButton>
-                  <span className="text-text-tertiary/50">|</span>
-                  <IconButton
-                    size="sm"
-                    label={expandFullFile ? "Show diffs only" : "Expand full file"}
-                    className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
-                    onClick={() => setExpandFullFile((v) => !v)}
-                  >
-                    {expandFullFile ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                  </IconButton>
-                  <span className="text-text-tertiary/50">|</span>
-                  {searchOpen ? (
-                    <DiffSearchBar
-                      isOpen={searchOpen}
-                      onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
-                      searchTerm={searchQuery}
-                      onSearchChange={setSearchQuery}
-                      matchCount={matches.length}
-                      activeMatch={currentMatchIndex}
-                      onPrev={() => navigateMatch("prev")}
-                      onNext={() => navigateMatch("next")}
-                      inputRef={searchInputRef}
-                    />
-                  ) : (
-                    <IconButton
-                      size="sm"
-                      label="Search in diffs (/)"
-                      className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
-                      onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()); }}
-                    >
-                      <Search size={12} />
-                    </IconButton>
-                  )}
-                  <span className="text-text-tertiary/50">|</span>
-                  {pr && (
-                    <>
-                      <IconButton
-                        size="sm"
-                        label={showPrComments ? "Hide PR comments" : "Show PR comments"}
-                        className={`h-auto w-auto p-0 ${
-                          showPrComments ? "text-[var(--color-pr-comment)]" : "text-text-tertiary hover:text-text-primary"
-                        }`}
-                        onClick={() => setShowPrComments(worktreeId, !showPrComments)}
-                      >
-                        <MessageSquare size={12} />
-                      </IconButton>
-                      <span className="text-text-tertiary/50">|</span>
-                    </>
-                  )}
-                  <div className="flex border border-border-default rounded overflow-hidden">
-                    <button
-                      className={`px-2 py-0.5 text-[10px] transition-colors ${
-                        diffViewMode === "unified"
-                          ? "bg-accent-primary/15 text-accent-primary font-medium"
-                          : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
-                      }`}
-                      onClick={() => setDiffViewMode(worktreeId, "unified")}
-                    >
-                      Unified
-                    </button>
-                    <button
-                      className={`px-2 py-0.5 text-[10px] border-l border-border-default transition-colors ${
-                        diffViewMode === "split"
-                          ? "bg-accent-primary/15 text-accent-primary font-medium"
-                          : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
-                      }`}
-                      onClick={() => setDiffViewMode(worktreeId, "split")}
-                    >
-                      Split
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <span className="text-[10px] text-text-tertiary">
-                  {viewMode === "changes"
-                    ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""}`
-                    : selectedCommitIndex !== null
-                      ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""} in commit`
-                      : "Select a commit"}
-                </span>
-                {displayFiles.length > 0 && (
-                  <div className="flex items-center gap-1.5 ml-auto">
-                    {/* Search within diffs */}
-                    {searchOpen ? (
-                      <DiffSearchBar
-                        isOpen={searchOpen}
-                        onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
-                        searchTerm={searchQuery}
-                        onSearchChange={setSearchQuery}
-                        matchCount={matches.length}
-                        activeMatch={currentMatchIndex}
-                        onPrev={() => navigateMatch("prev")}
-                        onNext={() => navigateMatch("next")}
-                        inputRef={searchInputRef}
-                      />
-                    ) : (
-                      <IconButton
-                        size="sm"
-                        label="Search in diffs (/)"
-                        className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
-                        onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()); }}
-                      >
-                        <Search size={12} />
-                      </IconButton>
-                    )}
-                    <span className="text-text-tertiary/50">|</span>
-                    <Button size="sm" variant="ghost" className="h-auto px-0 text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
-                      Expand all
-                    </Button>
-                    <span className="text-text-tertiary/50">|</span>
-                    <Button size="sm" variant="ghost" className="h-auto px-0 text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
-                      Collapse all
-                    </Button>
-                    <span className="text-text-tertiary/50 mx-1">|</span>
-                    {pr && (
-                      <>
-                        <IconButton
-                          size="sm"
-                          label={showPrComments ? "Hide PR comments" : "Show PR comments"}
-                          className={`h-auto w-auto p-0 ${
-                            showPrComments ? "text-[var(--color-pr-comment)]" : "text-text-tertiary hover:text-text-primary"
-                          }`}
-                          onClick={() => setShowPrComments(worktreeId, !showPrComments)}
-                        >
-                          <MessageSquare size={12} />
-                        </IconButton>
-                        <span className="text-text-tertiary/50">|</span>
-                      </>
-                    )}
-                    <div className="flex border border-border-default rounded overflow-hidden">
-                      <button
-                        className={`px-2 py-0.5 text-[10px] transition-colors ${
-                          diffViewMode === "unified"
-                            ? "bg-accent-primary/15 text-accent-primary font-medium"
-                            : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
-                        }`}
-                        onClick={() => setDiffViewMode(worktreeId, "unified")}
-                      >
-                        Unified
-                      </button>
-                      <button
-                        className={`px-2 py-0.5 text-[10px] border-l border-border-default transition-colors ${
-                          diffViewMode === "split"
-                            ? "bg-accent-primary/15 text-accent-primary font-medium"
-                            : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
-                        }`}
-                        onClick={() => setDiffViewMode(worktreeId, "split")}
-                      >
-                        Split
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          <ChangesToolbar
+            focusedFilePath={focusedFilePath}
+            displayFiles={displayFiles}
+            viewMode={viewMode}
+            selectedCommitIndex={selectedCommitIndex}
+            diffViewMode={diffViewMode}
+            setDiffViewMode={setDiffViewMode}
+            worktreeId={worktreeId}
+            repoPath={repoPath}
+            searchOpen={searchOpen}
+            setSearchOpen={setSearchOpen}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searchInputRef={searchInputRef}
+            matches={matches}
+            currentMatchIndex={currentMatchIndex}
+            navigateMatch={navigateMatch}
+            expandFullFile={expandFullFile}
+            setExpandFullFile={setExpandFullFile}
+            copiedPath={copiedPath}
+            setCopiedPath={setCopiedPath}
+            expandAll={expandAll}
+            collapseAll={collapseAll}
+            pr={pr}
+            showPrComments={showPrComments}
+            setShowPrComments={setShowPrComments}
+            appConfig={appCfg}
+          />
           {/* Jump bar for commit diffs with multiple files — outside scroll container so it's always visible */}
           {viewMode === "commits" && selectedCommitIndex !== null && displayFiles.length > 1 && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-secondary border-b border-border-default overflow-x-auto flex-shrink-0">
