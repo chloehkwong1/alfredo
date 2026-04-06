@@ -36,10 +36,9 @@ interface TerminalViewProps {
   tabId?: string;
   /** The tab type — determines whether to spawn Claude or a shell. */
   tabType?: TabType;
-  hasWorktreeRepos?: boolean;
 }
 
-function TerminalView({ tabId, tabType = "claude", hasWorktreeRepos }: TerminalViewProps) {
+function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
   const worktree = useWorkspaceStore((s) =>
     s.worktrees.find((wt) => wt.id === activeWorktreeId),
@@ -65,7 +64,9 @@ function TerminalView({ tabId, tabType = "claude", hasWorktreeRepos }: TerminalV
     return tabs.find((t) => t.id === tabId)?.command;
   });
 
-  const { activeRepo: repoPath } = useAppConfig();
+  const { activeRepo: repoPath, repos, selectedRepos } = useAppConfig();
+  const effectiveSelected = selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : []);
+  const hasWorktreeRepos = repos.some((r) => effectiveSelected.includes(r.path) && r.mode === "worktree");
 
   const [reconnectKey, setReconnectKey] = useState(0);
 

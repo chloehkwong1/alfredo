@@ -153,9 +153,11 @@ function RepoSelector({
                 <span className="text-xs text-text-primary font-medium flex-1 truncate">
                   {repoDisplayName(repo.path, repoDisplayNames)}
                 </span>
-                <span className="text-2xs text-text-tertiary flex-shrink-0">
-                  {count} worktree{count !== 1 ? "s" : ""}
-                </span>
+                {repo.mode !== "branch" && (
+                  <span className="text-2xs text-text-tertiary flex-shrink-0">
+                    {count} worktree{count !== 1 ? "s" : ""}
+                  </span>
+                )}
                 {onRemoveRepo && (
                   <button
                     type="button"

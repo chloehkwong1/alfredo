@@ -321,7 +321,7 @@ function Sidebar({
           open={createWorktreeOpen}
           onOpenChange={setCreateWorktreeOpen}
           repoPath={repoPath ?? undefined}
-          repos={repos}
+          repos={repos.filter((r) => r.mode === "worktree")}
           repoColors={effectiveRepoColors}
           defaultRepoPath={defaultRepoPath}
         />

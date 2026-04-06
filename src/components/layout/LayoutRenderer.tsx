@@ -105,7 +105,7 @@ function LayoutRenderer({
               ? "Select a repo to get started"
               : "Select a worktree to get started"}
           </span>
-          {hasWorktreeRepos !== false && (
+          {hasWorktreeRepos === true && (
             <span className="text-xs">Each worktree gets its own branch, terminal, and agent</span>
           )}
         </div>

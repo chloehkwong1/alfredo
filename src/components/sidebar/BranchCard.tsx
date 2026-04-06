@@ -70,11 +70,6 @@ const BranchCard = memo(function BranchCard({
         <span className="text-sm font-medium text-text-primary truncate">
           {displayName}
         </span>
-        {prSummary && (
-          <span className="text-xs text-text-tertiary flex-shrink-0">
-            {/* PR number would come from prStore if available */}
-          </span>
-        )}
         {showRepoTag && (
           <span className="ml-auto flex-shrink-0">
             <RepoTag

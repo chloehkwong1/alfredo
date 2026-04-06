@@ -366,7 +366,7 @@ function RepoSetupDialog({
                 type="button"
                 className={`flex-1 text-center py-1.5 rounded-md text-caption font-medium transition-colors cursor-pointer ${
                   mode === "branch"
-                    ? "bg-bg-tertiary text-text-primary"
+                    ? "bg-bg-elevated text-text-primary"
                     : "text-text-tertiary hover:text-text-secondary"
                 }`}
                 onClick={() => setMode("branch")}
@@ -377,7 +377,7 @@ function RepoSetupDialog({
                 type="button"
                 className={`flex-1 text-center py-1.5 rounded-md text-caption font-medium transition-colors cursor-pointer ${
                   mode === "worktree"
-                    ? "bg-bg-tertiary text-text-primary"
+                    ? "bg-bg-elevated text-text-primary"
                     : "text-text-tertiary hover:text-text-secondary"
                 }`}
                 onClick={() => setMode("worktree")}

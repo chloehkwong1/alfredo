@@ -45,7 +45,6 @@ function AddRepoModal({
           const paths = event.payload.paths;
           if (paths.length > 0) {
             onRepoSelected(paths[0]);
-            onOpenChange(false);
           }
         } else if (event.payload.type === "leave") {
           setIsDragOver(false);
@@ -66,7 +65,6 @@ function AddRepoModal({
       const selected = await open({ directory: true, multiple: false });
       if (selected) {
         onRepoSelected(selected as string);
-        onOpenChange(false);
       }
     } catch {
       // User cancelled or error — no-op
