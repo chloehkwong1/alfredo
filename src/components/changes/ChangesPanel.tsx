@@ -92,11 +92,18 @@ function WorkspacePanel({
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
+  // In branch mode without a PR, pass the current branch as baseBranch so the
+  // committed diff compares the branch against itself (= empty).  Without this,
+  // resolve_default_branch falls back to origin/HEAD which may be stale, showing
+  // a huge spurious diff.
+  const effectiveBaseBranch = pr?.baseBranch
+    ?? (worktree?.isBranchMode ? worktree.branch : undefined);
+
   const { uncommittedFiles, committedFiles, commits, refetchUncommitted } = useChangesData(
     repoPath,
     dataViewMode,
     selectedCommitIndex,
-    pr?.baseBranch,
+    effectiveBaseBranch,
     pr?.number,
   );
 
@@ -347,12 +354,14 @@ function WorkspacePanelMinimized({
 }) {
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
+  const minimizedBaseBranch = pr?.baseBranch
+    ?? (worktree?.isBranchMode ? worktree.branch : undefined);
 
   const { uncommittedFiles, committedFiles } = useChangesData(
     repoPath,
     "changes",
     null,
-    pr?.baseBranch,
+    minimizedBaseBranch,
     pr?.number,
   );
 
