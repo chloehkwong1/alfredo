@@ -112,6 +112,7 @@ pub fn run() {
             config::save_config,
             config::run_setup_scripts,
             config::run_archive_script,
+            config::set_repo_mode,
             // Repo
             repo::validate_git_repo,
             // Branch mode

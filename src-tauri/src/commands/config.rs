@@ -1,5 +1,7 @@
+use tauri::Manager;
+
 use crate::config_manager;
-use crate::types::{AppConfig, AppError};
+use crate::types::{AppConfig, AppError, RepoMode};
 
 type Result<T> = std::result::Result<T, AppError>;
 
@@ -35,6 +37,30 @@ pub async fn run_setup_scripts(
     }
 
     config_manager::run_setup_scripts(&worktree_path, &create_scripts).await
+}
+
+/// Update the repo mode (branch ↔ worktree) in both .alfredo.json and the global app config.
+#[tauri::command]
+pub async fn set_repo_mode(app: tauri::AppHandle, repo_path: String, mode: RepoMode) -> Result<()> {
+    // Load both configs before writing either (fail fast)
+    let mut local_config = config_manager::load_config(&repo_path).await?;
+    let dir = app.path()
+        .app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let mut global = crate::app_config_manager::load(&dir).await?;
+
+    let entry = global.repos.iter_mut().find(|r| r.path == repo_path)
+        .ok_or_else(|| AppError::Config(format!("repo not found in global config: {repo_path}")))?;
+
+    // Mutate
+    local_config.branch_mode = matches!(mode, RepoMode::Branch);
+    entry.mode = mode;
+
+    // Write both
+    config_manager::save_config(&repo_path, &local_config).await?;
+    crate::app_config_manager::save(&dir, &global).await?;
+
+    Ok(())
 }
 
 /// Run the archive script for a worktree, reading it from the repo's config file.

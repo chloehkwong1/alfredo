@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FolderOpen } from "lucide-react";
-import type { AppConfig, RepoEntry, SetupScript } from "../../types";
-import { getConfig, saveConfig } from "../../api";
+import type { AppConfig, RepoEntry, RepoMode, SetupScript } from "../../types";
+import { getConfig, saveConfig, setRepoMode } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { Button } from "../ui/Button";
 import {
@@ -68,6 +68,7 @@ function WorkspaceSettingsDialog({
     defaultRepoPath ?? repoPath,
   );
   const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [switchingMode, setSwitchingMode] = useState(false);
   const prevOpenRef = useRef(false);
 
   // Reset currentRepoPath and display name draft when dialog opens
@@ -119,6 +120,24 @@ function WorkspaceSettingsDialog({
     },
     [currentRepoPath, dirty, repoDisplayNames],
   );
+
+  const currentMode: RepoMode = repos.find((r) => r.path === currentRepoPath)?.mode ?? "worktree";
+
+  const handleModeSwitch = useCallback(async (newMode: RepoMode) => {
+    if (newMode === currentMode) return;
+    const label = newMode === "branch" ? "branch" : "worktree";
+    const confirmed = window.confirm(
+      `Switch to ${label} mode? The board will reload to reflect the change.`,
+    );
+    if (!confirmed) return;
+    setSwitchingMode(true);
+    try {
+      await setRepoMode(currentRepoPath, newMode);
+      window.dispatchEvent(new Event("config-changed"));
+    } finally {
+      setSwitchingMode(false);
+    }
+  }, [currentRepoPath, currentMode]);
 
   const handleSave = useCallback(async () => {
     if (!config) return;
@@ -192,6 +211,42 @@ function WorkspaceSettingsDialog({
           <div className="flex-1 min-w-0 min-h-0 p-6 overflow-y-auto">
             {tab === "repository" && (
               <div>
+                {/* Mode toggle */}
+                <div className="mb-4">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
+                    Mode
+                  </div>
+                  <div className="flex bg-bg-primary border border-border-default rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      disabled={switchingMode}
+                      className={`flex-1 text-center py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer ${
+                        currentMode === "branch"
+                          ? "bg-bg-elevated text-text-primary"
+                          : "text-text-tertiary hover:text-text-secondary"
+                      }`}
+                      onClick={() => handleModeSwitch("branch")}
+                    >
+                      Branches
+                    </button>
+                    <button
+                      type="button"
+                      disabled={switchingMode}
+                      className={`flex-1 text-center py-1.5 rounded-md text-[13px] font-medium transition-colors cursor-pointer ${
+                        currentMode === "worktree"
+                          ? "bg-bg-elevated text-text-primary"
+                          : "text-text-tertiary hover:text-text-secondary"
+                      }`}
+                      onClick={() => handleModeSwitch("worktree")}
+                    >
+                      Worktrees
+                    </button>
+                  </div>
+                  <p className="text-xs text-text-tertiary mt-[5px]">
+                    Branch mode shows git branches. Worktree mode uses git worktrees with a kanban board.
+                  </p>
+                </div>
+
                 {/* Repo Path (read-only) */}
                 <div className="mb-4">
                   <div className="text-[13px] font-medium text-text-primary mb-1.5">

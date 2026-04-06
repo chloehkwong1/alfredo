@@ -38,6 +38,15 @@ export function useAppConfig() {
     return () => { cancelled = true; };
   }, []);
 
+  // Re-fetch when config changes (e.g. mode switch from settings dialog)
+  useEffect(() => {
+    const handler = () => {
+      getAppConfig().then(setConfig).catch(() => {});
+    };
+    window.addEventListener("config-changed", handler);
+    return () => window.removeEventListener("config-changed", handler);
+  }, []);
+
   const activeRepo = config?.activeRepo ?? null;
   const repos = config?.repos ?? [];
 

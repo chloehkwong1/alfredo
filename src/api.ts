@@ -177,6 +177,13 @@ export function saveConfig(
   return invoke("save_config", { repoPath, config });
 }
 
+export function setRepoMode(
+  repoPath: string,
+  mode: RepoMode,
+): Promise<void> {
+  return invoke("set_repo_mode", { repoPath, mode });
+}
+
 // ── Linear ──────────────────────────────────────────────────────
 
 export function searchLinearIssues(
