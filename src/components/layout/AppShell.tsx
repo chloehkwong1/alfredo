@@ -13,7 +13,6 @@ import { RemoveRepoDialog } from "../sidebar/RemoveRepoDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
-import { useLayoutStore } from "../../stores/layoutStore";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
 import { useSessionRestore } from "../../hooks/useSessionRestore";
@@ -25,6 +24,7 @@ import { setRepoColor as setRepoColorApi, getConfig } from "../../api";
 import { REPO_COLOR_PALETTE } from "../sidebar/RepoSelector";
 import { useAgentStore } from "../../stores/agentStore";
 import { useSessionAutoSave } from "./useSessionAutoSave";
+import { useStatePersistence } from "./useStatePersistence";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { CommandPalette } from "../commandPalette/CommandPalette";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -105,54 +105,7 @@ function AppShell() {
   const hasWorktrees = worktrees.length > 0;
   useSessionAutoSave(repoPath, hasWorktrees);
 
-  // Restore sidebar collapsed state from app config (one-time)
-  const sidebarRestored = useRef(false);
-  useEffect(() => {
-    if (!sidebarRestored.current && config?.sidebarCollapsed != null) {
-      sidebarRestored.current = true;
-      useWorkspaceStore.getState().setSidebarCollapsed(config.sidebarCollapsed);
-    }
-  }, [config]);
-
-  // Save sidebar collapsed state to config on toggle
-  useEffect(() => {
-    if (!sidebarRestored.current) return;
-    let prev = useWorkspaceStore.getState().sidebarCollapsed;
-    const unsub = useWorkspaceStore.subscribe((state) => {
-      if (state.sidebarCollapsed !== prev) {
-        prev = state.sidebarCollapsed;
-        updateConfig({ sidebarCollapsed: state.sidebarCollapsed });
-      }
-    });
-    return unsub;
-  }, [updateConfig]);
-
-  // Restore active worktree from app config (one-time)
-  const worktreeRestored = useRef(false);
-  useEffect(() => {
-    if (worktreeRestored.current || !config?.activeWorktreeId) return;
-    // Only restore once worktrees have loaded so the ID is valid
-    if (worktrees.length > 0) {
-      worktreeRestored.current = true;
-      const exists = worktrees.some((wt) => wt.id === config.activeWorktreeId);
-      if (exists) {
-        useWorkspaceStore.getState().setActiveWorktree(config.activeWorktreeId!);
-      }
-    }
-  }, [config, worktrees]);
-
-  // Persist active worktree to config when it changes
-  useEffect(() => {
-    if (!worktreeRestored.current) return;
-    let prev = useWorkspaceStore.getState().activeWorktreeId;
-    const unsub = useWorkspaceStore.subscribe((state) => {
-      if (state.activeWorktreeId !== prev) {
-        prev = state.activeWorktreeId;
-        updateConfig({ activeWorktreeId: state.activeWorktreeId });
-      }
-    });
-    return unsub;
-  }, [updateConfig]);
+  useStatePersistence(config, worktrees, activeWorktreeId, updateConfig);
 
   // Extracted hooks
   useSessionRestore(repoPath, selectedRepos, repos);
@@ -226,26 +179,6 @@ function AppShell() {
       });
     }
   }, [loading, worktrees.length]);
-
-  // Clean up layout state for removed worktrees (skip branch-mode IDs)
-  const worktreeIds = worktrees.map((wt) => wt.id);
-  useEffect(() => {
-    const layoutState = useLayoutStore.getState();
-    for (const wtId of Object.keys(layoutState.layout)) {
-      if (!wtId.startsWith("branch::") && !worktreeIds.includes(wtId)) {
-        layoutState.removeLayout(wtId);
-      }
-    }
-  }, [JSON.stringify(worktreeIds)]);
-
-  // Initialize layout for branch-mode repos when selected
-  useEffect(() => {
-    if (!activeWorktreeId?.startsWith("branch::")) return;
-    const layoutState = useLayoutStore.getState();
-    if (!layoutState.layout[activeWorktreeId]) {
-      lifecycleManager.initWorktreeDefaults(activeWorktreeId);
-    }
-  }, [activeWorktreeId]);
 
   const changesPanelCollapsed = useWorkspaceStore((s) => s.changesPanelCollapsed[activeWorktreeId ?? ""] ?? false);
   const setChangesPanelCollapsed = useWorkspaceStore((s) => s.setChangesPanelCollapsed);
