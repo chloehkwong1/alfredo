@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { check, type Update, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -9,10 +9,12 @@ export interface UpdateState {
   status: UpdateStatus;
   version: string | null;
   progress: number; // 0–100
+  checking: boolean;
   update: () => void;
   restart: () => void;
   dismiss: () => void;
   openReleaseNotes: () => void;
+  checkNow: () => Promise<void>;
 }
 
 export function useUpdater(): UpdateState {
@@ -21,22 +23,37 @@ export function useUpdater(): UpdateState {
   const [progress, setProgress] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [updateObj, setUpdateObj] = useState<Update | null>(null);
+  const [checking, setChecking] = useState(false);
+  const checkingRef = useRef(false);
+
+  const checkForUpdate = useCallback(async () => {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
+    setChecking(true);
+    try {
+      const result = await check();
+      if (!result) return;
+      setUpdateObj(result);
+      setVersion(result.version);
+      setStatus("available");
+      setDismissed(false);
+    } catch (e) {
+      console.error("[updater] check failed:", e);
+    } finally {
+      checkingRef.current = false;
+      setChecking(false);
+    }
+  }, []);
 
   useEffect(() => {
     checkForUpdate();
-
-    async function checkForUpdate() {
-      try {
-        const result = await check();
-        if (!result) return;
-        setUpdateObj(result);
-        setVersion(result.version);
-        setStatus("available");
-      } catch (e) {
-        console.error("[updater] check failed:", e);
-      }
-    }
-  }, []);
+    const interval = setInterval(() => {
+      // Don't poll while downloading or ready to restart
+      if (status === "downloading" || status === "ready") return;
+      checkForUpdate();
+    }, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [checkForUpdate, status]);
 
   const update = useCallback(async () => {
     if (!updateObj) return;
@@ -89,9 +106,11 @@ export function useUpdater(): UpdateState {
     status: dismissed ? "idle" : status,
     version,
     progress,
+    checking,
     update,
     restart,
     dismiss,
     openReleaseNotes,
+    checkNow: checkForUpdate,
   };
 }

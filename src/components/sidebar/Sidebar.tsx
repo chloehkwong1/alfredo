@@ -64,6 +64,8 @@ interface SidebarProps {
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
   onSetRepoDisplayName?: (repoPath: string, name: string | null) => void;
+  onCheckForUpdates?: () => Promise<void>;
+  checkingForUpdates?: boolean;
 }
 
 function Sidebar({
@@ -77,6 +79,8 @@ function Sidebar({
   repoColors,
   repoDisplayNames,
   onSetRepoDisplayName,
+  onCheckForUpdates,
+  checkingForUpdates,
 }: SidebarProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
@@ -304,6 +308,8 @@ function Sidebar({
       <GlobalSettingsDialog
         open={globalSettingsOpen}
         onOpenChange={setGlobalSettingsOpen}
+        onCheckForUpdates={onCheckForUpdates}
+        checkingForUpdates={checkingForUpdates}
       />
       <ShortcutsOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <WorkspaceSettingsDialog

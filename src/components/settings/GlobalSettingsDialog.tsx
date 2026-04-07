@@ -83,6 +83,18 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 interface GlobalSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCheckForUpdates?: () => Promise<void>;
+  checkingForUpdates?: boolean;
+}
+
+function CheckForUpdatesButton({ onCheck, checking }: { onCheck?: () => Promise<void>; checking?: boolean }) {
+  return (
+    <div className="mb-4">
+      <Button variant="secondary" size="sm" onClick={onCheck} disabled={checking || !onCheck}>
+        {checking ? "Checking..." : "Check for updates"}
+      </Button>
+    </div>
+  );
 }
 
 function applyTheme(theme: string) {
@@ -94,7 +106,7 @@ function applyTheme(theme: string) {
   }
 }
 
-function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps) {
+function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingForUpdates }: GlobalSettingsDialogProps) {
   const [tab, setTab] = useState<GlobalTab>("general");
   // Per-repo config — only used for GitHub token and Linear API key
   const [repoConfig, setRepoConfig] = useState<AppConfig | null>(null);
@@ -305,6 +317,9 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
                     onChange={(checked) => updateAppConfig({ autoResume: checked })}
                   />
                 </div>
+
+                <SectionTitle>Updates</SectionTitle>
+                <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} />
 
                 <SectionTitle>Diff View</SectionTitle>
                 <Field label="Default diff view" hint="Applied when a worktree has no explicit view mode set.">

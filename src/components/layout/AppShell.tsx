@@ -234,6 +234,8 @@ function AppShell() {
             repoColors={repoColors ?? {}}
             repoDisplayNames={repoDisplayNames ?? {}}
             onSetRepoDisplayName={setRepoDisplayName}
+            onCheckForUpdates={updater.checkNow}
+            checkingForUpdates={updater.checking}
           />
         </div>
       </Panel>
