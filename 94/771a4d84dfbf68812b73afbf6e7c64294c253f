@@ -1,0 +1,33 @@
+src/hooks/useServer.ts
+  ee5f9a32a3e20b10 9-41,51-53,77,89,91,108-109,111,114,123,126,133,137-158,163
+src/components/sidebar/AgentItemOverlay.tsx
+  ee5f9a32a3e20b10 10,26
+src/components/sidebar/ServerIndicator.tsx
+  ee5f9a32a3e20b10 1,3-12
+src/stores/workspaceStore.test.ts
+  ee5f9a32a3e20b10 297,301,306,309,313,318
+src/stores/workspaceStore.ts
+  ee5f9a32a3e20b10 33-34,64,147,183-186,375,378-384
+src/components/sidebar/AgentItem.tsx
+  ee5f9a32a3e20b10 184-185,187,193-194,203,217,272,397,486
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "94771a4d84dfbf68812b73afbf6e7c64294c253f",
+  "prompts": {
+    "ee5f9a32a3e20b10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "76cd492b-47ea-4447-8f65-962806460492",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 131,
+      "total_deletions": 60,
+      "accepted_lines": 116,
+      "overriden_lines": 0
+    }
+  }
+}
