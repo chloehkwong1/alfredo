@@ -3,7 +3,6 @@ use std::path::Path;
 
 use tokio::process::Command;
 
-use crate::platform::augmented_path;
 use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, NotificationConfig, RunScript, SetupScript, default_archive_days};
 
 const CONFIG_FILE: &str = ".alfredo.json";
@@ -195,11 +194,12 @@ pub async fn run_setup_scripts(
     worktree_path: &str,
     scripts: &[SetupScript],
 ) -> Result<(), AppError> {
+    let shell = crate::platform::login_shell();
     for script in scripts {
-        let output = Command::new("sh")
-            .args(["-c", &script.command])
-            .env("PATH", augmented_path())
+        let output = Command::new(&shell)
+            .args(["-li", "-c", &script.command])
             .current_dir(worktree_path)
+            .stdin(std::process::Stdio::null())
             .output()
             .await
             .map_err(|e| {
