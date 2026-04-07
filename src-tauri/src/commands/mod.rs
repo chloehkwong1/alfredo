@@ -14,3 +14,4 @@ pub mod pty;
 pub mod repo;
 pub mod session;
 pub mod worktree;
+pub mod git_ops;

@@ -18,7 +18,7 @@ mod types;
 
 use tauri::{Manager, RunEvent};
 
-use commands::{agents, app_config, branch, checks, config, diff, external_tools, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, worktree};
+use commands::{agents, app_config, branch, checks, config, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use stack_manager::StackState;
@@ -153,6 +153,8 @@ pub fn run() {
             session::delete_session_file,
             session::ensure_alfredo_gitignore,
             session::find_claude_session,
+            // Git ops
+            git_ops::git_merge,
         ])
         .build(tauri::generate_context!())
         .unwrap_or_else(|e| {
