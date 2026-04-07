@@ -105,6 +105,11 @@ impl PtyManager {
         // augmented PATH that git/gh commands use.
         cmd.env("PATH", augmented_path());
 
+        // GUI apps also lack TERM/COLORTERM, so CLI tools (e.g. Claude Code)
+        // fall back to basic colors. Set them explicitly for xterm.js.
+        cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
+
         // Set env vars for hook callbacks and write hooks config
         if let Some(port) = state_server_port {
             let base_url = format!("http://127.0.0.1:{port}");
