@@ -43,16 +43,16 @@ export async function fixFailingChecks(
     }
   }
 
-  if (suiteIds.size === 0) return false;
-
-  // Fetch workflow logs for each suite
+  // Fetch workflow logs for each suite (skip if no suite IDs)
   const allLogs: WorkflowRunLog[] = [];
-  const logResults = await Promise.allSettled(
-    [...suiteIds].map((id) => getWorkflowLog(repoPath, id)),
-  );
-  for (const result of logResults) {
-    if (result.status === "fulfilled") {
-      allLogs.push(...result.value);
+  if (suiteIds.size > 0) {
+    const logResults = await Promise.allSettled(
+      [...suiteIds].map((id) => getWorkflowLog(repoPath, id)),
+    );
+    for (const result of logResults) {
+      if (result.status === "fulfilled") {
+        allLogs.push(...result.value);
+      }
     }
   }
 

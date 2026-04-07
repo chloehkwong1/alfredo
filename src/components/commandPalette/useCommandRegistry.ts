@@ -388,7 +388,7 @@ function buildPrCommands(
       category: "pr" as const,
       icon: Wrench,
       action: async () => {
-        const sent = await fixFailingChecks(worktreeId, repoPath, failedChecks);
+        const sent = await fixFailingChecks(worktreeId, repoPath, pr.branch, failedChecks);
         if (sent) switchToAgentTab();
       },
       enabled: () => true,
