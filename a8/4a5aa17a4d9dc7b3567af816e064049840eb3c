@@ -1,0 +1,23 @@
+src-tauri/src/linear_manager.rs
+  934c3101dd1bfebb 410-411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "a84a5aa17a4d9dc7b3567af816e064049840eb3c",
+  "prompts": {
+    "934c3101dd1bfebb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a2fe7ae-d6d0-4c76-a245-c352f7615a62",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
