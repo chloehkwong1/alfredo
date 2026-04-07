@@ -23,9 +23,10 @@ export function useAppConfig() {
       .then((c) => {
         if (!cancelled) {
           setConfig(c);
-          if (c.defaultAgent) {
-            localStorage.setItem("alfredo-default-agent", c.defaultAgent);
-          }
+          // Sync default agent to localStorage so tabStore can read it
+          // synchronously. Write "claude" when unset so stale localStorage
+          // values from a previous session don't override the intended default.
+          localStorage.setItem("alfredo-default-agent", c.defaultAgent ?? "claude");
           setLoading(false);
         }
       })
