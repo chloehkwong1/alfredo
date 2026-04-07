@@ -28,6 +28,7 @@ export function MergeStatusBanner({
   const [checksExpanded, setChecksExpanded] = useState(false);
   const [failureLogs, setFailureLogs] = useState<Record<number, WorkflowRunLog[]>>({});
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+  const [logsLoading, setLogsLoading] = useState(false);
 
   // Clear readyToPush when mergeable state changes (e.g. agent pushed, or merge aborted externally)
   useEffect(() => {
@@ -99,17 +100,22 @@ export function MergeStatusBanner({
 
     if (suiteIds.size === 0) return;
 
-    const results = await Promise.allSettled(
-      [...suiteIds].map((id) => getWorkflowLog(repoPath, id)),
-    );
+    setLogsLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        [...suiteIds].map((id) => getWorkflowLog(repoPath, id)),
+      );
 
-    const newLogs: Record<number, WorkflowRunLog[]> = { ...failureLogs };
-    let i = 0;
-    for (const suiteId of suiteIds) {
-      const result = results[i++];
-      newLogs[suiteId] = result.status === "fulfilled" ? result.value : [];
+      const newLogs: Record<number, WorkflowRunLog[]> = { ...failureLogs };
+      let i = 0;
+      for (const suiteId of suiteIds) {
+        const result = results[i++];
+        newLogs[suiteId] = result.status === "fulfilled" ? result.value : [];
+      }
+      setFailureLogs(newLogs);
+    } finally {
+      setLogsLoading(false);
     }
-    setFailureLogs(newLogs);
   };
 
   const toggleLogExpand = (key: string) => {
@@ -283,6 +289,10 @@ export function MergeStatusBanner({
                             </button>
                           )}
                         </>
+                      ) : logsLoading ? (
+                        <div className="text-[10px] text-text-tertiary italic">
+                          Loading logs…
+                        </div>
                       ) : (
                         <div className="text-[10px] text-text-tertiary italic">
                           No logs available — agent will check CI output
