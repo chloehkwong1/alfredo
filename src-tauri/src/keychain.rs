@@ -42,7 +42,7 @@ pub fn migrate_dev_secrets() {
         let _ = store(account, secret);
     }
     let _ = std::fs::remove_file(&path);
-    log::info!("migrated {} dev secret(s) to OS keychain", secrets.len());
+    eprintln!("migrated {} dev secret(s) to OS keychain", secrets.len());
 }
 
 #[cfg(debug_assertions)]
