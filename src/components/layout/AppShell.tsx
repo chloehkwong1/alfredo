@@ -236,6 +236,7 @@ function AppShell() {
             onSetRepoDisplayName={setRepoDisplayName}
             onCheckForUpdates={updater.checkNow}
             checkingForUpdates={updater.checking}
+            upToDate={updater.upToDate}
           />
         </div>
       </Panel>

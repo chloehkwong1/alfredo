@@ -10,6 +10,7 @@ export interface UpdateState {
   version: string | null;
   progress: number; // 0–100
   checking: boolean;
+  upToDate: boolean;
   update: () => void;
   restart: () => void;
   dismiss: () => void;
@@ -24,7 +25,9 @@ export function useUpdater(): UpdateState {
   const [dismissed, setDismissed] = useState(false);
   const [updateObj, setUpdateObj] = useState<Update | null>(null);
   const [checking, setChecking] = useState(false);
+  const [upToDate, setUpToDate] = useState(false);
   const checkingRef = useRef(false);
+  const upToDateTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const checkForUpdate = useCallback(async () => {
     if (checkingRef.current) return;
@@ -32,7 +35,12 @@ export function useUpdater(): UpdateState {
     setChecking(true);
     try {
       const result = await check();
-      if (!result) return;
+      if (!result) {
+        setUpToDate(true);
+        clearTimeout(upToDateTimer.current);
+        upToDateTimer.current = setTimeout(() => setUpToDate(false), 4000);
+        return;
+      }
       setUpdateObj(result);
       setVersion(result.version);
       setStatus("available");
@@ -107,6 +115,7 @@ export function useUpdater(): UpdateState {
     version,
     progress,
     checking,
+    upToDate,
     update,
     restart,
     dismiss,

@@ -85,14 +85,18 @@ interface GlobalSettingsDialogProps {
   onOpenChange: (open: boolean) => void;
   onCheckForUpdates?: () => Promise<void>;
   checkingForUpdates?: boolean;
+  upToDate?: boolean;
 }
 
-function CheckForUpdatesButton({ onCheck, checking }: { onCheck?: () => Promise<void>; checking?: boolean }) {
+function CheckForUpdatesButton({ onCheck, checking, upToDate }: { onCheck?: () => Promise<void>; checking?: boolean; upToDate?: boolean }) {
   return (
-    <div className="mb-4">
+    <div className="mb-4 flex items-center gap-2">
       <Button variant="secondary" size="sm" onClick={onCheck} disabled={checking || !onCheck}>
         {checking ? "Checking..." : "Check for updates"}
       </Button>
+      {upToDate && !checking && (
+        <span className="text-xs text-text-tertiary">You're up to date</span>
+      )}
     </div>
   );
 }
@@ -106,7 +110,7 @@ function applyTheme(theme: string) {
   }
 }
 
-function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingForUpdates }: GlobalSettingsDialogProps) {
+function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingForUpdates, upToDate }: GlobalSettingsDialogProps) {
   const [tab, setTab] = useState<GlobalTab>("general");
   // Per-repo config — only used for GitHub token and Linear API key
   const [repoConfig, setRepoConfig] = useState<AppConfig | null>(null);
@@ -319,7 +323,7 @@ function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingF
                 </div>
 
                 <SectionTitle>Updates</SectionTitle>
-                <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} />
+                <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} upToDate={upToDate} />
 
                 <SectionTitle>Diff View</SectionTitle>
                 <Field label="Default diff view" hint="Applied when a worktree has no explicit view mode set.">
