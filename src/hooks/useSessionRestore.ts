@@ -133,13 +133,21 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   }
                 }
 
-                // Restore column override (for worktrees without PRs —
-                // overrides for worktrees with PRs are cleared on next sync)
+                // Restore column override — persists until autoColumn changes
                 if (session.columnOverride) {
-                  const col = typeof session.columnOverride === "string"
-                    ? session.columnOverride
-                    : session.columnOverride.column;
-                  usePrStore.getState().setManualColumn(wt.id, col);
+                  const override = session.columnOverride;
+                  if (typeof override === "object" && "autoColumnWhenSet" in override) {
+                    // Current format
+                    usePrStore.getState().setManualColumn(wt.id, override.column);
+                    // Patch lastAutoColumn so the override survives until a real transition
+                    usePrStore.setState((s) => ({
+                      lastAutoColumn: { ...s.lastAutoColumn, [wt.id]: override.autoColumnWhenSet },
+                    }));
+                  } else {
+                    // Legacy formats (plain string or { column, githubStateWhenSet })
+                    const col = typeof override === "string" ? override : override.column;
+                    usePrStore.getState().setManualColumn(wt.id, col);
+                  }
                 }
 
                 // Restore PR panel state

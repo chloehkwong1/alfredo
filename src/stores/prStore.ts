@@ -8,6 +8,11 @@ import type {
   Worktree,
 } from "../types";
 
+interface ColumnOverride {
+  column: KanbanColumn;
+  autoColumnWhenSet: KanbanColumn;
+}
+
 interface PrState {
   checkRuns: Record<string, CheckRun[]>;
   prDetail: Record<string, PrDetailedStatus>;
@@ -22,7 +27,9 @@ interface PrState {
   prPanelState: Record<string, PrPanelState>;
   reviewedFiles: Record<string, Set<string>>;
   jumpToComment: Record<string, ((path: string, line: number) => void) | null>;
-  columnOverrides: Record<string, KanbanColumn>;
+  columnOverrides: Record<string, ColumnOverride>;
+  /** Last autoColumn computed by Rust for each worktree — used to snapshot overrides. */
+  lastAutoColumn: Record<string, KanbanColumn>;
 
   setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
   setPrDetail: (worktreeId: string, detail: PrDetailedStatus) => void;
@@ -31,7 +38,7 @@ interface PrState {
   clearReviewedFiles: (worktreeId: string) => void;
   setJumpToComment: (worktreeId: string, fn: (path: string, line: number) => void) => void;
   clearJumpToComment: (worktreeId: string) => void;
-  setManualColumn: (id: string, column: KanbanColumn) => void;
+  setManualColumn: (id: string, column: KanbanColumn, currentAutoColumn?: KanbanColumn) => void;
   removeWorktreeState: (id: string) => void;
   clearStore: () => void;
 
@@ -54,6 +61,7 @@ const INITIAL_STATE = {
   reviewedFiles: {},
   jumpToComment: {},
   columnOverrides: {},
+  lastAutoColumn: {},
 };
 
 export const usePrStore = create<PrState>((set, get) => ({
@@ -99,10 +107,21 @@ export const usePrStore = create<PrState>((set, get) => ({
       jumpToComment: { ...state.jumpToComment, [worktreeId]: null },
     })),
 
-  /** Manual column override from drag-and-drop. Temporary — cleared on next PR sync. */
-  setManualColumn: (id, column) =>
+  /**
+   * Manual column override from drag-and-drop.
+   * Persists until the PR's autoColumn changes (i.e., a real state transition).
+   * Pass `currentAutoColumn` when `lastAutoColumn` may not be populated yet
+   * (e.g., drag before first sync).
+   */
+  setManualColumn: (id, column, currentAutoColumn?) =>
     set((state) => ({
-      columnOverrides: { ...state.columnOverrides, [id]: column },
+      columnOverrides: {
+        ...state.columnOverrides,
+        [id]: {
+          column,
+          autoColumnWhenSet: state.lastAutoColumn[id] ?? currentAutoColumn ?? column,
+        },
+      },
     })),
 
   removeWorktreeState: (id) =>
@@ -114,6 +133,7 @@ export const usePrStore = create<PrState>((set, get) => ({
       const { [id]: _reviewedFiles, ...restReviewedFiles } = state.reviewedFiles;
       const { [id]: _jumpToComment, ...restJumpToComment } = state.jumpToComment;
       const { [id]: _override, ...restOverrides } = state.columnOverrides;
+      const { [id]: _auto, ...restAutoColumn } = state.lastAutoColumn;
       return {
         checkRuns: restCheckRuns,
         prDetail: restPrDetail,
@@ -122,6 +142,7 @@ export const usePrStore = create<PrState>((set, get) => ({
         reviewedFiles: restReviewedFiles,
         jumpToComment: restJumpToComment,
         columnOverrides: restOverrides,
+        lastAutoColumn: restAutoColumn,
       };
     }),
 
@@ -137,6 +158,7 @@ export const usePrStore = create<PrState>((set, get) => ({
     }
 
     const newOverrides = { ...state.columnOverrides };
+    const newAutoColumn = { ...state.lastAutoColumn };
     const newSummary = { ...state.prSummary };
     const newCheckRuns = { ...state.checkRuns };
     const newPrDetail = { ...state.prDetail };
@@ -146,11 +168,16 @@ export const usePrStore = create<PrState>((set, get) => ({
       const pr = prByKey.get(`${wt.repoPath}::${wt.branch}`);
       if (!pr) continue;
 
-      // Always clear manual overrides when a PR exists — autoColumn should
-      // drive the kanban position so worktrees move automatically as PR
-      // state evolves (opened → review → merged).  Manual drag gives
-      // immediate visual feedback but is intentionally temporary.
-      delete newOverrides[wt.id];
+      newAutoColumn[wt.id] = pr.autoColumn;
+
+      // Clear manual override when the PR's autoColumn has changed since
+      // the override was set — a real state transition happened, so let
+      // the new autoColumn take over. If autoColumn hasn't changed, the
+      // user's manual placement persists (like Linear).
+      const override = newOverrides[wt.id];
+      if (override && override.autoColumnWhenSet !== pr.autoColumn) {
+        delete newOverrides[wt.id];
+      }
 
       // Build updated PR status (without autoColumn, which is store-only)
       const prStatus = {
@@ -166,8 +193,8 @@ export const usePrStore = create<PrState>((set, get) => ({
         body: pr.body,
       };
 
-      // Auto-assign column from PR state
-      const column = pr.autoColumn;
+      // Use manual override if still active, otherwise auto-assign
+      const column = newOverrides[wt.id]?.column ?? pr.autoColumn;
 
       // Use the PR's updatedAt as the activity timestamp when available
       const prUpdatedAtMs = pr.updatedAt ? new Date(pr.updatedAt).getTime() : undefined;
@@ -214,6 +241,7 @@ export const usePrStore = create<PrState>((set, get) => ({
 
     set({
       columnOverrides: newOverrides,
+      lastAutoColumn: newAutoColumn,
       prSummary: newSummary,
       checkRuns: newCheckRuns,
       prDetail: newPrDetail,

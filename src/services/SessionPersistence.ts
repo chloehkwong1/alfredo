@@ -17,8 +17,8 @@ export interface SessionData {
   column?: KanbanColumn;
   /** Diff view mode (split or unified) for this worktree. */
   diffViewMode?: DiffViewMode;
-  /** Manual column override (for worktrees without PRs). */
-  columnOverride?: KanbanColumn | { column: KanbanColumn; githubStateWhenSet: string } | null;
+  /** Manual column override with the autoColumn snapshot it was set against. */
+  columnOverride?: { column: KanbanColumn; autoColumnWhenSet: KanbanColumn } | KanbanColumn | { column: KanbanColumn; githubStateWhenSet: string } | null;
   /** PR panel expanded or collapsed. */
   prPanelState?: PrPanelState;
   /** Changes panel tab (changes, commits, or pr). */
@@ -78,7 +78,7 @@ export async function saveAllSessions(
   getActivePaneId?: (worktreeId: string) => string | undefined,
   getColumn?: (worktreeId: string) => KanbanColumn | undefined,
   getDiffViewMode?: (worktreeId: string) => DiffViewMode | undefined,
-  getColumnOverride?: (worktreeId: string) => KanbanColumn | null | undefined,
+  getColumnOverride?: (worktreeId: string) => { column: KanbanColumn; autoColumnWhenSet: KanbanColumn } | null | undefined,
   getPrPanelState?: (worktreeId: string) => PrPanelState | undefined,
   getChangesViewMode?: (worktreeId: string) => "changes" | "commits" | "pr" | undefined,
   getChangesPanelCollapsed?: (worktreeId: string) => boolean | undefined,
