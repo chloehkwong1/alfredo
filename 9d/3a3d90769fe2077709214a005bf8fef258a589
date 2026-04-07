@@ -1,0 +1,31 @@
+src-tauri/src/commands/worktree.rs
+  fe1d427d3c2ad3f8 24-30
+src/components/kanban/create-worktree/BranchesTab.tsx
+  fe1d427d3c2ad3f8 14-15,18,54,56-68
+src-tauri/src/types.rs
+  fe1d427d3c2ad3f8 123
+src/types.ts
+  fe1d427d3c2ad3f8 82
+src/components/kanban/CreateWorktreeDialog.tsx
+  fe1d427d3c2ad3f8 46-53,91-96,127,138-140,247-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "9d3a3d90769fe2077709214a005bf8fef258a589",
+  "prompts": {
+    "fe1d427d3c2ad3f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "44e46cec-968e-407e-8510-189d54093074",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    }
+  }
+}
