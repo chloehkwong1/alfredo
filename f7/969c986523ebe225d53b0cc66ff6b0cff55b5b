@@ -1,0 +1,38 @@
+src-tauri/src/lib.rs
+  ec050e9a6e8b1997 158
+src-tauri/src/commands/git_ops.rs
+  ec050e9a6e8b1997 56-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "f7969c986523ebe225d53b0cc66ff6b0cff55b5b",
+  "prompts": {
+    "9587264399a2aa84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6290e9c6-cd01-479e-98ed-faf9e822a8f3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "ec050e9a6e8b1997": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7fa9c82d-f8bf-4018-9493-7ce130727503",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 19,
+      "total_deletions": 0,
+      "accepted_lines": 19,
+      "overriden_lines": 0
+    }
+  }
+}
