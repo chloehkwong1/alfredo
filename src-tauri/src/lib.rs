@@ -50,6 +50,9 @@ pub fn run() {
                 }
             });
 
+            // Migrate dev-build secrets from JSON file to OS keychain
+            keychain::migrate_dev_secrets();
+
             // Start the background GitHub PR sync loop
             github_sync::start_sync_loop(app.handle().clone());
 

@@ -13,6 +13,43 @@ const SERVICE: &str = "com.alfredo.app";
 
 // ── Release builds: real OS keychain ────────────────────────────────
 
+/// Migrate secrets from the dev-build JSON file into the OS keychain.
+/// Called once on app startup so tokens survive the dev → release switch.
+#[cfg(not(debug_assertions))]
+pub fn migrate_dev_secrets() {
+    let base = match std::env::var("HOME").map(std::path::PathBuf::from) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let path = base
+        .join("Library")
+        .join("Application Support")
+        .join(SERVICE)
+        .join("dev-secrets.json");
+
+    let contents = match std::fs::read_to_string(&path) {
+        Ok(s) if !s.trim().is_empty() => s,
+        _ => return,
+    };
+
+    let secrets: std::collections::HashMap<String, String> = match serde_json::from_str(&contents)
+    {
+        Ok(m) => m,
+        Err(_) => return,
+    };
+
+    for (account, secret) in &secrets {
+        let _ = store(account, secret);
+    }
+    let _ = std::fs::remove_file(&path);
+    log::info!("migrated {} dev secret(s) to OS keychain", secrets.len());
+}
+
+#[cfg(debug_assertions)]
+pub fn migrate_dev_secrets() {
+    // nothing to migrate in dev builds
+}
+
 #[cfg(not(debug_assertions))]
 pub fn store(account: &str, secret: &str) -> Result<(), AppError> {
     let entry = keyring::Entry::new(SERVICE, account)
