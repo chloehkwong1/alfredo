@@ -424,7 +424,7 @@ function PaneTabBar({
       {onToggleServer && runScriptName && (
         <div className="flex items-center gap-1 mr-2">
           <AnimatePresence>
-            {isServerRunning && (
+            {isServerRunning && runScriptUrl && (
               <motion.div
                 initial={{ opacity: 0, width: 0 }}
                 animate={{ opacity: 1, width: "auto" }}
@@ -433,8 +433,8 @@ function PaneTabBar({
               >
                 <IconButton
                   size="md"
-                  label={`Open in browser (${runScriptUrl ?? "http://localhost:3000"})`}
-                  onClick={() => openUrl(runScriptUrl ?? "http://localhost:3000")}
+                  label={`Open in browser (${runScriptUrl})`}
+                  onClick={() => openUrl(runScriptUrl)}
                   className="text-text-secondary hover:text-text-primary bg-bg-tertiary/50 hover:bg-bg-tertiary"
                 >
                   <ExternalLink />
