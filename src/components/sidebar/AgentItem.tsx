@@ -181,15 +181,17 @@ function useAgentItemState(worktree: Worktree) {
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
   const isUnread = useWorkspaceStore((s) => s.unreadWorktrees.has(worktree.id));
   const prSummary = usePrStore((s) => s.prSummary[worktree.id]);
-  const isServerRunning = useWorkspaceStore(
-    (s) => s.runningServer?.worktreeId === worktree.id,
+  const serverEntry = useWorkspaceStore(
+    (s) => s.runningServers[worktree.id],
   );
+  const isServerRunning = !!serverEntry;
   // When manually marked unread, treat as unseen so the attention state re-activates
   const effectiveStatus = computeEffectiveStatus(
     worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, isSeen && !isUnread, worktree.justCreated,
   );
   const shouldPulse = effectiveStatus === "waitingForInput";
-  return { prSummary, isServerRunning, effectiveStatus, shouldPulse, isUnread };
+  const serverPort = serverEntry?.port;
+  return { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread };
 }
 
 interface AgentItemContentProps {
@@ -198,6 +200,7 @@ interface AgentItemContentProps {
 
   shouldPulse: boolean;
   isServerRunning: boolean;
+  serverPort?: number;
   prSummary: PrSummary | undefined;
   repoPath?: string;
   repoColors?: Record<string, string>;
@@ -211,7 +214,7 @@ function getDotColor(status: AgentState | string): string {
 }
 
 function AgentItemContent({
-  worktree, effectiveStatus, shouldPulse, isServerRunning, prSummary,
+  worktree, effectiveStatus, shouldPulse, isServerRunning, serverPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemContentProps) {
   return (
@@ -266,7 +269,7 @@ function AgentItemContent({
             ].join(" ")}>
               {effectiveStatus === "busy" ? <><ThinkingText /><ThinkingDots /></> : getStatusText(effectiveStatus)}
             </span>
-            {isServerRunning && <ServerIndicator />}
+            {isServerRunning && <ServerIndicator port={serverPort} />}
           </span>
 
           <span className="flex items-center gap-1 text-xs ml-auto flex-shrink-0">
@@ -391,7 +394,7 @@ const AgentItem = memo(function AgentItem({
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFromOpen, setCreateFromOpen] = useState(false);
-  const { prSummary, isServerRunning, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
+  const { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
   const markUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
   const markRead = useWorkspaceStore((s) => s.markWorktreeRead);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -480,6 +483,7 @@ const AgentItem = memo(function AgentItem({
               effectiveStatus={effectiveStatus}
               shouldPulse={shouldPulse}
               isServerRunning={isServerRunning}
+              serverPort={serverPort}
               prSummary={prSummary}
               repoPath={repoPath}
               repoColors={repoColors}

@@ -30,8 +30,8 @@ interface WorkspaceState {
   archiveAfterDays: number;
   /** Number of days after archiving before a worktree is auto-deleted. 0 = never. */
   deleteAfterDays: number;
-  /** Tracks the currently running dev server, if any. */
-  runningServer: { worktreeId: string; sessionId: string; tabId: string } | null;
+  /** Tracks running dev servers per worktree. Keyed by worktreeId. */
+  runningServers: Record<string, { sessionId: string; tabId: string; port?: number }>;
 
   addWorktree: (worktree: Worktree) => void;
   replaceWorktree: (tempId: string, realWorktree: Worktree) => void;
@@ -61,7 +61,7 @@ interface WorkspaceState {
   setWorktreesForRepo: (repoPath: string, worktrees: Worktree[]) => void;
   clearWorktreesForRepo: (repoPath: string) => void;
   clearStore: () => void;
-  setRunningServer: (server: { worktreeId: string; sessionId: string; tabId: string } | null) => void;
+  setRunningServer: (worktreeId: string, server: { sessionId: string; tabId: string; port?: number } | null) => void;
 }
 
 /**
@@ -144,7 +144,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   sidebarCollapsed: false,
   archiveAfterDays: 2,
   deleteAfterDays: 7,
-  runningServer: null,
+  runningServers: {},
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -180,7 +180,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
         annotations: restAnnotations,
         seenWorktrees: newSeen,
         unreadWorktrees: newUnread,
-        runningServer: state.runningServer?.worktreeId === id ? null : state.runningServer,
+        runningServers: (() => {
+          const { [id]: _, ...rest } = state.runningServers;
+          return rest;
+        })(),
       };
     }),
 
@@ -369,8 +372,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       sidebarCollapsed: false,
       archiveAfterDays: 2,
       deleteAfterDays: 7,
-      runningServer: null,
+      runningServers: {},
     }),
 
-  setRunningServer: (server) => set({ runningServer: server }),
+  setRunningServer: (worktreeId, server) => set((state) => {
+    if (server) {
+      return { runningServers: { ...state.runningServers, [worktreeId]: server } };
+    }
+    const { [worktreeId]: _, ...rest } = state.runningServers;
+    return { runningServers: rest };
+  }),
 }));

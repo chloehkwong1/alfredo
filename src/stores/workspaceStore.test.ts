@@ -294,28 +294,28 @@ describe("removeWorktree", () => {
     expect(store.getState().activeWorktreeId).toBe("wt-1");
   });
 
-  it("clears runningServer if it belonged to the removed worktree", () => {
+  it("clears runningServer entry if it belonged to the removed worktree", () => {
     const store = useWorkspaceStore;
     store.setState({
       worktrees: [makeWorktree()],
-      runningServer: { worktreeId: "wt-1", sessionId: "s1", tabId: "t1" },
+      runningServers: { "wt-1": { sessionId: "s1", tabId: "t1" } },
     });
 
     store.getState().removeWorktree("wt-1");
 
-    expect(store.getState().runningServer).toBeNull();
+    expect(store.getState().runningServers["wt-1"]).toBeUndefined();
   });
 
-  it("preserves runningServer if it belongs to a different worktree", () => {
+  it("preserves runningServers for other worktrees when one is removed", () => {
     const store = useWorkspaceStore;
     store.setState({
       worktrees: [makeWorktree(), makeWorktree({ id: "wt-2" })],
-      runningServer: { worktreeId: "wt-2", sessionId: "s1", tabId: "t1" },
+      runningServers: { "wt-2": { sessionId: "s1", tabId: "t1" } },
     });
 
     store.getState().removeWorktree("wt-1");
 
-    expect(store.getState().runningServer?.worktreeId).toBe("wt-2");
+    expect(store.getState().runningServers["wt-2"]).toEqual({ sessionId: "s1", tabId: "t1" });
   });
 });
 

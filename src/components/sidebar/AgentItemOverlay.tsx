@@ -7,7 +7,7 @@ interface AgentItemOverlayProps {
 }
 
 function AgentItemOverlay({ worktree, width }: AgentItemOverlayProps) {
-  const { prSummary, isServerRunning, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
+  const { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
 
   return (
     <div
@@ -23,6 +23,7 @@ function AgentItemOverlay({ worktree, width }: AgentItemOverlayProps) {
         effectiveStatus={effectiveStatus}
         shouldPulse={shouldPulse}
         isServerRunning={isServerRunning}
+        serverPort={serverPort}
         prSummary={prSummary}
       />
     </div>
