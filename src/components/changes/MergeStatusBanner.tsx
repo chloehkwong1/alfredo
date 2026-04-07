@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { CheckRun, PrStatus, WorkflowRunLog } from "../../types";
 import { formatTimeAgo } from "./formatRelativeTime";
 import { rerunFailedChecks, fixFailingChecks, mergeAndFix, pushForceWithLease } from "../../services/prActions";
@@ -28,6 +28,11 @@ export function MergeStatusBanner({
   const [checksExpanded, setChecksExpanded] = useState(false);
   const [failureLogs, setFailureLogs] = useState<Record<number, WorkflowRunLog[]>>({});
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+
+  // Clear readyToPush when mergeable state changes (e.g. agent pushed, or merge aborted externally)
+  useEffect(() => {
+    if (mergeable !== false) setReadyToPush(false);
+  }, [mergeable]);
 
   const failedChecks = checkRuns.filter(
     (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
@@ -59,6 +64,8 @@ export function MergeStatusBanner({
       if (result.merged) {
         setReadyToPush(true);
       }
+    } catch (e) {
+      console.error("Merge failed:", e);
     } finally {
       setLoading(null);
     }
@@ -69,6 +76,8 @@ export function MergeStatusBanner({
     try {
       await pushForceWithLease(repoPath);
       setReadyToPush(false);
+    } catch (e) {
+      console.error("Push failed:", e);
     } finally {
       setLoading(null);
     }

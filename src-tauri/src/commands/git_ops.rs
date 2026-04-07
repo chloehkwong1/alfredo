@@ -15,7 +15,7 @@ pub struct MergeResult {
 #[tauri::command]
 pub async fn git_merge(repo_path: String, base_branch: String) -> Result<MergeResult> {
     let output = git_command()
-        .args(["merge", &base_branch])
+        .args(["merge", "--no-edit", &base_branch])
         .current_dir(&repo_path)
         .output()
         .await
