@@ -129,10 +129,13 @@ export function useServer(activeWorktreeId: string | null) {
       if (Date.now() - startTime < SERVER_GRACE_PERIOD_MS) return;
 
       const session = sessionManager.getSession(runningServer.tabId);
-      if (!session || !session.sessionId) {
+      if (!session) {
         setRunningServer(wtId, null);
         return;
       }
+      // Only clear when heartbeat is stale (PTY process actually exited).
+      // Don't check !session.sessionId — it's "" during normal PTY spawn
+      // and would race with slow shell startup (e.g. shell_path() on first call).
       if (session.lastHeartbeat > 0 && Date.now() - session.lastHeartbeat > SERVER_HEARTBEAT_STALE_MS) {
         setRunningServer(wtId, null);
       }
