@@ -13,12 +13,24 @@ use tokio::sync::oneshot;
 use crate::app_config_manager;
 use crate::types::{AppError, LinearOAuthTokens};
 
-fn client_id() -> &'static str {
-    option_env!("LINEAR_CLIENT_ID").unwrap_or_default()
+fn client_id() -> Result<&'static str, AppError> {
+    match option_env!("LINEAR_CLIENT_ID") {
+        Some(id) if !id.is_empty() => Ok(id),
+        _ => Err(AppError::Config(
+            "LINEAR_CLIENT_ID was not set at compile time — rebuild with .env or set the env var"
+                .into(),
+        )),
+    }
 }
 
-fn client_secret() -> &'static str {
-    option_env!("LINEAR_CLIENT_SECRET").unwrap_or_default()
+fn client_secret() -> Result<&'static str, AppError> {
+    match option_env!("LINEAR_CLIENT_SECRET") {
+        Some(s) if !s.is_empty() => Ok(s),
+        _ => Err(AppError::Config(
+            "LINEAR_CLIENT_SECRET was not set at compile time — rebuild with .env or set the env var"
+                .into(),
+        )),
+    }
 }
 const AUTH_URL: &str = "https://linear.app/oauth/authorize";
 const TOKEN_URL: &str = "https://api.linear.app/oauth/token";
@@ -60,8 +72,8 @@ pub async fn exchange_code(
         .post(TOKEN_URL)
         .form(&[
             ("grant_type", "authorization_code"),
-            ("client_id", client_id()),
-            ("client_secret", client_secret()),
+            ("client_id", client_id()?),
+            ("client_secret", client_secret()?),
             ("code", code),
             ("redirect_uri", redirect_uri),
         ])
@@ -125,8 +137,8 @@ pub async fn refresh_if_needed(
         .post(TOKEN_URL)
         .form(&[
             ("grant_type", "refresh_token"),
-            ("client_id", client_id()),
-            ("client_secret", client_secret()),
+            ("client_id", client_id()?),
+            ("client_secret", client_secret()?),
             ("refresh_token", &tokens.refresh_token),
         ])
         .send()
@@ -214,7 +226,7 @@ pub async fn start_oauth_flow() -> Result<(String, oneshot::Receiver<Result<Stri
 
     let auth_url = format!(
         "{}?client_id={}&redirect_uri={REDIRECT_URI}&response_type=code&scope=read&state={state_param}&prompt=consent",
-        AUTH_URL, client_id(),
+        AUTH_URL, client_id()?,
     );
 
     Ok((auth_url, result_rx))
