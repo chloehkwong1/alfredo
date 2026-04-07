@@ -53,3 +53,21 @@ pub async fn git_merge(repo_path: String, base_branch: String) -> Result<MergeRe
         conflicted_files: files,
     })
 }
+
+/// Run `git push --force-with-lease` in the given repo.
+#[tauri::command]
+pub async fn git_push_force_with_lease(repo_path: String) -> Result<()> {
+    let output = git_command()
+        .args(["push", "--force-with-lease"])
+        .current_dir(&repo_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git push: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Git(format!("git push failed: {stderr}")));
+    }
+
+    Ok(())
+}

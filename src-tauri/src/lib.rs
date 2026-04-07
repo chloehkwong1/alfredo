@@ -155,6 +155,7 @@ pub fn run() {
             session::find_claude_session,
             // Git ops
             git_ops::git_merge,
+            git_ops::git_push_force_with_lease,
         ])
         .build(tauri::generate_context!())
         .unwrap_or_else(|e| {
