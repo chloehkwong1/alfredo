@@ -11,9 +11,11 @@ interface BranchesTabProps {
   selectedBranch: string | null;
   onSelectBranch: (branch: string | null) => void;
   onDefaultBranchDetected: (branch: string) => void;
+  newBranchName: string;
+  onNewBranchNameChange: (name: string) => void;
 }
 
-function BranchesTab({ repoPath, open, selectedBranch, onSelectBranch, onDefaultBranchDetected }: BranchesTabProps) {
+function BranchesTab({ repoPath, open, selectedBranch, onSelectBranch, onDefaultBranchDetected, newBranchName, onNewBranchNameChange }: BranchesTabProps) {
   const [branches, setBranches] = useState<Worktree[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +51,21 @@ function BranchesTab({ repoPath, open, selectedBranch, onSelectBranch, onDefault
         placeholder="Filter branches..."
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        autoFocus
+        autoFocus={!selectedBranch}
       />
+      {selectedBranch && (
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-2">
+            New branch name <span className="text-text-tertiary font-normal">(optional)</span>
+          </label>
+          <Input
+            placeholder={selectedBranch}
+            value={newBranchName}
+            onChange={(e) => onNewBranchNameChange(e.target.value)}
+            autoFocus
+          />
+        </div>
+      )}
       <SelectableList
         loading={loading}
         error={error}

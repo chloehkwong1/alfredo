@@ -21,10 +21,13 @@ pub async fn create_worktree_from(
         WorktreeSource::NewBranch { name, base } => {
             create_worktree(app, repo_path, name, base).await
         }
-        WorktreeSource::ExistingBranch { name } => {
-            // For an existing branch, use it as both branch and base
-            // (git worktree add will check it out)
-            create_worktree(app, repo_path, name.clone(), name).await
+        WorktreeSource::ExistingBranch { name, new_name } => {
+            match new_name {
+                // Custom name: create a new branch from the existing one
+                Some(new) => create_worktree(app, repo_path, new, name).await,
+                // No custom name: check out the existing branch as-is
+                None => create_worktree(app, repo_path, name.clone(), name).await,
+            }
         }
         WorktreeSource::PullRequest { number } => {
             create_worktree_from_pr(&app, repo_path, number).await

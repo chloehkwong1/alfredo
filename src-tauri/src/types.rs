@@ -120,7 +120,7 @@ pub enum KanbanColumn {
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum WorktreeSource {
     NewBranch { name: String, base: String },
-    ExistingBranch { name: String },
+    ExistingBranch { name: String, new_name: Option<String> },
     PullRequest { number: u64 },
     LinearTicket { id: String, base: Option<String> },
 }

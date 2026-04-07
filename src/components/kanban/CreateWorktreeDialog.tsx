@@ -38,12 +38,19 @@ function placeholderFromSource(
 ): { id: string; name: string; branch: string } {
   switch (source.kind) {
     case "newBranch":
-    case "existingBranch":
       return {
         id: source.name.replace(/\//g, "-"),
         name: source.name,
         branch: source.name,
       };
+    case "existingBranch": {
+      const displayName = source.newName || source.name;
+      return {
+        id: displayName.replace(/\//g, "-"),
+        name: displayName,
+        branch: displayName,
+      };
+    }
     case "pullRequest":
       return {
         id: `creating-pr-${source.number}`,
@@ -81,7 +88,12 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
   const [baseBranch, setBaseBranch] = useState("");
 
   // Selection state for list tabs
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch_] = useState<string | null>(null);
+  const [existingBranchNewName, setExistingBranchNewName] = useState("");
+  const setSelectedBranch = (branch: string | null) => {
+    setSelectedBranch_(branch);
+    setExistingBranchNewName("");
+  };
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
 
@@ -112,6 +124,7 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
   useEffect(() => {
     if (!open) {
       setSelectedBranch(null);
+      setExistingBranchNewName("");
       setSelectedPrNumber(null);
       setSelectedIssueId(null);
     }
@@ -122,7 +135,9 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
       case "newBranch":
         return getNewBranchSource(branchName, baseBranch);
       case "branches":
-        return selectedBranch ? { kind: "existingBranch", name: selectedBranch } : null;
+        return selectedBranch
+          ? { kind: "existingBranch", name: selectedBranch, newName: existingBranchNewName.trim() || undefined }
+          : null;
       case "pullRequests":
         return selectedPrNumber ? { kind: "pullRequest", number: selectedPrNumber } : null;
       case "linearIssues":
@@ -229,6 +244,8 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
                 selectedBranch={selectedBranch}
                 onSelectBranch={setSelectedBranch}
                 onDefaultBranchDetected={setBaseBranch}
+                newBranchName={existingBranchNewName}
+                onNewBranchNameChange={setExistingBranchNewName}
               />
             )}
 

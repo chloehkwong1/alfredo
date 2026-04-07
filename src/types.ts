@@ -79,7 +79,7 @@ export type KanbanColumn =
 
 export type WorktreeSource =
   | { kind: "newBranch"; name: string; base: string }
-  | { kind: "existingBranch"; name: string }
+  | { kind: "existingBranch"; name: string; newName?: string }
   | { kind: "pullRequest"; number: number }
   | { kind: "linearTicket"; id: string; base?: string };
 
