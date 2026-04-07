@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getConfig, getActiveBranch } from "../api";
+import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
@@ -76,15 +76,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
           if (!restoredRepos.current.has(repo)) {
             restoredRepos.current.add(repo);
 
-            // Sync archive/delete settings from per-repo config to workspace store
-            getConfig(repo).then((cfg) => {
-              if (cfg.archiveAfterDays != null) {
-                useWorkspaceStore.setState({ archiveAfterDays: cfg.archiveAfterDays });
-              }
-              if (cfg.deleteAfterDays != null) {
-                useWorkspaceStore.setState({ deleteAfterDays: cfg.deleteAfterDays });
-              }
-            }).catch((e) => console.warn('[session-restore] Failed to load repo config:', e));
+            // Archive/delete settings are now global — loaded in useAppConfigRestore
             for (const wt of wts) {
               const session = await loadSession(repo, wt.id);
               if (session) {

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FolderOpen } from "lucide-react";
-import type { AppConfig, RepoEntry, RepoMode, SetupScript } from "../../types";
-import { getConfig, saveConfig, setRepoMode } from "../../api";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
+import type { AppConfig, GlobalAppConfig, RepoEntry, RepoMode, SetupScript } from "../../types";
+import { getConfig, saveConfig, getAppConfig, saveAppConfig, setRepoMode } from "../../api";
 import { Button } from "../ui/Button";
 import {
   Dialog,
@@ -62,6 +61,7 @@ function WorkspaceSettingsDialog({
 }: WorkspaceSettingsDialogProps) {
   const [tab, setTab] = useState<WorkspaceTab>("repository");
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [appConfig, setAppConfig] = useState<GlobalAppConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [currentRepoPath, setCurrentRepoPath] = useState(
@@ -99,10 +99,16 @@ function WorkspaceSettingsDialog({
           worktreeBasePath: null,
         });
       });
+    getAppConfig().then(setAppConfig).catch(() => {});
   }, [open, currentRepoPath]);
 
   const updateConfig = useCallback((patch: Partial<AppConfig>) => {
     setConfig((prev) => (prev ? { ...prev, ...patch } : prev));
+    setDirty(true);
+  }, []);
+
+  const updateGlobalConfig = useCallback((patch: Partial<GlobalAppConfig>) => {
+    setAppConfig((prev) => (prev ? { ...prev, ...patch } : prev));
     setDirty(true);
   }, []);
 
@@ -143,21 +149,17 @@ function WorkspaceSettingsDialog({
     if (!config) return;
     setSaving(true);
     try {
-      await saveConfig(currentRepoPath, config);
+      await Promise.all([
+        saveConfig(currentRepoPath, config),
+        ...(appConfig ? [saveAppConfig(appConfig)] : []),
+      ]);
       const newName = displayNameDraft.trim() || null;
       const oldName = repoDisplayNames[currentRepoPath] ?? null;
       if (newName !== oldName) {
         await onSetRepoDisplayName?.(currentRepoPath, newName);
       }
-      // Sync archive/delete settings to workspace store
-      const wsStore = useWorkspaceStore.getState();
-      if (config.archiveAfterDays != null && config.archiveAfterDays !== wsStore.archiveAfterDays) {
-        useWorkspaceStore.setState({ archiveAfterDays: config.archiveAfterDays });
-      }
-      if (config.deleteAfterDays != null && config.deleteAfterDays !== wsStore.deleteAfterDays) {
-        useWorkspaceStore.setState({ deleteAfterDays: config.deleteAfterDays });
-      }
       setDirty(false);
+      // config-changed triggers useAppConfig to re-fetch and sync to workspace store
       window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
     } catch {
@@ -166,7 +168,7 @@ function WorkspaceSettingsDialog({
     } finally {
       setSaving(false);
     }
-  }, [config, currentRepoPath, onOpenChange]);
+  }, [config, appConfig, currentRepoPath, onOpenChange]);
 
   if (!config) return null;
 
@@ -313,9 +315,9 @@ function WorkspaceSettingsDialog({
                         type="number"
                         min={0}
                         className={inputClass + " !w-16 text-center"}
-                        value={config.archiveAfterDays ?? 2}
+                        value={appConfig?.archiveAfterDays ?? 2}
                         onChange={(e) =>
-                          updateConfig({ archiveAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
+                          updateGlobalConfig({ archiveAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
                         }
                       />
                       <span className="text-sm text-text-secondary w-10">days</span>
@@ -330,9 +332,9 @@ function WorkspaceSettingsDialog({
                         type="number"
                         min={0}
                         className={inputClass + " !w-16 text-center"}
-                        value={config.deleteAfterDays ?? 7}
+                        value={appConfig?.deleteAfterDays ?? 0}
                         onChange={(e) =>
-                          updateConfig({ deleteAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
+                          updateGlobalConfig({ deleteAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
                         }
                       />
                       <span className="text-sm text-text-secondary w-10">days</span>

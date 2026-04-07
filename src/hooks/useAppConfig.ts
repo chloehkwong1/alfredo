@@ -11,6 +11,7 @@ import {
   setRepoDisplayName as setRepoDisplayNameApi,
 } from "../api";
 import type { GlobalAppConfig, RepoMode } from "../types";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 
 export function useAppConfig() {
   const [config, setConfig] = useState<GlobalAppConfig | null>(null);
@@ -27,6 +28,11 @@ export function useAppConfig() {
           // synchronously. Write "claude" when unset so stale localStorage
           // values from a previous session don't override the intended default.
           localStorage.setItem("alfredo-default-agent", c.defaultAgent ?? "claude");
+          // Sync archive/delete settings to workspace store
+          useWorkspaceStore.setState({
+            archiveAfterDays: c.archiveAfterDays ?? 2,
+            deleteAfterDays: c.deleteAfterDays ?? 0,
+          });
           setLoading(false);
         }
       })
@@ -42,7 +48,13 @@ export function useAppConfig() {
   // Re-fetch when config changes (e.g. mode switch from settings dialog)
   useEffect(() => {
     const handler = () => {
-      getAppConfig().then(setConfig).catch(() => {});
+      getAppConfig().then((c) => {
+        setConfig(c);
+        useWorkspaceStore.setState({
+          archiveAfterDays: c.archiveAfterDays ?? 2,
+          deleteAfterDays: c.deleteAfterDays ?? 0,
+        });
+      }).catch(() => {});
     };
     window.addEventListener("config-changed", handler);
     return () => window.removeEventListener("config-changed", handler);

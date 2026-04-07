@@ -143,7 +143,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   showPrComments: {},
   sidebarCollapsed: false,
   archiveAfterDays: 2,
-  deleteAfterDays: 7,
+  deleteAfterDays: 0,
   runningServers: {},
 
   addWorktree: (worktree) =>
@@ -371,7 +371,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       showPrComments: {},
       sidebarCollapsed: false,
       archiveAfterDays: 2,
-      deleteAfterDays: 7,
+      deleteAfterDays: 0,
       runningServers: {},
     }),
 

@@ -300,8 +300,6 @@ pub struct AppConfig {
     pub notifications: Option<NotificationConfig>,
     #[serde(default)]
     pub worktree_base_path: Option<String>,
-    #[serde(default = "default_archive_days")]
-    pub archive_after_days: Option<u32>,
     #[serde(default)]
     pub claude_defaults: Option<ClaudeDefaults>,
     #[serde(default)]
@@ -395,6 +393,10 @@ pub struct GlobalAppConfig {
     pub linear_oauth: Option<LinearOAuthTokens>,
     #[serde(default)]
     pub default_agent: Option<String>,
+    #[serde(default = "default_archive_days")]
+    pub archive_after_days: Option<u32>,
+    #[serde(default)]
+    pub delete_after_days: Option<u32>,
 }
 
 fn default_editor() -> String { "vscode".into() }

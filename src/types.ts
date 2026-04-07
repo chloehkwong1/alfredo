@@ -174,8 +174,6 @@ export interface AppConfig {
   theme?: string;
   notifications?: NotificationConfig;
   worktreeBasePath?: string | null;
-  archiveAfterDays?: number;
-  deleteAfterDays?: number;
   claudeDefaults?: ClaudeDefaults;
   worktreeOverrides?: Record<string, ClaudeOverrides>;
   defaultAgent?: TabType;
@@ -394,6 +392,10 @@ export interface GlobalAppConfig {
   activeWorktreeId?: string | null;
   /** Which agent to spawn by default for new worktrees. */
   defaultAgent?: TabType;
+  /** Days after merge before auto-archiving. */
+  archiveAfterDays?: number;
+  /** Days after archiving before auto-deleting. 0 or null = never. */
+  deleteAfterDays?: number;
 }
 
 // ── Inline annotation ────────────────────────────────────────────
