@@ -27,12 +27,6 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
   const repoModeKey = repos.map((r) => `${r.path}:${r.mode}`).join(",");
   useEffect(() => {
     if (!repoPath) return;
-    const reposToSync = selectedRepos.length > 0 ? selectedRepos : [repoPath];
-    const worktreeBranches = useWorkspaceStore.getState().worktrees
-      .filter((wt) => !wt.archived)
-      .map((wt) => wt.branch);
-    setSyncRepoPaths(reposToSync, worktreeBranches).catch(e => console.warn('[AppShell] Failed to sync repo paths:', e));
-
     const reposToLoad = selectedRepos.length > 0 ? selectedRepos : [repoPath];
 
     // Clean up worktrees for repos that were deselected
@@ -78,12 +72,6 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
         if (wts.length > 0) {
           setWorktreesForRepo(repo, wts);
           ensureAlfredoGitignore(repo).catch(e => console.warn('[AppShell] Failed to ensure .alfredo gitignore:', e));
-
-          // Update active branches now that worktrees are loaded
-          const allWorktrees = useWorkspaceStore.getState().worktrees;
-          const branches = allWorktrees.filter((wt) => !wt.archived).map((wt) => wt.branch);
-          const repos = selectedRepos.length > 0 ? selectedRepos : [repoPath];
-          setSyncRepoPaths(repos, branches).catch((e) => console.warn('[session-restore] Failed to set sync repo paths:', e));
 
           if (!restoredRepos.current.has(repo)) {
             restoredRepos.current.add(repo);
@@ -221,6 +209,14 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
               }
             }
           }
+
+          // Start GitHub PR sync AFTER session restore so that columnOverrides
+          // are loaded into prStore before the first poll — otherwise the poll
+          // overwrites manual column overrides with autoColumn.
+          const allWorktrees = useWorkspaceStore.getState().worktrees;
+          const branches = allWorktrees.filter((wt) => !wt.archived).map((wt) => wt.branch);
+          const syncRepos = selectedRepos.length > 0 ? selectedRepos : [repoPath];
+          setSyncRepoPaths(syncRepos, branches).catch((e) => console.warn('[session-restore] Failed to set sync repo paths:', e));
 
           for (const wt of wts) {
             if (wt.column === "done") continue;

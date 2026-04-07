@@ -10,35 +10,72 @@ import { sessionManager } from "../../services/sessionManager";
 const AUTO_SAVE_INTERVAL_MS = 30_000;
 
 /** Snapshot current workspace + layout state and persist all sessions to disk. */
-function collectAndSaveAllSessions(repoPath: string) {
+function collectAndSaveAllSessions() {
   const state = useWorkspaceStore.getState();
   const tabState = useTabStore.getState();
   const prState = usePrStore.getState();
-  const worktreeIds = state.worktrees
-    .filter((wt) => !wt.creating && !wt.createError)
-    .map((wt) => wt.id);
-  return saveAllSessions(
-    repoPath,
-    worktreeIds,
-    (wtId) => tabState.tabs[wtId] ?? [],
-    (wtId) => tabState.activeTabId[wtId] ?? "",
-    (tabId) => sessionManager.getBufferedOutputBase64(tabId),
-    (wtId) => useLayoutStore.getState().layout[wtId],
-    (wtId) => useLayoutStore.getState().panes[wtId],
-    (wtId) => useLayoutStore.getState().activePaneId[wtId],
-    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.column,
-    (wtId) => state.diffViewMode[wtId],
-    (wtId) => prState.columnOverrides[wtId] ?? null,
-    (wtId) => prState.prPanelState[wtId],
-    (wtId) => state.changesViewMode[wtId],
-    (wtId) => state.changesPanelCollapsed[wtId],
-    (wtId) => state.seenWorktrees.has(wtId) || undefined,
-    (wtId) => state.unreadWorktrees.has(wtId) || undefined,
-    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.claudeSessionId,
-    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.archived || undefined,
-    (wtId) => state.worktrees.find((wt) => wt.id === wtId)?.archivedAt,
-    (wtId) => state.annotations[wtId]?.length ? state.annotations[wtId] : undefined,
+
+  // Group worktrees by their actual repo path so each session is saved
+  // under the correct repo — otherwise cross-repo worktrees lose their
+  // session data (including columnOverrides) on restore.
+  const byRepo = new Map<string, string[]>();
+  for (const wt of state.worktrees) {
+    if (wt.creating || wt.createError) continue;
+    const repo = wt.repoPath;
+    let ids = byRepo.get(repo);
+    if (!ids) {
+      ids = [];
+      byRepo.set(repo, ids);
+    }
+    ids.push(wt.id);
+  }
+
+  const getters = {
+    getTabs: (wtId: string) => tabState.tabs[wtId] ?? [],
+    getActiveTabId: (wtId: string) => tabState.activeTabId[wtId] ?? "",
+    getScrollback: (tabId: string) => sessionManager.getBufferedOutputBase64(tabId),
+    getLayout: (wtId: string) => useLayoutStore.getState().layout[wtId],
+    getPanes: (wtId: string) => useLayoutStore.getState().panes[wtId],
+    getActivePaneId: (wtId: string) => useLayoutStore.getState().activePaneId[wtId],
+    getColumn: (wtId: string) => state.worktrees.find((wt) => wt.id === wtId)?.column,
+    getDiffViewMode: (wtId: string) => state.diffViewMode[wtId],
+    getColumnOverride: (wtId: string) => prState.columnOverrides[wtId] ?? null,
+    getPrPanelState: (wtId: string) => prState.prPanelState[wtId],
+    getChangesViewMode: (wtId: string) => state.changesViewMode[wtId],
+    getChangesPanelCollapsed: (wtId: string) => state.changesPanelCollapsed[wtId],
+    getSeenWorktree: (wtId: string) => state.seenWorktrees.has(wtId) || undefined,
+    getUnreadWorktree: (wtId: string) => state.unreadWorktrees.has(wtId) || undefined,
+    getClaudeSessionId: (wtId: string) => state.worktrees.find((wt) => wt.id === wtId)?.claudeSessionId,
+    getArchived: (wtId: string) => state.worktrees.find((wt) => wt.id === wtId)?.archived || undefined,
+    getArchivedAt: (wtId: string) => state.worktrees.find((wt) => wt.id === wtId)?.archivedAt,
+    getAnnotations: (wtId: string) => state.annotations[wtId]?.length ? state.annotations[wtId] : undefined,
+  };
+
+  const saves = [...byRepo.entries()].map(([repo, worktreeIds]) =>
+    saveAllSessions(
+      repo,
+      worktreeIds,
+      getters.getTabs,
+      getters.getActiveTabId,
+      getters.getScrollback,
+      getters.getLayout,
+      getters.getPanes,
+      getters.getActivePaneId,
+      getters.getColumn,
+      getters.getDiffViewMode,
+      getters.getColumnOverride,
+      getters.getPrPanelState,
+      getters.getChangesViewMode,
+      getters.getChangesPanelCollapsed,
+      getters.getSeenWorktree,
+      getters.getUnreadWorktree,
+      getters.getClaudeSessionId,
+      getters.getArchived,
+      getters.getArchivedAt,
+      getters.getAnnotations,
+    ),
   );
+  return Promise.allSettled(saves);
 }
 
 export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolean): void {
@@ -49,7 +86,7 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
     const currentWindow = getCurrentWindow();
     const unlisten = currentWindow.onCloseRequested(async (event) => {
       event.preventDefault();
-      await collectAndSaveAllSessions(repoPath);
+      await collectAndSaveAllSessions();
       await currentWindow.destroy();
     });
 
@@ -63,7 +100,7 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
     if (!repoPath || !hasWorktrees) return;
 
     const interval = setInterval(() => {
-      collectAndSaveAllSessions(repoPath)
+      collectAndSaveAllSessions()
         .catch((err) => console.error("Auto-save failed:", err));
     }, AUTO_SAVE_INTERVAL_MS);
 
