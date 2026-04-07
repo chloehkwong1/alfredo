@@ -314,6 +314,11 @@ export interface WorkflowRunLog {
   logExcerpt: string;
 }
 
+export interface MergeResult {
+  success: boolean;
+  conflictedFiles: string[];
+}
+
 export interface PrDetailedStatus {
   reviews: PrReview[];
   comments: PrComment[];
