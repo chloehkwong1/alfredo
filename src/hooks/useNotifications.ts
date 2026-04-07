@@ -105,6 +105,7 @@ const SOUNDS: Record<string, SoundNote[]> = {
 let audioCtx: AudioContext | null = null;
 function getAudioContext(): AudioContext {
   if (!audioCtx) audioCtx = new AudioContext();
+  if (audioCtx.state === "suspended") audioCtx.resume();
   return audioCtx;
 }
 
