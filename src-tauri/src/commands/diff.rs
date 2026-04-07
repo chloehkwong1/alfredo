@@ -421,8 +421,8 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
 
 /// Return the name of the default branch for the given repo.
 ///
-/// Resolution order: `origin/HEAD` first (authoritative), then `origin/main`/`origin/master`,
-/// then local branches as last resort. Matches the priority in `resolve_default_branch`.
+/// Resolution order: `origin/HEAD` first (authoritative), then GitHub API,
+/// then `git remote set-head`, then local branches as last resort.
 #[tauri::command]
 pub async fn get_default_branch(repo_path: String) -> Result<String> {
     // Fast path: return cached origin/HEAD instantly for snappy UI.
@@ -434,21 +434,22 @@ pub async fn get_default_branch(repo_path: String) -> Result<String> {
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
 
-    if let Ok(Some(branch)) = fast_result {
-        // Refresh origin/HEAD in the background so the next call picks up any
-        // remote default-branch changes (e.g. main → develop).
-        let bg_path = repo_path;
-        tokio::spawn(async move {
-            let _ = crate::platform::git_command()
-                .args(["remote", "set-head", "origin", "--auto"])
-                .current_dir(&bg_path)
-                .output()
-                .await;
-        });
+    if let Ok(Some(branch)) = &fast_result {
+        eprintln!("[alfredo] get_default_branch: origin/HEAD fast path → {branch}");
+        spawn_refresh_origin_head(repo_path);
+        return Ok(branch.clone());
+    }
+
+    eprintln!("[alfredo] get_default_branch: origin/HEAD not cached, result={fast_result:?}");
+
+    // GitHub API fallback: ask GitHub for the repo's default branch.
+    if let Ok(branch) = resolve_default_branch_from_github(&repo_path).await {
+        eprintln!("[alfredo] get_default_branch: GitHub API → {branch}");
+        spawn_refresh_origin_head(repo_path);
         return Ok(branch);
     }
 
-    // origin/HEAD not cached — must hit the network synchronously.
+    // git remote set-head fallback: hit the network via git.
     let set_head_result = crate::platform::git_command()
         .args(["remote", "set-head", "origin", "--auto"])
         .current_dir(&repo_path)
@@ -472,11 +473,12 @@ pub async fn get_default_branch(repo_path: String) -> Result<String> {
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
 
     if let Ok(Some(branch)) = head_result {
+        eprintln!("[alfredo] get_default_branch: origin/HEAD after set-head → {branch}");
         return Ok(branch);
     }
 
     // Offline fallback: guess from existing remote-tracking branches.
-    tokio::task::spawn_blocking(move || {
+    let result = tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
 
         for name in &["main", "develop", "master"] {
@@ -495,7 +497,49 @@ pub async fn get_default_branch(repo_path: String) -> Result<String> {
         Ok("main".to_string())
     })
     .await
-    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
+
+    eprintln!("[alfredo] get_default_branch: offline fallback → {result:?}");
+    result
+}
+
+/// Refresh `origin/HEAD` in the background so the next call takes the fast path.
+fn spawn_refresh_origin_head(repo_path: String) {
+    tokio::spawn(async move {
+        let _ = crate::platform::git_command()
+            .args(["remote", "set-head", "origin", "--auto"])
+            .current_dir(&repo_path)
+            .output()
+            .await;
+    });
+}
+
+/// Ask GitHub for the repo's default branch via `gh api`.
+async fn resolve_default_branch_from_github(repo_path: &str) -> std::result::Result<String, ()> {
+    let (owner, repo) = crate::github_manager::resolve_owner_repo(repo_path)
+        .await
+        .map_err(|e| eprintln!("[alfredo] resolve_default_branch_from_github: owner/repo failed: {e}"))?;
+
+    let output = crate::platform::gh_command()
+        .args(["api", &format!("/repos/{owner}/{repo}"), "--jq", ".default_branch"])
+        .current_dir(repo_path)
+        .output()
+        .await
+        .map_err(|e| eprintln!("[alfredo] resolve_default_branch_from_github: gh api failed: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("[alfredo] resolve_default_branch_from_github: gh api error: {stderr}");
+        return Err(());
+    }
+
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if branch.is_empty() {
+        eprintln!("[alfredo] resolve_default_branch_from_github: empty response");
+        return Err(());
+    }
+
+    Ok(branch)
 }
 
 /// Extract the branch name from refs/remotes/origin/HEAD if it exists.
