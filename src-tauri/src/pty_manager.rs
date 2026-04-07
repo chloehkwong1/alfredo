@@ -524,7 +524,8 @@ fn write_hooks_config(
         serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": format!("if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi")
+                "command": format!("if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
+                )
             }]
         })
     };
@@ -538,21 +539,21 @@ fn write_hooks_config(
             "matcher": "permission_prompt",
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; echo '{}'"
             }]
         })),
         ("Notification", serde_json::json!({
             "matcher": "elicitation_dialog",
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; echo '{}'"
             }]
         })),
         ("Notification", serde_json::json!({
             "matcher": "idle_prompt",
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/idle\"; fi"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/idle\"; fi; echo '{}'"
             }]
         })),
         // PermissionRequest fires for ALL permission dialogs (file creation,
@@ -561,7 +562,7 @@ fn write_hooks_config(
         ("PermissionRequest", serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; echo '{}'"
             }]
         })),
         // PostToolUseFailure with is_interrupt — fires when user interrupts a
@@ -570,7 +571,7 @@ fn write_hooks_config(
         ("PostToolUseFailure", serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ] && cat | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ] && cat | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; echo '{}'"
             }]
         })),
         ("SubagentStart",   cmd("busy")),
