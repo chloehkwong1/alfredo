@@ -1,0 +1,23 @@
+src-tauri/src/linear_oauth.rs
+  7870637a1280dff7 16-23,26-33,75-76,140-141,229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "f094625ebf125830a724a8d09ca7f8b7c9e8c1c9",
+  "prompts": {
+    "7870637a1280dff7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6329cf5-dc88-4837-9e01-bd94ca992bb9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}
