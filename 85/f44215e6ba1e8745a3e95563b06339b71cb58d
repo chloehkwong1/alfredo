@@ -1,0 +1,25 @@
+src/components/settings/GithubSettings.tsx
+  c2315faf74c1aeac 17,38,61-65,73
+src/components/settings/GlobalSettingsDialog.tsx
+  c2315faf74c1aeac 1,109-113,121-145,195-198,208,378
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "85f44215e6ba1e8745a3e95563b06339b71cb58d",
+  "prompts": {
+    "c2315faf74c1aeac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c88d22dc-716d-4b69-ac8f-cca5ca45bbaa",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 45,
+      "overriden_lines": 0
+    }
+  }
+}
