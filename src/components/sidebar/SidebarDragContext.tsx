@@ -228,12 +228,7 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn }: Side
       // Persist column change if column changed from original
       const worktree = currentWorktrees.find((wt) => wt.id === activeWtId);
       if (worktree && originColumnRef.current && worktree.column !== originColumnRef.current) {
-        const stateKey = worktree.prStatus?.merged
-          ? "merged"
-          : worktree.prStatus?.draft
-            ? "draft"
-            : "open";
-        usePrStore.getState().setManualColumn(activeWtId, worktree.column, stateKey);
+        usePrStore.getState().setManualColumn(activeWtId, worktree.column);
 
         // Persist to Tauri backend (fire-and-forget)
         setWorktreeColumn(worktree.repoPath, worktree.name, worktree.column).catch(() => {

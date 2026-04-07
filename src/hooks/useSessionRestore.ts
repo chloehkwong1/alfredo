@@ -133,13 +133,13 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   }
                 }
 
-                // Restore column override
+                // Restore column override (for worktrees without PRs —
+                // overrides for worktrees with PRs are cleared on next sync)
                 if (session.columnOverride) {
-                  usePrStore.getState().setManualColumn(
-                    wt.id,
-                    session.columnOverride.column,
-                    session.columnOverride.githubStateWhenSet,
-                  );
+                  const col = typeof session.columnOverride === "string"
+                    ? session.columnOverride
+                    : session.columnOverride.column;
+                  usePrStore.getState().setManualColumn(wt.id, col);
                 }
 
                 // Restore PR panel state
