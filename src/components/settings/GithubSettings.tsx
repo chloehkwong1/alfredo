@@ -14,6 +14,7 @@ import {
 } from "../../api";
 
 interface GithubSettingsProps {
+  repoPath: string;
   githubToken: string;
   linearApiKey: string;
   onGithubTokenChange: (value: string) => void;
@@ -34,6 +35,7 @@ type LinearState =
   | { step: "error"; message: string };
 
 function GithubSettings({
+  repoPath,
   githubToken,
   linearApiKey,
   onGithubTokenChange,
@@ -56,9 +58,11 @@ function GithubSettings({
         const token = await githubAuthToken();
         onGithubTokenChange(token);
 
-        const config = await getConfig(".");
-        config.githubToken = token;
-        await saveConfig(".", config);
+        if (repoPath) {
+          const config = await getConfig(repoPath);
+          config.githubToken = token;
+          await saveConfig(repoPath, config);
+        }
 
         setAuth({ step: "connected", username: status.username ?? "unknown" });
       }
@@ -66,7 +70,7 @@ function GithubSettings({
       setError(e instanceof Error ? e.message : String(e));
       setAuth({ step: "not-authenticated" });
     }
-  }, [onGithubTokenChange]);
+  }, [onGithubTokenChange, repoPath]);
 
   // Check on mount
   useEffect(() => {

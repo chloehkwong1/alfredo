@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AppConfig, GlobalAppConfig, TabType } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig } from "../../api";
 import { Button } from "../ui/Button";
@@ -106,6 +106,11 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
     () => localStorage.getItem("alfredo-theme") || "warm-dark",
   );
 
+  const effectiveRepoPath = useMemo(
+    () => repoConfig?.repoPath || appConfig?.activeRepo || appConfig?.repos?.[0]?.path || "",
+    [repoConfig?.repoPath, appConfig?.activeRepo, appConfig?.repos],
+  );
+
   // Load config when dialog opens
   useEffect(() => {
     if (!open) return;
@@ -113,6 +118,31 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
       .then((c) => {
         setAppConfig(c);
         setDirty(false);
+
+        // Load per-repo config using active repo path (not "." which is
+        // read-only inside the signed app bundle on macOS release builds).
+        const repoPath = c.activeRepo ?? c.repos?.[0]?.path;
+        if (!repoPath) {
+          setRepoConfig({
+            repoPath: "",
+            setupScripts: [],
+            githubToken: null,
+            linearApiKey: null,
+            branchMode: false,
+          });
+          return;
+        }
+        getConfig(repoPath)
+          .then((rc) => setRepoConfig(rc))
+          .catch(() => {
+            setRepoConfig({
+              repoPath,
+              setupScripts: [],
+              githubToken: null,
+              linearApiKey: null,
+              branchMode: false,
+            });
+          });
       })
       .catch(() => {
         setAppConfig({
@@ -134,19 +164,6 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
           dangerouslySkipPermissions: null,
           outputStyle: null,
           verbose: null,
-        });
-      });
-    getConfig(".")
-      .then((c) => {
-        setRepoConfig(c);
-      })
-      .catch(() => {
-        setRepoConfig({
-          repoPath: ".",
-          setupScripts: [],
-          githubToken: null,
-          linearApiKey: null,
-          branchMode: false,
         });
       });
     setCurrentTheme(localStorage.getItem("alfredo-theme") || "warm-dark");
@@ -175,7 +192,10 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
     if (!appConfig || !repoConfig) return;
     setSaving(true);
     try {
-      await Promise.all([saveAppConfig(appConfig), saveConfig(".", repoConfig)]);
+      await Promise.all([
+        saveAppConfig(appConfig),
+        ...(effectiveRepoPath ? [saveConfig(effectiveRepoPath, repoConfig)] : []),
+      ]);
       setDirty(false);
       onOpenChange(false);
     } catch {
@@ -185,7 +205,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
     } finally {
       setSaving(false);
     }
-  }, [appConfig, repoConfig, onOpenChange]);
+  }, [appConfig, repoConfig, effectiveRepoPath, onOpenChange]);
 
   if (!appConfig || !repoConfig) return null;
 
@@ -355,6 +375,7 @@ function GlobalSettingsDialog({ open, onOpenChange }: GlobalSettingsDialogProps)
 
             {tab === "integrations" && (
               <GithubSettings
+                repoPath={effectiveRepoPath}
                 githubToken={repoConfig.githubToken ?? ""}
                 linearApiKey={repoConfig.linearApiKey ?? ""}
                 onGithubTokenChange={(v) => updateRepoConfig({ githubToken: v || null })}
