@@ -379,7 +379,7 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
         </div>
         <div className="text-xs text-status-error mt-1">Setup failed</div>
         {worktree.createError && (
-          <div className="text-2xs text-text-tertiary mt-0.5 truncate">
+          <div className="text-2xs text-text-tertiary mt-0.5 line-clamp-3 break-all" title={worktree.createError}>
             {worktree.createError}
           </div>
         )}
