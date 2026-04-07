@@ -665,94 +665,146 @@ impl GithubManager {
         Ok(run_id)
     }
 
-    /// Download and extract the failure log excerpt for a workflow run.
+    /// Fetch failed job logs for a workflow run using the Jobs API.
+    ///
+    /// 1. Lists jobs via `/actions/runs/{run_id}/jobs` to find failed jobs + steps
+    /// 2. Downloads per-job plain-text logs (not the full run zip)
+    /// 3. Extracts only the failed step's section from each log
     pub async fn download_workflow_log(
         &self,
         owner: &str,
         repo: &str,
         run_id: u64,
     ) -> Result<Vec<WorkflowRunLog>, AppError> {
-        let url = format!("https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/logs");
-
-        let response = self
-            .authed_get(&url)
+        // Step 1: Get jobs for this run
+        let jobs_url = format!(
+            "https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/jobs"
+        );
+        let resp = self
+            .authed_get(&jobs_url)
             .send()
             .await
-            .map_err(|e| AppError::Github(format!("failed to download workflow logs: {e}")))?;
-
-        if !response.status().is_success() {
+            .map_err(|e| AppError::Github(format!("failed to fetch jobs: {e}")))?;
+        if !resp.status().is_success() {
             return Err(AppError::Github(format!(
-                "failed to download workflow logs: HTTP {}",
-                response.status()
+                "failed to fetch jobs: HTTP {}",
+                resp.status()
             )));
         }
-
-        let bytes = response
-            .bytes()
+        let jobs_resp: serde_json::Value = resp
+            .json()
             .await
-            .map_err(|e| AppError::Github(format!("failed to read workflow log bytes: {e}")))?;
+            .map_err(|e| AppError::Github(format!("failed to parse jobs response: {e}")))?;
 
-        Self::parse_workflow_logs(run_id, &bytes)
-    }
-
-    /// Parse a zip of workflow logs and extract failure excerpts.
-    fn parse_workflow_logs(run_id: u64, zip_bytes: &[u8]) -> Result<Vec<WorkflowRunLog>, AppError> {
-        use std::io::Read;
-
-        let reader = std::io::Cursor::new(zip_bytes);
-        let mut archive = zip::ZipArchive::new(reader)
-            .map_err(|e| AppError::Github(format!("failed to read log zip: {e}")))?;
+        let empty = vec![];
+        let jobs = jobs_resp
+            .get("jobs")
+            .and_then(|v| v.as_array())
+            .unwrap_or(&empty);
 
         let mut logs = Vec::new();
 
-        for i in 0..archive.len() {
-            let mut file = archive
-                .by_index(i)
-                .map_err(|e| AppError::Github(format!("failed to read zip entry: {e}")))?;
-
-            let name = file.name().to_string();
-
-            // Log files are named like "job-name/step-number_step-name.txt"
-            let parts: Vec<&str> = name.splitn(2, '/').collect();
-            if parts.len() != 2 || !parts[1].ends_with(".txt") {
+        for job in jobs {
+            let conclusion = job.get("conclusion").and_then(|v| v.as_str()).unwrap_or("");
+            if conclusion != "failure" {
                 continue;
             }
 
-            let job_name = parts[0].to_string();
-            let step_name = parts[1]
-                .trim_end_matches(".txt")
-                .split('_')
-                .skip(1)
-                .collect::<Vec<&str>>()
-                .join("_");
+            let job_id = job.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
+            let job_name = job
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
 
-            let mut content = String::new();
-            file.read_to_string(&mut content).ok();
+            // Find the first failed step name
+            let failed_step_name = job
+                .get("steps")
+                .and_then(|v| v.as_array())
+                .and_then(|steps| {
+                    steps.iter().find(|s| {
+                        s.get("conclusion").and_then(|v| v.as_str()) == Some("failure")
+                    })
+                })
+                .and_then(|s| s.get("name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
 
-            // Check if this step contains failure indicators
-            let has_failure = content.contains("FAIL")
-                || content.contains("Error:")
-                || content.contains("error[")
-                || content.contains("FAILED")
-                || content.contains("AssertionError")
-                || content.contains("Process completed with exit code 1");
-
-            if has_failure {
-                // Extract the last 80 lines as the failure excerpt
-                let lines: Vec<&str> = content.lines().collect();
-                let start = lines.len().saturating_sub(80);
-                let excerpt = lines[start..].join("\n");
-
-                logs.push(WorkflowRunLog {
-                    run_id,
-                    job_name,
-                    step_name,
-                    log_excerpt: excerpt,
-                });
+            if job_id == 0 {
+                continue;
             }
+
+            // Step 2: Download this job's log (plain text, not zip)
+            let log_url = format!(
+                "https://api.github.com/repos/{owner}/{repo}/actions/jobs/{job_id}/logs"
+            );
+            let log_resp = self.authed_get(&log_url).send().await;
+            let log_text = match log_resp {
+                Ok(r) if r.status().is_success() => r.text().await.unwrap_or_default(),
+                _ => continue,
+            };
+
+            // Step 3: Extract the failed step's section from the plain-text log.
+            // Job logs use "##[group]Step Name" headers to delimit steps.
+            let excerpt = Self::extract_failed_step_log(&log_text, &failed_step_name);
+
+            logs.push(WorkflowRunLog {
+                run_id,
+                job_name,
+                step_name: failed_step_name,
+                log_excerpt: excerpt,
+            });
         }
 
         Ok(logs)
+    }
+
+    /// Extract the log section for a specific failed step from a job's plain-text log.
+    ///
+    /// GitHub Actions job logs delimit steps with lines containing the step name.
+    /// We find the failed step's section and return the last 150 lines of it.
+    fn extract_failed_step_log(log_text: &str, step_name: &str) -> String {
+        let lines: Vec<&str> = log_text.lines().collect();
+
+        // Find the section that matches the failed step name.
+        // Step headers appear as timestamps followed by "##[group]Step Name"
+        let mut section_start = None;
+        let mut section_end = None;
+
+        for (i, line) in lines.iter().enumerate() {
+            // Match lines like "2024-01-15T10:30:45.1234567Z ##[group]Run tests"
+            if line.contains(&format!("##[group]{step_name}")) {
+                section_start = Some(i);
+                section_end = None;
+            } else if section_start.is_some() && section_end.is_none() && line.contains("##[group]") {
+                // Next step started — end of our section
+                section_end = Some(i);
+            }
+        }
+
+        let (start, end) = match section_start {
+            Some(s) => (s, section_end.unwrap_or(lines.len())),
+            // Fallback: if we can't find the step header, return the last 150 lines
+            None => (lines.len().saturating_sub(150), lines.len()),
+        };
+
+        // Strip timestamps from each line for cleaner output
+        let section: Vec<&str> = lines[start..end]
+            .iter()
+            .map(|line| {
+                // Timestamps are like "2024-01-15T10:30:45.1234567Z "
+                if line.len() > 30 && line.as_bytes().get(28) == Some(&b'Z') {
+                    &line[30..]
+                } else {
+                    line
+                }
+            })
+            .collect();
+
+        // Take the last 150 lines of the section if it's very long
+        let trim_start = section.len().saturating_sub(150);
+        section[trim_start..].join("\n")
     }
 
 }
