@@ -1,0 +1,40 @@
+src/components/commandPalette/useCommandRegistry.ts
+  ec050e9a6e8b1997 391
+src/components/changes/ChangesPanel.tsx
+  ec050e9a6e8b1997 304
+src/components/changes/MergeStatusBanner.tsx
+  ec050e9a6e8b1997 2,4-6,16,24,26-30,48-49,55-56,58-61,67-68,70-71,74-101,103-112,133-134,136-137,141,145,151-152,155,159,163,169-310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "9474d8692a436c65e453be1c0d5c53cd986441a5",
+  "prompts": {
+    "9587264399a2aa84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6290e9c6-cd01-479e-98ed-faf9e822a8f3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "ec050e9a6e8b1997": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7fa9c82d-f8bf-4018-9493-7ce130727503",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 226,
+      "total_deletions": 45,
+      "accepted_lines": 226,
+      "overriden_lines": 0
+    }
+  }
+}
