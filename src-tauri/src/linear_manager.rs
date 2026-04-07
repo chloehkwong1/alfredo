@@ -407,7 +407,8 @@ pub fn generate_context_md(ticket: &LinearTicket) -> String {
     let mut content = String::new();
 
     content.push_str(&format!("# {} {}\n\n", ticket.identifier, ticket.title));
-    content.push_str("This worktree was created from a Linear ticket. Use the details below as context for your work.\n\n");
+    content.push_str("This worktree was created from a Linear ticket. All relevant ticket context is included below — do NOT fetch from Linear or any external source.\n\n");
+    content.push_str("On your FIRST message in this conversation, briefly summarize the ticket (2-3 sentences) and ask the user what they'd like to do — e.g. start implementing, research the codebase first, plan an approach, etc.\n\n");
 
     if !ticket.url.is_empty() {
         content.push_str(&format!("**Link:** {}\n", ticket.url));
