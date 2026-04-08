@@ -306,7 +306,6 @@ export interface PrComment {
 }
 
 export interface WorkflowRunLog {
-  runId: number;
   jobName: string;
   stepName: string;
   logExcerpt: string;

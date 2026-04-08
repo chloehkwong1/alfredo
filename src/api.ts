@@ -327,11 +327,12 @@ export function rerunFailedChecks(
   return invoke("rerun_failed_checks", { repoPath, checkSuiteId });
 }
 
-export function getWorkflowLog(
+export function getJobLog(
   repoPath: string,
-  checkSuiteId: number,
-): Promise<WorkflowRunLog[]> {
-  return invoke("get_workflow_log", { repoPath, checkSuiteId });
+  jobId: number,
+  jobName: string,
+): Promise<WorkflowRunLog | null> {
+  return invoke("get_job_log", { repoPath, jobId, jobName });
 }
 
 export function getPrDetail(

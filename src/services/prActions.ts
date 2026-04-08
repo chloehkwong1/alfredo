@@ -1,5 +1,5 @@
 import type { CheckRun, WorkflowRunLog } from "../types";
-import { rerunFailedChecks as apiRerunFailedChecks, getWorkflowLog, gitMerge, gitPushForceWithLease } from "../api";
+import { rerunFailedChecks as apiRerunFailedChecks, getJobLog, gitMerge, gitPushForceWithLease } from "../api";
 import { ensureAgentSession, writeToSession, focusAgentTab } from "./agentMessenger";
 
 /**
@@ -35,24 +35,14 @@ export async function fixFailingChecks(
   branch: string,
   failedCheckRuns: CheckRun[],
 ): Promise<boolean> {
-  // Collect unique check suite IDs
-  const suiteIds = new Set<number>();
-  for (const run of failedCheckRuns) {
-    if (run.checkSuiteId != null) {
-      suiteIds.add(run.checkSuiteId);
-    }
-  }
-
-  // Fetch workflow logs for each suite (skip if no suite IDs)
+  // Fetch log for each failed check run directly (check run ID = job ID for GitHub Actions)
   const allLogs: WorkflowRunLog[] = [];
-  if (suiteIds.size > 0) {
-    const logResults = await Promise.allSettled(
-      [...suiteIds].map((id) => getWorkflowLog(repoPath, id)),
-    );
-    for (const result of logResults) {
-      if (result.status === "fulfilled") {
-        allLogs.push(...result.value);
-      }
+  const logResults = await Promise.allSettled(
+    failedCheckRuns.map((run) => getJobLog(repoPath, run.id, run.name)),
+  );
+  for (const result of logResults) {
+    if (result.status === "fulfilled" && result.value) {
+      allLogs.push(result.value);
     }
   }
 

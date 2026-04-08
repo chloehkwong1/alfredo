@@ -3,7 +3,7 @@ import type { CheckRun, PrStatus, WorkflowRunLog } from "../../types";
 import { formatTimeAgo } from "./formatRelativeTime";
 import { rerunFailedChecks, fixFailingChecks, mergeAndFix, pushForceWithLease } from "../../services/prActions";
 import { focusAgentTab } from "../../services/agentMessenger";
-import { getWorkflowLog } from "../../api";
+import { getJobLog } from "../../api";
 import { Button } from "../ui/Button";
 
 export function MergeStatusBanner({
@@ -26,7 +26,7 @@ export function MergeStatusBanner({
   const [loading, setLoading] = useState<"rerun" | "fix" | "merge" | "push" | null>(null);
   const [readyToPush, setReadyToPush] = useState(false);
   const [checksExpanded, setChecksExpanded] = useState(false);
-  const [failureLogs, setFailureLogs] = useState<Record<number, WorkflowRunLog[]>>({});
+  const [failureLogs, setFailureLogs] = useState<Record<number, WorkflowRunLog | null>>({});
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const [logsLoading, setLogsLoading] = useState(false);
 
@@ -90,28 +90,21 @@ export function MergeStatusBanner({
 
     if (!next) return;
 
-    // Fetch logs for each unique check suite we haven't fetched yet
-    const suiteIds = new Set<number>();
-    for (const run of failedChecks) {
-      if (run.checkSuiteId != null && !failureLogs[run.checkSuiteId]) {
-        suiteIds.add(run.checkSuiteId);
-      }
-    }
-
-    if (suiteIds.size === 0) return;
+    // Fetch logs for failed checks we haven't fetched yet
+    const toFetch = failedChecks.filter((run) => !(run.id in failureLogs));
+    if (toFetch.length === 0) return;
 
     setLogsLoading(true);
     try {
       const results = await Promise.allSettled(
-        [...suiteIds].map((id) => getWorkflowLog(repoPath, id)),
+        toFetch.map((run) => getJobLog(repoPath, run.id, run.name)),
       );
 
-      const newLogs: Record<number, WorkflowRunLog[]> = { ...failureLogs };
-      let i = 0;
-      for (const suiteId of suiteIds) {
-        const result = results[i++];
-        newLogs[suiteId] = result.status === "fulfilled" ? result.value : [];
-      }
+      const newLogs: Record<number, WorkflowRunLog | null> = { ...failureLogs };
+      toFetch.forEach((run, i) => {
+        const result = results[i];
+        newLogs[run.id] = result.status === "fulfilled" ? result.value : null;
+      });
       setFailureLogs(newLogs);
     } finally {
       setLogsLoading(false);
@@ -187,15 +180,14 @@ export function MergeStatusBanner({
     const logsByCheck = new Map<string, { jobName: string; stepName: string; excerpt: string; htmlUrl: string }[]>();
     for (const check of failedChecks) {
       const entries: { jobName: string; stepName: string; excerpt: string; htmlUrl: string }[] = [];
-      if (check.checkSuiteId != null && failureLogs[check.checkSuiteId]) {
-        for (const log of failureLogs[check.checkSuiteId]) {
-          entries.push({
-            jobName: log.jobName,
-            stepName: log.stepName,
-            excerpt: log.logExcerpt,
-            htmlUrl: check.htmlUrl,
-          });
-        }
+      const log = failureLogs[check.id];
+      if (log) {
+        entries.push({
+          jobName: log.jobName,
+          stepName: log.stepName,
+          excerpt: log.logExcerpt,
+          htmlUrl: check.htmlUrl,
+        });
       }
       if (entries.length === 0) {
         entries.push({

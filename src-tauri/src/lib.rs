@@ -100,7 +100,7 @@ pub fn run() {
             github::get_pr_for_branch,
             checks::get_check_runs,
             checks::rerun_failed_checks,
-            checks::get_workflow_log,
+            checks::get_job_log,
             github_sync::set_sync_repo_paths,
             // PR Detail
             pr_detail::get_pr_detail,

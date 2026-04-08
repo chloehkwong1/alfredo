@@ -198,7 +198,6 @@ pub struct PrComment {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowRunLog {
-    pub run_id: u64,
     pub job_name: String,
     pub step_name: String,
     pub log_excerpt: String,

@@ -665,99 +665,76 @@ impl GithubManager {
         Ok(run_id)
     }
 
-    /// Fetch failed job logs for a workflow run using the Jobs API.
+    /// Download log for a single job and extract the failed step's output.
     ///
-    /// 1. Lists jobs via `/actions/runs/{run_id}/jobs` to find failed jobs + steps
-    /// 2. Downloads per-job plain-text logs (not the full run zip)
-    /// 3. Extracts only the failed step's section from each log
-    pub async fn download_workflow_log(
+    /// For GitHub Actions, check run IDs equal job IDs, so callers can pass
+    /// a check run ID directly — no check_suite/workflow_run lookup needed.
+    pub async fn download_job_log(
         &self,
         owner: &str,
         repo: &str,
-        run_id: u64,
-    ) -> Result<Vec<WorkflowRunLog>, AppError> {
-        // Step 1: Get jobs for this run
-        let jobs_url = format!(
-            "https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/jobs"
+        job_id: u64,
+        job_name: &str,
+    ) -> Result<Option<WorkflowRunLog>, AppError> {
+        let log_url = format!(
+            "https://api.github.com/repos/{owner}/{repo}/actions/jobs/{job_id}/logs"
         );
-        let resp = self
-            .authed_get(&jobs_url)
+        let log_resp = self
+            .authed_get(&log_url)
             .send()
             .await
-            .map_err(|e| AppError::Github(format!("failed to fetch jobs: {e}")))?;
-        if !resp.status().is_success() {
-            return Err(AppError::Github(format!(
-                "failed to fetch jobs: HTTP {}",
-                resp.status()
-            )));
+            .map_err(|e| AppError::Github(format!("failed to fetch job log: {e}")))?;
+
+        if !log_resp.status().is_success() {
+            eprintln!("[github] job log fetch for job {job_id} returned HTTP {}", log_resp.status());
+            return Ok(None);
         }
-        let jobs_resp: serde_json::Value = resp
-            .json()
+
+        let log_text = log_resp
+            .text()
             .await
-            .map_err(|e| AppError::Github(format!("failed to parse jobs response: {e}")))?;
+            .unwrap_or_default();
 
-        let empty = vec![];
-        let jobs = jobs_resp
-            .get("jobs")
-            .and_then(|v| v.as_array())
-            .unwrap_or(&empty);
-
-        let mut logs = Vec::new();
-
-        for job in jobs {
-            let conclusion = job.get("conclusion").and_then(|v| v.as_str()).unwrap_or("");
-            if conclusion != "failure" {
-                continue;
-            }
-
-            let job_id = job.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
-            let job_name = job
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
-
-            // Find the first failed step name
-            let failed_step_name = job
-                .get("steps")
-                .and_then(|v| v.as_array())
-                .and_then(|steps| {
-                    steps.iter().find(|s| {
-                        s.get("conclusion").and_then(|v| v.as_str()) == Some("failure")
-                    })
-                })
-                .and_then(|s| s.get("name"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
-
-            if job_id == 0 {
-                continue;
-            }
-
-            // Step 2: Download this job's log (plain text, not zip)
-            let log_url = format!(
-                "https://api.github.com/repos/{owner}/{repo}/actions/jobs/{job_id}/logs"
-            );
-            let log_resp = self.authed_get(&log_url).send().await;
-            let log_text = match log_resp {
-                Ok(r) if r.status().is_success() => r.text().await.unwrap_or_default(),
-                _ => continue,
-            };
-
-            // Step 3: Extract the failed step's section from the plain-text log.
-            // Job logs use "##[group]Step Name" headers to delimit steps.
-            let excerpt = Self::extract_failed_step_log(&log_text, &failed_step_name);
-
-            logs.push(WorkflowRunLog {
-                run_id,
-                job_name,
-                step_name: failed_step_name,
-                log_excerpt: excerpt,
-            });
+        if log_text.is_empty() {
+            return Ok(None);
         }
 
-        Ok(logs)
+        // Find the failed step name from the log's ##[group] headers.
+        // We look for a step followed by ##[error] to identify the failure.
+        let failed_step_name = Self::find_failed_step_in_log(&log_text)
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let excerpt = Self::extract_failed_step_log(&log_text, &failed_step_name);
+
+        Ok(Some(WorkflowRunLog {
+            job_name: job_name.to_string(),
+            step_name: failed_step_name,
+            log_excerpt: excerpt,
+        }))
+    }
+
+    /// Scan a job's plain-text log for the step that contains an error.
+    ///
+    /// GitHub Actions logs use `##[group]StepName` to open sections and
+    /// `##[error]` markers for failures. We find the step that owns the error.
+    fn find_failed_step_in_log(log_text: &str) -> Option<String> {
+        let mut current_step: Option<String> = None;
+        for line in log_text.lines() {
+            // Strip timestamp prefix (e.g. "2024-01-15T10:30:45.1234567Z ")
+            let content = if line.len() > 30 && line.as_bytes().get(28) == Some(&b'Z') {
+                &line[30..]
+            } else {
+                line
+            };
+            if let Some(name) = content.strip_prefix("##[group]") {
+                current_step = Some(name.to_string());
+            } else if content.contains("##[error]") {
+                if let Some(ref step) = current_step {
+                    return Some(step.clone());
+                }
+            }
+        }
+        None
     }
 
     /// Extract the log section for a specific failed step from a job's plain-text log.

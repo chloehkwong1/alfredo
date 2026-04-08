@@ -23,15 +23,12 @@ pub async fn rerun_failed_checks(repo_path: String, check_suite_id: u64) -> Resu
     manager.rerun_failed_jobs(&owner, &repo, run_id).await
 }
 
-/// Download and extract failure log excerpts for a workflow run.
+/// Download and extract failure log excerpt for a single job (check run).
+///
+/// For GitHub Actions, check run IDs are job IDs, so we can download the log
+/// directly without the check_suite → workflow_run → jobs lookup chain.
 #[tauri::command]
-pub async fn get_workflow_log(repo_path: String, check_suite_id: u64) -> Result<Vec<WorkflowRunLog>> {
+pub async fn get_job_log(repo_path: String, job_id: u64, job_name: String) -> Result<Option<WorkflowRunLog>> {
     let (manager, owner, repo) = github_manager::github_context(&repo_path).await?;
-
-    let run_id = manager
-        .get_workflow_run_id_for_check_suite(&owner, &repo, check_suite_id)
-        .await?
-        .ok_or_else(|| AppError::Github("no workflow run found for check suite".into()))?;
-
-    manager.download_workflow_log(&owner, &repo, run_id).await
+    manager.download_job_log(&owner, &repo, job_id, &job_name).await
 }
