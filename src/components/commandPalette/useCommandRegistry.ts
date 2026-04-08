@@ -27,7 +27,7 @@ import { useTabStore } from "../../stores/tabStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { rerunFailedChecks, fixFailingChecks } from "../../services/prActions";
 import { openInEditor, openInTerminal, getAppConfig } from "../../api";
-import { findAgentTab } from "../../types";
+import { getAgentSessionInfo } from "../../services/agentMessenger";
 import type { Worktree, CheckRun, RepoEntry } from "../../types";
 
 const EMPTY_CHECK_RUNS: CheckRun[] = [];
@@ -355,8 +355,7 @@ function buildPrCommands(
   );
 
   const switchToAgentTab = () => {
-    const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
-    const agentTab = findAgentTab(tabs);
+    const { agentTab } = getAgentSessionInfo(worktreeId);
     if (agentTab) {
       useTabStore.getState().setActiveTabId(worktreeId, agentTab.id);
     }

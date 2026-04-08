@@ -18,7 +18,7 @@ import {
   resolveSettings,
   buildClaudeArgs,
 } from "../../services/claudeSettingsResolver";
-import { findAgentTab } from "../../types";
+import { getAgentSessionInfo } from "../../services/agentMessenger";
 import type { Annotation, TabType } from "../../types";
 
 function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell" } {
@@ -129,10 +129,8 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const handleSendFeedback = useCallback(async () => {
     if (!activeWorktreeId || annotations.length === 0) return;
 
-    // Find the first agent session for this worktree to send feedback to
-    const tabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
-    const agentTab = findAgentTab(tabs);
-    const targetKey = agentTab?.id ?? activeWorktreeId;
+    // Find the most recently focused agent session for this worktree
+    const { sessionKey: targetKey } = getAgentSessionInfo(activeWorktreeId);
 
     const session = sessionManager.getSession(targetKey);
     if (!session) return;

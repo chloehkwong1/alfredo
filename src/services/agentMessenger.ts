@@ -3,13 +3,44 @@ import { resolveSettings, buildClaudeArgs } from "./claudeSettingsResolver";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { sessionManager } from "./sessionManager";
-import { findAgentTab } from "../types";
+import { findAgentTab, isAgentTab } from "../types";
 
 /**
- * Find the first agent tab and its session key for a given worktree.
+ * Find the most recently focused agent tab for a worktree.
+ * Checks the active pane first, then other panes, then falls back to
+ * the first agent tab in tab-list order.
  */
 export function getAgentSessionInfo(worktreeId: string) {
   const tabs = useTabStore.getState().tabs[worktreeId] ?? [];
+  const layoutState = useLayoutStore.getState();
+  const worktreePanes = layoutState.panes[worktreeId];
+  const activePaneId = layoutState.activePaneId[worktreeId];
+
+  if (worktreePanes) {
+    const tabById = new Map(tabs.map((t) => [t.id, t]));
+
+    // Check active pane first
+    if (activePaneId) {
+      const pane = worktreePanes[activePaneId];
+      if (pane) {
+        const activeTab = tabById.get(pane.activeTabId);
+        if (activeTab && isAgentTab(activeTab)) {
+          return { agentTab: activeTab, sessionKey: activeTab.id };
+        }
+      }
+    }
+
+    // Check other panes' active tabs
+    for (const [paneId, pane] of Object.entries(worktreePanes)) {
+      if (paneId === activePaneId) continue;
+      const activeTab = tabById.get(pane.activeTabId);
+      if (activeTab && isAgentTab(activeTab)) {
+        return { agentTab: activeTab, sessionKey: activeTab.id };
+      }
+    }
+  }
+
+  // Fall back to first agent tab in list
   const agentTab = findAgentTab(tabs);
   const sessionKey = agentTab?.id ?? worktreeId;
   return { agentTab, sessionKey };
@@ -50,7 +81,7 @@ export async function writeToSession(sessionId: string, message: string): Promis
 }
 
 /**
- * Focus the first agent tab in the layout for a given worktree.
+ * Focus the most recently focused agent tab in the layout for a given worktree.
  */
 export function focusAgentTab(worktreeId: string): void {
   const { agentTab } = getAgentSessionInfo(worktreeId);
