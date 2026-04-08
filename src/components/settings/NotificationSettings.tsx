@@ -1,5 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Play } from "lucide-react";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { Button } from "../ui/Button";
 import { Toggle } from "../ui/Toggle";
 import type { NotificationConfig } from "../../types";
@@ -18,11 +23,15 @@ interface NotificationSettingsProps {
 
 function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
   const [permissionState, setPermissionState] = useState<
-    NotificationPermission | "unsupported"
-  >(() => {
-    if (typeof Notification === "undefined") return "unsupported";
-    return Notification.permission;
-  });
+    "granted" | "denied" | "default" | "unsupported"
+  >("default");
+
+  // Check Tauri notification permission on mount
+  useEffect(() => {
+    isPermissionGranted().then((granted) => {
+      setPermissionState(granted ? "granted" : "default");
+    });
+  }, []);
 
   const update = useCallback(
     <K extends keyof NotificationConfig>(
@@ -36,21 +45,26 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
 
   const handleEnableToggle = useCallback(() => {
     const next = !config.enabled;
-    if (next && typeof Notification !== "undefined" && Notification.permission !== "granted") {
-      Notification.requestPermission().then((perm) => {
-        setPermissionState(perm);
-        if (perm === "granted") {
+    if (next) {
+      isPermissionGranted().then(async (granted) => {
+        if (!granted) {
+          const result = await requestPermission();
+          granted = result === "granted";
+          setPermissionState(granted ? "granted" : "denied");
+        }
+        if (granted) {
           update("enabled", true);
         }
       });
     } else {
-      update("enabled", next);
+      update("enabled", false);
     }
   }, [config.enabled, update]);
 
-  const handleTestNotification = useCallback(() => {
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      new Notification("Alfredo", { body: "This is a test notification" });
+  const handleTestNotification = useCallback(async () => {
+    const granted = await isPermissionGranted();
+    if (granted) {
+      sendNotification({ title: "Alfredo", body: "This is a test notification" });
     }
     playSoundById(config.sound);
   }, [config.sound]);
