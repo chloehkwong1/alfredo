@@ -7,6 +7,7 @@ import {
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { getAppConfig } from "../api";
+import { IDLE_SETTLE_MS } from "../types";
 import type { AgentState, NotificationConfig } from "../types";
 
 // ── Sound generation via Web Audio API ─────────────────────────
@@ -198,7 +199,7 @@ const DEFAULT_CONFIG: NotificationConfig = {
 // Agents flicker busy→idle→busy during long operations. Delay idle
 // notifications and cancel if the agent goes back to busy.
 
-const IDLE_DELAY_MS = 3_000;
+const IDLE_DELAY_MS = IDLE_SETTLE_MS;
 
 // ── Hook ───────────────────────────────────────────────────────
 
@@ -312,7 +313,10 @@ export function useNotifications() {
           if (!latestConfig.enabled || !latestConfig.notifyOnIdle) return;
           const state = useWorkspaceStore.getState();
           const current = state.worktrees.find((w) => w.id === id);
-          if (current?.agentStatus === "idle") {
+          // Skip if agent is no longer idle, or if the user is already
+          // viewing this worktree (seenWorktrees is set by TerminalView
+          // when the active worktree goes idle with the window focused).
+          if (current?.agentStatus === "idle" && !state.seenWorktrees.has(id)) {
             sendNotification(`${branch} finished`);
             playSoundById(latestConfig.sound);
             requestDockBounce();
