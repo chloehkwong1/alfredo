@@ -46,7 +46,7 @@ function runFrontendScenario(scenario: StatusScenario) {
         // via the Rust scenario runner.
         // Simulate detector output accepted through priority logic.
         const detectorState = step.expect.agentStatus;
-        if (shouldAcceptDetectorState(state.hooksActive, detectorState)) {
+        if (shouldAcceptDetectorState(state.hooksActive, detectorState, state.agentStatus)) {
           if (detectorState === "waitingForInput") {
             state.waitingForInput = true;
           } else if (detectorState !== "busy") {

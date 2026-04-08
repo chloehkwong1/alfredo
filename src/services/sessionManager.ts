@@ -194,7 +194,8 @@ function registerKittyProtocol(terminal: Terminal, sessionId: string): void {
 
 export function shouldAcceptDetectorState(
   hooksActive: boolean,
-  _detectorState: AgentState,
+  detectorState: AgentState,
+  currentState: AgentState,
 ): boolean {
   // Once hooks have fired, they are the sole source of truth.
   // Every state the detector could provide is already covered:
@@ -208,7 +209,17 @@ export function shouldAcceptDetectorState(
   // false-positive bugs — terminal redraws, cursor chars, partial ANSI
   // sequences all produce spurious state flips. The detector exists solely
   // as a fallback for agents that lack hook support (Codex, Aider, etc.).
-  return !hooksActive;
+  if (!hooksActive) return true;
+
+  // Exception: user interrupts during thinking fire NO hook (no tool running
+  // → no PostToolUseFailure, and Stop doesn't fire on interrupts). The
+  // detector sees the idle prompt (❯) or "What should Claude do?" and can
+  // resolve the stuck "busy" state that hooks will never update.
+  if (currentState === "busy" && (detectorState === "idle" || detectorState === "waitingForInput")) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -256,7 +267,7 @@ function createSessionChannel(
         break;
       }
       case "agentState": {
-        if (!shouldAcceptDetectorState(session.hooksActive, event.data)) {
+        if (!shouldAcceptDetectorState(session.hooksActive, event.data, session.agentState)) {
           console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
           break;
         }
@@ -265,7 +276,8 @@ function createSessionChannel(
         } else if (event.data !== "busy") {
           session.waitingForInput = false;
         }
-        console.debug(`[status:${worktreeId}] detector → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : ""}`);
+        const fallback = session.hooksActive ? " (hooks-fallback)" : "";
+        console.debug(`[status:${worktreeId}] detector → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : ""}${fallback}`);
         session.agentState = event.data;
         useWorkspaceStore
           .getState()
