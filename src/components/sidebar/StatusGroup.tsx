@@ -132,18 +132,6 @@ function StatusGroup({
         </span>
         <span className="flex-1 h-px bg-gradient-to-r from-border-subtle to-transparent mx-3" />
         <span className="flex items-center gap-2">
-          {column === "done" && worktrees.length > 0 && onArchiveAll && (
-            <span
-              role="button"
-              tabIndex={0}
-              title="Archive all done"
-              onClick={(e) => { e.stopPropagation(); onArchiveAll(); }}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onArchiveAll(); } }}
-              className="p-0.5 rounded hover:bg-surface-raised hover:text-text-primary transition-colors"
-            >
-              <Archive className="h-3.5 w-3.5" />
-            </span>
-          )}
           <span className="text-2xs text-text-tertiary tabular-nums">
             {worktrees.length}
           </span>
@@ -183,6 +171,15 @@ function StatusGroup({
                 />
               ))}
             </SortableContext>
+            {column === "done" && worktrees.length > 0 && onArchiveAll && (
+              <button
+                onClick={onArchiveAll}
+                className="flex items-center gap-1.5 w-full px-3.5 py-2 mt-1 text-2xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+              >
+                <Archive className="h-3 w-3" />
+                <span>Archive all</span>
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
