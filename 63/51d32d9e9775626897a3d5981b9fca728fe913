@@ -1,0 +1,23 @@
+src/components/settings/NotificationSettings.tsx
+  e6174ed1e556ed02 1,3-7,26-34,49-55,60,64-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "6351d32d9e9775626897a3d5981b9fca728fe913",
+  "prompts": {
+    "e6174ed1e556ed02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bcf1b3b6-37b9-43c0-b469-f469954b30d3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 17,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    }
+  }
+}
