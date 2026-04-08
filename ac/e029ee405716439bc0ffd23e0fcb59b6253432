@@ -1,0 +1,27 @@
+src/services/sessionManager.test.ts
+  8cde599b32953da4 6-9,12-27
+src/services/sessionManager.ts
+  8cde599b32953da4 197-198,212-222,270,279-280
+src/test/status-scenarios.test.ts
+  8cde599b32953da4 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "ace029ee405716439bc0ffd23e0fcb59b6253432",
+  "prompts": {
+    "8cde599b32953da4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e90637f8-1219-4bf6-b903-b8e4c4cf6068",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 37,
+      "total_deletions": 14,
+      "accepted_lines": 37,
+      "overriden_lines": 0
+    }
+  }
+}
