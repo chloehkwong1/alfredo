@@ -1,0 +1,38 @@
+src/components/changes/ChangesView.tsx
+  ce02e5242d741871 101
+src/components/changes/useAnnotationActions.ts
+  ce02e5242d741871 62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "feb10fd85562347e47af3b800f5a0349d6cb2fa6",
+  "prompts": {
+    "259bc2c8de4791f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "942e86b7-63ac-4e53-b498-72e60fb1bf5a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "ce02e5242d741871": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605ea502-b3b9-4519-b5a1-77a1a6e0b4d0",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 74,
+      "total_deletions": 91,
+      "accepted_lines": 64,
+      "overriden_lines": 0
+    }
+  }
+}
