@@ -129,9 +129,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const handleSendFeedback = useCallback(async () => {
     if (!activeWorktreeId || annotations.length === 0) return;
 
-    // Find the most recently focused agent session for this worktree
     const { sessionKey: targetKey } = getAgentSessionInfo(activeWorktreeId);
-
     const session = sessionManager.getSession(targetKey);
     if (!session) return;
 

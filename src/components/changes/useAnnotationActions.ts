@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
-import { ensureAgentSession, writeToSession, focusAgentTab } from "../../services/agentMessenger";
 import type { Annotation, CommitInfo, DiffSide } from "../../types";
 
 export type ActiveAnnotationLine = {
@@ -15,8 +14,6 @@ export function useAnnotationActions(
   viewMode: "changes" | "commits",
   selectedCommitIndex: number | null,
   commits: CommitInfo[],
-  repoPath?: string,
-  branch?: string,
 ) {
   const [activeAnnotationLine, setActiveAnnotationLine] = useState<ActiveAnnotationLine>(null);
 
@@ -61,20 +58,8 @@ export function useAnnotationActions(
         createdAt: Date.now(),
       });
       setActiveAnnotationLine(null);
-
-      // Auto-send to agent
-      if (repoPath) {
-        const message = `\nFeedback on ${filePath}:${lineNumber} — ${text}\n`;
-        ensureAgentSession(worktreeId, repoPath, branch)
-          .then((session) => {
-            if (!session?.sessionId) return;
-            session.waitingForInput = false;
-            return writeToSession(session.sessionId, message).then(() => focusAgentTab(worktreeId));
-          })
-          .catch((e) => console.error("Failed to send annotation:", e));
-      }
     },
-    [worktreeId, viewMode, selectedCommitIndex, addAnnotation, repoPath, branch],
+    [worktreeId, viewMode, selectedCommitIndex, addAnnotation],
   );
 
   const handleDeleteAnnotation = useCallback(

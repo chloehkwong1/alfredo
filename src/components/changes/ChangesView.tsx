@@ -98,7 +98,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     handleEditAnnotation,
     clearAnnotations,
     resetActiveAnnotation,
-  } = useAnnotationActions(worktreeId, viewMode, selectedCommitIndex, commits, repoPath, worktree?.branch ?? undefined);
+  } = useAnnotationActions(worktreeId, viewMode, selectedCommitIndex, commits);
 
   const {
     collapsedFiles,
