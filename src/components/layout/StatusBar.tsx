@@ -31,7 +31,7 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
           type="button"
           onClick={handleCopyBranch}
           title="Copy branch name"
-          className="group flex items-center gap-1 font-medium text-text-secondary max-w-[300px] truncate hover:text-text-primary transition-colors"
+          className="group flex items-center gap-1 font-medium text-text-secondary min-w-0 hover:text-text-primary transition-colors"
         >
           <span className="truncate">{worktree.branch}</span>
           {copied
@@ -49,6 +49,16 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
 
       {/* Right side */}
       <div className="flex items-center gap-3">
+        {worktree.linearTicketIdentifier && worktree.linearTicketUrl && (
+          <button
+            type="button"
+            onClick={() => openUrl(worktree.linearTicketUrl!)}
+            className="flex items-center gap-1 hover:text-text-secondary transition-colors cursor-pointer"
+          >
+            <span>{worktree.linearTicketIdentifier}</span>
+            <ExternalLink size={12} />
+          </button>
+        )}
         {pr && (
           <button
             type="button"

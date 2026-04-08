@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, SquarePen, TerminalSquare, X, Unlink } from "lucide-react";
+import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, SquarePen, TerminalSquare, X, Unlink, Copy } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { openInEditor, openInTerminal, getAppConfig, rebaseWorktree, setStackParent } from "../../api";
@@ -508,6 +508,12 @@ const AgentItem = memo(function AgentItem({
           >
             <Eye className="h-4 w-4" />
             {isUnread ? "Mark as Read" : "Mark as Unread"}
+          </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={() => navigator.clipboard.writeText(worktree.branch || worktree.name).catch(console.error)}
+          >
+            <Copy className="h-4 w-4" />
+            Copy Branch Name
           </ContextMenuItem>
           <ContextMenuSeparator />
           {worktree.linearTicketUrl && (
