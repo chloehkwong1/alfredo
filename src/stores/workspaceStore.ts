@@ -31,7 +31,7 @@ interface WorkspaceState {
   /** Number of days after archiving before a worktree is auto-deleted. 0 = never. */
   deleteAfterDays: number;
   /** Tracks running dev servers per worktree. Keyed by worktreeId. */
-  runningServers: Record<string, { sessionId: string; tabId: string; port?: number }>;
+  runningServers: Record<string, { sessionId: string; tabId: string; port?: number; createdAt?: number }>;
 
   addWorktree: (worktree: Worktree) => void;
   replaceWorktree: (tempId: string, realWorktree: Worktree) => void;
@@ -61,7 +61,7 @@ interface WorkspaceState {
   setWorktreesForRepo: (repoPath: string, worktrees: Worktree[]) => void;
   clearWorktreesForRepo: (repoPath: string) => void;
   clearStore: () => void;
-  setRunningServer: (worktreeId: string, server: { sessionId: string; tabId: string; port?: number } | null) => void;
+  setRunningServer: (worktreeId: string, server: { sessionId: string; tabId: string; port?: number; createdAt?: number } | null) => void;
 }
 
 /**

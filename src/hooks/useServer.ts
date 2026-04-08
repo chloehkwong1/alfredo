@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { getConfig } from "../api";
@@ -42,6 +42,46 @@ function detectPortFromOutput(text: string): number | undefined {
 const SERVER_GRACE_PERIOD_MS = 5_000;
 const SERVER_HEARTBEAT_STALE_MS = 10_000;
 const SERVER_POLL_INTERVAL_MS = 3_000;
+
+/**
+ * Polls heartbeats for ALL running servers (not just the active worktree).
+ * Cleans up stale entries when a server process dies while its worktree is inactive.
+ * Should be called once at the app level.
+ */
+export function useStaleServerCleanup() {
+  const hasRunningServers = useWorkspaceStore(
+    (s) => Object.keys(s.runningServers).length > 0,
+  );
+  const setRunningServer = useWorkspaceStore((s) => s.setRunningServer);
+
+  useEffect(() => {
+    if (!hasRunningServers) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      for (const [wtId, server] of Object.entries(
+        useWorkspaceStore.getState().runningServers,
+      )) {
+        // Skip servers still within the grace period (session may not be registered yet)
+        if (server.createdAt && now - server.createdAt < SERVER_GRACE_PERIOD_MS) continue;
+
+        const session = sessionManager.getSession(server.tabId);
+        if (!session) {
+          setRunningServer(wtId, null);
+          continue;
+        }
+        if (
+          session.lastHeartbeat > 0 &&
+          now - session.lastHeartbeat > SERVER_HEARTBEAT_STALE_MS
+        ) {
+          setRunningServer(wtId, null);
+        }
+      }
+    }, SERVER_POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [hasRunningServers, setRunningServer]);
+}
 
 /**
  * Manages the dev server lifecycle: loading run script config,
@@ -112,6 +152,7 @@ export function useServer(activeWorktreeId: string | null) {
         sessionId: "",
         tabId: tabId ?? "",
         port,
+        createdAt: Date.now(),
       });
     } catch (err) {
       console.error("[handleToggleServer] failed:", err);
@@ -165,5 +206,15 @@ export function useServer(activeWorktreeId: string | null) {
     return () => clearInterval(interval);
   }, [activeWorktreeId, runningServer, setRunningServer]);
 
-  return { runScript, isServerRunningHere, handleToggleServer };
+  // Derive effective URL: prefer explicit config, fall back to auto-detected port
+  const effectiveRunScript = useMemo(() => {
+    if (!runScript) return runScript;
+    const effectiveUrl = runScript.url
+      ?? (runningServer?.port ? `http://localhost:${runningServer.port}` : undefined);
+    return effectiveUrl !== runScript.url
+      ? { ...runScript, url: effectiveUrl }
+      : runScript;
+  }, [runScript, runningServer?.port]);
+
+  return { runScript: effectiveRunScript, isServerRunningHere, handleToggleServer };
 }

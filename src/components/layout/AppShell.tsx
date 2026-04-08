@@ -16,7 +16,7 @@ import { useTabStore } from "../../stores/tabStore";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
 import { useSessionRestore } from "../../hooks/useSessionRestore";
-import { useServer } from "../../hooks/useServer";
+import { useServer, useStaleServerCleanup } from "../../hooks/useServer";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useUpdater } from "../../hooks/useUpdater";
 import { UpdateBanner } from "./UpdateBanner";
@@ -99,6 +99,7 @@ function AppShell() {
   // Extracted hooks
   useSessionRestore(repoPath, selectedRepos, repos);
   const { runScript, isServerRunningHere, handleToggleServer } = useServer(activeWorktreeId);
+  useStaleServerCleanup();
 
   const activeTab: WorkspaceTab | undefined = tabs.find((t) => t.id === activeTabIdValue);
   useKeyboardShortcuts(activeWorktreeId, activeTab, tabs, () => setCreateDialogOpen(true), () => {
