@@ -197,6 +197,7 @@ export const usePrStore = create<PrState>((set, get) => ({
         draft: pr.draft,
         merged: pr.merged,
         branch: pr.branch,
+        baseBranch: pr.baseBranch,
         mergedAt: pr.mergedAt,
         headSha: pr.headSha,
         body: pr.body,

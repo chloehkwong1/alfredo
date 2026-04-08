@@ -161,10 +161,38 @@ pub async fn check_merged_parents(
         .unwrap_or_else(|_| "origin/main".to_string());
         let default_short = default_remote.strip_prefix("origin/").unwrap_or(&default_remote).to_string();
 
+        // Resolve owner/repo once for PR base updates
+        let owner_repo = match crate::github_manager::resolve_owner_repo(repo_path).await {
+            Ok(pair) => Some(pair),
+            Err(e) => {
+                eprintln!("[stack_manager] could not resolve owner/repo for {repo_path}: {e}");
+                None
+            }
+        };
+
         let mut config_changed = false;
         for (child_name, _merged_parent) in &affected {
             // Rebase child onto the default branch instead
             rebase_child(child_name, repo_path, &default_short, app_handle, config.worktree_base_path.as_deref()).await;
+
+            // Update the child's PR base branch to the default branch
+            if let Some((ref owner, ref repo)) = owner_repo {
+                if let Some(child_pr) = prs.iter().find(|p| {
+                    p.repo_path == *repo_path
+                        && !p.merged
+                        && p.branch.replace('/', "-") == *child_name
+                }) {
+                    eprintln!(
+                        "[stack_manager] parent merged — updating PR #{} base to {default_short}",
+                        child_pr.number
+                    );
+                    if let Err(e) = crate::github_sync::update_pr_base_branch(
+                        owner, repo, child_pr.number, &default_short,
+                    ).await {
+                        eprintln!("[stack_manager] failed to update PR base: {e}");
+                    }
+                }
+            }
 
             // Emit parent-merged event
             let _ = app_handle.emit("stack:parent-merged", child_name.clone());

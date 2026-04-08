@@ -57,6 +57,8 @@ pub struct PrStatusWithColumn {
     pub author: Option<String>,
     /// GitHub logins of users requested to review this PR.
     pub requested_reviewers: Vec<String>,
+    /// The base (target) branch for this PR (e.g. "develop", "main").
+    pub base_branch: Option<String>,
 }
 
 impl PrStatusWithColumn {
@@ -89,6 +91,7 @@ impl PrStatusWithColumn {
             updated_at: pr.updated_at.clone(),
             author: pr.author.clone(),
             requested_reviewers: pr.requested_reviewers.clone(),
+            base_branch: pr.base_branch.clone(),
         }
     }
 }
@@ -208,6 +211,9 @@ async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
             .emit("github:pr-update", &PrUpdatePayload { prs: all_prs.clone() })
             .map_err(|e| format!("failed to emit event: {e}"))?;
     }
+
+    // Auto-sync PR base branches for stacked worktrees
+    sync_pr_base_branches(&repo_paths, &all_prs).await;
 
     // Task 11: check for merged parents and auto-clear stack parent config
     crate::stack_manager::check_merged_parents(app_handle, &repo_paths, &all_prs).await;
@@ -375,6 +381,92 @@ async fn enrich_repo_with_comments(
         );
         prs[idx].comments = Some(comments);
     }
+}
+
+/// Sync PR base branches for stacked worktrees.
+///
+/// For each repo, checks if any PR's base branch differs from the expected
+/// stack parent. If so, updates the PR via `gh pr edit --base`.
+async fn sync_pr_base_branches(
+    repo_paths: &[String],
+    all_prs: &[PrStatusWithColumn],
+) {
+    for repo_path in repo_paths {
+        let Ok(config) = config_manager::load_config(repo_path).await else {
+            continue;
+        };
+
+        if config.stack_parent_overrides.is_empty() {
+            continue;
+        }
+
+        let Ok((owner, repo)) = crate::github_manager::resolve_owner_repo(repo_path).await else {
+            continue;
+        };
+
+        for (worktree_name, expected_parent) in &config.stack_parent_overrides {
+            // Skip if the parent branch has already been merged — check_merged_parents
+            // will handle retargeting to main and clearing the stack parent.
+            let parent_is_merged = all_prs.iter().any(|p| {
+                p.repo_path == *repo_path && p.merged && p.branch == *expected_parent
+            });
+            if parent_is_merged {
+                continue;
+            }
+
+            // Find the PR for this worktree's branch
+            let Some(pr) = all_prs.iter().find(|p| {
+                p.repo_path == *repo_path
+                    && !p.merged
+                    && p.branch.replace('/', "-") == *worktree_name
+            }) else {
+                continue;
+            };
+
+            // Compare the PR's actual base (from the sync payload) with the expected stack parent
+            let Some(actual_base) = pr.base_branch.as_deref() else {
+                continue;
+            };
+
+            if actual_base == expected_parent {
+                continue;
+            }
+
+            // Update the PR base branch
+            eprintln!(
+                "[github_sync] updating PR #{} base: {} → {}",
+                pr.number, actual_base, expected_parent
+            );
+            if let Err(e) = update_pr_base_branch(&owner, &repo, pr.number, expected_parent).await {
+                eprintln!("[github_sync] failed to update PR base: {e}");
+            }
+        }
+    }
+}
+
+/// Update a PR's base branch via `gh pr edit`.
+pub async fn update_pr_base_branch(
+    owner: &str,
+    repo: &str,
+    pr_number: u64,
+    base_branch: &str,
+) -> Result<(), String> {
+    let output = gh_command()
+        .args([
+            "pr", "edit",
+            &pr_number.to_string(),
+            "--repo", &format!("{owner}/{repo}"),
+            "--base", base_branch,
+        ])
+        .output()
+        .await
+        .map_err(|e| format!("failed to run gh pr edit: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("gh pr edit failed: {stderr}"));
+    }
+    Ok(())
 }
 
 /// Resolve the authenticated GitHub username via `gh api user`.
