@@ -11,6 +11,9 @@ import type {
 interface ColumnOverride {
   column: KanbanColumn;
   autoColumnWhenSet: KanbanColumn;
+  /** Legacy overrides (pre-v0.3.5) lack autoColumnWhenSet — flag them so
+   *  applyPrUpdates can migrate instead of clearing on first sync. */
+  needsMigration?: boolean;
 }
 
 interface PrState {
@@ -175,8 +178,14 @@ export const usePrStore = create<PrState>((set, get) => ({
       // the new autoColumn take over. If autoColumn hasn't changed, the
       // user's manual placement persists (like Linear).
       const override = newOverrides[wt.id];
-      if (override && override.autoColumnWhenSet !== pr.autoColumn) {
-        delete newOverrides[wt.id];
+      if (override) {
+        if (override.needsMigration) {
+          // Legacy override from pre-v0.3.5 session — migrate by recording
+          // the current autoColumn so it persists on subsequent syncs.
+          newOverrides[wt.id] = { column: override.column, autoColumnWhenSet: pr.autoColumn };
+        } else if (override.autoColumnWhenSet !== pr.autoColumn) {
+          delete newOverrides[wt.id];
+        }
       }
 
       // Build updated PR status (without autoColumn, which is store-only)

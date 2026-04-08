@@ -129,16 +129,28 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 if (session.columnOverride) {
                   const override = session.columnOverride;
                   if (typeof override === "object" && "autoColumnWhenSet" in override) {
-                    // Current format
-                    usePrStore.getState().setManualColumn(wt.id, override.column);
-                    // Patch lastAutoColumn so the override survives until a real transition
+                    // Set columnOverrides and lastAutoColumn atomically so
+                    // autoColumnWhenSet is correct before the first PR sync.
+                    // Going through setManualColumn would read lastAutoColumn
+                    // (empty during restore) and snapshot the wrong value.
                     usePrStore.setState((s) => ({
+                      columnOverrides: {
+                        ...s.columnOverrides,
+                        [wt.id]: { column: override.column, autoColumnWhenSet: override.autoColumnWhenSet },
+                      },
                       lastAutoColumn: { ...s.lastAutoColumn, [wt.id]: override.autoColumnWhenSet },
                     }));
                   } else {
-                    // Legacy formats (plain string or { column, githubStateWhenSet })
+                    // Legacy formats (pre-v0.3.5: plain string or { column, githubStateWhenSet })
+                    // Flag as needsMigration so applyPrUpdates records the correct
+                    // autoColumnWhenSet on first sync instead of clearing the override.
                     const col = typeof override === "string" ? override : override.column;
-                    usePrStore.getState().setManualColumn(wt.id, col);
+                    usePrStore.setState((s) => ({
+                      columnOverrides: {
+                        ...s.columnOverrides,
+                        [wt.id]: { column: col, autoColumnWhenSet: col, needsMigration: true },
+                      },
+                    }));
                   }
                 }
 

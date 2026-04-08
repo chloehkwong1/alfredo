@@ -39,7 +39,13 @@ function collectAndSaveAllSessions() {
     getActivePaneId: (wtId: string) => useLayoutStore.getState().activePaneId[wtId],
     getColumn: (wtId: string) => state.worktrees.find((wt) => wt.id === wtId)?.column,
     getDiffViewMode: (wtId: string) => state.diffViewMode[wtId],
-    getColumnOverride: (wtId: string) => prState.columnOverrides[wtId] ?? null,
+    getColumnOverride: (wtId: string) => {
+      const o = prState.columnOverrides[wtId];
+      if (!o) return null;
+      // Strip needsMigration flag — only used in-memory during legacy migration
+      const { needsMigration: _, ...rest } = o;
+      return rest;
+    },
     getPrPanelState: (wtId: string) => prState.prPanelState[wtId],
     getChangesViewMode: (wtId: string) => state.changesViewMode[wtId],
     getChangesPanelCollapsed: (wtId: string) => state.changesPanelCollapsed[wtId],
