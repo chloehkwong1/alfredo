@@ -1,0 +1,27 @@
+src/components/terminal/TerminalView.tsx
+  70270150cef0e952 21,132-133
+src/components/commandPalette/useCommandRegistry.ts
+  70270150cef0e952 30,358
+src/services/agentMessenger.ts
+  70270150cef0e952 6,9-11,15-43,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "4531ee3a6b5e31e300f259c0e096d0fc293a0296",
+  "prompts": {
+    "70270150cef0e952": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "730b83fb-95b6-46df-b345-3edea3280a58",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 11,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    }
+  }
+}
