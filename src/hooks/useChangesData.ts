@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getDiff, getUncommittedDiff, getCommits, getDiffForCommit, getPrFiles, getPrCommits } from "../api";
+import { getDiff, getUncommittedDiff, getCommits, getFullCommits, getDiffForCommit, getPrFiles, getPrCommits } from "../api";
 import type { DiffFile, CommitInfo } from "../types";
 import type { ViewMode } from "../components/changes/FileSidebar";
 
@@ -7,6 +7,7 @@ interface UseChangesDataReturn {
   uncommittedFiles: DiffFile[];
   committedFiles: DiffFile[];
   commits: CommitInfo[];
+  upstreamCommits: CommitInfo[];
   commitFiles: DiffFile[];
   displayFiles: DiffFile[];
   refetchUncommitted: () => void;
@@ -25,6 +26,7 @@ export function useChangesData(
   const [uncommittedFiles, setUncommittedFiles] = useState<DiffFile[]>([]);
   const [committedFiles, setCommittedFiles] = useState<DiffFile[]>([]);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
+  const [upstreamCommits, setUpstreamCommits] = useState<CommitInfo[]>([]);
   const [commitFiles, setCommitFiles] = useState<DiffFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -52,6 +54,7 @@ export function useChangesData(
     if (skipCommitted) {
       setCommittedFiles([]);
       setCommits([]);
+      setUpstreamCommits([]);
       return;
     }
     let cancelled = false;
@@ -90,7 +93,23 @@ export function useChangesData(
           .catch((err) => { if (!cancelled) setError(`PR files failed: ${err}`); });
 
         getPrCommits(repoPath, prNumber)
-          .then((list) => { if (!cancelled) setCommits(list); })
+          .then((branchList) => {
+            if (cancelled) return;
+            setCommits(branchList);
+
+            if (branchList.length >= 20) {
+              setUpstreamCommits([]);
+              return;
+            }
+
+            getFullCommits(repoPath, 20)
+              .then((fullList) => {
+                if (cancelled) return;
+                const branchHashes = new Set(branchList.map((c) => c.hash));
+                setUpstreamCommits(fullList.filter((c) => !branchHashes.has(c.hash)));
+              })
+              .catch(() => { if (!cancelled) setUpstreamCommits([]); });
+          })
           .catch((err) => { if (!cancelled) setError(`PR commits failed: ${err}`); });
       };
       fetchPr();
@@ -104,7 +123,24 @@ export function useChangesData(
         .then((files) => { if (!cancelled) { setCommittedFiles(files); setError(null); } })
         .catch((err) => { if (!cancelled) setError(`Committed diff failed: ${err}`); });
       getCommits(repoPath, baseBranch)
-        .then((list) => { if (!cancelled) setCommits(list); })
+        .then((branchList) => {
+          if (cancelled) return;
+          setCommits(branchList);
+
+          // Skip upstream fetch if branch already has ≥20 commits
+          if (branchList.length >= 20) {
+            setUpstreamCommits([]);
+            return;
+          }
+
+          getFullCommits(repoPath, 20)
+            .then((fullList) => {
+              if (cancelled) return;
+              const branchHashes = new Set(branchList.map((c) => c.hash));
+              setUpstreamCommits(fullList.filter((c) => !branchHashes.has(c.hash)));
+            })
+            .catch(() => { if (!cancelled) setUpstreamCommits([]); });
+        })
         .catch((err) => { if (!cancelled) setError(`Commits failed: ${err}`); });
     };
     fetchLocal();
@@ -112,19 +148,25 @@ export function useChangesData(
     return () => { cancelled = true; clearInterval(interval); };
   }, [repoPath, baseBranch, prNumber, skipCommitted]);
 
+  // Build combined commit list for index lookups
+  const allCommits = useMemo(
+    () => [...commits, ...upstreamCommits],
+    [commits, upstreamCommits],
+  );
+
   useEffect(() => {
-    if (viewMode !== "commits" || selectedCommitIndex === null || commits.length === 0) {
+    if (viewMode !== "commits" || selectedCommitIndex === null || allCommits.length === 0) {
       setCommitFiles([]);
       return;
     }
     let cancelled = false;
-    const commit = commits[selectedCommitIndex];
+    const commit = allCommits[selectedCommitIndex];
     if (!commit) return;
     getDiffForCommit(repoPath, commit.hash)
       .then((files) => { if (!cancelled) setCommitFiles(files); })
       .catch((err) => { if (!cancelled) setError(`Commit diff failed: ${err}`); });
     return () => { cancelled = true; };
-  }, [viewMode, selectedCommitIndex, commits, repoPath]);
+  }, [viewMode, selectedCommitIndex, allCommits, repoPath]);
 
   // Build display files list, stabilised to avoid triggering downstream useMemo
   // (like search) on every 3-second poll when the actual data hasn't changed.
@@ -160,5 +202,5 @@ export function useChangesData(
     return next;
   }, [viewMode, uncommittedFiles, committedFiles, commitFiles, selectedCommitIndex]);
 
-  return { uncommittedFiles, committedFiles, commits, commitFiles, displayFiles, refetchUncommitted, error };
+  return { uncommittedFiles, committedFiles, commits, upstreamCommits, commitFiles, displayFiles, refetchUncommitted, error };
 }
