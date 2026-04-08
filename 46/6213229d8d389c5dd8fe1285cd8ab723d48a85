@@ -1,0 +1,27 @@
+src/hooks/useSessionRestore.ts
+  76bac775c93b260f 132-135,137-140,144-146,148-153
+src/components/layout/useSessionAutoSave.ts
+  76bac775c93b260f 42-48
+src/stores/prStore.ts
+  76bac775c93b260f 14-16,181-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "466213229d8d389c5dd8fe1285cd8ab723d48a85",
+  "prompts": {
+    "76bac775c93b260f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04687cb0-4a6f-4519-85cb-5d4c41fc7389",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 8,
+      "accepted_lines": 35,
+      "overriden_lines": 0
+    }
+  }
+}
