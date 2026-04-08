@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import "@xterm/xterm/css/xterm.css";
 
 import { usePty } from "../../hooks/usePty";
@@ -188,6 +189,17 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showSearch]);
 
+  // Track window focus so we only mark worktrees as "seen" when the user is
+  // actually looking at Alfredo — not when the app is behind another window.
+  const [windowFocused, setWindowFocused] = useState(true);
+  useEffect(() => {
+    getCurrentWindow().isFocused().then(setWindowFocused);
+    const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      setWindowFocused(focused);
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
   // Mark as seen when user is viewing a terminal that's idle or waiting.
   // Uses worktree.agentStatus from the store (not usePty's polled agentState)
   // so it updates atomically with seenWorktrees — avoiding a race where the
@@ -197,11 +209,12 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     if (
       activeWorktreeId &&
       !isSeen &&
+      windowFocused &&
       (storeAgentStatus === "idle" || storeAgentStatus === "waitingForInput")
     ) {
       markWorktreeSeen(activeWorktreeId);
     }
-  }, [activeWorktreeId, storeAgentStatus, isSeen, markWorktreeSeen]);
+  }, [activeWorktreeId, storeAgentStatus, isSeen, windowFocused, markWorktreeSeen]);
 
   if (!activeWorktreeId) {
     return (
