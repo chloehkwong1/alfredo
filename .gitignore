@@ -39,6 +39,10 @@ src-tauri/gen/
 # Claude Code local settings
 .claude/settings.local.json
 
+# Design mockups (local only, kit.css stays tracked)
+designs/*.html
+designs/*.png
+
 # AI/Superpowers context
 .context/
 .superpowers/
