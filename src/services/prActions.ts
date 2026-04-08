@@ -1,5 +1,5 @@
-import type { CheckRun, WorkflowRunLog } from "../types";
-import { rerunFailedChecks as apiRerunFailedChecks, getJobLog, gitMerge, gitPushForceWithLease } from "../api";
+import type { CheckRun } from "../types";
+import { rerunFailedChecks as apiRerunFailedChecks, gitMerge, gitPushForceWithLease } from "../api";
 import { ensureAgentSession, writeToSession, focusAgentTab } from "./agentMessenger";
 
 /**
@@ -25,9 +25,9 @@ export async function rerunFailedChecks(
 }
 
 /**
- * Fetch failure logs for failed checks, build a prompt, and send it to the
- * agent session for the given worktree. Auto-spawns a session if needed.
- * Returns true if the prompt was successfully sent.
+ * Send failing check metadata to the agent and let it investigate.
+ * The agent fetches logs itself via `gh run view`, which avoids log
+ * extraction bugs and lets it pick the right skill (rerun, debug, etc.).
  */
 export async function fixFailingChecks(
   worktreeId: string,
@@ -35,30 +35,13 @@ export async function fixFailingChecks(
   branch: string,
   failedCheckRuns: CheckRun[],
 ): Promise<boolean> {
-  // Fetch log for each failed check run directly (check run ID = job ID for GitHub Actions)
-  const allLogs: WorkflowRunLog[] = [];
-  const logResults = await Promise.allSettled(
-    failedCheckRuns.map((run) => getJobLog(repoPath, run.id, run.name)),
-  );
-  for (const result of logResults) {
-    if (result.status === "fulfilled" && result.value) {
-      allLogs.push(result.value);
-    }
-  }
+  const checkList = failedCheckRuns
+    .map((run) => `- **${run.name}** (job ${run.id}, ${run.conclusion}) — ${run.htmlUrl}`)
+    .join("\n");
 
-  // Build prompt
-  let prompt = "\nThe following CI checks are failing on this branch. Please investigate and fix:\n\n";
-  if (allLogs.length > 0) {
-    for (const log of allLogs) {
-      prompt += `### ${log.jobName} / ${log.stepName}\n\`\`\`\n${log.logExcerpt}\n\`\`\`\n\n`;
-    }
-  } else {
-    // Fallback: list failing check names with htmlUrl so agent can check logs
-    for (const run of failedCheckRuns) {
-      prompt += `- ${run.name} (${run.conclusion}) — ${run.htmlUrl}\n`;
-    }
-    prompt += "\nNo log excerpts were available. Please check the CI output at the URLs above.\n";
-  }
+  const prompt =
+    `\nThe following CI checks are failing on this branch. Please investigate and fix:\n\n` +
+    `${checkList}\n`;
 
   return sendToAgent(worktreeId, repoPath, branch, prompt);
 }
