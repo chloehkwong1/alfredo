@@ -1,0 +1,131 @@
+src/api.ts
+  053ef7f5774226c0 19
+src/services/prActions.ts
+  053ef7f5774226c0 2,50-52,59,61-62,64-66,82
+src/components/changes/MergeStatusBanner.tsx
+  053ef7f5774226c0 1,4,26,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "ef918c36923b315f8b5ff7e805abe63662bf3546",
+  "prompts": {
+    "053ef7f5774226c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8b7248cb-2caa-4390-ada9-b306b7065fb3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    },
+    "3bd0fa81c1666f31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf98d224-5851-4771-80c5-fbd47b1742c1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    },
+    "4628edce0191cfa5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35c1f4d6-63dc-494d-b6aa-3741f5bfb86a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    },
+    "6ab9e0ed3af91082": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec7c1406-2dc8-435c-b5dd-a28abd6a6340",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 45,
+      "overriden_lines": 0
+    },
+    "6abd2ab4497c6ddb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1131bda-6e42-44b0-be8a-75bb1d5f2054",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    },
+    "9ff0d3acf70f0d2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c11f1767-b747-472a-a4cd-a6b276e2a6e9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "afab7c490b26ea92": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d94f6172-b7cc-424b-8fef-cadb046e5acf",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "e556253734924477": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9bcd0b7-9f7e-45c4-9128-c57ce3e76a4a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "f3d7c90f6a18f9da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f6be90c0-26cd-4df4-93c6-178e63578442",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 245,
+      "overriden_lines": 0
+    }
+  }
+}
