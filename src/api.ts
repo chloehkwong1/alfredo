@@ -16,7 +16,7 @@ import type {
   Worktree,
   WorktreeSource,
   WorkflowRunLog,
-  MergeResult,
+
 } from "./types";
 
 // ── PTY ─────────────────────────────────────────────────────────
@@ -101,17 +101,6 @@ export function rebaseWorktree(
 }
 
 // ── Git Ops ─────────────────────────────────────────────────────
-
-export function gitMerge(
-  repoPath: string,
-  baseBranch: string,
-): Promise<MergeResult> {
-  return invoke("git_merge", { repoPath, baseBranch });
-}
-
-export function gitPushForceWithLease(repoPath: string): Promise<void> {
-  return invoke("git_push_force_with_lease", { repoPath });
-}
 
 export function setStackParent(
   repoPath: string,

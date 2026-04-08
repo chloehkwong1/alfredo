@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { CheckRun, PrStatus, WorkflowRunLog } from "../../types";
 import { formatTimeAgo } from "./formatRelativeTime";
-import { rerunFailedChecks, fixFailingChecks, mergeAndFix, pushForceWithLease } from "../../services/prActions";
+import { rerunFailedChecks, fixFailingChecks, mergeAndFix } from "../../services/prActions";
 import { focusAgentTab } from "../../services/agentMessenger";
 import { getJobLog } from "../../api";
 import { Button } from "../ui/Button";
@@ -23,17 +23,11 @@ export function MergeStatusBanner({
   repoPath: string;
   branch: string;
 }) {
-  const [loading, setLoading] = useState<"rerun" | "fix" | "merge" | "push" | null>(null);
-  const [readyToPush, setReadyToPush] = useState(false);
+  const [loading, setLoading] = useState<"rerun" | "fix" | "merge" | null>(null);
   const [checksExpanded, setChecksExpanded] = useState(false);
   const [failureLogs, setFailureLogs] = useState<Record<number, WorkflowRunLog | null>>({});
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const [logsLoading, setLogsLoading] = useState(false);
-
-  // Clear readyToPush when mergeable state changes (e.g. agent pushed, or merge aborted externally)
-  useEffect(() => {
-    if (mergeable !== false) setReadyToPush(false);
-  }, [mergeable]);
 
   const failedChecks = checkRuns.filter(
     (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
@@ -61,24 +55,9 @@ export function MergeStatusBanner({
   const handleMergeAndFix = async () => {
     setLoading("merge");
     try {
-      const result = await mergeAndFix(worktreeId, repoPath, branch, pr.baseBranch ?? "main");
-      if (result.merged) {
-        setReadyToPush(true);
-      }
+      await mergeAndFix(worktreeId, repoPath, branch, pr.baseBranch ?? "main");
     } catch (e) {
       console.error("Merge failed:", e);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handlePush = async () => {
-    setLoading("push");
-    try {
-      await pushForceWithLease(repoPath);
-      setReadyToPush(false);
-    } catch (e) {
-      console.error("Push failed:", e);
     } finally {
       setLoading(null);
     }
@@ -134,24 +113,6 @@ export function MergeStatusBanner({
     return (
       <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0">
         Closed
-      </div>
-    );
-  }
-
-  // ── Ready to push (after merge conflict resolution) ──
-  if (readyToPush) {
-    return (
-      <div className="px-2.5 py-1.5 bg-diff-added/10 border-t border-diff-added/20 text-xs text-diff-added font-semibold shrink-0 flex items-center gap-2">
-        <span className="flex-1">Ready to push</span>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handlePush}
-          disabled={loading !== null}
-          className="text-[10px] px-2 py-0.5 h-auto bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 disabled:opacity-50 font-medium"
-        >
-          {loading === "push" ? "Pushing\u2026" : "Push"}
-        </Button>
       </div>
     );
   }

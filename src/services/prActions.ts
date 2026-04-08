@@ -1,5 +1,5 @@
 import type { CheckRun } from "../types";
-import { rerunFailedChecks as apiRerunFailedChecks, gitMerge, gitPushForceWithLease } from "../api";
+import { rerunFailedChecks as apiRerunFailedChecks } from "../api";
 import { ensureAgentSession, writeToSession, focusAgentTab } from "./agentMessenger";
 
 /**
@@ -47,46 +47,23 @@ export async function fixFailingChecks(
 }
 
 /**
- * Run `git merge <baseBranch>` via Tauri, then if there are conflicts,
- * send the conflict list to the agent for resolution.
- * Returns { merged, conflictedFiles } to drive banner state.
+ * Send a prompt to the agent to merge the base branch, resolve any
+ * conflicts, and push — all in one shot.  No local git merge or
+ * intermediate "ready to push" state needed.
  */
 export async function mergeAndFix(
   worktreeId: string,
   repoPath: string,
   branch: string,
   baseBranch: string,
-): Promise<{ merged: boolean; conflictedFiles: string[] }> {
-  const result = await gitMerge(repoPath, baseBranch);
-
-  if (result.success) {
-    // Auto-resolved — tell the agent chat what happened so the user sees it
-    await sendToAgent(
-      worktreeId, repoPath, branch,
-      `\nMerged \`${baseBranch}\` into this branch — git auto-resolved all conflicts. Ready to push.\n`,
-    );
-    focusAgentTab(worktreeId);
-    return { merged: true, conflictedFiles: [] };
-  }
-
-  // Merge produced conflicts — send to agent
-  const fileList = result.conflictedFiles.map((f) => `- ${f}`).join("\n");
+): Promise<boolean> {
   const prompt =
-    `\nThis branch has merge conflicts with \`${baseBranch}\`. The merge has already been started.\n` +
-    `The following files have conflicts:\n${fileList}\n\n` +
-    `Please resolve the conflicts in each file and commit the resolution.\n`;
+    `\nThis branch has a merge conflict with \`${baseBranch}\`.\n` +
+    `Please merge \`${baseBranch}\` into this branch, resolve any conflicts, and push.\n`;
 
-  await sendToAgent(worktreeId, repoPath, branch, prompt);
-  focusAgentTab(worktreeId);
-
-  return { merged: false, conflictedFiles: result.conflictedFiles };
-}
-
-/**
- * Push with --force-with-lease via Tauri command.
- */
-export async function pushForceWithLease(repoPath: string): Promise<void> {
-  await gitPushForceWithLease(repoPath);
+  const sent = await sendToAgent(worktreeId, repoPath, branch, prompt);
+  if (sent) focusAgentTab(worktreeId);
+  return sent;
 }
 
 /**
@@ -102,6 +79,7 @@ async function sendToAgent(
   try {
     const session = await ensureAgentSession(worktreeId, repoPath, branch);
     if (!session?.sessionId) return false;
+    session.waitingForInput = false;
     await writeToSession(session.sessionId, prompt);
     return true;
   } catch (e) {
