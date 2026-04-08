@@ -87,6 +87,12 @@ export async function mergeAndFix(
   const result = await gitMerge(repoPath, baseBranch);
 
   if (result.success) {
+    // Auto-resolved — tell the agent chat what happened so the user sees it
+    await sendToAgent(
+      worktreeId, repoPath, branch,
+      `\nMerged \`${baseBranch}\` into this branch — git auto-resolved all conflicts. Ready to push.\n`,
+    );
+    focusAgentTab(worktreeId);
     return { merged: true, conflictedFiles: [] };
   }
 
