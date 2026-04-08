@@ -312,7 +312,7 @@ export function useNotifications() {
           if (!latestConfig.enabled || !latestConfig.notifyOnIdle) return;
           const state = useWorkspaceStore.getState();
           const current = state.worktrees.find((w) => w.id === id);
-          if (current?.agentStatus === "idle" && !state.seenWorktrees.has(id)) {
+          if (current?.agentStatus === "idle") {
             sendNotification(`${branch} finished`);
             playSoundById(latestConfig.sound);
             requestDockBounce();
