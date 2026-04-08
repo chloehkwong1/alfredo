@@ -1,0 +1,8 @@
+# Dependencies & build output
+node_modules/
+target/
+dist/
+
+# Caches
+.turbo/
+*.tsbuildinfo
