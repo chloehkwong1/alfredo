@@ -26,7 +26,7 @@ import { useLayoutStore } from "../../stores/layoutStore";
 import { useTabStore } from "../../stores/tabStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { rerunFailedChecks, fixFailingChecks } from "../../services/prActions";
-import { openInEditor, openInTerminal, getAppConfig } from "../../api";
+import { openPathInEditor, openPathInTerminal } from "../../services/openExternal";
 import { getAgentSessionInfo } from "../../services/agentMessenger";
 import type { Worktree, CheckRun, RepoEntry } from "../../types";
 
@@ -208,12 +208,7 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       icon: Code,
       action: async () => {
         if (!activeWorktree) return;
-        try {
-          const appCfg = await getAppConfig();
-          await openInEditor(activeWorktree.path, appCfg.preferredEditor, appCfg.customEditorPath ?? undefined);
-        } catch (e) {
-          console.error("Failed to open editor:", e);
-        }
+        await openPathInEditor(activeWorktree.path).catch((e) => console.error("Failed to open editor:", e));
       },
       enabled: () => !!activeWorktree,
     },
@@ -224,12 +219,7 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       icon: TerminalSquare,
       action: async () => {
         if (!activeWorktree) return;
-        try {
-          const appCfg = await getAppConfig();
-          await openInTerminal(activeWorktree.path, appCfg.preferredTerminal, appCfg.customTerminalPath ?? undefined);
-        } catch (e) {
-          console.error("Failed to open terminal:", e);
-        }
+        await openPathInTerminal(activeWorktree.path).catch((e) => console.error("Failed to open terminal:", e));
       },
       enabled: () => !!activeWorktree,
     },

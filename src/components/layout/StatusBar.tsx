@@ -1,7 +1,7 @@
 import { ExternalLink, Copy, Check } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useState } from "react";
 import type { Worktree } from "../../types";
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 
 interface StatusBarProps {
   worktree: Worktree | undefined;
@@ -9,7 +9,7 @@ interface StatusBarProps {
 }
 
 function StatusBar({ worktree, annotationCount }: StatusBarProps) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
 
   if (!worktree) {
     return <div className="h-8 bg-bg-bar border-b border-border-subtle flex-shrink-0" />;
@@ -17,19 +17,13 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
 
   const pr = worktree.prStatus;
 
-  const handleCopyBranch = () => {
-    navigator.clipboard.writeText(worktree.branch);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-b border-border-subtle text-xs text-text-tertiary flex-shrink-0">
       {/* Left side */}
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={handleCopyBranch}
+          onClick={() => copy(worktree.branch)}
           title="Copy branch name"
           className="group flex items-center gap-1 font-medium text-text-secondary min-w-0 hover:text-text-primary transition-colors"
         >

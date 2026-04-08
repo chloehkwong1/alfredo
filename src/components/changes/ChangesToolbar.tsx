@@ -27,7 +27,7 @@ interface ChangesToolbarProps {
   expandFullFile: boolean;
   setExpandFullFile: (v: boolean) => void;
   copiedPath: boolean;
-  setCopiedPath: (v: boolean) => void;
+  copyPath: (text: string) => void;
   expandAll: () => void;
   collapseAll: () => void;
   pr: PrStatus | null;
@@ -166,7 +166,7 @@ function ChangesToolbar({
   expandFullFile,
   setExpandFullFile,
   copiedPath,
-  setCopiedPath,
+  copyPath,
   expandAll,
   collapseAll,
   pr,
@@ -182,11 +182,7 @@ function ChangesToolbar({
           <button
             type="button"
             className="flex items-center gap-1.5 min-w-0 cursor-copy group/path"
-            onClick={() => {
-              navigator.clipboard.writeText(focusedFilePath);
-              setCopiedPath(true);
-              setTimeout(() => setCopiedPath(false), 1500);
-            }}
+            onClick={() => copyPath(focusedFilePath)}
             title="Click to copy file path"
           >
             <span className="text-[11px] font-mono text-text-primary truncate">

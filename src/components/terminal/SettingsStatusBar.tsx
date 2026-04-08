@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { RotateCcw, SquarePen, TerminalSquare, Smartphone } from "lucide-react";
 import { Button } from "../ui/Button";
 import { SettingsChip } from "./SettingsChip";
-import { getConfig, saveConfig, openInEditor, openInTerminal, getAppConfig } from "../../api";
+import { getConfig, saveConfig, getAppConfig } from "../../api";
+import { openPathInEditor, openPathInTerminal } from "../../services/openExternal";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
 import { toggleRemoteControl } from "../../services/remoteControl";
@@ -127,24 +128,14 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRes
     onRestartSession();
   }, [onRestartSession]);
 
-  const handleOpenEditor = useCallback(async () => {
+  const handleOpenEditor = useCallback(() => {
     if (!worktreePath) return;
-    try {
-      const appCfg = await getAppConfig();
-      await openInEditor(worktreePath, appCfg.preferredEditor, appCfg.customEditorPath ?? undefined);
-    } catch (e) {
-      console.error("Failed to open editor:", e);
-    }
+    openPathInEditor(worktreePath).catch((e) => console.error("Failed to open editor:", e));
   }, [worktreePath]);
 
-  const handleOpenTerminal = useCallback(async () => {
+  const handleOpenTerminal = useCallback(() => {
     if (!worktreePath) return;
-    try {
-      const appCfg = await getAppConfig();
-      await openInTerminal(worktreePath, appCfg.preferredTerminal, appCfg.customTerminalPath ?? undefined);
-    } catch (e) {
-      console.error("Failed to open terminal:", e);
-    }
+    openPathInTerminal(worktreePath).catch((e) => console.error("Failed to open terminal:", e));
   }, [worktreePath]);
 
   const isRcActive = useRemoteControlStore(

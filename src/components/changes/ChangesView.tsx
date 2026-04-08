@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { DiffFileCard } from "./DiffFileCard";
 import { useDiscardChanges } from "./useDiscardChanges";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -32,13 +33,7 @@ function CommitHeader({ commit, gitUser }: { commit: CommitInfo; gitUser: string
   const firstNewline = commit.message.indexOf("\n");
   const subject = firstNewline === -1 ? commit.message : commit.message.slice(0, firstNewline);
   const body = firstNewline === -1 ? "" : commit.message.slice(firstNewline + 1).trim();
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(commit.hash);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const { copied, copy: handleCopy } = useCopyToClipboard();
 
   const isYou = gitUser != null && commit.author.toLowerCase() === gitUser.toLowerCase();
 
@@ -54,7 +49,7 @@ function CommitHeader({ commit, gitUser }: { commit: CommitInfo; gitUser: string
       )}
       <div className="flex items-center gap-2 mt-1.5 text-[10px] text-text-tertiary">
         <button
-          onClick={handleCopy}
+          onClick={() => handleCopy(commit.hash)}
           className="flex items-center gap-1 font-mono hover:text-text-primary transition-colors group"
           title="Copy full hash"
         >
@@ -128,11 +123,10 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   } = useFileNavigation(displayFiles, viewMode);
 
   const [expandFullFile, setExpandFullFile] = useState(false);
-  const [copiedPath, setCopiedPath] = useState(false);
+  const { copied: copiedPath, copy: copyPath } = useCopyToClipboard();
 
   useEffect(() => {
     setExpandFullFile(false);
-    setCopiedPath(false);
     // Clear PR comment highlight when switching files
     setHighlightComment((prev) => {
       if (prev && prev.filePath !== focusedFilePath) return null;
@@ -253,7 +247,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
             expandFullFile={expandFullFile}
             setExpandFullFile={setExpandFullFile}
             copiedPath={copiedPath}
-            setCopiedPath={setCopiedPath}
+            copyPath={copyPath}
             expandAll={expandAll}
             collapseAll={collapseAll}
             pr={pr}

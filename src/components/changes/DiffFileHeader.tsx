@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { Check, ChevronDown, ChevronRight, Copy, Trash2 } from "lucide-react";
 import type { DiffFile } from "../../types";
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 
 interface DiffFileHeaderProps {
   file: DiffFile;
@@ -26,7 +26,7 @@ const STATUS_COLOR: Record<DiffFile["status"], string> = {
 function DiffFileHeader({ file, expanded, onToggleExpanded, onDiscardFile }: DiffFileHeaderProps) {
   const statusLabel = STATUS_LABEL[file.status];
   const statusColor = STATUS_COLOR[file.status];
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
 
   return (
     <div
@@ -51,9 +51,7 @@ function DiffFileHeader({ file, expanded, onToggleExpanded, onDiscardFile }: Dif
         className="flex-shrink-0 opacity-0 group-hover/header:opacity-100 p-0.5 rounded text-text-tertiary hover:text-text-primary transition-all"
         onClick={(e) => {
           e.stopPropagation();
-          navigator.clipboard.writeText(file.path);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
+          copy(file.path);
         }}
         title="Copy file path"
       >

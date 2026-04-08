@@ -1,7 +1,7 @@
 import { Copy, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useState } from "react";
 import { useRemoteControlStore } from "../../stores/remoteControlStore";
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button, Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from "../ui";
 
 interface RemoteControlBarProps {
@@ -11,15 +11,9 @@ interface RemoteControlBarProps {
 function RemoteControlBar({ worktreeId }: RemoteControlBarProps) {
   const session = useRemoteControlStore((s) => s.sessions[worktreeId]);
   const disable = useRemoteControlStore((s) => s.disable);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
 
   if (!session) return null;
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(session.sessionUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleDisconnect = () => {
     disable(worktreeId);
@@ -47,7 +41,7 @@ function RemoteControlBar({ worktreeId }: RemoteControlBarProps) {
           </div>
           <button
             type="button"
-            onClick={handleCopy}
+            onClick={() => copy(session.sessionUrl)}
             className="text-xs text-text-secondary hover:text-text-primary font-mono transition-colors"
             title="Click to copy"
           >
@@ -63,7 +57,7 @@ function RemoteControlBar({ worktreeId }: RemoteControlBarProps) {
         </span>
         <button
           type="button"
-          onClick={handleCopy}
+          onClick={() => copy(session.sessionUrl)}
           className="flex-shrink-0 text-text-tertiary hover:text-text-secondary transition-colors"
           title="Copy URL"
         >

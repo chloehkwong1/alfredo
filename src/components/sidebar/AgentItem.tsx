@@ -5,7 +5,8 @@ import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, SquarePen, Termi
 import type { AgentState, Worktree } from "../../types";
 import { IDLE_SETTLE_MS } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { openInEditor, openInTerminal, getAppConfig, rebaseWorktree, setStackParent } from "../../api";
+import { rebaseWorktree, setStackParent } from "../../api";
+import { openPathInEditor, openPathInTerminal } from "../../services/openExternal";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import {
@@ -438,23 +439,11 @@ const AgentItem = memo(function AgentItem({
     return <CreateErrorItem worktree={worktree} />;
   }
 
-  const handleOpenEditor = async () => {
-    try {
-      const appCfg = await getAppConfig();
-      await openInEditor(worktree.path, appCfg.preferredEditor, appCfg.customEditorPath ?? undefined);
-    } catch (e) {
-      console.error("Failed to open editor:", e);
-    }
-  };
+  const handleOpenEditor = () =>
+    openPathInEditor(worktree.path).catch((e) => console.error("Failed to open editor:", e));
 
-  const handleOpenTerminal = async () => {
-    try {
-      const appCfg = await getAppConfig();
-      await openInTerminal(worktree.path, appCfg.preferredTerminal, appCfg.customTerminalPath ?? undefined);
-    } catch (e) {
-      console.error("Failed to open terminal:", e);
-    }
-  };
+  const handleOpenTerminal = () =>
+    openPathInTerminal(worktree.path).catch((e) => console.error("Failed to open terminal:", e));
 
   const handleRebase = async () => {
     try {
