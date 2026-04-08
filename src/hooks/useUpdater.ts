@@ -83,9 +83,12 @@ export function useUpdater(): UpdateState {
         }
       });
       setStatus("ready");
+      await relaunch();
     } catch (e) {
-      console.error("[updater] download failed:", e);
-      // Fall back to available state so user can retry
+      console.error("[updater] update/relaunch failed:", e);
+      // If download succeeded but relaunch failed, stay on "ready" so user can retry restart
+      // If download failed, fall back to "available" for retry
+      if (status === "ready") return;
       setStatus("available");
       setProgress(0);
     }
