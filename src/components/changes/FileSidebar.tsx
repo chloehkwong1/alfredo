@@ -191,20 +191,27 @@ function FileSidebar({
 
   const filteredUpstream = useMemo(
     () => {
+      if (commits.length === 0) {
+        // No branch commits: upstream is the primary list, always visible
+        if (filter === "") return upstreamCommits;
+        return upstreamCommits.filter((c) =>
+          c.message.toLowerCase().includes(filter.toLowerCase()),
+        );
+      }
       if (!upstreamExpanded) return [];
       if (filter === "") return upstreamCommits;
       return upstreamCommits.filter((c) =>
         c.message.toLowerCase().includes(filter.toLowerCase()),
       );
     },
-    [upstreamCommits, upstreamExpanded, filter],
+    [commits.length, upstreamCommits, upstreamExpanded, filter],
   );
 
   const allFiles = viewMode === "changes"
     ? uncommittedFiles.length + committedFiles.length
     : 0;
   const totalItems = viewMode === "commits"
-    ? commits.length + (upstreamExpanded ? upstreamCommits.length : 0)
+    ? commits.length + (commits.length === 0 || upstreamExpanded ? upstreamCommits.length : 0)
     : allFiles;
 
   // Progressive rendering: show first batch, expand on demand
@@ -307,8 +314,50 @@ function FileSidebar({
             </div>
           )}
 
-          {/* Collapsible upstream section */}
-          {upstreamCommits.length > 0 && (
+          {/* Upstream commits: primary list when no branch commits, collapsible otherwise */}
+          {upstreamCommits.length > 0 && commits.length === 0 && (
+            <>
+              {filteredUpstream.map((commit) => {
+                const subject = commit.message.split("\n")[0];
+                const originalIndex = upstreamCommits.indexOf(commit);
+                const isSelected = selectedCommitIndex === originalIndex;
+
+                return (
+                  <button
+                    key={commit.hash}
+                    onClick={() => onSelectCommit(originalIndex)}
+                    onDoubleClick={() => onDoubleClickCommit?.(originalIndex)}
+                    className={[
+                      "w-full px-2.5 py-1.5 text-left border-l-2",
+                      "hover:bg-bg-hover transition-colors",
+                      isSelected
+                        ? "bg-bg-hover border-accent-primary"
+                        : "border-transparent",
+                    ].join(" ")}
+                  >
+                    <div className="text-xs leading-snug text-text-primary font-medium">
+                      {subject}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono text-text-tertiary">
+                        {commit.shortHash}
+                      </span>
+                      <span className="text-[10px] text-text-tertiary">·</span>
+                      <span className={`text-[10px] ${formatAuthor(commit.author).className}`}>
+                        {formatAuthor(commit.author).text}
+                      </span>
+                      <span className="text-[10px] text-text-tertiary">·</span>
+                      <span className="text-[10px] text-text-tertiary">
+                        {formatRelativeTime(commit.timestamp)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          {upstreamCommits.length > 0 && commits.length > 0 && (
             <>
               <button
                 onClick={() => setUpstreamExpanded((prev) => !prev)}
