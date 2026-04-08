@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DiffFileCard } from "./DiffFileCard";
 import { useDiscardChanges } from "./useDiscardChanges";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import { Button } from "../ui/Button";
 import { useChangesData } from "../../hooks/useChangesData";
+import { useGitUser } from "../../hooks/useGitUser";
 import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 
@@ -91,8 +92,16 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   const setJumpToComment = usePrStore((s) => s.setJumpToComment);
   const clearJumpToComment = usePrStore((s) => s.clearJumpToComment);
 
-  const { commits, displayFiles, uncommittedFiles, committedFiles, refetchUncommitted } = useChangesData(
+  const { commits, upstreamCommits, displayFiles, uncommittedFiles, committedFiles, refetchUncommitted } = useChangesData(
     repoPath, viewMode, selectedCommitIndex, pr?.baseBranch ?? worktree?.stackParent ?? undefined, pr?.number,
+  );
+
+  const gitUser = useGitUser(repoPath);
+
+  // Combined list: branch commits first, then upstream
+  const allCommits = useMemo(
+    () => [...commits, ...upstreamCommits],
+    [commits, upstreamCommits],
   );
 
   const {
@@ -191,7 +200,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
         });
       }
     } else if (diffTarget.type === "commit" && diffTarget.commitHash) {
-      const commitIndex = commits.findIndex((c) => c.hash === diffTarget.commitHash);
+      const commitIndex = allCommits.findIndex((c) => c.hash === diffTarget.commitHash);
       if (commitIndex !== -1) {
         handleSelectCommit(commitIndex);
       }
@@ -203,7 +212,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
         });
       }
     }
-  }, [diffTarget, handleSelectFile, handleSelectCommit, commits, fileRefs]);
+  }, [diffTarget, handleSelectFile, handleSelectCommit, allCommits, fileRefs]);
 
 
   // When a committed file is focused and the same path exists in uncommitted,
@@ -217,8 +226,8 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   const filesToRender = focusedFile ? [focusedFile] : displayFiles;
 
   const activeCommitHash =
-    viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex]
-      ? commits[selectedCommitIndex].hash
+    viewMode === "commits" && selectedCommitIndex !== null && allCommits[selectedCommitIndex]
+      ? allCommits[selectedCommitIndex].hash
       : undefined;
 
   return (
@@ -261,8 +270,8 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
             />
           )}
           <div className="flex-1 overflow-y-auto min-w-0">
-            {viewMode === "commits" && selectedCommitIndex !== null && commits[selectedCommitIndex] && (
-              <CommitHeader commit={commits[selectedCommitIndex]} />
+            {viewMode === "commits" && selectedCommitIndex !== null && allCommits[selectedCommitIndex] && (
+              <CommitHeader commit={allCommits[selectedCommitIndex]} gitUser={gitUser} />
             )}
             {/* Uncommitted section header with Discard All */}
             {!focusedFilePath && viewMode === "changes" && uncommittedFiles.length > 0 && (

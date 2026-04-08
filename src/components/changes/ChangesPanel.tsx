@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { GitBranch, PanelLeftClose, PanelLeftOpen, Trash2 } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
@@ -10,6 +10,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { useChangesData } from "../../hooks/useChangesData";
+import { useGitUser } from "../../hooks/useGitUser";
 import { discardFile, discardAllUncommitted, getCommitsBehindMain, getDefaultBranch, rebaseWorktree } from "../../api";
 import type { ViewMode } from "./FileSidebar";
 import type { PrComment } from "../../types";
@@ -117,7 +118,7 @@ function WorkspacePanel({
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [activeFileIsUncommitted, setActiveFileIsUncommitted] = useState<boolean | undefined>(undefined);
 
-  const { uncommittedFiles, committedFiles, commits, refetchUncommitted } = useChangesData(
+  const { uncommittedFiles, committedFiles, commits, upstreamCommits, refetchUncommitted } = useChangesData(
     repoPath,
     dataViewMode,
     selectedCommitIndex,
@@ -125,6 +126,8 @@ function WorkspacePanel({
     pr?.number,
     isBranchModeDefault,
   );
+
+  const gitUser = useGitUser(repoPath);
 
   // ── Discard state ──────────────────────────────────────────
   const [discardTarget, setDiscardTarget] = useState<{ path: string; status: string } | null>(null);
@@ -157,16 +160,21 @@ function WorkspacePanel({
     }
   }, [repoPath, uncommittedFiles, refetchUncommitted]);
 
+  const allCommits = useMemo(
+    () => [...commits, ...upstreamCommits],
+    [commits, upstreamCommits],
+  );
+
   const handleSelectCommit = useCallback((index: number) => {
     setSelectedCommitIndex(index);
     setActiveFilePath(null);
-    const commit = commits[index];
+    const commit = allCommits[index];
     if (!commit) return;
     lifecycleManager.openDiffPreview(worktreeId, {
       type: "commit",
       commitHash: commit.hash,
     });
-  }, [worktreeId, commits]);
+  }, [allCommits, worktreeId]);
 
   const handleSelectFile = useCallback(
     (path: string, isUncommitted: boolean) => {
@@ -303,6 +311,8 @@ function WorkspacePanel({
               uncommittedFiles={uncommittedFiles}
               committedFiles={committedFiles}
               commits={commits}
+              upstreamCommits={upstreamCommits}
+              gitUser={gitUser}
               selectedCommitIndex={selectedCommitIndex}
               onSelectCommit={handleSelectCommit}
               activeFilePath={activeFilePath}
