@@ -235,6 +235,14 @@ export function getCommits(repoPath: string, defaultBranch?: string): Promise<Co
   return invoke("get_commits", { repoPath, defaultBranch });
 }
 
+export function getFullCommits(repoPath: string, limit?: number): Promise<CommitInfo[]> {
+  return invoke("get_full_commits", { repoPath, limit });
+}
+
+export function getGitUser(repoPath: string): Promise<string | null> {
+  return invoke("get_git_user", { repoPath });
+}
+
 export function getDefaultBranch(repoPath: string): Promise<string> {
   return invoke("get_default_branch", { repoPath });
 }
