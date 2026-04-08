@@ -366,8 +366,8 @@ function FileSidebar({
                 className="w-full px-2.5 py-1.5 text-left text-[10px] text-text-tertiary hover:bg-bg-hover transition-colors border-t border-border-subtle"
               >
                 {upstreamExpanded
-                  ? "▼ Earlier commits"
-                  : `▶ Show ${upstreamCommits.length} earlier commit${upstreamCommits.length !== 1 ? "s" : ""}`}
+                  ? "▼ Upstream commits"
+                  : `▶ Show ${upstreamCommits.length} upstream commit${upstreamCommits.length !== 1 ? "s" : ""}`}
               </button>
 
               {upstreamExpanded && filteredUpstream.map((commit) => {
