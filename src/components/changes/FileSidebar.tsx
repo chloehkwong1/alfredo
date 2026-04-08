@@ -367,7 +367,7 @@ function FileSidebar({
               >
                 {upstreamExpanded
                   ? "▼ Upstream commits"
-                  : `▶ Show ${upstreamCommits.length} upstream commit${upstreamCommits.length !== 1 ? "s" : ""}`}
+                  : "▶ Show upstream commits"}
               </button>
 
               {upstreamExpanded && filteredUpstream.map((commit) => {
