@@ -54,12 +54,10 @@ export function useUpdater(): UpdateState {
   }, []);
 
   useEffect(() => {
+    // Don't re-check while downloading or ready to restart
+    if (status === "downloading" || status === "ready") return;
     checkForUpdate();
-    const interval = setInterval(() => {
-      // Don't poll while downloading or ready to restart
-      if (status === "downloading" || status === "ready") return;
-      checkForUpdate();
-    }, 30 * 60 * 1000);
+    const interval = setInterval(checkForUpdate, 30 * 60 * 1000);
     return () => clearInterval(interval);
   }, [checkForUpdate, status]);
 
