@@ -16,7 +16,7 @@ interface SimState {
   /** Mirrors session.waitingForInput — blocks late "busy" hooks. */
   waitingForInput: boolean;
   /** Epoch ms when current idle period started (for done-settle debounce). */
-  idleSince: number;
+  idleSince: number | undefined;
 }
 
 function createInitialState(): SimState {
@@ -61,7 +61,7 @@ function runFrontendScenario(scenario: StatusScenario) {
           if (state.agentStatus === "idle" && prevStatus !== "idle") {
             state.idleSince = now;
           } else if (state.agentStatus !== "idle") {
-            state.idleSince = 0;
+            state.idleSince = undefined;
           }
         }
         state.lastOutputAt = now;
@@ -78,7 +78,7 @@ function runFrontendScenario(scenario: StatusScenario) {
         if (state.agentStatus === "idle" && prevStatus !== "idle") {
           state.idleSince = now;
         } else if (state.agentStatus !== "idle") {
-          state.idleSince = 0;
+          state.idleSince = undefined;
         }
         break;
       }
@@ -115,7 +115,7 @@ function runFrontendScenario(scenario: StatusScenario) {
       const staleBusy = computeStaleBusy(state.agentStatus, state.channelAlive, state.lastOutputAt, now);
       const effective = computeEffectiveStatus(
         state.agentStatus, state.channelAlive, staleBusy, state.isSeen,
-        false, state.idleSince || undefined, now,
+        false, state.idleSince, now,
       );
       expect(
         effective,
