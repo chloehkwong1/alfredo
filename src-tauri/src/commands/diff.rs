@@ -609,6 +609,56 @@ pub async fn get_commits(repo_path: String, default_branch: Option<String>) -> R
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
 
+/// Get the full linear commit history from HEAD, including upstream commits.
+#[tauri::command]
+pub async fn get_full_commits(repo_path: String, limit: Option<u32>) -> Result<Vec<CommitInfo>> {
+    tokio::task::spawn_blocking(move || {
+        let repo = open_repo(&repo_path)?;
+        let head_oid = repo
+            .head()
+            .and_then(|h| h.resolve())
+            .map_err(|e| AppError::Git(format!("failed to resolve HEAD: {e}")))?
+            .target()
+            .ok_or_else(|| AppError::Git("HEAD has no target".into()))?;
+
+        let mut revwalk = repo
+            .revwalk()
+            .map_err(|e| AppError::Git(format!("revwalk failed: {e}")))?;
+        revwalk
+            .push(head_oid)
+            .map_err(|e| AppError::Git(format!("revwalk push failed: {e}")))?;
+        revwalk
+            .set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
+            .map_err(|e| AppError::Git(format!("revwalk sorting failed: {e}")))?;
+
+        let cap = limit.unwrap_or(20) as usize;
+        let mut commits = Vec::with_capacity(cap);
+        for oid_result in revwalk {
+            if commits.len() >= cap {
+                break;
+            }
+            let oid = oid_result.map_err(|e| AppError::Git(format!("revwalk error: {e}")))?;
+            let commit = repo
+                .find_commit(oid)
+                .map_err(|e| AppError::Git(format!("find commit failed: {e}")))?;
+            let hash = oid.to_string();
+            let short_hash = hash[..7.min(hash.len())].to_string();
+            commits.push(CommitInfo {
+                hash,
+                short_hash,
+                message: commit.message().unwrap_or("").to_string(),
+                author: commit.author().name().unwrap_or("Unknown").to_string(),
+                timestamp: commit.time().seconds(),
+            });
+        }
+
+        commits.reverse(); // chronological order: oldest first
+        Ok(commits)
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
 /// Get the diff for a specific commit against its parent.
 #[tauri::command]
 pub async fn get_diff_for_commit(
