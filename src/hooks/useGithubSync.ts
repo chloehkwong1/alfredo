@@ -38,18 +38,21 @@ export function useGithubSync() {
         }
       }
 
-      // Auto-archive check: batch-archive Done worktrees with expired mergedAt
+      // Auto-archive check: batch-archive Done worktrees that have been
+      // idle long enough. Use mergedAt if available, fall back to lastActivityAt
+      // so worktrees without a merged PR still get cleaned up.
       const state = useWorkspaceStore.getState();
       const archiveAfterMs = state.archiveAfterDays * 24 * 60 * 60 * 1000;
       const now = Date.now();
 
       const toArchive = state.worktrees
-        .filter((wt) =>
-          wt.column === "done" &&
-          !wt.archived &&
-          wt.prStatus?.mergedAt &&
-          now - new Date(wt.prStatus.mergedAt).getTime() >= archiveAfterMs
-        )
+        .filter((wt) => {
+          if (wt.column !== "done" || wt.archived) return false;
+          const refTime = wt.prStatus?.mergedAt
+            ? new Date(wt.prStatus.mergedAt).getTime()
+            : wt.lastActivityAt;
+          return refTime != null && now - refTime >= archiveAfterMs;
+        })
         .map((wt) => wt.id);
 
       if (toArchive.length > 0) {
