@@ -138,6 +138,7 @@ pub fn run() {
             diff::get_uncommitted_diff,
             diff::get_commits,
             diff::get_full_commits,
+            diff::get_git_user,
             diff::get_default_branch,
             diff::get_diff_for_commit,
             diff::get_file_lines,

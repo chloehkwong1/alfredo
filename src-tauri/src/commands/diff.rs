@@ -659,6 +659,20 @@ pub async fn get_full_commits(repo_path: String, limit: Option<u32>) -> Result<V
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
 
+/// Get the git user.name configured for this repository.
+#[tauri::command]
+pub async fn get_git_user(repo_path: String) -> Result<Option<String>> {
+    tokio::task::spawn_blocking(move || {
+        let repo = open_repo(&repo_path)?;
+        let config = repo
+            .config()
+            .map_err(|e| AppError::Git(format!("failed to read git config: {e}")))?;
+        Ok(config.get_string("user.name").ok())
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
 /// Get the diff for a specific commit against its parent.
 #[tauri::command]
 pub async fn get_diff_for_commit(
