@@ -27,7 +27,7 @@ interface ChangesViewProps {
   diffTarget?: DiffTarget;
 }
 
-function CommitHeader({ commit }: { commit: CommitInfo }) {
+function CommitHeader({ commit, gitUser }: { commit: CommitInfo; gitUser: string | null }) {
   const firstNewline = commit.message.indexOf("\n");
   const subject = firstNewline === -1 ? commit.message : commit.message.slice(0, firstNewline);
   const body = firstNewline === -1 ? "" : commit.message.slice(firstNewline + 1).trim();
@@ -38,6 +38,8 @@ function CommitHeader({ commit }: { commit: CommitInfo }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const isYou = gitUser != null && commit.author.toLowerCase() === gitUser.toLowerCase();
 
   return (
     <div className="px-4 py-3 border-b border-border-default bg-bg-secondary">
@@ -61,6 +63,10 @@ function CommitHeader({ commit }: { commit: CommitInfo }) {
             : <Copy size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
           }
         </button>
+        <span>·</span>
+        <span className={isYou ? "text-text-tertiary" : "text-accent-primary"}>
+          {isYou ? "You" : commit.author}
+        </span>
         <span>·</span>
         <span>{formatRelativeTime(commit.timestamp)}</span>
       </div>
