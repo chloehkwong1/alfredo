@@ -35,9 +35,13 @@ const SHORTCUT_GROUPS = [
     ],
   },
   {
-    label: "Search",
+    label: "Terminal",
     shortcuts: [
-      { keys: "⌘ F", description: "Search (terminal or file filter)" },
+      { keys: "⌘ K", description: "Clear terminal" },
+      { keys: "⌘ +", description: "Zoom in" },
+      { keys: "⌘ −", description: "Zoom out" },
+      { keys: "⌘ 0", description: "Reset zoom" },
+      { keys: "⌘ F", description: "Search" },
     ],
   },
   {

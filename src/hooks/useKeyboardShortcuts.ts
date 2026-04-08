@@ -3,6 +3,8 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { lifecycleManager } from "../services/lifecycleManager";
+import { sessionManager } from "../services/sessionManager";
+import { loadTerminalPreferences, saveTerminalPreferences, TERMINAL_DEFAULTS } from "../services/terminalPreferences";
 import type { WorkspaceTab } from "../types";
 
 /**
@@ -17,6 +19,10 @@ import type { WorkspaceTab } from "../types";
  * - Cmd+Shift+\: split pane down (vertical)
  * - Cmd+Shift+C: toggle changes side panel
  * - Cmd+Shift+T: switch to first terminal/claude tab in active pane
+ * - Cmd+K: clear active terminal
+ * - Cmd+Plus: zoom in terminal font
+ * - Cmd+Minus: zoom out terminal font
+ * - Cmd+0: reset terminal font size
  */
 export function useKeyboardShortcuts(
   activeWorktreeId: string | null,
@@ -133,6 +139,51 @@ export function useKeyboardShortcuts(
       if (event.metaKey && !event.shiftKey && event.key === "b") {
         event.preventDefault();
         useWorkspaceStore.getState().toggleSidebar();
+        return;
+      }
+
+      // Cmd+K: clear active terminal
+      if (event.metaKey && !event.shiftKey && event.key === "k") {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const layoutState = useLayoutStore.getState();
+          const activePaneId = layoutState.activePaneId[activeWorktreeId];
+          const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
+          const tabId = pane?.activeTabId;
+          const sessionKey = tabId ?? activeWorktreeId;
+          const session = sessionManager.getSession(sessionKey);
+          if (session) {
+            session.terminal.clear();
+          }
+        }
+        return;
+      }
+
+      // Cmd+Plus: zoom in terminal font
+      if (event.metaKey && !event.shiftKey && (event.key === "=" || event.key === "+")) {
+        event.preventDefault();
+        const prefs = loadTerminalPreferences();
+        if (prefs.fontSize < 24) {
+          saveTerminalPreferences({ ...prefs, fontSize: prefs.fontSize + 1 });
+        }
+        return;
+      }
+
+      // Cmd+Minus: zoom out terminal font
+      if (event.metaKey && !event.shiftKey && event.key === "-") {
+        event.preventDefault();
+        const prefs = loadTerminalPreferences();
+        if (prefs.fontSize > 8) {
+          saveTerminalPreferences({ ...prefs, fontSize: prefs.fontSize - 1 });
+        }
+        return;
+      }
+
+      // Cmd+0: reset terminal font size
+      if (event.metaKey && !event.shiftKey && event.key === "0") {
+        event.preventDefault();
+        const prefs = loadTerminalPreferences();
+        saveTerminalPreferences({ ...prefs, fontSize: TERMINAL_DEFAULTS.fontSize });
         return;
       }
 
