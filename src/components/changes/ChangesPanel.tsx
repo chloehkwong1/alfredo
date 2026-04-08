@@ -46,15 +46,18 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
     return () => { cancelled = true; clearInterval(id); };
   }, [repoPath, worktreePath, stackParent]);
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleRebase = async () => {
     setLoading(true);
+    setError(null);
     try {
       await rebaseWorktree(worktreePath, stackParent);
       setBehindCount(0);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("Rebase failed:", msg);
-      new Notification("Alfredo", { body: `Rebase failed: ${msg}` });
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -77,6 +80,11 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
       >
         {loading ? "Rebasing…" : "Rebase"}
       </Button>
+      {error && (
+        <span className="text-red-400 text-[10px] truncate max-w-[200px]" title={error}>
+          Failed: {error}
+        </span>
+      )}
     </div>
   );
 }
