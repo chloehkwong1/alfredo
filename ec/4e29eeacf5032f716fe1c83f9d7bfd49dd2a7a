@@ -1,0 +1,36 @@
+src/hooks/useUpdater.ts
+  f3feeae38c454f77 86,88-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "ec4e29eeacf5032f716fe1c83f9d7bfd49dd2a7a",
+  "prompts": {
+    "577e6d1d96a65a28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "096ce7f1-2fdb-4425-bccf-3366e49e542a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 37,
+      "overriden_lines": 0
+    },
+    "f3feeae38c454f77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2f5ee06-2ded-4d1f-9cb5-5f9b8ece17f1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    }
+  }
+}
