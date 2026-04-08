@@ -1,0 +1,23 @@
+src-tauri/tauri.conf.json
+  cffe9caf48170cef 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "7da3e523d136b3bb1fa969589bd99b4b4cce8784",
+  "prompts": {
+    "cffe9caf48170cef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "27076efe-2bef-4bbd-9c10-9d85e958eb80",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
