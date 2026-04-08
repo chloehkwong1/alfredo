@@ -7,6 +7,8 @@ export interface SearchMatch {
   lineIndex: number;
 }
 
+const EMPTY_MATCHES: SearchMatch[] = [];
+
 export function useDiffSearch(
   displayFiles: DiffFile[],
   setCollapsedFiles: React.Dispatch<React.SetStateAction<Set<string>>>,
@@ -17,10 +19,22 @@ export function useDiffSearch(
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Debounce the search query so match computation doesn't block every keystroke.
+  // The raw searchQuery is still passed to components for immediate visual highlights.
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    if (!searchQuery) {
+      setDebouncedQuery("");
+      return;
+    }
+    const id = setTimeout(() => setDebouncedQuery(searchQuery), 150);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
+
   const matches = useMemo(() => {
-    if (!searchQuery) return [];
+    if (!debouncedQuery) return EMPTY_MATCHES;
     const result: SearchMatch[] = [];
-    const lq = searchQuery.toLowerCase();
+    const lq = debouncedQuery.toLowerCase();
     for (const file of displayFiles) {
       for (let hi = 0; hi < file.hunks.length; hi++) {
         for (let li = 0; li < file.hunks[hi].lines.length; li++) {
@@ -31,12 +45,12 @@ export function useDiffSearch(
       }
     }
     return result;
-  }, [displayFiles, searchQuery]);
+  }, [displayFiles, debouncedQuery]);
 
   // Reset match index when query changes
   useEffect(() => {
     setCurrentMatchIndex(0);
-  }, [searchQuery]);
+  }, [debouncedQuery]);
 
   const navigateMatch = useCallback(
     (direction: "next" | "prev") => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getDiff, getUncommittedDiff, getCommits, getDiffForCommit, getPrFiles, getPrCommits } from "../api";
 import type { DiffFile, CommitInfo } from "../types";
 import type { ViewMode } from "../components/changes/FileSidebar";
@@ -123,16 +123,38 @@ export function useChangesData(
     return () => { cancelled = true; };
   }, [viewMode, selectedCommitIndex, commits, repoPath]);
 
+  // Build display files list, stabilised to avoid triggering downstream useMemo
+  // (like search) on every 3-second poll when the actual data hasn't changed.
+  const displayFilesRef = useRef<DiffFile[]>([]);
   const displayFiles = useMemo(() => {
+    let next: DiffFile[];
     switch (viewMode) {
       case "changes": {
-        // Deduplicate: uncommitted (local edits) take precedence over committed version
         const uncommittedPaths = new Set(uncommittedFiles.map((f) => f.path));
         const uniqueCommitted = committedFiles.filter((f) => !uncommittedPaths.has(f.path));
-        return [...uncommittedFiles, ...uniqueCommitted];
+        next = [...uncommittedFiles, ...uniqueCommitted];
+        break;
       }
-      case "commits": return selectedCommitIndex !== null ? commitFiles : [];
+      case "commits":
+        next = selectedCommitIndex !== null ? commitFiles : [];
+        break;
     }
+
+    // Shallow-compare: same file paths in same order with same hunk count → reuse old ref
+    const prev = displayFilesRef.current;
+    if (
+      prev.length === next.length &&
+      prev.every((f, i) =>
+        f.path === next[i].path &&
+        f.hunks.length === next[i].hunks.length &&
+        f.additions === next[i].additions &&
+        f.deletions === next[i].deletions,
+      )
+    ) {
+      return prev;
+    }
+    displayFilesRef.current = next;
+    return next;
   }, [viewMode, uncommittedFiles, committedFiles, commitFiles, selectedCommitIndex]);
 
   return { uncommittedFiles, committedFiles, commits, commitFiles, displayFiles, refetchUncommitted, error };
