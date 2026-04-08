@@ -10,15 +10,16 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { useChangesData } from "../../hooks/useChangesData";
-import { discardFile, discardAllUncommitted, getCommitsBehindMain, rebaseWorktree } from "../../api";
+import { discardFile, discardAllUncommitted, getCommitsBehindMain, getDefaultBranch, rebaseWorktree } from "../../api";
 import type { ViewMode } from "./FileSidebar";
 import type { PrComment } from "../../types";
 
 const EMPTY_COMMENTS: PrComment[] = [];
 
 
-function RebaseBanner({ worktreePath, stackParent }: { worktreePath: string; stackParent?: string | null }) {
+function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: string; worktreePath: string; stackParent?: string | null }) {
   const [behindCount, setBehindCount] = useState<number | null>(null);
+  const [baseBranchName, setBaseBranchName] = useState<string | null>(stackParent ?? null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -32,8 +33,18 @@ function RebaseBanner({ worktreePath, stackParent }: { worktreePath: string; sta
     };
     fetch();
     const id = setInterval(fetch, 60_000);
+
+    // Resolve display name for the base branch
+    if (stackParent) {
+      setBaseBranchName(stackParent);
+    } else {
+      getDefaultBranch(repoPath).then((name) => {
+        if (!cancelled) setBaseBranchName(name);
+      }).catch((err) => { console.warn("Failed to resolve default branch:", err); });
+    }
+
     return () => { cancelled = true; clearInterval(id); };
-  }, [worktreePath]);
+  }, [repoPath, worktreePath, stackParent]);
 
   const handleRebase = async () => {
     setLoading(true);
@@ -49,13 +60,13 @@ function RebaseBanner({ worktreePath, stackParent }: { worktreePath: string; sta
     }
   };
 
-  if (behindCount == null || behindCount === 0) return null;
+  if (behindCount == null || behindCount === 0 || baseBranchName == null) return null;
 
   return (
     <div className="px-2.5 py-1.5 bg-accent-primary/15 border-t border-accent-primary/30 border-l-2 border-l-accent-primary text-xs font-semibold shrink-0 flex items-center gap-2 text-text-secondary">
       <GitBranch size={13} className="shrink-0" />
       <span className="flex-1 text-[11px]">
-        <span className="text-accent-primary">{behindCount} commit{behindCount !== 1 ? "s" : ""}</span> behind main
+        <span className="text-accent-primary">{behindCount} commit{behindCount !== 1 ? "s" : ""}</span> behind {baseBranchName ?? "base"}
       </span>
       <Button
         size="sm"
@@ -89,13 +100,14 @@ function WorkspacePanel({
   // Branch-mode repos on the default branch have no meaningful committed diff —
   // skip the fetch entirely so only uncommitted changes are shown.
   const isBranchModeDefault = !!(worktree?.isBranchMode && !pr);
-  const effectiveBaseBranch = pr?.baseBranch;
+  const effectiveBaseBranch = pr?.baseBranch ?? worktree?.stackParent ?? undefined;
 
   // Map panel tab to data-fetching view mode — force "changes" when tabs are hidden
   const dataViewMode: ViewMode = isBranchModeDefault ? "changes" : (panelTab === "commits" ? "commits" : "changes");
 
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [activeFileIsUncommitted, setActiveFileIsUncommitted] = useState<boolean | undefined>(undefined);
 
   const { uncommittedFiles, committedFiles, commits, refetchUncommitted } = useChangesData(
     repoPath,
@@ -149,11 +161,13 @@ function WorkspacePanel({
   }, [worktreeId, commits]);
 
   const handleSelectFile = useCallback(
-    (path: string) => {
+    (path: string, isUncommitted: boolean) => {
       setActiveFilePath(path);
+      setActiveFileIsUncommitted(isUncommitted);
       lifecycleManager.openDiffPreview(worktreeId, {
         type: "file",
         filePath: path,
+        isUncommitted,
       });
     },
     [worktreeId],
@@ -163,6 +177,7 @@ function WorkspacePanel({
     (filePath: string, line: number) => {
       // Switch back to files tab
       setChangesViewMode(worktreeId, "changes");
+      setActiveFileIsUncommitted(undefined);
       lifecycleManager.openDiffPreview(worktreeId, {
         type: "file",
         filePath,
@@ -178,6 +193,7 @@ function WorkspacePanel({
       if (tab !== "pr") {
         setSelectedCommitIndex(null);
         setActiveFilePath(null);
+        setActiveFileIsUncommitted(undefined);
       }
       // Always dispatch clear-focus when clicking Files or Commits tab header
       // This exits focused mode even if already on the same tab
@@ -282,6 +298,7 @@ function WorkspacePanel({
               selectedCommitIndex={selectedCommitIndex}
               onSelectCommit={handleSelectCommit}
               activeFilePath={activeFilePath}
+              activeFileIsUncommitted={activeFileIsUncommitted}
               onSelectFile={handleSelectFile}
               onDiscardFile={handleDiscardFile}
               prComments={prComments}
@@ -306,7 +323,7 @@ function WorkspacePanel({
       )}
 
       {/* Rebase banner — hidden for branch-mode (already on main) and merge conflicts */}
-      {worktree && !isBranchModeDefault && mergeable !== false && <RebaseBanner worktreePath={worktree.path} stackParent={worktree.stackParent} />}
+      {worktree && !isBranchModeDefault && mergeable !== false && <RebaseBanner repoPath={repoPath} worktreePath={worktree.path} stackParent={worktree.stackParent} />}
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>

@@ -7,7 +7,7 @@ import { Button } from "../ui/Button";
 import { useChangesData } from "../../hooks/useChangesData";
 import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
-import { useSendToClaude } from "../../hooks/useSendToClaude";
+
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { Trash2, Check, Copy } from "lucide-react";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
@@ -85,8 +85,8 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   const setJumpToComment = usePrStore((s) => s.setJumpToComment);
   const clearJumpToComment = usePrStore((s) => s.clearJumpToComment);
 
-  const { commits, displayFiles, uncommittedFiles, refetchUncommitted } = useChangesData(
-    repoPath, viewMode, selectedCommitIndex, pr?.baseBranch, pr?.number,
+  const { commits, displayFiles, uncommittedFiles, committedFiles, refetchUncommitted } = useChangesData(
+    repoPath, viewMode, selectedCommitIndex, pr?.baseBranch ?? worktree?.stackParent ?? undefined, pr?.number,
   );
 
   const {
@@ -98,7 +98,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     handleEditAnnotation,
     clearAnnotations,
     resetActiveAnnotation,
-  } = useAnnotationActions(worktreeId, viewMode, selectedCommitIndex, commits);
+  } = useAnnotationActions(worktreeId, viewMode, selectedCommitIndex, commits, repoPath, worktree?.branch ?? undefined);
 
   const {
     collapsedFiles,
@@ -136,8 +136,6 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     navigateMatch,
     activeSearchMatch,
   } = useDiffSearch(displayFiles, setCollapsedFiles, setActiveFilePath);
-
-  const { handleSendToClaude } = useSendToClaude(worktreeId, repoPath, worktree?.branch);
 
   const handleSendPrComment = useCallback(
     (comment: PrComment) => {
@@ -202,7 +200,14 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   }, [diffTarget, handleSelectFile, handleSelectCommit, commits, fileRefs]);
 
 
-  const focusedFile = focusedFilePath ? displayFiles.find((f) => f.path === focusedFilePath) : null;
+  // When a committed file is focused and the same path exists in uncommitted,
+  // displayFiles only has the uncommitted version — look in committedFiles instead.
+  const focusedFile = focusedFilePath
+    ? (diffTarget?.isUncommitted === false
+        ? committedFiles.find((f) => f.path === focusedFilePath)
+        : null
+      ) ?? displayFiles.find((f) => f.path === focusedFilePath)
+    : null;
   const filesToRender = focusedFile ? [focusedFile] : displayFiles;
 
   const activeCommitHash =
@@ -337,7 +342,6 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
         <AnnotationBar
           count={annotations.length}
           onClearAll={() => clearAnnotations(worktreeId)}
-          onSendToClaude={handleSendToClaude}
         />
       )}
     </div>

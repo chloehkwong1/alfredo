@@ -327,6 +327,8 @@ export interface PrDetailedStatus {
 export interface DiffTarget {
   type: "file" | "commit";
   filePath?: string;
+  /** When true the target is an uncommitted (working-tree) change; false means committed. */
+  isUncommitted?: boolean;
   commitHash?: string;
   scrollToFile?: string;
   scrollToLine?: number;

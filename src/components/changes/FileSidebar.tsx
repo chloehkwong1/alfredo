@@ -13,7 +13,8 @@ interface FileSidebarProps {
   selectedCommitIndex: number | null;
   onSelectCommit: (index: number) => void;
   activeFilePath: string | null;
-  onSelectFile: (path: string) => void;
+  activeFileIsUncommitted?: boolean;
+  onSelectFile: (path: string, isUncommitted: boolean) => void;
   onDiscardFile?: (path: string, status: string) => void;
   prComments?: PrComment[];
   onDoubleClickFile?: (path: string) => void;
@@ -110,6 +111,7 @@ function FileSidebar({
   selectedCommitIndex,
   onSelectCommit,
   activeFilePath,
+  activeFileIsUncommitted,
   onSelectFile,
   onDiscardFile,
   prComments = [],
@@ -197,20 +199,23 @@ function FileSidebar({
   }, [viewMode]);
 
   const renderFileList = useCallback(
-    (filesToRender: DiffFile[], onDiscard?: (path: string, status: string) => void) =>
+    (filesToRender: DiffFile[], isUncommitted: boolean, onDiscard?: (path: string, status: string) => void) =>
       filesToRender.map((file) => (
         <FileRow
-          key={file.path}
+          key={`${isUncommitted ? "u" : "c"}:${file.path}`}
           file={file}
           filePath={file.path}
-          isActive={activeFilePath === file.path}
+          isActive={
+            activeFilePath === file.path &&
+            (activeFileIsUncommitted === undefined || activeFileIsUncommitted === isUncommitted)
+          }
           commentCount={commentCountByFile.get(file.path) ?? 0}
-          onSelect={onSelectFile}
+          onSelect={(path: string) => onSelectFile(path, isUncommitted)}
           onDiscard={onDiscard}
           onDoubleClick={onDoubleClickFile}
         />
       )),
-    [activeFilePath, commentCountByFile, onSelectFile, onDoubleClickFile],
+    [activeFilePath, activeFileIsUncommitted, commentCountByFile, onSelectFile, onDoubleClickFile],
   );
 
   return (
@@ -292,7 +297,7 @@ function FileSidebar({
                       {filteredUncommitted.length}
                     </span>
                   </div>
-                  {renderFileList(filteredUncommitted, onDiscardFile)}
+                  {renderFileList(filteredUncommitted, true, onDiscardFile)}
                 </>
               )}
 
@@ -314,6 +319,7 @@ function FileSidebar({
                   </div>
                   {renderFileList(
                     showAllFiles ? filteredCommitted : filteredCommitted.slice(0, INITIAL_FILE_LIMIT),
+                    false,
                   )}
                   {filteredCommitted.length > INITIAL_FILE_LIMIT && !showAllFiles && (
                     <button
