@@ -15,6 +15,8 @@ interface SimState {
   isSeen: boolean;
   /** Mirrors session.waitingForInput — blocks late "busy" hooks. */
   waitingForInput: boolean;
+  /** Epoch ms when current idle period started (for done-settle debounce). */
+  idleSince: number;
 }
 
 function createInitialState(): SimState {
@@ -27,6 +29,7 @@ function createInitialState(): SimState {
     lastHeartbeat: now,
     isSeen: false, // unseen by default (tests wrong-status-on-focus scenarios)
     waitingForInput: false,
+    idleSince: now, // starts idle, so idleSince = now
   };
 }
 
@@ -47,12 +50,19 @@ function runFrontendScenario(scenario: StatusScenario) {
         // Simulate detector output accepted through priority logic.
         const detectorState = step.expect.agentStatus;
         if (shouldAcceptDetectorState(state.hooksActive, detectorState, state.agentStatus)) {
+          const prevStatus = state.agentStatus;
           if (detectorState === "waitingForInput") {
             state.waitingForInput = true;
           } else if (detectorState !== "busy") {
             state.waitingForInput = false;
           }
           state.agentStatus = detectorState;
+          // Track idleSince for done-settle debounce
+          if (state.agentStatus === "idle" && prevStatus !== "idle") {
+            state.idleSince = now;
+          } else if (state.agentStatus !== "idle") {
+            state.idleSince = 0;
+          }
         }
         state.lastOutputAt = now;
         break;
@@ -61,8 +71,15 @@ function runFrontendScenario(scenario: StatusScenario) {
         state.hooksActive = true;
         // Don't let a late "busy" hook override waitingForInput
         if (action.state === "busy" && state.waitingForInput) break;
+        const prevStatus = state.agentStatus;
         state.waitingForInput = action.state === "waitingForInput";
         state.agentStatus = action.state as AgentState;
+        // Track idleSince for done-settle debounce
+        if (state.agentStatus === "idle" && prevStatus !== "idle") {
+          state.idleSince = now;
+        } else if (state.agentStatus !== "idle") {
+          state.idleSince = 0;
+        }
         break;
       }
       case "userInput": {
@@ -98,6 +115,7 @@ function runFrontendScenario(scenario: StatusScenario) {
       const staleBusy = computeStaleBusy(state.agentStatus, state.channelAlive, state.lastOutputAt, now);
       const effective = computeEffectiveStatus(
         state.agentStatus, state.channelAlive, staleBusy, state.isSeen,
+        false, state.idleSince || undefined, now,
       );
       expect(
         effective,

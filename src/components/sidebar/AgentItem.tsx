@@ -3,6 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
 import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, SquarePen, TerminalSquare, X, Unlink, Copy } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
+import { IDLE_SETTLE_MS } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { openInEditor, openInTerminal, getAppConfig, rebaseWorktree, setStackParent } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -162,19 +163,33 @@ function getStatusText(status: AgentState | string): string {
   return statusText[status] ?? "Not running";
 }
 
+/** @deprecated Use IDLE_SETTLE_MS from types.ts directly. Re-exported for test compat. */
+export const DONE_SETTLE_MS = IDLE_SETTLE_MS;
+
 export function computeEffectiveStatus(
   agentStatus: AgentState,
   channelAlive: boolean | undefined,
   staleBusy: boolean | undefined,
   isSeen: boolean,
   justCreated?: boolean,
+  idleSince?: number,
+  now?: number,
 ): string {
   if (justCreated) return "ready";
   const channelStatus = channelAlive === false && agentStatus !== "notRunning"
     ? "disconnected"
     : agentStatus;
   const baseStatus = channelStatus === "busy" && staleBusy ? "stale" : channelStatus;
-  return baseStatus === "idle" && !isSeen ? "done" : baseStatus;
+  if (baseStatus === "idle" && !isSeen) {
+    // Only show "done" after idle has settled — brief inter-turn gaps
+    // (Stop hook → idle → UserPromptSubmit → busy) stay as plain "idle".
+    const t = now ?? Date.now();
+    if (idleSince && t - idleSince < IDLE_SETTLE_MS) {
+      return "idle";
+    }
+    return "done";
+  }
+  return baseStatus;
 }
 
 function useAgentItemState(worktree: Worktree) {
@@ -185,9 +200,23 @@ function useAgentItemState(worktree: Worktree) {
     (s) => s.runningServers[worktree.id],
   );
   const isServerRunning = !!serverEntry;
+
+  // Re-render when idle settle period elapses so "idle" promotes to "done".
+  const [, setTick] = useState(0);
+  const effectiveSeen = isSeen && !isUnread;
+  useEffect(() => {
+    if (worktree.agentStatus === "idle" && !effectiveSeen && worktree.idleSince) {
+      const remaining = IDLE_SETTLE_MS - (Date.now() - worktree.idleSince);
+      if (remaining > 0) {
+        const timer = setTimeout(() => setTick((t) => t + 1), remaining + 16);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [worktree.agentStatus, worktree.idleSince, effectiveSeen]);
+
   // When manually marked unread, treat as unseen so the attention state re-activates
   const effectiveStatus = computeEffectiveStatus(
-    worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, isSeen && !isUnread, worktree.justCreated,
+    worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, effectiveSeen, worktree.justCreated, worktree.idleSince,
   );
   const shouldPulse = effectiveStatus === "waitingForInput";
   const serverPort = serverEntry?.port;

@@ -126,11 +126,46 @@
   },
   {
     "name": "switch-to-idle-worktree-unseen",
-    "description": "Worktree finished while unfocused, user clicks to view",
+    "description": "Worktree finished while unfocused — shows idle during settle, then done",
     "category": "wrong-status-on-focus",
     "steps": [
       {
         "action": { "type": "hookEvent", "state": "idle" },
+        "expect": { "agentStatus": "idle", "effectiveStatus": "idle" }
+      },
+      {
+        "action": { "type": "elapsed", "ms": 3500 },
+        "expect": { "agentStatus": "idle", "effectiveStatus": "done" }
+      }
+    ]
+  },
+  {
+    "name": "inter-turn-idle-not-shown-as-done",
+    "description": "Brief idle between turns should not flicker to done",
+    "category": "wrong-status-on-focus",
+    "steps": [
+      {
+        "action": { "type": "hookEvent", "state": "busy" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "hookEvent", "state": "idle" },
+        "expect": { "agentStatus": "idle", "effectiveStatus": "idle" }
+      },
+      {
+        "action": { "type": "elapsed", "ms": 1000 },
+        "expect": { "agentStatus": "idle", "effectiveStatus": "idle" }
+      },
+      {
+        "action": { "type": "hookEvent", "state": "busy" },
+        "expect": { "agentStatus": "busy" }
+      },
+      {
+        "action": { "type": "hookEvent", "state": "idle" },
+        "expect": { "agentStatus": "idle", "effectiveStatus": "idle" }
+      },
+      {
+        "action": { "type": "elapsed", "ms": 3500 },
         "expect": { "agentStatus": "idle", "effectiveStatus": "done" }
       }
     ]
@@ -221,6 +256,10 @@
     "steps": [
       {
         "action": { "type": "hookEvent", "state": "idle" },
+        "expect": { "agentStatus": "idle", "effectiveStatus": "idle" }
+      },
+      {
+        "action": { "type": "elapsed", "ms": 3500 },
         "expect": { "agentStatus": "idle", "effectiveStatus": "done" }
       }
     ]

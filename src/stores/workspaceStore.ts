@@ -111,6 +111,7 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         agentStatus: old.agentStatus,
         channelAlive: old.channelAlive,
         staleBusy: old.staleBusy,
+        idleSince: old.idleSince,
         archived: old.archived,
         archivedAt: old.archivedAt,
         claudeSessionId: old.claudeSessionId,
@@ -216,7 +217,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
             patch.agentStatus && patch.agentStatus !== wt.agentStatus
               ? { lastActivityAt: Date.now() }
               : {};
-          return { ...wt, ...patch, ...activityPatch };
+          // Track when idle period starts (for done-settle debounce).
+          // Set idleSince on transition INTO idle; clear on transition OUT.
+          const idlePatch: { idleSince?: number } =
+            patch.agentStatus === "idle" && wt.agentStatus !== "idle"
+              ? { idleSince: Date.now() }
+              : patch.agentStatus && patch.agentStatus !== "idle"
+                ? { idleSince: undefined }
+                : {};
+          return { ...wt, ...patch, ...activityPatch, ...idlePatch };
         }),
         seenWorktrees: newSeen,
       };
