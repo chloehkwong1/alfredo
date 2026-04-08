@@ -11,6 +11,7 @@ import {
   Eye,
   CheckCircle2,
   ChevronRight,
+  Archive,
   type LucideIcon,
 } from "lucide-react";
 import type { KanbanColumn, Worktree } from "../../types";
@@ -23,6 +24,7 @@ interface StatusGroupProps {
   onSelectWorktree: (id: string) => void;
   onDeleteWorktree?: (id: string) => void;
   onArchiveWorktree?: (id: string) => void;
+  onArchiveAll?: () => void;
   forceVisible?: boolean;
   dragActiveId?: string | null;
   repoColors?: Record<string, string>;
@@ -60,6 +62,7 @@ function StatusGroup({
   onSelectWorktree,
   onDeleteWorktree,
   onArchiveWorktree,
+  onArchiveAll,
   forceVisible,
   dragActiveId,
   repoColors,
@@ -129,6 +132,18 @@ function StatusGroup({
         </span>
         <span className="flex-1 h-px bg-gradient-to-r from-border-subtle to-transparent mx-3" />
         <span className="flex items-center gap-2">
+          {column === "done" && worktrees.length > 0 && onArchiveAll && (
+            <span
+              role="button"
+              tabIndex={0}
+              title="Archive all done"
+              onClick={(e) => { e.stopPropagation(); onArchiveAll(); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onArchiveAll(); } }}
+              className="p-0.5 rounded hover:bg-surface-raised hover:text-text-primary transition-colors"
+            >
+              <Archive className="h-3.5 w-3.5" />
+            </span>
+          )}
           <span className="text-2xs text-text-tertiary tabular-nums">
             {worktrees.length}
           </span>

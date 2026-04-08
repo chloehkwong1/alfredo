@@ -120,6 +120,20 @@ function Sidebar({
     await lifecycleManager.removeWorktree(id, repoPath, wt.name);
   }
 
+  const [archivingAll, setArchivingAll] = useState(false);
+  const handleArchiveAllDone = useCallback(async () => {
+    if (archivingAll) return;
+    setArchivingAll(true);
+    try {
+      const done = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode && wt.column === "done");
+      for (const wt of done) {
+        await handleArchiveWorktree(wt.id);
+      }
+    } finally {
+      setArchivingAll(false);
+    }
+  }, [worktrees, handleArchiveWorktree, archivingAll]);
+
   const activeWorktrees = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode);
   const archivedWorktrees = worktrees.filter((wt) => wt.archived);
   const grouped = groupByColumn(activeWorktrees);
@@ -246,6 +260,7 @@ function Sidebar({
                     onSelectWorktree={setActiveWorktree}
                     onDeleteWorktree={handleDeleteWorktree}
                     onArchiveWorktree={handleArchiveWorktree}
+                    onArchiveAll={col === "done" ? handleArchiveAllDone : undefined}
                     forceVisible={isDragging}
                     dragActiveId={dragActiveId}
                     repoColors={effectiveRepoColors}
