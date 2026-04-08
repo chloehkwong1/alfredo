@@ -201,12 +201,6 @@ export interface LinearTicket {
   updatedAt?: string | null;
 }
 
-export interface LinearTeam {
-  id: string;
-  name: string;
-  key: string;
-}
-
 // ── Diff viewer ──────────────────────────────────────────────────
 
 export interface DiffFile {
@@ -316,11 +310,6 @@ export interface WorkflowRunLog {
   jobName: string;
   stepName: string;
   logExcerpt: string;
-}
-
-export interface MergeResult {
-  success: boolean;
-  conflictedFiles: string[];
 }
 
 export interface PrDetailedStatus {

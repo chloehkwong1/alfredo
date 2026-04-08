@@ -2,14 +2,12 @@ import { invoke, Channel } from "@tauri-apps/api/core";
 import type {
   AgentType,
   AppConfig,
-  CheckRun,
   CommitInfo,
   DiffFile,
   FileLine,
   GlobalAppConfig,
   KanbanColumn,
   LinearTicket,
-  PrDetailedStatus,
   PrStatus,
   PtyEvent,
   RepoMode,
@@ -313,10 +311,6 @@ export function validateGitRepo(path: string): Promise<boolean> {
 
 // ── Check Runs ──────────────────────────────────────────────────
 
-export function getCheckRuns(repoPath: string, branch: string): Promise<CheckRun[]> {
-  return invoke("get_check_runs", { repoPath, branch });
-}
-
 export function rerunFailedChecks(
   repoPath: string,
   checkSuiteId: number,
@@ -330,13 +324,6 @@ export function getJobLog(
   jobName: string,
 ): Promise<WorkflowRunLog | null> {
   return invoke("get_job_log", { repoPath, jobId, jobName });
-}
-
-export function getPrDetail(
-  repoPath: string,
-  prNumber: number,
-): Promise<PrDetailedStatus> {
-  return invoke("get_pr_detail", { repoPath, prNumber });
 }
 
 // ── Session Persistence ──────────────────────────────────────────────────────
