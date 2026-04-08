@@ -1,0 +1,23 @@
+src/hooks/useNotifications.ts
+  05f10096339ab78f 315
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "94297b519731cbf479656d487c164fe696817d68",
+  "prompts": {
+    "05f10096339ab78f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7e62e4d-f7a9-4884-adb4-9da4732e3cce",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
