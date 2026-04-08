@@ -274,6 +274,7 @@ function FileSidebar({
             const subject = commit.message.split("\n")[0];
             const originalIndex = commits.indexOf(commit);
             const isSelected = selectedCommitIndex === originalIndex;
+            const author = formatAuthor(commit.author);
 
             return (
               <button
@@ -296,8 +297,8 @@ function FileSidebar({
                     {commit.shortHash}
                   </span>
                   <span className="text-[10px] text-text-tertiary">·</span>
-                  <span className={`text-[10px] ${formatAuthor(commit.author).className}`}>
-                    {formatAuthor(commit.author).text}
+                  <span className={`text-[10px] ${author.className}`}>
+                    {author.text}
                   </span>
                   <span className="text-[10px] text-text-tertiary">·</span>
                   <span className="text-[10px] text-text-tertiary">
@@ -321,6 +322,7 @@ function FileSidebar({
                 const subject = commit.message.split("\n")[0];
                 const originalIndex = upstreamCommits.indexOf(commit);
                 const isSelected = selectedCommitIndex === originalIndex;
+                const author = formatAuthor(commit.author);
 
                 return (
                   <button
@@ -343,8 +345,8 @@ function FileSidebar({
                         {commit.shortHash}
                       </span>
                       <span className="text-[10px] text-text-tertiary">·</span>
-                      <span className={`text-[10px] ${formatAuthor(commit.author).className}`}>
-                        {formatAuthor(commit.author).text}
+                      <span className={`text-[10px] ${author.className}`}>
+                        {author.text}
                       </span>
                       <span className="text-[10px] text-text-tertiary">·</span>
                       <span className="text-[10px] text-text-tertiary">
@@ -372,6 +374,7 @@ function FileSidebar({
                 const subject = commit.message.split("\n")[0];
                 const originalIndex = commits.length + upstreamCommits.indexOf(commit);
                 const isSelected = selectedCommitIndex === originalIndex;
+                const author = formatAuthor(commit.author);
 
                 return (
                   <button
@@ -394,8 +397,8 @@ function FileSidebar({
                         {commit.shortHash}
                       </span>
                       <span className="text-[10px] text-text-tertiary">·</span>
-                      <span className={`text-[10px] ${formatAuthor(commit.author).className}`}>
-                        {formatAuthor(commit.author).text}
+                      <span className={`text-[10px] ${author.className}`}>
+                        {author.text}
                       </span>
                       <span className="text-[10px] text-text-tertiary">·</span>
                       <span className="text-[10px] text-text-tertiary">
