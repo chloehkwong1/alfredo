@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FolderOpen } from "lucide-react";
-import type { AppConfig, GlobalAppConfig, RepoEntry, RepoMode, SetupScript } from "../../types";
+import type { AppConfig, GlobalAppConfig, RepoEntry, RepoMode } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig, setRepoMode } from "../../api";
 import { Button } from "../ui/Button";
 import {
@@ -8,7 +8,6 @@ import {
   DialogContent,
 } from "../ui/Dialog";
 import { RepoDropdown } from "../ui/RepoDropdown";
-import { ScriptEditor } from "./ScriptEditor";
 
 type WorkspaceTab = "repository" | "scripts";
 
@@ -349,53 +348,71 @@ function WorkspaceSettingsDialog({
 
             {tab === "scripts" && (
               <div>
-                {/* Run Script */}
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
-                  Run Script
-                </div>
-                <p className="text-xs text-text-tertiary -mt-2 mb-3">
-                  Started from any worktree via the play button in the tab bar.
-                </p>
-                <div className="rounded-[var(--radius-md)] border border-border-default bg-bg-primary p-3 space-y-2">
-                  <input
-                    type="text"
-                    className={inputClass}
-                    placeholder="Name (e.g. Dev Server)"
-                    value={config.runScript?.name ?? ""}
-                    onChange={(e) =>
-                      updateConfig({
-                        runScript: e.target.value || config.runScript?.command
-                          ? { name: e.target.value, command: config.runScript?.command ?? "" }
-                          : null,
-                      })
-                    }
-                  />
-                  <textarea
-                    className={textareaClass}
-                    rows={3}
-                    placeholder="Command (e.g. npm run dev)"
-                    value={config.runScript?.command ?? ""}
-                    onChange={(e) =>
-                      updateConfig({
-                        runScript: config.runScript?.name || e.target.value
-                          ? { name: config.runScript?.name ?? "", command: e.target.value }
-                          : null,
-                      })
-                    }
-                  />
-                </div>
-
                 {/* Setup Scripts */}
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
                   Setup Scripts
                 </div>
                 <p className="text-xs text-text-tertiary -mt-2 mb-3">
                   Run automatically when a new worktree is created.
                 </p>
-                <ScriptEditor
-                  scripts={config.setupScripts}
-                  onChange={(scripts: SetupScript[]) =>
-                    updateConfig({ setupScripts: scripts })
+                <div className="space-y-2">
+                  {config.setupScripts.map((script, index) => (
+                    <textarea
+                      key={index}
+                      className={textareaClass}
+                      rows={2}
+                      style={{ fieldSizing: "content" } as React.CSSProperties}
+                      placeholder="Command (e.g. npm install)"
+                      value={script.command}
+                      onChange={(e) => {
+                        const updated = config.setupScripts.map((s, i) =>
+                          i === index ? { ...s, command: e.target.value } : s,
+                        );
+                        updateConfig({ setupScripts: updated });
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Run Script */}
+                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+                  Run Script
+                </div>
+                <p className="text-xs text-text-tertiary -mt-2 mb-3">
+                  Started from any worktree via the play button in the tab bar.
+                </p>
+                <textarea
+                  className={textareaClass}
+                  rows={2}
+                  style={{ fieldSizing: "content" } as React.CSSProperties}
+                  placeholder="Command (e.g. npm run dev)"
+                  value={config.runScript?.command ?? ""}
+                  onChange={(e) =>
+                    updateConfig({
+                      runScript: e.target.value.trim()
+                        ? { name: "Run", command: e.target.value }
+                        : null,
+                    })
+                  }
+                />
+
+                {/* Archive Script */}
+                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+                  Archive Script
+                </div>
+                <p className="text-xs text-text-tertiary -mt-2 mb-3">
+                  Runs when a worktree is archived.
+                </p>
+                <textarea
+                  className={textareaClass}
+                  rows={2}
+                  style={{ fieldSizing: "content" } as React.CSSProperties}
+                  placeholder="Command (e.g. docker compose down)"
+                  value={config.archiveScript ?? ""}
+                  onChange={(e) =>
+                    updateConfig({
+                      archiveScript: e.target.value.trim() ? e.target.value : null,
+                    })
                   }
                 />
               </div>
