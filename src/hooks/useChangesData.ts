@@ -45,8 +45,8 @@ export function useChangesData(
   }, [repoPath, refreshKey]);
 
   // Load committed files and commits — from GitHub API when PR exists, local git otherwise.
-  // Local git paths poll every 10s to pick up new commits; GitHub API paths fetch once
-  // (refreshed by github_sync on a longer cadence).
+  // Local git paths poll every 10s to pick up new commits; GitHub API paths poll every 30s
+  // to pick up force-pushes and rebases.
   // Skipped entirely for branch-mode repos on the default branch (no meaningful committed diff).
   useEffect(() => {
     if (skipCommitted) {
@@ -57,42 +57,45 @@ export function useChangesData(
     let cancelled = false;
 
     if (prNumber) {
-      // PR exists: fetch from GitHub API (no polling — rate-limit sensitive)
-      getPrFiles(repoPath, prNumber)
-        .then(async (files) => {
-          if (cancelled) return;
+      // PR exists: fetch from GitHub API, poll every 30s to pick up force-pushes
+      const fetchPr = () => {
+        getPrFiles(repoPath, prNumber)
+          .then(async (files) => {
+            if (cancelled) return;
 
-          // Handle truncated files: fall back to local git diff for those
-          const truncated = files.filter((f) => f.truncated);
-          if (truncated.length > 0) {
-            try {
-              const localFiles = await getDiff(repoPath, baseBranch);
-              if (cancelled) return;
-              const localByPath = new Map(localFiles.map((f) => [f.path, f]));
-              const merged = files.map((f) => {
-                if (f.truncated) {
-                  return localByPath.get(f.path) ?? f;
-                }
-                return f;
-              });
-              setCommittedFiles(merged);
-            } catch {
-              if (cancelled) return;
-              // If local fallback fails, show what GitHub gave us (empty hunks for truncated)
+            // Handle truncated files: fall back to local git diff for those
+            const truncated = files.filter((f) => f.truncated);
+            if (truncated.length > 0) {
+              try {
+                const localFiles = await getDiff(repoPath, baseBranch);
+                if (cancelled) return;
+                const localByPath = new Map(localFiles.map((f) => [f.path, f]));
+                const merged = files.map((f) => {
+                  if (f.truncated) {
+                    return localByPath.get(f.path) ?? f;
+                  }
+                  return f;
+                });
+                setCommittedFiles(merged);
+              } catch {
+                if (cancelled) return;
+                // If local fallback fails, show what GitHub gave us (empty hunks for truncated)
+                setCommittedFiles(files);
+              }
+            } else {
               setCommittedFiles(files);
             }
-          } else {
-            setCommittedFiles(files);
-          }
-          setError(null);
-        })
-        .catch((err) => { if (!cancelled) setError(`PR files failed: ${err}`); });
+            setError(null);
+          })
+          .catch((err) => { if (!cancelled) setError(`PR files failed: ${err}`); });
 
-      getPrCommits(repoPath, prNumber)
-        .then((list) => { if (!cancelled) setCommits(list); })
-        .catch((err) => { if (!cancelled) setError(`PR commits failed: ${err}`); });
-
-      return () => { cancelled = true; };
+        getPrCommits(repoPath, prNumber)
+          .then((list) => { if (!cancelled) setCommits(list); })
+          .catch((err) => { if (!cancelled) setError(`PR commits failed: ${err}`); });
+      };
+      fetchPr();
+      const interval = setInterval(fetchPr, 30_000);
+      return () => { cancelled = true; clearInterval(interval); };
     }
 
     // No PR: use local git diff — poll to pick up new commits
