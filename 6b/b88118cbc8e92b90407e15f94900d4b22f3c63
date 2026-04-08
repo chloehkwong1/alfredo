@@ -1,0 +1,37 @@
+src/components/settings/WorkspaceSettingsDialog.tsx
+  0fc166bb6fffdde7 3,358-375,385,388-391,394-397
+  5c0fee34c8d28463 351,353-357,376-378,384,386-387,392-393,399,401,404,406-415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "6bb88118cbc8e92b90407e15f94900d4b22f3c63",
+  "prompts": {
+    "0fc166bb6fffdde7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c006ac10-983d-4732-8498-fc8e226173c2",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    },
+    "5c0fee34c8d28463": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c69461fd-bbe8-44a3-8dc3-77a00b9b5858",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    }
+  }
+}
