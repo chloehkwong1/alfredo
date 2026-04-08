@@ -10,6 +10,8 @@ interface FileSidebarProps {
   uncommittedFiles: DiffFile[];
   committedFiles: DiffFile[];
   commits: CommitInfo[];
+  upstreamCommits: CommitInfo[];
+  gitUser: string | null;
   selectedCommitIndex: number | null;
   onSelectCommit: (index: number) => void;
   activeFilePath: string | null;
@@ -108,6 +110,8 @@ function FileSidebar({
   uncommittedFiles,
   committedFiles,
   commits,
+  upstreamCommits,
+  gitUser,
   selectedCommitIndex,
   onSelectCommit,
   activeFilePath,
@@ -119,6 +123,7 @@ function FileSidebar({
   onDoubleClickCommit,
 }: FileSidebarProps) {
   const [filter, setFilter] = useState("");
+  const [upstreamExpanded, setUpstreamExpanded] = useState(false);
 
   // Build per-file comment counts from PR comments
   const commentCountByFile = useMemo(() => {
@@ -184,10 +189,23 @@ function FileSidebar({
     [commits, filter],
   );
 
+  const filteredUpstream = useMemo(
+    () => {
+      if (!upstreamExpanded) return [];
+      if (filter === "") return upstreamCommits;
+      return upstreamCommits.filter((c) =>
+        c.message.toLowerCase().includes(filter.toLowerCase()),
+      );
+    },
+    [upstreamCommits, upstreamExpanded, filter],
+  );
+
   const allFiles = viewMode === "changes"
     ? uncommittedFiles.length + committedFiles.length
     : 0;
-  const totalItems = viewMode === "commits" ? commits.length : allFiles;
+  const totalItems = viewMode === "commits"
+    ? commits.length + (upstreamExpanded ? upstreamCommits.length : 0)
+    : allFiles;
 
   // Progressive rendering: show first batch, expand on demand
   const INITIAL_FILE_LIMIT = 50;
@@ -216,6 +234,16 @@ function FileSidebar({
         />
       )),
     [activeFilePath, activeFileIsUncommitted, commentCountByFile, onSelectFile, onDoubleClickFile],
+  );
+
+  const formatAuthor = useCallback(
+    (author: string) => {
+      if (gitUser && author.toLowerCase() === gitUser.toLowerCase()) {
+        return { text: "You", className: "text-text-tertiary" };
+      }
+      return { text: author, className: "text-accent-primary" };
+    },
+    [gitUser],
   );
 
   return (
@@ -256,10 +284,15 @@ function FileSidebar({
                 <div className="text-xs leading-snug text-text-primary font-medium">
                   {subject}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <span className="text-[10px] font-mono text-text-tertiary">
                     {commit.shortHash}
                   </span>
+                  <span className="text-[10px] text-text-tertiary">·</span>
+                  <span className={`text-[10px] ${formatAuthor(commit.author).className}`}>
+                    {formatAuthor(commit.author).text}
+                  </span>
+                  <span className="text-[10px] text-text-tertiary">·</span>
                   <span className="text-[10px] text-text-tertiary">
                     {formatRelativeTime(commit.timestamp)}
                   </span>
@@ -268,10 +301,62 @@ function FileSidebar({
             );
           })}
 
-          {filteredCommits.length === 0 && (
+          {filteredCommits.length === 0 && upstreamCommits.length === 0 && (
             <div className="px-2.5 py-4 text-xs text-text-tertiary text-center">
               No commits
             </div>
+          )}
+
+          {/* Collapsible upstream section */}
+          {upstreamCommits.length > 0 && (
+            <>
+              <button
+                onClick={() => setUpstreamExpanded((prev) => !prev)}
+                className="w-full px-2.5 py-1.5 text-left text-[10px] text-text-tertiary hover:bg-bg-hover transition-colors border-t border-border-subtle"
+              >
+                {upstreamExpanded
+                  ? "▼ Earlier commits"
+                  : `▶ Show ${upstreamCommits.length} earlier commit${upstreamCommits.length !== 1 ? "s" : ""}`}
+              </button>
+
+              {upstreamExpanded && filteredUpstream.map((commit) => {
+                const subject = commit.message.split("\n")[0];
+                const originalIndex = commits.length + upstreamCommits.indexOf(commit);
+                const isSelected = selectedCommitIndex === originalIndex;
+
+                return (
+                  <button
+                    key={commit.hash}
+                    onClick={() => onSelectCommit(originalIndex)}
+                    onDoubleClick={() => onDoubleClickCommit?.(originalIndex)}
+                    className={[
+                      "w-full px-2.5 py-1.5 text-left border-l-2 opacity-50",
+                      "hover:bg-bg-hover transition-colors",
+                      isSelected
+                        ? "bg-bg-hover border-accent-primary"
+                        : "border-transparent",
+                    ].join(" ")}
+                  >
+                    <div className="text-xs leading-snug text-text-primary font-medium">
+                      {subject}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono text-text-tertiary">
+                        {commit.shortHash}
+                      </span>
+                      <span className="text-[10px] text-text-tertiary">·</span>
+                      <span className={`text-[10px] ${formatAuthor(commit.author).className}`}>
+                        {formatAuthor(commit.author).text}
+                      </span>
+                      <span className="text-[10px] text-text-tertiary">·</span>
+                      <span className="text-[10px] text-text-tertiary">
+                        {formatRelativeTime(commit.timestamp)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
           )}
         </>
       ) : (
