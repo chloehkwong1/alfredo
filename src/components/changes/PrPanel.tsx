@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import type { PrReview } from "../../types";
+import type { PrComment, PrReview, Worktree } from "../../types";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { PrDescription } from "./PrDescription";
 import { CheckRunRow, CheckRunSummary, sortCheckRuns } from "./CheckRunRow";
@@ -121,28 +121,12 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
           {comments.length === 0 ? (
             <EmptyRow text="No comments" />
           ) : (
-            comments.map((c) => (
-              <CommentCard
-                key={c.id}
-                author={c.author}
-                body={c.body}
-                path={c.path}
-                line={c.line}
-                createdAt={c.createdAt}
-                resolved={c.resolved}
-                htmlUrl={c.htmlUrl}
-                onJump={
-                  c.path && c.line != null
-                    ? () => onJumpToComment(c.path!, c.line!)
-                    : undefined
-                }
-                onSendToClaude={
-                  worktree
-                    ? () => sendPrCommentToClaude(worktreeId, worktree.repoPath, worktree.branch, c)
-                    : undefined
-                }
-              />
-            ))
+            <CommentsByFile
+              comments={comments}
+              worktreeId={worktreeId}
+              worktree={worktree}
+              onJumpToComment={onJumpToComment}
+            />
           )}
         </Section>
       </div>
@@ -186,6 +170,121 @@ export function PrRailIcons({ worktreeId }: PrRailIconsProps) {
         badgeVariant="info"
         title="Comments"
       />
+    </>
+  );
+}
+
+// ── CommentsByFile ────────────────────────────────────────────────
+// Groups comments by file path, with each file collapsible.
+
+const FILE_COLLAPSED_KEY = "pr-panel-file-collapsed";
+
+function fileCollapsedKey(worktreeId: string) {
+  return `${FILE_COLLAPSED_KEY}:${worktreeId}`;
+}
+
+function readFileCollapsedSet(worktreeId: string): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(fileCollapsedKey(worktreeId)) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function persistFileCollapsedSet(worktreeId: string, s: Set<string>) {
+  localStorage.setItem(fileCollapsedKey(worktreeId), JSON.stringify([...s]));
+}
+
+function CommentsByFile({
+  comments,
+  worktreeId,
+  worktree,
+  onJumpToComment,
+}: {
+  comments: PrComment[];
+  worktreeId: string;
+  worktree: Worktree | undefined;
+  onJumpToComment: (filePath: string, line: number) => void;
+}) {
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => readFileCollapsedSet(worktreeId));
+
+  // Group by file path (null path → "General")
+  const grouped = new Map<string, PrComment[]>();
+  for (const c of comments) {
+    const key = c.path ?? "General";
+    const arr = grouped.get(key);
+    if (arr) arr.push(c);
+    else grouped.set(key, [c]);
+  }
+
+  function toggleFile(key: string) {
+    setCollapsedFiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      persistFileCollapsedSet(worktreeId, next);
+      return next;
+    });
+  }
+
+  function renderComment(c: PrComment) {
+    return (
+      <CommentCard
+        key={c.id}
+        author={c.author}
+        body={c.body}
+        path={c.path}
+        line={c.line}
+        createdAt={c.createdAt}
+        resolved={c.resolved}
+        htmlUrl={c.htmlUrl}
+        onJump={
+          c.path && c.line != null
+            ? () => onJumpToComment(c.path!, c.line!)
+            : undefined
+        }
+        onSendToClaude={
+          worktree
+            ? () => sendPrCommentToClaude(worktreeId, worktree.repoPath, worktree.branch, c)
+            : undefined
+        }
+      />
+    );
+  }
+
+  // Single file (or all general) — render flat, no sub-headers
+  if (grouped.size === 1) {
+    return <>{comments.map(renderComment)}</>;
+  }
+
+  return (
+    <>
+      {[...grouped.entries()].map(([filePath, fileComments]) => {
+        const isCollapsed = collapsedFiles.has(filePath);
+        const unresolvedCount = fileComments.filter((c) => !c.resolved).length;
+        const displayName = filePath === "General" ? "General" : filePath.split("/").pop() ?? filePath;
+        return (
+          <div key={filePath} className="mb-px">
+            <button
+              onClick={() => toggleFile(filePath)}
+              className="flex items-center gap-1 px-4 py-1 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
+              title={filePath}
+            >
+              <ChevronRight
+                size={11}
+                className={`text-text-tertiary shrink-0 transition-transform duration-150 ${isCollapsed ? "" : "rotate-90"}`}
+              />
+              <span className="text-[11px] text-text-tertiary font-medium truncate">
+                {displayName}
+              </span>
+              <span className="text-[10px] text-text-tertiary/60 ml-auto shrink-0">
+                {unresolvedCount > 0 ? `${unresolvedCount} unresolved` : `${fileComments.length}`}
+              </span>
+            </button>
+            {!isCollapsed && fileComments.map(renderComment)}
+          </div>
+        );
+      })}
     </>
   );
 }
