@@ -191,27 +191,22 @@ function FileSidebar({
 
   const filteredUpstream = useMemo(
     () => {
-      if (commits.length === 0) {
-        // No branch commits: upstream is the primary list, always visible
-        if (filter === "") return upstreamCommits;
-        return upstreamCommits.filter((c) =>
-          c.message.toLowerCase().includes(filter.toLowerCase()),
-        );
-      }
       if (!upstreamExpanded) return [];
-      if (filter === "") return upstreamCommits;
-      return upstreamCommits.filter((c) =>
-        c.message.toLowerCase().includes(filter.toLowerCase()),
-      );
+      const filtered = filter === ""
+        ? upstreamCommits
+        : upstreamCommits.filter((c) =>
+            c.message.toLowerCase().includes(filter.toLowerCase()),
+          );
+      return [...filtered].reverse();
     },
-    [commits.length, upstreamCommits, upstreamExpanded, filter],
+    [upstreamCommits, upstreamExpanded, filter],
   );
 
   const allFiles = viewMode === "changes"
     ? uncommittedFiles.length + committedFiles.length
     : 0;
   const totalItems = viewMode === "commits"
-    ? commits.length + (commits.length === 0 || upstreamExpanded ? upstreamCommits.length : 0)
+    ? commits.length + upstreamCommits.length
     : allFiles;
 
   // Progressive rendering: show first batch, expand on demand
@@ -315,55 +310,12 @@ function FileSidebar({
             </div>
           )}
 
-          {/* Upstream commits: primary list when no branch commits, collapsible otherwise */}
-          {upstreamCommits.length > 0 && commits.length === 0 && (
-            <>
-              {filteredUpstream.map((commit) => {
-                const subject = commit.message.split("\n")[0];
-                const originalIndex = upstreamCommits.indexOf(commit);
-                const isSelected = selectedCommitIndex === originalIndex;
-                const author = formatAuthor(commit.author);
-
-                return (
-                  <button
-                    key={commit.hash}
-                    onClick={() => onSelectCommit(originalIndex)}
-                    onDoubleClick={() => onDoubleClickCommit?.(originalIndex)}
-                    className={[
-                      "w-full px-2.5 py-1.5 text-left border-l-2",
-                      "hover:bg-bg-hover transition-colors",
-                      isSelected
-                        ? "bg-bg-hover border-accent-primary"
-                        : "border-transparent",
-                    ].join(" ")}
-                  >
-                    <div className="text-xs leading-snug text-text-primary font-medium">
-                      {subject}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono text-text-tertiary">
-                        {commit.shortHash}
-                      </span>
-                      <span className="text-[10px] text-text-tertiary">·</span>
-                      <span className={`text-[10px] ${author.className}`}>
-                        {author.text}
-                      </span>
-                      <span className="text-[10px] text-text-tertiary">·</span>
-                      <span className="text-[10px] text-text-tertiary">
-                        {formatRelativeTime(commit.timestamp)}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </>
-          )}
-
-          {upstreamCommits.length > 0 && commits.length > 0 && (
+          {/* Upstream commits: always collapsible */}
+          {upstreamCommits.length > 0 && (
             <>
               <button
                 onClick={() => setUpstreamExpanded((prev) => !prev)}
-                className="w-full px-2.5 py-1.5 text-left text-[10px] text-text-tertiary hover:bg-bg-hover transition-colors border-t border-border-subtle"
+                className={`w-full px-2.5 py-1.5 text-left text-[10px] text-text-tertiary hover:bg-bg-hover transition-colors${commits.length > 0 ? " border-t border-border-subtle" : ""}`}
               >
                 {upstreamExpanded
                   ? "▼ Upstream commits"
