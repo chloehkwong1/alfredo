@@ -30,6 +30,40 @@ pub async fn create_worktree(
         })
         .join(&dir_name);
 
+    // Clean up stale worktree entries and leftover directories from partial
+    // deletes so they don't block creation.
+    let _ = git_command()
+        .args(["worktree", "prune"])
+        .current_dir(repo_path)
+        .output()
+        .await;
+
+    if worktree_dir.exists() {
+        // Check if git still tracks this path as a worktree
+        let list_output = git_command()
+            .args(["worktree", "list", "--porcelain"])
+            .current_dir(repo_path)
+            .output()
+            .await
+            .ok();
+        let is_tracked = list_output
+            .as_ref()
+            .map(|o| {
+                let stdout = String::from_utf8_lossy(&o.stdout);
+                stdout.contains(worktree_dir.to_str().unwrap_or_default())
+            })
+            .unwrap_or(false);
+        if !is_tracked {
+            // Leftover directory not tracked by git — safe to remove
+            tokio::fs::remove_dir_all(&worktree_dir).await.map_err(|e| {
+                AppError::Git(format!(
+                    "leftover directory {} could not be removed: {e}",
+                    worktree_dir.display()
+                ))
+            })?;
+        }
+    }
+
     // Use the remote tracking branch so worktrees start from the latest
     // remote state, not a potentially stale local branch.
     let effective_base = if base_branch.contains('/') {
@@ -139,13 +173,17 @@ pub async fn delete_worktree(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        // If git no longer tracks this worktree, just clean up the directory
+        // If git no longer tracks this worktree, just clean up the directory.
+        // For other errors, try to remove the directory — only fail if the
+        // directory still exists after cleanup (the goal is removal, not a
+        // clean git exit code).
         if !stderr.contains("not a working tree") {
-            // Try to remove the directory anyway before returning the error
             let _ = tokio::fs::remove_dir_all(&worktree_path).await;
-            return Err(AppError::Git(format!(
-                "git worktree remove failed: {stderr}"
-            )));
+            if worktree_path.exists() {
+                return Err(AppError::Git(format!(
+                    "git worktree remove failed: {stderr}"
+                )));
+            }
         }
     }
 
