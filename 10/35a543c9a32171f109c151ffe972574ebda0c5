@@ -1,0 +1,23 @@
+src/components/settings/WorkspaceSettingsDialog.tsx
+  4a798f5a514ec320 360-384,386-399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "1035a543c9a32171f109c151ffe972574ebda0c5",
+  "prompts": {
+    "4a798f5a514ec320": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c5f39528-3219-4182-8b74-ca1ba650afb5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    }
+  }
+}
