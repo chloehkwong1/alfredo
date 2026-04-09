@@ -1,0 +1,75 @@
+src/components/changes/FileSidebar.tsx
+  f53a25422328d83a 273,289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "33735359890bc1484fdcc65701146f6dd2deb315",
+  "prompts": {
+    "e29823514e30eb2e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d90b0ec-4e6d-4db1-ae77-78afa1aa037e",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    },
+    "e3dff4ab0c7e5e97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29ac2b52-5dec-4166-8aa6-5bf6dd736973",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "e9ce5e918a72d790": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e5f4fad-344d-4289-a546-e63209386796",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    },
+    "f53a25422328d83a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d8c93eda-18de-45f1-87b9-7771e76b86b0",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "ffe50730fbb7d844": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bf3425f-0d77-4261-9d84-3d2247e7030d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
