@@ -1,0 +1,36 @@
+src/hooks/useServer.ts
+  ae35830dc588ae5e 9-13,148-150,152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "849788c490d05c9c9e3829c3af96625f0ef584ea",
+  "prompts": {
+    "8733f89d10e7ac38": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35bf65fc-c26c-4f31-a91e-77e8e0e96df6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 26,
+      "overriden_lines": 0
+    },
+    "ae35830dc588ae5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a89b197b-4133-4c49-bcd4-568b0565471f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
