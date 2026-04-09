@@ -357,21 +357,46 @@ function WorkspaceSettingsDialog({
                 </p>
                 <div className="space-y-2">
                   {config.setupScripts.map((script, index) => (
-                    <textarea
-                      key={index}
-                      className={textareaClass}
-                      rows={2}
-                      style={{ fieldSizing: "content" } as React.CSSProperties}
-                      placeholder="Command (e.g. npm install)"
-                      value={script.command}
-                      onChange={(e) => {
-                        const updated = config.setupScripts.map((s, i) =>
-                          i === index ? { ...s, command: e.target.value } : s,
-                        );
-                        updateConfig({ setupScripts: updated });
-                      }}
-                    />
+                    <div key={index} className="flex gap-2">
+                      <textarea
+                        className={textareaClass + " flex-1"}
+                        rows={2}
+                        style={{ fieldSizing: "content" } as React.CSSProperties}
+                        placeholder="Command (e.g. npm install)"
+                        value={script.command}
+                        onChange={(e) => {
+                          const updated = config.setupScripts.map((s, i) =>
+                            i === index ? { ...s, command: e.target.value } : s,
+                          );
+                          updateConfig({ setupScripts: updated });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="text-text-quaternary hover:text-text-secondary text-xs px-1 self-start mt-2"
+                        onClick={() => {
+                          const updated = config.setupScripts.filter((_, i) => i !== index);
+                          updateConfig({ setupScripts: updated });
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   ))}
+                  <button
+                    type="button"
+                    className="text-xs text-text-tertiary hover:text-text-secondary"
+                    onClick={() => {
+                      updateConfig({
+                        setupScripts: [
+                          ...config.setupScripts,
+                          { name: "Setup", command: "", runOn: "create" },
+                        ],
+                      });
+                    }}
+                  >
+                    + Add script
+                  </button>
                 </div>
 
                 {/* Run Script */}
