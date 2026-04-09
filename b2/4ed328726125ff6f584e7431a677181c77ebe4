@@ -1,0 +1,27 @@
+.github/workflows/ci.yml
+  beccd536b60b666a 16,18,35,68
+.github/workflows/release.yml
+  beccd536b60b666a 22,24
+.github/workflows/dependabot-auto-merge.yml
+  beccd536b60b666a 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "b24ed328726125ff6f584e7431a677181c77ebe4",
+  "prompts": {
+    "beccd536b60b666a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28bf1a99-1d91-4fd8-adea-ac78c3c0f985",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 7,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    }
+  }
+}
