@@ -1,7 +1,7 @@
 {
   "name": "alfredo",
   "private": true,
-  "version": "0.3.9",
+  "version": "0.3.10",
   "license": "MIT",
   "description": "Desktop app for managing AI coding agents",
   "type": "module",
