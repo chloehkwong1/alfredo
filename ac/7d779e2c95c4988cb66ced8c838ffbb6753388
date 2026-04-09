@@ -1,0 +1,40 @@
+src/test/status-scenarios.test.ts
+  ea61d5e424d31cae 20-21,35,55,75
+src/services/sessionManager.ts
+  ea61d5e424d31cae 89-92,199-204,209,229-234,236,272,288-292,382,467
+src/services/sessionManager.test.ts
+  ea61d5e424d31cae 4-6,9-12,16-21,25-31,35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "ac7d779e2c95c4988cb66ced8c838ffbb6753388",
+  "prompts": {
+    "4a798f5a514ec320": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c5f39528-3219-4182-8b74-ca1ba650afb5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 14,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    },
+    "ea61d5e424d31cae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57fbdac6-3e89-408f-b180-1da2a7749420",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 54,
+      "total_deletions": 19,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}
