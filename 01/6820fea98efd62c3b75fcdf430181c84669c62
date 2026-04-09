@@ -1,0 +1,23 @@
+src/stores/prStore.ts
+  ffe50730fbb7d844 225-227,229-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "016820fea98efd62c3b75fcdf430181c84669c62",
+  "prompts": {
+    "ffe50730fbb7d844": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bf3425f-0d77-4261-9d84-3d2247e7030d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
