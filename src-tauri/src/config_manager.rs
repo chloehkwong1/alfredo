@@ -1,20 +1,30 @@
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use tokio::process::Command;
 
 use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, NotificationConfig, RunScript, SetupScript};
 
+/// Legacy filename — used only for migration from in-repo config.
 const CONFIG_FILE: &str = ".alfredo.json";
 
+/// Stable FNV-1a 64-bit hash. Unlike `DefaultHasher`, whose algorithm may
+/// change between Rust releases, this is a fixed algorithm that will produce
+/// the same output forever — critical because we use it to derive on-disk paths.
+fn fnv1a_64(bytes: &[u8]) -> u64 {
+    const BASIS: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x00000100000001B3;
+    let mut hash = BASIS;
+    for &b in bytes {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(PRIME);
+    }
+    hash
+}
+
 /// Compute the per-repo directory: `<app_data_dir>/repos/<hex16>/`
-/// Uses the first 16 hex chars of a stable hash of the repo path.
 pub fn repo_data_dir(app_data_dir: &Path, repo_path: &str) -> PathBuf {
-    let mut hasher = std::hash::DefaultHasher::new();
-    repo_path.hash(&mut hasher);
-    let hash = hasher.finish();
-    let hex16 = format!("{hash:016x}");
+    let hex16 = format!("{:016x}", fnv1a_64(repo_path.as_bytes()));
     app_data_dir.join("repos").join(hex16)
 }
 
