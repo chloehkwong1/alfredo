@@ -172,7 +172,10 @@ async function ensurePermission(): Promise<boolean> {
     const result = await requestPermission();
     permitted = result === "granted";
   }
-  permissionChecked = true;
+  // Only cache when granted. If denied/unresolved (e.g. window wasn't focused
+  // when the dialog would have appeared), leave permissionChecked=false so the
+  // next notification attempt retries rather than silently failing forever.
+  if (permitted) permissionChecked = true;
   return permitted;
 }
 
@@ -211,6 +214,15 @@ export function useNotifications() {
   const prevStatesRef = useRef<Record<string, AgentState>>({});
   const pendingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const configRef = useRef<NotificationConfig>(DEFAULT_CONFIG);
+
+  // Warm up AudioContext on first user click so background sounds (fired from
+  // setTimeout with no user gesture) find the context already running.
+  // WKWebView won't let AudioContext.resume() succeed without a prior gesture.
+  useEffect(() => {
+    const warmUp = () => { getAudioContext().catch(() => {}); };
+    document.addEventListener('click', warmUp, { capture: true, once: true });
+    return () => document.removeEventListener('click', warmUp, true);
+  }, []);
 
   // Load notification config once on mount, then refresh periodically.
   useEffect(() => {

@@ -62,11 +62,20 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
   }, [config.enabled, update]);
 
   const handleTestNotification = useCallback(async () => {
-    const granted = await isPermissionGranted();
+    // Play sound immediately while still in the user-gesture context.
+    // Awaiting an IPC call first loses that context in WKWebView, causing
+    // AudioContext.resume() to silently fail and produce no sound.
+    playSoundById(config.sound).catch(() => {}); // failure is non-fatal
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      // Permission may have been reset (e.g. after an app update). Re-request.
+      const result = await requestPermission();
+      granted = result === "granted";
+      setPermissionState(granted ? "granted" : "denied");
+    }
     if (granted) {
       sendNotification({ title: "Alfredo", body: "This is a test notification" });
     }
-    playSoundById(config.sound);
   }, [config.sound]);
 
   return (
