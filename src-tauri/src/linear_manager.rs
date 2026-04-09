@@ -51,7 +51,13 @@ pub async fn search_issues(
     let (graphql_query, variables) = if team_id.is_some() {
         (
             r#"query SearchIssues($term: String!, $teamId: String!) {
-  searchIssues(term: $term, filter: { team: { id: { eq: $teamId } } }, first: 25) {
+  issues(filter: {
+    or: [
+      { searchableContent: { contains: $term } },
+      { identifier: { contains: $term } }
+    ],
+    team: { id: { eq: $teamId } }
+  }, first: 25, orderBy: updatedAt) {
     nodes {
       id
       identifier
@@ -65,13 +71,19 @@ pub async fn search_issues(
       updatedAt
     }
   }
-}"#,
+}"#
+            .to_string(),
             serde_json::json!({ "term": query, "teamId": team_id }),
         )
     } else {
         (
             r#"query SearchIssues($term: String!) {
-  searchIssues(term: $term, first: 25) {
+  issues(filter: {
+    or: [
+      { searchableContent: { contains: $term } },
+      { identifier: { contains: $term } }
+    ]
+  }, first: 25, orderBy: updatedAt) {
     nodes {
       id
       identifier
@@ -85,7 +97,8 @@ pub async fn search_issues(
       updatedAt
     }
   }
-}"#,
+}"#
+            .to_string(),
             serde_json::json!({ "term": query }),
         )
     };
@@ -117,7 +130,7 @@ pub async fn search_issues(
     }
 
     let nodes = json
-        .pointer("/data/searchIssues/nodes")
+        .pointer("/data/issues/nodes")
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default();
