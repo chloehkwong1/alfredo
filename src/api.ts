@@ -259,12 +259,6 @@ export function getPrFiles(
   return invoke("get_pr_files", { repoPath, prNumber });
 }
 
-export function getPrCommits(
-  repoPath: string,
-  prNumber: number,
-): Promise<CommitInfo[]> {
-  return invoke("get_pr_commits", { repoPath, prNumber });
-}
 
 export function getFileLines(
   repoPath: string,

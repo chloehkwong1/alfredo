@@ -89,7 +89,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
   const clearJumpToComment = usePrStore((s) => s.clearJumpToComment);
 
   const { commits, upstreamCommits, displayFiles, uncommittedFiles, committedFiles, refetchUncommitted } = useChangesData(
-    repoPath, viewMode, selectedCommitIndex, pr?.baseBranch ?? worktree?.stackParent ?? undefined, pr?.number,
+    repoPath, viewMode, selectedCommitIndex, pr?.baseBranch ?? worktree?.stackParent ?? undefined,
   );
 
   const gitUser = useGitUser(repoPath);

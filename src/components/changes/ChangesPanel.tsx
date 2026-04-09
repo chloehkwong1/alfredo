@@ -123,7 +123,6 @@ function WorkspacePanel({
     dataViewMode,
     selectedCommitIndex,
     effectiveBaseBranch,
-    pr?.number,
     isBranchModeDefault,
   );
 
@@ -399,7 +398,6 @@ function WorkspacePanelMinimized({
     "changes",
     null,
     minimizedBaseBranch,
-    pr?.number,
     isBranchModeDefault,
   );
 

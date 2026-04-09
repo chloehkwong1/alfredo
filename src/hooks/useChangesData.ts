@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getDiff, getUncommittedDiff, getCommits, getFullCommits, getDiffForCommit, getPrFiles, getPrCommits } from "../api";
+import { getDiff, getUncommittedDiff, getCommits, getFullCommits, getDiffForCommit } from "../api";
 import type { DiffFile, CommitInfo } from "../types";
 import type { ViewMode } from "../components/changes/FileSidebar";
 
@@ -20,7 +20,6 @@ export function useChangesData(
   viewMode: ViewMode,
   selectedCommitIndex: number | null,
   baseBranch?: string,
-  prNumber?: number,
   skipCommitted?: boolean,
 ): UseChangesDataReturn {
   const [uncommittedFiles, setUncommittedFiles] = useState<DiffFile[]>([]);
@@ -46,9 +45,7 @@ export function useChangesData(
     return () => { cancelled = true; clearInterval(interval); };
   }, [repoPath, refreshKey]);
 
-  // Load committed files and commits — from GitHub API when PR exists, local git otherwise.
-  // Local git paths poll every 10s to pick up new commits; GitHub API paths poll every 30s
-  // to pick up force-pushes and rebases.
+  // Load committed files and commits from local git, polling every 10s.
   // Skipped entirely for branch-mode repos on the default branch (no meaningful committed diff).
   useEffect(() => {
     if (skipCommitted) {
@@ -59,65 +56,8 @@ export function useChangesData(
     }
     let cancelled = false;
 
-    if (prNumber) {
-      // PR exists: fetch from GitHub API, poll every 30s to pick up force-pushes
-      const fetchPr = () => {
-        getPrFiles(repoPath, prNumber)
-          .then(async (files) => {
-            if (cancelled) return;
-
-            // Handle truncated files: fall back to local git diff for those
-            const truncated = files.filter((f) => f.truncated);
-            if (truncated.length > 0) {
-              try {
-                const localFiles = await getDiff(repoPath, baseBranch);
-                if (cancelled) return;
-                const localByPath = new Map(localFiles.map((f) => [f.path, f]));
-                const merged = files.map((f) => {
-                  if (f.truncated) {
-                    return localByPath.get(f.path) ?? f;
-                  }
-                  return f;
-                });
-                setCommittedFiles(merged);
-              } catch {
-                if (cancelled) return;
-                // If local fallback fails, show what GitHub gave us (empty hunks for truncated)
-                setCommittedFiles(files);
-              }
-            } else {
-              setCommittedFiles(files);
-            }
-            setError(null);
-          })
-          .catch((err) => { if (!cancelled) setError(`PR files failed: ${err}`); });
-
-        getPrCommits(repoPath, prNumber)
-          .then((branchList) => {
-            if (cancelled) return;
-            setCommits(branchList);
-
-            if (branchList.length >= 20) {
-              setUpstreamCommits([]);
-              return;
-            }
-
-            getFullCommits(repoPath, 20)
-              .then((fullList) => {
-                if (cancelled) return;
-                const branchHashes = new Set(branchList.map((c) => c.hash));
-                setUpstreamCommits(fullList.filter((c) => !branchHashes.has(c.hash)));
-              })
-              .catch(() => { if (!cancelled) setUpstreamCommits([]); });
-          })
-          .catch((err) => { if (!cancelled) setError(`PR commits failed: ${err}`); });
-      };
-      fetchPr();
-      const interval = setInterval(fetchPr, 30_000);
-      return () => { cancelled = true; clearInterval(interval); };
-    }
-
-    // No PR: use local git diff — poll to pick up new commits
+    // Always use local git for commits and file diffs — local state is the source of truth.
+    // PR metadata (comments, reviews, checks) is fetched separately via usePrStore.
     const fetchLocal = () => {
       getDiff(repoPath, baseBranch)
         .then((files) => { if (!cancelled) { setCommittedFiles(files); setError(null); } })
@@ -146,7 +86,7 @@ export function useChangesData(
     fetchLocal();
     const interval = setInterval(fetchLocal, 10_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [repoPath, baseBranch, prNumber, skipCommitted]);
+  }, [repoPath, baseBranch, skipCommitted]);
 
   // Build combined commit list for index lookups
   const allCommits = useMemo(
