@@ -464,10 +464,27 @@ export class SessionManager {
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
+    let restoredBuffer = new Uint8Array(OUTPUT_BUFFER_CAPACITY);
+    let restoredPos = 0;
+    let restoredTotal = 0;
+
     if (initialScrollback) {
       try {
         const bytes = Uint8Array.from(atob(initialScrollback), (c) => c.charCodeAt(0));
         terminal.write(bytes);
+
+        // Populate the output buffer so auto-save can re-persist scrollback
+        // even before a PTY is spawned for this session.
+        const cap = restoredBuffer.length;
+        if (bytes.length <= cap) {
+          restoredBuffer.set(bytes);
+          restoredPos = bytes.length;
+        } else {
+          // Scrollback exceeds buffer capacity — keep the tail
+          restoredBuffer.set(bytes.subarray(bytes.length - cap));
+          restoredPos = 0;
+        }
+        restoredTotal = bytes.length;
       } catch {
         // Invalid base64 — skip replay
       }
@@ -481,9 +498,9 @@ export class SessionManager {
       webglLoaded: false,
       agentState: "notRunning",
       hooksActive: false,
-      outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
-      outputBufferPos: 0,
-      outputBufferTotal: 0,
+      outputBuffer: restoredBuffer,
+      outputBufferPos: restoredPos,
+      outputBufferTotal: restoredTotal,
       lastHeartbeat: 0,
       lastOutputAt: 0,
       lastHookEventAt: 0, // safe: hooksActive gates the timestamp check, and both are set together
@@ -698,6 +715,22 @@ export class SessionManager {
     return [...this.sessions.keys()];
   }
 
+  /**
+   * Refresh lastHeartbeat to now for all sessions that have received at least
+   * one heartbeat. Called on system wake to prevent false-positive stale
+   * detection: when the laptop sleeps, Date.now() jumps forward on wake, but
+   * Rust's heartbeat thread only resumes ~2 s later — the stale check fires
+   * before the first post-wake heartbeat arrives.
+   */
+  refreshHeartbeats(): void {
+    const now = Date.now();
+    for (const session of this.sessions.values()) {
+      if (session.lastHeartbeat > 0) {
+        session.lastHeartbeat = now;
+      }
+    }
+  }
+
   /** Get buffered output for a session as a base64 string for persistence. */
   getBufferedOutputBase64(sessionKey: string): string {
     const bytes = this.getBufferedOutput(sessionKey);
@@ -742,6 +775,22 @@ export const sessionManager: SessionManager =
 window.addEventListener("terminal-preferences-changed", ((e: CustomEvent<TerminalPreferences>) => {
   sessionManager.applyPreferences(e.detail);
 }) as EventListener);
+
+// On system wake (laptop lid open / display unsleep), refresh lastHeartbeat
+// for all live sessions so stale-server checks don't false-positive before
+// Rust's heartbeat thread resumes (~2 s after wake).
+// Guard against HMR double-registration: module re-evaluates on each hot reload
+// but document listeners are never removed, so without the guard each reload
+// would add another listener.
+const WAKE_LISTENER_KEY = "__alfredo_wakeListener";
+if (!(window as any)[WAKE_LISTENER_KEY]) {
+  (window as any)[WAKE_LISTENER_KEY] = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      sessionManager.refreshHeartbeats();
+    }
+  });
+}
 
 if (import.meta.hot) {
   import.meta.hot.accept();
