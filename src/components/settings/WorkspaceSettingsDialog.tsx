@@ -356,63 +356,67 @@ function WorkspaceSettingsDialog({
 
             {tab === "scripts" && (
               <div>
-                {/* Setup Scripts */}
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
-                  Setup Scripts
-                </div>
-                <p className="text-xs text-text-tertiary -mt-2 mb-3">
-                  Run automatically when a new worktree is created.
-                </p>
-                <div className="space-y-2">
-                  {config.setupScripts.map((script, index) => (
-                    <div key={index} className="flex gap-2">
-                      <textarea
-                        className={textareaClass + " flex-1"}
-                        rows={2}
-                        style={{ fieldSizing: "content" } as React.CSSProperties}
-                        placeholder="Command (e.g. npm install)"
-                        value={script.command}
-                        onChange={(e) => {
-                          const updated = config.setupScripts.map((s, i) =>
-                            i === index ? { ...s, command: e.target.value } : s,
-                          );
-                          updateConfig({ setupScripts: updated });
-                        }}
-                      />
+                {currentMode === "worktree" && (
+                  <>
+                    {/* Setup Scripts */}
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
+                      Setup Scripts
+                    </div>
+                    <p className="text-xs text-text-tertiary -mt-2 mb-3">
+                      Run automatically when a new worktree is created.
+                    </p>
+                    <div className="space-y-2">
+                      {config.setupScripts.map((script, index) => (
+                        <div key={index} className="flex gap-2">
+                          <textarea
+                            className={textareaClass + " flex-1"}
+                            rows={2}
+                            style={{ fieldSizing: "content" } as React.CSSProperties}
+                            placeholder="Command (e.g. npm install)"
+                            value={script.command}
+                            onChange={(e) => {
+                              const updated = config.setupScripts.map((s, i) =>
+                                i === index ? { ...s, command: e.target.value } : s,
+                              );
+                              updateConfig({ setupScripts: updated });
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="text-text-quaternary hover:text-text-secondary text-xs px-1 self-start mt-2"
+                            onClick={() => {
+                              const updated = config.setupScripts.filter((_, i) => i !== index);
+                              updateConfig({ setupScripts: updated });
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
                       <button
                         type="button"
-                        className="text-text-quaternary hover:text-text-secondary text-xs px-1 self-start mt-2"
+                        className="text-xs text-text-tertiary hover:text-text-secondary"
                         onClick={() => {
-                          const updated = config.setupScripts.filter((_, i) => i !== index);
-                          updateConfig({ setupScripts: updated });
+                          updateConfig({
+                            setupScripts: [
+                              ...config.setupScripts,
+                              { name: "Setup", command: "", runOn: "create" },
+                            ],
+                          });
                         }}
                       >
-                        ✕
+                        + Add script
                       </button>
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="text-xs text-text-tertiary hover:text-text-secondary"
-                    onClick={() => {
-                      updateConfig({
-                        setupScripts: [
-                          ...config.setupScripts,
-                          { name: "Setup", command: "", runOn: "create" },
-                        ],
-                      });
-                    }}
-                  >
-                    + Add script
-                  </button>
-                </div>
+                  </>
+                )}
 
                 {/* Run Script */}
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+                <div className={`text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 ${currentMode === "worktree" ? "mt-8" : ""}`}>
                   Run Script
                 </div>
                 <p className="text-xs text-text-tertiary -mt-2 mb-3">
-                  Started from any worktree via the play button in the tab bar.
+                  Started from any {currentMode === "worktree" ? "worktree" : "branch"} via the play button in the tab bar.
                 </p>
                 <textarea
                   className={textareaClass}
@@ -429,25 +433,29 @@ function WorkspaceSettingsDialog({
                   }
                 />
 
-                {/* Archive Script */}
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
-                  Archive Script
-                </div>
-                <p className="text-xs text-text-tertiary -mt-2 mb-3">
-                  Runs when a worktree is archived.
-                </p>
-                <textarea
-                  className={textareaClass}
-                  rows={2}
-                  style={{ fieldSizing: "content" } as React.CSSProperties}
-                  placeholder="Command (e.g. docker compose down)"
-                  value={config.archiveScript ?? ""}
-                  onChange={(e) =>
-                    updateConfig({
-                      archiveScript: e.target.value.trim() ? e.target.value : null,
-                    })
-                  }
-                />
+                {currentMode === "worktree" && (
+                  <>
+                    {/* Archive Script */}
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+                      Archive Script
+                    </div>
+                    <p className="text-xs text-text-tertiary -mt-2 mb-3">
+                      Runs when a worktree is archived.
+                    </p>
+                    <textarea
+                      className={textareaClass}
+                      rows={2}
+                      style={{ fieldSizing: "content" } as React.CSSProperties}
+                      placeholder="Command (e.g. docker compose down)"
+                      value={config.archiveScript ?? ""}
+                      onChange={(e) =>
+                        updateConfig({
+                          archiveScript: e.target.value.trim() ? e.target.value : null,
+                        })
+                      }
+                    />
+                  </>
+                )}
               </div>
             )}
           </div>

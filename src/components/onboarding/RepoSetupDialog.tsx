@@ -74,7 +74,7 @@ function RepoSetupDialog({
 }: RepoSetupDialogProps) {
   // ── Step state ────────────────────────────────────────────────
   const [step, setStep] = useState<1 | 2>(1);
-  const [mode, setMode] = useState<RepoMode>("branch");
+  const [mode, setMode] = useState<RepoMode>("worktree");
 
   // ── GitHub state ──────────────────────────────────────────────
   const [githubConnected, setGithubConnected] = useState<string | null>(null);
