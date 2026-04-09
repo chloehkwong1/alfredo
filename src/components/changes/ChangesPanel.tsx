@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { GitBranch, PanelLeftClose, PanelLeftOpen, SquarePen, TerminalSquare, Trash2 } from "lucide-react";
+import { GitBranch, PanelLeftClose, PanelLeftOpen, Trash2 } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
-import { openPathInEditor, openPathInTerminal } from "../../services/openExternal";
 import { FileSidebar } from "./FileSidebar";
 import { PrPanelContent, PrRailIcons, usePrBadgeCounts } from "./PrPanel";
 import { MergeStatusBanner } from "./MergeStatusBanner";
@@ -342,30 +341,6 @@ function WorkspacePanel({
 
       {/* Rebase banner — hidden for branch-mode (already on main) and merge conflicts */}
       {worktree && !isBranchModeDefault && mergeable !== false && <RebaseBanner repoPath={repoPath} worktreePath={worktree.path} stackParent={worktree.stackParent} />}
-
-      {/* Footer bar — Editor / Terminal quick-open */}
-      <div className="flex items-center justify-end gap-2 px-2 py-1 border-t border-border-default flex-shrink-0">
-        <button
-          type="button"
-          disabled={!worktree?.path}
-          onClick={() => worktree?.path && openPathInEditor(worktree.path).catch((e) => console.error("Failed to open editor:", e))}
-          className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
-          title="Open in editor"
-        >
-          <SquarePen size={13} />
-          Editor
-        </button>
-        <button
-          type="button"
-          disabled={!worktree?.path}
-          onClick={() => worktree?.path && openPathInTerminal(worktree.path).catch((e) => console.error("Failed to open terminal:", e))}
-          className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
-          title="Open in terminal"
-        >
-          <TerminalSquare size={13} />
-          Terminal
-        </button>
-      </div>
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>

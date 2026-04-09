@@ -284,7 +284,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         )}
         <div ref={containerRef} className="h-full pl-1 pr-0.5" />
       </div>
-      {/* Status bar */}
       {worktree && (
         <SettingsStatusBar
           branch={worktree.branch ?? ""}

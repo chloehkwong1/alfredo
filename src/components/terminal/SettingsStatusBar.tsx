@@ -47,12 +47,12 @@ interface SettingsStatusBarProps {
   branch: string;
   worktreePath: string;
   worktreeId: string;
-  sessionKey: string;
-  onRestartSession: () => void;
+  sessionKey?: string;
+  onRestartSession?: () => void;
   showClaudeSettings?: boolean;
 }
 
-function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRestartSession, showClaudeSettings = true }: SettingsStatusBarProps) {
+function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", onRestartSession, showClaudeSettings = true }: SettingsStatusBarProps) {
   const { activeRepo: repoPath } = useAppConfig();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -66,7 +66,7 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRes
 
   // Load resolved settings on mount and branch change
   useEffect(() => {
-    if (!repoPath) return;
+    if (!repoPath || !showClaudeSettings) return;
     Promise.all([getAppConfig(), getConfig(repoPath)]).then(([appCfg, config]) => {
       const merged = resolveSettings(
         appCfg,
@@ -125,7 +125,7 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRes
 
   const handleRestart = useCallback(() => {
     setHasChanges(false);
-    onRestartSession();
+    onRestartSession?.();
   }, [onRestartSession]);
 
   const handleOpenEditor = useCallback(() => {
@@ -192,20 +192,22 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey, onRes
             </Button>
           </>
         )}
-        <button
-          type="button"
-          onClick={handleToggleRemote}
-          className={[
-            "flex items-center gap-1 text-xs transition-all cursor-pointer",
-            isRcActive
-              ? "text-accent-primary drop-shadow-[0_0_4px_var(--accent-primary)]"
-              : "text-text-tertiary hover:text-text-secondary",
-          ].join(" ")}
-          title={isRcActive ? "Remote Control: On" : "Remote Control: Off"}
-        >
-          <Smartphone size={13} />
-          Remote
-        </button>
+        {showClaudeSettings && (
+          <button
+            type="button"
+            onClick={handleToggleRemote}
+            className={[
+              "flex items-center gap-1 text-xs transition-all cursor-pointer",
+              isRcActive
+                ? "text-accent-primary drop-shadow-[0_0_4px_var(--accent-primary)]"
+                : "text-text-tertiary hover:text-text-secondary",
+            ].join(" ")}
+            title={isRcActive ? "Remote Control: On" : "Remote Control: Off"}
+          >
+            <Smartphone size={13} />
+            Remote
+          </button>
+        )}
         <button
           type="button"
           onClick={handleOpenEditor}
