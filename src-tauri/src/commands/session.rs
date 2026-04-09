@@ -81,10 +81,27 @@ pub async fn load_session_file(app: tauri::AppHandle, repo_path: String, worktre
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
     let safe_id = sanitise_id(&worktree_id);
-    let path = sessions_dir(&app_data_dir, &repo_path).join(format!("{safe_id}.json"));
-    match tokio::fs::read_to_string(&path).await {
+    let new_path = sessions_dir(&app_data_dir, &repo_path).join(format!("{safe_id}.json"));
+    match tokio::fs::read_to_string(&new_path).await {
         Ok(content) => Ok(Some(content)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // Migrate from legacy location: <repo>/.alfredo/sessions/<id>.json
+            let legacy_path = std::path::Path::new(&repo_path)
+                .join(".alfredo/sessions")
+                .join(format!("{safe_id}.json"));
+            match tokio::fs::read_to_string(&legacy_path).await {
+                Ok(content) => {
+                    // Write to new location so future loads find it there.
+                    // Only delete legacy file if write succeeds to avoid data loss.
+                    ensure_sessions_dir(&app_data_dir, &repo_path).await?;
+                    if tokio::fs::write(&new_path, &content).await.is_ok() {
+                        let _ = tokio::fs::remove_file(&legacy_path).await;
+                    }
+                    Ok(Some(content))
+                }
+                Err(_) => Ok(None),
+            }
+        }
         Err(e) => Err(e.into()),
     }
 }
