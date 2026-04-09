@@ -1,11 +1,27 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::hash::{Hash, Hasher};
+use std::path::{Path, PathBuf};
 
 use tokio::process::Command;
 
 use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, NotificationConfig, RunScript, SetupScript};
 
 const CONFIG_FILE: &str = ".alfredo.json";
+
+/// Compute the per-repo directory: `<app_data_dir>/repos/<hex16>/`
+/// Uses the first 16 hex chars of a stable hash of the repo path.
+pub fn repo_data_dir(app_data_dir: &Path, repo_path: &str) -> PathBuf {
+    let mut hasher = std::hash::DefaultHasher::new();
+    repo_path.hash(&mut hasher);
+    let hash = hasher.finish();
+    let hex16 = format!("{hash:016x}");
+    app_data_dir.join("repos").join(hex16)
+}
+
+/// Compute the config path: `<app_data_dir>/repos/<hex16>/config.json`
+fn repo_config_path(app_data_dir: &Path, repo_path: &str) -> PathBuf {
+    repo_data_dir(app_data_dir, repo_path).join("config.json")
+}
 
 /// On-disk representation of `.alfredo.json`.
 /// Slightly different from AppConfig to include column overrides.
@@ -40,11 +56,19 @@ struct ConfigFile {
     pub archive_script: Option<String>,
 }
 
-/// Load the `.alfredo.json` config from a repo root.
-pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
-    let config_path = Path::new(repo_path).join(CONFIG_FILE);
+/// Load the repo config from the app data directory.
+/// Auto-migrates from the legacy `<repo_path>/.alfredo.json` if needed.
+pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConfig, AppError> {
+    let new_path = repo_config_path(app_data_dir, repo_path);
+    let old_path = Path::new(repo_path).join(CONFIG_FILE);
 
-    if !config_path.exists() {
+    // Determine which file to read: prefer new location, fall back to legacy.
+    let (source_path, is_migration) = if new_path.exists() {
+        (new_path.clone(), false)
+    } else if old_path.exists() {
+        (old_path.clone(), true)
+    } else {
+        // No config anywhere — return defaults.
         let github_token = crate::keychain::retrieve("github_token")?;
         let linear_api_key = crate::keychain::retrieve("linear_api_key")?;
         return Ok(AppConfig {
@@ -63,14 +87,14 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
             stack_parent_overrides: HashMap::new(),
             archive_script: None,
         });
-    }
+    };
 
-    let contents = tokio::fs::read_to_string(&config_path)
+    let contents = tokio::fs::read_to_string(&source_path)
         .await
-        .map_err(|e| AppError::Config(format!("failed to read {CONFIG_FILE}: {e}")))?;
+        .map_err(|e| AppError::Config(format!("failed to read config: {e}")))?;
 
     let file: ConfigFile = serde_json::from_str(&contents)
-        .map_err(|e| AppError::Config(format!("failed to parse {CONFIG_FILE}: {e}")))?;
+        .map_err(|e| AppError::Config(format!("failed to parse config: {e}")))?;
 
     // --- Keychain migration ---
     // If tokens are still in the JSON (pre-keychain version), migrate them now.
@@ -105,17 +129,21 @@ pub async fn load_config(repo_path: &str) -> Result<AppConfig, AppError> {
         archive_script: file.archive_script,
     };
 
-    if needs_resave {
-        // Write config back without the plaintext tokens.
-        save_config(repo_path, &config).await?;
+    if is_migration || needs_resave {
+        // Write to new location.
+        save_config(app_data_dir, repo_path, &config).await?;
+        // Delete the legacy file if we migrated.
+        if is_migration {
+            let _ = tokio::fs::remove_file(&old_path).await;
+        }
     }
 
     Ok(config)
 }
 
-/// Save the config to `.alfredo.json` in the repo root.
-pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppError> {
-    let config_path = Path::new(repo_path).join(CONFIG_FILE);
+/// Save the repo config to the app data directory.
+pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfig) -> Result<(), AppError> {
+    let config_path = repo_config_path(app_data_dir, repo_path);
 
     // Persist tokens to keychain rather than JSON.
     match &config.github_token {
@@ -146,9 +174,15 @@ pub async fn save_config(repo_path: &str, config: &AppConfig) -> Result<(), AppE
     let json = serde_json::to_string_pretty(&file)
         .map_err(|e| AppError::Config(format!("failed to serialize config: {e}")))?;
 
+    if let Some(parent) = config_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| AppError::Config(format!("failed to create config dir: {e}")))?;
+    }
+
     tokio::fs::write(&config_path, json)
         .await
-        .map_err(|e| AppError::Config(format!("failed to write {CONFIG_FILE}: {e}")))?;
+        .map_err(|e| AppError::Config(format!("failed to write config: {e}")))?;
 
     Ok(())
 }
@@ -222,8 +256,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_missing_config_returns_defaults() -> Result<(), Box<dyn std::error::Error>> {
-        let dir = tempfile::TempDir::new()?;
-        let config = load_config(dir.path().to_str().unwrap_or_default()).await?;
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let config = load_config(app_data.path(), repo.path().to_str().unwrap_or_default()).await?;
         assert!(config.setup_scripts.is_empty());
         assert!(!config.branch_mode);
         Ok(())
@@ -270,9 +305,10 @@ mod tests {
         // save_config may return an error if the keychain is not accessible
         // in the test environment (e.g., unsigned binary on macOS). We only
         // care about the JSON output, so we check the file directly.
-        let _ = save_config(path, &config).await;
+        let app_data = tempfile::TempDir::new()?;
+        let _ = save_config(app_data.path(), path, &config).await;
 
-        let json_path = dir.path().join(CONFIG_FILE);
+        let json_path = repo_config_path(app_data.path(), path);
         if json_path.exists() {
             let contents = tokio::fs::read_to_string(&json_path).await?;
             let value: serde_json::Value = serde_json::from_str(&contents)?;

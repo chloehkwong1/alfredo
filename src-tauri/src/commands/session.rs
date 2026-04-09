@@ -1,5 +1,5 @@
 use crate::types::AppError;
-use std::path::Path;
+use tauri::Manager;
 
 type Result<T> = std::result::Result<T, AppError>;
 
@@ -49,30 +49,39 @@ pub async fn find_claude_session(worktree_path: String) -> Result<Option<String>
 /// Sanitise a worktree ID for use as a flat filename.
 /// Branch names may contain `/` (e.g. `feat/foo`), which would create nested
 /// directories if used directly.  Replace `/` with `--` so the session file
-/// stays in `.alfredo/sessions/`.
+/// stays flat.
 fn sanitise_id(worktree_id: &str) -> String {
     worktree_id.replace('/', "--")
 }
 
-async fn ensure_sessions_dir(repo_path: &str) -> Result<()> {
-    let dir = Path::new(repo_path).join(".alfredo/sessions");
+/// Compute the sessions directory inside the app data dir for a given repo.
+fn sessions_dir(app_data_dir: &std::path::Path, repo_path: &str) -> std::path::PathBuf {
+    crate::config_manager::repo_data_dir(app_data_dir, repo_path).join("sessions")
+}
+
+async fn ensure_sessions_dir(app_data_dir: &std::path::Path, repo_path: &str) -> Result<()> {
+    let dir = sessions_dir(app_data_dir, repo_path);
     tokio::fs::create_dir_all(&dir).await?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn save_session_file(repo_path: String, worktree_id: String, data: String) -> Result<()> {
-    ensure_sessions_dir(&repo_path).await?;
+pub async fn save_session_file(app: tauri::AppHandle, repo_path: String, worktree_id: String, data: String) -> Result<()> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
+    ensure_sessions_dir(&app_data_dir, &repo_path).await?;
     let safe_id = sanitise_id(&worktree_id);
-    let path = Path::new(&repo_path).join(format!(".alfredo/sessions/{safe_id}.json"));
+    let path = sessions_dir(&app_data_dir, &repo_path).join(format!("{safe_id}.json"));
     tokio::fs::write(&path, data).await?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn load_session_file(repo_path: String, worktree_id: String) -> Result<Option<String>> {
+pub async fn load_session_file(app: tauri::AppHandle, repo_path: String, worktree_id: String) -> Result<Option<String>> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
     let safe_id = sanitise_id(&worktree_id);
-    let path = Path::new(&repo_path).join(format!(".alfredo/sessions/{safe_id}.json"));
+    let path = sessions_dir(&app_data_dir, &repo_path).join(format!("{safe_id}.json"));
     match tokio::fs::read_to_string(&path).await {
         Ok(content) => Ok(Some(content)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -81,27 +90,14 @@ pub async fn load_session_file(repo_path: String, worktree_id: String) -> Result
 }
 
 #[tauri::command]
-pub async fn delete_session_file(repo_path: String, worktree_id: String) -> Result<()> {
+pub async fn delete_session_file(app: tauri::AppHandle, repo_path: String, worktree_id: String) -> Result<()> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
     let safe_id = sanitise_id(&worktree_id);
-    let path = Path::new(&repo_path).join(format!(".alfredo/sessions/{safe_id}.json"));
+    let path = sessions_dir(&app_data_dir, &repo_path).join(format!("{safe_id}.json"));
     match tokio::fs::remove_file(&path).await {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.into()),
     }
-}
-
-#[tauri::command]
-pub async fn ensure_alfredo_gitignore(repo_path: String) -> Result<()> {
-    let gitignore_path = Path::new(&repo_path).join(".gitignore");
-    let content = tokio::fs::read_to_string(&gitignore_path).await.unwrap_or_default();
-    if !content.lines().any(|line| line.trim() == ".alfredo/" || line.trim() == ".alfredo") {
-        let entry = if content.ends_with('\n') || content.is_empty() {
-            ".alfredo/\n"
-        } else {
-            "\n.alfredo/\n"
-        };
-        tokio::fs::write(&gitignore_path, format!("{content}{entry}")).await?;
-    }
-    Ok(())
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, ensureAlfredoGitignore, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch } from "../api";
+import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
@@ -71,8 +71,6 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
       listWorktrees(repo).then(async (wts) => {
         if (wts.length > 0) {
           setWorktreesForRepo(repo, wts);
-          ensureAlfredoGitignore(repo).catch(e => console.warn('[AppShell] Failed to ensure .alfredo gitignore:', e));
-
           if (!restoredRepos.current.has(repo)) {
             restoredRepos.current.add(repo);
 

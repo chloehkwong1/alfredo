@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use tauri::{AppHandle, Manager};
 
 use crate::config_manager;
@@ -51,12 +53,13 @@ fn is_stacked_branch(base_branch: &str, default_remote: &str, branch_name: &str)
 /// Create a worktree with an explicit branch name and base.
 #[tauri::command]
 pub async fn create_worktree(
-    _app: AppHandle,
+    app: AppHandle,
     repo_path: String,
     branch_name: String,
     base_branch: String,
 ) -> Result<Worktree> {
-    let mut config = config_manager::load_config(&repo_path).await?;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.as_deref();
 
     let worktree_path =
@@ -89,7 +92,7 @@ pub async fn create_worktree(
     let stack_parent = if is_stacked {
         let parent = base_branch.strip_prefix("origin/").unwrap_or(&base_branch);
         config_manager::set_stack_parent(&mut config, &dir_name, parent);
-        config_manager::save_config(&repo_path, &config).await?;
+        config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
         Some(parent.to_string())
     } else {
         None
@@ -125,11 +128,13 @@ pub async fn create_worktree(
 /// Delete a worktree by name.
 #[tauri::command]
 pub async fn delete_worktree(
+    app: AppHandle,
     repo_path: String,
     worktree_name: String,
     force: bool,
 ) -> Result<()> {
-    let config = config_manager::load_config(&repo_path).await?;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.as_deref();
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path).await
 }
@@ -137,8 +142,9 @@ pub async fn delete_worktree(
 /// List all worktrees for a repository, filtered to the configured base path
 /// (or repo parent directory if not configured).
 #[tauri::command]
-pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>> {
-    let config = config_manager::load_config(&repo_path).await?;
+pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Worktree>> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.clone().unwrap_or_else(|| {
         std::path::Path::new(&repo_path)
             .parent()
@@ -201,10 +207,12 @@ pub async fn get_worktree_diff_stats(
 /// Get the current status of a specific worktree.
 #[tauri::command]
 pub async fn get_worktree_status(
+    app: AppHandle,
     repo_path: String,
     worktree_name: String,
 ) -> Result<Worktree> {
-    let config = config_manager::load_config(&repo_path).await?;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
 
     // Resolve worktree path using configured base or repo parent
     let worktree_path = config
@@ -285,29 +293,33 @@ pub async fn rebase_worktree(
 /// Set or clear the stack parent for a worktree.
 #[tauri::command]
 pub async fn set_stack_parent(
+    app: AppHandle,
     repo_path: String,
     worktree_name: String,
     parent_branch: Option<String>,
 ) -> Result<()> {
-    let mut config = config_manager::load_config(&repo_path).await?;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     match parent_branch {
         Some(parent) => config_manager::set_stack_parent(&mut config, &worktree_name, &parent),
         None => config_manager::clear_stack_parent(&mut config, &worktree_name),
     }
-    config_manager::save_config(&repo_path, &config).await?;
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
 }
 
 /// Manually override a worktree's kanban column (e.g. drag to "Blocked").
 #[tauri::command]
 pub async fn set_worktree_column(
+    app: AppHandle,
     repo_path: String,
     worktree_name: String,
     column: KanbanColumn,
 ) -> Result<()> {
-    let mut config = config_manager::load_config(&repo_path).await?;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     config_manager::set_column_override(&mut config, &worktree_name, column);
-    config_manager::save_config(&repo_path, &config).await?;
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
 }
 
@@ -357,7 +369,8 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
 /// Create a worktree from a GitHub pull request by fetching the PR's head branch.
 async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: u64) -> Result<Worktree> {
     // 1. Get GitHub token (gh CLI or config)
-    let config = config_manager::load_config(&repo_path).await?;
+    let app_data_dir = resolve_app_data_dir(app)?;
+    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await?;
 
     // 2. Resolve owner/repo from git remote
@@ -389,6 +402,12 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
 
     // 5. Create the worktree from the PR's head branch, using the PR's base for stack detection
     create_worktree(app.clone(), repo_path, branch_name, base).await
+}
+
+/// Resolve `app_data_dir` from an `AppHandle`.
+fn resolve_app_data_dir(app: &AppHandle) -> Result<PathBuf> {
+    app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))
 }
 
 /// Ensure the repo's `.git/info/exclude` contains entries for AI tool artifacts

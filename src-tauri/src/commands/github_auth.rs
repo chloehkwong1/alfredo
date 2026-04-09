@@ -1,3 +1,5 @@
+use tauri::Manager;
+
 use crate::config_manager;
 use crate::platform::gh_command;
 use crate::types::AppError;
@@ -87,10 +89,12 @@ pub async fn github_auth_token() -> Result<String> {
 
 /// Disconnect GitHub: clear the token from config.
 #[tauri::command]
-pub async fn github_auth_disconnect(repo_path: String) -> Result<()> {
-    let mut config = config_manager::load_config(&repo_path).await?;
+pub async fn github_auth_disconnect(app: tauri::AppHandle, repo_path: String) -> Result<()> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     config.github_token = None;
-    config_manager::save_config(&repo_path, &config).await?;
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
 }
 

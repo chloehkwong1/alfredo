@@ -1,3 +1,5 @@
+use tauri::Manager;
+
 use crate::github_manager;
 use crate::types::{AppError, CheckRun, WorkflowRunLog};
 
@@ -5,15 +7,19 @@ type Result<T> = std::result::Result<T, AppError>;
 
 /// Fetch GitHub Actions check runs for a given branch.
 #[tauri::command]
-pub async fn get_check_runs(repo_path: String, branch: String) -> Result<Vec<CheckRun>> {
-    let (manager, owner, repo) = github_manager::github_context(&repo_path).await?;
+pub async fn get_check_runs(app: tauri::AppHandle, repo_path: String, branch: String) -> Result<Vec<CheckRun>> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let (manager, owner, repo) = github_manager::github_context(&app_data_dir, &repo_path).await?;
     manager.get_check_runs(&owner, &repo, &branch).await
 }
 
 /// Re-run failed jobs for a workflow run (identified via check suite ID).
 #[tauri::command]
-pub async fn rerun_failed_checks(repo_path: String, check_suite_id: u64) -> Result<()> {
-    let (manager, owner, repo) = github_manager::github_context(&repo_path).await?;
+pub async fn rerun_failed_checks(app: tauri::AppHandle, repo_path: String, check_suite_id: u64) -> Result<()> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let (manager, owner, repo) = github_manager::github_context(&app_data_dir, &repo_path).await?;
 
     let run_id = manager
         .get_workflow_run_id_for_check_suite(&owner, &repo, check_suite_id)
@@ -28,7 +34,9 @@ pub async fn rerun_failed_checks(repo_path: String, check_suite_id: u64) -> Resu
 /// For GitHub Actions, check run IDs are job IDs, so we can download the log
 /// directly without the check_suite → workflow_run → jobs lookup chain.
 #[tauri::command]
-pub async fn get_job_log(repo_path: String, job_id: u64, job_name: String) -> Result<Option<WorkflowRunLog>> {
-    let (manager, owner, repo) = github_manager::github_context(&repo_path).await?;
+pub async fn get_job_log(app: tauri::AppHandle, repo_path: String, job_id: u64, job_name: String) -> Result<Option<WorkflowRunLog>> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let (manager, owner, repo) = github_manager::github_context(&app_data_dir, &repo_path).await?;
     manager.download_job_log(&owner, &repo, job_id, &job_name).await
 }

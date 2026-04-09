@@ -1,3 +1,5 @@
+use tauri::Manager;
+
 use crate::github_manager::{self, GithubManager};
 use crate::github_sync;
 use crate::types::{AppError, PrStatus};
@@ -37,8 +39,10 @@ pub fn sort_prs(prs: &mut [PrStatus], username: Option<&str>) {
 
 /// Fetch all open PRs for the configured repository.
 #[tauri::command]
-pub async fn sync_pr_status(repo_path: String) -> Result<Vec<PrStatus>> {
-    let (manager, owner, repo) = github_manager::github_context(&repo_path).await?;
+pub async fn sync_pr_status(app: tauri::AppHandle, repo_path: String) -> Result<Vec<PrStatus>> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let (manager, owner, repo) = github_manager::github_context(&app_data_dir, &repo_path).await?;
     let mut prs = manager.sync_prs(&owner, &repo).await?;
     let username = github_sync::resolve_github_username().await;
     sort_prs(&mut prs, username.as_deref());

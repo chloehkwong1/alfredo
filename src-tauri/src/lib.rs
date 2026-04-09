@@ -153,7 +153,6 @@ pub fn run() {
             session::save_session_file,
             session::load_session_file,
             session::delete_session_file,
-            session::ensure_alfredo_gitignore,
             session::find_claude_session,
             // Git ops
             git_ops::git_merge,

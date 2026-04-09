@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -36,14 +37,14 @@ struct StackStatusPayload {
 // ── Public entry points ──────────────────────────────────────────
 
 /// Called at the end of each sync poll. Detects parent HEAD changes and rebases children.
-pub async fn check_and_rebase(app_handle: &AppHandle, repo_paths: &[String]) {
+pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_paths: &[String]) {
     for repo_path in repo_paths {
         // Task 13: detect stale parents (merged into main) first
-        if let Err(e) = detect_stale_parents(repo_path).await {
+        if let Err(e) = detect_stale_parents(app_data_dir, repo_path).await {
             eprintln!("[stack_manager] detect_stale_parents failed for {repo_path}: {e}");
         }
 
-        let config = match config_manager::load_config(repo_path).await {
+        let config = match config_manager::load_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("[stack_manager] load_config failed for {repo_path}: {e}");
@@ -103,7 +104,7 @@ pub async fn check_and_rebase(app_handle: &AppHandle, repo_paths: &[String]) {
             let sorted = topological_sort(children, &config.stack_parent_overrides);
 
             for child_name in &sorted {
-                rebase_child(child_name, repo_path, parent_branch, app_handle, config.worktree_base_path.as_deref()).await;
+                rebase_child(child_name, repo_path, parent_branch, app_handle, app_data_dir, config.worktree_base_path.as_deref()).await;
             }
         }
     }
@@ -113,11 +114,12 @@ pub async fn check_and_rebase(app_handle: &AppHandle, repo_paths: &[String]) {
 /// and if so rebases children onto the default branch and clears the stack parent.
 pub async fn check_merged_parents(
     app_handle: &AppHandle,
+    app_data_dir: &Path,
     repo_paths: &[String],
     prs: &[crate::github_sync::PrStatusWithColumn],
 ) {
     for repo_path in repo_paths {
-        let mut config = match config_manager::load_config(repo_path).await {
+        let mut config = match config_manager::load_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("[stack_manager] load_config failed for {repo_path}: {e}");
@@ -173,7 +175,7 @@ pub async fn check_merged_parents(
         let mut config_changed = false;
         for (child_name, _merged_parent) in &affected {
             // Rebase child onto the default branch instead
-            rebase_child(child_name, repo_path, &default_short, app_handle, config.worktree_base_path.as_deref()).await;
+            rebase_child(child_name, repo_path, &default_short, app_handle, app_data_dir, config.worktree_base_path.as_deref()).await;
 
             // Update the child's PR base branch to the default branch
             if let Some((ref owner, ref repo)) = owner_repo {
@@ -203,7 +205,7 @@ pub async fn check_merged_parents(
         }
 
         if config_changed {
-            if let Err(e) = config_manager::save_config(repo_path, &config).await {
+            if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &config).await {
                 eprintln!("[stack_manager] failed to save config after clearing merged parents: {e}");
             }
         }
@@ -212,9 +214,9 @@ pub async fn check_merged_parents(
 
 /// Called at the end of each poll. Computes commits-behind for all stacked worktrees
 /// and emits `stack:status-update` events.
-pub async fn compute_stack_statuses(app_handle: &AppHandle, repo_paths: &[String]) {
+pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path, repo_paths: &[String]) {
     for repo_path in repo_paths {
-        let config = match config_manager::load_config(repo_path).await {
+        let config = match config_manager::load_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(_) => continue,
         };
@@ -258,8 +260,8 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, repo_paths: &[String
 
 /// Detects stack parents that have been merged into the default branch via manual rebase/merge
 /// (not caught by the PR-merge path). Clears them from config.
-pub async fn detect_stale_parents(repo_path: &str) -> Result<(), String> {
-    let mut config = config_manager::load_config(repo_path)
+pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Result<(), String> {
+    let mut config = config_manager::load_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -313,7 +315,7 @@ pub async fn detect_stale_parents(repo_path: &str) -> Result<(), String> {
         .stack_parent_overrides
         .retain(|_, parent| !stale_parents.contains(parent));
 
-    config_manager::save_config(repo_path, &config)
+    config_manager::save_config(app_data_dir, repo_path, &config)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -363,12 +365,13 @@ async fn rebase_child(
     repo_path: &str,
     parent_branch: &str,
     app_handle: &AppHandle,
+    app_data_dir: &Path,
     worktree_base_path: Option<&str>,
 ) {
     let worktree_path = if let Some(base) = worktree_base_path {
         std::path::Path::new(base).join(worktree_name).to_string_lossy().to_string()
     } else {
-        let config = match config_manager::load_config(repo_path).await {
+        let config = match config_manager::load_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("[stack_manager] load_config for rebase_child: {e}");

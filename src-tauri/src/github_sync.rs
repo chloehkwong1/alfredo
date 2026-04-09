@@ -188,11 +188,14 @@ async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
         return Ok(true); // No repos configured yet — not a failure
     }
 
+    let app_data_dir = app_handle.path().app_data_dir()
+        .map_err(|e| format!("failed to resolve app data dir: {e}"))?;
+
     let mut all_prs: Vec<PrStatusWithColumn> = Vec::new();
     let mut any_repo_succeeded = false;
 
     for repo_path in &repo_paths {
-        match poll_repo(repo_path, &active_branches).await {
+        match poll_repo(&app_data_dir, repo_path, &active_branches).await {
             Ok(prs) => {
                 any_repo_succeeded = true;
                 all_prs.extend(prs);
@@ -213,14 +216,14 @@ async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
     }
 
     // Auto-sync PR base branches for stacked worktrees
-    sync_pr_base_branches(&repo_paths, &all_prs).await;
+    sync_pr_base_branches(&app_data_dir, &repo_paths, &all_prs).await;
 
     // Task 11: check for merged parents and auto-clear stack parent config
-    crate::stack_manager::check_merged_parents(app_handle, &repo_paths, &all_prs).await;
+    crate::stack_manager::check_merged_parents(app_handle, &app_data_dir, &repo_paths, &all_prs).await;
 
     // Phase 2: enrich with comments (separate API calls, one PR at a time)
     for repo_path in &repo_paths {
-        enrich_repo_with_comments(&mut all_prs, repo_path, &active_branches).await;
+        enrich_repo_with_comments(&mut all_prs, &app_data_dir, repo_path, &active_branches).await;
     }
 
     // Emit again with comment data populated
@@ -231,20 +234,21 @@ async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
     }
 
     // Task 10: detect parent HEAD changes and auto-rebase stacked worktrees
-    crate::stack_manager::check_and_rebase(app_handle, &repo_paths).await;
+    crate::stack_manager::check_and_rebase(app_handle, &app_data_dir, &repo_paths).await;
 
     // Task 12: compute and emit stack rebase statuses
-    crate::stack_manager::compute_stack_statuses(app_handle, &repo_paths).await;
+    crate::stack_manager::compute_stack_statuses(app_handle, &app_data_dir, &repo_paths).await;
 
     Ok(any_repo_succeeded)
 }
 
 /// Fetch and enrich PRs for a single repo. Returns the enriched PR list.
 async fn poll_repo(
+    app_data_dir: &std::path::Path,
     repo_path: &str,
     active_branches: &std::collections::HashSet<String>,
 ) -> Result<Vec<PrStatusWithColumn>, String> {
-    let config = config_manager::load_config(repo_path)
+    let config = config_manager::load_config(app_data_dir, repo_path)
         .await
         .map_err(|e| format!("{e}"))?;
 
@@ -333,10 +337,11 @@ async fn poll_repo(
 /// payloads in-place. Called after poll_repo so the initial emit is not delayed.
 async fn enrich_repo_with_comments(
     prs: &mut [PrStatusWithColumn],
+    app_data_dir: &std::path::Path,
     repo_path: &str,
     active_branches: &std::collections::HashSet<String>,
 ) {
-    let Ok(config) = config_manager::load_config(repo_path).await else { return; };
+    let Ok(config) = config_manager::load_config(app_data_dir, repo_path).await else { return; };
     let Ok(token) = crate::github_manager::resolve_token(config.github_token.as_deref()).await else { return; };
     let Ok(manager) = GithubManager::new(&token) else { return; };
     let Ok((owner, repo)) = crate::github_manager::resolve_owner_repo(repo_path).await else { return; };
@@ -388,11 +393,12 @@ async fn enrich_repo_with_comments(
 /// For each repo, checks if any PR's base branch differs from the expected
 /// stack parent. If so, updates the PR via `gh pr edit --base`.
 async fn sync_pr_base_branches(
+    app_data_dir: &std::path::Path,
     repo_paths: &[String],
     all_prs: &[PrStatusWithColumn],
 ) {
     for repo_path in repo_paths {
-        let Ok(config) = config_manager::load_config(repo_path).await else {
+        let Ok(config) = config_manager::load_config(app_data_dir, repo_path).await else {
             continue;
         };
 

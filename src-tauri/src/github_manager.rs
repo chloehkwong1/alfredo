@@ -809,8 +809,8 @@ pub fn parse_github_owner_repo(url: &str) -> Option<(String, String)> {
 /// Loads the per-repo config, resolves the token, and parses the remote URL.
 /// The GitHub token is cached for the process lifetime to avoid shelling out
 /// to `gh auth token` on every IPC call.
-pub async fn github_context(repo_path: &str) -> Result<(GithubManager, String, String), AppError> {
-    let token = cached_token(repo_path).await?;
+pub async fn github_context(app_data_dir: &std::path::Path, repo_path: &str) -> Result<(GithubManager, String, String), AppError> {
+    let token = cached_token(app_data_dir, repo_path).await?;
     let manager = GithubManager::new(&token)?;
     let (owner, repo) = resolve_owner_repo(repo_path).await?;
     Ok((manager, owner, repo))
@@ -818,14 +818,14 @@ pub async fn github_context(repo_path: &str) -> Result<(GithubManager, String, S
 
 /// Cache the resolved GitHub token to avoid repeated `gh auth token` subprocess
 /// spawns. The token is resolved once and reused for all subsequent calls.
-async fn cached_token(repo_path: &str) -> Result<String, AppError> {
+async fn cached_token(app_data_dir: &std::path::Path, repo_path: &str) -> Result<String, AppError> {
     use tokio::sync::OnceCell;
 
     static TOKEN_CACHE: OnceCell<Result<String, String>> = OnceCell::const_new();
 
     let result = TOKEN_CACHE
         .get_or_init(|| async {
-            let config = crate::config_manager::load_config(repo_path).await
+            let config = crate::config_manager::load_config(app_data_dir, repo_path).await
                 .map_err(|e| format!("{e}"))?;
             resolve_token(config.github_token.as_deref()).await
                 .map_err(|e| format!("{e}"))

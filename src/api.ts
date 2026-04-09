@@ -344,10 +344,6 @@ export function deleteSessionFile(
   return invoke("delete_session_file", { repoPath, worktreeId });
 }
 
-export function ensureAlfredoGitignore(repoPath: string): Promise<void> {
-  return invoke("ensure_alfredo_gitignore", { repoPath });
-}
-
 // ── App Config ──────────────────────────────────────────────────
 
 export function getAppConfig(): Promise<GlobalAppConfig> {
