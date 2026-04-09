@@ -222,14 +222,16 @@ export const usePrStore = create<PrState>((set, get) => ({
         lastActivityAt: candidates.length > 0 ? Math.max(...candidates) : undefined,
       });
 
-      // Sidebar summary data
+      // Sidebar summary data — preserve cached enrichment values when Phase 1
+      // payload arrives without them (comments/checks are fetched in Phase 2)
+      const prev = state.prSummary[wt.id];
       newSummary[wt.id] = {
-        failingCheckCount: pr.failingCheckCount,
-        pendingCheckCount: pr.pendingCheckCount,
-        unresolvedCommentCount: pr.unresolvedCommentCount,
-        reviewDecision: pr.reviewDecision,
-        mergeable: pr.mergeable,
-        requestedReviewers: pr.requestedReviewers,
+        failingCheckCount: pr.failingCheckCount ?? prev?.failingCheckCount,
+        pendingCheckCount: pr.pendingCheckCount ?? prev?.pendingCheckCount,
+        unresolvedCommentCount: pr.unresolvedCommentCount ?? prev?.unresolvedCommentCount,
+        reviewDecision: pr.reviewDecision ?? prev?.reviewDecision,
+        mergeable: pr.mergeable ?? prev?.mergeable,
+        requestedReviewers: pr.requestedReviewers ?? prev?.requestedReviewers,
       };
 
       // PR panel full data (only update if enrichment data is present)
