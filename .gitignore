@@ -36,6 +36,9 @@ src-tauri/gen/
 # Claude Code local settings
 .claude/settings.local.json
 
+# Alfredo legacy per-repo config
+.alfredo.json
+
 # Design mockups (local only, kit.css stays tracked)
 designs/*.html
 designs/*.png
