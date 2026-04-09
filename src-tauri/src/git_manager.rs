@@ -1,9 +1,17 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::Instant;
 
 use git2::Repository;
 
 pub(crate) use crate::platform::{git_command, git_command_sync};
 use crate::types::{AppError, Worktree, AgentState, KanbanColumn};
+
+/// Throttle remote fetches to at most once per 60 seconds per repo+ref pair.
+/// Prevents N+1 network calls when computing diff stats for many worktrees.
+static FETCH_THROTTLE: std::sync::LazyLock<Mutex<HashMap<String, Instant>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Create a worktree by shelling out to `git worktree add`.
 /// Returns the absolute path of the new worktree directory.
@@ -348,6 +356,34 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
     // Use the resolved diff base — tries origin/<parent>, then local <parent>, then default branch.
     // Avoids stale local refs which would cause wildly inflated diff stats.
     let diff_base = resolve_diff_base(worktree_path, stack_parent);
+
+    // Fetch the remote ref so the merge-base is fresh. Without this, a stale
+    // origin/main after a rebase can produce wildly inflated diff stats (e.g. -1222k).
+    // Throttled to once per 60s per ref to avoid N+1 network calls on startup.
+    if let Some(branch) = diff_base.strip_prefix("origin/") {
+        let throttle_key = format!("{}:{}", worktree_path, branch);
+        let should_fetch = FETCH_THROTTLE
+            .lock()
+            .map(|cache| {
+                cache
+                    .get(&throttle_key)
+                    .is_none_or(|last| last.elapsed().as_secs() >= 60)
+            })
+            .unwrap_or(true);
+        if should_fetch {
+            let fetched = git_command_sync()
+                .args(["fetch", "origin", branch, "--no-tags", "--no-auto-maintenance"])
+                .current_dir(worktree_path)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+            if fetched {
+                if let Ok(mut cache) = FETCH_THROTTLE.lock() {
+                    cache.insert(throttle_key, Instant::now());
+                }
+            }
+        }
+    }
 
     let output = git_command_sync()
         .args(["diff", "--shortstat", &format!("{diff_base}...HEAD")])
