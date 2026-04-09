@@ -152,11 +152,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   replaceWorktree: (tempId, realWorktree) =>
     set((state) => ({
-      worktrees: state.worktrees.map((wt) =>
-        wt.id === tempId
-          ? { ...realWorktree, creating: undefined, createError: undefined, justCreated: true }
-          : wt,
-      ),
+      worktrees: state.worktrees
+        // Remove any entry with the real ID that snuck in via a concurrent listWorktrees refresh
+        .filter((wt) => wt.id !== realWorktree.id)
+        .map((wt) =>
+          wt.id === tempId
+            ? { ...realWorktree, creating: undefined, createError: undefined, justCreated: true }
+            : wt,
+        ),
     })),
 
   failWorktree: (tempId, error) =>
