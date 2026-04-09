@@ -138,6 +138,10 @@ function WorkspaceSettingsDialog({
     setSwitchingMode(true);
     try {
       await setRepoMode(currentRepoPath, newMode);
+      // Re-fetch appConfig so the local snapshot has the updated mode;
+      // otherwise handleSave would clobber the mode change with stale data.
+      const fresh = await getAppConfig();
+      setAppConfig(fresh);
       window.dispatchEvent(new Event("config-changed"));
     } finally {
       setSwitchingMode(false);
@@ -281,68 +285,72 @@ function WorkspaceSettingsDialog({
                   </p>
                 </div>
 
-                {/* Worktree Base Path */}
-                <div className="mb-4">
-                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
-                    Worktree Directory
-                  </div>
-                  <input
-                    type="text"
-                    className={inputClass}
-                    placeholder="e.g. /Users/you/worktrees"
-                    value={config.worktreeBasePath ?? ""}
-                    onChange={(e) =>
-                      updateConfig({ worktreeBasePath: e.target.value || null })
-                    }
-                  />
-                  <p className="text-xs text-text-tertiary mt-[5px]">
-                    Where new worktrees are created. Defaults to the repository parent.
-                  </p>
-                </div>
+                {currentMode === "worktree" && (
+                  <>
+                    {/* Worktree Base Path */}
+                    <div className="mb-4">
+                      <div className="text-[13px] font-medium text-text-primary mb-1.5">
+                        Worktree Directory
+                      </div>
+                      <input
+                        type="text"
+                        className={inputClass}
+                        placeholder="e.g. /Users/you/worktrees"
+                        value={config.worktreeBasePath ?? ""}
+                        onChange={(e) =>
+                          updateConfig({ worktreeBasePath: e.target.value || null })
+                        }
+                      />
+                      <p className="text-xs text-text-tertiary mt-[5px]">
+                        Where new worktrees are created. Defaults to the repository parent.
+                      </p>
+                    </div>
 
-                {/* Archive & Cleanup */}
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3 mt-6">
-                  Archive &amp; Cleanup
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-[13px] text-text-primary">
-                      Auto-archive merged worktrees after
+                    {/* Archive & Cleanup */}
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3 mt-6">
+                      Archive &amp; Cleanup
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        className={inputClass + " !w-16 text-center"}
-                        value={appConfig?.archiveAfterDays ?? 2}
-                        onChange={(e) =>
-                          updateGlobalConfig({ archiveAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
-                        }
-                      />
-                      <span className="text-sm text-text-secondary w-10">days</span>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-[13px] text-text-primary">
+                          Auto-archive merged worktrees after
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            className={inputClass + " !w-16 text-center"}
+                            value={appConfig?.archiveAfterDays ?? 2}
+                            onChange={(e) =>
+                              updateGlobalConfig({ archiveAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
+                            }
+                          />
+                          <span className="text-sm text-text-secondary w-10">days</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-[13px] text-text-primary">
+                          Auto-delete archived worktrees after
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            className={inputClass + " !w-16 text-center"}
+                            value={appConfig?.deleteAfterDays ?? 0}
+                            onChange={(e) =>
+                              updateGlobalConfig({ deleteAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
+                            }
+                          />
+                          <span className="text-sm text-text-secondary w-10">days</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-text-tertiary">
+                        Set to 0 to disable.
+                      </p>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="text-[13px] text-text-primary">
-                      Auto-delete archived worktrees after
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        className={inputClass + " !w-16 text-center"}
-                        value={appConfig?.deleteAfterDays ?? 0}
-                        onChange={(e) =>
-                          updateGlobalConfig({ deleteAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
-                        }
-                      />
-                      <span className="text-sm text-text-secondary w-10">days</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-text-tertiary">
-                    Set to 0 to disable.
-                  </p>
-                </div>
+                  </>
+                )}
               </div>
             )}
 
