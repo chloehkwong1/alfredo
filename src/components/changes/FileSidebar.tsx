@@ -270,6 +270,7 @@ function FileSidebar({
             const originalIndex = commits.indexOf(commit);
             const isSelected = selectedCommitIndex === originalIndex;
             const author = formatAuthor(commit.author);
+            const commitNumber = commits.length - originalIndex;
 
             return (
               <button
@@ -285,6 +286,7 @@ function FileSidebar({
                 ].join(" ")}
               >
                 <div className="text-xs leading-snug text-text-primary font-medium">
+                  <span className="text-[10px] text-text-tertiary font-mono mr-1.5">#{commitNumber}</span>
                   {subject}
                 </div>
                 <div className="flex items-center gap-1.5">
