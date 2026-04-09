@@ -310,13 +310,27 @@ function Sidebar({
                 </button>
               </>
             )}
-            <button
-              type="button"
-              className="w-full text-center text-xs text-text-tertiary hover:text-text-secondary hover:underline mt-2 cursor-pointer transition-colors"
-              onClick={() => setWorkspaceSettingsOpen(true)}
-            >
-              Repository settings
-            </button>
+            <div className="flex items-center justify-center gap-1 mt-2">
+              {repos.length < 2 && (
+                <>
+                  <button
+                    type="button"
+                    className="text-xs text-text-tertiary hover:text-text-secondary hover:underline cursor-pointer transition-colors"
+                    onClick={onAddRepo}
+                  >
+                    Add repo
+                  </button>
+                  <span className="text-text-quaternary text-xs">·</span>
+                </>
+              )}
+              <button
+                type="button"
+                className="text-xs text-text-tertiary hover:text-text-secondary hover:underline cursor-pointer transition-colors"
+                onClick={() => setWorkspaceSettingsOpen(true)}
+              >
+                Settings
+              </button>
+            </div>
           </div>
         )}
       </>
