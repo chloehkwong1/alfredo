@@ -125,7 +125,11 @@ export function useChangesData(
         break;
     }
 
-    // Shallow-compare: same file paths in same order with same hunk count → reuse old ref
+    // Shallow-compare: same file paths in same order with same hunk count and content → reuse old ref.
+    // Hunk headers encode line positions (e.g. "@@ -141,22 +141,20 @@"), so they almost always differ
+    // when content changes even if additions/deletions counts are identical. Spot-checking the first
+    // line's content per hunk covers the remaining edge case (same position, different content).
+    // This prevents stale diffs when a file transitions between committed and uncommitted with matching stats.
     const prev = displayFilesRef.current;
     if (
       prev.length === next.length &&
@@ -133,7 +137,12 @@ export function useChangesData(
         f.path === next[i].path &&
         f.hunks.length === next[i].hunks.length &&
         f.additions === next[i].additions &&
-        f.deletions === next[i].deletions,
+        f.deletions === next[i].deletions &&
+        // hunks.length equality above guarantees next[i].hunks[j] is in-bounds
+        f.hunks.every((h, j) =>
+          h.header === next[i].hunks[j].header &&
+          h.lines[0]?.content === next[i].hunks[j].lines[0]?.content,
+        ),
       )
     ) {
       return prev;
