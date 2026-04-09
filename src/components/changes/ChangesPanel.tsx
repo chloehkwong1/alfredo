@@ -168,11 +168,17 @@ function WorkspacePanel({
     setSelectedCommitIndex(index);
     setActiveFilePath(null);
     const commit = allCommits[index];
-    if (!commit) return;
-    lifecycleManager.openDiffPreview(worktreeId, {
+    if (!commit) {
+      console.warn("[ChangesPanel] handleSelectCommit: no commit at index", index, "allCommits.length:", allCommits.length);
+      return;
+    }
+    const tabId = lifecycleManager.openDiffPreview(worktreeId, {
       type: "commit",
       commitHash: commit.hash,
     });
+    if (!tabId) {
+      console.warn("[ChangesPanel] openDiffPreview returned null — no activePaneId?", { worktreeId });
+    }
   }, [allCommits, worktreeId]);
 
   const handleSelectFile = useCallback(
