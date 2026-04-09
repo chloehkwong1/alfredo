@@ -179,15 +179,15 @@ function FileSidebar({
     () => committedFiles.filter(filterFile),
     [committedFiles, filterFile],
   );
-  const filteredCommits = useMemo(
-    () =>
+  const filteredCommits = useMemo(() => {
+    const filtered =
       filter === ""
         ? commits
         : commits.filter((c) =>
             c.message.toLowerCase().includes(filter.toLowerCase()),
-          ),
-    [commits, filter],
-  );
+          );
+    return [...filtered].reverse();
+  }, [commits, filter]);
 
   const filteredUpstream = useMemo(
     () => {
