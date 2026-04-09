@@ -5,7 +5,7 @@ import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, SquarePen, Termi
 import type { AgentState, Worktree } from "../../types";
 import { IDLE_SETTLE_MS } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, setStackParent } from "../../api";
+import { rebaseWorktree, setStackParent, getDefaultBranch } from "../../api";
 import { openPathInEditor, openPathInTerminal } from "../../services/openExternal";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
@@ -430,6 +430,14 @@ const AgentItem = memo(function AgentItem({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: worktree.id,
   });
+  const [defaultBranch, setDefaultBranch] = useState<string | null>(null);
+  useEffect(() => {
+    if (!worktree.stackParent && worktree.repoPath) {
+      getDefaultBranch(worktree.repoPath)
+        .then((b) => setDefaultBranch(b))
+        .catch(() => {});
+    }
+  }, [worktree.stackParent, worktree.repoPath]);
 
   // Short-circuit for placeholder states (after hooks to satisfy Rules of Hooks)
   if (worktree.creating) {
@@ -551,7 +559,7 @@ const AgentItem = memo(function AgentItem({
             <GitBranch className="h-4 w-4" />
             {worktree.stackParent
               ? `Rebase onto ${worktree.stackParent}`
-              : "Rebase onto main"}
+              : `Rebase onto ${defaultBranch ?? "base branch"}`}
           </ContextMenuItem>
           <ContextMenuItem onSelect={() => setCreateFromOpen(true)}>
             <GitBranch className="h-4 w-4" />
