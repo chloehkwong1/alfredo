@@ -206,6 +206,11 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     resetActiveAnnotation();
   }, [resetActiveAnnotation]);
 
+  // Keep a ref so the diffTarget effect can read allCommits without depending on it.
+  // allCommits changes every 10s (commit poll) which would otherwise re-trigger scroll.
+  const allCommitsRef = useRef(allCommits);
+  allCommitsRef.current = allCommits;
+
   // Drive display from diffTarget prop (replaces DOM event listeners)
   useEffect(() => {
     if (!diffTarget) return;
@@ -218,7 +223,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
         });
       }
     } else if (diffTarget.type === "commit" && diffTarget.commitHash) {
-      const commitIndex = allCommits.findIndex((c) => c.hash === diffTarget.commitHash);
+      const commitIndex = allCommitsRef.current.findIndex((c) => c.hash === diffTarget.commitHash);
       if (commitIndex !== -1) {
         handleSelectCommit(commitIndex);
       }
@@ -230,7 +235,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
         });
       }
     }
-  }, [diffTarget, handleSelectFile, handleSelectCommit, allCommits, fileRefs]);
+  }, [diffTarget, handleSelectFile, handleSelectCommit, fileRefs]);
 
 
   // When a committed file is focused and the same path exists in uncommitted,
