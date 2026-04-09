@@ -68,14 +68,20 @@ function WorkspaceSettingsDialog({
   );
   const [displayNameDraft, setDisplayNameDraft] = useState("");
   const [switchingMode, setSwitchingMode] = useState(false);
+  const [modeSaved, setModeSaved] = useState(false);
+  const modeSavedTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const prevOpenRef = useRef(false);
 
-  // Reset currentRepoPath and display name draft when dialog opens
+  // Reset state when dialog opens/closes
   useEffect(() => {
     if (open && !prevOpenRef.current) {
       const initPath = defaultRepoPath ?? repoPath;
       setCurrentRepoPath(initPath);
       setDisplayNameDraft(repoDisplayNames[initPath] ?? "");
+    }
+    if (!open && modeSavedTimerRef.current) {
+      clearTimeout(modeSavedTimerRef.current);
+      setModeSaved(false);
     }
     prevOpenRef.current = open;
   }, [open, defaultRepoPath, repoPath, repoDisplayNames]);
@@ -122,6 +128,7 @@ function WorkspaceSettingsDialog({
       }
       setCurrentRepoPath(newPath);
       setDisplayNameDraft(repoDisplayNames[newPath] ?? "");
+      setModeSaved(false);
     },
     [currentRepoPath, dirty, repoDisplayNames],
   );
@@ -138,11 +145,19 @@ function WorkspaceSettingsDialog({
     setSwitchingMode(true);
     try {
       await setRepoMode(currentRepoPath, newMode);
-      // Re-fetch appConfig so the local snapshot has the updated mode;
-      // otherwise handleSave would clobber the mode change with stale data.
-      const fresh = await getAppConfig();
+      // Re-fetch both configs so local snapshots reflect the saved mode.
+      // Without this, handleSave would clobber the mode change with stale data
+      // (appConfig.repos[].mode and config.branchMode would both be old values).
+      const [fresh, freshConfig] = await Promise.all([
+        getAppConfig(),
+        getConfig(currentRepoPath),
+      ]);
       setAppConfig(fresh);
+      setConfig(freshConfig);
       window.dispatchEvent(new Event("config-changed"));
+      setModeSaved(true);
+      if (modeSavedTimerRef.current) clearTimeout(modeSavedTimerRef.current);
+      modeSavedTimerRef.current = setTimeout(() => setModeSaved(false), 2500);
     } finally {
       setSwitchingMode(false);
     }
@@ -248,7 +263,11 @@ function WorkspaceSettingsDialog({
                     </button>
                   </div>
                   <p className="text-xs text-text-tertiary mt-[5px]">
-                    Branch mode shows git branches. Worktree mode uses git worktrees with a kanban board.
+                    {modeSaved ? (
+                      <span className="text-green-500">Mode saved — close this dialog or make further changes.</span>
+                    ) : (
+                      <>Branch mode shows git branches. Worktree mode uses git worktrees with a kanban board.</>
+                    )}
                   </p>
                 </div>
 
