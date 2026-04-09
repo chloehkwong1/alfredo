@@ -146,8 +146,15 @@ pub async fn refresh_if_needed(
         .map_err(|e| AppError::Linear(format!("token refresh request failed: {e}")))?;
 
     if !resp.status().is_success() {
-        clear_tokens(app_data_dir).await?;
-        return Ok(None);
+        let status = resp.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+            // Refresh token is revoked/invalid — clear stored tokens
+            clear_tokens(app_data_dir).await?;
+            return Ok(None);
+        }
+        // Transient error (5xx, rate limit, network) — keep existing tokens
+        eprintln!("[linear_oauth] token refresh failed with {status}, keeping existing tokens");
+        return Ok(Some(tokens));
     }
 
     let body: serde_json::Value = resp
