@@ -6,6 +6,11 @@ import { sessionManager } from "../services/sessionManager";
 import { lifecycleManager } from "../services/lifecycleManager";
 import type { RunScript } from "../types";
 
+/** Single-quote a string for safe use in `sh -c '…'`. */
+function shellQuote(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
+
 /** Extract port number from a URL string (e.g. "http://localhost:3000" → 3000). */
 function extractPort(url: string): number | undefined {
   try {
@@ -140,8 +145,11 @@ export function useServer(activeWorktreeId: string | null) {
 
       const tabId = lifecycleManager.addTab(activeWorktreeId, "server");
       if (tabId) {
+        // Prefix with `exec` so the shell is replaced by the server process.
+        // Without this, the shell stays alive after the server exits and
+        // heartbeats keep flowing — the stale-server cleanup never triggers.
         useTabStore.getState().updateTab(activeWorktreeId, tabId, {
-          command: runScript.command,
+          command: `exec sh -c ${shellQuote(runScript.command)}`,
         });
       }
 
