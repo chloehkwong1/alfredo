@@ -135,11 +135,38 @@ export function usePty({
       // Wire up input/resize forwarding BEFORE fit() so the initial resize
       // event propagates to the backend PTY (which starts at 80×24).
       if (session.sessionId) {
+        // Track the current input line to detect slash commands like /clear.
+        let inputBuffer = "";
+
         onDataDisposable = term.onData((data: string) => {
           // User responded — allow Busy hook transitions again.
           session.waitingForInput = false;
           const bytes = Array.from(new TextEncoder().encode(data));
           writePty(session.sessionId, bytes).catch(console.error);
+
+          // Buffer input to detect /clear command. Reset on Enter or Ctrl+C.
+          // Only accumulate printable ASCII (0x20–0x7e) to avoid arrow keys,
+          // function keys, and other escape sequences corrupting the buffer.
+          if (data === "\r" || data === "\n") {
+            if (inputBuffer === "/clear") {
+              // Allow the next ESC[3J from the PTY through so xterm clears its
+              // own scrollback natively (normally stripped to preserve history).
+              session.allowNextClearScrollback = true;
+              // Safety valve: reset flag if the PTY doesn't echo ESC[3J within
+              // 5 s (e.g. /clear rejected because agent is busy).
+              setTimeout(() => { session.allowNextClearScrollback = false; }, 5_000);
+            }
+            inputBuffer = "";
+          } else if (data === "\x03" || data === "\x15") {
+            // Ctrl+C or Ctrl+U resets the line
+            inputBuffer = "";
+          } else if (data === "\x7f") {
+            // Backspace
+            inputBuffer = inputBuffer.slice(0, -1);
+          } else if (data.length === 1 && data.charCodeAt(0) >= 0x20 && data.charCodeAt(0) <= 0x7e) {
+            // Printable ASCII only — ignore escape sequences (arrow keys, etc.)
+            inputBuffer += data;
+          }
         });
 
         onResizeDisposable = term.onResize(

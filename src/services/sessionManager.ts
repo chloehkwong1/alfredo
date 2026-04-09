@@ -97,6 +97,9 @@ export interface ManagedSession {
   /** True once a startup command has been written to this session's PTY.
    *  Prevents StrictMode double-fire from executing the command twice. */
   startupCommandSent: boolean;
+  /** When true, the next ESC[3J in PTY output is passed through to xterm instead
+   *  of being stripped. Set when the user explicitly sends /clear. */
+  allowNextClearScrollback: boolean;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
 }
@@ -252,7 +255,25 @@ function createSessionChannel(
   return createPtyChannel((event) => {
     switch (event.event) {
       case "output": {
-        const bytes = stripClearScrollback(new Uint8Array(event.data));
+        // If the user explicitly sent /clear, allow the next ESC[3J through so
+        // xterm clears its own scrollback natively. Otherwise strip it to prevent
+        // TUI re-renders from wiping the scrollback on every frame.
+        let bytes: Uint8Array;
+        if (session.allowNextClearScrollback) {
+          bytes = new Uint8Array(event.data);
+          // Consume the flag as soon as we find ESC[3J in this chunk.
+          // Any additional ESC[3J sequences in the same chunk also pass through
+          // unstripped, which is fine — Claude Code emits at most one per frame.
+          const ESC3J = [0x1b, 0x5b, 0x33, 0x4a];
+          for (let i = 0; i <= bytes.length - 4; i++) {
+            if (bytes[i] === ESC3J[0] && bytes[i+1] === ESC3J[1] && bytes[i+2] === ESC3J[2] && bytes[i+3] === ESC3J[3]) {
+              session.allowNextClearScrollback = false;
+              break;
+            }
+          }
+        } else {
+          bytes = stripClearScrollback(new Uint8Array(event.data));
+        }
         const wasFirst = session.lastOutputAt === 0;
         session.lastOutputAt = Date.now();
         if (wasFirst && session.onFirstOutput) {
@@ -385,6 +406,7 @@ export class SessionManager {
       restoredFromScrollback: false,
       waitingForInput: false,
       startupCommandSent: false,
+      allowNextClearScrollback: false,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -470,6 +492,7 @@ export class SessionManager {
       restoredFromScrollback: true,
       waitingForInput: false,
       startupCommandSent: false,
+      allowNextClearScrollback: false,
     };
 
     this.sessions.set(sessionKey, session);
