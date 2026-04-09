@@ -11,6 +11,7 @@ import { useFileNavigation } from "../../hooks/useFileNavigation";
 import { useDiffSearch } from "../../hooks/useDiffSearch";
 
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
+import { ensureAgentSession, writeToSession, focusAgentTab } from "../../services/agentMessenger";
 import { Trash2, Check, Copy } from "lucide-react";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
 import { useAnnotationActions } from "./useAnnotationActions";
@@ -152,6 +153,25 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     },
     [worktreeId, repoPath, worktree?.branch],
   );
+
+  const handleSendAnnotations = useCallback(async () => {
+    if (annotations.length === 0) return;
+    const lines = annotations.map(
+      (a) => `Feedback on ${a.filePath}:${a.lineNumber} — ${a.text}`,
+    );
+    const message = "\n" + lines.join("\n") + "\n";
+    let session;
+    try {
+      session = await ensureAgentSession(worktreeId, repoPath, worktree?.branch);
+    } catch {
+      return;
+    }
+    if (!session?.sessionId) return;
+    session.waitingForInput = false;
+    await writeToSession(session.sessionId, message);
+    clearAnnotations(worktreeId);
+    focusAgentTab(worktreeId);
+  }, [annotations, worktreeId, repoPath, worktree?.branch, clearAnnotations]);
 
   const {
     discardTarget,
@@ -351,6 +371,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
         <AnnotationBar
           count={annotations.length}
           onClearAll={() => clearAnnotations(worktreeId)}
+          onSendToClaude={handleSendAnnotations}
         />
       )}
     </div>

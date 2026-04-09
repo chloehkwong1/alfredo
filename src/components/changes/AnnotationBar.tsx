@@ -3,9 +3,10 @@ import { Button } from "../ui/Button";
 interface AnnotationBarProps {
   count: number;
   onClearAll: () => void;
+  onSendToClaude: () => void;
 }
 
-function AnnotationBar({ count, onClearAll }: AnnotationBarProps) {
+function AnnotationBar({ count, onClearAll, onSendToClaude }: AnnotationBarProps) {
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 bg-bg-primary border border-accent-primary/30 rounded-lg shadow-lg">
       <div className="flex items-center gap-2">
@@ -16,9 +17,14 @@ function AnnotationBar({ count, onClearAll }: AnnotationBarProps) {
           review comment{count !== 1 ? "s" : ""}
         </span>
       </div>
-      <Button size="sm" variant="ghost" onClick={onClearAll}>
-        Clear all
-      </Button>
+      <div className="flex items-center gap-1.5">
+        <Button size="sm" variant="ghost" onClick={onClearAll}>
+          Clear all
+        </Button>
+        <Button size="sm" variant="primary" onClick={onSendToClaude}>
+          Send to agent ⏎
+        </Button>
+      </div>
     </div>
   );
 }
