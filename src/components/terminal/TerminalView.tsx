@@ -8,6 +8,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { sessionManager } from "../../services/sessionManager";
 import { writePty, getConfig, getAppConfig } from "../../api";
+import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { Button } from "../ui/Button";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -133,10 +134,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     const session = sessionManager.getSession(targetKey);
     if (!session) return;
 
-    const lines = annotations.map(
-      (a) => `Feedback on ${a.filePath}:${a.lineNumber} — ${a.text}`,
-    );
-    const message = "\n" + lines.join("\n") + "\n";
+    const message = formatAnnotationsMessage(annotations);
     const bytes = Array.from(new TextEncoder().encode(message));
     await writePty(session.sessionId, bytes);
     clearAnnotations(activeWorktreeId);

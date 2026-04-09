@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { DiffFileCard } from "./DiffFileCard";
 import { useDiscardChanges } from "./useDiscardChanges";
@@ -12,6 +12,7 @@ import { useDiffSearch } from "../../hooks/useDiffSearch";
 
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { ensureAgentSession, writeToSession, focusAgentTab } from "../../services/agentMessenger";
+import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { Trash2, Check, Copy } from "lucide-react";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
 import { useAnnotationActions } from "./useAnnotationActions";
@@ -154,23 +155,26 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     [worktreeId, repoPath, worktree?.branch],
   );
 
+  const sendingAnnotations = useRef(false);
   const handleSendAnnotations = useCallback(async () => {
-    if (annotations.length === 0) return;
-    const lines = annotations.map(
-      (a) => `Feedback on ${a.filePath}:${a.lineNumber} — ${a.text}`,
-    );
-    const message = "\n" + lines.join("\n") + "\n";
-    let session;
+    if (annotations.length === 0 || sendingAnnotations.current) return;
+    sendingAnnotations.current = true;
     try {
-      session = await ensureAgentSession(worktreeId, repoPath, worktree?.branch);
-    } catch {
-      return;
+      const message = formatAnnotationsMessage(annotations);
+      let session;
+      try {
+        session = await ensureAgentSession(worktreeId, repoPath, worktree?.branch);
+      } catch {
+        return;
+      }
+      if (!session?.sessionId) return;
+      session.waitingForInput = false;
+      await writeToSession(session.sessionId, message);
+      clearAnnotations(worktreeId);
+      focusAgentTab(worktreeId);
+    } finally {
+      sendingAnnotations.current = false;
     }
-    if (!session?.sessionId) return;
-    session.waitingForInput = false;
-    await writeToSession(session.sessionId, message);
-    clearAnnotations(worktreeId);
-    focusAgentTab(worktreeId);
   }, [annotations, worktreeId, repoPath, worktree?.branch, clearAnnotations]);
 
   const {
