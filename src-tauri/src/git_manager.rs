@@ -175,21 +175,12 @@ pub async fn delete_worktree(
     Ok(())
 }
 
-/// Resolve the default remote branch for a repo (e.g. "origin/main" or "origin/master").
-/// Tries origin/main, origin/master, then origin/HEAD. Falls back to "origin/main".
+/// Resolve the default remote branch for a repo (e.g. "origin/main" or "origin/develop").
+/// Tries origin/HEAD first (canonical), then origin/main, origin/master. Falls back to "origin/main".
 pub fn resolve_default_remote_branch(repo_or_worktree_path: &str) -> String {
-    for name in &["origin/main", "origin/master"] {
-        let output = git_command_sync()
-            .args(["rev-parse", "--verify", &format!("refs/remotes/{name}")])
-            .current_dir(repo_or_worktree_path)
-            .output();
-        if let Ok(output) = output {
-            if output.status.success() {
-                return name.to_string();
-            }
-        }
-    }
-    // Try origin/HEAD symbolic ref
+    // Check origin/HEAD first — this is the canonical indicator of the repo's
+    // default branch and avoids returning "origin/main" for repos whose actual
+    // default is "develop", "master", etc.
     let output = git_command_sync()
         .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
         .current_dir(repo_or_worktree_path)
@@ -199,6 +190,18 @@ pub fn resolve_default_remote_branch(repo_or_worktree_path: &str) -> String {
             let refname = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if let Some(short) = refname.strip_prefix("refs/remotes/") {
                 return short.to_string();
+            }
+        }
+    }
+    // Fallback: probe common branch names in order of likelihood.
+    for name in &["origin/main", "origin/master"] {
+        let output = git_command_sync()
+            .args(["rev-parse", "--verify", &format!("refs/remotes/{name}")])
+            .current_dir(repo_or_worktree_path)
+            .output();
+        if let Ok(output) = output {
+            if output.status.success() {
+                return name.to_string();
             }
         }
     }
