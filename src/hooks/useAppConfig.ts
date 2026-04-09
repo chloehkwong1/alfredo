@@ -63,7 +63,7 @@ export function useAppConfig() {
   const activeRepo = config?.activeRepo ?? null;
   const repos = config?.repos ?? [];
 
-  const addRepo = useCallback(async (path: string, mode: RepoMode = "branch") => {
+  const addRepo = useCallback(async (path: string, mode: RepoMode = "worktree") => {
     setError(null);
     const valid = await validateGitRepo(path);
     if (!valid) {
