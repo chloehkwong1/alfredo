@@ -175,7 +175,7 @@ function SortableTab({
           ].join(" ")}
         >
           <Icon size={14} />
-          <span className={isPreview ? "italic opacity-80" : ""}>{tab.label}</span>
+          <span className={["max-w-[180px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{tab.label}</span>
           <button
             type="button"
             tabIndex={effectiveCanClose ? 0 : -1}
