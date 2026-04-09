@@ -104,7 +104,20 @@ const SOUNDS: Record<string, SoundNote[]> = {
 };
 
 let audioCtx: AudioContext | null = null;
-async function getAudioContext(): Promise<AudioContext> {
+
+/**
+ * Get a working AudioContext instance.
+ *
+ * @param forceNew  When true, close the existing context and create a fresh one.
+ *                  Use from user-gesture handlers (test button, sound preview)
+ *                  to work around WKWebView's "zombie" AudioContext — where
+ *                  `state` reads "running" but no audio output is produced.
+ */
+async function getAudioContext(forceNew = false): Promise<AudioContext> {
+  if (forceNew && audioCtx) {
+    audioCtx.close().catch(() => {});
+    audioCtx = null;
+  }
   if (!audioCtx || audioCtx.state === "closed") {
     audioCtx = new AudioContext();
   }
@@ -129,9 +142,9 @@ export async function playTone(frequency: number, duration: number, type: Oscill
   osc.stop(ctx.currentTime + duration);
 }
 
-async function playNotes(notes: SoundNote[]) {
+async function playNotes(notes: SoundNote[], forceNew = false) {
   if (notes.length === 0) return;
-  const ctx = await getAudioContext();
+  const ctx = await getAudioContext(forceNew);
   let offset = ctx.currentTime;
   for (const note of notes) {
     if (note.frequency === 0 || note.duration === 0) continue;
@@ -153,9 +166,9 @@ async function playNotes(notes: SoundNote[]) {
   }
 }
 
-export async function playSoundById(soundId: string) {
+export async function playSoundById(soundId: string, { forceNewContext = false } = {}) {
   const notes = SOUNDS[soundId];
-  if (notes) await playNotes(notes);
+  if (notes) await playNotes(notes, forceNewContext);
 }
 
 export { SOUNDS };
@@ -215,12 +228,12 @@ export function useNotifications() {
   const pendingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const configRef = useRef<NotificationConfig>(DEFAULT_CONFIG);
 
-  // Warm up AudioContext on first user click so background sounds (fired from
-  // setTimeout with no user gesture) find the context already running.
-  // WKWebView won't let AudioContext.resume() succeed without a prior gesture.
+  // Keep AudioContext alive for background sounds (fired from setTimeout with
+  // no user gesture). WKWebView can silently zombie the context — state reads
+  // "running" but output is dead. Re-create on every click to recover.
   useEffect(() => {
-    const warmUp = () => { getAudioContext().catch(() => {}); };
-    document.addEventListener('click', warmUp, { capture: true, once: true });
+    const warmUp = () => { getAudioContext(true).catch(() => {}); };
+    document.addEventListener('click', warmUp, { capture: true });
     return () => document.removeEventListener('click', warmUp, true);
   }, []);
 

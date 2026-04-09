@@ -62,19 +62,24 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
   }, [config.enabled, update]);
 
   const handleTestNotification = useCallback(async () => {
-    // Play sound immediately while still in the user-gesture context.
-    // Awaiting an IPC call first loses that context in WKWebView, causing
-    // AudioContext.resume() to silently fail and produce no sound.
-    playSoundById(config.sound).catch(() => {}); // failure is non-fatal
+    // Force-recreate AudioContext to work around WKWebView zombie state where
+    // context.state reads "running" but produces no audio output.
+    playSoundById(config.sound, { forceNewContext: true }).catch((e) => {
+      console.warn('[notifications] Test sound failed:', e);
+    });
     let granted = await isPermissionGranted();
+    console.log('[notifications] Test: permission granted =', granted);
     if (!granted) {
-      // Permission may have been reset (e.g. after an app update). Re-request.
       const result = await requestPermission();
       granted = result === "granted";
+      console.log('[notifications] Test: re-requested permission, result =', result);
       setPermissionState(granted ? "granted" : "denied");
     }
     if (granted) {
       sendNotification({ title: "Alfredo", body: "This is a test notification" });
+      console.log('[notifications] Test: notification sent');
+    } else {
+      console.warn('[notifications] Test: notification skipped — permission not granted');
     }
   }, [config.sound]);
 
@@ -152,7 +157,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        playSoundById(opt.id);
+                        playSoundById(opt.id, { forceNewContext: true });
                       }}
                       className="text-text-tertiary hover:text-text-primary cursor-pointer"
                     >
