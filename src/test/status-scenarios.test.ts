@@ -17,6 +17,8 @@ interface SimState {
   waitingForInput: boolean;
   /** Epoch ms when current idle period started (for done-settle debounce). */
   idleSince: number | undefined;
+  /** Epoch ms of last hook event — used to gate detector fallback. */
+  lastHookEventAt: number;
 }
 
 function createInitialState(): SimState {
@@ -30,6 +32,7 @@ function createInitialState(): SimState {
     isSeen: false, // unseen by default (tests wrong-status-on-focus scenarios)
     waitingForInput: false,
     idleSince: now, // starts idle, so idleSince = now
+    lastHookEventAt: 0,
   };
 }
 
@@ -49,7 +52,7 @@ function runFrontendScenario(scenario: StatusScenario) {
         // via the Rust scenario runner.
         // Simulate detector output accepted through priority logic.
         const detectorState = step.expect.agentStatus;
-        if (shouldAcceptDetectorState(state.hooksActive, detectorState, state.agentStatus)) {
+        if (shouldAcceptDetectorState(state.hooksActive, detectorState, state.agentStatus, state.lastHookEventAt)) {
           const prevStatus = state.agentStatus;
           if (detectorState === "waitingForInput") {
             state.waitingForInput = true;
@@ -69,6 +72,7 @@ function runFrontendScenario(scenario: StatusScenario) {
       }
       case "hookEvent": {
         state.hooksActive = true;
+        state.lastHookEventAt = now;
         // Don't let a late "busy" hook override waitingForInput
         if (action.state === "busy" && state.waitingForInput) break;
         const prevStatus = state.agentStatus;

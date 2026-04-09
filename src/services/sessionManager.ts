@@ -86,6 +86,10 @@ export interface ManagedSession {
   writeScheduled: boolean;
   /** Whether this session was restored from saved scrollback (for auto-resume). */
   restoredFromScrollback: boolean;
+  /** Timestamp of the last hook-sourced state event. Used to distinguish
+   *  genuine stuck-busy (interrupt during thinking) from stale detector
+   *  events racing with recent hook transitions. */
+  lastHookEventAt: number;
   /** Sticky flag: true while agent is waiting for user input. Prevents late
    *  "busy" hook events (e.g. a delayed PreToolUse) from overriding
    *  waitingForInput. Cleared when user provides input (writePty). */
@@ -192,10 +196,17 @@ function registerKittyProtocol(terminal: Terminal, sessionId: string): void {
   terminal.parser.registerCsiHandler({ prefix: "<", final: "u" }, () => true);
 }
 
+/** How long hooks must be silent before the detector fallback kicks in.
+ *  Must be long enough that normal inter-turn hook gaps (Stop → idle →
+ *  UserPromptSubmit → busy) don't trigger it, but short enough that a
+ *  genuine interrupt-during-thinking is resolved promptly. */
+const HOOK_SILENCE_THRESHOLD_MS = 5_000;
+
 export function shouldAcceptDetectorState(
   hooksActive: boolean,
   detectorState: AgentState,
   currentState: AgentState,
+  lastHookEventAt: number,
 ): boolean {
   // Once hooks have fired, they are the sole source of truth.
   // Every state the detector could provide is already covered:
@@ -215,8 +226,14 @@ export function shouldAcceptDetectorState(
   // → no PostToolUseFailure, and Stop doesn't fire on interrupts). The
   // detector sees the idle prompt (❯) or "What should Claude do?" and can
   // resolve the stuck "busy" state that hooks will never update.
+  //
+  // Guard: only accept the detector when hooks have been silent for a while.
+  // During normal inter-turn gaps the hooks fire frequently (Stop, then
+  // UserPromptSubmit within seconds), so the detector's late ❯ detection
+  // arrives while lastHookEventAt is still fresh → rejected. During a
+  // genuine interrupt the hooks stop firing entirely → accepted.
   if (currentState === "busy" && (detectorState === "idle" || detectorState === "waitingForInput")) {
-    return true;
+    return Date.now() - lastHookEventAt > HOOK_SILENCE_THRESHOLD_MS;
   }
 
   return false;
@@ -252,6 +269,7 @@ function createSessionChannel(
       }
       case "hookAgentState": {
         session.hooksActive = true;
+        session.lastHookEventAt = Date.now();
         // Don't let a late "busy" hook (e.g. delayed PreToolUse) override
         // waitingForInput. The flag is cleared when the user provides input.
         if (event.data === "busy" && session.waitingForInput) {
@@ -267,8 +285,11 @@ function createSessionChannel(
         break;
       }
       case "agentState": {
-        if (!shouldAcceptDetectorState(session.hooksActive, event.data, session.agentState)) {
-          console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
+        if (!shouldAcceptDetectorState(session.hooksActive, event.data, session.agentState, session.lastHookEventAt)) {
+          const reason = session.agentState === "busy" && (event.data === "idle" || event.data === "waitingForInput")
+            ? `hooks active, last hook ${Math.round((Date.now() - session.lastHookEventAt) / 1000)}s ago`
+            : "hooks active";
+          console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (${reason})`);
           break;
         }
         if (event.data === "waitingForInput") {
@@ -358,6 +379,7 @@ export class SessionManager {
       outputBufferTotal: 0,
       lastHeartbeat: Date.now(),
       lastOutputAt: Date.now(),
+      lastHookEventAt: 0, // safe: hooksActive gates the timestamp check, and both are set together
       pendingOutput: [],
       writeScheduled: false,
       restoredFromScrollback: false,
@@ -442,6 +464,7 @@ export class SessionManager {
       outputBufferTotal: 0,
       lastHeartbeat: 0,
       lastOutputAt: 0,
+      lastHookEventAt: 0, // safe: hooksActive gates the timestamp check, and both are set together
       pendingOutput: [],
       writeScheduled: false,
       restoredFromScrollback: true,
