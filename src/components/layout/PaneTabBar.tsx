@@ -175,7 +175,7 @@ function SortableTab({
           ].join(" ")}
         >
           <Icon size={14} />
-          <span className={["max-w-[180px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{tab.label}</span>
+          <span title={tab.label} className={["max-w-[180px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{tab.label}</span>
           <button
             type="button"
             tabIndex={effectiveCanClose ? 0 : -1}
@@ -389,7 +389,7 @@ function PaneTabBar({
           {draggedTab && draggedTab.type in TAB_ICONS ? (
             <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
               {(() => { const Icon = TAB_ICONS[draggedTab.type]; return <Icon size={14} />; })()}
-              <span>{draggedTab.label}</span>
+              <span className="max-w-[180px] truncate">{draggedTab.label}</span>
             </div>
           ) : null}
         </DragOverlay>
