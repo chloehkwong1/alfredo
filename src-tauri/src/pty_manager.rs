@@ -879,6 +879,7 @@ mod tests {
         });
 
         let session_id = PtyManager::generate_session_id();
+        let inhibitor = std::sync::Arc::new(crate::sleep_inhibitor::SleepInhibitor::new());
         let id = manager
             .spawn(
                 session_id,
@@ -891,6 +892,7 @@ mod tests {
                     state_server_port: None,
                 },
                 channel,
+                inhibitor,
             )
             .expect("spawn should succeed");
 
@@ -946,6 +948,7 @@ mod tests {
 
         // Spawn two sessions with long-running commands
         let mut session_ids = Vec::new();
+        let inhibitor = std::sync::Arc::new(crate::sleep_inhibitor::SleepInhibitor::new());
         for i in 0..2 {
             let channel = Channel::new(move |_body| Ok(()));
             let session_id = PtyManager::generate_session_id();
@@ -961,6 +964,7 @@ mod tests {
                         state_server_port: None,
                     },
                     channel,
+                    std::sync::Arc::clone(&inhibitor),
                 )
                 .expect("spawn should succeed");
             session_ids.push(id);
