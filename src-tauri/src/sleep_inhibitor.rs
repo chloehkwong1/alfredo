@@ -73,8 +73,9 @@ impl Drop for SleepInhibitor {
 
 fn spawn_inhibitor() -> Option<Child> {
     let result = if cfg!(target_os = "macos") {
+        let pid = std::process::id().to_string();
         Command::new("caffeinate")
-            .arg("-i") // prevent idle sleep
+            .args(["-i", "-w", &pid]) // prevent idle sleep, die if Alfredo exits
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
