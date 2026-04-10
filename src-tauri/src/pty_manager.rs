@@ -336,13 +336,16 @@ impl PtyManager {
         Ok(())
     }
 
-    /// Close and clean up a PTY session.
     /// Look up the worktree_id for a session.
     pub fn get_worktree_id(&self, session_id: &str) -> Result<String, AppError> {
-        let sessions = self.sessions.read()
-            .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
-        let session_arc = sessions.get(session_id)
-            .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?;
+        let session_arc = {
+            let sessions = self.sessions.read()
+                .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+            Arc::clone(
+                sessions.get(session_id)
+                    .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?,
+            )
+        };
         let session = session_arc.lock()
             .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
         Ok(session.worktree_id.clone())
@@ -960,9 +963,13 @@ mod tests {
             let mgr = Arc::clone(&manager);
             let sid = id.clone();
             let handle = thread::spawn(move || {
+                let mut successes = 0u32;
                 for _ in 0..100 {
-                    let _ = mgr.write(&sid, b"x");
+                    if mgr.write(&sid, b"x").is_ok() {
+                        successes += 1;
+                    }
                 }
+                assert!(successes > 0, "at least one write should succeed");
             });
             handles.push(handle);
         }
