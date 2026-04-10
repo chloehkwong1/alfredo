@@ -85,14 +85,18 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const [resolvedArgs, setResolvedArgs] = useState<string[] | null>(null);
 
-  // Resolve settings when component mounts — must complete before PTY spawns
+  // Resolve settings when component mounts — must complete before PTY spawns.
+  // Uses an aborted flag so stale .then() callbacks from superseded effect
+  // runs can't set hasSpawnedRef before the current run sees claudeSessionId.
   useEffect(() => {
     if (mode !== "claude") {
       setResolvedArgs([]);
       return;
     }
     if (!repoPath) return;
+    let aborted = false;
     Promise.all([getAppConfig(), getConfig(repoPath)]).then(([appCfg, config]) => {
+      if (aborted) return;
       const branch = worktree?.branch ?? "";
       const resolved = resolveSettings(
         appCfg,
@@ -107,9 +111,11 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       hasSpawnedRef.current = true;
       setResolvedArgs(args);
     }).catch(() => {
+      if (aborted) return;
       hasSpawnedRef.current = true;
       setResolvedArgs([]);
     });
+    return () => { aborted = true; };
   }, [repoPath, worktree?.branch, mode, claudeSessionId]);
 
   const [showSearch, setShowSearch] = useState(false);
