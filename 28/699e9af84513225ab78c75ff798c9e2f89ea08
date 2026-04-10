@@ -1,0 +1,23 @@
+src-tauri/src/sleep_inhibitor.rs
+  cefdc7232d233a50 76,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "28699e9af84513225ab78c75ff798c9e2f89ea08",
+  "prompts": {
+    "cefdc7232d233a50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5a28b4f-426b-419a-bf51-978b3af69067",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 1,
+      "accepted_lines": 2259,
+      "overriden_lines": 0
+    }
+  }
+}
