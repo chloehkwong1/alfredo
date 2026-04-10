@@ -270,7 +270,7 @@ function FileSidebar({
             const originalIndex = commits.indexOf(commit);
             const isSelected = selectedCommitIndex === originalIndex;
             const author = formatAuthor(commit.author);
-            const commitNumber = commits.length - originalIndex;
+            const commitNumber = originalIndex + 1;
 
             return (
               <button
