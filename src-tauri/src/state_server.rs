@@ -38,7 +38,8 @@ struct RouterState {
 }
 
 impl StateServerHandle {
-    /// Register a channel for a session so hooks can push state to it.
+    /// Register (or replace) a channel for a session so hooks can push state to it.
+    /// Called on initial spawn AND on reattach after frontend reload.
     pub fn register_channel(
         &self,
         session_id: String,

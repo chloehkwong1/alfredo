@@ -393,6 +393,40 @@ impl PtyManager {
         Ok(session.worktree_id.clone())
     }
 
+    /// Replace the IPC channel for an existing session. Used when the frontend
+    /// reloads and needs to reconnect to a still-alive PTY process.
+    /// Returns the worktree_id so the caller can update the state server.
+    pub fn reattach(
+        &self,
+        session_id: &str,
+        new_channel: Channel<PtyEvent>,
+    ) -> Result<String, AppError> {
+        let session_arc = {
+            let sessions = self.sessions.read()
+                .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+            Arc::clone(
+                sessions.get(session_id)
+                    .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?,
+            )
+        };
+
+        let session = session_arc.lock()
+            .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+
+        // Reject reattach to an exited session
+        if session.exited.lock().map(|g| g.is_some()).unwrap_or(false) {
+            return Err(AppError::Pty("session has exited".into()));
+        }
+
+        // Swap in the new channel
+        match session.channel.write() {
+            Ok(mut guard) => *guard = Some(new_channel),
+            Err(_) => return Err(AppError::Pty("channel lock poisoned".into())),
+        }
+
+        Ok(session.worktree_id.clone())
+    }
+
     pub fn close(&self, session_id: &str) -> Result<(), AppError> {
         let session_arc = {
             let mut sessions = self.sessions.write()

@@ -96,6 +96,21 @@ pub async fn close_pty(
     manager.close(&session_id)
 }
 
+/// Reattach to an existing PTY session with a new IPC channel.
+/// Used after frontend reload to reconnect to still-alive processes.
+#[tauri::command]
+pub async fn reattach_pty(
+    manager: State<'_, PtyManager>,
+    state_server: State<'_, StateServerHandle>,
+    session_id: String,
+    on_data: Channel<PtyEvent>,
+) -> Result<String> {
+    let worktree_id = manager.reattach(&session_id, on_data.clone())?;
+    // Re-register channel with state server so hook callbacks reach the new channel
+    state_server.register_channel(session_id, worktree_id.clone(), on_data);
+    Ok(worktree_id)
+}
+
 /// List all active PTY sessions.
 #[tauri::command]
 pub async fn list_sessions(manager: State<'_, PtyManager>) -> Result<Vec<Session>> {

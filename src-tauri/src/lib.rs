@@ -89,6 +89,7 @@ pub fn run() {
             pty::write_pty,
             pty::resize_pty,
             pty::close_pty,
+            pty::reattach_pty,
             pty::list_sessions,
             // Worktree
             worktree::create_worktree_from,
