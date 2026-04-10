@@ -116,7 +116,11 @@ pub async fn start(
 }
 
 fn parse_notify_reason(query: Option<&str>) -> NotifyReason {
-    match query.and_then(|q| q.strip_prefix("notify=")) {
+    let value = query
+        .into_iter()
+        .flat_map(|q| q.split('&'))
+        .find_map(|pair| pair.strip_prefix("notify="));
+    match value {
         Some("finished") => NotifyReason::Finished,
         Some("error") => NotifyReason::Error,
         Some("input") => NotifyReason::Input,

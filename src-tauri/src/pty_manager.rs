@@ -601,11 +601,13 @@ fn write_hooks_config(
         ("PermissionRequest", hook_entry(cmd_notify("waitingForInput", "input"))),
         // Elicitation → waitingForInput + notify input
         ("Elicitation",       hook_entry(cmd_notify("waitingForInput", "input"))),
-        // PostToolUseFailure: only for interrupts → waitingForInput (no notify)
+        // PostToolUseFailure: interrupts → waitingForInput; non-interrupts → busy
+        // (keeps hook silence timer fresh so detector fallback doesn't false-positive
+        // during long thinking phases after tool failures)
         ("PostToolUseFailure", serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; fi; echo '{}'"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; else curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy\"; fi; fi; echo '{}'"
             }]
         })),
     ];
