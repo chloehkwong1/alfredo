@@ -237,6 +237,22 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     }
   }, [diffTarget, handleSelectFile, handleSelectCommit, fileRefs]);
 
+  // Recovery: when a commit diffTarget is set but allCommits was empty at mount time
+  // (session restore, or refocusing a tab before the first fetch resolves), re-apply
+  // once commits load. Guard on selectedCommitIndex === null so we don't interfere
+  // with user navigation after the initial selection.
+  useEffect(() => {
+    if (
+      diffTarget?.type !== "commit" ||
+      !diffTarget.commitHash ||
+      selectedCommitIndex !== null ||
+      allCommits.length === 0
+    ) return;
+    const commitIndex = allCommits.findIndex((c) => c.hash === diffTarget.commitHash);
+    if (commitIndex !== -1) {
+      handleSelectCommit(commitIndex);
+    }
+  }, [allCommits, diffTarget, selectedCommitIndex, handleSelectCommit]);
 
   // When a committed file is focused and the same path exists in uncommitted,
   // displayFiles only has the uncommitted version — look in committedFiles instead.
