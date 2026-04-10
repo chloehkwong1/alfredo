@@ -265,8 +265,7 @@ fn classify_claude_code(line: &str) -> (Option<AgentType>, Option<AgentState>) {
     if line.contains("Esc to cancel") || line.contains("Tab to amend") {
         return (None, Some(AgentState::WaitingForInput));
     }
-    // Idle prompt — Claude Code shows a `❯` or `>` prompt when waiting for user input
-    // The prompt line is typically short and ends with the prompt char
+    // Idle prompt — Claude Code shows a `❯` prompt when waiting for user input
     if line_is_claude_prompt(line) {
         return (None, Some(AgentState::Idle));
     }
@@ -290,16 +289,15 @@ fn classify_claude_code(line: &str) -> (Option<AgentType>, Option<AgentState>) {
     (None, None)
 }
 
-/// Check if line looks like a Claude Code idle prompt
+/// Check if line looks like a Claude Code idle prompt.
+/// Only matches the Unicode `❯` character — Claude Code's actual idle prompt.
+/// Plain `>` is NOT matched because Claude Code's TUI renders `> ` in the
+/// input cursor area during model thinking, causing false idle detections
+/// when the detector fallback is active during long thinking phases.
 fn line_is_claude_prompt(line: &str) -> bool {
     let trimmed = line.trim();
-    // Common Claude Code prompt patterns:
-    // "❯ " at end (or just "❯")
-    // "> " at end after the agent has been running
     trimmed.ends_with('❯')
         || trimmed.ends_with("❯ ")
-        || (trimmed.len() < 20 && trimmed.ends_with("> "))
-        || (trimmed.len() < 20 && trimmed.ends_with('>'))
 }
 
 /// Codex state detection
@@ -792,6 +790,22 @@ mod tests {
             result,
             Some((AgentType::ClaudeCode, AgentState::Idle))
         );
+    }
+
+    #[test]
+    fn claude_code_plain_gt_is_not_idle() {
+        let mut det = AgentDetector::new();
+        det.feed(b"$ claude\n");
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(1));
+        // Plain ">" must NOT trigger idle — Claude Code's TUI renders "> "
+        // in the input cursor area during model thinking.
+        let result = det.feed(b"> \n");
+        // Should be Busy (line len > 3 after "$ claude" context), not Idle
+        assert_ne!(det.state(), &AgentState::Idle);
+        // The "> " line is only 2 chars trimmed, so it falls through to (None, None)
+        // — state stays Busy from the launch detection.
+        assert_eq!(result, None);
+        assert_eq!(det.state(), &AgentState::Busy);
     }
 
     #[test]
