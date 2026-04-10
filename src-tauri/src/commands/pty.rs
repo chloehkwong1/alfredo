@@ -1,6 +1,6 @@
 use crate::pty_manager::{PtyManager, SpawnConfig};
 use crate::state_server::StateServerHandle;
-use crate::types::{AgentType, AppError, PtyEvent, Session};
+use crate::types::{AgentType, AppError, PtyEvent, Session, SessionType};
 use tauri::ipc::Channel;
 use tauri::State;
 
@@ -26,6 +26,7 @@ pub async fn spawn_pty(
     args: Vec<String>,
     on_data: Channel<PtyEvent>,
     agent_type: Option<AgentType>,
+    session_type: Option<SessionType>,
 ) -> Result<String> {
     let command = match mode.as_str() {
         "shell" => std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string()),
@@ -49,6 +50,7 @@ pub async fn spawn_pty(
         args,
         agent_type: agent_type.unwrap_or(AgentType::Unknown),
         state_server_port: Some(state_server.port),
+        session_type: session_type.unwrap_or(SessionType::Shell),
     };
 
     match manager.spawn(session_id.clone(), config, on_data, std::sync::Arc::clone(&sleep_inhibitor)) {

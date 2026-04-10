@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::agent_detector::AgentDetector;
 use crate::platform::augmented_path;
 use crate::sleep_inhibitor::SleepInhibitor;
-use crate::types::{AgentState, AgentType, AppError, NotifyReason, PtyEvent, Session, SessionStatus};
+use crate::types::{AgentState, AgentType, AppError, NotifyReason, PtyEvent, Session, SessionStatus, SessionType};
 
 /// Shared timestamps for signalling resize/input events to the reader thread's
 /// agent detector. The main thread writes; the reader thread reads.
@@ -30,6 +30,7 @@ struct PtySession {
     worktree_id: String,
     /// Filesystem path to the worktree — needed for hook cleanup on close.
     worktree_path: String,
+    session_type: SessionType,
     /// Set to true when the reader thread detects the child has exited.
     exited: Arc<Mutex<Option<i32>>>,
     /// Shared flag to signal the reader thread to stop.
@@ -46,6 +47,7 @@ pub struct SpawnConfig {
     pub args: Vec<String>,
     pub agent_type: AgentType,
     pub state_server_port: Option<u16>,
+    pub session_type: SessionType,
 }
 
 /// Manages all PTY sessions. Stored as Tauri managed state.
@@ -85,6 +87,7 @@ impl PtyManager {
             args,
             agent_type,
             state_server_port,
+            session_type,
         } = config;
 
         let pty_system = native_pty_system();
@@ -282,6 +285,7 @@ impl PtyManager {
             command,
             worktree_id,
             worktree_path,
+            session_type,
             exited,
             stop_flag,
             detector_signals,
@@ -521,6 +525,7 @@ impl PtyManager {
                 worktree_id: session.worktree_id.clone(),
                 command: session.command.clone(),
                 status,
+                session_type: session.session_type.clone(),
             });
         }
 

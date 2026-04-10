@@ -3,6 +3,14 @@ use serde::{Deserialize, Serialize};
 
 // ── PTY ─────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum SessionType {
+    Agent,
+    Server,
+    Shell,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Session {
@@ -10,6 +18,7 @@ pub struct Session {
     pub worktree_id: String,
     pub command: String,
     pub status: SessionStatus,
+    pub session_type: SessionType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
