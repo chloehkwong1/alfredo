@@ -41,6 +41,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             default_agent: None,
             archive_after_days: Some(2),
             delete_after_days: None,
+            debug_mode: None,
         });
     }
 
@@ -173,6 +174,7 @@ pub async fn migrate_if_needed(
         default_agent: None,
         archive_after_days: Some(2),
         delete_after_days: None,
+        debug_mode: None,
     };
 
     save(app_data_dir, &global).await?;
@@ -226,6 +228,7 @@ mod tests {
             default_agent: None,
             archive_after_days: Some(2),
             delete_after_days: None,
+            debug_mode: None,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -267,6 +270,7 @@ mod tests {
             default_agent: None,
             archive_after_days: Some(2),
             delete_after_days: None,
+            debug_mode: None,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -305,6 +309,7 @@ mod tests {
             default_agent: None,
             archive_after_days: Some(2),
             delete_after_days: None,
+            debug_mode: None,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);

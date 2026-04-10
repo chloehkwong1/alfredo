@@ -394,6 +394,8 @@ pub struct GlobalAppConfig {
     pub archive_after_days: Option<u32>,
     #[serde(default)]
     pub delete_after_days: Option<u32>,
+    #[serde(default)]
+    pub debug_mode: Option<bool>,
 }
 
 fn default_editor() -> String { "vscode".into() }

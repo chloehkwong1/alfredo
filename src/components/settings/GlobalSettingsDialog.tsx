@@ -374,6 +374,8 @@ function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingF
               <NotificationSettings
                 config={appConfig.notifications ?? DEFAULT_NOTIFICATION_CONFIG}
                 onChange={(notifications) => updateAppConfig({ notifications })}
+                debugMode={appConfig.debugMode ?? false}
+                onDebugModeChange={(debugMode) => updateAppConfig({ debugMode })}
               />
             )}
 

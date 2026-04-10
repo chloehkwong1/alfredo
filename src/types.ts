@@ -391,6 +391,8 @@ export interface GlobalAppConfig {
   archiveAfterDays?: number;
   /** Days after archiving before auto-deleting. 0 or null = never. */
   deleteAfterDays?: number;
+  /** Show diagnostic info in notifications (state source, hook name). */
+  debugMode?: boolean;
 }
 
 // ── Inline annotation ────────────────────────────────────────────

@@ -19,9 +19,11 @@ const SOUND_OPTIONS = Object.keys(SOUNDS).map((id) => ({
 interface NotificationSettingsProps {
   config: NotificationConfig;
   onChange: (config: NotificationConfig) => void;
+  debugMode?: boolean;
+  onDebugModeChange?: (v: boolean) => void;
 }
 
-function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
+function NotificationSettings({ config, onChange, debugMode, onDebugModeChange }: NotificationSettingsProps) {
   const [permissionState, setPermissionState] = useState<
     "granted" | "denied" | "default" | "unsupported"
   >("default");
@@ -176,6 +178,21 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
           >
             Test Notification
           </Button>
+          </div>
+
+          {/* Debug mode */}
+          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">Debug</div>
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <span className="text-[13px] text-text-secondary">Show state source</span>
+              <p className="text-xs text-text-tertiary mt-0.5">
+                Appends the detection source (hook / detector) to notification text
+              </p>
+            </div>
+            <Toggle
+              checked={debugMode ?? false}
+              onChange={(v) => onDebugModeChange?.(v)}
+            />
           </div>
         </>
       )}

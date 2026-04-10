@@ -2,7 +2,7 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { usePrStore } from "../stores/prStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { sessionManager } from "./sessionManager";
+import { sessionManager, stateSourceMap } from "./sessionManager";
 import { deleteWorktree as deleteWorktreeApi } from "../api";
 import { deleteSession as deleteSessionFile } from "./SessionPersistence";
 import type { TabType, DiffTarget, WorkspaceTab } from "../types";
@@ -64,6 +64,7 @@ class LifecycleManager {
     useTabStore.getState().removeWorktreeTabs(worktreeId);
     usePrStore.getState().removeWorktreeState(worktreeId);
     useLayoutStore.getState().removeLayout(worktreeId);
+    stateSourceMap.delete(worktreeId);
 
     // 2. Close PTY sessions (async, best-effort)
     for (const tab of tabs) {

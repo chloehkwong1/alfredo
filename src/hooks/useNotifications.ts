@@ -6,6 +6,7 @@ import {
 } from "@tauri-apps/plugin-notification";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { stateSourceMap } from "../services/sessionManager";
 import { getAppConfig } from "../api";
 import { IDLE_SETTLE_MS } from "../types";
 import type { AgentState, NotificationConfig } from "../types";
@@ -208,6 +209,7 @@ export function useNotifications() {
   const prevStatesRef = useRef<Record<string, AgentState>>({});
   const pendingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const configRef = useRef<NotificationConfig>(DEFAULT_CONFIG);
+  const debugModeRef = useRef(false);
 
   // Load notification config once on mount, then refresh periodically.
   useEffect(() => {
@@ -217,6 +219,7 @@ export function useNotifications() {
         .then((appConfig) => {
           if (!cancelled) {
             configRef.current = appConfig.notifications ?? DEFAULT_CONFIG;
+            debugModeRef.current = appConfig.debugMode ?? false;
           }
         })
         .catch((e) => console.warn('[notifications] Failed to fetch config:', e));
@@ -297,7 +300,8 @@ export function useNotifications() {
           clearTimeout(pendingTimers[id]);
           delete pendingTimers[id];
         }
-        sendNotification(`${wt.branch} needs your input`);
+        const dbg = debugModeRef.current ? ` [${stateSourceMap.get(id) ?? "?"}]` : "";
+        sendNotification(`${wt.branch} needs your input${dbg}`);
         playSoundById(config.sound);
         requestDockBounce();
       } else if (to === "idle" && config.notifyOnIdle) {
@@ -318,7 +322,8 @@ export function useNotifications() {
           // viewing this worktree (seenWorktrees is set by TerminalView
           // when the active worktree goes idle with the window focused).
           if (current?.agentStatus === "idle" && !state.seenWorktrees.has(id)) {
-            sendNotification(`${branch} finished`);
+            const dbg = debugModeRef.current ? ` [${stateSourceMap.get(id) ?? "?"}]` : "";
+            sendNotification(`${branch} finished${dbg}`);
             playSoundById(latestConfig.sound);
             requestDockBounce();
           }

@@ -202,6 +202,12 @@ function registerKittyProtocol(terminal: Terminal, sessionId: string): void {
   terminal.parser.registerCsiHandler({ prefix: "<", final: "u" }, () => true);
 }
 
+/**
+ * Tracks the source of the last agent-state transition per worktree.
+ * Used by useNotifications to surface diagnostic info when debug mode is on.
+ */
+export const stateSourceMap = new Map<string, string>();
+
 /** How long hooks must be silent before the detector fallback kicks in.
  *  Must be long enough that normal inter-turn hook gaps (Stop → idle →
  *  UserPromptSubmit → busy) don't trigger it, but short enough that a
@@ -309,6 +315,7 @@ function createSessionChannel(
         console.debug(`[status:${worktreeId}] hook → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : session.waitingForInput ? " (flag CLEARED)" : ""}`);
         session.waitingForInput = event.data === "waitingForInput";
         session.agentState = event.data;
+        stateSourceMap.set(worktreeId, "hook");
         useWorkspaceStore
           .getState()
           .updateWorktree(worktreeId, { agentStatus: event.data });
@@ -330,6 +337,7 @@ function createSessionChannel(
         const fallback = session.hooksActive ? " (hooks-fallback)" : "";
         console.debug(`[status:${worktreeId}] detector → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : ""}${fallback}`);
         session.agentState = event.data;
+        stateSourceMap.set(worktreeId, session.hooksActive ? "detector-fallback" : "detector");
         useWorkspaceStore
           .getState()
           .updateWorktree(worktreeId, { agentStatus: event.data });
