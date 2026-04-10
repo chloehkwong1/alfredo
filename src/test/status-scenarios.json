@@ -172,7 +172,7 @@
   },
   {
     "name": "switch-to-stale-worktree",
-    "description": "Worktree busy with no output for 31s, user clicks",
+    "description": "Worktree busy with no output for 121s, user clicks",
     "category": "wrong-status-on-focus",
     "steps": [
       {
@@ -180,7 +180,7 @@
         "expect": { "agentStatus": "busy", "staleBusy": false }
       },
       {
-        "action": { "type": "elapsed", "ms": 31000 },
+        "action": { "type": "elapsed", "ms": 121000 },
         "expect": { "agentStatus": "busy", "staleBusy": true, "effectiveStatus": "stale" }
       }
     ]

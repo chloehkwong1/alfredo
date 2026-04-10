@@ -8,7 +8,7 @@ import { sessionManager } from "../services/sessionManager";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { ManagedSession } from "../services/sessionManager";
 
-export const STALE_BUSY_MS = 30_000;
+export const STALE_BUSY_MS = 120_000;
 
 export function computeStaleBusy(
   agentStatus: AgentState,
@@ -303,6 +303,14 @@ export function usePty({
       onResizeDisposable?.dispose();
       resizeObserver?.disconnect();
       if (resizeTimer) clearTimeout(resizeTimer);
+
+      // Clear staleBusy when the interval stops. Without this, a staleBusy=true
+      // value set during a thinking phase freezes in the store after tab switch,
+      // causing the sidebar to show "Unresponsive" even when output has resumed.
+      // The value is recomputed correctly within 500ms when this tab is re-opened.
+      if (mode === "claude") {
+        useWorkspaceStore.getState().updateWorktree(worktreeId, { staleBusy: false });
+      }
 
       // Detach the terminal DOM element — do NOT close the PTY session.
       // Move the terminal element out of the container so xterm keeps its state.

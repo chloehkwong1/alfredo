@@ -8,7 +8,7 @@ describe("computeStaleBusy", () => {
     expect(computeStaleBusy("busy", true, now - 5000, now)).toBe(false);
   });
 
-  it("returns true when busy with no output for over 30s", () => {
+  it("returns true when busy with no output for over STALE_BUSY_MS", () => {
     expect(computeStaleBusy("busy", true, now - (STALE_BUSY_MS + 1000), now)).toBe(true);
   });
 

@@ -533,10 +533,13 @@ fn write_hooks_config(
     let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
         ("SessionStart",    cmd("idle")),
         ("UserPromptSubmit", cmd("busy")),
-        // Stop is intentionally NOT mapped to idle — it fires at the end of
-        // every turn, not just when the task is complete. The authoritative
-        // idle signal is Notification(idle_prompt), which fires only when the
-        // ❯ prompt is actually rendered.
+        // Stop fires at the end of every turn — this IS the correct idle signal.
+        // Notification(idle_prompt) was previously used but it fires after a delay
+        // (not immediately when the prompt renders), causing status to stay "busy"
+        // for 60+ seconds after the agent finishes. Stop is deterministic.
+        // Note: Stop does NOT fire on user interrupts — those are handled by
+        // PostToolUseFailure(is_interrupt) and the detector fallback.
+        ("Stop",            cmd("idle")),
         ("PreToolUse",      cmd("busy")),
         ("Notification", serde_json::json!({
             "matcher": "permission_prompt",

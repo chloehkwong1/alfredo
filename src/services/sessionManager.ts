@@ -78,6 +78,9 @@ export interface ManagedSession {
   outputBufferTotal: number;
   /** Timestamp of the last heartbeat received from the PTY channel. */
   lastHeartbeat: number;
+  /** True once the PTY process has exited (reader thread sent NotRunning).
+   *  Used to prevent refreshHeartbeats from reviving dead sessions on wake. */
+  ptyExited: boolean;
   /** Timestamp of the last PTY output received. Used to detect stale busy state. */
   lastOutputAt: number;
   /** Pending output chunks awaiting the next animation frame flush. */
@@ -213,7 +216,7 @@ export function shouldAcceptDetectorState(
 ): boolean {
   // Once hooks have fired, they are the sole source of truth.
   // Every state the detector could provide is already covered:
-  //   idle            → Notification(idle_prompt)
+  //   idle            → Stop (end of turn), Notification(idle_prompt) (delayed fallback)
   //   busy            → PreToolUse, PostToolUse, UserPromptSubmit, etc.
   //   waitingForInput → Notification(permission_prompt, elicitation_dialog),
   //                     PermissionRequest, PostToolUseFailure(interrupt)
@@ -291,6 +294,12 @@ function createSessionChannel(
       case "hookAgentState": {
         session.hooksActive = true;
         session.lastHookEventAt = Date.now();
+        // Mark PTY as exited so refreshHeartbeats doesn't revive dead sessions.
+        // Guard on sessionId to avoid marking explicitly-stopped sessions
+        // (stopSession clears sessionId before the async EOF event arrives).
+        if (event.data === "notRunning" && session.sessionId) {
+          session.ptyExited = true;
+        }
         // Don't let a late "busy" hook (e.g. delayed PreToolUse) override
         // waitingForInput. The flag is cleared when the user provides input.
         if (event.data === "busy" && session.waitingForInput) {
@@ -399,6 +408,7 @@ export class SessionManager {
       outputBufferPos: 0,
       outputBufferTotal: 0,
       lastHeartbeat: Date.now(),
+      ptyExited: false,
       lastOutputAt: Date.now(),
       lastHookEventAt: 0, // safe: hooksActive gates the timestamp check, and both are set together
       pendingOutput: [],
@@ -502,6 +512,7 @@ export class SessionManager {
       outputBufferPos: restoredPos,
       outputBufferTotal: restoredTotal,
       lastHeartbeat: 0,
+      ptyExited: false,
       lastOutputAt: 0,
       lastHookEventAt: 0, // safe: hooksActive gates the timestamp check, and both are set together
       pendingOutput: [],
@@ -556,6 +567,7 @@ export class SessionManager {
       throw e;
     }
     session.sessionId = sessionId;
+    session.ptyExited = false;
     session.agentState = mode === "shell" ? "notRunning" : "busy";
     session.lastHeartbeat = Date.now();
     // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the
@@ -604,6 +616,7 @@ export class SessionManager {
       // Session may already be dead on the Rust side — that's fine.
     }
     session.sessionId = "";
+    session.ptyExited = false;
 
     // Reset session state so a subsequent spawnForExisting starts clean.
     // Without this, stale hooksActive=true would permanently reject detector
@@ -725,7 +738,7 @@ export class SessionManager {
   refreshHeartbeats(): void {
     const now = Date.now();
     for (const session of this.sessions.values()) {
-      if (session.lastHeartbeat > 0) {
+      if (session.lastHeartbeat > 0 && !session.ptyExited) {
         session.lastHeartbeat = now;
       }
     }

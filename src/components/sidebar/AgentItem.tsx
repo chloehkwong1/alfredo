@@ -184,6 +184,8 @@ export function computeEffectiveStatus(
   if (baseStatus === "idle" && !isSeen) {
     // Only show "done" after idle has settled — brief inter-turn gaps
     // (Stop hook → idle → UserPromptSubmit → busy) stay as plain "idle".
+    // This also covers the async race where a delayed PostToolUse → busy
+    // arrives after Stop → idle due to concurrent curl executions.
     const t = now ?? Date.now();
     if (idleSince && t - idleSince < IDLE_SETTLE_MS) {
       return "idle";
