@@ -1,0 +1,60 @@
+src-tauri/src/state_server.rs
+  0039cab8cf5e3188 11,118-126,167-168,179
+src/components/sidebar/AgentItem.tsx
+  0039cab8cf5e3188 197
+src/types.ts
+  0039cab8cf5e3188 19,28
+src/test/status-scenarios.json
+  0039cab8cf5e3188 129,134,144,153,157,165,235,248,254,259
+src/services/lifecycleManager.test.ts
+  0039cab8cf5e3188 55
+src/hooks/notificationUtils.ts
+  0039cab8cf5e3188 1-183
+src/components/settings/NotificationSettings.tsx
+  0039cab8cf5e3188 11
+src/stores/workspaceStore.ts
+  0039cab8cf5e3188 223
+src/test/status-scenarios.test.ts
+  0039cab8cf5e3188 62
+src-tauri/src/types.rs
+  0039cab8cf5e3188 35-38,64-77
+src/services/sessionManager.ts
+  0039cab8cf5e3188 7-9,204,208-235,326,329,332-333,337-345,357,647
+src/components/sidebar/AgentItem.test.ts
+  0039cab8cf5e3188 2,13
+src-tauri/src/pty_manager.rs
+  0039cab8cf5e3188 15,232-235,568-580,584,590-604,608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "19edad2396b184ebf11aae362947a847e7cc8801",
+  "prompts": {
+    "0039cab8cf5e3188": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d57bca1-7ffc-448c-8139-9d155aec2766",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4468,
+      "total_deletions": 365,
+      "accepted_lines": 4303,
+      "overriden_lines": 0
+    },
+    "abfe4942a2aeb79c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82cca6b3-9f04-4dc3-8070-0e522717b625",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 575,
+      "overriden_lines": 0
+    }
+  }
+}
