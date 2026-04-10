@@ -169,37 +169,46 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
                 }
 
-                // Restore persisted Claude session ID immediately
-                if (session.claudeSessionId) {
-                  updateWorktree(wt.id, { claudeSessionId: session.claudeSessionId });
-                  // Stamp resumeSessionId on ALL agent tabs so every
-                  // restored Claude tab auto-resumes (new tabs via Cmd+T won't have it)
-                  for (const tab of session.tabs) {
-                    if (isAgentTab(tab)) {
-                      updateTab(wt.id, tab.id, { resumeSessionId: session.claudeSessionId });
-                    }
-                  }
-                }
+                // Restore per-tab Claude session IDs. Each tab may have
+                // its own resumeSessionId from a previous save — preserve
+                // those so multiple Claude tabs resume distinct conversations.
+                const agentTabs = session.tabs.filter(isAgentTab);
+                const tabsWithSession = agentTabs.filter((t) => t.resumeSessionId);
+                const tabsWithoutSession = agentTabs.filter((t) => !t.resumeSessionId);
 
-                // Scan filesystem for a newer session ID. Awaited so the
-                // result is available before TerminalView mounts and resolves
-                // args — fire-and-forget caused a race where --resume was
-                // never added because hasSpawnedRef was already true.
-                try {
-                  const fsSessionId = await findClaudeSession(wt.path);
-                  if (fsSessionId) {
-                    updateWorktree(wt.id, { claudeSessionId: fsSessionId });
-                    // Stamp resumeSessionId on ALL agent tabs so every
-                    // Claude tab auto-resumes, not just the first one.
-                    const tabs = useTabStore.getState().tabs[wt.id] ?? [];
-                    for (const tab of tabs) {
-                      if (isAgentTab(tab)) {
-                        updateTab(wt.id, tab.id, { resumeSessionId: fsSessionId });
-                      }
+                // For tabs that already have a saved session ID, keep it as-is.
+                // The tab objects were already restored via restoreTabs above.
+
+                // For tabs WITHOUT a saved session ID (migration from older
+                // versions, or tabs that were created fresh), try the
+                // worktree-level fallback first, then scan the filesystem.
+                if (tabsWithoutSession.length > 0) {
+                  // Use the worktree-level claudeSessionId as initial fallback
+                  let fallbackSessionId = session.claudeSessionId ?? null;
+
+                  // Scan filesystem for a newer session ID. Awaited so the
+                  // result is available before TerminalView mounts and resolves
+                  // args — fire-and-forget caused a race where --resume was
+                  // never added because hasSpawnedRef was already true.
+                  try {
+                    const fsSessionId = await findClaudeSession(wt.path);
+                    if (fsSessionId) {
+                      fallbackSessionId = fsSessionId;
+                    }
+                  } catch (e) {
+                    console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);
+                  }
+
+                  if (fallbackSessionId) {
+                    updateWorktree(wt.id, { claudeSessionId: fallbackSessionId });
+                    for (const tab of tabsWithoutSession) {
+                      updateTab(wt.id, tab.id, { resumeSessionId: fallbackSessionId });
                     }
                   }
-                } catch (e) {
-                  console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);
+                } else if (tabsWithSession.length > 0) {
+                  // All tabs have their own session IDs — set worktree-level
+                  // to the first one for backward compat.
+                  updateWorktree(wt.id, { claudeSessionId: tabsWithSession[0].resumeSessionId });
                 }
 
                 // Don't eagerly spawn sessions — they'll start lazily when

@@ -7,7 +7,7 @@ import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { sessionManager } from "../../services/sessionManager";
-import { writePty, getConfig, getAppConfig } from "../../api";
+import { writePty, getConfig, getAppConfig, findClaudeSession } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { Button } from "../ui/Button";
@@ -126,6 +126,26 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     reconnectKey,
     startupCommand: tabCommand,
   });
+
+  // Capture Claude session ID for fresh tabs (no resumeSessionId) so that
+  // the session persists per-tab and resumes correctly on next restart.
+  // Note: if multiple fresh tabs exist in the same worktree, they'll all
+  // discover the same "most recent" session — no worse than the old behavior,
+  // and after one restart cycle each tab will have its own persisted ID.
+  const hasDiscoveredSession = useRef(false);
+  useEffect(() => {
+    if (hasDiscoveredSession.current) return;
+    if (!hasOutput || !isAgentTab || claudeSessionId) return;
+    if (!activeWorktreeId || !worktree?.path) return;
+    hasDiscoveredSession.current = true;
+    findClaudeSession(worktree.path).then((fsSessionId) => {
+      if (fsSessionId && activeWorktreeId && tabId) {
+        useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: fsSessionId });
+      }
+    }).catch((e) => {
+      console.warn(`[TerminalView] Failed to discover Claude session for ${worktree.path}:`, e);
+    });
+  }, [hasOutput, isAgentTab, claudeSessionId, activeWorktreeId, worktree?.path, tabId]);
 
   const handleSendFeedback = useCallback(async () => {
     if (!activeWorktreeId || annotations.length === 0) return;
