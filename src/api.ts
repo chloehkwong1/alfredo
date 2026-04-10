@@ -11,10 +11,11 @@ import type {
   PrStatus,
   PtyEvent,
   RepoMode,
+  Session,
+  SessionType,
   Worktree,
   WorktreeSource,
   WorkflowRunLog,
-
 } from "./types";
 
 // ── PTY ─────────────────────────────────────────────────────────
@@ -26,8 +27,9 @@ export function spawnPty(
   args: string[],
   onData: Channel<PtyEvent>,
   agentType?: AgentType,
+  sessionType?: SessionType,
 ): Promise<string> {
-  return invoke("spawn_pty", { worktreeId, worktreePath, mode, args, onData, agentType });
+  return invoke("spawn_pty", { worktreeId, worktreePath, mode, args, onData, agentType, sessionType });
 }
 
 export function writePty(sessionId: string, data: number[]): Promise<void> {
@@ -44,6 +46,22 @@ export function resizePty(
 
 export function closePty(sessionId: string): Promise<void> {
   return invoke("close_pty", { sessionId });
+}
+
+/** List all active PTY sessions on the Rust backend. */
+export function listSessions(): Promise<Session[]> {
+  return invoke("list_sessions");
+}
+
+/**
+ * Reattach to an existing PTY session with a new IPC channel.
+ * Returns the worktree_id the session belongs to.
+ */
+export function reattachPty(
+  sessionId: string,
+  onData: Channel<PtyEvent>,
+): Promise<string> {
+  return invoke("reattach_pty", { sessionId, onData });
 }
 
 export function detectAvailableAgents(): Promise<string[]> {

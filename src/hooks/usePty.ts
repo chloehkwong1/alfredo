@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "@xterm/addon-webgl";
 import type { SearchAddon } from "@xterm/addon-search";
-import type { AgentState } from "../types";
+import type { AgentState, SessionType } from "../types";
 import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
 import { sessionManager } from "../services/sessionManager";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -37,6 +37,8 @@ interface UsePtyOptions {
   reconnectKey?: number;
   /** Command to write to stdin after the shell spawns (used by server tabs). */
   startupCommand?: string;
+  /** Session type hint passed to the Rust backend. */
+  sessionType?: SessionType;
 }
 
 interface UsePtyReturn {
@@ -63,6 +65,7 @@ export function usePty({
   args,
   reconnectKey,
   startupCommand,
+  sessionType,
 }: UsePtyOptions): UsePtyReturn {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [searchAddon, setSearchAddon] = useState<SearchAddon | null>(null);
@@ -101,7 +104,7 @@ export function usePty({
 
     async function attach() {
       const session = await sessionManager.getOrSpawn(
-        sessionKey, worktreeId, worktreePath, mode, undefined, argsRef.current ?? undefined,
+        sessionKey, worktreeId, worktreePath, mode, undefined, argsRef.current ?? undefined, sessionType,
       );
       if (disposed) return;
 

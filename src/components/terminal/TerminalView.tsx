@@ -20,16 +20,16 @@ import {
   buildClaudeArgs,
 } from "../../services/claudeSettingsResolver";
 import { getAgentSessionInfo } from "../../services/agentMessenger";
-import type { Annotation, TabType } from "../../types";
+import type { Annotation, SessionType, TabType } from "../../types";
 
-function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell" } {
+function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell"; sessionType: SessionType } {
   switch (tabType) {
-    case "claude": return { mode: "claude" };
-    case "codex": return { mode: "codex" };
-    case "gemini": return { mode: "gemini" };
+    case "claude": return { mode: "claude", sessionType: "agent" };
+    case "codex": return { mode: "codex", sessionType: "agent" };
+    case "gemini": return { mode: "gemini", sessionType: "agent" };
+    case "server": return { mode: "shell", sessionType: "server" };
     case "shell":
-    case "server":
-    default: return { mode: "shell" };
+    default: return { mode: "shell", sessionType: "shell" };
   }
 }
 
@@ -57,7 +57,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionKey = tabId ?? activeWorktreeId ?? "";
-  const { mode } = tabTypeToPtyMode(tabType ?? "claude");
+  const { mode, sessionType } = tabTypeToPtyMode(tabType ?? "claude");
 
   // Read the tab's command field (used by server tabs to auto-execute a command)
   const tabCommand = useTabStore((s) => {
@@ -131,6 +131,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     args: resolvedArgs,
     reconnectKey,
     startupCommand: tabCommand,
+    sessionType,
   });
 
   // Capture Claude session ID for fresh tabs (no resumeSessionId) so that
@@ -189,6 +190,11 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     } catch {
       // Config fetch failed — keep current args and still restart.
     }
+
+    // Clear the stale resumeSessionId so the discovery effect can find the
+    // new session that the fresh Claude instance will create.
+    hasDiscoveredSession.current = false;
+    useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: undefined });
 
     await sessionManager.closeSession(sessionKey);
     setReconnectKey((k) => k + 1);

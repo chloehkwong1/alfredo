@@ -4,9 +4,9 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { AgentState, AgentType, NotifyReason } from "../types";
+import type { AgentState, AgentType, NotifyReason, SessionType } from "../types";
 import { sendNotification, playSoundById, requestDockBounce } from "../hooks/notificationUtils";
-import { spawnPty, closePty, createPtyChannel, resizePty, writePty, getAppConfig } from "../api";
+import { spawnPty, closePty, createPtyChannel, resizePty, writePty, getAppConfig, reattachPty } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
 import { loadTerminalPreferences } from "./terminalPreferences";
@@ -388,12 +388,13 @@ export class SessionManager {
     mode: "claude" | "codex" | "gemini" | "shell" = "claude",
     initialScrollback?: string,
     args?: string[],
+    sessionType?: SessionType,
   ): Promise<ManagedSession> {
     const existing = this.sessions.get(sessionKey);
     if (existing) {
       // Scrollback-only session (no PTY yet) — spawn a PTY for it
       if (!existing.sessionId && existing.lastHeartbeat === 0) {
-        return this.spawnForExisting(sessionKey, worktreeId, worktreePath, mode, args);
+        return this.spawnForExisting(sessionKey, worktreeId, worktreePath, mode, args, sessionType);
       }
       // Zombie detection: session exists but PTY never spawned or died
       const isZombie = !existing.sessionId && existing.lastHeartbeat > 0 &&
@@ -461,6 +462,7 @@ export class SessionManager {
         args ?? [],
         channel,
         agentType,
+        sessionType,
       );
     } catch (err) {
       // Spawn failed — remove session from map to prevent zombie
@@ -562,6 +564,7 @@ export class SessionManager {
     worktreePath: string,
     mode: "claude" | "codex" | "gemini" | "shell" = "claude",
     args?: string[],
+    sessionType?: SessionType,
   ): Promise<ManagedSession> {
     const session = this.sessions.get(sessionKey);
     if (!session) throw new Error(`No session found for key: ${sessionKey}`);
@@ -584,6 +587,7 @@ export class SessionManager {
         args ?? [],
         channel,
         agentType,
+        sessionType,
       );
     } catch (e) {
       // Spawn failed — remove session so it doesn't get stuck as scrollback-only
@@ -617,6 +621,59 @@ export class SessionManager {
       useWorkspaceStore.getState().markWorktreeSeen(worktreeId);
     }
 
+    return session;
+  }
+
+  /**
+   * Reattach to a PTY session that survived a frontend reload.
+   * Creates a new ManagedSession with a fresh Channel wired to the existing
+   * Rust-side PTY process.
+   */
+  async reattachToSession(
+    sessionKey: string,
+    sessionId: string,
+    worktreeId: string,
+  ): Promise<ManagedSession> {
+    // Don't double-reattach
+    const existing = this.sessions.get(sessionKey);
+    if (existing && existing.sessionId === sessionId) return existing;
+
+    const { terminal, searchAddon } = createTerminal();
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
+
+    const session: ManagedSession = {
+      sessionId,
+      terminal,
+      fitAddon,
+      searchAddon,
+      webglLoaded: false,
+      agentState: "busy",
+      hooksActive: false,
+      outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
+      outputBufferPos: 0,
+      outputBufferTotal: 0,
+      lastHeartbeat: Date.now(),
+      ptyExited: false,
+      lastOutputAt: 0,
+      lastHookEventAt: 0,
+      pendingOutput: [],
+      writeScheduled: false,
+      restoredFromScrollback: false,
+      startupCommandSent: true,
+      allowNextClearScrollback: false,
+    };
+
+    const channel = createSessionChannel(this, session, worktreeId);
+
+    const returnedWorktreeId = await reattachPty(sessionId, channel);
+    if (returnedWorktreeId !== worktreeId) {
+      console.warn(
+        `[sessionManager] reattach worktree mismatch: expected ${worktreeId}, got ${returnedWorktreeId}`,
+      );
+    }
+
+    this.sessions.set(sessionKey, session);
     return session;
   }
 

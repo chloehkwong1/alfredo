@@ -1,10 +1,13 @@
 // ── PTY ─────────────────────────────────────────────────────────
 
+export type SessionType = "agent" | "server" | "shell";
+
 export interface Session {
   id: string;
   worktreeId: string;
   command: string;
   status: SessionStatus;
+  sessionType: SessionType;
 }
 
 export type SessionStatus =
