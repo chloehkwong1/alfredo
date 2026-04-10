@@ -62,9 +62,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
   }, [config.enabled, update]);
 
   const handleTestNotification = useCallback(async () => {
-    // Force-recreate AudioContext to work around WKWebView zombie state where
-    // context.state reads "running" but produces no audio output.
-    playSoundById(config.sound, { forceNewContext: true }).catch((e) => {
+    playSoundById(config.sound).catch((e) => {
       console.warn('[notifications] Test sound failed:', e);
     });
     let granted = await isPermissionGranted();
@@ -157,7 +155,7 @@ function NotificationSettings({ config, onChange }: NotificationSettingsProps) {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        playSoundById(opt.id, { forceNewContext: true });
+                        playSoundById(opt.id);
                       }}
                       className="text-text-tertiary hover:text-text-primary cursor-pointer"
                     >

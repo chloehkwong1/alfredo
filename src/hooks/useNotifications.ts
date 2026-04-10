@@ -120,21 +120,6 @@ async function createAudioContext(): Promise<AudioContext> {
   return ctx;
 }
 
-export async function playTone(frequency: number, duration: number, type: OscillatorType = "sine") {
-  if (frequency === 0 || duration === 0) return;
-  const ctx = await createAudioContext();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.type = type;
-  osc.frequency.value = frequency;
-  gain.gain.value = 0.3;
-  osc.start(ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-  osc.stop(ctx.currentTime + duration);
-}
-
 async function playNotes(notes: SoundNote[]) {
   if (notes.length === 0) return;
   const ctx = await createAudioContext();
@@ -157,6 +142,9 @@ async function playNotes(notes: SoundNote[]) {
     osc.stop(offset + note.duration);
     offset += note.duration + (note.delay ?? 0.04);
   }
+  // Close the context after all notes finish to release system audio resources.
+  const totalMs = (offset - ctx.currentTime + 0.1) * 1000;
+  setTimeout(() => ctx.close().catch(() => {}), totalMs);
 }
 
 export async function playSoundById(soundId: string) {
