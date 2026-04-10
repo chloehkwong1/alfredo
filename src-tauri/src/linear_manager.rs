@@ -52,10 +52,7 @@ pub async fn search_issues(
         (
             r#"query SearchIssues($term: String!, $teamId: String!) {
   issues(filter: {
-    or: [
-      { searchableContent: { contains: $term } },
-      { identifier: { contains: $term } }
-    ],
+    searchableContent: { contains: $term },
     team: { id: { eq: $teamId } }
   }, first: 25, orderBy: updatedAt) {
     nodes {
@@ -79,10 +76,7 @@ pub async fn search_issues(
         (
             r#"query SearchIssues($term: String!) {
   issues(filter: {
-    or: [
-      { searchableContent: { contains: $term } },
-      { identifier: { contains: $term } }
-    ]
+    searchableContent: { contains: $term }
   }, first: 25, orderBy: updatedAt) {
     nodes {
       id
