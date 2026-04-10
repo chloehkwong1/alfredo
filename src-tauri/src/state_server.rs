@@ -7,6 +7,7 @@ use axum::routing::post;
 use axum::Router;
 use tokio::net::TcpListener;
 
+use crate::sleep_inhibitor::SleepInhibitor;
 use crate::types::{AgentState, PtyEvent};
 use tauri::ipc::Channel;
 
@@ -27,6 +28,13 @@ pub struct StateServerHandle {
     pub port: u16,
     /// Channel registry shared with the HTTP handler.
     registry: Arc<Mutex<ChannelRegistry>>,
+}
+
+/// Combined state passed to the axum router.
+#[derive(Clone)]
+struct RouterState {
+    registry: Arc<Mutex<ChannelRegistry>>,
+    sleep_inhibitor: Arc<SleepInhibitor>,
 }
 
 impl StateServerHandle {
@@ -75,15 +83,22 @@ impl StateServerHandle {
 
 /// Start the state HTTP server on a random port.
 /// Returns a handle containing the port and channel registry.
-pub async fn start() -> Result<StateServerHandle, std::io::Error> {
+pub async fn start(
+    sleep_inhibitor: Arc<SleepInhibitor>,
+) -> Result<StateServerHandle, std::io::Error> {
     let registry = Arc::new(Mutex::new(ChannelRegistry::default()));
+
+    let router_state = RouterState {
+        registry: Arc::clone(&registry),
+        sleep_inhibitor: Arc::clone(&sleep_inhibitor),
+    };
 
     let app = Router::new()
         .route(
             "/agent-state/{*path}",
             post(handle_state_update),
         )
-        .with_state(Arc::clone(&registry));
+        .with_state(router_state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let port = listener.local_addr()?.port();
@@ -119,7 +134,7 @@ fn parse_state(s: &str) -> Option<AgentState> {
 /// split: first segment is session_id, last segment is state, middle is
 /// worktree_id.
 async fn handle_state_update(
-    State(registry): State<Arc<Mutex<ChannelRegistry>>>,
+    State(router_state): State<RouterState>,
     uri: Uri,
 ) -> StatusCode {
     let path = uri.path();
@@ -140,7 +155,10 @@ async fn handle_state_update(
         None => return StatusCode::BAD_REQUEST,
     };
 
-    let Ok(reg) = registry.lock() else {
+    // Update sleep inhibitor based on agent state
+    router_state.sleep_inhibitor.update(session_id, &state);
+
+    let Ok(reg) = router_state.registry.lock() else {
         eprintln!("[state-server] registry lock poisoned in handle_state_update");
         return StatusCode::INTERNAL_SERVER_ERROR;
     };
