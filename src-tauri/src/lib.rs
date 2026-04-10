@@ -12,6 +12,7 @@ mod linear_manager;
 mod linear_oauth;
 mod patch_parser;
 mod pty_manager;
+mod sleep_inhibitor;
 mod stack_manager;
 mod state_server;
 mod types;
@@ -21,6 +22,7 @@ use tauri::{Manager, RunEvent};
 use commands::{agents, app_config, branch, checks, config, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
+use sleep_inhibitor::SleepInhibitor;
 use stack_manager::StackState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -34,6 +36,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(PtyManager::new())
+        .manage(std::sync::Arc::new(SleepInhibitor::new()))
         .manage(SyncState {
             repo_paths: std::sync::Mutex::new(Vec::new()),
             active_branches: std::sync::Mutex::new(std::collections::HashSet::new()),
@@ -59,8 +62,11 @@ pub fn run() {
             // Start the agent state HTTP server for hook callbacks.
             // block_on ensures the port is bound and StateServerHandle is managed
             // before any PTY commands can run — prevents race with session restore.
-            let state_handle = tauri::async_runtime::block_on(state_server::start())
-                .map_err(|e| format!("failed to start state server: {e}"))?;
+            let inhibitor = app.state::<std::sync::Arc<SleepInhibitor>>();
+            let state_handle = tauri::async_runtime::block_on(
+                state_server::start(std::sync::Arc::clone(&inhibitor)),
+            )
+            .map_err(|e| format!("failed to start state server: {e}"))?;
             eprintln!("[alfredo] state server listening on port {}", state_handle.port);
             app.manage(state_handle);
 
