@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::agent_detector::AgentDetector;
 use crate::platform::augmented_path;
+use crate::sleep_inhibitor::SleepInhibitor;
 use crate::types::{AgentState, AgentType, AppError, PtyEvent, Session, SessionStatus};
 
 /// Shared timestamps for signalling resize/input events to the reader thread's
@@ -75,6 +76,7 @@ impl PtyManager {
         session_id: String,
         config: SpawnConfig,
         channel: Channel<PtyEvent>,
+        sleep_inhibitor: Arc<SleepInhibitor>,
     ) -> Result<String, AppError> {
         let SpawnConfig {
             worktree_id,
@@ -162,6 +164,7 @@ impl PtyManager {
         let reader_signals = Arc::clone(&detector_signals);
         let reader_stop_flag = Arc::clone(&stop_flag);
         let reader_channel = Arc::clone(&arc_channel);
+        let reader_inhibitor = std::sync::Arc::clone(&sleep_inhibitor);
         let mut reader = pair
             .master
             .try_clone_reader()
@@ -198,6 +201,8 @@ impl PtyManager {
 
                         // Run output through agent detector before forwarding
                         if let Some((_agent_type, agent_state)) = detector.feed(&data) {
+                            // Update sleep inhibitor from detector (fallback path)
+                            reader_inhibitor.update(id, &agent_state);
                             // State changed — notify frontend
                             if let Err(err) = reader_channel.send(PtyEvent::AgentState(agent_state)) {
                                 eprintln!("[pty-reader {id}] channel send failed (AgentState): {err}");
@@ -227,6 +232,10 @@ impl PtyManager {
             if let Err(e) = reader_channel.send(PtyEvent::HookAgentState(AgentState::NotRunning)) {
                 eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");
             }
+
+            // Clear this session from the sleep inhibitor so a crashed/abandoned
+            // process doesn't keep the system awake indefinitely.
+            reader_inhibitor.remove_session(id);
 
             // Stop the heartbeat thread so the frontend sees channelAlive go stale.
             reader_stop_flag.store(true, Ordering::Relaxed);

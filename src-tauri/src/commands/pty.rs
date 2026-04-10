@@ -19,6 +19,7 @@ type Result<T> = std::result::Result<T, AppError>;
 pub async fn spawn_pty(
     manager: State<'_, PtyManager>,
     state_server: State<'_, StateServerHandle>,
+    sleep_inhibitor: State<'_, std::sync::Arc<crate::sleep_inhibitor::SleepInhibitor>>,
     worktree_id: String,
     worktree_path: String,
     mode: String,
@@ -50,7 +51,7 @@ pub async fn spawn_pty(
         state_server_port: Some(state_server.port),
     };
 
-    match manager.spawn(session_id.clone(), config, on_data) {
+    match manager.spawn(session_id.clone(), config, on_data, std::sync::Arc::clone(&sleep_inhibitor)) {
         Ok(id) => Ok(id),
         Err(e) => {
             // Spawn failed — clean up the pre-registered channel
@@ -82,12 +83,14 @@ pub async fn resize_pty(
 pub async fn close_pty(
     manager: State<'_, PtyManager>,
     state_server: State<'_, StateServerHandle>,
+    sleep_inhibitor: State<'_, std::sync::Arc<crate::sleep_inhibitor::SleepInhibitor>>,
     session_id: String,
 ) -> Result<()> {
     // Look up worktree_id before closing so we can unregister the channel
     if let Ok(worktree_id) = manager.get_worktree_id(&session_id) {
         state_server.unregister_channel(&session_id, &worktree_id);
     }
+    sleep_inhibitor.remove_session(&session_id);
     manager.close(&session_id)
 }
 
