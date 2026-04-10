@@ -103,33 +103,26 @@ const SOUNDS: Record<string, SoundNote[]> = {
   ],
 };
 
-let audioCtx: AudioContext | null = null;
-
 /**
- * Get a working AudioContext instance.
+ * Create a fresh AudioContext for each sound.
  *
- * @param forceNew  When true, close the existing context and create a fresh one.
- *                  Use from user-gesture handlers (test button, sound preview)
- *                  to work around WKWebView's "zombie" AudioContext — where
- *                  `state` reads "running" but no audio output is produced.
+ * WKWebView's AudioContext can enter a "zombie" state — `state` reads
+ * "running" but no audio output is produced — after macOS sleep/wake,
+ * background transitions, or audio device changes. Reusing a cached
+ * instance is unreliable, so we create a new context every time.
+ * The sounds are < 1 second, so the overhead is negligible.
  */
-async function getAudioContext(forceNew = false): Promise<AudioContext> {
-  if (forceNew && audioCtx) {
-    audioCtx.close().catch(() => {});
-    audioCtx = null;
+async function createAudioContext(): Promise<AudioContext> {
+  const ctx = new AudioContext();
+  if (ctx.state === "suspended") {
+    await ctx.resume();
   }
-  if (!audioCtx || audioCtx.state === "closed") {
-    audioCtx = new AudioContext();
-  }
-  if (audioCtx.state === "suspended") {
-    await audioCtx.resume();
-  }
-  return audioCtx;
+  return ctx;
 }
 
 export async function playTone(frequency: number, duration: number, type: OscillatorType = "sine") {
   if (frequency === 0 || duration === 0) return;
-  const ctx = await getAudioContext();
+  const ctx = await createAudioContext();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.connect(gain);
@@ -142,9 +135,9 @@ export async function playTone(frequency: number, duration: number, type: Oscill
   osc.stop(ctx.currentTime + duration);
 }
 
-async function playNotes(notes: SoundNote[], forceNew = false) {
+async function playNotes(notes: SoundNote[]) {
   if (notes.length === 0) return;
-  const ctx = await getAudioContext(forceNew);
+  const ctx = await createAudioContext();
   let offset = ctx.currentTime;
   for (const note of notes) {
     if (note.frequency === 0 || note.duration === 0) continue;
@@ -166,9 +159,9 @@ async function playNotes(notes: SoundNote[], forceNew = false) {
   }
 }
 
-export async function playSoundById(soundId: string, { forceNewContext = false } = {}) {
+export async function playSoundById(soundId: string) {
   const notes = SOUNDS[soundId];
-  if (notes) await playNotes(notes, forceNewContext);
+  if (notes) await playNotes(notes);
 }
 
 export { SOUNDS };
@@ -227,15 +220,6 @@ export function useNotifications() {
   const prevStatesRef = useRef<Record<string, AgentState>>({});
   const pendingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const configRef = useRef<NotificationConfig>(DEFAULT_CONFIG);
-
-  // Keep AudioContext alive for background sounds (fired from setTimeout with
-  // no user gesture). WKWebView can silently zombie the context — state reads
-  // "running" but output is dead. Re-create on every click to recover.
-  useEffect(() => {
-    const warmUp = () => { getAudioContext(true).catch(() => {}); };
-    document.addEventListener('click', warmUp, { capture: true });
-    return () => document.removeEventListener('click', warmUp, true);
-  }, []);
 
   // Load notification config once on mount, then refresh periodically.
   useEffect(() => {

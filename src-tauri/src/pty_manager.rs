@@ -533,7 +533,10 @@ fn write_hooks_config(
     let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
         ("SessionStart",    cmd("idle")),
         ("UserPromptSubmit", cmd("busy")),
-        ("Stop",            cmd("idle")),
+        // Stop is intentionally NOT mapped to idle — it fires at the end of
+        // every turn, not just when the task is complete. The authoritative
+        // idle signal is Notification(idle_prompt), which fires only when the
+        // ❯ prompt is actually rendered.
         ("PreToolUse",      cmd("busy")),
         ("Notification", serde_json::json!({
             "matcher": "permission_prompt",

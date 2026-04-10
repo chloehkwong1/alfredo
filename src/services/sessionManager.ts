@@ -213,7 +213,7 @@ export function shouldAcceptDetectorState(
 ): boolean {
   // Once hooks have fired, they are the sole source of truth.
   // Every state the detector could provide is already covered:
-  //   idle            → Stop hook, Notification(idle_prompt)
+  //   idle            → Notification(idle_prompt)
   //   busy            → PreToolUse, PostToolUse, UserPromptSubmit, etc.
   //   waitingForInput → Notification(permission_prompt, elicitation_dialog),
   //                     PermissionRequest, PostToolUseFailure(interrupt)
