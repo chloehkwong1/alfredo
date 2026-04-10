@@ -926,4 +926,54 @@ mod tests {
         let result = manager.close("nonexistent");
         assert!(result.is_err());
     }
+
+    /// Verify that concurrent writes to different sessions don't deadlock.
+    #[test]
+    fn concurrent_writes_to_different_sessions() {
+        let manager = Arc::new(PtyManager::new());
+
+        // Spawn two sessions with long-running commands
+        let mut session_ids = Vec::new();
+        for i in 0..2 {
+            let channel = Channel::new(move |_body| Ok(()));
+            let session_id = PtyManager::generate_session_id();
+            let id = manager
+                .spawn(
+                    session_id,
+                    SpawnConfig {
+                        worktree_id: format!("worktree-{i}"),
+                        worktree_path: "/tmp".to_string(),
+                        command: "cat".to_string(),
+                        args: vec![],
+                        agent_type: AgentType::Unknown,
+                        state_server_port: None,
+                    },
+                    channel,
+                )
+                .expect("spawn should succeed");
+            session_ids.push(id);
+        }
+
+        // Write to both sessions concurrently from multiple threads
+        let mut handles = Vec::new();
+        for id in &session_ids {
+            let mgr = Arc::clone(&manager);
+            let sid = id.clone();
+            let handle = thread::spawn(move || {
+                for _ in 0..100 {
+                    let _ = mgr.write(&sid, b"x");
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().expect("thread should not panic");
+        }
+
+        // Clean up
+        for id in &session_ids {
+            let _ = manager.close(id);
+        }
+    }
 }
