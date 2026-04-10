@@ -73,9 +73,13 @@ pub async fn linear_oauth_status(app: AppHandle) -> Result<LinearOAuthStatus> {
         None => return Ok(LinearOAuthStatus { connected: false, display_name: None }),
     };
 
-    let display_name = linear_manager::get_viewer_name(&tokens.access_token)
-        .await
-        .unwrap_or(None);
-
-    Ok(LinearOAuthStatus { connected: true, display_name })
+    // Validate the token actually works by calling the API
+    match linear_manager::get_viewer_name(&tokens.access_token).await {
+        Ok(display_name) => Ok(LinearOAuthStatus { connected: true, display_name }),
+        Err(e) => {
+            eprintln!("[linear_oauth] token validation failed ({e}), clearing tokens");
+            linear_oauth::clear_tokens(&app_data).await?;
+            Ok(LinearOAuthStatus { connected: false, display_name: None })
+        }
+    }
 }

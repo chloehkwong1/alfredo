@@ -319,7 +319,11 @@ pub async fn get_viewer_name(api_key: &str) -> Result<Option<String>, AppError> 
         .map_err(|e| AppError::Linear(format!("viewer request failed: {e}")))?;
 
     if !resp.status().is_success() {
-        return Ok(None); // Gracefully degrade — sorting still works by recency
+        let status = resp.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+            return Err(AppError::Linear(format!("viewer request returned {status}")));
+        }
+        return Ok(None); // Non-auth failure — degrade gracefully
     }
 
     let json: serde_json::Value = resp

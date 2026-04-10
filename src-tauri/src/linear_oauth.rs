@@ -152,9 +152,14 @@ pub async fn refresh_if_needed(
             clear_tokens(app_data_dir).await?;
             return Ok(None);
         }
-        // Transient error (5xx, rate limit, network) — keep existing tokens
-        eprintln!("[linear_oauth] token refresh failed with {status}, keeping existing tokens");
-        return Ok(Some(tokens));
+        // Transient error (5xx, rate limit, network) — keep tokens only if still valid
+        eprintln!("[linear_oauth] token refresh failed with {status}");
+        if tokens.expires_at > now {
+            return Ok(Some(tokens));
+        }
+        // Tokens already expired and refresh failed — clear them
+        clear_tokens(app_data_dir).await?;
+        return Ok(None);
     }
 
     let body: serde_json::Value = resp
