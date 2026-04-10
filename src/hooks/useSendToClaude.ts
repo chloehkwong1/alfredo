@@ -43,7 +43,6 @@ export function useSendToClaude(
         }
       }
 
-      session.waitingForInput = false;
       await writeToSession(session.sessionId, message);
       clearAnnotations(worktreeId);
       focusAgentTab(worktreeId);

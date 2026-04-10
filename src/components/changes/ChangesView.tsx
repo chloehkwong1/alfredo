@@ -168,7 +168,6 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
         return;
       }
       if (!session?.sessionId) return;
-      session.waitingForInput = false;
       await writeToSession(session.sessionId, message);
       clearAnnotations(worktreeId);
       focusAgentTab(worktreeId);

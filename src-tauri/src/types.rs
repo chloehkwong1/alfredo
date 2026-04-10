@@ -32,7 +32,10 @@ pub enum PtyEvent {
     AgentState(AgentState),
     /// Authoritative agent state from hook callbacks (via state server).
     /// Takes priority over detector-sourced AgentState events.
-    HookAgentState(AgentState),
+    HookAgentState {
+        state: AgentState,
+        notify: NotifyReason,
+    },
     /// Periodic heartbeat so the frontend can detect a dead PTY channel.
     Heartbeat,
 }
@@ -56,6 +59,20 @@ pub enum AgentState {
     Busy,
     WaitingForInput,
     NotRunning,
+}
+
+/// Why a hook-sourced state update should (optionally) trigger an OS notification.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum NotifyReason {
+    /// No notification.
+    None,
+    /// Agent finished a turn (Stop hook).
+    Finished,
+    /// Agent turn ended due to API error (StopFailure hook).
+    Error,
+    /// Agent needs user input (PermissionRequest / Elicitation).
+    Input,
 }
 
 // ── Worktree / Kanban ───────────────────────────────────────────

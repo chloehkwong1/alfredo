@@ -52,6 +52,7 @@ vi.mock("./sessionManager", () => ({
   sessionManager: {
     closeSession: (...args: unknown[]) => mockCloseSession(...args),
   },
+  stateSourceMap: new Map(),
 }));
 
 vi.mock("../api", () => ({

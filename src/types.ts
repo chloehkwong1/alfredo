@@ -16,7 +16,7 @@ export type SessionStatus =
 export type PtyEvent =
   | { event: "output"; data: number[] }
   | { event: "agentState"; data: AgentState }
-  | { event: "hookAgentState"; data: AgentState }
+  | { event: "hookAgentState"; data: { state: AgentState; notify: NotifyReason } }
   | { event: "heartbeat" };
 
 // ── Agent ───────────────────────────────────────────────────────
@@ -25,10 +25,7 @@ export type AgentType = "claudeCode" | "codex" | "geminiCli" | "aider" | "unknow
 
 export type AgentState = "idle" | "busy" | "waitingForInput" | "notRunning";
 
-/** How long idle must persist before it's considered "done" (task complete).
- *  Used by both the sidebar (done indicator) and notifications (sound/banner).
- *  Changing this value affects both — that's intentional. */
-export const IDLE_SETTLE_MS = 3_000;
+export type NotifyReason = "none" | "finished" | "error" | "input";
 
 // ── Worktree / Kanban ───────────────────────────────────────────
 
@@ -71,8 +68,6 @@ export interface Worktree {
   stackParent?: string | null;
   stackChildren?: string[];
   stackRebaseStatus?: StackRebaseStatus | null;
-  /** Epoch ms when the current idle period started. Used to debounce the "done" indicator. */
-  idleSince?: number;
 }
 
 export type KanbanColumn =

@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::agent_detector::AgentDetector;
 use crate::platform::augmented_path;
 use crate::sleep_inhibitor::SleepInhibitor;
-use crate::types::{AgentState, AgentType, AppError, PtyEvent, Session, SessionStatus};
+use crate::types::{AgentState, AgentType, AppError, NotifyReason, PtyEvent, Session, SessionStatus};
 
 /// Shared timestamps for signalling resize/input events to the reader thread's
 /// agent detector. The main thread writes; the reader thread reads.
@@ -229,7 +229,10 @@ impl PtyManager {
             // Notify the frontend that the agent is no longer running.
             // Sent as HookAgentState (authoritative) rather than AgentState
             // (detector) so it bypasses the detector filter when hooks are active.
-            if let Err(e) = reader_channel.send(PtyEvent::HookAgentState(AgentState::NotRunning)) {
+            if let Err(e) = reader_channel.send(PtyEvent::HookAgentState {
+                state: AgentState::NotRunning,
+                notify: NotifyReason::None,
+            }) {
                 eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");
             }
 
@@ -562,75 +565,49 @@ fn write_hooks_config(
     // Each PTY process has ALFREDO_STATE_URL and ALFREDO_WORKTREE_ID set,
     // so the shell expands them correctly per-session — even when
     // settings.local.json is shared across git worktrees.
-    let cmd = |state: &str| -> serde_json::Value {
+    // Helper: build a hook entry with optional ?notify= query param.
+    let cmd = |state: &str| -> String {
+        format!(
+            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
+        )
+    };
+    let cmd_notify = |state: &str, reason: &str| -> String {
+        format!(
+            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}\"; fi; echo '{{}}'"
+        )
+    };
+
+    let hook_entry = |command: String| -> serde_json::Value {
         serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": format!("if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
-                )
+                "command": command
             }]
         })
     };
 
     let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
-        ("SessionStart",    cmd("idle")),
-        ("UserPromptSubmit", cmd("busy")),
-        // Stop fires at the end of every turn — this IS the correct idle signal.
-        // Notification(idle_prompt) was previously used but it fires after a delay
-        // (not immediately when the prompt renders), causing status to stay "busy"
-        // for 60+ seconds after the agent finishes. Stop is deterministic.
-        // Note: Stop does NOT fire on user interrupts — those are handled by
-        // PostToolUseFailure(is_interrupt) and the detector fallback.
-        ("Stop",            cmd("idle")),
-        ("PreToolUse",      cmd("busy")),
-        ("Notification", serde_json::json!({
-            "matcher": "permission_prompt",
-            "hooks": [{
-                "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; echo '{}'"
-            }]
-        })),
-        ("Notification", serde_json::json!({
-            "matcher": "elicitation_dialog",
-            "hooks": [{
-                "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; echo '{}'"
-            }]
-        })),
-        ("Notification", serde_json::json!({
-            "matcher": "idle_prompt",
-            "hooks": [{
-                "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/idle\"; fi; echo '{}'"
-            }]
-        })),
-        // PermissionRequest fires for ALL permission dialogs (file creation,
-        // tool approval, settings changes). This is separate from
-        // Notification(permission_prompt) and has broader coverage.
-        ("PermissionRequest", serde_json::json!({
-            "hooks": [{
-                "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; echo '{}'"
-            }]
-        })),
-        // PostToolUseFailure fires for tool execution failures AND user
-        // interrupts. For interrupts (is_interrupt=true), signal waitingForInput
-        // since Stop doesn't fire on interrupts. For non-interrupts, signal busy
-        // to keep the hook silence timer fresh — without this, the detector
-        // fallback activates during model thinking after tool failures and can
-        // produce false idle notifications.
+        // SessionStart → idle (no notify)
+        ("SessionStart",      hook_entry(cmd("idle"))),
+        // UserPromptSubmit → busy
+        ("UserPromptSubmit",  hook_entry(cmd("busy"))),
+        // PreToolUse → busy
+        ("PreToolUse",        hook_entry(cmd("busy"))),
+        // Stop → idle + notify finished
+        ("Stop",              hook_entry(cmd_notify("idle", "finished"))),
+        // StopFailure → idle + notify error
+        ("StopFailure",       hook_entry(cmd_notify("idle", "error"))),
+        // PermissionRequest → waitingForInput + notify input
+        ("PermissionRequest", hook_entry(cmd_notify("waitingForInput", "input"))),
+        // Elicitation → waitingForInput + notify input
+        ("Elicitation",       hook_entry(cmd_notify("waitingForInput", "input"))),
+        // PostToolUseFailure: only for interrupts → waitingForInput (no notify)
         ("PostToolUseFailure", serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; else curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy\"; fi; fi; echo '{}'"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; fi; echo '{}'"
             }]
         })),
-        ("SubagentStart",   cmd("busy")),
-        ("SubagentStop",    cmd("busy")),
-        ("PostToolUse",     cmd("busy")),
-        ("TaskCreated",     cmd("busy")),
-        ("TaskCompleted",   cmd("busy")),
-        ("StopFailure",     cmd("idle")),
     ];
 
     for (hook_name, entry) in alfredo_hooks {

@@ -3,7 +3,6 @@ import { AppShell } from "./components/layout/AppShell";
 import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
-import { useNotifications } from "./hooks/useNotifications";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -97,7 +96,6 @@ class ErrorBoundary extends Component<
 
 function App() {
   useGithubSync();
-  useNotifications();
   return (
     <ErrorBoundary>
       <SectionErrorBoundary name="App">

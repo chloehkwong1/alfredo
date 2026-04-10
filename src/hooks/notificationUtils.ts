@@ -1,15 +1,9 @@
-import { useEffect, useRef, useState } from "react";
 import {
   isPermissionGranted,
   requestPermission,
   sendNotification as tauriNotify,
 } from "@tauri-apps/plugin-notification";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useWorkspaceStore } from "../stores/workspaceStore";
-import { stateSourceMap } from "../services/sessionManager";
-import { getAppConfig } from "../api";
-import { IDLE_SETTLE_MS } from "../types";
-import type { AgentState, NotificationConfig } from "../types";
 
 // ── Sound generation via Web Audio API ─────────────────────────
 
@@ -174,7 +168,7 @@ async function ensurePermission(): Promise<boolean> {
   return permitted;
 }
 
-async function sendNotification(message: string) {
+export async function sendNotification(message: string) {
   if (await ensurePermission()) {
     tauriNotify({ title: "Alfredo", body: message });
   }
@@ -182,163 +176,8 @@ async function sendNotification(message: string) {
 
 // ── Dock bounce (macOS attention request) ────────────────────
 
-function requestDockBounce() {
+export function requestDockBounce() {
   getCurrentWindow()
     .requestUserAttention(1) // Critical — bounces dock icon until focused
-    .catch(e => console.warn('[useNotifications] Failed to request dock bounce:', e));
-}
-
-// ── Default config ─────────────────────────────────────────────
-
-const DEFAULT_CONFIG: NotificationConfig = {
-  enabled: false,
-  sound: "coin",
-  notifyOnWaiting: true,
-  notifyOnIdle: true,
-};
-
-// ── Delayed idle notifications ──────────────────────────────
-// Agents flicker busy→idle→busy during long operations. Delay idle
-// notifications and cancel if the agent goes back to busy.
-
-const IDLE_DELAY_MS = IDLE_SETTLE_MS;
-
-// ── Hook ───────────────────────────────────────────────────────
-
-export function useNotifications() {
-  const prevStatesRef = useRef<Record<string, AgentState>>({});
-  const pendingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const configRef = useRef<NotificationConfig>(DEFAULT_CONFIG);
-  const debugModeRef = useRef(false);
-
-  // Load notification config once on mount, then refresh periodically.
-  useEffect(() => {
-    let cancelled = false;
-    function fetchConfig() {
-      getAppConfig()
-        .then((appConfig) => {
-          if (!cancelled) {
-            configRef.current = appConfig.notifications ?? DEFAULT_CONFIG;
-            debugModeRef.current = appConfig.debugMode ?? false;
-          }
-        })
-        .catch((e) => console.warn('[notifications] Failed to fetch config:', e));
-    }
-    fetchConfig();
-    const interval = setInterval(fetchConfig, 30_000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
-
-  // Build a stable snapshot of agentStatus per worktree. Only update the ref
-  // when statuses actually change, so the effect doesn't fire on every
-  // updateWorktree call (channelAlive, staleBusy from the 500ms poll).
-  const worktrees = useWorkspaceStore((s) => s.worktrees);
-  const agentStatusesRef = useRef<Record<string, AgentState>>({});
-  const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentState>>({});
-
-  useEffect(() => {
-    const next: Record<string, AgentState> = {};
-    for (const wt of worktrees) {
-      next[wt.id] = wt.agentStatus;
-    }
-    const prev = agentStatusesRef.current;
-    const keys = Object.keys(next);
-    const changed = keys.length !== Object.keys(prev).length
-      || keys.some((k) => next[k] !== prev[k]);
-    if (changed) {
-      agentStatusesRef.current = next;
-      setAgentStatuses(next);
-    }
-  }, [worktrees]);
-
-  useEffect(() => {
-    const prevStates = prevStatesRef.current;
-    const pendingTimers = pendingTimersRef.current;
-
-    // Find actual transitions (skip notRunning → anything, that's just session init)
-    const transitions: { id: string; from: AgentState; to: AgentState }[] = [];
-    for (const [id, status] of Object.entries(agentStatuses)) {
-      const prev = prevStates[id];
-      if (prev && prev !== status && prev !== "notRunning") {
-        transitions.push({ id, from: prev, to: status });
-      }
-    }
-
-    // Cancel pending idle timers for worktrees that went back to busy
-    for (const { id, to } of transitions) {
-      if (to === "busy" && pendingTimers[id]) {
-        clearTimeout(pendingTimers[id]);
-        delete pendingTimers[id];
-      }
-    }
-
-    // Clean up timers for removed worktrees
-    for (const id of Object.keys(pendingTimers)) {
-      if (!(id in agentStatuses)) {
-        clearTimeout(pendingTimers[id]);
-        delete pendingTimers[id];
-      }
-    }
-
-    // Update tracked states
-    prevStatesRef.current = { ...agentStatuses };
-
-    if (transitions.length === 0) return;
-
-    const config = configRef.current;
-    if (!config.enabled) return;
-
-    const currentWorktrees = useWorkspaceStore.getState().worktrees;
-
-    for (const { id, to } of transitions) {
-      const wt = currentWorktrees.find((w) => w.id === id);
-      if (!wt) continue;
-
-      if (to === "waitingForInput" && config.notifyOnWaiting) {
-        // Cancel any pending idle timer — waiting supersedes idle
-        if (pendingTimers[id]) {
-          clearTimeout(pendingTimers[id]);
-          delete pendingTimers[id];
-        }
-        const dbg = debugModeRef.current ? ` [${stateSourceMap.get(id) ?? "?"}]` : "";
-        sendNotification(`${wt.branch} needs your input${dbg}`);
-        playSoundById(config.sound);
-        requestDockBounce();
-      } else if (to === "idle" && config.notifyOnIdle) {
-        // Delay to absorb busy→idle→busy flicker
-        if (pendingTimers[id]) {
-          clearTimeout(pendingTimers[id]);
-          delete pendingTimers[id];
-        }
-        const branch = wt.branch;
-        pendingTimers[id] = setTimeout(() => {
-          delete pendingTimers[id];
-          // Re-check config (user may have disabled) and current state
-          const latestConfig = configRef.current;
-          if (!latestConfig.enabled || !latestConfig.notifyOnIdle) return;
-          const state = useWorkspaceStore.getState();
-          const current = state.worktrees.find((w) => w.id === id);
-          // Skip if agent is no longer idle, or if the user is already
-          // viewing this worktree (seenWorktrees is set by TerminalView
-          // when the active worktree goes idle with the window focused).
-          if (current?.agentStatus === "idle" && !state.seenWorktrees.has(id)) {
-            const dbg = debugModeRef.current ? ` [${stateSourceMap.get(id) ?? "?"}]` : "";
-            sendNotification(`${branch} finished${dbg}`);
-            playSoundById(latestConfig.sound);
-            requestDockBounce();
-          }
-        }, IDLE_DELAY_MS);
-      }
-    }
-  }, [agentStatuses]);
-
-  // Clean up all pending timers on unmount
-  useEffect(() => {
-    return () => {
-      for (const timer of Object.values(pendingTimersRef.current)) {
-        clearTimeout(timer);
-      }
-      pendingTimersRef.current = {};
-    };
-  }, []);
+    .catch(e => console.warn('[notifications] Failed to request dock bounce:', e));
 }

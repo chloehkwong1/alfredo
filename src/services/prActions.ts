@@ -79,7 +79,6 @@ async function sendToAgent(
   try {
     const session = await ensureAgentSession(worktreeId, repoPath, branch);
     if (!session?.sessionId) return false;
-    session.waitingForInput = false;
     await writeToSession(session.sessionId, prompt);
     return true;
   } catch (e) {

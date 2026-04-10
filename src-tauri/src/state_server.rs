@@ -8,7 +8,7 @@ use axum::Router;
 use tokio::net::TcpListener;
 
 use crate::sleep_inhibitor::SleepInhibitor;
-use crate::types::{AgentState, PtyEvent};
+use crate::types::{AgentState, NotifyReason, PtyEvent};
 use tauri::ipc::Channel;
 
 /// Inner state shared between the handle and the HTTP router.
@@ -115,6 +115,15 @@ pub async fn start(
     })
 }
 
+fn parse_notify_reason(query: Option<&str>) -> NotifyReason {
+    match query.and_then(|q| q.strip_prefix("notify=")) {
+        Some("finished") => NotifyReason::Finished,
+        Some("error") => NotifyReason::Error,
+        Some("input") => NotifyReason::Input,
+        _ => NotifyReason::None,
+    }
+}
+
 /// Parse a state string from the URL path into an AgentState.
 fn parse_state(s: &str) -> Option<AgentState> {
     match s {
@@ -155,6 +164,8 @@ async fn handle_state_update(
         None => return StatusCode::BAD_REQUEST,
     };
 
+    let notify = parse_notify_reason(uri.query());
+
     // Update sleep inhibitor based on agent state
     router_state.sleep_inhibitor.update(session_id, &state);
 
@@ -165,7 +176,7 @@ async fn handle_state_update(
     // Deliver to the specific session only — not fan-out by worktree.
     // When a session is unregistered (tab closed), stale hooks are silently dropped.
     if let Some(channel) = reg.channels.get(session_id) {
-        if let Err(e) = channel.send(PtyEvent::HookAgentState(state)) {
+        if let Err(e) = channel.send(PtyEvent::HookAgentState { state, notify }) {
             eprintln!(
                 "[state-server] failed to send state to session {session_id}: {e}"
             );

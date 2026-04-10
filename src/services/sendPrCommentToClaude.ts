@@ -46,7 +46,6 @@ async function _sendPrCommentToClaude(
     .join("\n");
   const message = `\n> ${header}\n${quotedBody}\n\n`;
 
-  session.waitingForInput = false;
   await writeToSession(session.sessionId, message);
   focusAgentTab(worktreeId);
 }

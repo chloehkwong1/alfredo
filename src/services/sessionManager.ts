@@ -4,8 +4,9 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { AgentState, AgentType } from "../types";
-import { spawnPty, closePty, createPtyChannel, resizePty, writePty } from "../api";
+import type { AgentState, AgentType, NotifyReason } from "../types";
+import { sendNotification, playSoundById, requestDockBounce } from "../hooks/notificationUtils";
+import { spawnPty, closePty, createPtyChannel, resizePty, writePty, getAppConfig } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
 import { loadTerminalPreferences } from "./terminalPreferences";
@@ -93,10 +94,6 @@ export interface ManagedSession {
    *  genuine stuck-busy (interrupt during thinking) from stale detector
    *  events racing with recent hook transitions. */
   lastHookEventAt: number;
-  /** Sticky flag: true while agent is waiting for user input. Prevents late
-   *  "busy" hook events (e.g. a delayed PreToolUse) from overriding
-   *  waitingForInput. Cleared when user provides input (writePty). */
-  waitingForInput: boolean;
   /** True once a startup command has been written to this session's PTY.
    *  Prevents StrictMode double-fire from executing the command twice. */
   startupCommandSent: boolean;
@@ -204,9 +201,37 @@ function registerKittyProtocol(terminal: Terminal, sessionId: string): void {
 
 /**
  * Tracks the source of the last agent-state transition per worktree.
- * Used by useNotifications to surface diagnostic info when debug mode is on.
+ * Used to surface diagnostic info when debug mode is on.
  */
 export const stateSourceMap = new Map<string, string>();
+
+/**
+ * Fire an OS notification for a hook event.
+ * Reads config each time so changes take effect immediately.
+ */
+async function fireHookNotification(
+  branch: string,
+  notify: NotifyReason,
+) {
+  if (notify === "none") return;
+
+  const appConfig = await getAppConfig();
+  const config = appConfig.notifications;
+  if (!config?.enabled) return;
+
+  if (notify === "input" && !config.notifyOnWaiting) return;
+  if ((notify === "finished" || notify === "error") && !config.notifyOnIdle) return;
+
+  const dbg = appConfig.debugMode ? " [hook]" : "";
+  const message =
+    notify === "finished" ? `${branch} finished${dbg}` :
+    notify === "error"    ? `${branch} stopped (error)${dbg}` :
+                            `${branch} needs your input${dbg}`;
+
+  sendNotification(message);
+  playSoundById(config.sound);
+  requestDockBounce();
+}
 
 /** How long hooks must be silent before the detector fallback kicks in.
  *  Must be long enough that normal inter-turn hook gaps (Stop → idle →
@@ -298,27 +323,26 @@ function createSessionChannel(
         break;
       }
       case "hookAgentState": {
+        const { state, notify } = event.data;
         session.hooksActive = true;
         session.lastHookEventAt = Date.now();
-        // Mark PTY as exited so refreshHeartbeats doesn't revive dead sessions.
-        // Guard on sessionId to avoid marking explicitly-stopped sessions
-        // (stopSession clears sessionId before the async EOF event arrives).
-        if (event.data === "notRunning" && session.sessionId) {
+        if (state === "notRunning" && session.sessionId) {
           session.ptyExited = true;
         }
-        // Don't let a late "busy" hook (e.g. delayed PreToolUse) override
-        // waitingForInput. The flag is cleared when the user provides input.
-        if (event.data === "busy" && session.waitingForInput) {
-          console.debug(`[status:${worktreeId}] hook "busy" BLOCKED (waitingForInput sticky flag)`);
-          break;
-        }
-        console.debug(`[status:${worktreeId}] hook → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : session.waitingForInput ? " (flag CLEARED)" : ""}`);
-        session.waitingForInput = event.data === "waitingForInput";
-        session.agentState = event.data;
+        console.debug(`[status:${worktreeId}] hook → ${state}${notify !== "none" ? ` (notify: ${notify})` : ""}`);
+        session.agentState = state;
         stateSourceMap.set(worktreeId, "hook");
         useWorkspaceStore
           .getState()
-          .updateWorktree(worktreeId, { agentStatus: event.data });
+          .updateWorktree(worktreeId, { agentStatus: state });
+
+        // Fire notification directly from hook event
+        if (notify !== "none") {
+          const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
+          if (wt) {
+            fireHookNotification(wt.branch, notify);
+          }
+        }
         break;
       }
       case "agentState": {
@@ -329,13 +353,8 @@ function createSessionChannel(
           console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (${reason})`);
           break;
         }
-        if (event.data === "waitingForInput") {
-          session.waitingForInput = true;
-        } else if (event.data !== "busy") {
-          session.waitingForInput = false;
-        }
         const fallback = session.hooksActive ? " (hooks-fallback)" : "";
-        console.debug(`[status:${worktreeId}] detector → ${event.data}${event.data === "waitingForInput" ? " (flag SET)" : ""}${fallback}`);
+        console.debug(`[status:${worktreeId}] detector → ${event.data}${fallback}`);
         session.agentState = event.data;
         stateSourceMap.set(worktreeId, session.hooksActive ? "detector-fallback" : "detector");
         useWorkspaceStore
@@ -422,7 +441,6 @@ export class SessionManager {
       pendingOutput: [],
       writeScheduled: false,
       restoredFromScrollback: false,
-      waitingForInput: false,
       startupCommandSent: false,
       allowNextClearScrollback: false,
     };
@@ -526,7 +544,6 @@ export class SessionManager {
       pendingOutput: [],
       writeScheduled: false,
       restoredFromScrollback: true,
-      waitingForInput: false,
       startupCommandSent: false,
       allowNextClearScrollback: false,
     };
@@ -627,10 +644,8 @@ export class SessionManager {
     session.ptyExited = false;
 
     // Reset session state so a subsequent spawnForExisting starts clean.
-    // Without this, stale hooksActive=true would permanently reject detector
-    // events, and a stuck waitingForInput flag would block busy hooks.
+    // Without this, stale hooksActive=true would permanently reject detector events.
     session.hooksActive = false;
-    session.waitingForInput = false;
     session.agentState = "notRunning";
 
     // Mirror closeSession's store update so the sidebar reflects "Not running"

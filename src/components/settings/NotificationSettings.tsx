@@ -8,7 +8,7 @@ import {
 import { Button } from "../ui/Button";
 import { Toggle } from "../ui/Toggle";
 import type { NotificationConfig } from "../../types";
-import { SOUNDS, playSoundById } from "../../hooks/useNotifications";
+import { SOUNDS, playSoundById } from "../../hooks/notificationUtils";
 
 
 const SOUND_OPTIONS = Object.keys(SOUNDS).map((id) => ({

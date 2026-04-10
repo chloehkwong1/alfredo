@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeEffectiveStatus, DONE_SETTLE_MS } from "./AgentItem";
+import { computeEffectiveStatus } from "./AgentItem";
 
 describe("computeEffectiveStatus", () => {
   it("returns busy when agent is busy and not stale", () => {
@@ -10,17 +10,7 @@ describe("computeEffectiveStatus", () => {
     expect(computeEffectiveStatus("busy", true, true, true)).toBe("stale");
   });
 
-  it("returns done when agent is idle, not seen, and settled", () => {
-    const settledIdleSince = Date.now() - DONE_SETTLE_MS - 1000;
-    expect(computeEffectiveStatus("idle", true, false, false, false, settledIdleSince)).toBe("done");
-  });
-
-  it("returns idle when agent is idle, not seen, but not yet settled", () => {
-    const recentIdleSince = Date.now();
-    expect(computeEffectiveStatus("idle", true, false, false, false, recentIdleSince)).toBe("idle");
-  });
-
-  it("returns done when agent is idle, not seen, and no idleSince (legacy)", () => {
+  it("returns done when agent is idle and not seen", () => {
     expect(computeEffectiveStatus("idle", true, false, false)).toBe("done");
   });
 
