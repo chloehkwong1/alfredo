@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
-import { getConfig } from "../api";
+import { getConfig, listSessions } from "../api";
 import { sessionManager } from "../services/sessionManager";
 import { lifecycleManager } from "../services/lifecycleManager";
-import type { RunScript } from "../types";
+import type { RunScript, Session } from "../types";
 
 /** Single-quote a string for safe use in `sh -c '…'`. */
 function shellQuote(s: string): string {
@@ -86,6 +86,72 @@ export function useStaleServerCleanup() {
 
     return () => clearInterval(interval);
   }, [hasRunningServers, setRunningServer]);
+}
+
+/**
+ * On mount, queries the Rust backend for running server sessions.
+ * If any are found that aren't tracked in the store, reattaches and
+ * re-creates the tab + store entries.
+ *
+ * Call once at the app level (e.g. alongside useStaleServerCleanup).
+ */
+export function useServerReconciliation() {
+  const setRunningServer = useWorkspaceStore((s) => s.setRunningServer);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function reconcile() {
+      let sessions: Session[];
+      try {
+        sessions = await listSessions();
+      } catch (err) {
+        console.error("[server-reconcile] failed to list sessions:", err);
+        return;
+      }
+      if (cancelled) return;
+
+      const serverSessions = sessions.filter(
+        (s) => s.sessionType === "server" && s.status === "running",
+      );
+
+      if (serverSessions.length === 0) return;
+
+      const store = useWorkspaceStore.getState();
+
+      for (const srv of serverSessions) {
+        const wtId = srv.worktreeId;
+
+        // Already tracked — skip
+        if (store.runningServers[wtId]) continue;
+
+        // Re-create a server tab for this session
+        const tabId = lifecycleManager.addTab(wtId, "server");
+        if (!tabId) continue;
+
+        // Reattach the sessionManager to the surviving PTY
+        try {
+          await sessionManager.reattachToSession(tabId, srv.id, wtId);
+        } catch (err) {
+          console.error(`[server-reconcile] reattach failed for ${srv.id}:`, err);
+          continue;
+        }
+        if (cancelled) return;
+
+        // Re-populate the store entry
+        setRunningServer(wtId, {
+          sessionId: srv.id,
+          tabId,
+          createdAt: Date.now(),
+        });
+
+        console.log(`[server-reconcile] reattached server for worktree ${wtId}`);
+      }
+    }
+
+    reconcile();
+    return () => { cancelled = true; };
+  }, [setRunningServer]);
 }
 
 /**
