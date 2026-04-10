@@ -1,0 +1,924 @@
+src-tauri/src/pty_manager.rs
+  6b1efd8775302289 4,52,58,279,281,288-296,298-299,309,317-324,326-327,333,342,344-348,352-395,397,416,421-422,431,442,449,452-453,469-478,480,482-484,488
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "92d7d7e776cf22859be1856a3be9f8bbf484c9c3",
+  "prompts": {
+    "056c8bcf259fc08d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "065c18f2-10c1-4c24-ba2f-1cd5627b8a7a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "075bdf16dcb5b547": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "913ea10f-054c-43a0-8887-d23816ce0707",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    },
+    "0b8269e7261bd637": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09afae83-d300-4637-9ba7-6308a3517813",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    },
+    "12348a731ee9e1e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33f17092-e96f-4b24-8666-4b1963b1f43a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "14b37e7e47c39a3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "976a18b9-2749-4a75-8724-eec43d68fc23",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 9,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "1b78e3f43b3aa1e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "af92afae-fd63-4cd8-8f37-76ef6d88296f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "207b529a73bc7339": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8893ecd-64da-48ee-a527-c1dbc2688044",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 92,
+      "total_deletions": 150,
+      "accepted_lines": 19,
+      "overriden_lines": 0
+    },
+    "228ccb7267cff326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e642408-3d12-4a23-aca9-549d6b2339cc",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 27,
+      "accepted_lines": 19,
+      "overriden_lines": 0
+    },
+    "22bad88fb90506ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "19bec6fe-b871-47ac-beaf-47eb727d787c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    },
+    "29348f64fdb2020a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86bc2832-a076-40f8-9de5-027ac1234fe8",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 1,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    },
+    "3970cd14fdecaf23": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e66e872f-8530-403c-b5cf-efb2a164130c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 88,
+      "total_deletions": 6,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    },
+    "3da7e003b3c707fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1657379-a666-4539-ad16-a46f7b37deef",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 8,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    },
+    "4472f2b47a9fdd60": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a76c0c6-f3e3-461d-883e-b76dee191b47",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "4c6889999c4d3332": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f9dd9e4-628d-4695-ad22-739996148144",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "4d3a671ada3c2762": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd033ef3-17f8-4d91-9c61-746520bf88ef",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "4f30fd069cfdcbbc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfa6266c-93a9-4ec7-98df-796008ca3661",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "5693f28490e2eb5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1035e4d8-578f-4efa-a8b3-7bc163044657",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [
+        {
+          "type": "user",
+          "text": "<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>",
+          "timestamp": "2026-04-10T12:02:45.105Z"
+        },
+        {
+          "type": "user",
+          "text": "<command-name>/clear</command-name>\n            <command-message>clear</command-message>\n            <command-args></command-args>",
+          "timestamp": "2026-04-10T12:02:44.456Z"
+        },
+        {
+          "type": "user",
+          "text": "question with the changes we made to ensure session resume, if my manager updates to alfredo with the new changes, will it resume automatically? or will it only work the next time",
+          "timestamp": "2026-04-10T12:03:16.269Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me check the auto-resume implementation to answer accurately.",
+          "timestamp": "2026-04-10T12:03:22.414Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Grep",
+          "input": {
+            "glob": "src/**/*.{ts,tsx}",
+            "output_mode": "files_with_matches",
+            "pattern": "auto.?resume|resume.*session|onMount|useEffect"
+          },
+          "timestamp": "2026-04-10T12:03:24.172Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "git show 05354c4 --stat",
+            "description": "Check the resume commit"
+          },
+          "timestamp": "2026-04-10T12:03:26.950Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/hooks/useSessionRestore.ts"
+          },
+          "timestamp": "2026-04-10T12:03:36.035Z"
+        },
+        {
+          "type": "assistant",
+          "text": "It will resume automatically on the first launch after updating.\n\nThe resume logic doesn't depend on anything the old version needed to have saved. `findClaudeSession(wt.path)` at line 189 scans the filesystem for Claude's session files (the `.claude/` project directory), independent of any previously persisted `claudeSessionId`. So even if the old Alfredo version never wrote a `claudeSessionId` to the session file, the new version will discover it from disk on startup and stamp `resumeSessionId` on every agent tab.\n\nThe only requirement is that Claude Code actually has a resumable session in that worktree's directory — which it will, as long as your manager ran Claude there before updating.",
+          "timestamp": "2026-04-10T12:03:50.701Z"
+        },
+        {
+          "type": "user",
+          "text": "so will it correctly resume for ultiple chats too?",
+          "timestamp": "2026-04-10T12:05:15.120Z"
+        },
+        {
+          "type": "assistant",
+          "text": "No — there's only one `claudeSessionId` per worktree. Looking at lines 173-200, both the persisted path and the filesystem scan produce a single session ID, then stamp that same ID onto every agent tab:\n\n```ts\n// Line 194-199: ALL agent tabs get the SAME session ID\nfor (const tab of tabs) {\n  if (isAgentTab(tab)) {\n    updateTab(wt.id, tab.id, { resumeSessionId: fsSessionId });\n  }\n}\n```\n\nSo if your manager had 3 Claude tabs in a worktree, all 3 would try to `--resume` the same session (whichever one `findClaudeSession` finds — likely the most recent). They wouldn't each resume their own distinct conversation.",
+          "timestamp": "2026-04-10T12:05:26.796Z"
+        },
+        {
+          "type": "user",
+          "text": "do you think we could make it possible resume their own distinct voncersations?",
+          "timestamp": "2026-04-10T13:07:06.555Z"
+        },
+        {
+          "type": "assistant",
+          "text": "\n\nYes, but let me check how Claude Code sessions work on disk first to see what's feasible.",
+          "timestamp": "2026-04-10T13:07:10.678Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Agent",
+          "input": {
+            "description": "Explore Claude session discovery",
+            "prompt": "I need to understand how Claude Code sessions are stored on disk and how findClaudeSession works in this Tauri app.\n\n1. Find the Rust implementation of `findClaudeSession` (or `find_claude_session`) in the src-tauri directory\n2. Look at what files/directories it scans — are there multiple session files per project, or just one?\n3. Check if Claude Code stores sessions in `~/.claude/projects/` or somewhere else, and whether each session has a unique ID in the filename\n4. Also check how `resumeSessionId` is used when spawning the terminal — look at TerminalView or usePty for how `--resume` is passed\n\nReport concisely: what does the filesystem look like for multiple sessions, and is there enough info to map individual sessions back to individual tabs?",
+            "subagent_type": "Explore"
+          },
+          "timestamp": "2026-04-10T13:07:16.565Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Good news — the building blocks are already there. Each Claude tab already has its own `resumeSessionId` field, and each Claude conversation is a separate `.jsonl` file on disk. The problem is just that we only persist **one** `claudeSessionId` per worktree, then blast it onto every tab.\n\nThe fix is straightforward:\n\n1. **Persist `claudeSessionId` per-tab** instead of per-worktree — save it on the tab object in the session JSON, not as a top-level worktree field\n2. **On save**: each agent tab's PTY knows which session it's running — capture that into `tab.claudeSessionId`\n3. **On restore**: each tab gets its own `resumeSessionId` from its own persisted value, instead of all sharing one\n4. **Filesystem scan fallback**: only use `findClaudeSession` (most recent `.jsonl`) for tabs that *don't* have a persisted session ID — e.g. the first launch after this change, or tabs that never ran\n\nIt's a small change — mostly in `SessionPersistence.ts` (save/load) and `useSessionRestore.ts` (restore logic). Want me to plan it out, or is this small enough to just do?",
+          "timestamp": "2026-04-10T13:10:02.456Z"
+        },
+        {
+          "type": "user",
+          "text": "if you think you can do it accurately without a plan then go for it",
+          "timestamp": "2026-04-10T13:10:38.433Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me read the key files first.",
+          "timestamp": "2026-04-10T13:10:43.693Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/services/SessionPersistence.ts"
+          },
+          "timestamp": "2026-04-10T13:10:44.270Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/types.ts",
+            "limit": 50,
+            "offset": 320
+          },
+          "timestamp": "2026-04-10T13:10:45.069Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I need to see where `claudeSessionId` gets set during runtime and how it's saved.",
+          "timestamp": "2026-04-10T13:10:53.580Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Grep",
+          "input": {
+            "glob": "src/**/*.{ts,tsx}",
+            "output_mode": "files_with_matches",
+            "pattern": "claudeSessionId"
+          },
+          "timestamp": "2026-04-10T13:10:54.168Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "grep -rn \"claudeSessionId\" src/ --include=\"*.ts\" --include=\"*.tsx\" | head -40",
+            "description": "Find all claudeSessionId references"
+          },
+          "timestamp": "2026-04-10T13:10:59.683Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "limit": 55,
+            "offset": 70
+          },
+          "timestamp": "2026-04-10T13:11:07.820Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/layout/useSessionAutoSave.ts"
+          },
+          "timestamp": "2026-04-10T13:11:08.125Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I need to find where `claudeSessionId` gets set on the worktree during a live session (not restore).",
+          "timestamp": "2026-04-10T13:11:16.399Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "grep -rn \"claudeSessionId\" src/ --include=\"*.ts\" --include=\"*.tsx\" | grep -v \"test\\.\" | grep -v \"node_modules\"",
+            "description": "All claudeSessionId references"
+          },
+          "timestamp": "2026-04-10T13:11:17.485Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "grep -rn \"updateWorktree.*claudeSession\\|claudeSessionId.*=\" src/ --include=\"*.ts\" --include=\"*.tsx\" | grep -v \"test\\.\" | grep -v \"types.ts\" | grep -v \"SessionPersistence\"",
+            "description": "Find where claudeSessionId gets set at runtime"
+          },
+          "timestamp": "2026-04-10T13:11:25.591Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "grep -rn \"claudeSession\\|sessionId\\|session_id\\|findClaudeSession\\|find_claude_session\" src/ --include=\"*.ts\" --include=\"*.tsx\" | grep -v \"test\\.\" | grep -v \"node_modules\" | grep -v \"resumeSession\" | grep -v \"types.ts\" | grep -v \"SessionPersistence\" | grep -v \"useSessionRestore\" | grep -v \"TerminalView\"",
+            "description": "Find runtime session ID capture"
+          },
+          "timestamp": "2026-04-10T13:11:37.888Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src-tauri/src/commands/session.rs"
+          },
+          "timestamp": "2026-04-10T13:11:57.892Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I have the full picture. The fix is straightforward — `resumeSessionId` is already saved per-tab as part of the tab objects. The bug is that restore blasts one session ID onto all tabs, overwriting the per-tab values. I also need to capture session IDs for fresh tabs.\n\nLet me make the changes.\n\n**1. Fix restore to preserve per-tab session IDs:**",
+          "timestamp": "2026-04-10T13:15:24.520Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/hooks/useSessionRestore.ts",
+            "new_string": "                // Restore per-tab Claude session IDs. Each tab may have\n                // its own resumeSessionId from a previous save — preserve\n                // those so multiple Claude tabs resume distinct conversations.\n                const agentTabs = session.tabs.filter(isAgentTab);\n                const tabsWithSession = agentTabs.filter((t) => t.resumeSessionId);\n                const tabsWithoutSession = agentTabs.filter((t) => !t.resumeSessionId);\n\n                // For tabs that already have a saved session ID, keep it as-is.\n                // The tab objects were already restored via restoreTabs above.\n\n                // For tabs WITHOUT a saved session ID (migration from older\n                // versions, or tabs that were created fresh), try the\n                // worktree-level fallback first, then scan the filesystem.\n                if (tabsWithoutSession.length > 0) {\n                  // Use the worktree-level claudeSessionId as initial fallback\n                  let fallbackSessionId = session.claudeSessionId ?? null;\n\n                  // Scan filesystem for a newer session ID. Awaited so the\n                  // result is available before TerminalView mounts and resolves\n                  // args — fire-and-forget caused a race where --resume was\n                  // never added because hasSpawnedRef was already true.\n                  try {\n                    const fsSessionId = await findClaudeSession(wt.path);\n                    if (fsSessionId) {\n                      fallbackSessionId = fsSessionId;\n                    }\n                  } catch (e) {\n                    console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);\n                  }\n\n                  if (fallbackSessionId) {\n                    updateWorktree(wt.id, { claudeSessionId: fallbackSessionId });\n                    for (const tab of tabsWithoutSession) {\n                      updateTab(wt.id, tab.id, { resumeSessionId: fallbackSessionId });\n                    }\n                  }\n                } else if (tabsWithSession.length > 0) {\n                  // All tabs have their own session IDs — set worktree-level\n                  // to the first one for backward compat.\n                  updateWorktree(wt.id, { claudeSessionId: tabsWithSession[0].resumeSessionId });\n                }",
+            "old_string": "                // Restore persisted Claude session ID immediately\n                if (session.claudeSessionId) {\n                  updateWorktree(wt.id, { claudeSessionId: session.claudeSessionId });\n                  // Stamp resumeSessionId on ALL agent tabs so every\n                  // restored Claude tab auto-resumes (new tabs via Cmd+T won't have it)\n                  for (const tab of session.tabs) {\n                    if (isAgentTab(tab)) {\n                      updateTab(wt.id, tab.id, { resumeSessionId: session.claudeSessionId });\n                    }\n                  }\n                }\n\n                // Scan filesystem for a newer session ID. Awaited so the\n                // result is available before TerminalView mounts and resolves\n                // args — fire-and-forget caused a race where --resume was\n                // never added because hasSpawnedRef was already true.\n                try {\n                  const fsSessionId = await findClaudeSession(wt.path);\n                  if (fsSessionId) {\n                    updateWorktree(wt.id, { claudeSessionId: fsSessionId });\n                    // Stamp resumeSessionId on ALL agent tabs so every\n                    // Claude tab auto-resumes, not just the first one.\n                    const tabs = useTabStore.getState().tabs[wt.id] ?? [];\n                    for (const tab of tabs) {\n                      if (isAgentTab(tab)) {\n                        updateTab(wt.id, tab.id, { resumeSessionId: fsSessionId });\n                      }\n                    }\n                  }\n                } catch (e) {\n                  console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);\n                }",
+            "replace_all": false
+          },
+          "timestamp": "2026-04-10T13:15:39.552Z"
+        },
+        {
+          "type": "assistant",
+          "text": "**2. Capture session IDs for fresh tabs after they start:**",
+          "timestamp": "2026-04-10T13:15:51.144Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "limit": 30,
+            "offset": 1
+          },
+          "timestamp": "2026-04-10T13:15:51.811Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "limit": 30,
+            "offset": 114
+          },
+          "timestamp": "2026-04-10T13:15:58.664Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Now I need to add a useEffect that captures the session ID for fresh tabs after they produce output.",
+          "timestamp": "2026-04-10T13:16:12.857Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "new_string": "import { writePty, getConfig, getAppConfig, findClaudeSession } from \"../../api\";",
+            "old_string": "import { writePty, getConfig, getAppConfig } from \"../../api\";",
+            "replace_all": false
+          },
+          "timestamp": "2026-04-10T13:16:13.850Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "new_string": "  // Capture Claude session ID for fresh tabs (no resumeSessionId) so that\n  // the session persists per-tab and resumes correctly on next restart.\n  const hasDiscoveredSession = useRef(false);\n  useEffect(() => {\n    if (hasDiscoveredSession.current) return;\n    if (!hasOutput || !isAgent || claudeSessionId) return;\n    if (!activeWorktreeId || !worktree?.path) return;\n    hasDiscoveredSession.current = true;\n    findClaudeSession(worktree.path).then((fsSessionId) => {\n      if (fsSessionId && activeWorktreeId && tabId) {\n        const updateTab = useTabStore.getState().updateTab;\n        updateTab(activeWorktreeId, tabId, { resumeSessionId: fsSessionId });\n      }\n    }).catch(() => {});\n  }, [hasOutput, isAgent, claudeSessionId, activeWorktreeId, worktree?.path, tabId]);\n\n  const [showSearch, setShowSearch] = useState(false);\n\n  const isAgentTab = mode !== \"shell\";",
+            "old_string": "  const [showSearch, setShowSearch] = useState(false);\n\n  const isAgentTab = mode !== \"shell\";",
+            "replace_all": false
+          },
+          "timestamp": "2026-04-10T13:16:32.849Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Wait, I need to check what `isAgent` variable is available and where `hasOutput` is defined relative to this code. Let me re-read to make sure the ordering is correct.",
+          "timestamp": "2026-04-10T13:16:44.817Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "limit": 100,
+            "offset": 40
+          },
+          "timestamp": "2026-04-10T13:16:45.394Z"
+        },
+        {
+          "type": "assistant",
+          "text": "I see two issues: `hasOutput` and `isAgent` are used before they're defined. `hasOutput` comes from `usePty` at line 135, and `isAgentTab` is defined at line 133 (not `isAgent`). I need to move this effect after those definitions.",
+          "timestamp": "2026-04-10T13:16:53.987Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "new_string": "  const [showSearch, setShowSearch] = useState(false);\n\n  const isAgentTab = mode !== \"shell\";\n\n  const { channelAlive, isConnected, searchAddon, hasOutput } = usePty({",
+            "old_string": "  // Capture Claude session ID for fresh tabs (no resumeSessionId) so that\n  // the session persists per-tab and resumes correctly on next restart.\n  const hasDiscoveredSession = useRef(false);\n  useEffect(() => {\n    if (hasDiscoveredSession.current) return;\n    if (!hasOutput || !isAgent || claudeSessionId) return;\n    if (!activeWorktreeId || !worktree?.path) return;\n    hasDiscoveredSession.current = true;\n    findClaudeSession(worktree.path).then((fsSessionId) => {\n      if (fsSessionId && activeWorktreeId && tabId) {\n        const updateTab = useTabStore.getState().updateTab;\n        updateTab(activeWorktreeId, tabId, { resumeSessionId: fsSessionId });\n      }\n    }).catch(() => {});\n  }, [hasOutput, isAgent, claudeSessionId, activeWorktreeId, worktree?.path, tabId]);\n\n  const [showSearch, setShowSearch] = useState(false);\n\n  const isAgentTab = mode !== \"shell\";\n\n  const { channelAlive, isConnected, searchAddon, hasOutput } = usePty({",
+            "replace_all": false
+          },
+          "timestamp": "2026-04-10T13:16:57.877Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Now add the effect after `usePty`:",
+          "timestamp": "2026-04-10T13:17:05.521Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "limit": 30,
+            "offset": 115
+          },
+          "timestamp": "2026-04-10T13:17:06.307Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Edit",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "new_string": "  // Capture Claude session ID for fresh tabs (no resumeSessionId) so that\n  // the session persists per-tab and resumes correctly on next restart.\n  const hasDiscoveredSession = useRef(false);\n  useEffect(() => {\n    if (hasDiscoveredSession.current) return;\n    if (!hasOutput || !isAgentTab || claudeSessionId) return;\n    if (!activeWorktreeId || !worktree?.path) return;\n    hasDiscoveredSession.current = true;\n    findClaudeSession(worktree.path).then((fsSessionId) => {\n      if (fsSessionId && activeWorktreeId && tabId) {\n        useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: fsSessionId });\n      }\n    }).catch(() => {});\n  }, [hasOutput, isAgentTab, claudeSessionId, activeWorktreeId, worktree?.path, tabId]);\n\n  const handleSendFeedback = useCallback(async () => {",
+            "old_string": "  const handleSendFeedback = useCallback(async () => {",
+            "replace_all": false
+          },
+          "timestamp": "2026-04-10T13:17:16.894Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Now let me verify both files look correct:",
+          "timestamp": "2026-04-10T13:17:27.152Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/hooks/useSessionRestore.ts",
+            "limit": 50,
+            "offset": 170
+          },
+          "timestamp": "2026-04-10T13:17:27.709Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/Users/chloe/dev/alfredo/src/components/terminal/TerminalView.tsx",
+            "limit": 40,
+            "offset": 113
+          },
+          "timestamp": "2026-04-10T13:17:28.435Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me verify it builds:",
+          "timestamp": "2026-04-10T13:17:37.505Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "npx tsc --noEmit 2>&1 | head -30",
+            "description": "Type check the changes",
+            "timeout": 30000
+          },
+          "timestamp": "2026-04-10T13:17:38.792Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Clean build. Here's what changed:\n\n**`useSessionRestore.ts`** — Instead of blasting one `claudeSessionId` onto every agent tab, it now:\n- Preserves each tab's saved `resumeSessionId` (already restored via `restoreTabs`)\n- Only uses `findClaudeSession` as fallback for tabs that don't have a saved session ID (migration from older versions)\n\n**`TerminalView.tsx`** — After a fresh agent tab (no `resumeSessionId`) produces output, calls `findClaudeSession` to discover and store the session ID on that tab. This way, the next save captures it per-tab.\n\n**One caveat**: if two fresh Claude tabs start simultaneously in the same worktree, they'll both discover the same \"most recent\" session via `findClaudeSession`. But that's an edge case and no worse than current behavior. After one restart cycle, each tab will have its own persisted session ID and resume correctly from then on.",
+          "timestamp": "2026-04-10T13:18:12.369Z"
+        }
+      ],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    },
+    "5e4e105541d0e57d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d948440-39d6-440b-b6d4-e2a005d41a24",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 6,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "5f529c26fbbe63b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fcc3866b-7136-43ef-b090-8dc4b746c678",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    },
+    "626af1c63500f81c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6319006-1303-4735-a1dc-d43b17973f6d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    },
+    "6448cebb6047e0f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e8032ac-5be9-430b-8876-db8b189f264d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "6b1efd8775302289": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f9b04b7b-b782-4cf3-b177-3a076bf185f0",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4347,
+      "total_deletions": 1190,
+      "accepted_lines": 2334,
+      "overriden_lines": 0
+    },
+    "70270150cef0e952": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "730b83fb-95b6-46df-b345-3edea3280a58",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 11,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "75ec3d71f6efff86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71668b35-6442-4424-a4a3-7bb33168154f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 59,
+      "total_deletions": 0,
+      "accepted_lines": 59,
+      "overriden_lines": 0
+    },
+    "76bac775c93b260f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04687cb0-4a6f-4519-85cb-5d4c41fc7389",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "77ea243c6ed3cdb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54862b47-208b-4a39-9a3f-0e6da5a8b578",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "7ad2020ff3ea1883": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "55cef308-a725-4520-bb92-0fb3dd979d32",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 64,
+      "overriden_lines": 0
+    },
+    "8526fe5c26bc5585": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e0086b-f128-4646-8a56-8ffd8f1f273c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 35,
+      "overriden_lines": 0
+    },
+    "91adbc955da09b23": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15d3bb84-9dfb-471e-b90b-6ccca315b555",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "921ec66f30c89152": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4812d2e-6aaf-413a-9339-5fea8f6b5284",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 165,
+      "overriden_lines": 0
+    },
+    "934c3101dd1bfebb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a2fe7ae-d6d0-4c76-a245-c352f7615a62",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "9dbbdfa1fe45ce1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e98f4be0-3cb1-4205-84f9-f2a311136546",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 346,
+      "total_deletions": 291,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "a148115081b0462a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8c1c68f-5ead-443c-a962-d766832b7fd4",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "afed8dcc2376a8e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82887375-1695-4e8b-b03c-df5dac8d414d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 69,
+      "total_deletions": 33,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    },
+    "bec3c3793e81e53d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d68ca0a6-e0a4-4577-b95a-17f203d97f63",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "cd2b933e8a36d794": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aa77a7de-e963-42d2-84bc-e5266a5fccfd",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 2,
+      "accepted_lines": 79,
+      "overriden_lines": 0
+    },
+    "dcc4a7275f938e0d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45a43686-89bc-4169-9d93-8595c3217fb5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 16,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    },
+    "e10d7d82dfbb7767": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e07eb99c-d8a1-4d6d-a2e6-0ad321252849",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "e59cb2e0faf26b1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a3b96304-bda8-4dac-ae93-01908e5ad68b",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 32,
+      "total_deletions": 7,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "eac748f4a517b550": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3ca070ec-ff6c-4e60-9a99-8e7e1a599c00",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 60,
+      "total_deletions": 46,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "ebb7c703a69fb6b6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9802dc95-43d7-4529-ab66-48a8b8c6e2d8",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 57,
+      "total_deletions": 67,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "ed944082444dec1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "77b8a148-4a0b-49e2-a676-9983761adbef",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    }
+  }
+}
