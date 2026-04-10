@@ -121,9 +121,6 @@ pub fn run() {
             // Branch mode
             branch::list_branches,
             branch::get_active_branch,
-            branch::create_branch,
-            branch::switch_branch,
-            branch::delete_branch,
             // Linear
             linear::search_linear_issues,
             linear::list_my_linear_issues,

@@ -30,24 +30,3 @@ pub async fn get_active_branch(repo_path: String) -> Result<Option<String>> {
     Ok(active)
 }
 
-/// Create a new branch and check it out.
-#[tauri::command]
-pub async fn create_branch(
-    repo_path: String,
-    branch_name: String,
-    base_branch: String,
-) -> Result<Worktree> {
-    branch_manager::create_branch(&repo_path, &branch_name, &base_branch).await
-}
-
-/// Switch to an existing branch (checks for dirty state first).
-#[tauri::command]
-pub async fn switch_branch(repo_path: String, branch_name: String) -> Result<()> {
-    branch_manager::switch_branch(&repo_path, &branch_name).await
-}
-
-/// Delete a local branch.
-#[tauri::command]
-pub async fn delete_branch(repo_path: String, branch_name: String) -> Result<()> {
-    branch_manager::delete_branch(&repo_path, &branch_name).await
-}
