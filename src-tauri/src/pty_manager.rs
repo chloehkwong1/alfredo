@@ -571,13 +571,16 @@ fn write_hooks_config(
                 "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; echo '{}'"
             }]
         })),
-        // PostToolUseFailure with is_interrupt — fires when user interrupts a
-        // running tool. Stop hooks do NOT fire on interrupts, so this is the
-        // only hook signal. The grep checks for is_interrupt before signalling.
+        // PostToolUseFailure fires for tool execution failures AND user
+        // interrupts. For interrupts (is_interrupt=true), signal waitingForInput
+        // since Stop doesn't fire on interrupts. For non-interrupts, signal busy
+        // to keep the hook silence timer fresh — without this, the detector
+        // fallback activates during model thinking after tool failures and can
+        // produce false idle notifications.
         ("PostToolUseFailure", serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ] && cat | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; fi; echo '{}'"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; else curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy\"; fi; fi; echo '{}'"
             }]
         })),
         ("SubagentStart",   cmd("busy")),
