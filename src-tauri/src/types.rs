@@ -379,8 +379,6 @@ pub struct GlobalAppConfig {
     #[serde(default)]
     pub default_diff_view_mode: Option<String>,
     #[serde(default)]
-    pub auto_resume: Option<bool>,
-    #[serde(default)]
     pub collapsed_kanban_columns: Vec<String>,
     #[serde(default)]
     pub sidebar_collapsed: Option<bool>,

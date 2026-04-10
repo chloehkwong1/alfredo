@@ -9,7 +9,6 @@ import { NotificationSettings } from "./NotificationSettings";
 import { DEFAULT_NOTIFICATION_CONFIG } from "./notificationConfig";
 import { TerminalSettings } from "./TerminalSettings";
 import { ThemeSelector } from "./ThemeSelector";
-import { Toggle } from "../ui/Toggle";
 
 type GlobalTab = "general" | "terminal" | "agent" | "notifications" | "integrations";
 
@@ -307,20 +306,6 @@ function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingF
                     />
                   )}
                 </Field>
-
-                <SectionTitle>Conversations</SectionTitle>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <div className="text-[13px] font-medium text-text-primary">Auto-resume conversations</div>
-                    <p className="text-xs text-text-tertiary mt-[5px]">
-                      Automatically run /resume when opening a Claude tab with previous history
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={appConfig.autoResume !== false}
-                    onChange={(checked) => updateAppConfig({ autoResume: checked })}
-                  />
-                </div>
 
                 <SectionTitle>Updates</SectionTitle>
                 <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} upToDate={upToDate} />

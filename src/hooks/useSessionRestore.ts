@@ -6,7 +6,7 @@ import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSessio
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
-import { findAgentTab, isAgentTab } from "../types";
+import { isAgentTab } from "../types";
 import type { RepoEntry, Worktree } from "../types";
 
 /**
@@ -172,28 +172,35 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 // Restore persisted Claude session ID immediately
                 if (session.claudeSessionId) {
                   updateWorktree(wt.id, { claudeSessionId: session.claudeSessionId });
-                  // Stamp resumeSessionId on the first agent tab so only
-                  // restored tabs auto-resume (new tabs via Cmd+T won't have it)
-                  const firstAgentTab = findAgentTab(session.tabs);
-                  if (firstAgentTab) {
-                    updateTab(wt.id, firstAgentTab.id, { resumeSessionId: session.claudeSessionId });
+                  // Stamp resumeSessionId on ALL agent tabs so every
+                  // restored Claude tab auto-resumes (new tabs via Cmd+T won't have it)
+                  for (const tab of session.tabs) {
+                    if (isAgentTab(tab)) {
+                      updateTab(wt.id, tab.id, { resumeSessionId: session.claudeSessionId });
+                    }
                   }
                 }
 
-                // Also scan filesystem for a newer session ID (fire and forget)
-                findClaudeSession(wt.path)
-                  .then((claudeSessionId) => {
-                    if (claudeSessionId) {
-                      updateWorktree(wt.id, { claudeSessionId });
-                      // Update the first agent tab with the latest session ID
-                      const tabs = useTabStore.getState().tabs[wt.id] ?? [];
-                      const firstAgentTab = findAgentTab(tabs);
-                      if (firstAgentTab) {
-                        updateTab(wt.id, firstAgentTab.id, { resumeSessionId: claudeSessionId });
+                // Scan filesystem for a newer session ID. Awaited so the
+                // result is available before TerminalView mounts and resolves
+                // args — fire-and-forget caused a race where --resume was
+                // never added because hasSpawnedRef was already true.
+                try {
+                  const fsSessionId = await findClaudeSession(wt.path);
+                  if (fsSessionId) {
+                    updateWorktree(wt.id, { claudeSessionId: fsSessionId });
+                    // Stamp resumeSessionId on ALL agent tabs so every
+                    // Claude tab auto-resumes, not just the first one.
+                    const tabs = useTabStore.getState().tabs[wt.id] ?? [];
+                    for (const tab of tabs) {
+                      if (isAgentTab(tab)) {
+                        updateTab(wt.id, tab.id, { resumeSessionId: fsSessionId });
                       }
                     }
-                  })
-                  .catch((e) => console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e));
+                  }
+                } catch (e) {
+                  console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);
+                }
 
                 // Don't eagerly spawn sessions — they'll start lazily when
                 // the user clicks the Claude tab via usePty → getOrSpawn.
