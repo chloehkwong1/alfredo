@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -49,13 +49,13 @@ pub struct SpawnConfig {
 
 /// Manages all PTY sessions. Stored as Tauri managed state.
 pub struct PtyManager {
-    sessions: Arc<Mutex<HashMap<String, PtySession>>>,
+    sessions: Arc<RwLock<HashMap<String, Arc<Mutex<PtySession>>>>>,
 }
 
 impl PtyManager {
     pub fn new() -> Self {
         Self {
-            sessions: Arc::new(Mutex::new(HashMap::new())),
+            sessions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -276,37 +276,37 @@ impl PtyManager {
         };
 
         self.sessions
-            .lock()
+            .write()
             .map_err(|_| AppError::Pty("session lock poisoned".into()))?
-            .insert(session_id.clone(), session);
+            .insert(session_id.clone(), Arc::new(Mutex::new(session)));
 
         Ok(session_id)
     }
 
     /// Write raw bytes to the PTY master (i.e. send input to the child).
     pub fn write(&self, session_id: &str, data: &[u8]) -> Result<(), AppError> {
-        let mut sessions = self
-            .sessions
-            .lock()
+        let session_arc = {
+            let sessions = self.sessions.read()
+                .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+            Arc::clone(
+                sessions.get(session_id)
+                    .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?,
+            )
+        };
+        // Map lock dropped here
+
+        let mut session = session_arc.lock()
             .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
 
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?;
-
-        // Check if the session already exited.
         if session.exited.lock().map(|g| g.is_some()).unwrap_or(false) {
             return Err(AppError::Pty("session has exited".into()));
         }
 
-        // Signal input to the agent detector for echo suppression
         if let Ok(mut signals) = session.detector_signals.lock() {
             signals.last_input = Some(Instant::now());
         }
 
-        session
-            .writer
-            .write_all(data)
+        session.writer.write_all(data)
             .map_err(|e| AppError::Pty(format!("write failed: {e}")))?;
 
         Ok(())
@@ -314,28 +314,23 @@ impl PtyManager {
 
     /// Resize the PTY.
     pub fn resize(&self, session_id: &str, rows: u16, cols: u16) -> Result<(), AppError> {
-        let sessions = self
-            .sessions
-            .lock()
+        let session_arc = {
+            let sessions = self.sessions.read()
+                .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+            Arc::clone(
+                sessions.get(session_id)
+                    .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?,
+            )
+        };
+
+        let session = session_arc.lock()
             .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
 
-        let session = sessions
-            .get(session_id)
-            .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?;
-
-        // Signal resize to the agent detector for grace period
         if let Ok(mut signals) = session.detector_signals.lock() {
             signals.last_resize = Some(Instant::now());
         }
 
-        session
-            .master
-            .resize(PtySize {
-                rows,
-                cols,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
+        session.master.resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
             .map_err(|e| AppError::Pty(format!("resize failed: {e}")))?;
 
         Ok(())
@@ -344,29 +339,62 @@ impl PtyManager {
     /// Close and clean up a PTY session.
     /// Look up the worktree_id for a session.
     pub fn get_worktree_id(&self, session_id: &str) -> Result<String, AppError> {
-        let sessions = self
-            .sessions
-            .lock()
+        let sessions = self.sessions.read()
             .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
-
-        sessions
-            .get(session_id)
-            .map(|s| s.worktree_id.clone())
-            .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))
+        let session_arc = sessions.get(session_id)
+            .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?;
+        let session = session_arc.lock()
+            .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+        Ok(session.worktree_id.clone())
     }
 
     pub fn close(&self, session_id: &str) -> Result<(), AppError> {
-        let mut sessions = self
-            .sessions
-            .lock()
-            .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+        let session_arc = {
+            let mut sessions = self.sessions.write()
+                .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+            sessions.remove(session_id)
+                .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?
+        };
+        // Map lock dropped — other sessions unblocked immediately.
 
-        let mut session = sessions
-            .remove(session_id)
-            .ok_or_else(|| AppError::Pty(format!("session not found: {session_id}")))?;
+        // Unwrap the Arc. If other threads hold references, fall back to locking.
+        let mut session = match Arc::try_unwrap(session_arc) {
+            Ok(mutex) => mutex.into_inner().unwrap_or_else(|e| e.into_inner()),
+            Err(arc) => {
+                // Another thread holds a reference to this session. We can't
+                // take ownership (needed for drop(master) and child.wait()),
+                // so do partial cleanup: hooks + SIGTERM. The reader thread
+                // will see the stop flag and exit, which closes the remaining
+                // resources when the last Arc drops.
+                eprintln!("[pty] close: Arc still shared, doing partial teardown for {session_id}");
+                let (worktree_path, stop_flag, pid) = {
+                    let s = arc.lock().map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+                    (
+                        s.worktree_path.clone(),
+                        Arc::clone(&s.stop_flag),
+                        s.child.process_id(),
+                    )
+                };
+                // Session lock dropped here.
 
-        // Remove Alfredo hooks from the worktree's config files so
-        // standalone agent sessions don't inherit stale hooks.
+                if let Err(e) = remove_hooks_config(&worktree_path) {
+                    eprintln!("[alfredo] failed to clean claude hooks on close: {e}");
+                }
+                if let Err(e) = remove_gemini_hooks_config(&worktree_path) {
+                    eprintln!("[alfredo] failed to clean gemini hooks on close: {e}");
+                }
+                if let Err(e) = remove_codex_hooks_config(&worktree_path) {
+                    eprintln!("[alfredo] failed to clean codex hooks on close: {e}");
+                }
+                stop_flag.store(true, Ordering::Relaxed);
+                if let Some(pid) = pid {
+                    unsafe { libc::kill(-(pid as i32), libc::SIGTERM); }
+                }
+                return Ok(());
+            }
+        };
+
+        // Full cleanup with owned session
         if let Err(e) = remove_hooks_config(&session.worktree_path) {
             eprintln!("[alfredo] failed to clean claude hooks on close: {e}");
         }
@@ -385,15 +413,13 @@ impl PtyManager {
         // shell. The shell called setsid() so its PID == PGID.
         let pid = session.child.process_id();
         if let Some(pid) = pid {
-            unsafe {
-                libc::kill(-(pid as i32), libc::SIGTERM);
-            }
+            unsafe { libc::kill(-(pid as i32), libc::SIGTERM); }
         } else {
             let _ = session.child.kill();
         }
 
-        // Drop the PTY master fd immediately — this unblocks any reader thread
-        // stuck in read() and signals hangup to the child.
+        // Drop the PTY master fd — this unblocks any reader thread stuck in
+        // read() and signals hangup to the child.
         drop(session.master);
 
         // Reap the process tree in a background thread so we never block the
@@ -402,9 +428,7 @@ impl PtyManager {
             if let Some(pid) = pid {
                 thread::sleep(Duration::from_millis(200));
                 // Force-kill any survivors.
-                unsafe {
-                    libc::kill(-(pid as i32), libc::SIGKILL);
-                }
+                unsafe { libc::kill(-(pid as i32), libc::SIGKILL); }
             }
             let _ = session.child.wait();
         });
@@ -415,16 +439,17 @@ impl PtyManager {
     /// Remove Alfredo hooks from all active sessions' worktree directories.
     /// Called on app exit to ensure no stale hooks are left behind.
     pub fn cleanup_all_hooks(&self) {
-        let sessions = match self.sessions.lock() {
+        let sessions = match self.sessions.read() {
             Ok(s) => s,
             Err(_) => return,
         };
 
-        // Deduplicate paths — multiple sessions may share the same worktree.
         let paths: std::collections::HashSet<String> = sessions
             .values()
-            .map(|s| s.worktree_path.clone())
+            .filter_map(|arc| arc.lock().ok().map(|s| s.worktree_path.clone()))
             .collect();
+
+        drop(sessions);
 
         for path in paths {
             if let Err(e) = remove_hooks_config(&path) {
@@ -441,24 +466,29 @@ impl PtyManager {
 
     /// List all sessions with current status.
     pub fn list(&self) -> Result<Vec<Session>, AppError> {
-        let mut sessions = self
-            .sessions
-            .lock()
-            .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+        // Clone all Arcs while holding the read lock, then drop it so
+        // per-session locks don't block close() from acquiring a write lock.
+        let snapshot: Vec<(String, Arc<Mutex<PtySession>>)> = {
+            let sessions = self.sessions.read()
+                .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+            sessions
+                .iter()
+                .map(|(id, arc)| (id.clone(), Arc::clone(arc)))
+                .collect()
+        };
 
-        let mut result = Vec::with_capacity(sessions.len());
+        let mut result = Vec::with_capacity(snapshot.len());
 
-        for (id, session) in sessions.iter_mut() {
+        for (id, session_arc) in &snapshot {
+            let mut session = session_arc.lock()
+                .map_err(|_| AppError::Pty("session lock poisoned".into()))?;
+
             let status = if session.exited.lock().map(|g| g.is_some()).unwrap_or(false) {
-                // Try to get the real exit code.
                 match session.child.try_wait() {
-                    Ok(Some(exit)) => {
-                        SessionStatus::Exited(exit.exit_code() as i32)
-                    }
+                    Ok(Some(exit)) => SessionStatus::Exited(exit.exit_code() as i32),
                     _ => SessionStatus::Exited(-1),
                 }
             } else {
-                // Check if the child has exited since we last looked.
                 match session.child.try_wait() {
                     Ok(Some(exit)) => {
                         let code = exit.exit_code() as i32;
