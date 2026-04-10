@@ -14,6 +14,9 @@ use crate::platform::augmented_path;
 use crate::sleep_inhibitor::SleepInhibitor;
 use crate::types::{AgentState, AgentType, AppError, NotifyReason, PtyEvent, Session, SessionStatus, SessionType};
 
+/// Swappable channel handle. `None` means the frontend disconnected (e.g. page reload).
+type SwappableChannel = Arc<RwLock<Option<Channel<PtyEvent>>>>;
+
 /// Shared timestamps for signalling resize/input events to the reader thread's
 /// agent detector. The main thread writes; the reader thread reads.
 struct DetectorSignals {
@@ -31,6 +34,7 @@ struct PtySession {
     /// Filesystem path to the worktree — needed for hook cleanup on close.
     worktree_path: String,
     session_type: SessionType,
+    channel: SwappableChannel,
     /// Set to true when the reader thread detects the child has exited.
     exited: Arc<Mutex<Option<i32>>>,
     /// Shared flag to signal the reader thread to stop.
@@ -158,8 +162,8 @@ impl PtyManager {
 
         let stop_flag = Arc::new(AtomicBool::new(false));
 
-        // Wrap channel in Arc so it can be shared between reader and heartbeat threads.
-        let arc_channel = Arc::new(channel);
+        // Wrap channel in Arc<RwLock<Option>> so it can be swapped on frontend reload.
+        let arc_channel: SwappableChannel = Arc::new(RwLock::new(Some(channel)));
 
         // --- reader thread ---
         let reader_session_id = session_id.clone();
@@ -207,15 +211,23 @@ impl PtyManager {
                             // Update sleep inhibitor from detector (fallback path)
                             reader_inhibitor.update(id, &agent_state);
                             // State changed — notify frontend
-                            if let Err(err) = reader_channel.send(PtyEvent::AgentState(agent_state)) {
-                                eprintln!("[pty-reader {id}] channel send failed (AgentState): {err}");
+                            if let Ok(guard) = reader_channel.read() {
+                                if let Some(ch) = guard.as_ref() {
+                                    if let Err(err) = ch.send(PtyEvent::AgentState(agent_state)) {
+                                        eprintln!("[pty-reader {id}] channel send failed (AgentState): {err}");
+                                    }
+                                }
                             }
                         }
 
                         // On channel send failure, log but continue reading to
                         // keep the child process alive.
-                        if let Err(err) = reader_channel.send(PtyEvent::Output(data)) {
-                            eprintln!("[pty-reader {id}] channel send failed (Output): {err}");
+                        if let Ok(guard) = reader_channel.read() {
+                            if let Some(ch) = guard.as_ref() {
+                                if let Err(err) = ch.send(PtyEvent::Output(data)) {
+                                    eprintln!("[pty-reader {id}] channel send failed (Output): {err}");
+                                }
+                            }
                         }
                     }
                     Err(e) => {
@@ -232,11 +244,15 @@ impl PtyManager {
             // Notify the frontend that the agent is no longer running.
             // Sent as HookAgentState (authoritative) rather than AgentState
             // (detector) so it bypasses the detector filter when hooks are active.
-            if let Err(e) = reader_channel.send(PtyEvent::HookAgentState {
-                state: AgentState::NotRunning,
-                notify: NotifyReason::None,
-            }) {
-                eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");
+            if let Ok(guard) = reader_channel.read() {
+                if let Some(ch) = guard.as_ref() {
+                    if let Err(e) = ch.send(PtyEvent::HookAgentState {
+                        state: AgentState::NotRunning,
+                        notify: NotifyReason::None,
+                    }) {
+                        eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");
+                    }
+                }
             }
 
             // Clear this session from the sleep inhibitor so a crashed/abandoned
@@ -266,9 +282,18 @@ impl PtyManager {
                 if hb_stop.load(Ordering::Relaxed) {
                     break;
                 }
-                if hb_channel.send(PtyEvent::Heartbeat).is_err() {
-                    eprintln!("[pty-heartbeat {hb_session_id}] channel send failed, exiting");
-                    break;
+                if let Ok(guard) = hb_channel.read() {
+                    if let Some(ch) = guard.as_ref() {
+                        if ch.send(PtyEvent::Heartbeat).is_err() {
+                            drop(guard);
+                            // Channel invalidated — clear it so we skip until reattach
+                            if let Ok(mut w) = hb_channel.write() {
+                                *w = None;
+                            }
+                            eprintln!("[pty-heartbeat {hb_session_id}] channel invalidated, will skip until reattach");
+                        }
+                    }
+                    // None → frontend disconnected, skip silently
                 }
             }
         });
@@ -286,6 +311,7 @@ impl PtyManager {
             worktree_id,
             worktree_path,
             session_type,
+            channel: arc_channel,
             exited,
             stop_flag,
             detector_signals,
