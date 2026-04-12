@@ -104,7 +104,7 @@ function WorkspaceSettingsDialog({
           worktreeBasePath: null,
         });
       });
-    getAppConfig().then(setAppConfig).catch(() => {});
+    getAppConfig().then(setAppConfig).catch((e) => console.error("Failed to load app config:", e));
   }, [open, currentRepoPath]);
 
   const updateConfig = useCallback((patch: Partial<AppConfig>) => {

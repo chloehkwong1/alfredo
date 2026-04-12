@@ -150,7 +150,7 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
     if (!repoPath || !hasWorktrees) return;
 
     const handleBeforeUnload = () => {
-      collectAndSaveAllSessionsOnce().catch(() => {});
+      collectAndSaveAllSessionsOnce().catch((e) => console.error("Failed to save sessions on unload:", e));
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);

@@ -54,7 +54,7 @@ export function useAppConfig() {
           archiveAfterDays: c.archiveAfterDays ?? 2,
           deleteAfterDays: c.deleteAfterDays ?? 0,
         });
-      }).catch(() => {});
+      }).catch((e) => console.error("Failed to reload app config:", e));
     };
     window.addEventListener("config-changed", handler);
     return () => window.removeEventListener("config-changed", handler);
