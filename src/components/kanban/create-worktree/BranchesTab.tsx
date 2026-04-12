@@ -10,12 +10,11 @@ interface BranchesTabProps {
   open: boolean;
   selectedBranch: string | null;
   onSelectBranch: (branch: string | null) => void;
-  onDefaultBranchDetected: (branch: string) => void;
   newBranchName: string;
   onNewBranchNameChange: (name: string) => void;
 }
 
-function BranchesTab({ repoPath, open, selectedBranch, onSelectBranch, onDefaultBranchDetected, newBranchName, onNewBranchNameChange }: BranchesTabProps) {
+function BranchesTab({ repoPath, open, selectedBranch, onSelectBranch, newBranchName, onNewBranchNameChange }: BranchesTabProps) {
   const [branches, setBranches] = useState<Worktree[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,12 +28,6 @@ function BranchesTab({ repoPath, open, selectedBranch, onSelectBranch, onDefault
         .then((result) => {
           setBranches(result);
           setError(null);
-          const names = result.map((b) => b.branch);
-          const defaultBranch = names.find((n) => n === "main")
-            ?? names.find((n) => n === "master")
-            ?? names[0]
-            ?? "main";
-          onDefaultBranchDetected(defaultBranch);
         })
         .catch((err) => setError(err instanceof Error ? err.message : String(err)))
         .finally(() => setLoading(false));

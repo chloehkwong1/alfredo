@@ -243,7 +243,6 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
                 open={open}
                 selectedBranch={selectedBranch}
                 onSelectBranch={setSelectedBranch}
-                onDefaultBranchDetected={setBaseBranch}
                 newBranchName={existingBranchNewName}
                 onNewBranchNameChange={setExistingBranchNewName}
               />
