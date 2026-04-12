@@ -101,6 +101,19 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
     };
   }, [repoPath, hasWorktrees]);
 
+  // Save on page refresh — beforeunload fires on Cmd+R but onCloseRequested
+  // does not, so without this handler session data can be up to 30s stale.
+  // Best-effort: the browser may not wait for async IPC to complete.
+  useEffect(() => {
+    if (!repoPath || !hasWorktrees) return;
+
+    const handleBeforeUnload = () => {
+      collectAndSaveAllSessions().catch(() => {});
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [repoPath, hasWorktrees]);
+
   // Debounced auto-save every 30s (only when worktrees exist)
   useEffect(() => {
     if (!repoPath || !hasWorktrees) return;
