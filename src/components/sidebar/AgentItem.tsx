@@ -416,17 +416,9 @@ const AgentItem = memo(function AgentItem({
     if (!worktree.stackParent && worktree.repoPath) {
       getDefaultBranch(worktree.repoPath)
         .then((b) => setDefaultBranch(b))
-        .catch(() => {});
+        .catch((e) => console.error("Failed to get default branch:", e));
     }
   }, [worktree.stackParent, worktree.repoPath]);
-
-  // Short-circuit for placeholder states (after hooks to satisfy Rules of Hooks)
-  if (worktree.creating) {
-    return <CreatingItem worktree={worktree} />;
-  }
-  if (worktree.createError) {
-    return <CreateErrorItem worktree={worktree} />;
-  }
 
   const installedApps = useInstalledApps();
 
@@ -436,6 +428,14 @@ const AgentItem = memo(function AgentItem({
     terminal: TerminalIcon,
     git: GitBranch,
   };
+
+  // Short-circuit for placeholder states (after hooks to satisfy Rules of Hooks)
+  if (worktree.creating) {
+    return <CreatingItem worktree={worktree} />;
+  }
+  if (worktree.createError) {
+    return <CreateErrorItem worktree={worktree} />;
+  }
 
   const handleRebase = async () => {
     try {
