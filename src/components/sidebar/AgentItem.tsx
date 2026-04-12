@@ -1,11 +1,12 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, SquarePen, TerminalSquare, X, Unlink, Copy } from "lucide-react";
+import { Archive, Trash2, ExternalLink, Eye, FolderOpen, Code, TerminalSquare as TerminalIcon, GitBranch, Loader, X, Unlink, Copy } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { rebaseWorktree, setStackParent, getDefaultBranch } from "../../api";
-import { openPathInEditor, openPathInTerminal } from "../../services/openExternal";
+import { useInstalledApps } from "../../hooks/useInstalledApps";
+import { openInApp } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import {
@@ -14,6 +15,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
 } from "../ui/ContextMenu";
 import {
   Dialog,
@@ -424,11 +428,14 @@ const AgentItem = memo(function AgentItem({
     return <CreateErrorItem worktree={worktree} />;
   }
 
-  const handleOpenEditor = () =>
-    openPathInEditor(worktree.path).catch((e) => console.error("Failed to open editor:", e));
+  const installedApps = useInstalledApps();
 
-  const handleOpenTerminal = () =>
-    openPathInTerminal(worktree.path).catch((e) => console.error("Failed to open terminal:", e));
+  const categoryIcon: Record<string, typeof FolderOpen> = {
+    "file-manager": FolderOpen,
+    editor: Code,
+    terminal: TerminalIcon,
+    git: GitBranch,
+  };
 
   const handleRebase = async () => {
     try {
@@ -498,14 +505,30 @@ const AgentItem = memo(function AgentItem({
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onSelect={handleOpenEditor}>
-            <SquarePen className="h-4 w-4" />
-            Open in Editor
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={handleOpenTerminal}>
-            <TerminalSquare className="h-4 w-4" />
-            Open in Terminal
-          </ContextMenuItem>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <ExternalLink className="h-4 w-4" />
+              Open in
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {installedApps.map((app) => {
+                const Icon = categoryIcon[app.category] ?? ExternalLink;
+                return (
+                  <ContextMenuItem
+                    key={app.id}
+                    onSelect={() =>
+                      openInApp(app.id, worktree.path).catch((e) =>
+                        console.error(`Failed to open in ${app.id}:`, e),
+                      )
+                    }
+                  >
+                    <Icon className="h-4 w-4" />
+                    {app.name}
+                  </ContextMenuItem>
+                );
+              })}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
           <ContextMenuItem
             onSelect={() => isUnread ? markRead(worktree.id) : markUnread(worktree.id)}
           >
