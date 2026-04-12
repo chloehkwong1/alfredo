@@ -50,9 +50,6 @@ export function OpenInDropdown({ worktreePath }: OpenInDropdownProps) {
     groups[groups.length - 1].push(app);
   }
 
-  // Number items sequentially across groups
-  let itemNumber = 0;
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -68,8 +65,6 @@ export function OpenInDropdown({ worktreePath }: OpenInDropdownProps) {
       <DropdownMenuContent side="top" align="end" className="min-w-[180px]">
         {groups.map((group, gi) => {
           const items = group.map((app) => {
-            itemNumber++;
-            const num = itemNumber;
             const Icon = CATEGORY_ICON[app.category] ?? ExternalLink;
             return (
               <DropdownMenuItem
@@ -77,8 +72,7 @@ export function OpenInDropdown({ worktreePath }: OpenInDropdownProps) {
                 onSelect={() => handleSelect(app.id)}
               >
                 <Icon size={14} />
-                <span className="flex-1">{app.name}</span>
-                <span className="text-[10px] text-text-tertiary ml-3">{num}</span>
+                {app.name}
               </DropdownMenuItem>
             );
           });
@@ -93,7 +87,6 @@ export function OpenInDropdown({ worktreePath }: OpenInDropdownProps) {
         <DropdownMenuItem onSelect={handleCopy}>
           <Copy size={14} />
           <span className="flex-1">Copy path</span>
-          <span className="text-[10px] text-text-tertiary ml-3">⌘⇧C</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
