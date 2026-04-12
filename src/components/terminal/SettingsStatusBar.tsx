@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { RotateCcw, SquarePen, TerminalSquare, Smartphone } from "lucide-react";
+import { RotateCcw, Smartphone } from "lucide-react";
 import { Button } from "../ui/Button";
 import { SettingsChip } from "./SettingsChip";
 import { getConfig, saveConfig, getAppConfig } from "../../api";
-import { openPathInEditor, openPathInTerminal } from "../../services/openExternal";
+import { OpenInDropdown } from "../ui/OpenInDropdown";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
 import { toggleRemoteControl } from "../../services/remoteControl";
@@ -128,16 +128,6 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
     onRestartSession?.();
   }, [onRestartSession]);
 
-  const handleOpenEditor = useCallback(() => {
-    if (!worktreePath) return;
-    openPathInEditor(worktreePath).catch((e) => console.error("Failed to open editor:", e));
-  }, [worktreePath]);
-
-  const handleOpenTerminal = useCallback(() => {
-    if (!worktreePath) return;
-    openPathInTerminal(worktreePath).catch((e) => console.error("Failed to open terminal:", e));
-  }, [worktreePath]);
-
   const isRcActive = useRemoteControlStore(
     useCallback((s) => worktreeId in s.sessions, [worktreeId]),
   );
@@ -208,24 +198,7 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
             Remote
           </button>
         )}
-        <button
-          type="button"
-          onClick={handleOpenEditor}
-          className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-          title="Open in editor"
-        >
-          <SquarePen size={13} />
-          Editor
-        </button>
-        <button
-          type="button"
-          onClick={handleOpenTerminal}
-          className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-          title="Open in terminal"
-        >
-          <TerminalSquare size={13} />
-          Terminal
-        </button>
+        <OpenInDropdown worktreePath={worktreePath} />
       </div>
     </div>
   );
