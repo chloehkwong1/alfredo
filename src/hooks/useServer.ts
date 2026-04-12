@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { getConfig, listSessions } from "../api";
@@ -97,8 +97,11 @@ export function useStaleServerCleanup() {
  */
 export function useServerReconciliation() {
   const setRunningServer = useWorkspaceStore((s) => s.setRunningServer);
+  const hasRun = useRef(false);
 
   useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
     let cancelled = false;
 
     async function reconcile() {
@@ -134,6 +137,12 @@ export function useServerReconciliation() {
           await sessionManager.reattachToSession(tabId, srv.id, wtId);
         } catch (err) {
           console.error(`[server-reconcile] reattach failed for ${srv.id}:`, err);
+          // Roll back the orphaned tab we just created
+          try {
+            await lifecycleManager.removeTab(wtId, tabId);
+          } catch (cleanupErr) {
+            console.error(`[server-reconcile] failed to clean up orphaned tab:`, cleanupErr);
+          }
           continue;
         }
         if (cancelled) return;

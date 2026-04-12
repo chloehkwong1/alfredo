@@ -642,6 +642,9 @@ export class SessionManager {
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
+    // Write a banner so the user knows why the terminal is empty
+    terminal.write("\r\n\x1b[2m[reattached to running server — waiting for output...]\x1b[0m\r\n");
+
     const session: ManagedSession = {
       sessionId,
       terminal,
