@@ -239,16 +239,14 @@ export const usePrStore = create<PrState>((set, get) => ({
         newCheckRuns[wt.id] = pr.checkRuns;
       }
 
-      {
-        const prev = newPrDetail[wt.id];
-        newPrDetail[wt.id] = {
-          reviews: pr.reviews ?? (prev?.reviews ?? []),
-          comments: pr.comments ?? (prev?.comments ?? []),
-          mergeable: pr.mergeable ?? (prev?.mergeable ?? null),
-          reviewDecision: pr.reviewDecision ?? (prev?.reviewDecision ?? null),
-          requestedReviewers: pr.requestedReviewers ?? (prev?.requestedReviewers ?? []),
-        };
-      }
+      const prevDetail = newPrDetail[wt.id];
+      newPrDetail[wt.id] = {
+        reviews: pr.reviews ?? (prevDetail?.reviews ?? []),
+        comments: pr.comments ?? (prevDetail?.comments ?? []),
+        mergeable: pr.mergeable ?? (prevDetail?.mergeable ?? null),
+        reviewDecision: pr.reviewDecision ?? (prevDetail?.reviewDecision ?? null),
+        requestedReviewers: pr.requestedReviewers ?? (prevDetail?.requestedReviewers ?? []),
+      };
     }
 
     set({

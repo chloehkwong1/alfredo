@@ -159,12 +159,14 @@ export function useGithubSync() {
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
-  // Clear auth errors on successful sync (if PRs arrive, auth is working)
+  // Clear auth errors for repos that successfully synced PRs
   useEffect(() => {
-    const unlisten = listen<PrUpdatePayload>("github:pr-update", () => {
-      const { githubAuthErrors } = useWorkspaceStore.getState();
-      if (githubAuthErrors.size > 0) {
-        useWorkspaceStore.getState().clearGithubAuthErrors();
+    const unlisten = listen<PrUpdatePayload>("github:pr-update", (event) => {
+      const { githubAuthErrors, clearGithubAuthError } = useWorkspaceStore.getState();
+      if (githubAuthErrors.size === 0) return;
+      const syncedRepos = new Set(event.payload.prs.map((pr) => pr.repoPath));
+      for (const repo of syncedRepos) {
+        if (githubAuthErrors.has(repo)) clearGithubAuthError(repo);
       }
     });
     return () => { unlisten.then((fn) => fn()); };

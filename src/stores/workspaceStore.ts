@@ -35,7 +35,7 @@ interface WorkspaceState {
   /** Repo paths where GitHub auth has failed (token missing/expired). */
   githubAuthErrors: Set<string>;
   setGithubAuthError: (repoPath: string) => void;
-  clearGithubAuthErrors: () => void;
+  clearGithubAuthError: (repoPath: string) => void;
 
   addWorktree: (worktree: Worktree) => void;
   replaceWorktree: (tempId: string, realWorktree: Worktree) => void;
@@ -154,7 +154,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     set((state) => ({
       githubAuthErrors: new Set([...state.githubAuthErrors, repoPath]),
     })),
-  clearGithubAuthErrors: () => set({ githubAuthErrors: new Set<string>() }),
+  clearGithubAuthError: (repoPath: string) =>
+    set((state) => {
+      const next = new Set(state.githubAuthErrors);
+      next.delete(repoPath);
+      return { githubAuthErrors: next };
+    }),
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
