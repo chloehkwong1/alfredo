@@ -43,6 +43,9 @@ src-tauri/gen/
 designs/*.html
 designs/*.png
 
+# Docs assets (local only)
+docs/
+
 # AI/Superpowers context
 .context/
 .superpowers/
