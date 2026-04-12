@@ -49,6 +49,49 @@ const ContextMenuItem = forwardRef<
 
 ContextMenuItem.displayName = "ContextMenuItem";
 
+const ContextMenuSub = RadixContextMenu.Sub;
+
+const ContextMenuSubTrigger = forwardRef<
+  HTMLDivElement,
+  RadixContextMenu.ContextMenuSubTriggerProps
+>(({ className = "", ...props }, ref) => (
+  <RadixContextMenu.SubTrigger
+    ref={ref}
+    className={[
+      "flex items-center gap-2 px-2 py-1.5",
+      "text-sm text-text-primary",
+      "rounded-[var(--radius-sm)] cursor-pointer",
+      "outline-none",
+      "data-[highlighted]:bg-bg-hover data-[highlighted]:text-text-primary",
+      "transition-colors duration-[var(--transition-fast)]",
+      className,
+    ].join(" ")}
+    {...props}
+  />
+));
+ContextMenuSubTrigger.displayName = "ContextMenuSubTrigger";
+
+const ContextMenuSubContent = forwardRef<
+  HTMLDivElement,
+  RadixContextMenu.ContextMenuSubContentProps
+>(({ className = "", ...props }, ref) => (
+  <RadixContextMenu.Portal>
+    <RadixContextMenu.SubContent
+      ref={ref}
+      className={[
+        "z-50 min-w-[160px] p-1",
+        "bg-bg-elevated border border-border-default",
+        "rounded-[var(--radius-lg)] shadow-lg",
+        "animate-in fade-in-0 zoom-in-95",
+        "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+        className,
+      ].join(" ")}
+      {...props}
+    />
+  </RadixContextMenu.Portal>
+));
+ContextMenuSubContent.displayName = "ContextMenuSubContent";
+
 function ContextMenuSeparator({ className = "" }: { className?: string }) {
   return (
     <RadixContextMenu.Separator
@@ -63,4 +106,7 @@ export {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
 };
