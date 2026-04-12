@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "@xterm/xterm/css/xterm.css";
 
 import { usePty } from "../../hooks/usePty";
@@ -56,8 +57,10 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const sessionKey = tabId ?? activeWorktreeId ?? "";
   const { mode, sessionType } = tabTypeToPtyMode(tabType ?? "claude");
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // Read the tab's command field (used by server tabs to auto-execute a command)
   const tabCommand = useTabStore((s) => {
@@ -242,6 +245,51 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }
   }, [activeWorktreeId, storeAgentStatus, isSeen, windowFocused, markWorktreeSeen]);
 
+  // File drag-and-drop: listen for Tauri's webview drag-drop events and write
+  // shell-escaped file paths to the PTY when files are dropped on the terminal.
+  useEffect(() => {
+    const unlisten = getCurrentWebviewWindow().onDragDropEvent((event) => {
+      const dropZone = dropZoneRef.current;
+      if (!dropZone) return;
+
+      const rect = dropZone.getBoundingClientRect();
+      const { type } = event.payload;
+
+      if (type === "over") {
+        const pos = event.payload.position;
+        const inside =
+          pos.x >= rect.left && pos.x <= rect.right &&
+          pos.y >= rect.top && pos.y <= rect.bottom;
+        setIsDragOver(inside);
+      } else if (type === "leave") {
+        setIsDragOver(false);
+      } else if (type === "drop") {
+        setIsDragOver(false);
+        const pos = event.payload.position;
+        const inside =
+          pos.x >= rect.left && pos.x <= rect.right &&
+          pos.y >= rect.top && pos.y <= rect.bottom;
+        if (!inside) return;
+
+        const paths = event.payload.paths;
+        if (paths.length === 0) return;
+
+        // Shell-escape each path (always single-quote to handle all metacharacters)
+        const escaped = paths
+          .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
+          .join(" ");
+
+        const session = sessionManager.getSession(sessionKey);
+        if (session?.sessionId) {
+          const bytes = Array.from(new TextEncoder().encode(escaped));
+          writePty(session.sessionId, bytes).catch(console.error);
+        }
+      }
+    });
+
+    return () => { unlisten.then((fn) => fn()); };
+  }, [sessionKey]);
+
   if (!activeWorktreeId) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-3">
@@ -294,7 +342,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           </div>
         </div>
       )}
-      <div className="relative flex-1 min-h-0">
+      <div ref={dropZoneRef} className="relative flex-1 min-h-0">
         {!channelAlive && (
           <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-3 py-2 bg-bg-secondary/90 border-b border-border-default">
             <span className="text-xs text-text-secondary">
@@ -315,6 +363,13 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           <TerminalLoadingScreen tabType={tabType} visible={!hasOutput} />
         )}
         <div ref={containerRef} className="h-full pl-1 pr-0.5" />
+        {isDragOver && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-accent-primary/10 border-2 border-dashed border-accent-primary/40 rounded pointer-events-none">
+            <span className="text-sm text-accent-primary font-medium px-3 py-1.5 bg-bg-primary/80 rounded">
+              Drop to paste file path
+            </span>
+          </div>
+        )}
       </div>
       {worktree && (
         <SettingsStatusBar
