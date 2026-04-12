@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, HelpCircle, BarChart3 } from "lucide-react";
+import { Settings, Plus, HelpCircle, BarChart3, Bug } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { IconButton } from "../ui";
 import logoSvg from "../../assets/logo-cat.svg";
@@ -51,6 +51,27 @@ function groupByColumn(
 
 function openUsagePage() {
   openUrl("https://claude.ai/settings/usage");
+}
+
+function openFeedbackPage() {
+  openUrl("https://github.com/chloehkwong1/alfredo/issues/new/choose");
+}
+
+function GitHubAuthBanner() {
+  const authErrors = useWorkspaceStore((s) => s.githubAuthErrors);
+  if (authErrors.size === 0) return null;
+  return (
+    <div className="mx-3 mt-2 px-2.5 py-1.5 rounded-md bg-status-busy/15 border border-status-busy/30 text-[11px] text-status-busy">
+      GitHub token missing or expired — PR sync paused.
+      <button
+        type="button"
+        className="ml-1 underline cursor-pointer bg-transparent border-none text-[11px] text-status-busy p-0"
+        onClick={() => window.dispatchEvent(new Event("alfredo:settings-open"))}
+      >
+        Fix in settings
+      </button>
+    </div>
+  );
 }
 
 interface SidebarProps {
@@ -217,6 +238,9 @@ function Sidebar({
           <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
         </div>
         <div className="flex items-center gap-2">
+          <IconButton size="sm" label="Report bug or request feature" className="rounded-[6px]" onClick={openFeedbackPage}>
+            <Bug />
+          </IconButton>
           <IconButton size="sm" label="Usage" className="rounded-[6px]" onClick={openUsagePage}>
             <BarChart3 />
           </IconButton>
@@ -244,6 +268,8 @@ function Sidebar({
           )}
         />
       )}
+
+      <GitHubAuthBanner />
 
       <>
         {/* Scrollable agent list */}

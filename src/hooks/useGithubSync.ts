@@ -151,6 +151,25 @@ export function useGithubSync() {
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
+  // Surface auth errors so the user knows sync is broken for a repo
+  useEffect(() => {
+    const unlisten = listen<string>("github:auth-error", (event) => {
+      useWorkspaceStore.getState().setGithubAuthError(event.payload);
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
+  // Clear auth errors on successful sync (if PRs arrive, auth is working)
+  useEffect(() => {
+    const unlisten = listen<PrUpdatePayload>("github:pr-update", () => {
+      const { githubAuthErrors } = useWorkspaceStore.getState();
+      if (githubAuthErrors.size > 0) {
+        useWorkspaceStore.getState().clearGithubAuthErrors();
+      }
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
   // Re-sync when the window regains focus so PR data catches up after
   // macOS App Nap or long background periods.
   useEffect(() => {

@@ -200,9 +200,12 @@ async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
                 any_repo_succeeded = true;
                 all_prs.extend(prs);
             }
+            Err(e) if e.starts_with("auth:") => {
+                let _ = app_handle.emit("github:auth-error", repo_path.as_str());
+                eprintln!("[github_sync] auth failed for {repo_path}: {e}");
+            }
             Err(e) => {
                 eprintln!("[github_sync] error syncing {repo_path}: {e}");
-                // Continue with other repos
             }
         }
     }
@@ -254,7 +257,10 @@ async fn poll_repo(
 
     let token = match crate::github_manager::resolve_token(config.github_token.as_deref()).await {
         Ok(t) => t,
-        Err(_) => return Ok(Vec::new()), // No token available — silently skip
+        Err(e) => {
+            eprintln!("[github_sync] no token for {repo_path}: {e}");
+            return Err(format!("auth:{repo_path}"));
+        }
     };
 
     let manager = GithubManager::new(&token).map_err(|e| format!("{e}"))?;

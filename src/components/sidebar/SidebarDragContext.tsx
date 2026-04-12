@@ -231,8 +231,8 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn }: Side
         usePrStore.getState().setManualColumn(activeWtId, worktree.column, originColumnRef.current!);
 
         // Persist to Tauri backend (fire-and-forget)
-        setWorktreeColumn(worktree.repoPath, worktree.name, worktree.column).catch(() => {
-          // Tauri backend not available during development — ignore silently
+        setWorktreeColumn(worktree.repoPath, worktree.name, worktree.column).catch((e) => {
+          console.error("[drag] Failed to persist column change:", e);
         });
       }
 

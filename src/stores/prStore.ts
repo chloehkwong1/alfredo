@@ -239,14 +239,14 @@ export const usePrStore = create<PrState>((set, get) => ({
         newCheckRuns[wt.id] = pr.checkRuns;
       }
 
-      if (pr.reviews || pr.comments !== null) {
+      {
+        const prev = newPrDetail[wt.id];
         newPrDetail[wt.id] = {
-          reviews: pr.reviews ?? [],
-          // null = comments not fetched in this batch; preserve whatever is cached
-          comments: pr.comments ?? (newPrDetail[wt.id]?.comments ?? []),
-          mergeable: pr.mergeable ?? null,
-          reviewDecision: pr.reviewDecision ?? null,
-          requestedReviewers: pr.requestedReviewers ?? [],
+          reviews: pr.reviews ?? (prev?.reviews ?? []),
+          comments: pr.comments ?? (prev?.comments ?? []),
+          mergeable: pr.mergeable ?? (prev?.mergeable ?? null),
+          reviewDecision: pr.reviewDecision ?? (prev?.reviewDecision ?? null),
+          requestedReviewers: pr.requestedReviewers ?? (prev?.requestedReviewers ?? []),
         };
       }
     }

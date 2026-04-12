@@ -32,6 +32,10 @@ interface WorkspaceState {
   deleteAfterDays: number;
   /** Tracks running dev servers per worktree. Keyed by worktreeId. */
   runningServers: Record<string, { sessionId: string; tabId: string; port?: number; createdAt?: number }>;
+  /** Repo paths where GitHub auth has failed (token missing/expired). */
+  githubAuthErrors: Set<string>;
+  setGithubAuthError: (repoPath: string) => void;
+  clearGithubAuthErrors: () => void;
 
   addWorktree: (worktree: Worktree) => void;
   replaceWorktree: (tempId: string, realWorktree: Worktree) => void;
@@ -145,6 +149,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   archiveAfterDays: 2,
   deleteAfterDays: 0,
   runningServers: {},
+  githubAuthErrors: new Set<string>(),
+  setGithubAuthError: (repoPath) =>
+    set((state) => ({
+      githubAuthErrors: new Set([...state.githubAuthErrors, repoPath]),
+    })),
+  clearGithubAuthErrors: () => set({ githubAuthErrors: new Set<string>() }),
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -377,6 +387,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       archiveAfterDays: 2,
       deleteAfterDays: 0,
       runningServers: {},
+      githubAuthErrors: new Set<string>(),
     }),
 
   setRunningServer: (worktreeId, server) => set((state) => {

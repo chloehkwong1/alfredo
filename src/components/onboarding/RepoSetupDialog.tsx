@@ -322,8 +322,8 @@ function RepoSetupDialog({
       }
 
       await saveConfig(repoPath, updated);
-    } catch {
-      // Save failed — proceed anyway
+    } catch (e) {
+      console.error("Failed to save config:", e);
     }
 
     if (mode === "branch") {
