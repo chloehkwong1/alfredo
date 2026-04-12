@@ -19,7 +19,7 @@ mod types;
 
 use tauri::{Manager, RunEvent};
 
-use commands::{agents, app_config, branch, checks, config, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, worktree};
+use commands::{agents, app_config, app_detection, branch, checks, config, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -153,6 +153,9 @@ pub fn run() {
             external_tools::open_in_terminal,
             // Agent detection
             agents::detect_available_agents,
+            // App detection
+            app_detection::detect_installed_apps,
+            app_detection::open_in_app,
             // Session persistence
             session::save_session_file,
             session::load_session_file,
