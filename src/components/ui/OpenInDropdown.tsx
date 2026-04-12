@@ -10,7 +10,7 @@ import {
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp, type InstalledApp } from "../../api";
 
-const CATEGORY_ICON: Record<string, typeof FolderOpen> = {
+export const CATEGORY_ICON: Record<string, typeof FolderOpen> = {
   "file-manager": FolderOpen,
   editor: Code,
   terminal: TerminalSquare,

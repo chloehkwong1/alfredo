@@ -1,12 +1,13 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, ExternalLink, Eye, FolderOpen, Code, TerminalSquare as TerminalIcon, GitBranch, Loader, X, Unlink, Copy } from "lucide-react";
+import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { rebaseWorktree, setStackParent, getDefaultBranch } from "../../api";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp } from "../../api";
+import { CATEGORY_ICON } from "../ui/OpenInDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
 import {
@@ -422,13 +423,6 @@ const AgentItem = memo(function AgentItem({
 
   const installedApps = useInstalledApps();
 
-  const categoryIcon: Record<string, typeof FolderOpen> = {
-    "file-manager": FolderOpen,
-    editor: Code,
-    terminal: TerminalIcon,
-    git: GitBranch,
-  };
-
   // Short-circuit for placeholder states (after hooks to satisfy Rules of Hooks)
   if (worktree.creating) {
     return <CreatingItem worktree={worktree} />;
@@ -512,7 +506,7 @@ const AgentItem = memo(function AgentItem({
             </ContextMenuSubTrigger>
             <ContextMenuSubContent>
               {installedApps.map((app) => {
-                const Icon = categoryIcon[app.category] ?? ExternalLink;
+                const Icon = CATEGORY_ICON[app.category] ?? ExternalLink;
                 return (
                   <ContextMenuItem
                     key={app.id}
