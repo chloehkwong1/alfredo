@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { message } from "@tauri-apps/plugin-dialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
@@ -8,6 +9,24 @@ import { saveAllSessions } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 
 const AUTO_SAVE_INTERVAL_MS = 30_000;
+const LOG_PREFIX = "[useSessionAutoSave]";
+
+/**
+ * Module-level guard so the 30s interval, beforeunload, and the close handler
+ * cannot run overlapping saves against the same session files. If a save is
+ * already in flight, new callers await the existing promise instead of
+ * starting a second pass.
+ */
+let inFlightSave: Promise<unknown> | null = null;
+
+function collectAndSaveAllSessionsOnce(): Promise<unknown> {
+  if (inFlightSave) return inFlightSave;
+  const p = collectAndSaveAllSessions().finally(() => {
+    if (inFlightSave === p) inFlightSave = null;
+  });
+  inFlightSave = p;
+  return p;
+}
 
 /** Snapshot current workspace + layout state and persist all sessions to disk. */
 function collectAndSaveAllSessions() {
@@ -92,8 +111,31 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
     const currentWindow = getCurrentWindow();
     const unlisten = currentWindow.onCloseRequested(async (event) => {
       event.preventDefault();
-      await collectAndSaveAllSessions();
-      await currentWindow.destroy();
+      try {
+        await collectAndSaveAllSessionsOnce();
+      } catch (err) {
+        console.error(`${LOG_PREFIX} session save on close failed:`, err);
+      }
+      try {
+        await currentWindow.destroy();
+      } catch (err) {
+        // If destroy throws, the window stays open — log loudly and tell the
+        // user via a dialog so they don't hit a silent dead button again.
+        // (close() is not a valid fallback: it re-fires onCloseRequested and
+        // would loop into this same handler.)
+        console.error(
+          `${LOG_PREFIX} window destroy failed — close button will appear dead:`,
+          err,
+        );
+        try {
+          await message(
+            "Alfredo couldn't close its window. Please use Cmd+Q to quit, then report this bug.",
+            { title: "Close failed", kind: "error" },
+          );
+        } catch {
+          // If even the dialog fails, there's nothing left to do.
+        }
+      }
     });
 
     return () => {
@@ -108,7 +150,7 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
     if (!repoPath || !hasWorktrees) return;
 
     const handleBeforeUnload = () => {
-      collectAndSaveAllSessions().catch(() => {});
+      collectAndSaveAllSessionsOnce().catch(() => {});
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
@@ -119,8 +161,8 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
     if (!repoPath || !hasWorktrees) return;
 
     const interval = setInterval(() => {
-      collectAndSaveAllSessions()
-        .catch((err) => console.error("Auto-save failed:", err));
+      collectAndSaveAllSessionsOnce()
+        .catch((err) => console.error(`${LOG_PREFIX} auto-save failed:`, err));
     }, AUTO_SAVE_INTERVAL_MS);
 
     return () => clearInterval(interval);
