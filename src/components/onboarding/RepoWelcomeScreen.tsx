@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { FolderOpen } from "lucide-react";
 import { Button } from "../ui/Button";
-import logoSvg from "../../assets/logo-cat.svg";
+import { CatLogo } from "../ui/CatLogo";
 
 interface RepoWelcomeScreenProps {
   onRepoSelected: (path: string) => void;
@@ -63,12 +63,11 @@ function RepoWelcomeScreen({ onRepoSelected, error, onClearError }: RepoWelcomeS
       <div className="flex flex-col items-center text-center max-w-[480px] px-8">
         {/* Logo with gradient container */}
         <div className="p-4 rounded-2xl bg-gradient-to-br from-[rgba(147,51,234,0.08)] to-[rgba(147,51,234,0.03)] mb-8">
-          <img
-            src={logoSvg}
-            alt="Alfredo"
+          <CatLogo
+            aria-label="Alfredo"
             width={64}
             height={64}
-            className="opacity-70"
+            className="opacity-70 text-text-tertiary"
           />
         </div>
 

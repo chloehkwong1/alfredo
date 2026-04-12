@@ -27,7 +27,7 @@ import { useStatePersistence } from "./useStatePersistence";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { CommandPalette } from "../commandPalette/CommandPalette";
 import { EmptyWorkspaceView } from "./EmptyWorkspaceView";
-import logoSvg from "../../assets/logo-cat.svg";
+import { CatLogo } from "../ui/CatLogo";
 import type { WorkspaceTab } from "../../types";
 
 const EMPTY_TABS: WorkspaceTab[] = [];
@@ -178,7 +178,7 @@ function AppShell() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <img src={logoSvg} alt="Alfredo" width={72} height={72} className="opacity-70" />
+        <CatLogo aria-label="Alfredo" width={72} height={72} className="opacity-70 text-text-tertiary" />
       </div>
     );
   }

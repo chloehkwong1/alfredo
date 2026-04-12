@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import logoSvg from "../../assets/logo-cat.svg";
+import { CatLogo } from "../ui/CatLogo";
 import type { TabType } from "../../types";
 
 const AGENT_LABELS: Record<string, string> = {
@@ -37,11 +37,9 @@ function TerminalLoadingScreen({ tabType, visible }: TerminalLoadingScreenProps)
         fadeOut ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
     >
-      <img
-        src={logoSvg}
-        alt=""
-        className="w-12 h-12 opacity-20 select-none pointer-events-none brightness-0 invert mb-4"
-        draggable={false}
+      <CatLogo
+        aria-hidden
+        className="w-12 h-12 opacity-20 select-none pointer-events-none text-white mb-4"
       />
       <div className="flex items-center gap-2 text-sm text-text-secondary">
         <span>Starting {label}</span>

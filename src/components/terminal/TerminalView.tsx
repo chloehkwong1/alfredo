@@ -12,7 +12,7 @@ import { writePty, getConfig, getAppConfig, findClaudeSession } from "../../api"
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { Button } from "../ui/Button";
-import logoSvg from "../../assets/logo-cat.svg";
+import { CatLogo } from "../ui/CatLogo";
 import { SettingsStatusBar } from "./SettingsStatusBar";
 import { TerminalSearchBar } from "./TerminalSearchBar";
 import { TerminalLoadingScreen } from "./TerminalLoadingScreen";
@@ -293,7 +293,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   if (!activeWorktreeId) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-3">
-        <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
+        <CatLogo aria-hidden className="w-16 h-16 opacity-[0.15] select-none pointer-events-none text-white" />
         <span className="text-sm">
           {hasWorktreeRepos === false
             ? "Select a repo to get started"

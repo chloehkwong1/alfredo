@@ -1,4 +1,4 @@
-import logoSvg from "../../assets/logo-cat.svg";
+import { CatLogo } from "../ui/CatLogo";
 
 interface EmptyWorkspaceViewProps {
   hasWorktreeRepos: boolean;
@@ -8,7 +8,7 @@ interface EmptyWorkspaceViewProps {
 function EmptyWorkspaceView({ hasWorktreeRepos, hasRepos }: EmptyWorkspaceViewProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full w-full text-text-tertiary gap-3">
-      <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
+      <CatLogo aria-hidden className="w-16 h-16 opacity-[0.15] select-none pointer-events-none text-white" />
       <div className="flex flex-col items-center gap-1">
         <span className="text-sm">
           {hasWorktreeRepos

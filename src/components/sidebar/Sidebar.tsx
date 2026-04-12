@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Settings, Plus, HelpCircle, BarChart3, Bug } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { IconButton } from "../ui";
-import logoSvg from "../../assets/logo-cat.svg";
+import { CatLogo } from "../ui/CatLogo";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
 import { SidebarDragContext } from "./SidebarDragContext";
@@ -235,7 +235,7 @@ function Sidebar({
       {/* Header */}
       <div className="flex items-center justify-between h-10 px-4 border-b border-border-subtle flex-shrink-0">
         <div className="flex items-center gap-3">
-          <img src={logoSvg} alt="Alfredo" width={22} height={22} className="flex-shrink-0" />
+          <CatLogo aria-label="Alfredo" width={22} height={22} className="flex-shrink-0 text-text-tertiary" />
         </div>
         <div className="flex items-center gap-2">
           <IconButton size="sm" label="Report bug or request feature" className="rounded-[6px]" onClick={openFeedbackPage}>

@@ -2,7 +2,7 @@ import { Group, Panel, Separator } from "react-resizable-panels";
 import { PaneView } from "./PaneView";
 import { SectionErrorBoundary } from "../shared/SectionErrorBoundary";
 import { useLayoutStore } from "../../stores/layoutStore";
-import logoSvg from "../../assets/logo-cat.svg";
+import { CatLogo } from "../ui/CatLogo";
 import type { LayoutNode } from "../../types";
 
 interface LayoutRendererProps {
@@ -98,7 +98,7 @@ function LayoutRenderer({
   if (!layout) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-text-tertiary gap-3">
-        <img src={logoSvg} alt="" className="w-16 h-16 opacity-[0.15] select-none pointer-events-none brightness-0 invert" draggable={false} />
+        <CatLogo aria-hidden className="w-16 h-16 opacity-[0.15] select-none pointer-events-none text-white" />
         <div className="flex flex-col items-center gap-1">
           <span className="text-sm">
             {hasWorktreeRepos === false
