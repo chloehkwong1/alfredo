@@ -423,3 +423,19 @@ export function openInTerminal(
 ): Promise<void> {
   return invoke("open_in_terminal", { path, terminal, customPath: customPath ?? null });
 }
+
+// ── App Detection ─────────────────────────────────────────────
+
+export interface InstalledApp {
+  id: string;
+  name: string;
+  category: string;
+}
+
+export function detectInstalledApps(): Promise<InstalledApp[]> {
+  return invoke("detect_installed_apps");
+}
+
+export function openInApp(appId: string, path: string): Promise<void> {
+  return invoke("open_in_app", { appId, path });
+}
