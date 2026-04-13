@@ -139,25 +139,32 @@ pub async fn create_worktree(
     Ok(worktree_dir)
 }
 
-/// Delete a worktree by shelling out to `git worktree remove`.
-/// If `force` is true, passes `--force` to allow removing dirty worktrees and
-/// also deletes the local branch with `git branch -D`.
+/// Delete a worktree by shelling out to `git worktree remove`, then delete
+/// the local branch with `git branch -D`.
+///
+/// # Behavior
+/// - The local branch is **always** deleted, regardless of `force`. If the
+///   branch isn't found (e.g. detached HEAD, already gone) the error is
+///   swallowed. `force` only gates whether the worktree removal is forced.
+/// - If `force` is true, passes `--force` to `git worktree remove` to allow
+///   removing dirty worktrees, and falls back to a manual directory nuke if
+///   git still refuses.
+/// - If `force` is false and git refuses for any reason *other* than
+///   `"not a working tree"` (e.g. the worktree is dirty), the error is
+///   surfaced to the caller — we do not silently nuke dirty worktrees.
+///
+/// Resolves the on-disk path via `git worktree list --porcelain` rather than
+/// recomputing it from `worktree_name` + `base_path`, so it works even when
+/// the worktree was created under a different base or with a branch name that
+/// doesn't match the sanitized dir name.
 pub async fn delete_worktree(
     repo_path: &str,
     worktree_name: &str,
     force: bool,
     base_path: Option<&str>,
 ) -> Result<(), AppError> {
-    let dir_name = worktree_name.replace('/', "-");
-    let worktree_path = base_path
-        .map(|p| Path::new(p).to_path_buf())
-        .unwrap_or_else(|| {
-            Path::new(repo_path)
-                .parent()
-                .unwrap_or(Path::new(repo_path))
-                .to_path_buf()
-        })
-        .join(&dir_name);
+    let (resolved_path, resolved_branch) =
+        resolve_worktree(repo_path, worktree_name, base_path).await;
 
     // Prune stale worktree entries first so a previous partial delete doesn't block us
     let _ = git_command()
@@ -166,11 +173,12 @@ pub async fn delete_worktree(
         .output()
         .await;
 
+    let path_str = resolved_path.to_string_lossy().into_owned();
     let mut args = vec!["worktree", "remove"];
     if force {
         args.push("--force");
     }
-    args.push(worktree_path.to_str().unwrap_or_default());
+    args.push(&path_str);
 
     let output = git_command()
         .args(&args)
@@ -181,44 +189,136 @@ pub async fn delete_worktree(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        // If git no longer tracks this worktree, just clean up the directory.
-        // For other errors, try to remove the directory — only fail if the
-        // directory still exists after cleanup (the goal is removal, not a
-        // clean git exit code).
-        if !stderr.contains("not a working tree") {
-            let _ = tokio::fs::remove_dir_all(&worktree_path).await;
-            if worktree_path.exists() {
-                return Err(AppError::Git(format!(
-                    "git worktree remove failed: {stderr}"
-                )));
-            }
+        // Only fall back to manual cleanup when git refuses because the path
+        // isn't tracked (stale metadata or computed-path mismatch) or when
+        // force was requested. Otherwise surface the error — we must not nuke
+        // dirty worktrees behind the user's back.
+        let safe_to_force_cleanup = force || stderr.contains("not a working tree");
+        if !safe_to_force_cleanup {
+            return Err(AppError::Git(format!("git worktree remove failed: {stderr}")));
+        }
+
+        let _ = tokio::fs::remove_dir_all(&resolved_path).await;
+        let _ = git_command()
+            .args(["worktree", "prune"])
+            .current_dir(repo_path)
+            .output()
+            .await;
+
+        if resolved_path.exists() {
+            return Err(AppError::Git(format!(
+                "git worktree remove failed and directory still exists: {stderr}"
+            )));
         }
     }
 
-    // Ensure the directory is gone even if git left it behind
-    if worktree_path.exists() {
-        let _ = tokio::fs::remove_dir_all(&worktree_path).await;
-    }
+    // Always delete the local branch. Use the branch name resolved from git's
+    // porcelain output; fall back to worktree_name only when resolution failed
+    // (e.g. the worktree wasn't tracked anymore).
+    let branch_to_delete = resolved_branch.as_deref().unwrap_or(worktree_name);
+    let branch_output = git_command()
+        .args(["branch", "-D", branch_to_delete])
+        .current_dir(repo_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
 
-    if force {
-        // Delete the local branch; ignore "not found" errors
-        let branch_output = git_command()
-            .args(["branch", "-D", worktree_name])
-            .current_dir(repo_path)
-            .output()
-            .await
-            .map_err(|e| AppError::Git(format!("failed to spawn git: {e}")))?;
-
-        if !branch_output.status.success() {
-            let stderr = String::from_utf8_lossy(&branch_output.stderr);
-            // "not found" is acceptable — branch may already be gone
-            if !stderr.contains("not found") {
-                return Err(AppError::Git(format!("git branch -D failed: {stderr}")));
-            }
+    if !branch_output.status.success() {
+        let stderr = String::from_utf8_lossy(&branch_output.stderr);
+        // "not found" is acceptable — branch may already be gone
+        if !stderr.contains("not found") {
+            return Err(AppError::Git(format!("git branch -D failed: {stderr}")));
         }
     }
 
     Ok(())
+}
+
+/// Resolve a worktree's actual on-disk path and branch name by parsing
+/// `git worktree list --porcelain`. Matches by exact branch name OR by path
+/// basename (the sanitized dir name Alfredo stores as the worktree id).
+/// Falls back to `(computed_path, None)` when git can't find it.
+async fn resolve_worktree(
+    repo_path: &str,
+    worktree_name: &str,
+    base_path: Option<&str>,
+) -> (PathBuf, Option<String>) {
+    let dir_name = worktree_name.replace('/', "-");
+    let fallback_path = base_path
+        .map(|p| Path::new(p).to_path_buf())
+        .unwrap_or_else(|| {
+            Path::new(repo_path)
+                .parent()
+                .unwrap_or(Path::new(repo_path))
+                .to_path_buf()
+        })
+        .join(&dir_name);
+
+    let Ok(output) = git_command()
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(repo_path)
+        .output()
+        .await
+    else {
+        return (fallback_path, None);
+    };
+    if !output.status.success() {
+        return (fallback_path, None);
+    }
+
+    // Iterate by line and treat a blank line as a block boundary. This is
+    // safer than splitting on "\n\n" because it tolerates CRLF line endings
+    // and any trailing whitespace git may add across platforms.
+    //
+    // Note: there is a small TOCTOU window between this lookup and the
+    // subsequent `git worktree remove` — another process could prune the
+    // admin metadata in between. The caller's fallback cleanup handles that
+    // by manually removing the directory.
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut path: Option<String> = None;
+    let mut branch: Option<String> = None;
+
+    let try_match = |path: &Option<String>,
+                     branch: &Option<String>|
+     -> Option<(PathBuf, Option<String>)> {
+        let p = path.as_ref()?;
+        let basename = Path::new(p)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+        let branch_matches = branch
+            .as_deref()
+            .map(|b| b == worktree_name)
+            .unwrap_or(false);
+        if basename == dir_name || branch_matches {
+            Some((PathBuf::from(p), branch.clone()))
+        } else {
+            None
+        }
+    };
+
+    for raw_line in stdout.lines() {
+        let line = raw_line.trim_end_matches('\r');
+        if line.is_empty() {
+            if let Some(hit) = try_match(&path, &branch) {
+                return hit;
+            }
+            path = None;
+            branch = None;
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("worktree ") {
+            path = Some(rest.to_string());
+        } else if let Some(rest) = line.strip_prefix("branch refs/heads/") {
+            branch = Some(rest.to_string());
+        }
+    }
+    // Final block (no trailing blank line)
+    if let Some(hit) = try_match(&path, &branch) {
+        return hit;
+    }
+
+    (fallback_path, None)
 }
 
 /// Resolve the default remote branch for a repo (e.g. "origin/main" or "origin/develop").
@@ -692,6 +792,68 @@ mod tests {
         delete_worktree(repo_path, branch, true, Some(base_path))
             .await
             .expect("delete should succeed");
+    }
+
+    #[tokio::test]
+    async fn test_delete_resolves_path_when_base_path_missing() {
+        // Regression: create a worktree under a custom base_path, then call
+        // delete WITHOUT passing the base_path. The old code recomputed the
+        // path as <repo parent>/<dir_name>, got "not a working tree", and
+        // silently returned Ok while leaving the directory on disk.
+        // The fix resolves the actual path via `git worktree list --porcelain`.
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+
+        let base_dir = TempDir::new().expect("create base temp dir");
+        let base_path = base_dir.path().to_str().unwrap();
+        let branch = "regression-wt";
+
+        let wt_path = create_worktree(repo_path, branch, "main", Some(base_path))
+            .await
+            .expect("create_worktree should succeed");
+        assert!(wt_path.exists());
+
+        // Delete WITHOUT the base_path — must still succeed and remove the directory
+        delete_worktree(repo_path, branch, true, None)
+            .await
+            .expect("delete should succeed even without base_path");
+
+        assert!(!wt_path.exists(), "worktree directory should be gone");
+
+        // Branch should be deleted too (force=true)
+        let repo = Repository::open(repo_path).expect("open repo");
+        assert!(
+            repo.find_branch(branch, git2::BranchType::Local).is_err(),
+            "branch should be deleted"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_delete_resolves_branch_name_from_slash_branch() {
+        // Regression: a branch like "user/feature" becomes dir "user-feature".
+        // Old code called `git branch -D user-feature` which silently failed
+        // with "not found". Fix: resolve the real branch name via porcelain.
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+
+        let wt_path = create_worktree(repo_path, "user/feature-x", "main", None)
+            .await
+            .expect("create_worktree should succeed");
+        assert!(wt_path.exists());
+
+        // Caller passes the sanitized dir name (matches what Alfredo stores as wt.name)
+        delete_worktree(repo_path, "user-feature-x", true, None)
+            .await
+            .expect("delete should succeed");
+
+        assert!(!wt_path.exists());
+
+        // The REAL branch name (with slash) should be gone
+        let repo = Repository::open(repo_path).expect("open repo");
+        assert!(
+            repo.find_branch("user/feature-x", git2::BranchType::Local).is_err(),
+            "real slash-containing branch should be deleted"
+        );
     }
 
     // ── get_status exercises git2 branch resolution ─────────────
