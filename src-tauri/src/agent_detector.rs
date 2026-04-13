@@ -491,6 +491,17 @@ mod tests {
         HookEvent {
             #[allow(dead_code)]
             state: String,
+            #[allow(dead_code)]
+            #[serde(default)]
+            phase: Option<String>,
+            #[allow(dead_code)]
+            #[serde(default)]
+            notify: Option<String>,
+        },
+        #[serde(rename = "detectorEvent")]
+        DetectorEvent {
+            #[allow(dead_code)]
+            state: String,
         },
         #[serde(rename = "userInput")]
         UserInput,
@@ -531,6 +542,17 @@ mod tests {
         // Expire idle cooldown so initial output transitions work
         det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(1));
 
+        // Scenarios that never emit ptyOutput are frontend-only (pure hook
+        // flows). The detector has nothing to assert against, so skip those
+        // scenarios entirely in the Rust runner.
+        let has_pty = scenario
+            .steps
+            .iter()
+            .any(|s| matches!(s.action, ScenarioAction::PtyOutput { .. }));
+        if !has_pty {
+            return;
+        }
+
         for (i, step) in scenario.steps.iter().enumerate() {
             match &step.action {
                 ScenarioAction::PtyOutput { data } => {
@@ -550,6 +572,7 @@ mod tests {
                     }
                 }
                 ScenarioAction::HookEvent { .. }
+                | ScenarioAction::DetectorEvent { .. }
                 | ScenarioAction::Heartbeat
                 | ScenarioAction::NoHeartbeat { .. } => {
                     // These are frontend-only concerns; skip in Rust detector tests

@@ -1,5 +1,5 @@
 // src/test/status-scenarios.ts
-import type { AgentState } from "../types";
+import type { AgentState, HookPhase, NotifyReason } from "../types";
 
 export interface StatusScenario {
   name: string;
@@ -11,7 +11,8 @@ export interface StatusScenario {
 export interface ScenarioStep {
   action:
     | { type: "ptyOutput"; data: string }
-    | { type: "hookEvent"; state: AgentState }
+    | { type: "hookEvent"; state: AgentState; phase?: HookPhase; notify?: NotifyReason }
+    | { type: "detectorEvent"; state: AgentState }
     | { type: "userInput" }
     | { type: "elapsed"; ms: number }
     | { type: "heartbeat" }
