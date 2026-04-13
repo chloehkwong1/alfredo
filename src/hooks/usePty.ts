@@ -126,8 +126,16 @@ export function usePty({
         try {
           const webgl = new WebglAddon();
           webgl.onContextLoss(() => {
+            const wasAtBottom = term.buffer.active.viewportY >= term.buffer.active.baseY;
             webgl.dispose();
             session.webglLoaded = false; // reload on next attach
+            // Restore scroll position after fallback to canvas renderer —
+            // without this the viewport can jump to earlier scrollback content.
+            if (wasAtBottom) {
+              term.scrollToBottom();
+            } else {
+              term.refresh(0, term.rows - 1);
+            }
           });
           term.loadAddon(webgl);
         } catch {
