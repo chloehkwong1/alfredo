@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::agent_detector::AgentDetector;
 use crate::platform::augmented_path;
 use crate::sleep_inhibitor::SleepInhibitor;
-use crate::types::{AgentState, AgentType, AppError, NotifyReason, PtyEvent, Session, SessionStatus, SessionType};
+use crate::types::{AgentState, AgentType, AppError, HookPhase, NotifyReason, PtyEvent, Session, SessionStatus, SessionType};
 
 /// Swappable channel handle. `None` means the frontend disconnected (e.g. page reload).
 type SwappableChannel = Arc<RwLock<Option<Channel<PtyEvent>>>>;
@@ -249,6 +249,7 @@ impl PtyManager {
                     if let Err(e) = ch.send(PtyEvent::HookAgentState {
                         state: AgentState::NotRunning,
                         notify: NotifyReason::None,
+                        phase: HookPhase::None,
                     }) {
                         eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");
                     }
@@ -934,6 +935,7 @@ mod tests {
                     args: vec!["hello".to_string()],
                     agent_type: AgentType::Unknown,
                     state_server_port: None,
+                    session_type: SessionType::Agent,
                 },
                 channel,
                 inhibitor,
@@ -1006,6 +1008,7 @@ mod tests {
                         args: vec![],
                         agent_type: AgentType::Unknown,
                         state_server_port: None,
+                        session_type: SessionType::Agent,
                     },
                     channel,
                     std::sync::Arc::clone(&inhibitor),

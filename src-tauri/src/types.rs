@@ -44,6 +44,7 @@ pub enum PtyEvent {
     HookAgentState {
         state: AgentState,
         notify: NotifyReason,
+        phase: HookPhase,
     },
     /// Periodic heartbeat so the frontend can detect a dead PTY channel.
     Heartbeat,
@@ -82,6 +83,16 @@ pub enum NotifyReason {
     Error,
     /// Agent needs user input (PermissionRequest / Elicitation).
     Input,
+}
+
+/// Hook lifecycle phase — used to track tool-in-flight state.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum HookPhase {
+    None,
+    ToolStart,    // PreToolUse
+    ToolEnd,      // PostToolUse / PostToolUseFailure
+    TurnEnd,      // Stop / StopFailure (resets counter)
 }
 
 // ── Worktree / Kanban ───────────────────────────────────────────
