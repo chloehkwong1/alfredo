@@ -131,6 +131,7 @@ interface AgentItemProps {
   worktree: Worktree;
   isSelected: boolean;
   isPinned?: boolean;
+  isDimmed?: boolean;
   onClick: () => void;
   onDelete?: (worktreeId: string) => void;
   onArchive?: (worktreeId: string) => void;
@@ -405,7 +406,7 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
 }
 
 const AgentItem = memo(function AgentItem({
-  worktree, isSelected, isPinned, onClick, onDelete, onArchive,
+  worktree, isSelected, isPinned, isDimmed, onClick, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -481,6 +482,9 @@ const AgentItem = memo(function AgentItem({
                     isSelected
                       ? "bg-[rgba(255,255,255,0.07)]"
                       : "hover:bg-[rgba(255,255,255,0.035)]",
+                    isDimmed && !isSelected
+                      ? "opacity-45 hover:opacity-70"
+                      : "",
                   ].join(" "),
             ].join(" ")}
           >

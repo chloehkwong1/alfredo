@@ -120,7 +120,7 @@ function StatusGroup({
         className={[
           "flex w-full items-center px-3.5 pt-3 pb-2",
           "cursor-pointer select-none",
-          "text-text-tertiary hover:text-text-secondary transition-colors",
+          "text-text-secondary hover:text-text-primary transition-colors",
         ].join(" ")}
       >
         <span className="flex items-center gap-2">
@@ -173,6 +173,7 @@ function StatusGroup({
                       worktree={wt}
                       isSelected={wt.id === activeWorktreeId}
                       isPinned={pinned.has(wt.id)}
+                      isDimmed={pinnedItems.length > 0 && !pinned.has(wt.id)}
                       onClick={() => onSelectWorktree(wt.id)}
                       onDelete={onDeleteWorktree}
                       onArchive={onArchiveWorktree}
