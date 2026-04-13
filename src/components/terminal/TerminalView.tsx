@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageSquare, Send, Trash2 } from "lucide-react";
+import { ChevronDown, MessageSquare, Send, Trash2 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "@xterm/xterm/css/xterm.css";
@@ -125,7 +125,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const isAgentTab = mode !== "shell";
 
-  const { channelAlive, isConnected, searchAddon, hasOutput } = usePty({
+  const { terminal: ptyTerminal, channelAlive, isConnected, searchAddon, hasOutput } = usePty({
     sessionKey,
     worktreeId: activeWorktreeId ?? "",
     worktreePath: worktree?.path ?? "",
@@ -217,6 +217,24 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showSearch]);
+
+  // Track whether the terminal is scrolled away from the bottom.
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  useEffect(() => {
+    if (!ptyTerminal) return;
+    const checkScroll = () => {
+      const buf = ptyTerminal.buffer.active;
+      setShowScrollToBottom(buf.viewportY < buf.baseY);
+    };
+    const onScroll = ptyTerminal.onScroll(checkScroll);
+    const onWriteParsed = ptyTerminal.onWriteParsed(checkScroll);
+    return () => { onScroll.dispose(); onWriteParsed.dispose(); };
+  }, [ptyTerminal]);
+
+  const handleScrollToBottom = useCallback(() => {
+    ptyTerminal?.scrollToBottom();
+    setShowScrollToBottom(false);
+  }, [ptyTerminal]);
 
   // Track window focus so we only mark worktrees as "seen" when the user is
   // actually looking at Alfredo — not when the app is behind another window.
@@ -363,6 +381,15 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           <TerminalLoadingScreen tabType={tabType} visible={!hasOutput} />
         )}
         <div ref={containerRef} className="h-full pl-1 pr-0.5" />
+        {showScrollToBottom && (
+          <button
+            onClick={handleScrollToBottom}
+            className="absolute bottom-4 right-5 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-bg-elevated border border-border-default rounded-full shadow-md hover:border-border-hover hover:bg-bg-hover transition-all duration-[var(--transition-fast)] cursor-pointer"
+          >
+            <ChevronDown size={14} className="text-text-secondary" />
+            <span className="text-xs font-medium text-text-secondary">Scroll to bottom</span>
+          </button>
+        )}
         {isDragOver && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-accent-primary/10 border-2 border-dashed border-accent-primary/40 rounded pointer-events-none">
             <span className="text-sm text-accent-primary font-medium px-3 py-1.5 bg-bg-primary/80 rounded">
