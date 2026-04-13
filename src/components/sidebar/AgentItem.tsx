@@ -490,6 +490,7 @@ const AgentItem = memo(function AgentItem({
             <AgentItemContent
               worktree={worktree}
               effectiveStatus={effectiveStatus}
+              isPinned={isPinned}
               shouldPulse={shouldPulse}
               isServerRunning={isServerRunning}
               serverPort={serverPort}
