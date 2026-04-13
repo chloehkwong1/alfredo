@@ -276,62 +276,8 @@
     ]
   },
   {
-    "name": "long-running-tool-stays-busy",
-    "description": "Tool running longer than HOOK_SILENCE_THRESHOLD — detector idle must be rejected because toolsInFlight > 0",
-    "category": "stuck-busy",
-    "steps": [
-      {
-        "action": { "type": "hookEvent", "state": "busy", "phase": "toolStart" },
-        "expect": { "agentStatus": "busy" }
-      },
-      {
-        "action": { "type": "elapsed", "ms": 6000 },
-        "expect": { "agentStatus": "busy" }
-      },
-      {
-        "action": { "type": "detectorEvent", "state": "idle" },
-        "expect": { "agentStatus": "busy" }
-      },
-      {
-        "action": { "type": "elapsed", "ms": 60000 },
-        "expect": { "agentStatus": "busy" }
-      },
-      {
-        "action": { "type": "detectorEvent", "state": "idle" },
-        "expect": { "agentStatus": "busy" }
-      },
-      {
-        "action": { "type": "hookEvent", "state": "busy", "phase": "toolEnd" },
-        "expect": { "agentStatus": "busy" }
-      },
-      {
-        "action": { "type": "hookEvent", "state": "idle", "phase": "turnEnd", "notify": "finished" },
-        "expect": { "agentStatus": "idle" }
-      }
-    ]
-  },
-  {
-    "name": "interrupt-during-thinking-still-recovers",
-    "description": "User interrupts during thinking (no tool running) — detector idle must be accepted after silence threshold",
-    "category": "stuck-busy",
-    "steps": [
-      {
-        "action": { "type": "hookEvent", "state": "busy" },
-        "expect": { "agentStatus": "busy" }
-      },
-      {
-        "action": { "type": "elapsed", "ms": 6000 },
-        "expect": { "agentStatus": "busy" }
-      },
-      {
-        "action": { "type": "detectorEvent", "state": "idle" },
-        "expect": { "agentStatus": "idle" }
-      }
-    ]
-  },
-  {
     "name": "subagent-stop-does-not-flip-parent-idle",
-    "description": "SubagentStop fires during parent tool — toolsInFlight stays > 0, parent stays busy until turnEnd",
+    "description": "SubagentStop fires during parent tool — parent stays busy until turnEnd",
     "category": "stuck-busy",
     "steps": [
       {
@@ -383,29 +329,21 @@
     ]
   },
   {
-    "name": "tools-in-flight-cannot-stick",
-    "description": "turnEnd resets toolsInFlight counter — subsequent silence-fallback path still works",
+    "name": "detector-rejected-when-hooks-active",
+    "description": "Detector events are ignored once hooks have fired — hooks are the sole source of truth",
     "category": "stuck-busy",
     "steps": [
-      {
-        "action": { "type": "hookEvent", "state": "busy", "phase": "toolStart" },
-        "expect": { "agentStatus": "busy" }
-      },
-      {
-        "action": { "type": "hookEvent", "state": "idle", "phase": "turnEnd" },
-        "expect": { "agentStatus": "idle" }
-      },
       {
         "action": { "type": "hookEvent", "state": "busy" },
         "expect": { "agentStatus": "busy" }
       },
       {
-        "action": { "type": "elapsed", "ms": 6000 },
+        "action": { "type": "elapsed", "ms": 60000 },
         "expect": { "agentStatus": "busy" }
       },
       {
         "action": { "type": "detectorEvent", "state": "idle" },
-        "expect": { "agentStatus": "idle" }
+        "expect": { "agentStatus": "busy" }
       }
     ]
   }

@@ -685,7 +685,7 @@ fn write_hooks_config(
         ("Stop",              hook_entry(cmd_notify_phase("idle", "finished", "turnEnd"))),
         // StopFailure → idle + notify error + phase=turnEnd
         ("StopFailure",       hook_entry(cmd_notify_phase("idle", "error", "turnEnd"))),
-        // SubagentStop → busy (no state change, just refreshes lastHookEventAt)
+        // SubagentStop → busy (no-op state; keeps hooks active for parent turn)
         ("SubagentStop",      hook_entry(cmd_phase("busy", "none"))),
         // PermissionRequest → waitingForInput + notify input
         ("PermissionRequest", hook_entry(cmd_notify("waitingForInput", "input"))),

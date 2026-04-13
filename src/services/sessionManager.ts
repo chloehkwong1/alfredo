@@ -90,10 +90,6 @@ export interface ManagedSession {
   writeScheduled: boolean;
   /** Whether this session was restored from saved scrollback (for auto-resume). */
   restoredFromScrollback: boolean;
-  /** Timestamp of the last hook-sourced state event. Used to distinguish
-   *  genuine stuck-busy (interrupt during thinking) from stale detector
-   *  events racing with recent hook transitions. */
-  lastHookEventAt: number;
   /** True once a startup command has been written to this session's PTY.
    *  Prevents StrictMode double-fire from executing the command twice. */
   startupCommandSent: boolean;
@@ -102,9 +98,6 @@ export interface ManagedSession {
   allowNextClearScrollback: boolean;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
-  /** Number of tools currently between PreToolUse and PostToolUse.
-   *  When > 0, the detector fallback is forbidden from overriding busy → idle. */
-  toolsInFlight: number;
 }
 
 /**
@@ -236,52 +229,21 @@ async function fireHookNotification(
   requestDockBounce();
 }
 
-/** How long hooks must be silent before the detector fallback kicks in.
- *  Must be long enough that normal inter-turn hook gaps (Stop → idle →
- *  UserPromptSubmit → busy) don't trigger it, but short enough that a
- *  genuine interrupt-during-thinking is resolved promptly. */
-const HOOK_SILENCE_THRESHOLD_MS = 5_000;
-
-export function shouldAcceptDetectorState(
-  hooksActive: boolean,
-  detectorState: AgentState,
-  currentState: AgentState,
-  lastHookEventAt: number,
-  toolsInFlight: number = 0,
-): boolean {
-  // Once hooks have fired, they are the sole source of truth.
-  // Every state the detector could provide is already covered:
-  //   idle            → Stop (end of turn), Notification(idle_prompt) (delayed fallback)
-  //   busy            → PreToolUse, PostToolUse, UserPromptSubmit, etc.
+export function shouldAcceptDetectorState(hooksActive: boolean): boolean {
+  // Hooks are the sole source of truth once active. Every state is covered:
+  //   idle            → Stop, Notification(idle_prompt)
+  //   busy            → PreToolUse, PostToolUse, UserPromptSubmit
   //   waitingForInput → Notification(permission_prompt, elicitation_dialog),
   //                     PermissionRequest, PostToolUseFailure(interrupt)
   //   notRunning      → PTY reader thread sends NotRunning on EOF/exit
   //
-  // Accepting ANY detector event when hooks are active creates a class of
-  // false-positive bugs — terminal redraws, cursor chars, partial ANSI
-  // sequences all produce spurious state flips. The detector exists solely
-  // as a fallback for agents that lack hook support (Codex, Aider, etc.).
-  if (!hooksActive) return true;
-
-  // Exception: user interrupts during thinking fire NO hook (no tool running
-  // → no PostToolUseFailure, and Stop doesn't fire on interrupts). The
-  // detector sees the idle prompt (❯) or "What should Claude do?" and can
-  // resolve the stuck "busy" state that hooks will never update.
+  // Esc-during-thinking fires no hook → status stays busy until the next
+  // hook (e.g. the user's next prompt). Accepted tradeoff: the detector's
+  // rescue caused more false-positives than it fixed.
   //
-  // Guard: only accept the detector when hooks have been silent for a while.
-  // During normal inter-turn gaps the hooks fire frequently (Stop, then
-  // UserPromptSubmit within seconds), so the detector's late ❯ detection
-  // arrives while lastHookEventAt is still fresh → rejected. During a
-  // genuine interrupt the hooks stop firing entirely → accepted.
-  if (currentState === "busy" && (detectorState === "idle" || detectorState === "waitingForInput")) {
-    // Hard guard: a tool is actively running. Hooks WILL fire when it ends.
-    // The detector cannot disambiguate "long bash" from "user interrupt
-    // during thinking" without this signal.
-    if (toolsInFlight > 0) return false;
-    return Date.now() - lastHookEventAt > HOOK_SILENCE_THRESHOLD_MS;
-  }
-
-  return false;
+  // The detector remains authoritative for agents without hook support
+  // (Codex, Aider, Gemini CLI).
+  return !hooksActive;
 }
 
 /**
@@ -331,25 +293,12 @@ function createSessionChannel(
         break;
       }
       case "hookAgentState": {
-        const { state, notify, phase } = event.data;
+        const { state, notify } = event.data;
         session.hooksActive = true;
-        session.lastHookEventAt = Date.now();
         if (state === "notRunning" && session.sessionId) {
           session.ptyExited = true;
-          session.toolsInFlight = 0;
         }
-        switch (phase) {
-          case "toolStart":
-            session.toolsInFlight += 1;
-            break;
-          case "toolEnd":
-            session.toolsInFlight = Math.max(0, session.toolsInFlight - 1);
-            break;
-          case "turnEnd":
-            session.toolsInFlight = 0; // hard reset
-            break;
-        }
-        console.debug(`[status:${worktreeId}] hook → ${state}${notify !== "none" ? ` (notify: ${notify})` : ""} [phase=${phase}, inFlight=${session.toolsInFlight}]`);
+        console.debug(`[status:${worktreeId}] hook → ${state}${notify !== "none" ? ` (notify: ${notify})` : ""}`);
         session.agentState = state;
         stateSourceMap.set(worktreeId, "hook");
         useWorkspaceStore
@@ -366,19 +315,13 @@ function createSessionChannel(
         break;
       }
       case "agentState": {
-        if (!shouldAcceptDetectorState(session.hooksActive, event.data, session.agentState, session.lastHookEventAt, session.toolsInFlight)) {
-          const reason = session.agentState === "busy" && (event.data === "idle" || event.data === "waitingForInput")
-            ? (session.toolsInFlight > 0
-                ? `hooks active, ${session.toolsInFlight} tool(s) in flight`
-                : `hooks active, last hook ${Math.round((Date.now() - session.lastHookEventAt) / 1000)}s ago`)
-            : "hooks active";
-          console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (${reason})`);
+        if (!shouldAcceptDetectorState(session.hooksActive)) {
+          console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
           break;
         }
-        const fallback = session.hooksActive ? " (hooks-fallback)" : "";
-        console.debug(`[status:${worktreeId}] detector → ${event.data}${fallback}`);
+        console.debug(`[status:${worktreeId}] detector → ${event.data}`);
         session.agentState = event.data;
-        stateSourceMap.set(worktreeId, session.hooksActive ? "detector-fallback" : "detector");
+        stateSourceMap.set(worktreeId, "detector");
         useWorkspaceStore
           .getState()
           .updateWorktree(worktreeId, { agentStatus: event.data });
@@ -460,13 +403,11 @@ export class SessionManager {
       lastHeartbeat: Date.now(),
       ptyExited: false,
       lastOutputAt: Date.now(),
-      lastHookEventAt: 0, // safe: hooksActive gates the timestamp check, and both are set together
       pendingOutput: [],
       writeScheduled: false,
       restoredFromScrollback: false,
       startupCommandSent: false,
       allowNextClearScrollback: false,
-      toolsInFlight: 0,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -565,13 +506,11 @@ export class SessionManager {
       lastHeartbeat: 0,
       ptyExited: false,
       lastOutputAt: 0,
-      lastHookEventAt: 0, // safe: hooksActive gates the timestamp check, and both are set together
       pendingOutput: [],
       writeScheduled: false,
       restoredFromScrollback: true,
       startupCommandSent: false,
       allowNextClearScrollback: false,
-      toolsInFlight: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -622,7 +561,6 @@ export class SessionManager {
     session.sessionId = sessionId;
     session.ptyExited = false;
     session.agentState = mode === "shell" ? "notRunning" : "busy";
-    session.toolsInFlight = 0;
     session.lastHeartbeat = Date.now();
     // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the
     // PTY actually produces output, rather than seeing the stale value from
@@ -684,13 +622,11 @@ export class SessionManager {
       lastHeartbeat: Date.now(),
       ptyExited: false,
       lastOutputAt: 0,
-      lastHookEventAt: 0,
       pendingOutput: [],
       writeScheduled: false,
       restoredFromScrollback: false,
       startupCommandSent: true,
       allowNextClearScrollback: false,
-      toolsInFlight: 0,
     };
 
     const channel = createSessionChannel(this, session, worktreeId);
@@ -733,7 +669,6 @@ export class SessionManager {
     // Without this, stale hooksActive=true would permanently reject detector events.
     session.hooksActive = false;
     session.agentState = "notRunning";
-    session.toolsInFlight = 0;
 
     // Mirror closeSession's store update so the sidebar reflects "Not running"
     // and the notification hook's notRunning→busy filter suppresses the next spawn.

@@ -13,10 +13,6 @@ interface SimState {
   lastOutputAt: number;
   lastHeartbeat: number;
   isSeen: boolean;
-  /** Epoch ms of last hook event — used to gate detector fallback. */
-  lastHookEventAt: number;
-  /** Mirrors sessionManager.toolsInFlight bookkeeping. */
-  toolsInFlight: number;
 }
 
 function createInitialState(): SimState {
@@ -28,8 +24,6 @@ function createInitialState(): SimState {
     lastOutputAt: now,
     lastHeartbeat: now,
     isSeen: false, // unseen by default (tests wrong-status-on-focus scenarios)
-    lastHookEventAt: 0,
-    toolsInFlight: 0,
   };
 }
 
@@ -43,28 +37,16 @@ function runFrontendScenario(scenario: StatusScenario) {
 
     switch (action.type) {
       case "ptyOutput": {
-        // Detector would classify this output and emit an agentState event.
-        // For frontend scenarios, we use the expected agentStatus as what the
-        // detector would produce — since the detector is tested separately
-        // via the Rust scenario runner.
-        // Simulate detector output accepted through priority logic.
         const detectorState = step.expect.agentStatus;
-        // Rebase lastHookEventAt onto real Date.now() so the function's
-        // internal `Date.now() - lastHookEventAt` matches simulated elapsed.
-        const rebasedHookAt = state.lastHookEventAt === 0 ? 0 : Date.now() - (now - state.lastHookEventAt);
-        if (shouldAcceptDetectorState(state.hooksActive, detectorState, state.agentStatus, rebasedHookAt, state.toolsInFlight)) {
+        if (shouldAcceptDetectorState(state.hooksActive)) {
           state.agentStatus = detectorState;
         }
         state.lastOutputAt = now;
         break;
       }
       case "detectorEvent": {
-        // Same as ptyOutput, but the expected state is independent of what
-        // the detector saw — used to prove the detector is rejected when
-        // tools are in flight even though silence threshold has passed.
         const detectorState = action.state as AgentState;
-        const rebasedHookAt = state.lastHookEventAt === 0 ? 0 : Date.now() - (now - state.lastHookEventAt);
-        if (shouldAcceptDetectorState(state.hooksActive, detectorState, state.agentStatus, rebasedHookAt, state.toolsInFlight)) {
+        if (shouldAcceptDetectorState(state.hooksActive)) {
           state.agentStatus = detectorState;
         }
         state.lastOutputAt = now;
@@ -72,20 +54,7 @@ function runFrontendScenario(scenario: StatusScenario) {
       }
       case "hookEvent": {
         state.hooksActive = true;
-        state.lastHookEventAt = now;
         state.agentStatus = action.state as AgentState;
-        // Mirror sessionManager.ts toolsInFlight bookkeeping.
-        switch (action.phase) {
-          case "toolStart":
-            state.toolsInFlight += 1;
-            break;
-          case "toolEnd":
-            state.toolsInFlight = Math.max(0, state.toolsInFlight - 1);
-            break;
-          case "turnEnd":
-            state.toolsInFlight = 0;
-            break;
-        }
         break;
       }
       case "userInput": {
