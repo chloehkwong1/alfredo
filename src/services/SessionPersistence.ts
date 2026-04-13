@@ -29,6 +29,8 @@ export interface SessionData {
   seenWorktree?: boolean;
   /** Whether the user has manually marked this worktree as unread. */
   unreadWorktree?: boolean;
+  /** Whether the user has pinned this worktree. */
+  pinnedWorktree?: boolean;
   /** Claude Code session UUID for `--resume` on next spawn. */
   claudeSessionId?: string;
   /** Whether this worktree is archived (hidden from active view). */
@@ -84,6 +86,7 @@ export async function saveAllSessions(
   getChangesPanelCollapsed?: (worktreeId: string) => boolean | undefined,
   getSeenWorktree?: (worktreeId: string) => boolean | undefined,
   getUnreadWorktree?: (worktreeId: string) => boolean | undefined,
+  getPinnedWorktree?: (worktreeId: string) => boolean | undefined,
   getClaudeSessionId?: (worktreeId: string) => string | undefined,
   getArchived?: (worktreeId: string) => boolean | undefined,
   getArchivedAt?: (worktreeId: string) => number | undefined,
@@ -137,6 +140,7 @@ export async function saveAllSessions(
       changesPanelCollapsed: getChangesPanelCollapsed?.(wtId),
       seenWorktree: getSeenWorktree?.(wtId),
       unreadWorktree: getUnreadWorktree?.(wtId),
+      pinnedWorktree: getPinnedWorktree?.(wtId),
       claudeSessionId: getClaudeSessionId?.(wtId),
       archived: getArchived?.(wtId),
       archivedAt: getArchivedAt?.(wtId),

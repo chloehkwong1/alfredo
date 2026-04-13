@@ -110,6 +110,7 @@ function Sidebar({
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
   const unarchiveWorktree = useWorkspaceStore((s) => s.unarchiveWorktree);
+  const pinnedWorktrees = useWorkspaceStore((s) => s.pinnedWorktrees);
   const repoPath = activeRepo;
 
   const handleArchiveWorktree = useCallback(async (id: string) => {
@@ -283,6 +284,7 @@ function Sidebar({
                     column={col}
                     worktrees={grouped[col]}
                     activeWorktreeId={activeWorktreeId}
+                    pinnedWorktrees={pinnedWorktrees}
                     onSelectWorktree={setActiveWorktree}
                     onDeleteWorktree={handleDeleteWorktree}
                     onArchiveWorktree={handleArchiveWorktree}

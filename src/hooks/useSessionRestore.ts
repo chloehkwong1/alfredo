@@ -121,6 +121,9 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
               if (session.unreadWorktree) {
                 useWorkspaceStore.getState().markWorktreeUnread(wt.id);
               }
+              if (session.pinnedWorktree) {
+                useWorkspaceStore.getState().togglePinWorktree(wt.id);
+              }
 
               // Restore inline annotations
               if (session.annotations?.length) {

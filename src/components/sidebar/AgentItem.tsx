@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy } from "lucide-react";
+import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { rebaseWorktree, setStackParent, getDefaultBranch } from "../../api";
@@ -130,6 +130,7 @@ function getDotGlowClass(status: string): string {
 interface AgentItemProps {
   worktree: Worktree;
   isSelected: boolean;
+  isPinned?: boolean;
   onClick: () => void;
   onDelete?: (worktreeId: string) => void;
   onArchive?: (worktreeId: string) => void;
@@ -209,7 +210,7 @@ function useAgentItemState(worktree: Worktree) {
 interface AgentItemContentProps {
   worktree: Worktree;
   effectiveStatus: string;
-
+  isPinned?: boolean;
   shouldPulse: boolean;
   isServerRunning: boolean;
   serverPort?: number;
@@ -226,7 +227,7 @@ function getDotColor(status: AgentState | string): string {
 }
 
 function AgentItemContent({
-  worktree, effectiveStatus, shouldPulse, isServerRunning, serverPort, prSummary,
+  worktree, effectiveStatus, isPinned, shouldPulse, isServerRunning, serverPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemContentProps) {
   return (
@@ -253,10 +254,13 @@ function AgentItemContent({
           {worktree.prStatus && (
             <span className="text-xs text-text-tertiary flex-shrink-0">#{worktree.prStatus.number}</span>
           )}
-          <RelativeTime
-            timestamp={worktree.lastActivityAt}
-            className="text-2xs text-text-tertiary ml-auto flex-shrink-0 tabular-nums"
-          />
+          <span className="flex items-center gap-1.5 ml-auto flex-shrink-0">
+            <RelativeTime
+              timestamp={worktree.lastActivityAt}
+              className="text-2xs text-text-tertiary tabular-nums"
+            />
+            {isPinned && <Pin className="h-[11px] w-[11px] text-accent-primary opacity-45" />}
+          </span>
         </div>
         {/* Line 2: PR title (only if PR exists) */}
         {worktree.prStatus && (
@@ -401,7 +405,7 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
 }
 
 const AgentItem = memo(function AgentItem({
-  worktree, isSelected, onClick, onDelete, onArchive,
+  worktree, isSelected, isPinned, onClick, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -409,6 +413,7 @@ const AgentItem = memo(function AgentItem({
   const { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
   const markUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
   const markRead = useWorkspaceStore((s) => s.markWorktreeRead);
+  const togglePin = useWorkspaceStore((s) => s.togglePinWorktree);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: worktree.id,
   });
@@ -523,6 +528,10 @@ const AgentItem = memo(function AgentItem({
               })}
             </ContextMenuSubContent>
           </ContextMenuSub>
+          <ContextMenuItem onSelect={() => togglePin(worktree.id)}>
+            {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+            {isPinned ? "Unpin" : "Pin"}
+          </ContextMenuItem>
           <ContextMenuItem
             onSelect={() => isUnread ? markRead(worktree.id) : markUnread(worktree.id)}
           >

@@ -13,6 +13,8 @@ interface WorkspaceState {
   seenWorktrees: Set<string>;
   /** Tracks worktrees the user has manually marked as unread. */
   unreadWorktrees: Set<string>;
+  /** Tracks worktrees the user has pinned to the top of their column. */
+  pinnedWorktrees: Set<string>;
   /** Inline annotations per worktree. Keyed by worktreeId. */
   annotations: Record<string, Annotation[]>;
   /** Diff view mode per worktree. Keyed by worktreeId. */
@@ -53,6 +55,7 @@ interface WorkspaceState {
   markWorktreeSeen: (id: string) => void;
   markWorktreeUnread: (id: string) => void;
   markWorktreeRead: (id: string) => void;
+  togglePinWorktree: (id: string) => void;
   addAnnotation: (annotation: Annotation) => void;
   editAnnotation: (worktreeId: string, annotationId: string, newText: string) => void;
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
@@ -140,6 +143,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   activeWorktreeId: null,
   seenWorktrees: new Set<string>(),
   unreadWorktrees: new Set<string>(),
+  pinnedWorktrees: new Set<string>(),
   annotations: {},
   diffViewMode: {},
   changesViewMode: {},
@@ -193,12 +197,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       newSeen.delete(id);
       const newUnread = new Set(state.unreadWorktrees);
       newUnread.delete(id);
+      const newPinned = new Set(state.pinnedWorktrees);
+      newPinned.delete(id);
       return {
         worktrees: state.worktrees.filter((wt) => wt.id !== id),
         activeWorktreeId: state.activeWorktreeId === id ? null : state.activeWorktreeId,
         annotations: restAnnotations,
         seenWorktrees: newSeen,
         unreadWorktrees: newUnread,
+        pinnedWorktrees: newPinned,
         runningServers: (() => {
           const { [id]: _, ...rest } = state.runningServers;
           return rest;
@@ -302,6 +309,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       return { unreadWorktrees: next };
     }),
 
+  togglePinWorktree: (id) =>
+    set((state) => {
+      const next = new Set(state.pinnedWorktrees);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return { pinnedWorktrees: next };
+    }),
+
   addAnnotation: (annotation) =>
     set((state) => ({
       annotations: {
@@ -383,6 +401,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       activeWorktreeId: null,
       seenWorktrees: new Set<string>(),
       unreadWorktrees: new Set<string>(),
+      pinnedWorktrees: new Set<string>(),
       annotations: {},
       diffViewMode: {},
       changesViewMode: {},

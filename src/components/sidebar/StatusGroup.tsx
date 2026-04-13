@@ -21,6 +21,7 @@ interface StatusGroupProps {
   column: KanbanColumn;
   worktrees: Worktree[];
   activeWorktreeId: string | null;
+  pinnedWorktrees?: Set<string>;
   onSelectWorktree: (id: string) => void;
   onDeleteWorktree?: (id: string) => void;
   onArchiveWorktree?: (id: string) => void;
@@ -59,6 +60,7 @@ function StatusGroup({
   column,
   worktrees,
   activeWorktreeId,
+  pinnedWorktrees,
   onSelectWorktree,
   onDeleteWorktree,
   onArchiveWorktree,
@@ -154,23 +156,37 @@ function StatusGroup({
             transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <SortableContext items={worktrees.map((wt) => wt.id)} strategy={verticalListSortingStrategy}>
-              {worktrees.map((wt) => (
-                <AgentItem
-                  key={wt.id}
-                  worktree={wt}
-                  isSelected={wt.id === activeWorktreeId}
-                  onClick={() => onSelectWorktree(wt.id)}
-                  onDelete={onDeleteWorktree}
-                  onArchive={onArchiveWorktree}
-                  repoPath={wt.repoPath}
-                  repoColors={repoColors}
-                  repoDisplayNames={repoDisplayNames}
-                  repoIndex={repoIndexMap?.[wt.repoPath ?? ""] ?? 0}
-                  showRepoTag={showRepoTags ?? false}
-                />
-              ))}
+            {(() => {
+              const pinned = pinnedWorktrees ?? new Set<string>();
+              const pinnedItems = worktrees.filter((wt) => pinned.has(wt.id));
+              const unpinnedItems = worktrees.filter((wt) => !pinned.has(wt.id));
+              const sorted = [...pinnedItems, ...unpinnedItems];
+              const showDivider = pinnedItems.length > 0 && unpinnedItems.length > 0;
+              return (
+            <SortableContext items={sorted.map((wt) => wt.id)} strategy={verticalListSortingStrategy}>
+                {sorted.map((wt, i) => (
+                  <div key={wt.id}>
+                    {showDivider && i === pinnedItems.length && (
+                      <div className="h-px mr-3.5 ml-7 bg-gradient-to-r from-accent-primary/15 to-transparent" />
+                    )}
+                    <AgentItem
+                      worktree={wt}
+                      isSelected={wt.id === activeWorktreeId}
+                      isPinned={pinned.has(wt.id)}
+                      onClick={() => onSelectWorktree(wt.id)}
+                      onDelete={onDeleteWorktree}
+                      onArchive={onArchiveWorktree}
+                      repoPath={wt.repoPath}
+                      repoColors={repoColors}
+                      repoDisplayNames={repoDisplayNames}
+                      repoIndex={repoIndexMap?.[wt.repoPath ?? ""] ?? 0}
+                      showRepoTag={showRepoTags ?? false}
+                    />
+                  </div>
+                ))}
             </SortableContext>
+              );
+            })()}
             {column === "done" && worktrees.length > 0 && onArchiveAll && (
               <button
                 onClick={onArchiveAll}
