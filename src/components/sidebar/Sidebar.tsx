@@ -45,6 +45,10 @@ function groupByColumn(
     const col = groups[wt.column] ? wt.column : "inProgress";
     groups[col].push(wt);
   }
+  // Most recently updated first within each section
+  for (const col of Object.keys(groups) as KanbanColumn[]) {
+    groups[col].sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0));
+  }
   return groups;
 }
 
