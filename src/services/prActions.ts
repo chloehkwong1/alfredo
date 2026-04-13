@@ -47,9 +47,8 @@ export async function fixFailingChecks(
 }
 
 /**
- * Send a prompt to the agent to merge the base branch, resolve any
- * conflicts, and push — all in one shot.  No local git merge or
- * intermediate "ready to push" state needed.
+ * Send a prompt to the agent to rebase onto the base branch, resolve any
+ * conflicts, and force-push — all in one shot.
  */
 export async function mergeAndFix(
   worktreeId: string,
@@ -59,7 +58,7 @@ export async function mergeAndFix(
 ): Promise<boolean> {
   const prompt =
     `\nThis branch has a merge conflict with \`${baseBranch}\`.\n` +
-    `Please merge \`${baseBranch}\` into this branch, resolve any conflicts, and push.\n`;
+    `Please rebase this branch onto \`${baseBranch}\`, resolve any conflicts, and force-push with \`--force-with-lease\`.\n`;
 
   const sent = await sendToAgent(worktreeId, repoPath, branch, prompt);
   if (sent) focusAgentTab(worktreeId);
