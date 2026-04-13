@@ -361,7 +361,7 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
     // origin/main after a rebase can produce wildly inflated diff stats (e.g. -1222k).
     // Throttled to once per 60s per ref to avoid N+1 network calls on startup.
     if let Some(branch) = diff_base.strip_prefix("origin/") {
-        let throttle_key = format!("{}:{}", worktree_path, branch);
+        let throttle_key = format!("{worktree_path}:{branch}");
         let should_fetch = FETCH_THROTTLE
             .lock()
             .map(|cache| {

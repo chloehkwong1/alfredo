@@ -77,6 +77,7 @@ impl PtyManager {
     /// `config.agent_type` seeds the detector so it can track state immediately
     /// without waiting for a shell launch pattern or startup banner.
     /// `config.state_server_port` is set as an env var so hooks can call back.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn spawn(
         &self,
         session_id: String,
@@ -439,7 +440,7 @@ impl PtyManager {
 
         // Unwrap the Arc. If other threads hold references, fall back to locking.
         let mut session = match Arc::try_unwrap(session_arc) {
-            Ok(mutex) => mutex.into_inner().unwrap_or_else(|e| e.into_inner()),
+            Ok(mutex) => mutex.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner),
             Err(arc) => {
                 // Another thread holds a reference to this session. We can't
                 // take ownership (needed for drop(master) and child.wait()),

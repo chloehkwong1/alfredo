@@ -45,7 +45,7 @@ pub async fn git_merge(repo_path: String, base_branch: String) -> Result<MergeRe
     let files: Vec<String> = String::from_utf8_lossy(&diff_output.stdout)
         .lines()
         .filter(|l| !l.is_empty())
-        .map(|l| l.to_string())
+        .map(str::to_string)
         .collect();
 
     Ok(MergeResult {

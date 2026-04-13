@@ -94,6 +94,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
 }
 
 /// Create a new branch and check it out via git CLI.
+#[allow(dead_code)]
 pub async fn create_branch(
     repo_path: &str,
     branch_name: &str,
@@ -143,6 +144,7 @@ pub async fn create_branch(
 
 /// Switch to an existing branch via git checkout.
 /// Checks for dirty state first and returns an error if the working tree is dirty.
+#[allow(dead_code)]
 pub async fn switch_branch(repo_path: &str, branch_name: &str) -> Result<(), AppError> {
     // Check for dirty state using git2
     let is_dirty = {
@@ -180,6 +182,7 @@ pub async fn switch_branch(repo_path: &str, branch_name: &str) -> Result<(), App
 
 /// Delete a local branch via git CLI.
 /// Refuses to delete the currently checked-out branch.
+#[allow(dead_code)]
 pub async fn delete_branch(repo_path: &str, branch_name: &str) -> Result<(), AppError> {
     let output = git_command()
         .args(["branch", "-d", branch_name])
