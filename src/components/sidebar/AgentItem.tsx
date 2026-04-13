@@ -211,6 +211,7 @@ function useAgentItemState(worktree: Worktree) {
 interface AgentItemContentProps {
   worktree: Worktree;
   effectiveStatus: string;
+  isSelected?: boolean;
   isPinned?: boolean;
   shouldPulse: boolean;
   isServerRunning: boolean;
@@ -228,7 +229,7 @@ function getDotColor(status: AgentState | string): string {
 }
 
 function AgentItemContent({
-  worktree, effectiveStatus, isPinned, shouldPulse, isServerRunning, serverPort, prSummary,
+  worktree, effectiveStatus, isSelected, isPinned, shouldPulse, isServerRunning, serverPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
 }: AgentItemContentProps) {
   return (
@@ -245,7 +246,8 @@ function AgentItemContent({
         {/* Line 1: branch name, PR number, timestamp */}
         <div className="flex items-center gap-2">
           <span className={[
-            "text-sm truncate text-text-primary",
+            "text-sm truncate",
+            isSelected ? "text-text-primary" : "text-text-secondary",
             needsAttention(effectiveStatus)
               ? "font-semibold"
               : "font-normal",
@@ -494,6 +496,7 @@ const AgentItem = memo(function AgentItem({
             <AgentItemContent
               worktree={worktree}
               effectiveStatus={effectiveStatus}
+              isSelected={isSelected}
               isPinned={isPinned}
               shouldPulse={shouldPulse}
               isServerRunning={isServerRunning}

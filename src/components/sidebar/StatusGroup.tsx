@@ -126,15 +126,15 @@ function StatusGroup({
         <span className="flex items-center gap-2">
           <Icon className="h-4 w-4" />
           <span className={[
-            "text-xs font-semibold uppercase tracking-[0.08em]",
+            "text-xs font-bold uppercase tracking-[0.08em] text-text-primary",
             showDropZoneHighlight ? "text-accent-primary" : "",
           ].join(" ")}>
             {label}
           </span>
         </span>
-        <span className="flex-1 h-px bg-gradient-to-r from-border-subtle to-transparent mx-3" />
+        <span className="flex-1 h-[1.5px] bg-gradient-to-r from-white/20 to-transparent mx-3" />
         <span className="flex items-center gap-2">
-          <span className="text-2xs text-text-tertiary tabular-nums">
+          <span className="text-2xs text-text-secondary tabular-nums font-semibold bg-bg-elevated rounded-full px-1.5 py-0.5">
             {worktrees.length}
           </span>
           <ChevronRight
@@ -161,14 +161,10 @@ function StatusGroup({
               const pinnedItems = worktrees.filter((wt) => pinned.has(wt.id));
               const unpinnedItems = worktrees.filter((wt) => !pinned.has(wt.id));
               const sorted = [...pinnedItems, ...unpinnedItems];
-              const showDivider = pinnedItems.length > 0 && unpinnedItems.length > 0;
               return (
             <SortableContext items={sorted.map((wt) => wt.id)} strategy={verticalListSortingStrategy}>
-                {sorted.map((wt, i) => (
+                {sorted.map((wt) => (
                   <div key={wt.id}>
-                    {showDivider && i === pinnedItems.length && (
-                      <div className="h-px mr-3.5 ml-7 bg-gradient-to-r from-accent-primary/15 to-transparent" />
-                    )}
                     <AgentItem
                       worktree={wt}
                       isSelected={wt.id === activeWorktreeId}
