@@ -394,6 +394,7 @@ function Sidebar({
           repos={repos.filter((r) => r.mode === "worktree")}
           repoColors={effectiveRepoColors}
           defaultRepoPath={defaultRepoPath}
+          selectedRepos={effectiveSelectedRepos}
         />
       )}
     </div>

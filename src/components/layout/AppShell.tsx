@@ -326,6 +326,7 @@ function AppShell() {
         repoPath={repoPath ?? undefined}
         repos={repos}
         repoColors={repoColors ?? {}}
+        selectedRepos={effectiveSelectedRepos}
         defaultRepoPath={
           worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
           ?? (selectedRepos.length > 0 ? selectedRepos[0] : undefined)

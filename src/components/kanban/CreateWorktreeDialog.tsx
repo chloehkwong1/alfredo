@@ -12,7 +12,7 @@ import { Button } from "../ui/Button";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
-import { createWorktreeFrom, getDefaultBranch } from "../../api";
+import { createWorktreeFrom, getDefaultBranch, setSelectedRepos as setSelectedReposApi } from "../../api";
 import type { RepoEntry, Worktree, WorktreeSource } from "../../types";
 import { NewBranchTab, getNewBranchSource } from "./create-worktree/NewBranchTab";
 import { BranchesTab } from "./create-worktree/BranchesTab";
@@ -29,6 +29,7 @@ interface CreateWorktreeDialogProps {
   repoColors?: Record<string, string>;
   defaultRepoPath?: string;
   lockedBaseBranch?: string;
+  selectedRepos?: string[];
 }
 
 /** Derive a placeholder worktree ID and display name from the creation source. */
@@ -73,7 +74,7 @@ const tabDefs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "newBranch", label: "New Branch", icon: <Plus className="h-3.5 w-3.5" /> },
 ];
 
-function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors, defaultRepoPath, lockedBaseBranch }: CreateWorktreeDialogProps) {
+function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors, defaultRepoPath, lockedBaseBranch, selectedRepos }: CreateWorktreeDialogProps) {
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
   const replaceWorktree = useWorkspaceStore((s) => s.replaceWorktree);
   const failWorktree = useWorkspaceStore((s) => s.failWorktree);
@@ -166,6 +167,18 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
       repoPath: currentRepoPath,
       creating: true,
     };
+
+    // Only needed when user has explicitly selected repos — otherwise all repos are shown
+    if (selectedRepos && selectedRepos.length > 0 && !selectedRepos.includes(currentRepoPath)) {
+      setSelectedReposApi([...selectedRepos, currentRepoPath])
+        .then(() => {
+          window.dispatchEvent(new Event("config-changed"));
+        })
+        .catch((err) => {
+          console.error("[create-worktree] Failed to auto-select repo:", err);
+          window.dispatchEvent(new Event("config-changed"));
+        });
+    }
 
     addWorktree(placeholder);
     onOpenChange(false);
