@@ -1,0 +1,79 @@
+package.json
+  ee5d477af0ef87e8 4
+src-tauri/Cargo.toml
+  ee5d477af0ef87e8 3
+src-tauri/tauri.conf.json
+  ee5d477af0ef87e8 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "3a21aaecc864533595f5be9563420d2cf38b0f2a",
+  "prompts": {
+    "0039cab8cf5e3188": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d57bca1-7ffc-448c-8139-9d155aec2766",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 183,
+      "overriden_lines": 0
+    },
+    "491617ac75725224": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7917aa17-e001-4b6b-bc3b-d8ab51666c70",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2170,
+      "overriden_lines": 0
+    },
+    "613db9ccca62370e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "277e3902-d584-4a5c-ad83-94af172f160e",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1576,
+      "overriden_lines": 0
+    },
+    "cddbdf5cbc7703e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1ba06045-4131-4c23-85dc-f8f4bce5540a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 107,
+      "overriden_lines": 0
+    },
+    "ee5d477af0ef87e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c938460-8296-42f5-a76b-0b94c53c0987",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
