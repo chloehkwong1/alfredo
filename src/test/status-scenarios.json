@@ -281,19 +281,19 @@
     "category": "stuck-busy",
     "steps": [
       {
-        "action": { "type": "hookEvent", "state": "busy", "phase": "toolStart" },
+        "action": { "type": "hookEvent", "state": "busy" },
         "expect": { "agentStatus": "busy" }
       },
       {
-        "action": { "type": "hookEvent", "state": "busy", "phase": "none" },
+        "action": { "type": "hookEvent", "state": "busy" },
         "expect": { "agentStatus": "busy" }
       },
       {
-        "action": { "type": "hookEvent", "state": "busy", "phase": "toolEnd" },
+        "action": { "type": "hookEvent", "state": "busy" },
         "expect": { "agentStatus": "busy" }
       },
       {
-        "action": { "type": "hookEvent", "state": "idle", "phase": "turnEnd" },
+        "action": { "type": "hookEvent", "state": "idle" },
         "expect": { "agentStatus": "idle" }
       }
     ]
@@ -304,11 +304,11 @@
     "category": "stuck-busy",
     "steps": [
       {
-        "action": { "type": "hookEvent", "state": "busy", "phase": "toolStart" },
+        "action": { "type": "hookEvent", "state": "busy" },
         "expect": { "agentStatus": "busy" }
       },
       {
-        "action": { "type": "hookEvent", "state": "idle", "phase": "none" },
+        "action": { "type": "hookEvent", "state": "idle" },
         "expect": { "agentStatus": "idle" }
       }
     ]
@@ -319,11 +319,11 @@
     "category": "missed-waiting-for-input",
     "steps": [
       {
-        "action": { "type": "hookEvent", "state": "busy", "phase": "toolStart" },
+        "action": { "type": "hookEvent", "state": "busy" },
         "expect": { "agentStatus": "busy" }
       },
       {
-        "action": { "type": "hookEvent", "state": "waitingForInput", "phase": "none", "notify": "input" },
+        "action": { "type": "hookEvent", "state": "waitingForInput" },
         "expect": { "agentStatus": "waitingForInput" }
       }
     ]

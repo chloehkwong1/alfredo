@@ -22,9 +22,9 @@ export type PtyEvent =
   | { event: "hookAgentState"; data: { state: AgentState; notify: NotifyReason; phase: HookPhase } }
   | { event: "heartbeat" };
 
-/** Hook lifecycle phase — mirrors the Rust `HookPhase` enum. Used by the
- *  frontend to track how many tools are currently between PreToolUse and
- *  PostToolUse so the detector fallback can be blocked while >0. */
+/** Hook lifecycle phase — mirrors the Rust `HookPhase` enum. Emitted on the
+ *  wire by the backend but currently unused by the frontend (hooks are the
+ *  sole source of truth, so phase-based bookkeeping isn't needed). */
 export type HookPhase = "none" | "toolStart" | "toolEnd" | "turnEnd";
 
 // ── Agent ───────────────────────────────────────────────────────
