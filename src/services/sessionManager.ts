@@ -102,6 +102,9 @@ export interface ManagedSession {
   allowNextClearScrollback: boolean;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
+  /** Number of tools currently between PreToolUse and PostToolUse.
+   *  When > 0, the detector fallback is forbidden from overriding busy → idle. */
+  toolsInFlight: number;
 }
 
 /**
@@ -244,6 +247,7 @@ export function shouldAcceptDetectorState(
   detectorState: AgentState,
   currentState: AgentState,
   lastHookEventAt: number,
+  toolsInFlight: number = 0,
 ): boolean {
   // Once hooks have fired, they are the sole source of truth.
   // Every state the detector could provide is already covered:
@@ -270,6 +274,10 @@ export function shouldAcceptDetectorState(
   // arrives while lastHookEventAt is still fresh → rejected. During a
   // genuine interrupt the hooks stop firing entirely → accepted.
   if (currentState === "busy" && (detectorState === "idle" || detectorState === "waitingForInput")) {
+    // Hard guard: a tool is actively running. Hooks WILL fire when it ends.
+    // The detector cannot disambiguate "long bash" from "user interrupt
+    // during thinking" without this signal.
+    if (toolsInFlight > 0) return false;
     return Date.now() - lastHookEventAt > HOOK_SILENCE_THRESHOLD_MS;
   }
 
@@ -323,13 +331,25 @@ function createSessionChannel(
         break;
       }
       case "hookAgentState": {
-        const { state, notify } = event.data;
+        const { state, notify, phase } = event.data;
         session.hooksActive = true;
         session.lastHookEventAt = Date.now();
         if (state === "notRunning" && session.sessionId) {
           session.ptyExited = true;
+          session.toolsInFlight = 0;
         }
-        console.debug(`[status:${worktreeId}] hook → ${state}${notify !== "none" ? ` (notify: ${notify})` : ""}`);
+        switch (phase) {
+          case "toolStart":
+            session.toolsInFlight += 1;
+            break;
+          case "toolEnd":
+            session.toolsInFlight = Math.max(0, session.toolsInFlight - 1);
+            break;
+          case "turnEnd":
+            session.toolsInFlight = 0; // hard reset
+            break;
+        }
+        console.debug(`[status:${worktreeId}] hook → ${state}${notify !== "none" ? ` (notify: ${notify})` : ""} [phase=${phase}, inFlight=${session.toolsInFlight}]`);
         session.agentState = state;
         stateSourceMap.set(worktreeId, "hook");
         useWorkspaceStore
@@ -346,9 +366,11 @@ function createSessionChannel(
         break;
       }
       case "agentState": {
-        if (!shouldAcceptDetectorState(session.hooksActive, event.data, session.agentState, session.lastHookEventAt)) {
+        if (!shouldAcceptDetectorState(session.hooksActive, event.data, session.agentState, session.lastHookEventAt, session.toolsInFlight)) {
           const reason = session.agentState === "busy" && (event.data === "idle" || event.data === "waitingForInput")
-            ? `hooks active, last hook ${Math.round((Date.now() - session.lastHookEventAt) / 1000)}s ago`
+            ? (session.toolsInFlight > 0
+                ? `hooks active, ${session.toolsInFlight} tool(s) in flight`
+                : `hooks active, last hook ${Math.round((Date.now() - session.lastHookEventAt) / 1000)}s ago`)
             : "hooks active";
           console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (${reason})`);
           break;
@@ -444,6 +466,7 @@ export class SessionManager {
       restoredFromScrollback: false,
       startupCommandSent: false,
       allowNextClearScrollback: false,
+      toolsInFlight: 0,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -548,6 +571,7 @@ export class SessionManager {
       restoredFromScrollback: true,
       startupCommandSent: false,
       allowNextClearScrollback: false,
+      toolsInFlight: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -598,6 +622,7 @@ export class SessionManager {
     session.sessionId = sessionId;
     session.ptyExited = false;
     session.agentState = mode === "shell" ? "notRunning" : "busy";
+    session.toolsInFlight = 0;
     session.lastHeartbeat = Date.now();
     // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the
     // PTY actually produces output, rather than seeing the stale value from
@@ -665,6 +690,7 @@ export class SessionManager {
       restoredFromScrollback: false,
       startupCommandSent: true,
       allowNextClearScrollback: false,
+      toolsInFlight: 0,
     };
 
     const channel = createSessionChannel(this, session, worktreeId);
@@ -707,6 +733,7 @@ export class SessionManager {
     // Without this, stale hooksActive=true would permanently reject detector events.
     session.hooksActive = false;
     session.agentState = "notRunning";
+    session.toolsInFlight = 0;
 
     // Mirror closeSession's store update so the sidebar reflects "Not running"
     // and the notification hook's notRunning→busy filter suppresses the next spawn.
