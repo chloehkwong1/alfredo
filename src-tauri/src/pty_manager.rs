@@ -638,14 +638,33 @@ fn write_hooks_config(
             "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
         )
     };
+    let cmd_phase = |state: &str, phase: &str| -> String {
+        format!(
+            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}\"; fi; echo '{{}}'"
+        )
+    };
     let cmd_notify = |state: &str, reason: &str| -> String {
         format!(
             "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}\"; fi; echo '{{}}'"
         )
     };
+    let cmd_notify_phase = |state: &str, reason: &str, phase: &str| -> String {
+        format!(
+            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}\"; fi; echo '{{}}'"
+        )
+    };
 
     let hook_entry = |command: String| -> serde_json::Value {
         serde_json::json!({
+            "hooks": [{
+                "type": "command",
+                "command": command
+            }]
+        })
+    };
+    let hook_entry_with_matcher = |matcher: &str, command: String| -> serde_json::Value {
+        serde_json::json!({
+            "matcher": matcher,
             "hooks": [{
                 "type": "command",
                 "command": command
@@ -658,37 +677,56 @@ fn write_hooks_config(
         ("SessionStart",      hook_entry(cmd("idle"))),
         // UserPromptSubmit → busy
         ("UserPromptSubmit",  hook_entry(cmd("busy"))),
-        // PreToolUse → busy
-        ("PreToolUse",        hook_entry(cmd("busy"))),
-        // Stop → idle + notify finished
-        ("Stop",              hook_entry(cmd_notify("idle", "finished"))),
-        // StopFailure → idle + notify error
-        ("StopFailure",       hook_entry(cmd_notify("idle", "error"))),
+        // PreToolUse → busy + phase=toolStart
+        ("PreToolUse",        hook_entry(cmd_phase("busy", "toolStart"))),
+        // PostToolUse → busy + phase=toolEnd
+        ("PostToolUse",       hook_entry(cmd_phase("busy", "toolEnd"))),
+        // Stop → idle + notify finished + phase=turnEnd
+        ("Stop",              hook_entry(cmd_notify_phase("idle", "finished", "turnEnd"))),
+        // StopFailure → idle + notify error + phase=turnEnd
+        ("StopFailure",       hook_entry(cmd_notify_phase("idle", "error", "turnEnd"))),
+        // SubagentStop → busy (no state change, just refreshes lastHookEventAt)
+        ("SubagentStop",      hook_entry(cmd_phase("busy", "none"))),
         // PermissionRequest → waitingForInput + notify input
         ("PermissionRequest", hook_entry(cmd_notify("waitingForInput", "input"))),
+        // PermissionDenied → waitingForInput + notify input
+        ("PermissionDenied",  hook_entry(cmd_notify("waitingForInput", "input"))),
         // Elicitation → waitingForInput + notify input
         ("Elicitation",       hook_entry(cmd_notify("waitingForInput", "input"))),
+        // Notification matchers: idle_prompt, permission_prompt, elicitation_dialog
+        ("Notification",      hook_entry_with_matcher("idle_prompt", cmd("idle"))),
+        ("Notification",      hook_entry_with_matcher("permission_prompt", cmd_notify("waitingForInput", "input"))),
+        ("Notification",      hook_entry_with_matcher("elicitation_dialog", cmd_notify("waitingForInput", "input"))),
         // PostToolUseFailure: interrupts → waitingForInput; non-interrupts → busy
         // (keeps hook silence timer fresh so detector fallback doesn't false-positive
         // during long thinking phases after tool failures)
         ("PostToolUseFailure", serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput\"; else curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy\"; fi; fi; echo '{}'"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput?phase=toolEnd\"; else curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy?phase=toolEnd\"; fi; fi; echo '{}'"
             }]
         })),
     ];
 
-    for (hook_name, entry) in alfredo_hooks {
+    // First pass: strip stale Alfredo entries from every hook array we will touch,
+    // so multiple new entries targeting the same hook name (e.g. Notification
+    // matchers) don't clobber each other.
+    let mut hook_names: Vec<&str> = alfredo_hooks.iter().map(|(n, _)| *n).collect();
+    hook_names.sort();
+    hook_names.dedup();
+    for hook_name in hook_names {
         let arr = hooks
             .entry(hook_name)
             .or_insert_with(|| serde_json::json!([]))
             .as_array_mut();
-
         if let Some(arr) = arr {
-            // Remove any previous Alfredo entries (stale ports / worktree IDs)
             arr.retain(|item| !is_alfredo_hook_entry(item));
-            // Append our fresh entry
+        }
+    }
+
+    // Second pass: append fresh entries.
+    for (hook_name, entry) in alfredo_hooks {
+        if let Some(arr) = hooks.get_mut(hook_name).and_then(|v| v.as_array_mut()) {
             arr.push(entry);
         }
     }
