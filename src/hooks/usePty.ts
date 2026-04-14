@@ -216,6 +216,18 @@ export function usePty({
       setAgentState(session.agentState);
       setIsConnected(true);
 
+      // Don't steal focus from any input the user is currently typing in —
+      // including other xterm instances, whose input lives in a hidden textarea.
+      const active = document.activeElement as HTMLElement | null;
+      const typing = !!active && (
+        active.tagName === "INPUT"
+        || active.tagName === "TEXTAREA"
+        || active.isContentEditable
+      );
+      if (!typing) {
+        term.focus();
+      }
+
       // Write startup command after shell produces its first output (prompt ready).
       // Guard with startupCommandSent to prevent StrictMode double-fire.
       if (startupCommandRef.current && session.sessionId && !session.startupCommandSent) {
