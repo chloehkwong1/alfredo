@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
+
+/**
+ * Per-worktree mutex to prevent overlapping revive attempts. Cleanup intervals
+ * fire every 3 s and each awaits listSessions + reattach, so without this guard
+ * two ticks could both revive the same worktree and thrash the store.
+ */
+const revivingServers = new Set<string>();
 import { getConfig, listSessions } from "../api";
 import { sessionManager } from "../services/sessionManager";
 import { lifecycleManager } from "../services/lifecycleManager";
@@ -48,6 +55,107 @@ const SERVER_GRACE_PERIOD_MS = 5_000;
 const SERVER_HEARTBEAT_STALE_MS = 10_000;
 const SERVER_POLL_INTERVAL_MS = 3_000;
 
+type SetRunningServer = (wtId: string, entry: {
+  sessionId: string;
+  tabId: string;
+  port?: number;
+  createdAt?: number;
+} | null) => void;
+
+/**
+ * Reattach to a surviving Rust-side PTY for a server session and re-populate
+ * the store entry. Reuses an existing tab when provided (cleanup path) and
+ * creates a fresh one otherwise (mount-time reconciliation path).
+ */
+async function reconcileServerFromSession(
+  srv: Session,
+  setRunningServer: SetRunningServer,
+  existingTabId?: string,
+): Promise<boolean> {
+  const wtId = srv.worktreeId;
+  const tabId = existingTabId ?? lifecycleManager.addTab(wtId, "server");
+  if (!tabId) return false;
+
+  try {
+    await sessionManager.reattachToSession(tabId, srv.id, wtId);
+  } catch (err) {
+    console.error(`[server-reconcile] reattach failed for ${srv.id}:`, err);
+    if (!existingTabId) {
+      try {
+        await lifecycleManager.removeTab(wtId, tabId);
+      } catch (cleanupErr) {
+        console.error(`[server-reconcile] failed to clean up orphaned tab:`, cleanupErr);
+      }
+    }
+    return false;
+  }
+
+  // Revive path only: if the user cleared the entry (hit Stop) while we were
+  // awaiting listSessions/reattach, honor their intent — don't resurrect it.
+  // Tear down the orphaned reattached session so it doesn't linger.
+  if (existingTabId && !useWorkspaceStore.getState().runningServers[wtId]) {
+    console.log(`[server-reconcile] skip revive for ${wtId} — entry was cleared during await`);
+    try {
+      await sessionManager.closeSession(tabId);
+    } catch (e) {
+      console.warn(`[server-reconcile] failed to close orphaned session:`, e);
+    }
+    return false;
+  }
+
+  setRunningServer(wtId, {
+    sessionId: srv.id,
+    tabId,
+    createdAt: Date.now(),
+  });
+  console.log(`[server-reconcile] reattached server for worktree ${wtId}`);
+  return true;
+}
+
+/**
+ * Before clearing a stale entry, ask Rust if the server session is still
+ * alive. If it is, reattach and keep the badge on; only clear when Rust
+ * confirms the process is gone. Returns true when the entry was revived.
+ */
+async function tryReviveBeforeClear(
+  wtId: string,
+  existingTabId: string,
+  setRunningServer: SetRunningServer,
+): Promise<boolean> {
+  if (revivingServers.has(wtId)) return false;
+
+  // Guard: if the tab UI is gone from tabStore, reviving would re-register
+  // a ManagedSession under a tabId with no tab row — orphaned state that
+  // nothing reads. Let the clear proceed so the real process (if any) can
+  // be rediscovered by normal reconciliation on next mount.
+  const tabExists = (useTabStore.getState().tabs[wtId] ?? []).some(
+    (t) => t.id === existingTabId,
+  );
+  if (!tabExists) {
+    console.log(`[server-reconcile] skip revive for ${wtId} — tab ${existingTabId} missing from tabStore`);
+    return false;
+  }
+
+  revivingServers.add(wtId);
+  try {
+    console.log(`[server-reconcile] attempting revive for ${wtId} (tab ${existingTabId})`);
+    const sessions = await listSessions();
+    const srv = sessions.find(
+      (s) => s.sessionType === "server" && s.status === "running" && s.worktreeId === wtId,
+    );
+    if (!srv) {
+      console.log(`[server-reconcile] revive skipped for ${wtId} — Rust confirmed no running server session`);
+      return false;
+    }
+    return await reconcileServerFromSession(srv, setRunningServer, existingTabId);
+  } catch (err) {
+    console.error("[server-reconcile] listSessions failed during revive:", err);
+    return false;
+  } finally {
+    revivingServers.delete(wtId);
+  }
+}
+
 /**
  * Polls heartbeats for ALL running servers (not just the active worktree).
  * Cleans up stale entries when a server process dies while its worktree is inactive.
@@ -62,7 +170,7 @@ export function useStaleServerCleanup() {
   useEffect(() => {
     if (!hasRunningServers) return;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       const now = Date.now();
       for (const [wtId, server] of Object.entries(
         useWorkspaceStore.getState().runningServers,
@@ -71,16 +179,13 @@ export function useStaleServerCleanup() {
         if (server.createdAt && now - server.createdAt < SERVER_GRACE_PERIOD_MS) continue;
 
         const session = sessionManager.getSession(server.tabId);
-        if (!session) {
-          setRunningServer(wtId, null);
-          continue;
-        }
-        if (
-          session.lastHeartbeat > 0 &&
-          now - session.lastHeartbeat > SERVER_HEARTBEAT_STALE_MS
-        ) {
-          setRunningServer(wtId, null);
-        }
+        const shouldClear =
+          !session ||
+          (session.lastHeartbeat > 0 && now - session.lastHeartbeat > SERVER_HEARTBEAT_STALE_MS);
+        if (!shouldClear) continue;
+
+        const revived = await tryReviveBeforeClear(wtId, server.tabId, setRunningServer);
+        if (!revived) setRunningServer(wtId, null);
       }
     }, SERVER_POLL_INTERVAL_MS);
 
@@ -123,38 +228,9 @@ export function useServerReconciliation() {
       const store = useWorkspaceStore.getState();
 
       for (const srv of serverSessions) {
-        const wtId = srv.worktreeId;
-
-        // Already tracked — skip
-        if (store.runningServers[wtId]) continue;
-
-        // Re-create a server tab for this session
-        const tabId = lifecycleManager.addTab(wtId, "server");
-        if (!tabId) continue;
-
-        // Reattach the sessionManager to the surviving PTY
-        try {
-          await sessionManager.reattachToSession(tabId, srv.id, wtId);
-        } catch (err) {
-          console.error(`[server-reconcile] reattach failed for ${srv.id}:`, err);
-          // Roll back the orphaned tab we just created
-          try {
-            await lifecycleManager.removeTab(wtId, tabId);
-          } catch (cleanupErr) {
-            console.error(`[server-reconcile] failed to clean up orphaned tab:`, cleanupErr);
-          }
-          continue;
-        }
+        if (store.runningServers[srv.worktreeId]) continue;
+        await reconcileServerFromSession(srv, setRunningServer);
         if (cancelled) return;
-
-        // Re-populate the store entry
-        setRunningServer(wtId, {
-          sessionId: srv.id,
-          tabId,
-          createdAt: Date.now(),
-        });
-
-        console.log(`[server-reconcile] reattached server for worktree ${wtId}`);
       }
     }
 
@@ -249,20 +325,21 @@ export function useServer(activeWorktreeId: string | null) {
     const startTime = Date.now();
     const wtId = activeWorktreeId;
 
-    const interval = setInterval(() => {
+    const tabId = runningServer.tabId;
+    const interval = setInterval(async () => {
       if (Date.now() - startTime < SERVER_GRACE_PERIOD_MS) return;
 
-      const session = sessionManager.getSession(runningServer.tabId);
-      if (!session) {
-        setRunningServer(wtId, null);
-        return;
-      }
+      const session = sessionManager.getSession(tabId);
       // Only clear when heartbeat is stale (PTY process actually exited).
       // Don't check !session.sessionId — it's "" during normal PTY spawn
       // and would race with slow shell startup (e.g. shell_path() on first call).
-      if (session.lastHeartbeat > 0 && Date.now() - session.lastHeartbeat > SERVER_HEARTBEAT_STALE_MS) {
-        setRunningServer(wtId, null);
-      }
+      const shouldClear =
+        !session ||
+        (session.lastHeartbeat > 0 && Date.now() - session.lastHeartbeat > SERVER_HEARTBEAT_STALE_MS);
+      if (!shouldClear) return;
+
+      const revived = await tryReviveBeforeClear(wtId, tabId, setRunningServer);
+      if (!revived) setRunningServer(wtId, null);
     }, SERVER_POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
