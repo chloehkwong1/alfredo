@@ -99,6 +99,10 @@ export interface ManagedSession {
   /** Timestamp of the last agentState change. Used to detect stale idle state
    *  when hooks go silent but the PTY is still producing output. */
   stateChangedAt: number;
+  /** Timestamp of the most recent hook event received from Rust. Used by the
+   *  global reconciler to distinguish "hook channel silent" from "hook channel
+   *  flowing but state is stuck". Zero until the first hook event arrives. */
+  lastHookAt: number;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
 }
@@ -297,6 +301,7 @@ function createSessionChannel(
       }
       case "hookAgentState": {
         const { state, notify } = event.data;
+        session.lastHookAt = Date.now();
         session.hooksActive = true;
         if (state === "notRunning" && session.sessionId) {
           session.ptyExited = true;
@@ -414,6 +419,7 @@ export class SessionManager {
       startupCommandSent: false,
       allowNextClearScrollback: false,
       stateChangedAt: Date.now(),
+      lastHookAt: 0,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -518,6 +524,7 @@ export class SessionManager {
       startupCommandSent: false,
       allowNextClearScrollback: false,
       stateChangedAt: 0,
+      lastHookAt: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -635,6 +642,7 @@ export class SessionManager {
       startupCommandSent: true,
       allowNextClearScrollback: false,
       stateChangedAt: Date.now(),
+      lastHookAt: 0,
     };
 
     const channel = createSessionChannel(this, session, worktreeId);
