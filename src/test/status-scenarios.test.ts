@@ -114,3 +114,108 @@ describe("shared status scenarios (frontend)", () => {
     });
   }
 });
+
+import { SessionManager, type ManagedSession } from "../services/sessionManager";
+import { useWorkspaceStore } from "../stores/workspaceStore";
+
+function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSession {
+  const now = Date.now();
+  return {
+    sessionId: "fake-session",
+    terminal: {} as any,
+    fitAddon: {} as any,
+    searchAddon: {} as any,
+    webglLoaded: false,
+    agentState: "idle",
+    hooksActive: true,
+    outputBuffer: new Uint8Array(0),
+    outputBufferPos: 0,
+    outputBufferTotal: 0,
+    lastHeartbeat: now,
+    ptyExited: false,
+    lastOutputAt: now,
+    pendingOutput: [],
+    writeScheduled: false,
+    restoredFromScrollback: false,
+    startupCommandSent: false,
+    allowNextClearScrollback: false,
+    stateChangedAt: now - 5_000,
+    lastHookAt: now - 5_000,
+    ...overrides,
+  };
+}
+
+describe("SessionManager.reconcileAll", () => {
+  it("flips stale idle → busy when hooks went silent but output is flowing", () => {
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "idle",
+      stateChangedAt: Date.now() - 5_000,
+      lastOutputAt: Date.now() - 500,
+    });
+    (mgr as any).sessions.set("wt-abc:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-abc", agentStatus: "idle", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.agentState).toBe("busy");
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("busy");
+  });
+
+  it("flips stale busy → idle when neither hooks nor output have arrived for the thresholds", () => {
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      stateChangedAt: Date.now() - 120_000,
+      lastHookAt: Date.now() - 120_000,
+      lastOutputAt: Date.now() - 30_000,
+    });
+    (mgr as any).sessions.set("wt-xyz:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-xyz", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.agentState).toBe("idle");
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("idle");
+  });
+
+  it("does NOT flip busy → idle while hooks are still arriving (e.g. during tool use)", () => {
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      stateChangedAt: Date.now() - 120_000,
+      lastHookAt: Date.now() - 2_000,
+      lastOutputAt: Date.now() - 30_000,
+    });
+    (mgr as any).sessions.set("wt-tool:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-tool", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.agentState).toBe("busy");
+  });
+
+  it("does not touch sessions where hooksActive=false (detector-driven)", () => {
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      hooksActive: false,
+      agentState: "idle",
+      stateChangedAt: Date.now() - 5_000,
+      lastOutputAt: Date.now() - 500,
+    });
+    (mgr as any).sessions.set("wt-codex:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-codex", agentStatus: "idle", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.agentState).toBe("idle");
+  });
+});
