@@ -635,22 +635,22 @@ fn write_hooks_config(
     // Helper: build a hook entry with optional ?notify= query param.
     let cmd = |state: &str| -> String {
         format!(
-            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
+            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
         )
     };
     let cmd_phase = |state: &str, phase: &str| -> String {
         format!(
-            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}\"; fi; echo '{{}}'"
+            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}\"; fi; echo '{{}}'"
         )
     };
     let cmd_notify = |state: &str, reason: &str| -> String {
         format!(
-            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}\"; fi; echo '{{}}'"
+            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}\"; fi; echo '{{}}'"
         )
     };
     let cmd_notify_phase = |state: &str, reason: &str, phase: &str| -> String {
         format!(
-            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}\"; fi; echo '{{}}'"
+            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}\"; fi; echo '{{}}'"
         )
     };
 
@@ -703,7 +703,7 @@ fn write_hooks_config(
         ("PostToolUseFailure", serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput?phase=toolEnd\"; else curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy?phase=toolEnd\"; fi; fi; echo '{}'"
+                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput?phase=toolEnd\"; else curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy?phase=toolEnd\"; fi; fi; echo '{}'"
             }]
         })),
     ];
