@@ -1,10 +1,25 @@
 use octocrab::Octocrab;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
+use crate::platform::gh_command;
+use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
 /// Safety limit for paginated GitHub API calls.
 const MAX_PAGES: u32 = 50;
 
-use crate::platform::{gh_command, git_command};
-use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
+/// Cache of canonical `repo_path` → `(owner, repo)`.
+///
+/// Why: this used to shell out to `git remote get-url origin` on every call,
+/// and on one user's machine that deadlocked in the malloc lock after
+/// sleep/wake (classic fork-in-multithreaded-program, amplified by Rosetta).
+/// We now read the remote via libgit2 (no fork/exec) and cache the result —
+/// origin URLs effectively never change for a worktree during app lifetime.
+/// Restart required if a user changes `origin` out-of-band.
+fn owner_repo_cache() -> &'static Mutex<HashMap<String, (String, String)>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, (String, String)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
 
 /// Convert an octocrab PR model into our `PrStatus` type.
 /// Derives `merged` from `merged_at.is_some()`, which works for all PR states.
@@ -839,20 +854,44 @@ async fn cached_token(app_data_dir: &std::path::Path, repo_path: &str) -> Result
 }
 
 pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), AppError> {
-    let output = git_command()
-        .args(["remote", "get-url", "origin"])
-        .current_dir(repo_path)
-        .output()
-        .await
-        .map_err(|e| AppError::Github(format!("failed to get remote URL: {e}")))?;
+    // Canonicalize so trailing slashes / symlinked variants hit the same cache entry.
+    let cache_key = std::path::Path::new(repo_path)
+        .canonicalize()
+        .ok()
+        .and_then(|p| p.to_str().map(ToString::to_string))
+        .unwrap_or_else(|| repo_path.to_string());
 
-    if !output.status.success() {
-        return Err(AppError::Github("no origin remote found".into()));
+    if let Ok(guard) = owner_repo_cache().lock() {
+        if let Some(cached) = guard.get(&cache_key).cloned() {
+            return Ok(cached);
+        }
     }
 
-    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    parse_github_owner_repo(&url)
-        .ok_or_else(|| AppError::Github(format!("could not parse owner/repo from: {url}")))
+    // Read the origin URL via libgit2 — no fork/exec, so immune to the
+    // post-wake malloc-lock deadlock we hit when shelling out to `git`.
+    let path_for_blocking = cache_key.clone();
+    let url = tokio::task::spawn_blocking(move || -> Result<String, AppError> {
+        let repo = git2::Repository::discover(&path_for_blocking)
+            .map_err(|e| AppError::Github(format!("not a git repo: {e}")))?;
+        let remote = repo
+            .find_remote("origin")
+            .map_err(|_| AppError::Github("no origin remote found".into()))?;
+        let url = remote
+            .url()
+            .ok_or_else(|| AppError::Github("origin has no URL".into()))?
+            .to_string();
+        Ok(url)
+    })
+    .await
+    .map_err(|e| AppError::Github(format!("resolve_owner_repo task panicked: {e}")))??;
+
+    let parsed = parse_github_owner_repo(&url)
+        .ok_or_else(|| AppError::Github(format!("could not parse owner/repo from: {url}")))?;
+
+    if let Ok(mut guard) = owner_repo_cache().lock() {
+        guard.insert(cache_key, parsed.clone());
+    }
+    Ok(parsed)
 }
 
 /// Determine the kanban column for a worktree based on its PR status.
