@@ -270,13 +270,36 @@ export function usePty({
     const stateInterval = setInterval(() => {
       const session = sessionRef.current;
       if (session) {
-        const currentState = session.agentState;
+        let currentState = session.agentState;
+        const now = Date.now();
+
+        // Reconcile stale idle: if hooks went silent but the PTY is still
+        // actively producing output, the agent is likely busy. This catches
+        // cases where a hook curl fails silently or UserPromptSubmit doesn't
+        // fire (e.g. after MCP auth flows).
+        const STALE_IDLE_GRACE_MS = 3_000;
+        const ACTIVE_OUTPUT_MS = 2_000;
+        if (
+          session.hooksActive
+          && currentState === "idle"
+          && session.stateChangedAt > 0
+          && now - session.stateChangedAt > STALE_IDLE_GRACE_MS
+          && session.lastOutputAt > session.stateChangedAt
+          && now - session.lastOutputAt < ACTIVE_OUTPUT_MS
+        ) {
+          console.debug(`[status:${worktreeId}] reconcile: idle → busy (output active, hooks silent for ${now - session.stateChangedAt}ms)`);
+          session.agentState = "busy";
+          session.stateChangedAt = now;
+          currentState = "busy";
+          useWorkspaceStore.getState().updateWorktree(worktreeId, { agentStatus: "busy" });
+        }
+
         setAgentState(currentState);
-        const alive = !session.sessionId || Date.now() - session.lastHeartbeat < 6000;
+        const alive = !session.sessionId || now - session.lastHeartbeat < 6000;
         setChannelAlive(alive);
 
         // Detect stale busy: process alive but no output for STALE_BUSY_MS
-        const staleBusy = computeStaleBusy(currentState, alive, session.lastOutputAt, Date.now());
+        const staleBusy = computeStaleBusy(currentState, alive, session.lastOutputAt, now);
 
         if (mode === "claude") {
           // Self-heal: if the store is stuck at "notRunning" but the session

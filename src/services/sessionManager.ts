@@ -96,6 +96,9 @@ export interface ManagedSession {
   /** When true, the next ESC[3J in PTY output is passed through to xterm instead
    *  of being stripped. Set when the user explicitly sends /clear. */
   allowNextClearScrollback: boolean;
+  /** Timestamp of the last agentState change. Used to detect stale idle state
+   *  when hooks go silent but the PTY is still producing output. */
+  stateChangedAt: number;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
 }
@@ -299,6 +302,7 @@ function createSessionChannel(
           session.ptyExited = true;
         }
         console.debug(`[status:${worktreeId}] hook → ${state}${notify !== "none" ? ` (notify: ${notify})` : ""}`);
+        if (session.agentState !== state) session.stateChangedAt = Date.now();
         session.agentState = state;
         stateSourceMap.set(worktreeId, "hook");
         useWorkspaceStore
@@ -320,6 +324,7 @@ function createSessionChannel(
           break;
         }
         console.debug(`[status:${worktreeId}] detector → ${event.data}`);
+        if (session.agentState !== event.data) session.stateChangedAt = Date.now();
         session.agentState = event.data;
         stateSourceMap.set(worktreeId, "detector");
         useWorkspaceStore
@@ -408,6 +413,7 @@ export class SessionManager {
       restoredFromScrollback: false,
       startupCommandSent: false,
       allowNextClearScrollback: false,
+      stateChangedAt: Date.now(),
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -511,6 +517,7 @@ export class SessionManager {
       restoredFromScrollback: true,
       startupCommandSent: false,
       allowNextClearScrollback: false,
+      stateChangedAt: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -627,6 +634,7 @@ export class SessionManager {
       restoredFromScrollback: false,
       startupCommandSent: true,
       allowNextClearScrollback: false,
+      stateChangedAt: Date.now(),
     };
 
     const channel = createSessionChannel(this, session, worktreeId);
