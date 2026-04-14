@@ -88,6 +88,33 @@ pub async fn set_repo_display_name(app: AppHandle, repo_path: String, name: Opti
     Ok(config)
 }
 
+const WORKTREE_LABEL_MAX_LEN: usize = 200;
+
+#[tauri::command]
+pub async fn set_worktree_label(app: AppHandle, worktree_path: String, label: Option<String>) -> Result<GlobalAppConfig, AppError> {
+    let dir = app_data_dir(&app)?;
+    let mut config = app_config_manager::load(&dir).await?;
+    let sanitized = label.map(|n| {
+        n.chars()
+            .filter(|c| !c.is_control())
+            .collect::<String>()
+            .trim()
+            .chars()
+            .take(WORKTREE_LABEL_MAX_LEN)
+            .collect::<String>()
+    });
+    match sanitized {
+        Some(n) if !n.is_empty() => {
+            config.worktree_labels.insert(worktree_path, n);
+        }
+        _ => {
+            config.worktree_labels.remove(&worktree_path);
+        }
+    }
+    app_config_manager::save(&dir, &config).await?;
+    Ok(config)
+}
+
 #[tauri::command]
 pub async fn set_repo_color(app: AppHandle, repo_path: String, color: String) -> Result<GlobalAppConfig, AppError> {
     let dir = app_data_dir(&app)?;

@@ -4,9 +4,10 @@ import { AgentItemContent, useAgentItemState, getBorderClass } from "./AgentItem
 interface AgentItemOverlayProps {
   worktree: Worktree;
   width?: number | null;
+  label?: string;
 }
 
-function AgentItemOverlay({ worktree, width }: AgentItemOverlayProps) {
+function AgentItemOverlay({ worktree, width, label }: AgentItemOverlayProps) {
   const { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
 
   return (
@@ -25,6 +26,11 @@ function AgentItemOverlay({ worktree, width }: AgentItemOverlayProps) {
         isServerRunning={isServerRunning}
         serverPort={serverPort}
         prSummary={prSummary}
+        displayLabel={label ?? worktree.branch ?? worktree.name}
+        isEditing={false}
+        onStartEdit={() => {}}
+        onCommitEdit={() => {}}
+        onCancelEdit={() => {}}
       />
     </div>
   );

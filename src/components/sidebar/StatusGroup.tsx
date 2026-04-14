@@ -30,6 +30,8 @@ interface StatusGroupProps {
   dragActiveId?: string | null;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
+  worktreeLabels?: Record<string, string>;
+  onSetWorktreeLabel?: (worktreePath: string, label: string | null) => void;
   showRepoTags?: boolean;
   repoIndexMap?: Record<string, number>;
   isCollapsed?: boolean;
@@ -69,6 +71,8 @@ function StatusGroup({
   dragActiveId,
   repoColors,
   repoDisplayNames,
+  worktreeLabels,
+  onSetWorktreeLabel,
   showRepoTags,
   repoIndexMap,
   isCollapsed,
@@ -176,6 +180,8 @@ function StatusGroup({
                       repoPath={wt.repoPath}
                       repoColors={repoColors}
                       repoDisplayNames={repoDisplayNames}
+                      label={worktreeLabels?.[wt.path]}
+                      onRename={onSetWorktreeLabel}
                       repoIndex={repoIndexMap?.[wt.repoPath ?? ""] ?? 0}
                       showRepoTag={showRepoTags ?? false}
                     />

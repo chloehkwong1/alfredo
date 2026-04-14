@@ -393,6 +393,8 @@ pub struct GlobalAppConfig {
     pub repo_colors: HashMap<String, String>,
     #[serde(default)]
     pub repo_display_names: HashMap<String, String>,
+    #[serde(default)]
+    pub worktree_labels: HashMap<String, String>,
     #[serde(default = "default_editor")]
     pub preferred_editor: String,
     #[serde(default)]

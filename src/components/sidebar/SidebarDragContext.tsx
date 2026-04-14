@@ -39,6 +39,7 @@ interface SidebarDragContextProps {
   children: (isDragging: boolean, activeId: string | null) => ReactNode;
   collapsedColumns?: string[];
   onExpandColumn?: (column: KanbanColumn) => void;
+  worktreeLabels?: Record<string, string>;
 }
 
 /** Find which column an id belongs to. If the id IS a column, return it. Otherwise find the worktree's column. */
@@ -52,7 +53,7 @@ const measuring = {
   droppable: { strategy: MeasuringStrategy.Always as const },
 };
 
-function SidebarDragContext({ children, collapsedColumns, onExpandColumn }: SidebarDragContextProps) {
+function SidebarDragContext({ children, collapsedColumns, onExpandColumn, worktreeLabels }: SidebarDragContextProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const reorderWorktrees = useWorkspaceStore((s) => s.reorderWorktrees);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -270,7 +271,11 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn }: Side
       {createPortal(
         <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
           {activeWorktree ? (
-            <AgentItemOverlay worktree={activeWorktree} width={dragSize?.width} />
+            <AgentItemOverlay
+              worktree={activeWorktree}
+              width={dragSize?.width}
+              label={worktreeLabels?.[activeWorktree.path]}
+            />
           ) : null}
         </DragOverlay>,
         document.body,

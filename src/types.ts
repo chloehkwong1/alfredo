@@ -368,6 +368,7 @@ export interface GlobalAppConfig {
   displayName: string | null;
   repoColors: Record<string, string>;
   repoDisplayNames: Record<string, string>;
+  worktreeLabels: Record<string, string>;
   preferredEditor: string;
   customEditorPath: string | null;
   preferredTerminal: string;

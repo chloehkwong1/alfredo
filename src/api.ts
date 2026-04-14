@@ -400,6 +400,10 @@ export function setRepoDisplayName(repoPath: string, name: string | null): Promi
   return invoke<GlobalAppConfig>("set_repo_display_name", { repoPath, name });
 }
 
+export function setWorktreeLabel(worktreePath: string, label: string | null): Promise<GlobalAppConfig> {
+  return invoke<GlobalAppConfig>("set_worktree_label", { worktreePath, label });
+}
+
 // ── External Tools ─────────────────────────────────────────────
 
 // ── Claude Session ─────────────────────────────────────────────

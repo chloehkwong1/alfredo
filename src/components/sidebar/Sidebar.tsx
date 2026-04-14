@@ -88,7 +88,9 @@ interface SidebarProps {
   onRemoveRepo: (path: string) => void;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
+  worktreeLabels?: Record<string, string>;
   onSetRepoDisplayName?: (repoPath: string, name: string | null) => void;
+  onSetWorktreeLabel?: (worktreePath: string, label: string | null) => void;
   onCheckForUpdates?: () => Promise<void>;
   checkingForUpdates?: boolean;
   upToDate?: boolean;
@@ -104,7 +106,9 @@ function Sidebar({
   onRemoveRepo,
   repoColors,
   repoDisplayNames,
+  worktreeLabels,
   onSetRepoDisplayName,
+  onSetWorktreeLabel,
   onCheckForUpdates,
   checkingForUpdates,
   upToDate,
@@ -280,7 +284,7 @@ function Sidebar({
         {/* Scrollable agent list */}
         <div className="flex-1 overflow-y-auto py-3">
           {hasWorktreeRepos && (
-            <SidebarDragContext collapsedColumns={collapsedColumns} onExpandColumn={handleToggleCollapsed}>
+            <SidebarDragContext collapsedColumns={collapsedColumns} onExpandColumn={handleToggleCollapsed} worktreeLabels={worktreeLabels}>
               {(isDragging, dragActiveId) =>
                 COLUMNS.map((col) => (
                   <StatusGroup
@@ -297,6 +301,8 @@ function Sidebar({
                     dragActiveId={dragActiveId}
                     repoColors={effectiveRepoColors}
                     repoDisplayNames={repoDisplayNames}
+                    worktreeLabels={worktreeLabels}
+                    onSetWorktreeLabel={onSetWorktreeLabel}
                     showRepoTags={showRepoTags}
                     repoIndexMap={repoIndexMap}
                     isCollapsed={collapsedColumns.includes(col)}

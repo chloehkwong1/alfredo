@@ -82,6 +82,65 @@ function ThinkingDots() {
   );
 }
 
+function InlineLabelInput({
+  initialValue,
+  onCommit,
+  onCancel,
+  className,
+}: {
+  initialValue: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+  className?: string;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Guard so Enter (which blurs the input) doesn't trigger both Enter-commit
+  // and blur-commit back-to-back.
+  const committedRef = useRef(false);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, []);
+
+  const commit = () => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    onCommit(value);
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          committedRef.current = true;
+          onCancel();
+        }
+      }}
+      onBlur={commit}
+      className={[
+        "bg-bg-elevated border border-accent-primary/50 rounded px-1 py-0 outline-none",
+        className ?? "",
+      ].join(" ")}
+    />
+  );
+}
+
 const NEEDS_YOU_STATES = new Set(["waitingForInput", "done", "error", "ready"]);
 
 function needsAttention(status: string): boolean {
@@ -138,6 +197,8 @@ interface AgentItemProps {
   repoPath?: string;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
+  label?: string;
+  onRename?: (worktreePath: string, label: string | null) => void;
   repoIndex?: number;
   showRepoTag?: boolean;
 }
@@ -220,6 +281,11 @@ interface AgentItemContentProps {
   repoPath?: string;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
+  displayLabel: string;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onCommitEdit: (value: string) => void;
+  onCancelEdit: () => void;
   repoIndex?: number;
   showRepoTag?: boolean;
 }
@@ -230,7 +296,8 @@ function getDotColor(status: AgentState | string): string {
 
 function AgentItemContent({
   worktree, effectiveStatus, isSelected, isPinned, shouldPulse, isServerRunning, serverPort, prSummary,
-  repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
+  repoPath, repoColors, repoDisplayNames, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
+  repoIndex = 0, showRepoTag = false,
 }: AgentItemContentProps) {
   return (
     <>
@@ -245,15 +312,35 @@ function AgentItemContent({
       <div className="flex-1 min-w-0">
         {/* Line 1: branch name, PR number, timestamp */}
         <div className="flex items-center gap-2">
-          <span className={[
-            "text-sm truncate",
-            isSelected ? "text-text-primary" : "text-text-secondary",
-            needsAttention(effectiveStatus)
-              ? "font-semibold"
-              : "font-normal",
-          ].join(" ")}>
-            {worktree.branch || worktree.name}
-          </span>
+          {isEditing ? (
+            <InlineLabelInput
+              initialValue={displayLabel}
+              onCommit={onCommitEdit}
+              onCancel={onCancelEdit}
+              className={[
+                "text-sm min-w-0 flex-1",
+                isSelected ? "text-text-primary" : "text-text-secondary",
+                needsAttention(effectiveStatus) ? "font-semibold" : "font-normal",
+              ].join(" ")}
+            />
+          ) : (
+            <span
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onStartEdit();
+              }}
+              className={[
+                "text-sm truncate",
+                isSelected ? "text-text-primary" : "text-text-secondary",
+                needsAttention(effectiveStatus)
+                  ? "font-semibold"
+                  : "font-normal",
+              ].join(" ")}
+            >
+              {displayLabel}
+            </span>
+          )}
           {worktree.prStatus && (
             <span className="text-xs text-text-tertiary flex-shrink-0">#{worktree.prStatus.number}</span>
           )}
@@ -409,10 +496,26 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
 
 const AgentItem = memo(function AgentItem({
   worktree, isSelected, isPinned, isDimmed, onClick, onDelete, onArchive,
-  repoPath, repoColors, repoDisplayNames, repoIndex = 0, showRepoTag = false,
+  repoPath, repoColors, repoDisplayNames, label, onRename, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFromOpen, setCreateFromOpen] = useState(false);
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const displayLabel = label ?? worktree.branch ?? worktree.name;
+  const handleStartEdit = () => setIsEditingLabel(true);
+  const handleCancelEdit = () => setIsEditingLabel(false);
+  const handleCommitEdit = (next: string) => {
+    setIsEditingLabel(false);
+    if (!onRename) return;
+    const trimmed = next.trim();
+    const branchName = worktree.branch ?? worktree.name;
+    if (trimmed === "" || trimmed === branchName) {
+      if (label != null) onRename(worktree.path, null);
+      return;
+    }
+    if (trimmed === label) return;
+    onRename(worktree.path, trimmed);
+  };
   const deleteConfirmRef = useRef<HTMLButtonElement>(null);
   const { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
   const markUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
@@ -463,54 +566,69 @@ const AgentItem = memo(function AgentItem({
     }
   };
 
+  const rowClassName = isDragging
+    ? "w-full pointer-events-none mx-3.5 my-1 rounded-md border border-dashed border-accent-primary/30 bg-accent-muted/[0.04]"
+    : [
+        "w-full text-left py-2 px-3.5 flex items-start gap-2",
+        "transition-all duration-[var(--transition-fast)]",
+        isEditingLabel ? "cursor-default" : "cursor-grab",
+        getBorderClass(effectiveStatus, isUnread),
+        isSelected
+          ? "bg-[rgba(255,255,255,0.07)]"
+          : "hover:bg-[rgba(255,255,255,0.035)]",
+        isDimmed && !isSelected
+          ? "opacity-45 hover:opacity-70"
+          : "",
+      ].join(" ");
+  const rowStyle = { transform: CSS.Transform.toString(transform), transition };
+  const rowContent = isDragging ? (
+    <div className="h-10" />
+  ) : (
+    <AgentItemContent
+      worktree={worktree}
+      effectiveStatus={effectiveStatus}
+      isSelected={isSelected}
+      isPinned={isPinned}
+      shouldPulse={shouldPulse}
+      isServerRunning={isServerRunning}
+      serverPort={serverPort}
+      prSummary={prSummary}
+      repoPath={repoPath}
+      repoColors={repoColors}
+      repoDisplayNames={repoDisplayNames}
+      displayLabel={displayLabel}
+      isEditing={isEditingLabel}
+      onStartEdit={handleStartEdit}
+      onCommitEdit={handleCommitEdit}
+      onCancelEdit={handleCancelEdit}
+      repoIndex={repoIndex}
+      showRepoTag={showRepoTag}
+    />
+  );
+
   return (
     <>
       <ContextMenu>
         <ContextMenuTrigger asChild>
+          {isEditingLabel ? (
+            // While editing, render a div so the nested <input> is valid HTML
+            // and dnd-kit listeners / row onClick are suspended.
+            <div ref={setNodeRef} style={rowStyle} className={rowClassName}>
+              {rowContent}
+            </div>
+          ) : (
           <button
             ref={setNodeRef}
             type="button"
             onClick={onClick}
             {...attributes}
             {...listeners}
-            style={{ transform: CSS.Transform.toString(transform), transition }}
-            className={[
-              isDragging
-                ? "w-full pointer-events-none mx-3.5 my-1 rounded-md border border-dashed border-accent-primary/30 bg-accent-muted/[0.04]"
-                : [
-                    "w-full text-left py-2 px-3.5 flex items-start gap-2",
-                    "transition-all duration-[var(--transition-fast)]",
-                    "cursor-grab",
-                    getBorderClass(effectiveStatus, isUnread),
-                    isSelected
-                      ? "bg-[rgba(255,255,255,0.07)]"
-                      : "hover:bg-[rgba(255,255,255,0.035)]",
-                    isDimmed && !isSelected
-                      ? "opacity-45 hover:opacity-70"
-                      : "",
-                  ].join(" "),
-            ].join(" ")}
+            style={rowStyle}
+            className={rowClassName}
           >
-            {isDragging ? (
-              <div className="h-10" />
-            ) : (
-            <AgentItemContent
-              worktree={worktree}
-              effectiveStatus={effectiveStatus}
-              isSelected={isSelected}
-              isPinned={isPinned}
-              shouldPulse={shouldPulse}
-              isServerRunning={isServerRunning}
-              serverPort={serverPort}
-              prSummary={prSummary}
-              repoPath={repoPath}
-              repoColors={repoColors}
-              repoDisplayNames={repoDisplayNames}
-              repoIndex={repoIndex}
-              showRepoTag={showRepoTag}
-            />
-            )}
+            {rowContent}
           </button>
+          )}
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuSub>

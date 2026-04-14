@@ -65,8 +65,10 @@ function AppShell() {
     selectedRepos,
     repoColors,
     repoDisplayNames,
+    worktreeLabels,
     toggleRepo,
     setRepoDisplayName,
+    setWorktreeLabel,
     config,
     updateConfig,
   } = useAppConfig();
@@ -235,7 +237,9 @@ function AppShell() {
             onToggleRepo={toggleRepo}
             repoColors={repoColors ?? {}}
             repoDisplayNames={repoDisplayNames ?? {}}
+            worktreeLabels={worktreeLabels ?? {}}
             onSetRepoDisplayName={setRepoDisplayName}
+            onSetWorktreeLabel={setWorktreeLabel}
             onCheckForUpdates={updater.checkNow}
             checkingForUpdates={updater.checking}
             upToDate={updater.upToDate}

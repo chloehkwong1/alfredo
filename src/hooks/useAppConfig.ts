@@ -9,6 +9,7 @@ import {
   setSelectedRepos as setSelectedReposApi,
   setDisplayName as setDisplayNameApi,
   setRepoDisplayName as setRepoDisplayNameApi,
+  setWorktreeLabel as setWorktreeLabelApi,
 } from "../api";
 import type { GlobalAppConfig, RepoMode } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -142,6 +143,11 @@ export function useAppConfig() {
     setConfig(updated);
   }, []);
 
+  const setWorktreeLabel = useCallback(async (worktreePath: string, label: string | null) => {
+    const updated = await setWorktreeLabelApi(worktreePath, label);
+    setConfig(updated);
+  }, []);
+
   return {
     config,
     loading,
@@ -159,8 +165,10 @@ export function useAppConfig() {
     displayName: config?.displayName ?? null,
     repoColors: config?.repoColors ?? {},
     repoDisplayNames: config?.repoDisplayNames ?? {},
+    worktreeLabels: config?.worktreeLabels ?? {},
     toggleRepo,
     setWorkspaceName,
     setRepoDisplayName,
+    setWorktreeLabel,
   } as const;
 }

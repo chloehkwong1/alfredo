@@ -169,6 +169,7 @@ function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingF
           displayName: null,
           repoColors: {},
           repoDisplayNames: {},
+          worktreeLabels: {},
           preferredEditor: "vscode",
           customEditorPath: null,
           preferredTerminal: "iterm",
