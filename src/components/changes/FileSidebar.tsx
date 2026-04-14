@@ -136,6 +136,8 @@ function FileSidebar({
     return counts;
   }, [prComments]);
   const filterInputRef = useRef<HTMLInputElement>(null);
+  const firstCommitRef = useRef<HTMLButtonElement>(null);
+  const pendingCommitFocusRef = useRef(false);
 
   // Cmd+F focuses the filter input when this component is visible
   useEffect(() => {
@@ -164,6 +166,19 @@ function FileSidebar({
   useEffect(() => {
     setFilter("");
   }, [viewMode]);
+
+  // Arm a latch when entering commits view; the next effect consumes it once
+  // commits are loaded. This avoids refocusing when new commits arrive later.
+  useEffect(() => {
+    pendingCommitFocusRef.current = viewMode === "commits";
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (pendingCommitFocusRef.current && commits.length > 0) {
+      firstCommitRef.current?.focus();
+      pendingCommitFocusRef.current = false;
+    }
+  }, [commits.length, viewMode]);
 
   const filterFile = useCallback(
     (file: DiffFile) =>
@@ -265,7 +280,7 @@ function FileSidebar({
 
       {viewMode === "commits" ? (
         <>
-          {filteredCommits.map((commit) => {
+          {filteredCommits.map((commit, displayIndex) => {
             const subject = commit.message.split("\n")[0];
             const originalIndex = commits.indexOf(commit);
             const isSelected = selectedCommitIndex === originalIndex;
@@ -275,6 +290,7 @@ function FileSidebar({
             return (
               <button
                 key={commit.hash}
+                ref={displayIndex === 0 ? firstCommitRef : undefined}
                 onClick={() => onSelectCommit(originalIndex)}
                 onDoubleClick={() => onDoubleClickCommit?.(originalIndex)}
                 className={[
