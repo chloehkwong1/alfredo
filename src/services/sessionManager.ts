@@ -11,6 +11,7 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
 import { loadTerminalPreferences } from "./terminalPreferences";
 import type { TerminalPreferences } from "./terminalPreferences";
+import { computeStaleBusy } from "../hooks/usePty";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -20,6 +21,21 @@ const AGENT_TYPE_MAP: Record<string, string> = {
   codex: "codex",
   gemini: "geminiCli",
 };
+
+// ── Reconciler tuning ─────────────────────────────────────────
+
+/** How often the global reconciler walks all sessions. */
+const RECONCILE_INTERVAL_MS = 500;
+
+/** idle → busy: fire when state has been idle for this long and output is flowing. */
+const STALE_IDLE_GRACE_MS = 3_000;
+/** idle → busy: output must have landed within this window to qualify as "actively flowing". */
+const ACTIVE_OUTPUT_MS = 2_000;
+
+/** busy → idle: require no hook event for at least this long. */
+const STALE_HOOK_MS = 60_000;
+/** busy → idle: require no PTY output for at least this long. */
+const STALE_OUTPUT_IDLE_MS = 10_000;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -346,6 +362,70 @@ function createSessionChannel(
 export class SessionManager {
   private sessions = new Map<string, ManagedSession>();
 
+  private reconcileTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** Start the global reconciler if not already running. Idempotent. */
+  private startReconciler(): void {
+    if (this.reconcileTimer !== null) return;
+    this.reconcileTimer = setInterval(() => this.reconcileAll(), RECONCILE_INTERVAL_MS);
+  }
+
+  /** Stop the global reconciler. Called from closeAll when the session map empties. */
+  private stopReconciler(): void {
+    if (this.reconcileTimer === null) return;
+    clearInterval(this.reconcileTimer);
+    this.reconcileTimer = null;
+  }
+
+  private reconcileAll(): void {
+    const now = Date.now();
+    const store = useWorkspaceStore.getState();
+
+    for (const [sessionKey, session] of this.sessions.entries()) {
+      if (!session.hooksActive) continue;
+      if (session.ptyExited) continue;
+      const worktreeId = sessionKey.split(":")[0];
+
+      // ── idle → busy reconciliation ──────────────────────────
+      if (
+        session.agentState === "idle"
+        && session.stateChangedAt > 0
+        && now - session.stateChangedAt > STALE_IDLE_GRACE_MS
+        && session.lastOutputAt > session.stateChangedAt
+        && now - session.lastOutputAt < ACTIVE_OUTPUT_MS
+      ) {
+        console.debug(`[reconcile:${worktreeId}] idle → busy (output active, hooks silent for ${now - session.stateChangedAt}ms)`);
+        session.agentState = "busy";
+        session.stateChangedAt = now;
+        store.updateWorktree(worktreeId, { agentStatus: "busy" });
+        continue;
+      }
+
+      // ── busy → idle reconciliation ──────────────────────────
+      if (
+        session.agentState === "busy"
+        && session.lastHookAt > 0
+        && now - session.lastHookAt > STALE_HOOK_MS
+        && session.lastOutputAt > 0
+        && now - session.lastOutputAt > STALE_OUTPUT_IDLE_MS
+      ) {
+        console.debug(`[reconcile:${worktreeId}] busy → idle (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms)`);
+        session.agentState = "idle";
+        session.stateChangedAt = now;
+        store.updateWorktree(worktreeId, { agentStatus: "idle" });
+        continue;
+      }
+
+      // ── staleBusy display flag ──────────────────────────────
+      const alive = !session.sessionId || now - session.lastHeartbeat < 6000;
+      const staleBusy = computeStaleBusy(session.agentState, alive, session.lastOutputAt, now);
+      const current = store.worktrees.find((w) => w.id === worktreeId);
+      if (current && current.staleBusy !== staleBusy) {
+        store.updateWorktree(worktreeId, { staleBusy });
+      }
+    }
+  }
+
   /**
    * Return an existing session for the given key, or spawn a new one.
    * The channel callback is wired up immediately so agent-state events
@@ -460,6 +540,7 @@ export class SessionManager {
       useWorkspaceStore.getState().markWorktreeSeen(worktreeId);
     }
 
+    this.startReconciler();
     return session;
   }
 
@@ -598,6 +679,7 @@ export class SessionManager {
       useWorkspaceStore.getState().markWorktreeSeen(worktreeId);
     }
 
+    this.startReconciler();
     return session;
   }
 
@@ -655,6 +737,7 @@ export class SessionManager {
     }
 
     this.sessions.set(sessionKey, session);
+    this.startReconciler();
     return session;
   }
 
@@ -721,6 +804,7 @@ export class SessionManager {
   async closeAll(): Promise<void> {
     const ids = [...this.sessions.keys()];
     await Promise.allSettled(ids.map((id) => this.closeSession(id)));
+    this.stopReconciler();
   }
 
   // ── Internal helpers ───────────────────────────────────────────
