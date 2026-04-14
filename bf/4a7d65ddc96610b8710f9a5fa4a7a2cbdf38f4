@@ -1,0 +1,75 @@
+src-tauri/src/pty_manager.rs
+  2e3da1bde7b76a1d 638,643,648,653,706
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "bf4a7d65ddc96610b8710f9a5fa4a7a2cbdf38f4",
+  "prompts": {
+    "0039cab8cf5e3188": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d57bca1-7ffc-448c-8139-9d155aec2766",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 183,
+      "overriden_lines": 0
+    },
+    "2e3da1bde7b76a1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7d22a06-69b4-4624-95d6-005ef02577b9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 5,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "c63e334614f2ef93": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3be2c9fe-c9f3-4f88-a3da-b33fea958381",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1666,
+      "overriden_lines": 0
+    },
+    "ccd7498cf491e5ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e04f2f2-9612-48a9-a4fe-8c0687b0b34e",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 115,
+      "overriden_lines": 0
+    },
+    "f94106b8506432e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "548cb5fc-0c60-4e2c-8374-fa40f2673eda",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3211,
+      "overriden_lines": 0
+    }
+  }
+}
