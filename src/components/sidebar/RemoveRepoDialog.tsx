@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Button } from "../ui/Button";
 import {
   Dialog,
@@ -21,6 +22,8 @@ function RemoveRepoDialog({
   repoName,
   onConfirm,
 }: RemoveRepoDialogProps) {
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
   function handleConfirm() {
     onConfirm();
     onOpenChange(false);
@@ -28,7 +31,13 @@ function RemoveRepoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[420px]">
+      <DialogContent
+        className="w-[420px]"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          confirmRef.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Remove repository</DialogTitle>
           <DialogDescription>
@@ -40,6 +49,7 @@ function RemoveRepoDialog({
             Cancel
           </Button>
           <button
+            ref={confirmRef}
             type="button"
             className="inline-flex items-center justify-center font-medium h-8 px-3 text-sm gap-2 rounded-[var(--radius-md)] bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
             onClick={handleConfirm}

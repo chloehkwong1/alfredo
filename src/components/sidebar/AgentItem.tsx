@@ -413,6 +413,7 @@ const AgentItem = memo(function AgentItem({
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFromOpen, setCreateFromOpen] = useState(false);
+  const deleteConfirmRef = useRef<HTMLButtonElement>(null);
   const { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
   const markUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
   const markRead = useWorkspaceStore((s) => s.markWorktreeRead);
@@ -603,7 +604,13 @@ const AgentItem = memo(function AgentItem({
       </ContextMenu>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="w-[420px]">
+        <DialogContent
+          className="w-[420px]"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            deleteConfirmRef.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Delete worktree</DialogTitle>
             <DialogDescription>
@@ -615,6 +622,7 @@ const AgentItem = memo(function AgentItem({
               Cancel
             </Button>
             <Button
+              ref={deleteConfirmRef}
               variant="danger"
               onClick={() => {
                 setDeleteDialogOpen(false);

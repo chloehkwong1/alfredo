@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GitBranch, PanelLeftClose, PanelLeftOpen, Trash2 } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
@@ -131,6 +131,8 @@ function WorkspacePanel({
   // ── Discard state ──────────────────────────────────────────
   const [discardTarget, setDiscardTarget] = useState<{ path: string; status: string } | null>(null);
   const [showDiscardAllDialog, setShowDiscardAllDialog] = useState(false);
+  const discardConfirmRef = useRef<HTMLButtonElement>(null);
+  const discardAllConfirmRef = useRef<HTMLButtonElement>(null);
 
   const handleDiscardFile = useCallback((path: string, status: string) => {
     setDiscardTarget({ path, status });
@@ -350,7 +352,12 @@ function WorkspacePanel({
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>
-        <DialogContent>
+        <DialogContent
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            discardConfirmRef.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Discard changes?</DialogTitle>
             <DialogDescription>
@@ -361,14 +368,19 @@ function WorkspacePanel({
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDiscardTarget(null)}>Cancel</Button>
-            <Button variant="danger" onClick={handleConfirmDiscard}>Discard</Button>
+            <Button ref={discardConfirmRef} variant="danger" onClick={handleConfirmDiscard}>Discard</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Discard all confirmation dialog */}
       <Dialog open={showDiscardAllDialog} onOpenChange={(open) => { if (!open) setShowDiscardAllDialog(false); }}>
-        <DialogContent>
+        <DialogContent
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            discardAllConfirmRef.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Discard all uncommitted changes?</DialogTitle>
             <DialogDescription>
@@ -377,7 +389,7 @@ function WorkspacePanel({
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowDiscardAllDialog(false)}>Cancel</Button>
-            <Button variant="danger" onClick={handleConfirmDiscardAll}>Discard All</Button>
+            <Button ref={discardAllConfirmRef} variant="danger" onClick={handleConfirmDiscardAll}>Discard All</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
