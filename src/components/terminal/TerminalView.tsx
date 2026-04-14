@@ -380,7 +380,11 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         {isAgentTab && (
           <TerminalLoadingScreen tabType={tabType} visible={!hasOutput} />
         )}
-        <div ref={containerRef} className="h-full pl-1 pr-0.5" />
+        <div
+          ref={containerRef}
+          className="h-full pl-1 pr-0.5"
+          onClick={() => ptyTerminal?.focus()}
+        />
         {showScrollToBottom && (
           <button
             onClick={handleScrollToBottom}
