@@ -51,8 +51,17 @@ export function stripCommentNoise(text: string): string {
  */
 export function stripToPlainText(text: string): string {
   let cleaned = stripCommentNoise(text);
-  // Strip all HTML tags
+  // Strip HTML tags, but preserve markdown code regions (fenced ``` blocks
+  // and inline `code` spans) so JSX-like snippets inside them survive.
+  const placeholders: string[] = [];
+  const stash = (match: string) => {
+    placeholders.push(match);
+    return `\u0000CODE${placeholders.length - 1}\u0000`;
+  };
+  cleaned = cleaned.replace(/```[\s\S]*?```/g, stash);
+  cleaned = cleaned.replace(/`[^`\n]*`/g, stash);
   cleaned = cleaned.replace(/<[^>]+>/g, "");
+  cleaned = cleaned.replace(/\u0000CODE(\d+)\u0000/g, (_, i) => placeholders[Number(i)]);
   // Collapse multiple blank lines into one
   cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
   return cleaned.trim();
