@@ -370,7 +370,7 @@ export class SessionManager {
     this.reconcileTimer = setInterval(() => this.reconcileAll(), RECONCILE_INTERVAL_MS);
   }
 
-  /** Stop the global reconciler. Called from closeAll when the session map empties. */
+  /** Stop the global reconciler. Called from closeAll and from closeSession when the session map empties. */
   private stopReconciler(): void {
     if (this.reconcileTimer === null) return;
     clearInterval(this.reconcileTimer);
@@ -419,9 +419,9 @@ export class SessionManager {
       // ── staleBusy display flag ──────────────────────────────
       const alive = !session.sessionId || now - session.lastHeartbeat < 6000;
       const staleBusy = computeStaleBusy(session.agentState, alive, session.lastOutputAt, now);
-      const current = store.worktrees.find((w) => w.id === worktreeId);
+      const current = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
       if (current && current.staleBusy !== staleBusy) {
-        store.updateWorktree(worktreeId, { staleBusy });
+        useWorkspaceStore.getState().updateWorktree(worktreeId, { staleBusy });
       }
     }
   }
@@ -792,6 +792,7 @@ export class SessionManager {
       .updateWorktree(worktreeId, { agentStatus: "notRunning" });
 
     this.sessions.delete(sessionKey);
+    if (this.sessions.size === 0) this.stopReconciler();
     try {
       await closePty(session.sessionId);
     } catch {
