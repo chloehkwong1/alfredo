@@ -828,7 +828,7 @@ fn write_gemini_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> 
             "hooks": [{
                 "type": "command",
                 "command": format!(
-                    "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
+                    "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
                 )
             }]
         })
@@ -889,7 +889,7 @@ fn write_codex_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
             "hooks": [{
                 "type": "command",
                 "command": format!(
-                    "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
+                    "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
                 )
             }]
         })
