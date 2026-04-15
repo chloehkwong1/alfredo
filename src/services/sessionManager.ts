@@ -481,6 +481,12 @@ export class SessionManager {
     args?: string[],
     sessionType?: SessionType,
   ): Promise<ManagedSession> {
+    const prefix = sessionKey.split(":", 1)[0];
+    if (prefix && prefix !== worktreeId) {
+      console.warn(
+        `[sessionManager] getOrSpawn prefix mismatch: sessionKey=${sessionKey} worktreeId=${worktreeId} worktreePath=${worktreePath} mode=${mode} sessionType=${sessionType}`,
+      );
+    }
     const existing = this.sessions.get(sessionKey);
     if (existing) {
       // Scrollback-only session (no PTY yet) — spawn a PTY for it

@@ -151,11 +151,20 @@ export const useTabStore = create<TabState>((set, get) => ({
       activeTabId: { ...state.activeTabId, [worktreeId]: tabId },
     })),
 
-  restoreTabs: (worktreeId, tabs, activeTabId) =>
+  restoreTabs: (worktreeId, tabs, activeTabId) => {
+    for (const t of tabs) {
+      const prefix = t.id.split(":", 1)[0];
+      if (prefix && prefix !== worktreeId) {
+        console.warn(
+          `[tabStore] restoreTabs prefix mismatch: worktree=${worktreeId} tab.id=${t.id}`,
+        );
+      }
+    }
     set((state) => ({
       tabs: { ...state.tabs, [worktreeId]: tabs },
       activeTabId: { ...state.activeTabId, [worktreeId]: activeTabId },
-    })),
+    }));
+  },
 
   addDisconnectedTab: (tabId) =>
     set((state) => ({
