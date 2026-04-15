@@ -21,11 +21,9 @@ interface NotificationSettingsProps {
   onChange: (config: NotificationConfig) => void;
   debugMode?: boolean;
   onDebugModeChange?: (v: boolean) => void;
-  receiveBetaUpdates?: boolean;
-  onReceiveBetaUpdatesChange?: (v: boolean) => void;
 }
 
-function NotificationSettings({ config, onChange, debugMode, onDebugModeChange, receiveBetaUpdates, onReceiveBetaUpdatesChange }: NotificationSettingsProps) {
+function NotificationSettings({ config, onChange, debugMode, onDebugModeChange }: NotificationSettingsProps) {
   const [permissionState, setPermissionState] = useState<
     "granted" | "denied" | "default" | "unsupported"
   >("default");
@@ -105,20 +103,6 @@ function NotificationSettings({ config, onChange, debugMode, onDebugModeChange, 
           Browser notifications are not supported in this environment.
         </p>
       )}
-
-      {/* Beta updates */}
-      <div className="flex items-center justify-between py-2 mt-5 pt-5 border-t border-border-default">
-        <div>
-          <span className="text-[13px] text-text-secondary">Receive beta updates</span>
-          <p className="text-xs text-text-tertiary mt-0.5">
-            Get pre-release builds for testing. You will stay on beta until a stable release catches up — turning this off does not downgrade you. Takes effect on next app launch.
-          </p>
-        </div>
-        <Toggle
-          checked={receiveBetaUpdates ?? false}
-          onChange={(v) => onReceiveBetaUpdatesChange?.(v)}
-        />
-      </div>
 
       {/* Notification triggers */}
       {config.enabled && (

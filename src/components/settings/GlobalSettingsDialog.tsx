@@ -3,6 +3,7 @@ import type { AppConfig, GlobalAppConfig, TabType } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig } from "../../api";
 import { Button } from "../ui/Button";
 import { Dialog, DialogContent } from "../ui/Dialog";
+import { Toggle } from "../ui/Toggle";
 import { AgentSettings } from "./AgentSettings";
 import { CommentChipsSettings } from "./CommentChipsSettings";
 import { GithubSettings } from "./GithubSettings";
@@ -349,6 +350,18 @@ function GlobalSettingsDialog({
 
                 <SectionTitle>Updates</SectionTitle>
                 <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} upToDate={upToDate} />
+                <div className="flex items-start justify-between gap-4 mt-4">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-text-primary">Receive beta updates</div>
+                    <p className="text-xs text-text-tertiary mt-[5px]">
+                      Get pre-release builds for testing. You will stay on beta until a stable release catches up — turning this off does not downgrade you. Takes effect on next app launch.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={appConfig.receiveBetaUpdates ?? false}
+                    onChange={(v) => updateAppConfig({ receiveBetaUpdates: v })}
+                  />
+                </div>
 
                 <SectionTitle>Diff View</SectionTitle>
                 <Field label="Default diff view" hint="Applied when a worktree has no explicit view mode set.">
@@ -416,8 +429,6 @@ function GlobalSettingsDialog({
                 onChange={(notifications) => updateAppConfig({ notifications })}
                 debugMode={appConfig.debugMode ?? false}
                 onDebugModeChange={(debugMode) => updateAppConfig({ debugMode })}
-                receiveBetaUpdates={appConfig.receiveBetaUpdates ?? false}
-                onReceiveBetaUpdatesChange={(receiveBetaUpdates) => updateAppConfig({ receiveBetaUpdates })}
               />
             )}
 
