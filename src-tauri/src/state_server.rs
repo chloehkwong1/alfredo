@@ -50,6 +50,7 @@ impl StateServerHandle {
             eprintln!("[state-server] registry lock poisoned in register_channel");
             return;
         };
+        eprintln!("[state-server] register session={session_id} worktree={worktree_id} (total={})", reg.channels.len() + 1);
         reg.channels.insert(session_id.clone(), channel);
         reg.worktree_sessions
             .entry(worktree_id)
@@ -72,6 +73,7 @@ impl StateServerHandle {
             eprintln!("[state-server] registry lock poisoned in unregister_channel");
             return;
         };
+        eprintln!("[state-server] unregister session={session_id} worktree={worktree_id} (remaining={})", reg.channels.len().saturating_sub(1));
         reg.channels.remove(session_id);
         if let Some(ids) = reg.worktree_sessions.get_mut(worktree_id) {
             ids.retain(|id| id != session_id);
@@ -200,6 +202,11 @@ async fn handle_state_update(
                 "[state-server] failed to send state to session {session_id}: {e}"
             );
         }
+    } else {
+        eprintln!(
+            "[state-server] hook dropped: no channel for session {session_id} (state={state:?}, registered={})",
+            reg.channels.len()
+        );
     }
     StatusCode::OK
 }

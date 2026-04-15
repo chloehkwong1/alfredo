@@ -8,6 +8,7 @@ import type { AgentState, AgentType, NotifyReason, SessionType } from "../types"
 import { sendNotification, playSoundById, requestDockBounce } from "../hooks/notificationUtils";
 import { spawnPty, closePty, createPtyChannel, resizePty, writePty, getAppConfig, reattachPty } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useSessionStatusStore } from "../stores/sessionStatusStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
 import { loadTerminalPreferences } from "./terminalPreferences";
 import type { TerminalPreferences } from "./terminalPreferences";
@@ -31,6 +32,10 @@ const RECONCILE_INTERVAL_MS = 500;
 const STALE_HOOK_MS = 60_000;
 /** busy → idle: require no PTY output for at least this long. */
 const STALE_OUTPUT_IDLE_MS = 10_000;
+/** Debounce window for idle from Stop/StopFailure hooks.
+ *  Subagent Stop fires idle before PostToolUse fires busy on the parent.
+ *  Hold the idle and discard it if a non-idle hook arrives within this window. */
+const IDLE_DEBOUNCE_MS = 300;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -111,6 +116,11 @@ export interface ManagedSession {
    *  global reconciler to distinguish "hook channel silent" from "hook channel
    *  flowing but state is stuck". Zero until the first hook event arrives. */
   lastHookAt: number;
+  /** Debounce timer for idle transitions from Stop/StopFailure hooks.
+   *  Subagent Stop hooks fire idle before the parent's PostToolUse fires busy,
+   *  causing a false idle flash. We hold the idle for a short window and discard
+   *  it if a non-idle hook arrives in time. */
+  pendingIdleTimer: ReturnType<typeof setTimeout> | null;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
 }
@@ -244,7 +254,7 @@ async function fireHookNotification(
   requestDockBounce();
 }
 
-export function shouldAcceptDetectorState(hooksActive: boolean): boolean {
+export function shouldAcceptDetectorState(hooksActive: boolean, lastHookAt: number): boolean {
   // Hooks are the sole source of truth once active. Every state is covered:
   //   idle            → Stop, Notification(idle_prompt)
   //   busy            → PreToolUse, PostToolUse, UserPromptSubmit
@@ -258,7 +268,13 @@ export function shouldAcceptDetectorState(hooksActive: boolean): boolean {
   //
   // The detector remains authoritative for agents without hook support
   // (Codex, Aider, Gemini CLI).
-  return !hooksActive;
+  //
+  // Safety net: if hooks have been silent for 60s+, re-enable the detector
+  // as a fallback. This prevents permanent stuck state when hooks stop
+  // arriving (e.g. settings.local.json overwritten, channel lost).
+  if (!hooksActive) return true;
+  if (lastHookAt > 0 && Date.now() - lastHookAt > STALE_HOOK_MS) return true;
+  return false;
 }
 
 /**
@@ -270,6 +286,7 @@ function createSessionChannel(
   sessionManager: SessionManager,
   session: ManagedSession,
   worktreeId: string,
+  sessionKey: string,
 ): ReturnType<typeof createPtyChannel> {
   return createPtyChannel((event) => {
     switch (event.event) {
@@ -308,18 +325,51 @@ function createSessionChannel(
         break;
       }
       case "hookAgentState": {
-        const { state, notify } = event.data;
+        const { state, notify, phase } = event.data;
         session.lastHookAt = Date.now();
         session.hooksActive = true;
+
+        // Cancel any pending debounced idle — a new hook event supersedes it.
+        if (session.pendingIdleTimer !== null) {
+          clearTimeout(session.pendingIdleTimer);
+          session.pendingIdleTimer = null;
+        }
+
         if (state === "notRunning" && session.sessionId) {
           session.ptyExited = true;
         }
+
+        // Debounce idle from Stop/StopFailure (phase=turnEnd).
+        // Subagent Stop hooks fire idle before the parent's PostToolUse or
+        // SubagentStop fires busy, causing a false idle window. Hold the idle
+        // briefly and discard it if a non-idle hook arrives in time.
+        if (state === "idle" && phase === "turnEnd") {
+          console.debug(`[status:${worktreeId}] hook → idle (turnEnd, debouncing ${IDLE_DEBOUNCE_MS}ms)`);
+          session.pendingIdleTimer = setTimeout(() => {
+            session.pendingIdleTimer = null;
+            session.agentState = "idle";
+            stateSourceMap.set(worktreeId, "hook");
+            useWorkspaceStore
+              .getState()
+              .updateWorktree(worktreeId, { agentStatus: "idle" });
+            useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
+            if (notify !== "none") {
+              const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
+              if (wt) {
+                fireHookNotification(wt.branch, notify);
+              }
+            }
+          }, IDLE_DEBOUNCE_MS);
+          break;
+        }
+
         console.debug(`[status:${worktreeId}] hook → ${state}${notify !== "none" ? ` (notify: ${notify})` : ""}`);
         session.agentState = state;
         stateSourceMap.set(worktreeId, "hook");
         useWorkspaceStore
           .getState()
           .updateWorktree(worktreeId, { agentStatus: state });
+        useSessionStatusStore.getState().setSessionStatus(sessionKey, state);
 
         // Fire notification directly from hook event
         if (notify !== "none") {
@@ -331,16 +381,22 @@ function createSessionChannel(
         break;
       }
       case "agentState": {
-        if (!shouldAcceptDetectorState(session.hooksActive)) {
+        if (!shouldAcceptDetectorState(session.hooksActive, session.lastHookAt)) {
           console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
           break;
         }
-        console.debug(`[status:${worktreeId}] detector → ${event.data}`);
+        const fallback = session.hooksActive;
+        if (fallback) {
+          console.debug(`[status:${worktreeId}] detector → ${event.data} (fallback: hooks silent ${Date.now() - session.lastHookAt}ms)`);
+        } else {
+          console.debug(`[status:${worktreeId}] detector → ${event.data}`);
+        }
         session.agentState = event.data;
         stateSourceMap.set(worktreeId, "detector");
         useWorkspaceStore
           .getState()
           .updateWorktree(worktreeId, { agentStatus: event.data });
+        useSessionStatusStore.getState().setSessionStatus(sessionKey, event.data);
         break;
       }
     }
@@ -392,6 +448,7 @@ export class SessionManager {
         console.debug(`[reconcile:${worktreeId}] busy → idle (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms)`);
         session.agentState = "idle";
         store.updateWorktree(worktreeId, { agentStatus: "idle" });
+        useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
         continue;
       }
 
@@ -439,6 +496,7 @@ export class SessionManager {
       useWorkspaceStore
         .getState()
         .updateWorktree(worktreeId, { agentStatus: "notRunning" });
+      useSessionStatusStore.getState().clearSessionStatus(sessionKey);
       existing.terminal.dispose();
       this.sessions.delete(sessionKey);
     }
@@ -478,10 +536,11 @@ export class SessionManager {
       startupCommandSent: false,
       allowNextClearScrollback: false,
       lastHookAt: 0,
+      pendingIdleTimer: null,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
-    const channel = createSessionChannel(this, session, worktreeId);
+    const channel = createSessionChannel(this, session, worktreeId, sessionKey);
 
     const agentType = AGENT_TYPE_MAP[mode] as AgentType | undefined;
 
@@ -517,6 +576,7 @@ export class SessionManager {
         .updateWorktree(worktreeId, { agentStatus: session.agentState });
       useWorkspaceStore.getState().markWorktreeSeen(worktreeId);
     }
+    useSessionStatusStore.getState().setSessionStatus(sessionKey, session.agentState);
 
     this.startReconciler();
     return session;
@@ -583,9 +643,11 @@ export class SessionManager {
       startupCommandSent: false,
       allowNextClearScrollback: false,
       lastHookAt: 0,
+      pendingIdleTimer: null,
     };
 
     this.sessions.set(sessionKey, session);
+    useSessionStatusStore.getState().setSessionStatus(sessionKey, "notRunning");
     return session;
   }
 
@@ -609,7 +671,7 @@ export class SessionManager {
     // content doesn't persist above the new prompt.
     session.terminal.clear();
 
-    const channel = createSessionChannel(this, session, worktreeId);
+    const channel = createSessionChannel(this, session, worktreeId, sessionKey);
 
     const agentType = AGENT_TYPE_MAP[mode] as AgentType | undefined;
 
@@ -628,6 +690,7 @@ export class SessionManager {
       // Spawn failed — remove session so it doesn't get stuck as scrollback-only
       session.terminal.dispose();
       this.sessions.delete(sessionKey);
+      useSessionStatusStore.getState().clearSessionStatus(sessionKey);
       throw e;
     }
     session.sessionId = sessionId;
@@ -655,6 +718,7 @@ export class SessionManager {
         .updateWorktree(worktreeId, { agentStatus: session.agentState });
       useWorkspaceStore.getState().markWorktreeSeen(worktreeId);
     }
+    useSessionStatusStore.getState().setSessionStatus(sessionKey, session.agentState);
 
     this.startReconciler();
     return session;
@@ -701,9 +765,10 @@ export class SessionManager {
       startupCommandSent: true,
       allowNextClearScrollback: false,
       lastHookAt: 0,
+      pendingIdleTimer: null,
     };
 
-    const channel = createSessionChannel(this, session, worktreeId);
+    const channel = createSessionChannel(this, session, worktreeId, sessionKey);
 
     const returnedWorktreeId = await reattachPty(sessionId, channel);
     if (returnedWorktreeId !== worktreeId) {
@@ -713,6 +778,7 @@ export class SessionManager {
     }
 
     this.sessions.set(sessionKey, session);
+    useSessionStatusStore.getState().setSessionStatus(sessionKey, session.agentState);
     this.startReconciler();
     return session;
   }
@@ -739,6 +805,10 @@ export class SessionManager {
     }
     session.sessionId = "";
     session.ptyExited = false;
+    if (session.pendingIdleTimer !== null) {
+      clearTimeout(session.pendingIdleTimer);
+      session.pendingIdleTimer = null;
+    }
 
     // Reset session state so a subsequent spawnForExisting starts clean.
     // Without this, stale hooksActive=true would permanently reject detector events.
@@ -750,12 +820,20 @@ export class SessionManager {
     useWorkspaceStore
       .getState()
       .updateWorktree(worktreeId, { agentStatus: "notRunning" });
+    // Intentionally kept as "notRunning" (not cleared): the session still exists,
+    // just without a PTY, so the tab dot should stay visible.
+    useSessionStatusStore.getState().setSessionStatus(sessionKey, "notRunning");
   }
 
   /** Close a single PTY session and dispose its terminal. */
   async closeSession(sessionKey: string): Promise<void> {
     const session = this.sessions.get(sessionKey);
     if (!session) return;
+
+    if (session.pendingIdleTimer !== null) {
+      clearTimeout(session.pendingIdleTimer);
+      session.pendingIdleTimer = null;
+    }
 
     // Clean up remote-control state for this worktree
     const worktreeId = sessionKey.split(":")[0];
@@ -766,6 +844,7 @@ export class SessionManager {
     useWorkspaceStore
       .getState()
       .updateWorktree(worktreeId, { agentStatus: "notRunning" });
+    useSessionStatusStore.getState().clearSessionStatus(sessionKey);
 
     this.sessions.delete(sessionKey);
     if (this.sessions.size === 0) this.stopReconciler();

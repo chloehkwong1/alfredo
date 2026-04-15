@@ -48,11 +48,18 @@ import {
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { useSessionStatusStore } from "../../stores/sessionStatusStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { isAgentTab } from "../../types";
-import type { TabType, WorkspaceTab } from "../../types";
+import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
+
+const SESSION_STATUS_DOT: Partial<Record<AgentState, { cls: string; label: string; pulse?: boolean }>> = {
+  busy: { cls: "bg-status-busy", label: "Thinking" },
+  idle: { cls: "bg-status-idle", label: "Idle" },
+  waitingForInput: { cls: "bg-accent-primary", label: "Waiting for input", pulse: true },
+};
 
 // ── Cross-pane drag state (module-level pub/sub) ──
 interface CrossPaneDrag {
@@ -137,6 +144,8 @@ function SortableTab({
   };
 
   const Icon = TAB_ICONS[tab.type];
+  const sessionStatus = useSessionStatusStore((s) => s.statuses[tab.id]);
+  const statusDot = isAgentTab(tab) && sessionStatus ? SESSION_STATUS_DOT[sessionStatus] : undefined;
   const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
   const setActiveTabId = useTabStore((s) => s.setActiveTabId);
@@ -176,6 +185,17 @@ function SortableTab({
         >
           <Icon size={14} />
           <span title={tab.label} className={["max-w-[180px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{tab.label}</span>
+          {statusDot && (
+            <span
+              aria-label={statusDot.label}
+              title={statusDot.label}
+              className={[
+                "h-1.5 w-1.5 rounded-full flex-shrink-0",
+                statusDot.cls,
+                statusDot.pulse ? "animate-pulse-dot" : "",
+              ].join(" ")}
+            />
+          )}
           <button
             type="button"
             tabIndex={effectiveCanClose ? 0 : -1}
