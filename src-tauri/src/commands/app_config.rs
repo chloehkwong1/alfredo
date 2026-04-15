@@ -116,6 +116,15 @@ pub async fn set_worktree_label(app: AppHandle, worktree_path: String, label: Op
 }
 
 #[tauri::command]
+pub async fn set_comment_chips(app: AppHandle, chips: Vec<String>) -> Result<GlobalAppConfig, AppError> {
+    let dir = app_data_dir(&app)?;
+    let mut config = app_config_manager::load(&dir).await?;
+    config.comment_chips = chips;
+    app_config_manager::save(&dir, &config).await?;
+    Ok(config)
+}
+
+#[tauri::command]
 pub async fn set_repo_color(app: AppHandle, repo_path: String, color: String) -> Result<GlobalAppConfig, AppError> {
     let dir = app_data_dir(&app)?;
     let mut config = app_config_manager::load(&dir).await?;

@@ -102,15 +102,31 @@ function SplitDiffBody({
               return (
                 <div className="flex">
                   <div className="flex-1 min-w-0 overflow-x-auto split-left-col" onScroll={syncSplitScroll}>
-                    {pairedRows.map((row, rowIndex) => (
-                      <SplitSideContent
-                        key={rowIndex}
-                        side={row.left}
-                        filePath={file.path}
-                        align="left"
-                        searchQuery={searchQuery}
-                      />
-                    ))}
+                    {pairedRows.map((row, rowIndex) => {
+                      const side: DiffSide = "old";
+                      const lineNumber = row.left?.lineNumber ?? null;
+                      const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
+                      const lineAnnotations = annotationKey !== null ? (annotationsByLine.get(annotationKey) ?? []) : [];
+                      return (
+                        <div key={rowIndex}>
+                          <SplitSideContent
+                            side={row.left}
+                            filePath={file.path}
+                            align="left"
+                            onClickLine={lineNumber !== null ? (ln) => onAddAnnotation(file.path, ln, side) : undefined}
+                            searchQuery={searchQuery}
+                          />
+                          {lineAnnotations.map((ann) => (
+                            <AnnotationBubble
+                              key={ann.id}
+                              annotation={ann}
+                              onDelete={onDeleteAnnotation}
+                              onEdit={onEditAnnotation}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                   <div className="w-px bg-border-default flex-shrink-0" />
                   <div className="flex-1 min-w-0 overflow-x-auto split-right-col" onScroll={syncSplitScroll}>

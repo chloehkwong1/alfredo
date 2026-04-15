@@ -43,6 +43,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             archive_after_days: Some(2),
             delete_after_days: None,
             debug_mode: None,
+            comment_chips: vec![],
         });
     }
 
@@ -177,6 +178,7 @@ pub async fn migrate_if_needed(
         archive_after_days: Some(2),
         delete_after_days: None,
         debug_mode: None,
+        comment_chips: vec![],
     };
 
     save(app_data_dir, &global).await?;
@@ -232,6 +234,7 @@ mod tests {
             archive_after_days: Some(2),
             delete_after_days: None,
             debug_mode: None,
+            comment_chips: vec![],
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -275,6 +278,7 @@ mod tests {
             archive_after_days: Some(2),
             delete_after_days: None,
             debug_mode: None,
+            comment_chips: vec![],
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -315,9 +319,36 @@ mod tests {
             archive_after_days: Some(2),
             delete_after_days: None,
             debug_mode: None,
+            comment_chips: vec![],
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);
         assert_eq!(config.active_repo, Some("/tmp/b".into()));
+    }
+
+    #[tokio::test]
+    async fn test_comment_chips_round_trip_preserves_order() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let path = config_path(dir.path());
+        tokio::fs::create_dir_all(dir.path()).await?;
+        let json = serde_json::json!({
+            "commentChips": ["fix this", "explain", "add tests"]
+        });
+        tokio::fs::write(&path, serde_json::to_string_pretty(&json)?).await?;
+        let loaded = load(dir.path()).await?;
+        assert_eq!(loaded.comment_chips, vec!["fix this", "explain", "add tests"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_comment_chips_missing_defaults_to_empty() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let path = config_path(dir.path());
+        tokio::fs::create_dir_all(dir.path()).await?;
+        // No commentChips field at all — serde(default) should give empty vec.
+        tokio::fs::write(&path, "{}").await?;
+        let loaded = load(dir.path()).await?;
+        assert!(loaded.comment_chips.is_empty());
+        Ok(())
     }
 }

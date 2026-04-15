@@ -1,16 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppConfig, GlobalAppConfig, TabType } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig } from "../../api";
 import { Button } from "../ui/Button";
 import { Dialog, DialogContent } from "../ui/Dialog";
 import { AgentSettings } from "./AgentSettings";
+import { CommentChipsSettings } from "./CommentChipsSettings";
 import { GithubSettings } from "./GithubSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { DEFAULT_NOTIFICATION_CONFIG } from "./notificationConfig";
 import { TerminalSettings } from "./TerminalSettings";
 import { ThemeSelector } from "./ThemeSelector";
 
-type GlobalTab = "general" | "terminal" | "agent" | "notifications" | "integrations";
+type GlobalTab =
+  | "general"
+  | "terminal"
+  | "agent"
+  | "notifications"
+  | "integrations"
+  | "comment-chips";
 
 const TABS: { id: GlobalTab; label: string }[] = [
   { id: "general", label: "General" },
@@ -18,6 +25,7 @@ const TABS: { id: GlobalTab; label: string }[] = [
   { id: "agent", label: "Agent" },
   { id: "notifications", label: "Notifications" },
   { id: "integrations", label: "Integrations" },
+  { id: "comment-chips", label: "Comment Chips" },
 ];
 
 const EDITOR_OPTIONS = [
@@ -85,6 +93,9 @@ interface GlobalSettingsDialogProps {
   onCheckForUpdates?: () => Promise<void>;
   checkingForUpdates?: boolean;
   upToDate?: boolean;
+  initialSection?: GlobalTab | null;
+  initialFocusIndex?: number | null;
+  onDeepLinkConsumed?: () => void;
 }
 
 function CheckForUpdatesButton({ onCheck, checking, upToDate }: { onCheck?: () => Promise<void>; checking?: boolean; upToDate?: boolean }) {
@@ -109,8 +120,35 @@ function applyTheme(theme: string) {
   }
 }
 
-function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingForUpdates, upToDate }: GlobalSettingsDialogProps) {
+function GlobalSettingsDialog({
+  open,
+  onOpenChange,
+  onCheckForUpdates,
+  checkingForUpdates,
+  upToDate,
+  initialSection,
+  initialFocusIndex,
+  onDeepLinkConsumed,
+}: GlobalSettingsDialogProps) {
   const [tab, setTab] = useState<GlobalTab>("general");
+  const [chipFocusIndex, setChipFocusIndex] = useState<number | null>(null);
+  const commentChipsSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // Deep-link: when dialog opens with an initialSection, switch tab + scroll + focus
+  useEffect(() => {
+    if (!open || !initialSection) return;
+    setTab(initialSection);
+    if (initialSection === "comment-chips") {
+      requestAnimationFrame(() => {
+        commentChipsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (typeof initialFocusIndex === "number") {
+          setChipFocusIndex(initialFocusIndex);
+        }
+      });
+    }
+    onDeepLinkConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialSection, initialFocusIndex]);
   // Per-repo config — only used for GitHub token and Linear API key
   const [repoConfig, setRepoConfig] = useState<AppConfig | null>(null);
   // App-level config — theme, notifications, agent defaults, external tools
@@ -228,6 +266,7 @@ function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingF
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[680px] p-0 overflow-hidden">
+        <form onSubmit={(e) => { e.preventDefault(); if (dirty && !saving) handleSave(); }}>
         <div className="flex h-[500px]">
           {/* Tab rail — spans full height */}
           <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 py-5 px-3 border-r border-border-default bg-bg-primary">
@@ -380,6 +419,15 @@ function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingF
               />
             )}
 
+            {tab === "comment-chips" && (
+              <div ref={commentChipsSectionRef}>
+                <CommentChipsSettings
+                  focusIndex={chipFocusIndex}
+                  onFocusConsumed={() => setChipFocusIndex(null)}
+                />
+              </div>
+            )}
+
             {tab === "integrations" && (
               <GithubSettings
                 repoPath={effectiveRepoPath}
@@ -393,18 +441,19 @@ function GlobalSettingsDialog({ open, onOpenChange, onCheckForUpdates, checkingF
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-border-default">
-          {tab === "terminal" ? (
+          {tab === "terminal" || tab === "comment-chips" ? (
             <p className="text-xs text-text-tertiary mr-auto">Changes apply immediately</p>
           ) : null}
-          <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
             {dirty ? "Cancel" : "Close"}
           </Button>
-          {tab !== "terminal" && (
-            <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
+          {tab !== "terminal" && tab !== "comment-chips" && (
+            <Button type="submit" size="sm" disabled={!dirty || saving}>
               {saving ? "Saving..." : "Save"}
             </Button>
           )}
         </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

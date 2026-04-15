@@ -10,6 +10,7 @@ import {
   setDisplayName as setDisplayNameApi,
   setRepoDisplayName as setRepoDisplayNameApi,
   setWorktreeLabel as setWorktreeLabelApi,
+  setCommentChips as setCommentChipsApi,
 } from "../api";
 import type { GlobalAppConfig, RepoMode } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -148,6 +149,12 @@ export function useAppConfig() {
     setConfig(updated);
   }, []);
 
+  const setCommentChips = useCallback(async (chips: string[]) => {
+    const updated = await setCommentChipsApi(chips);
+    setConfig(updated);
+    window.dispatchEvent(new Event("config-changed"));
+  }, []);
+
   return {
     config,
     loading,
@@ -170,5 +177,6 @@ export function useAppConfig() {
     setWorkspaceName,
     setRepoDisplayName,
     setWorktreeLabel,
+    setCommentChips,
   } as const;
 }

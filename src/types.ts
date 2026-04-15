@@ -399,6 +399,8 @@ export interface GlobalAppConfig {
   deleteAfterDays?: number;
   /** Show diagnostic info in notifications (state source, hook name). */
   debugMode?: boolean;
+  /** Reusable quick-insert prompts for diff comment chips. */
+  commentChips?: string[];
 }
 
 // ── Inline annotation ────────────────────────────────────────────

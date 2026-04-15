@@ -451,6 +451,8 @@ pub struct GlobalAppConfig {
     pub delete_after_days: Option<u32>,
     #[serde(default)]
     pub debug_mode: Option<bool>,
+    #[serde(default)]
+    pub comment_chips: Vec<String>,
 }
 
 fn default_editor() -> String { "vscode".into() }

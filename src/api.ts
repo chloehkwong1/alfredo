@@ -411,6 +411,10 @@ export function setWorktreeLabel(worktreePath: string, label: string | null): Pr
   return invoke<GlobalAppConfig>("set_worktree_label", { worktreePath, label });
 }
 
+export function setCommentChips(chips: string[]): Promise<GlobalAppConfig> {
+  return invoke<GlobalAppConfig>("set_comment_chips", { chips });
+}
+
 // ── External Tools ─────────────────────────────────────────────
 
 // ── Claude Session ─────────────────────────────────────────────

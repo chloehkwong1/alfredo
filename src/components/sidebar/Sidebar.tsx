@@ -209,6 +209,26 @@ function Sidebar({
   }, []);
 
   const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
+  const [settingsInitialSection, setSettingsInitialSection] = useState<
+    "general" | "terminal" | "agent" | "notifications" | "integrations" | "comment-chips" | null
+  >(null);
+  const [settingsInitialFocusIndex, setSettingsInitialFocusIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ section?: string; focusIndex?: number }>;
+      const section = ce.detail?.section;
+      if (section === "comment-chips") {
+        setSettingsInitialSection("comment-chips");
+        setSettingsInitialFocusIndex(
+          typeof ce.detail?.focusIndex === "number" ? ce.detail.focusIndex : null,
+        );
+        setGlobalSettingsOpen(true);
+      }
+    };
+    window.addEventListener("open-global-settings", handler);
+    return () => window.removeEventListener("open-global-settings", handler);
+  }, []);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
@@ -380,10 +400,23 @@ function Sidebar({
       {/* Dialogs */}
       <GlobalSettingsDialog
         open={globalSettingsOpen}
-        onOpenChange={setGlobalSettingsOpen}
+        onOpenChange={(open) => {
+          setGlobalSettingsOpen(open);
+          if (!open) {
+            setSettingsInitialSection(null);
+            setSettingsInitialFocusIndex(null);
+          }
+        }}
         onCheckForUpdates={onCheckForUpdates}
         checkingForUpdates={checkingForUpdates}
         upToDate={upToDate}
+        initialSection={settingsInitialSection}
+        initialFocusIndex={settingsInitialFocusIndex}
+        onDeepLinkConsumed={() => {
+          // Keep focusIndex around until CommentChipsSettings consumes it
+          // but clear section so re-opening manually doesn't re-trigger.
+          setSettingsInitialSection(null);
+        }}
       />
       <ShortcutsOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <WorkspaceSettingsDialog

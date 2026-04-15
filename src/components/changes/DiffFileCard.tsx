@@ -248,6 +248,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
         {expanded && hasBeenVisible && activeAnnotationLine?.filePath === file.path && (
           <div className="sticky bottom-0 z-20">
             <AnnotationInput
+              filePath={file.path}
+              lineNumber={activeAnnotationLine.lineNumber}
               onSubmit={(text) =>
                 onSubmitAnnotation(
                   file.path,
