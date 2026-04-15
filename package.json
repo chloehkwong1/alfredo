@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "promote-beta": "node scripts/promote-beta.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
