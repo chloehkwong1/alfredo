@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { check, type Update, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type UpdateStatus = "idle" | "available" | "downloading" | "ready";
 
@@ -18,12 +19,23 @@ export interface UpdateState {
   checkNow: () => Promise<void>;
 }
 
+interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  body: string | null;
+}
+
+interface ProgressPayload {
+  chunkLength: number;
+  contentLength: number | null;
+}
+
 export function useUpdater(): UpdateState {
   const [status, setStatus] = useState<UpdateStatus>("idle");
   const [version, setVersion] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [dismissed, setDismissed] = useState(false);
-  const [updateObj, setUpdateObj] = useState<Update | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<{ version: string } | null>(null);
   const [checking, setChecking] = useState(false);
   const [upToDate, setUpToDate] = useState(false);
   const checkingRef = useRef(false);
@@ -34,14 +46,14 @@ export function useUpdater(): UpdateState {
     checkingRef.current = true;
     setChecking(true);
     try {
-      const result = await check();
+      const result = await invoke<UpdateInfo | null>("check_for_update_filtered");
       if (!result) {
         setUpToDate(true);
         clearTimeout(upToDateTimer.current);
         upToDateTimer.current = setTimeout(() => setUpToDate(false), 4000);
         return;
       }
-      setUpdateObj(result);
+      setPendingUpdate({ version: result.version });
       setVersion(result.version);
       setStatus("available");
       setDismissed(false);
@@ -62,37 +74,50 @@ export function useUpdater(): UpdateState {
   }, [checkForUpdate, status]);
 
   const update = useCallback(async () => {
-    if (!updateObj) return;
+    if (!pendingUpdate) return;
     setStatus("downloading");
     setProgress(0);
 
     let totalBytes: number | undefined;
     let downloaded = 0;
+    const unlisteners: UnlistenFn[] = [];
 
     try {
-      await updateObj.downloadAndInstall((event: DownloadEvent) => {
-        if (event.event === "Started") {
-          totalBytes = event.data.contentLength;
-        } else if (event.event === "Progress") {
-          downloaded += event.data.chunkLength;
+      const unlistenProgress = await listen<ProgressPayload>(
+        "updater://progress",
+        (event) => {
+          const { chunkLength, contentLength } = event.payload;
+          if (totalBytes === undefined && contentLength != null) {
+            totalBytes = contentLength;
+          }
+          downloaded += chunkLength;
           if (totalBytes) {
             setProgress(Math.min(Math.round((downloaded / totalBytes) * 100), 100));
           }
-        } else if (event.event === "Finished") {
-          setProgress(100);
         }
+      );
+      unlisteners.push(unlistenProgress);
+
+      const unlistenFinished = await listen("updater://finished", () => {
+        setProgress(100);
       });
+      unlisteners.push(unlistenFinished);
+
+      await invoke("install_pending_update");
+
+      unlisteners.forEach((fn) => fn());
       setStatus("ready");
       await relaunch();
     } catch (e) {
       console.error("[updater] update/relaunch failed:", e);
+      unlisteners.forEach((fn) => fn());
       // If download succeeded but relaunch failed, stay on "ready" so user can retry restart
       // If download failed, fall back to "available" for retry
       if (status === "ready") return;
       setStatus("available");
       setProgress(0);
     }
-  }, [updateObj]);
+  }, [pendingUpdate, status]);
 
   const restart = useCallback(async () => {
     try {

@@ -187,6 +187,15 @@ pub async fn migrate_if_needed(
     Ok(Some(global))
 }
 
+/// Synchronous, best-effort read of `app.json` for use before the Tauri
+/// app handle is available. Returns `None` on any error.
+pub fn load_sync_best_effort() -> Option<GlobalAppConfig> {
+    let app_data = dirs::data_dir()?.join("com.alfredo.app");
+    let path = app_data.join("app.json");
+    let contents = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str::<GlobalAppConfig>(&contents).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

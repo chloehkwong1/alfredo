@@ -19,7 +19,18 @@ mod types;
 
 use tauri::{Manager, RunEvent};
 
-use commands::{agents, app_config, app_detection, branch, checks, config, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, worktree};
+fn updater_endpoint_urls(receive_beta: bool) -> Vec<url::Url> {
+    const STABLE: &str =
+        "https://github.com/chloehkwong1/alfredo/releases/latest/download/latest.json";
+    const BETA: &str =
+        "https://github.com/chloehkwong1/alfredo/releases/download/beta-latest/latest.json";
+    let list: &[&str] = if receive_beta { &[BETA, STABLE] } else { &[STABLE] };
+    list.iter()
+        .filter_map(|s| url::Url::parse(s).ok())
+        .collect()
+}
+
+use commands::{agents, app_config, app_detection, branch, checks, config, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -37,6 +48,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(PtyManager::new())
         .manage(std::sync::Arc::new(SleepInhibitor::new()))
+        .manage(updater_cmds::PendingUpdate::default())
         .manage(SyncState {
             repo_paths: std::sync::Mutex::new(Vec::new()),
             active_branches: std::sync::Mutex::new(std::collections::HashSet::new()),
@@ -166,6 +178,9 @@ pub fn run() {
             // Git ops
             git_ops::git_merge,
             git_ops::git_push_force_with_lease,
+            // Updater
+            updater_cmds::check_for_update_filtered,
+            updater_cmds::install_pending_update,
         ])
         .build(tauri::generate_context!())
         .unwrap_or_else(|e| {
@@ -181,4 +196,24 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod updater_endpoint_tests {
+    use super::updater_endpoint_urls;
+
+    #[test]
+    fn stable_users_get_only_stable_endpoint() {
+        let endpoints = updater_endpoint_urls(false);
+        assert_eq!(endpoints.len(), 1);
+        assert!(endpoints[0].as_str().contains("/releases/latest/download/"));
+    }
+
+    #[test]
+    fn beta_users_get_beta_first_with_stable_fallback() {
+        let endpoints = updater_endpoint_urls(true);
+        assert_eq!(endpoints.len(), 2);
+        assert!(endpoints[0].as_str().contains("/beta-latest/"));
+        assert!(endpoints[1].as_str().contains("/releases/latest/download/"));
+    }
 }
