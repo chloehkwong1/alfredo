@@ -416,6 +416,8 @@ function GlobalSettingsDialog({
                 onChange={(notifications) => updateAppConfig({ notifications })}
                 debugMode={appConfig.debugMode ?? false}
                 onDebugModeChange={(debugMode) => updateAppConfig({ debugMode })}
+                receiveBetaUpdates={appConfig.receiveBetaUpdates ?? false}
+                onReceiveBetaUpdatesChange={(receiveBetaUpdates) => updateAppConfig({ receiveBetaUpdates })}
               />
             )}
 
