@@ -281,7 +281,17 @@ fn classify_claude_code(line: &str) -> (Option<AgentType>, Option<AgentState>) {
         return (None, None);
     }
 
-    // If we see substantial output, agent is busy
+    // If we see substantial output, agent is busy.
+    //
+    // LANDMINE: this `len > 3` heuristic is loose — `is_status_bar` only
+    // catches three patterns (`ctx:`, `(Opus|Sonnet|Haiku) | …`, `tokens | …`)
+    // and plenty of Claude Code chrome leaks through (progress glyphs, cost
+    // displays, focus repaints). Today this is harmless because hooks are
+    // authoritative and `shouldAcceptDetectorState` locks the detector out
+    // for ClaudeCode once any hook has fired. Do NOT relax that lockout
+    // without first replacing this classifier — see the regression note in
+    // sessionManager.ts (`reconcileAll`) for the bug that lives down that
+    // path.
     if line.len() > 3 {
         return (None, Some(AgentState::Busy));
     }

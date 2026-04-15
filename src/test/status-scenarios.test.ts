@@ -139,18 +139,21 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     restoredFromScrollback: false,
     startupCommandSent: false,
     allowNextClearScrollback: false,
-    stateChangedAt: now - 5_000,
     lastHookAt: now - 5_000,
     ...overrides,
   };
 }
 
 describe("SessionManager.reconcileAll", () => {
-  it("flips stale idle → busy when hooks went silent but output is flowing", () => {
+  it("does NOT flip idle → busy on stray output (status-bar redraws, focus echoes)", () => {
+    // Regression: a previous reconciler flipped state back to busy whenever
+    // any PTY bytes arrived after a Stop hook. Claude Code's status bar and
+    // focus repaints emitted exactly such bytes, permanently re-sticking the
+    // worktree in busy on every click.
     const mgr = new SessionManager();
     const session = makeFakeSession({
       agentState: "idle",
-      stateChangedAt: Date.now() - 5_000,
+      lastHookAt: Date.now() - 5_000,
       lastOutputAt: Date.now() - 500,
     });
     (mgr as any).sessions.set("wt-abc:main", session);
@@ -160,15 +163,14 @@ describe("SessionManager.reconcileAll", () => {
 
     (mgr as any).reconcileAll();
 
-    expect(session.agentState).toBe("busy");
-    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("busy");
+    expect(session.agentState).toBe("idle");
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("idle");
   });
 
   it("flips stale busy → idle when neither hooks nor output have arrived for the thresholds", () => {
     const mgr = new SessionManager();
     const session = makeFakeSession({
       agentState: "busy",
-      stateChangedAt: Date.now() - 120_000,
       lastHookAt: Date.now() - 120_000,
       lastOutputAt: Date.now() - 30_000,
     });
@@ -183,11 +185,30 @@ describe("SessionManager.reconcileAll", () => {
     expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("idle");
   });
 
+  it("does NOT flip busy → idle when output is still flowing (long-running tool)", () => {
+    // Pins the STALE_OUTPUT_IDLE_MS guard: hooks may have gone silent for
+    // 60s+ during a long-running tool that streams output, but recent output
+    // means the agent is still working — don't reconcile to idle.
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      lastHookAt: Date.now() - 120_000,
+      lastOutputAt: Date.now() - 1_000,
+    });
+    (mgr as any).sessions.set("wt-streaming:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-streaming", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.agentState).toBe("busy");
+  });
+
   it("does NOT flip busy → idle while hooks are still arriving (e.g. during tool use)", () => {
     const mgr = new SessionManager();
     const session = makeFakeSession({
       agentState: "busy",
-      stateChangedAt: Date.now() - 120_000,
       lastHookAt: Date.now() - 2_000,
       lastOutputAt: Date.now() - 30_000,
     });
@@ -206,7 +227,6 @@ describe("SessionManager.reconcileAll", () => {
     const session = makeFakeSession({
       hooksActive: false,
       agentState: "idle",
-      stateChangedAt: Date.now() - 5_000,
       lastOutputAt: Date.now() - 500,
     });
     (mgr as any).sessions.set("wt-codex:main", session);

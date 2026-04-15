@@ -27,11 +27,6 @@ const AGENT_TYPE_MAP: Record<string, string> = {
 /** How often the global reconciler walks all sessions. */
 const RECONCILE_INTERVAL_MS = 500;
 
-/** idle → busy: fire when state has been idle for this long and output is flowing. */
-const STALE_IDLE_GRACE_MS = 3_000;
-/** idle → busy: output must have landed within this window to qualify as "actively flowing". */
-const ACTIVE_OUTPUT_MS = 2_000;
-
 /** busy → idle: require no hook event for at least this long. */
 const STALE_HOOK_MS = 60_000;
 /** busy → idle: require no PTY output for at least this long. */
@@ -112,9 +107,6 @@ export interface ManagedSession {
   /** When true, the next ESC[3J in PTY output is passed through to xterm instead
    *  of being stripped. Set when the user explicitly sends /clear. */
   allowNextClearScrollback: boolean;
-  /** Timestamp of the last agentState change. Used to detect stale idle state
-   *  when hooks go silent but the PTY is still producing output. */
-  stateChangedAt: number;
   /** Timestamp of the most recent hook event received from Rust. Used by the
    *  global reconciler to distinguish "hook channel silent" from "hook channel
    *  flowing but state is stuck". Zero until the first hook event arrives. */
@@ -323,7 +315,6 @@ function createSessionChannel(
           session.ptyExited = true;
         }
         console.debug(`[status:${worktreeId}] hook → ${state}${notify !== "none" ? ` (notify: ${notify})` : ""}`);
-        if (session.agentState !== state) session.stateChangedAt = Date.now();
         session.agentState = state;
         stateSourceMap.set(worktreeId, "hook");
         useWorkspaceStore
@@ -345,7 +336,6 @@ function createSessionChannel(
           break;
         }
         console.debug(`[status:${worktreeId}] detector → ${event.data}`);
-        if (session.agentState !== event.data) session.stateChangedAt = Date.now();
         session.agentState = event.data;
         stateSourceMap.set(worktreeId, "detector");
         useWorkspaceStore
@@ -386,22 +376,12 @@ export class SessionManager {
       if (session.ptyExited) continue;
       const worktreeId = sessionKey.split(":")[0];
 
-      // ── idle → busy reconciliation ──────────────────────────
-      if (
-        session.agentState === "idle"
-        && session.stateChangedAt > 0
-        && now - session.stateChangedAt > STALE_IDLE_GRACE_MS
-        && session.lastOutputAt > session.stateChangedAt
-        && now - session.lastOutputAt < ACTIVE_OUTPUT_MS
-      ) {
-        console.debug(`[reconcile:${worktreeId}] idle → busy (output active, hooks silent for ${now - session.stateChangedAt}ms)`);
-        session.agentState = "busy";
-        session.stateChangedAt = now;
-        store.updateWorktree(worktreeId, { agentStatus: "busy" });
-        continue;
-      }
-
       // ── busy → idle reconciliation ──────────────────────────
+      // The inverse (idle → busy on output bursts) used to live here. It
+      // treated every byte of PTY output as evidence the agent was working,
+      // which broke on Claude Code's status-bar redraws and focus-echo
+      // bytes — flipping the worktree back to busy on every click. Removed
+      // in favour of trusting hooks; see shouldAcceptDetectorState.
       if (
         session.agentState === "busy"
         && session.lastHookAt > 0
@@ -411,7 +391,6 @@ export class SessionManager {
       ) {
         console.debug(`[reconcile:${worktreeId}] busy → idle (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms)`);
         session.agentState = "idle";
-        session.stateChangedAt = now;
         store.updateWorktree(worktreeId, { agentStatus: "idle" });
         continue;
       }
@@ -498,7 +477,6 @@ export class SessionManager {
       restoredFromScrollback: false,
       startupCommandSent: false,
       allowNextClearScrollback: false,
-      stateChangedAt: Date.now(),
       lastHookAt: 0,
     };
 
@@ -604,7 +582,6 @@ export class SessionManager {
       restoredFromScrollback: true,
       startupCommandSent: false,
       allowNextClearScrollback: false,
-      stateChangedAt: 0,
       lastHookAt: 0,
     };
 
@@ -723,7 +700,6 @@ export class SessionManager {
       restoredFromScrollback: false,
       startupCommandSent: true,
       allowNextClearScrollback: false,
-      stateChangedAt: Date.now(),
       lastHookAt: 0,
     };
 
