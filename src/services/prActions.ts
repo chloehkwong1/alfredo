@@ -40,8 +40,12 @@ export async function fixFailingChecks(
     .join("\n");
 
   const prompt =
-    `\nThe following CI checks are failing on this branch. Please investigate and fix:\n\n` +
-    `${checkList}\n`;
+    `\nThe following CI checks are failing on this branch:\n\n` +
+    `${checkList}\n\n` +
+    `Diagnose each one first:\n` +
+    `- If it looks transient (flaky test, timeout, infra/network error), rerun it with \`gh run rerun <id> --failed\`.\n` +
+    `- If it's a real failure (lint, type error, broken test, build error), read the logs with \`gh run view\` / \`gh run view --log-failed\`, find the root cause, propose the fix, and confirm with me before changing code.\n\n` +
+    `Do not blanket-fix. Triage first.\n`;
 
   return sendToAgent(worktreeId, repoPath, branch, prompt);
 }
@@ -57,8 +61,9 @@ export async function mergeAndFix(
   baseBranch: string,
 ): Promise<boolean> {
   const prompt =
-    `\nThis branch has a merge conflict with \`${baseBranch}\`.\n` +
-    `Please rebase this branch onto \`${baseBranch}\`, resolve any conflicts, and force-push with \`--force-with-lease\`.\n`;
+    `\nThis branch has a merge conflict with \`${baseBranch}\`.\n\n` +
+    `Rebase onto \`${baseBranch}\` and resolve conflicts. Only force-push with \`--force-with-lease\` if you are **certain** each conflict resolution is correct — i.e. you understand both sides of the conflict and the intended behavior.\n\n` +
+    `If any conflict is ambiguous (overlapping logic changes, unclear intent, renamed/moved code, or you'd be guessing), STOP and ask me before resolving. Do not push a guess.\n`;
 
   const sent = await sendToAgent(worktreeId, repoPath, branch, prompt);
   if (sent) focusAgentTab(worktreeId);
