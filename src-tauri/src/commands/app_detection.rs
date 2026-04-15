@@ -1,7 +1,6 @@
 use std::process::Command;
 use serde::Serialize;
 
-use crate::platform::augmented_path;
 use crate::types::AppError;
 
 #[derive(Debug, Clone, Serialize)]
@@ -107,8 +106,6 @@ pub fn open_in_app(app_id: String, path: String) -> Result<(), AppError> {
         return Err(AppError::Config(format!("Path does not exist: {path}")));
     }
 
-    let path_env = augmented_path();
-
     match app_id.as_str() {
         "finder" => {
             // Use `open -R` to reveal in Finder
@@ -118,9 +115,8 @@ pub fn open_in_app(app_id: String, path: String) -> Result<(), AppError> {
                 .map_err(|e| AppError::Config(format!("Failed to open Finder: {e}")))?;
         }
         "vscode" => {
-            Command::new("code")
-                .arg(&path)
-                .env("PATH", &path_env)
+            Command::new("open")
+                .args(["-a", "Visual Studio Code", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open VS Code: {e}")))?;
         }
