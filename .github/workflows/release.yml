@@ -55,5 +55,35 @@ jobs:
           releaseName: 'Alfredo ${{ github.ref_name }}'
           releaseBody: 'See the assets below to download and install.'
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-beta') }}
           args: ${{ matrix.args }}
+
+      - name: Update beta-latest pointer release
+        if: contains(github.ref_name, '-beta') && matrix.platform == 'ubuntu-22.04'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Download latest.json from the real beta release we just published.
+          gh release download "${{ github.ref_name }}" \
+            --pattern "latest.json" \
+            --clobber \
+            --dir /tmp/beta
+
+          # Force-move the beta-latest Git tag to the current commit.
+          git tag -f beta-latest "${GITHUB_SHA}"
+          git push origin beta-latest --force
+
+          # Create (or update) a GitHub release at beta-latest holding latest.json.
+          if gh release view beta-latest >/dev/null 2>&1; then
+            gh release upload beta-latest /tmp/beta/latest.json --clobber
+            gh release edit beta-latest \
+              --prerelease \
+              --notes "Updater pointer for the latest beta release. Real release: ${{ github.ref_name }}"
+          else
+            gh release create beta-latest /tmp/beta/latest.json \
+              --title "beta-latest" \
+              --prerelease \
+              --notes "Updater pointer for the latest beta release. Real release: ${{ github.ref_name }}"
+          fi
