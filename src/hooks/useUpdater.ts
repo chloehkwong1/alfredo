@@ -83,9 +83,8 @@ export function useUpdater(): UpdateState {
     const unlisteners: UnlistenFn[] = [];
 
     try {
-      const unlistenProgress = await listen<ProgressPayload>(
-        "updater://progress",
-        (event) => {
+      const [unlistenProgress, unlistenFinished] = await Promise.all([
+        listen<ProgressPayload>("updater://progress", (event) => {
           const { chunkLength, contentLength } = event.payload;
           if (totalBytes === undefined && contentLength != null) {
             totalBytes = contentLength;
@@ -94,14 +93,12 @@ export function useUpdater(): UpdateState {
           if (totalBytes) {
             setProgress(Math.min(Math.round((downloaded / totalBytes) * 100), 100));
           }
-        }
-      );
-      unlisteners.push(unlistenProgress);
-
-      const unlistenFinished = await listen("updater://finished", () => {
-        setProgress(100);
-      });
-      unlisteners.push(unlistenFinished);
+        }),
+        listen("updater://finished", () => {
+          setProgress(100);
+        }),
+      ]);
+      unlisteners.push(unlistenProgress, unlistenFinished);
 
       await invoke("install_pending_update");
 
