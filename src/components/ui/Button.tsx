@@ -26,10 +26,11 @@ const sizeClasses: Record<ButtonSize, string> = {
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = "primary", size = "md", className = "", children, ...props }, ref) => {
+  ({ variant = "primary", size = "md", className = "", type = "button", children, ...props }, ref) => {
     return (
       <button
         ref={ref}
+        type={type}
         className={[
           "inline-flex items-center justify-center font-medium",
           "transition-all duration-[var(--transition-fast)]",

@@ -345,6 +345,15 @@ function RepoSetupDialog({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="w-[600px] max-h-[90vh] overflow-y-auto">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (step === 1) {
+            if (mode === "branch") handleSave();
+            else setStep(2);
+          } else {
+            handleSave();
+          }
+        }}>
         <DialogHeader>
           <DialogTitle>Set up your workspace</DialogTitle>
           <DialogDescription>
@@ -683,11 +692,11 @@ function RepoSetupDialog({
                 {mode === "worktree" ? "Step 1 of 2" : ""}
               </span>
               {mode === "branch" ? (
-                <Button size="lg" onClick={handleSave}>
+                <Button type="submit" size="lg">
                   Save & open board
                 </Button>
               ) : (
-                <Button size="lg" onClick={() => setStep(2)}>
+                <Button type="submit" size="lg">
                   Next →
                 </Button>
               )}
@@ -704,13 +713,14 @@ function RepoSetupDialog({
               </button>
               <div className="flex items-center gap-3">
                 <span className="text-micro text-text-quaternary">Step 2 of 2</span>
-                <Button size="lg" onClick={handleSave}>
+                <Button type="submit" size="lg">
                   {hasDetectedWorktrees ? "Open board →" : "Save & create first worktree"}
                 </Button>
               </div>
             </>
           )}
         </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

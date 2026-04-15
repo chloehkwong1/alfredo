@@ -199,104 +199,107 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[540px]">
-        <div className="flex flex-col gap-6">
-          <DialogHeader className="!mb-0">
-            <DialogTitle>Create Worktree</DialogTitle>
-            <DialogDescription>
-              Create a new worktree from a branch, pull request, or Linear issue.
-            </DialogDescription>
-          </DialogHeader>
+        <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }}>
+          <div className="flex flex-col gap-6">
+            <DialogHeader className="!mb-0">
+              <DialogTitle>Create Worktree</DialogTitle>
+              <DialogDescription>
+                Create a new worktree from a branch, pull request, or Linear issue.
+              </DialogDescription>
+            </DialogHeader>
 
-          {repos && repos.length > 1 && repoColors && currentRepoPath && (
-            <RepoDropdown
-              repos={repos}
-              repoColors={repoColors}
-              value={currentRepoPath}
-              onChange={setCurrentRepoPath}
-            />
-          )}
+            {repos && repos.length > 1 && repoColors && currentRepoPath && (
+              <RepoDropdown
+                repos={repos}
+                repoColors={repoColors}
+                value={currentRepoPath}
+                onChange={setCurrentRepoPath}
+              />
+            )}
 
-          {/* Tab bar */}
-          <div className="flex gap-1 p-1 bg-bg-sidebar rounded-lg">
-            {tabDefs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={[
-                  "flex items-center gap-1.5 px-[14px] py-2 text-sm font-medium rounded-[6px]",
-                  "transition-all duration-[var(--transition-fast)] cursor-pointer",
-                  activeTab === tab.id
-                    ? "bg-bg-elevated text-text-primary shadow-sm border border-border-default"
-                    : "text-text-tertiary hover:text-text-secondary hover:bg-bg-hover border border-transparent",
-                ].join(" ")}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
+            {/* Tab bar */}
+            <div className="flex gap-1 p-1 bg-bg-sidebar rounded-lg">
+              {tabDefs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={[
+                    "flex items-center gap-1.5 px-[14px] py-2 text-sm font-medium rounded-[6px]",
+                    "transition-all duration-[var(--transition-fast)] cursor-pointer",
+                    activeTab === tab.id
+                      ? "bg-bg-elevated text-text-primary shadow-sm border border-border-default"
+                      : "text-text-tertiary hover:text-text-secondary hover:bg-bg-hover border border-transparent",
+                  ].join(" ")}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            <div className="min-h-[200px]">
+              {activeTab === "newBranch" && currentRepoPath && (
+                <NewBranchTab
+                  repoPath={currentRepoPath}
+                  branchName={branchName}
+                  baseBranch={baseBranch}
+                  onBranchNameChange={setBranchName}
+                  onBaseBranchChange={setBaseBranch}
+                  locked={!!lockedBaseBranch}
+                  open={open}
+                />
+              )}
+
+              {activeTab === "branches" && currentRepoPath && (
+                <BranchesTab
+                  repoPath={currentRepoPath}
+                  open={open}
+                  selectedBranch={selectedBranch}
+                  onSelectBranch={setSelectedBranch}
+                  newBranchName={existingBranchNewName}
+                  onNewBranchNameChange={setExistingBranchNewName}
+                />
+              )}
+
+              {activeTab === "pullRequests" && currentRepoPath && (
+                <PullRequestsTab
+                  repoPath={currentRepoPath}
+                  open={open}
+                  selectedPrNumber={selectedPrNumber}
+                  onSelectPr={setSelectedPrNumber}
+                />
+              )}
+
+              {activeTab === "linearIssues" && currentRepoPath && (
+                <LinearIssuesTab
+                  repoPath={currentRepoPath}
+                  open={open}
+                  selectedIssueId={selectedIssueId}
+                  onSelectIssue={setSelectedIssueId}
+                  baseBranch={baseBranch}
+                  onBaseBranchChange={setBaseBranch}
+                  lockedBaseBranch={!!lockedBaseBranch}
+                />
+              )}
+            </div>
+
+
           </div>
 
-          {/* Tab content */}
-          <div className="min-h-[200px]">
-            {activeTab === "newBranch" && currentRepoPath && (
-              <NewBranchTab
-                repoPath={currentRepoPath}
-                branchName={branchName}
-                baseBranch={baseBranch}
-                onBranchNameChange={setBranchName}
-                onBaseBranchChange={setBaseBranch}
-                locked={!!lockedBaseBranch}
-                open={open}
-              />
-            )}
-
-            {activeTab === "branches" && currentRepoPath && (
-              <BranchesTab
-                repoPath={currentRepoPath}
-                open={open}
-                selectedBranch={selectedBranch}
-                onSelectBranch={setSelectedBranch}
-                newBranchName={existingBranchNewName}
-                onNewBranchNameChange={setExistingBranchNewName}
-              />
-            )}
-
-            {activeTab === "pullRequests" && currentRepoPath && (
-              <PullRequestsTab
-                repoPath={currentRepoPath}
-                open={open}
-                selectedPrNumber={selectedPrNumber}
-                onSelectPr={setSelectedPrNumber}
-              />
-            )}
-
-            {activeTab === "linearIssues" && currentRepoPath && (
-              <LinearIssuesTab
-                repoPath={currentRepoPath}
-                open={open}
-                selectedIssueId={selectedIssueId}
-                onSelectIssue={setSelectedIssueId}
-                baseBranch={baseBranch}
-                onBaseBranchChange={setBaseBranch}
-                lockedBaseBranch={!!lockedBaseBranch}
-              />
-            )}
-          </div>
-
-
-        </div>
-
-        <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={!getSource()}
-          >
-            Create Worktree
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={!getSource()}
+            >
+              Create Worktree
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

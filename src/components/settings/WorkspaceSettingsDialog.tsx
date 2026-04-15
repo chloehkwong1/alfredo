@@ -193,6 +193,7 @@ function WorkspaceSettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[680px] p-0 overflow-hidden">
+        <form onSubmit={(e) => { e.preventDefault(); if (dirty && !saving) handleSave(); }}>
         {/* Header with repo selector */}
         <div className="px-6 pt-6 pb-4 border-b border-border-default">
           <h2 className="text-base font-semibold text-text-primary mb-3.5">Repository Settings</h2>
@@ -384,49 +385,20 @@ function WorkspaceSettingsDialog({
                     <p className="text-xs text-text-tertiary -mt-2 mb-3">
                       Run automatically when a new worktree is created.
                     </p>
-                    <div className="space-y-2">
-                      {config.setupScripts.map((script, index) => (
-                        <div key={index} className="flex gap-2">
-                          <textarea
-                            className={textareaClass + " flex-1"}
-                            rows={2}
-                            style={{ fieldSizing: "content" } as React.CSSProperties}
-                            placeholder="Command (e.g. npm install)"
-                            value={script.command}
-                            onChange={(e) => {
-                              const updated = config.setupScripts.map((s, i) =>
-                                i === index ? { ...s, command: e.target.value } : s,
-                              );
-                              updateConfig({ setupScripts: updated });
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className="text-text-quaternary hover:text-text-secondary text-xs px-1 self-start mt-2"
-                            onClick={() => {
-                              const updated = config.setupScripts.filter((_, i) => i !== index);
-                              updateConfig({ setupScripts: updated });
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        className="text-xs text-text-tertiary hover:text-text-secondary"
-                        onClick={() => {
-                          updateConfig({
-                            setupScripts: [
-                              ...config.setupScripts,
-                              { name: "Setup", command: "", runOn: "create" },
-                            ],
-                          });
-                        }}
-                      >
-                        + Add script
-                      </button>
-                    </div>
+                    <textarea
+                      className={textareaClass}
+                      rows={2}
+                      style={{ fieldSizing: "content" } as React.CSSProperties}
+                      placeholder="Command (e.g. npm install)"
+                      value={config.setupScripts[0]?.command ?? ""}
+                      onChange={(e) =>
+                        updateConfig({
+                          setupScripts: e.target.value.trim()
+                            ? [{ name: "Setup", command: e.target.value, runOn: "create" }]
+                            : [],
+                        })
+                      }
+                    />
                   </>
                 )}
 
@@ -481,13 +453,14 @@ function WorkspaceSettingsDialog({
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-border-default">
-          <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={!dirty || saving}>
+          <Button type="submit" size="sm" disabled={!dirty || saving}>
             {saving ? "Saving..." : "Save"}
           </Button>
         </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
