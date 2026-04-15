@@ -357,10 +357,12 @@ function GlobalSettingsDialog({
                       Get pre-release builds for testing. You will stay on beta until a stable release catches up — turning this off does not downgrade you. Takes effect on next app launch.
                     </p>
                   </div>
-                  <Toggle
-                    checked={appConfig.receiveBetaUpdates ?? false}
-                    onChange={(v) => updateAppConfig({ receiveBetaUpdates: v })}
-                  />
+                  <div className="shrink-0 pt-0.5">
+                    <Toggle
+                      checked={appConfig.receiveBetaUpdates ?? false}
+                      onChange={(v) => updateAppConfig({ receiveBetaUpdates: v })}
+                    />
+                  </div>
                 </div>
 
                 <SectionTitle>Diff View</SectionTitle>
