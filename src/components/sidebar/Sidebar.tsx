@@ -368,6 +368,10 @@ function Sidebar({
               >
                 Settings
               </button>
+              <span className="text-text-quaternary text-xs">·</span>
+              <span className="text-xs text-text-tertiary/70 tabular-nums">
+                v{__APP_VERSION__}
+              </span>
             </div>
           </div>
         )}
