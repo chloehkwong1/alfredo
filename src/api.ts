@@ -94,6 +94,13 @@ export function createWorktree(
   return invoke("create_worktree", { repoPath, branchName, baseBranch });
 }
 
+export function runSetupScripts(
+  repoPath: string,
+  worktreePath: string,
+): Promise<void> {
+  return invoke("run_setup_scripts", { repoPath, worktreePath });
+}
+
 export function deleteWorktree(
   repoPath: string,
   worktreeName: string,

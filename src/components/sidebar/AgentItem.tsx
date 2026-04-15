@@ -1,10 +1,10 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff } from "lucide-react";
+import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, setStackParent, getDefaultBranch } from "../../api";
+import { rebaseWorktree, setStackParent, getDefaultBranch, runSetupScripts } from "../../api";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp } from "../../api";
 import { CATEGORY_ICON } from "../ui/OpenInDropdown";
@@ -494,6 +494,87 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
   );
 }
 
+function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
+  const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
+  const [copied, setCopied] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
+
+  const error = worktree.setupScriptError ?? "";
+
+  const dismiss = () => updateWorktree(worktree.id, { setupScriptError: null });
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(error);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      console.error("Failed to copy setup script error:", e);
+    }
+  };
+
+  const handleRerun = async () => {
+    setRerunning(true);
+    try {
+      await runSetupScripts(worktree.repoPath, worktree.path);
+      updateWorktree(worktree.id, { setupScriptError: null });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      updateWorktree(worktree.id, { setupScriptError: msg });
+    } finally {
+      setRerunning(false);
+    }
+  };
+
+  return (
+    <div className="w-full text-left py-2 px-3.5 flex items-start gap-2 border-l-[3px] border-l-status-error">
+      <span className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-status-error" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm truncate text-text-primary font-medium">
+            {worktree.branch || worktree.name}
+          </span>
+          <button
+            type="button"
+            onClick={dismiss}
+            className="ml-auto flex-shrink-0 text-text-tertiary hover:text-text-secondary cursor-pointer"
+            title="Dismiss error (worktree stays)"
+          >
+            <X size={12} />
+          </button>
+        </div>
+        <div className="text-xs text-status-error mt-1 font-medium">Setup script failed</div>
+        <div className="text-2xs text-text-tertiary mt-0.5 line-clamp-3 break-all font-mono" title={error}>
+          {error}
+        </div>
+        <div className="flex gap-1.5 mt-1.5">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={`text-2xs px-2 py-0.5 rounded border inline-flex items-center gap-1 cursor-pointer transition-colors ${
+              copied
+                ? "text-status-idle border-status-idle/30"
+                : "text-text-secondary border-border-subtle hover:bg-white/5 hover:text-text-primary hover:border-border-hover"
+            }`}
+          >
+            {copied ? <Check size={10} /> : <Copy size={10} />}
+            {copied ? "Copied" : "Copy full error"}
+          </button>
+          <button
+            type="button"
+            onClick={handleRerun}
+            disabled={rerunning}
+            className="text-2xs px-2 py-0.5 rounded border border-border-subtle text-text-secondary hover:bg-white/5 hover:text-text-primary hover:border-border-hover inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw size={10} className={rerunning ? "animate-spin" : ""} />
+            {rerunning ? "Running…" : "Re-run setup"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const AgentItem = memo(function AgentItem({
   worktree, isSelected, isPinned, isDimmed, onClick, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, label, onRename, repoIndex = 0, showRepoTag = false,
@@ -541,6 +622,9 @@ const AgentItem = memo(function AgentItem({
   }
   if (worktree.createError) {
     return <CreateErrorItem worktree={worktree} />;
+  }
+  if (worktree.setupScriptError) {
+    return <SetupScriptErrorItem worktree={worktree} />;
   }
 
   const handleRebase = async () => {

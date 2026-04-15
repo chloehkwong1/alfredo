@@ -127,6 +127,9 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         stackParent: wt.stackParent !== undefined ? wt.stackParent : old.stackParent,
         stackChildren: wt.stackChildren !== undefined ? wt.stackChildren : old.stackChildren,
         stackRebaseStatus: wt.stackRebaseStatus !== undefined ? wt.stackRebaseStatus : old.stackRebaseStatus,
+        // Frontend-only: backend never persists setup script errors, so a
+        // refresh would otherwise clobber an unacknowledged error.
+        setupScriptError: old.setupScriptError,
       };
     }
     return wt;

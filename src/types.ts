@@ -76,6 +76,8 @@ export interface Worktree {
   stackParent?: string | null;
   stackChildren?: string[];
   stackRebaseStatus?: StackRebaseStatus | null;
+  /** Setup script error — worktree was created successfully but post-create scripts failed. */
+  setupScriptError?: string | null;
 }
 
 export type KanbanColumn =

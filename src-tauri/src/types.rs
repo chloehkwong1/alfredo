@@ -138,6 +138,10 @@ pub struct Worktree {
     pub stack_children: Vec<String>,
     #[serde(default)]
     pub stack_rebase_status: Option<StackRebaseStatus>,
+    /// Error from post-create setup scripts. The worktree itself was created
+    /// successfully; this surfaces script failure without failing the whole op.
+    #[serde(default)]
+    pub setup_script_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

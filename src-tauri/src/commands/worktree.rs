@@ -76,9 +76,18 @@ pub async fn create_worktree(
         .filter(|s| s.run_on == "create")
         .cloned()
         .collect();
-    if !create_scripts.is_empty() {
-        config_manager::run_setup_scripts(&path_str, &create_scripts).await?;
-    }
+    // Setup script failure is non-fatal: the worktree itself already exists and
+    // is usable. We surface the error on the returned Worktree so the UI can
+    // show it without pretending the whole creation failed (which would leave
+    // an orphaned worktree on disk and block retries).
+    let setup_script_error = if create_scripts.is_empty() {
+        None
+    } else {
+        match config_manager::run_setup_scripts(&path_str, &create_scripts).await {
+            Ok(()) => None,
+            Err(e) => Some(e.to_string()),
+        }
+    };
 
     // Use the sanitized directory name as the ID/name so it matches
     // what list_worktrees returns (git uses the dir name internally).
@@ -122,6 +131,7 @@ pub async fn create_worktree(
         stack_parent,
         stack_children: vec![],
         stack_rebase_status: None,
+        setup_script_error,
     })
 }
 
@@ -266,6 +276,7 @@ pub async fn get_worktree_status(
         stack_parent: None,
         stack_children: vec![],
         stack_rebase_status: None,
+        setup_script_error: None,
     })
 }
 
