@@ -119,7 +119,7 @@ pub fn open_in_app(app_id: String, path: String) -> Result<(), AppError> {
         }
         "vscode" => {
             Command::new("code")
-                .args(["--goto", &path])
+                .arg(&path)
                 .env("PATH", &path_env)
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open VS Code: {e}")))?;
