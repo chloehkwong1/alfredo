@@ -112,6 +112,10 @@ function SortableTab({
   worktreeId,
   paneId,
   onClose,
+  onCloseOthers,
+  onCloseToRight,
+  hasOthersToClose,
+  hasTabsToRightToClose,
   onSplit,
   onMoveToSibling,
   isSplit,
@@ -123,6 +127,10 @@ function SortableTab({
   worktreeId: string;
   paneId: string;
   onClose: (e: React.MouseEvent, tabId: string) => void;
+  onCloseOthers: (tabId: string) => void;
+  onCloseToRight: (tabId: string) => void;
+  hasOthersToClose: boolean;
+  hasTabsToRightToClose: boolean;
   onSplit: (tabId: string, direction: "horizontal" | "vertical") => void;
   onMoveToSibling: (tabId: string) => void;
   isSplit: boolean;
@@ -240,12 +248,28 @@ function SortableTab({
             Move to Other Pane
           </ContextMenuItem>
         )}
-        {effectiveCanClose && (
+        {(effectiveCanClose || hasOthersToClose || hasTabsToRightToClose) && (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem onSelect={(e) => onClose(e as unknown as React.MouseEvent, tab.id)}>
+            {effectiveCanClose && (
+              <ContextMenuItem onSelect={(e) => onClose(e as unknown as React.MouseEvent, tab.id)}>
+                <X size={14} />
+                Close Tab
+              </ContextMenuItem>
+            )}
+            <ContextMenuItem
+              disabled={!hasOthersToClose}
+              onSelect={() => onCloseOthers(tab.id)}
+            >
               <X size={14} />
-              Close Tab
+              Close Other Tabs
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={!hasTabsToRightToClose}
+              onSelect={() => onCloseToRight(tab.id)}
+            >
+              <X size={14} />
+              Close Tabs to the Right
             </ContextMenuItem>
           </>
         )}
@@ -295,6 +319,45 @@ function PaneTabBar({
   function handleCloseTab(e: React.MouseEvent | Event, tabId: string) {
     if ("stopPropagation" in e) e.stopPropagation();
     lifecycleManager.removeTab(worktreeId, tabId);
+  }
+
+  // Compute which tabIds in `candidates` are actually closable, preserving
+  // the invariant that at least one agent tab and one shell tab must remain
+  // in the worktree. Walks candidates in order and simulates removals.
+  function eligibleToClose(candidates: WorkspaceTab[]): string[] {
+    let remainingAgents = allAgentCount;
+    let remainingShells = allShellCount;
+    const result: string[] = [];
+    for (const t of candidates) {
+      if (isAgentTab(t)) {
+        if (remainingAgents <= 1) continue;
+        remainingAgents -= 1;
+      } else if (t.type === "shell") {
+        if (remainingShells <= 1) continue;
+        remainingShells -= 1;
+      }
+      result.push(t.id);
+    }
+    return result;
+  }
+
+  function removeTabs(ids: string[]) {
+    for (const id of ids) {
+      lifecycleManager
+        .removeTab(worktreeId, id)
+        .catch((e) => console.warn("[PaneTabBar] Failed to close tab:", id, e));
+    }
+  }
+
+  function handleCloseOthers(tabId: string) {
+    const others = paneTabs.filter((t) => t.id !== tabId);
+    removeTabs(eligibleToClose(others));
+  }
+
+  function handleCloseToRight(tabId: string) {
+    const idx = paneTabs.findIndex((t) => t.id === tabId);
+    if (idx === -1) return;
+    removeTabs(eligibleToClose(paneTabs.slice(idx + 1)));
   }
 
   function handleAddTab(type: TabType) {
@@ -385,8 +448,10 @@ function PaneTabBar({
           items={terminalTabIds}
           strategy={horizontalListSortingStrategy}
         >
-          {terminalTabs.map((tab) => {
+          {terminalTabs.map((tab, tabIdx) => {
             const isActive = tab.id === activeTabId;
+            const others = terminalTabs.filter((t) => t.id !== tab.id);
+            const toRight = terminalTabs.slice(tabIdx + 1);
             return (
               <SortableTab
                 key={tab.id}
@@ -396,6 +461,10 @@ function PaneTabBar({
                 worktreeId={worktreeId}
                 paneId={paneId}
                 onClose={handleCloseTab}
+                onCloseOthers={handleCloseOthers}
+                onCloseToRight={handleCloseToRight}
+                hasOthersToClose={eligibleToClose(others).length > 0}
+                hasTabsToRightToClose={eligibleToClose(toRight).length > 0}
                 onSplit={handleSplit}
                 onMoveToSibling={handleMoveToSibling}
                 isSplit={isSplit}
