@@ -15,9 +15,18 @@ export function getAgentSessionInfo(worktreeId: string) {
   const layoutState = useLayoutStore.getState();
   const worktreePanes = layoutState.panes[worktreeId];
   const activePaneId = layoutState.activePaneId[worktreeId];
+  const lastFocusedAgentTabId = layoutState.lastFocusedAgentTabId[worktreeId];
 
   if (worktreePanes) {
     const tabById = new Map(tabs.map((t) => [t.id, t]));
+
+    // Prefer the most recently clicked agent tab, if it still exists
+    if (lastFocusedAgentTabId) {
+      const lastTab = tabById.get(lastFocusedAgentTabId);
+      if (lastTab && isAgentTab(lastTab)) {
+        return { agentTab: lastTab, sessionKey: lastTab.id };
+      }
+    }
 
     // Check active pane first
     if (activePaneId) {

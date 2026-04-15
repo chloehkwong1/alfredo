@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { LayoutNode, Pane } from "../types";
+import { isAgentTab } from "../types";
 import { useTabStore } from "./tabStore";
 
 const MAX_SPLIT_DEPTH = 1;
@@ -11,6 +12,8 @@ interface LayoutState {
   panes: Record<string, Record<string, Pane>>;
   /** Currently focused pane per worktree. */
   activePaneId: Record<string, string>;
+  /** Most recently focused agent tab per worktree (used to route inline review comments). */
+  lastFocusedAgentTabId: Record<string, string>;
 
   // ── Initialization ──
   initLayout: (worktreeId: string, tabIds: string[], activeTabId: string) => void;
@@ -35,6 +38,7 @@ interface LayoutState {
   // ── Pane actions ──
   setActivePaneId: (worktreeId: string, paneId: string) => void;
   setPaneActiveTab: (worktreeId: string, paneId: string, tabId: string) => void;
+  setLastFocusedAgentTab: (worktreeId: string, tabId: string) => void;
   addTabToPane: (worktreeId: string, paneId: string, tabId: string) => void;
   removeTabFromPane: (worktreeId: string, tabId: string) => void;
   moveTabToSiblingPane: (worktreeId: string, paneId: string, tabId: string) => void;
@@ -106,6 +110,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   layout: {},
   panes: {},
   activePaneId: {},
+  lastFocusedAgentTabId: {},
 
   initLayout: (worktreeId, tabIds, activeTabId) => {
     const paneId = generatePaneId();
@@ -144,7 +149,13 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const { [worktreeId]: _l, ...restLayout } = s.layout;
       const { [worktreeId]: _p, ...restPanes } = s.panes;
       const { [worktreeId]: _a, ...restActive } = s.activePaneId;
-      return { layout: restLayout, panes: restPanes, activePaneId: restActive };
+      const { [worktreeId]: _f, ...restLastAgent } = s.lastFocusedAgentTabId;
+      return {
+        layout: restLayout,
+        panes: restPanes,
+        activePaneId: restActive,
+        lastFocusedAgentTabId: restLastAgent,
+      };
     });
   },
 
@@ -236,10 +247,21 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     }));
   },
 
+  setLastFocusedAgentTab: (worktreeId, tabId) => {
+    set((s) => ({
+      lastFocusedAgentTabId: { ...s.lastFocusedAgentTabId, [worktreeId]: tabId },
+    }));
+  },
+
   setPaneActiveTab: (worktreeId, paneId, tabId) => {
     set((s) => {
       const worktreePanes = s.panes[worktreeId];
       if (!worktreePanes?.[paneId]) return s;
+      const tab = useTabStore.getState().tabs[worktreeId]?.find((t) => t.id === tabId);
+      const nextLastFocused =
+        tab && isAgentTab(tab)
+          ? { ...s.lastFocusedAgentTabId, [worktreeId]: tabId }
+          : s.lastFocusedAgentTabId;
       return {
         panes: {
           ...s.panes,
@@ -248,6 +270,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             [paneId]: { ...worktreePanes[paneId], activeTabId: tabId },
           },
         },
+        lastFocusedAgentTabId: nextLastFocused,
       };
     });
   },
