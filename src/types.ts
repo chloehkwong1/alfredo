@@ -401,6 +401,8 @@ export interface GlobalAppConfig {
   debugMode?: boolean;
   /** Reusable quick-insert prompts for diff comment chips. */
   commentChips?: string[];
+  /** Opt in to pre-release builds from the beta update channel. */
+  receiveBetaUpdates?: boolean;
 }
 
 // ── Inline annotation ────────────────────────────────────────────

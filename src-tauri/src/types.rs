@@ -453,6 +453,9 @@ pub struct GlobalAppConfig {
     pub debug_mode: Option<bool>,
     #[serde(default)]
     pub comment_chips: Vec<String>,
+    /// Opt in to pre-release builds from the beta update channel.
+    #[serde(default)]
+    pub receive_beta_updates: bool,
 }
 
 fn default_editor() -> String { "vscode".into() }
