@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use tokio::process::Command;
 
-use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, NotificationConfig, RunScript, SetupScript};
+use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, LinearTicketRef, NotificationConfig, RunScript, SetupScript};
 
 /// Legacy filename — used only for migration from in-repo config.
 const CONFIG_FILE: &str = ".alfredo.json";
@@ -64,6 +64,8 @@ struct ConfigFile {
     pub stack_parent_overrides: HashMap<String, String>,
     #[serde(default)]
     pub archive_script: Option<String>,
+    #[serde(default)]
+    pub linear_tickets: HashMap<String, LinearTicketRef>,
 }
 
 /// Load the repo config from the app data directory.
@@ -96,6 +98,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
             run_script: None,
             stack_parent_overrides: HashMap::new(),
             archive_script: None,
+            linear_tickets: HashMap::new(),
         });
     };
 
@@ -137,6 +140,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
         run_script: file.run_script,
         stack_parent_overrides: file.stack_parent_overrides,
         archive_script: file.archive_script,
+        linear_tickets: file.linear_tickets,
     };
 
     if is_migration || needs_resave {
@@ -179,6 +183,7 @@ pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfi
         run_script: config.run_script.clone(),
         stack_parent_overrides: config.stack_parent_overrides.clone(),
         archive_script: config.archive_script.clone(),
+        linear_tickets: config.linear_tickets.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -226,6 +231,14 @@ pub fn set_stack_parent(config: &mut AppConfig, worktree_name: &str, parent_bran
 
 pub fn clear_stack_parent(config: &mut AppConfig, worktree_name: &str) {
     config.stack_parent_overrides.remove(worktree_name);
+}
+
+pub fn get_linear_ticket(config: &AppConfig, worktree_name: &str) -> Option<LinearTicketRef> {
+    config.linear_tickets.get(worktree_name).cloned()
+}
+
+pub fn set_linear_ticket(config: &mut AppConfig, worktree_name: &str, ticket: LinearTicketRef) {
+    config.linear_tickets.insert(worktree_name.to_string(), ticket);
 }
 
 /// Run setup scripts sequentially in the given worktree directory.
@@ -307,6 +320,7 @@ mod tests {
             run_script: None,
             stack_parent_overrides: HashMap::new(),
             archive_script: None,
+            linear_tickets: HashMap::new(),
         };
         config
             .column_overrides

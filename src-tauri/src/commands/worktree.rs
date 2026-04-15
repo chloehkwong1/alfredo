@@ -144,9 +144,16 @@ pub async fn delete_worktree(
     force: bool,
 ) -> Result<()> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
-    let base_path = config.worktree_base_path.as_deref();
-    git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path).await
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let base_path = config.worktree_base_path.clone();
+    // Drop any persisted Linear ticket reference regardless of whether the git
+    // deletion succeeds. Leaving a stale entry behind risks it rehydrating onto
+    // an unrelated worktree that later reuses the same name.
+    let had_ticket = config.linear_tickets.remove(&worktree_name).is_some();
+    if had_ticket {
+        let _ = config_manager::save_config(&app_data_dir, &repo_path, &config).await;
+    }
+    git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path.as_deref()).await
 }
 
 /// List all worktrees for a repository, filtered to the configured base path
@@ -184,6 +191,14 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
                 if parent != wt.branch {
                     wt.stack_parent = Some(parent);
                 }
+            }
+        }
+        // Hydrate Linear ticket metadata from persisted config so the StatusBar
+        // "Open in Linear" button survives app restart.
+        for wt in &mut wts {
+            if let Some(ticket) = config_manager::get_linear_ticket(&config, &wt.name) {
+                wt.linear_ticket_url = Some(ticket.url);
+                wt.linear_ticket_identifier = Some(ticket.identifier);
             }
         }
         // Compute stack children: for each worktree, find others whose stack_parent matches this branch
@@ -356,11 +371,33 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
         Some(b) if !b.is_empty() => b,
         _ => crate::commands::diff::get_default_branch(repo_path.clone()).await?,
     };
-    let mut worktree = create_worktree(app.clone(), repo_path, branch_name.clone(), base_branch).await?;
+    let mut worktree = create_worktree(app.clone(), repo_path.clone(), branch_name.clone(), base_branch).await?;
 
     // 4b. Attach Linear ticket metadata so the frontend can link back
     worktree.linear_ticket_url = Some(ticket.url.clone());
     worktree.linear_ticket_identifier = Some(ticket.identifier.clone());
+
+    // 4c. Persist to repo config so the metadata survives app restart. The
+    // worktree itself is already on disk; a persistence failure here (e.g.
+    // keychain hiccup inside save_config) would otherwise leave the user with
+    // a created worktree *and* an error — so we log and continue. On next
+    // successful save the in-memory fields still light up the StatusBar for
+    // the current session.
+    if let Ok(app_data_dir) = resolve_app_data_dir(app) {
+        if let Ok(mut config) = config_manager::load_config(&app_data_dir, &repo_path).await {
+            config_manager::set_linear_ticket(
+                &mut config,
+                &worktree.name,
+                crate::types::LinearTicketRef {
+                    url: ticket.url.clone(),
+                    identifier: ticket.identifier.clone(),
+                },
+            );
+            if let Err(e) = config_manager::save_config(&app_data_dir, &repo_path, &config).await {
+                eprintln!("warning: failed to persist linear ticket metadata for {}: {e}", worktree.name);
+            }
+        }
+    }
 
     // 5. Inject .claude/CLAUDE.local.md into the worktree so Claude Code
     //    automatically picks up the ticket context at conversation start.

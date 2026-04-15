@@ -349,6 +349,18 @@ pub struct AppConfig {
     pub stack_parent_overrides: HashMap<String, String>,
     #[serde(default)]
     pub archive_script: Option<String>,
+    /// Maps worktree name → Linear ticket reference for worktrees created from a Linear ticket.
+    #[serde(default)]
+    pub linear_tickets: HashMap<String, LinearTicketRef>,
+}
+
+/// Persisted Linear ticket metadata for a worktree. Survives app restart so the
+/// StatusBar "Open in Linear" button and related UI stay populated.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LinearTicketRef {
+    pub url: String,
+    pub identifier: String,
 }
 
 pub fn default_archive_days() -> Option<u32> { Some(2) }
