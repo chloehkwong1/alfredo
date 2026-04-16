@@ -266,7 +266,8 @@ function useAgentItemState(worktree: Worktree) {
   );
   const shouldPulse = effectiveStatus === "waitingForInput";
   const serverPort = serverEntry?.port;
-  return { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread };
+  const assignedPort = worktree.assignedPort;
+  return { prSummary, isServerRunning, serverPort, assignedPort, effectiveStatus, shouldPulse, isUnread };
 }
 
 interface AgentItemContentProps {
@@ -277,6 +278,7 @@ interface AgentItemContentProps {
   shouldPulse: boolean;
   isServerRunning: boolean;
   serverPort?: number;
+  assignedPort?: number | null;
   prSummary: PrSummary | undefined;
   repoPath?: string;
   repoColors?: Record<string, string>;
@@ -295,7 +297,7 @@ function getDotColor(status: AgentState | string): string {
 }
 
 function AgentItemContent({
-  worktree, effectiveStatus, isSelected, isPinned, shouldPulse, isServerRunning, serverPort, prSummary,
+  worktree, effectiveStatus, isSelected, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
   repoPath, repoColors, repoDisplayNames, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
   repoIndex = 0, showRepoTag = false,
 }: AgentItemContentProps) {
@@ -376,6 +378,11 @@ function AgentItemContent({
               {effectiveStatus === "busy" ? <><ThinkingText /><ThinkingDots /></> : getStatusText(effectiveStatus)}
             </span>
             {isServerRunning && <ServerIndicator port={serverPort} />}
+            {!isServerRunning && assignedPort && (
+              <span className="text-2xs text-text-tertiary tabular-nums bg-white/5 px-1 rounded-sm">
+                :{assignedPort}
+              </span>
+            )}
           </span>
 
           <span className="flex items-center gap-1 text-xs ml-auto flex-shrink-0">
@@ -598,7 +605,7 @@ const AgentItem = memo(function AgentItem({
     onRename(worktree.path, trimmed);
   };
   const deleteConfirmRef = useRef<HTMLButtonElement>(null);
-  const { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
+  const { prSummary, isServerRunning, serverPort, assignedPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
   const markUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
   const markRead = useWorkspaceStore((s) => s.markWorktreeRead);
   const togglePin = useWorkspaceStore((s) => s.togglePinWorktree);
@@ -676,6 +683,7 @@ const AgentItem = memo(function AgentItem({
       shouldPulse={shouldPulse}
       isServerRunning={isServerRunning}
       serverPort={serverPort}
+      assignedPort={assignedPort}
       prSummary={prSummary}
       repoPath={repoPath}
       repoColors={repoColors}
