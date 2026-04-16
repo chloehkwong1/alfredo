@@ -94,6 +94,7 @@ function PaneView({
           worktreePath={worktree.path ?? ""}
           worktreeId={worktreeId}
           showClaudeSettings={false}
+          assignedPort={worktree?.assignedPort}
         />
       )}
     </div>

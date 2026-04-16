@@ -410,6 +410,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           sessionKey={sessionKey}
           onRestartSession={handleRestartSession}
           showClaudeSettings={mode === "claude"}
+          assignedPort={worktree.assignedPort}
         />
       )}
     </div>
