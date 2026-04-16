@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface CommentChipContextMenuProps {
   position: { x: number; y: number };
@@ -59,7 +60,7 @@ function CommentChipContextMenu({
     onClose();
   }
 
-  return (
+  return createPortal(
     <div
       ref={menuRef}
       role="menu"
@@ -83,7 +84,8 @@ function CommentChipContextMenu({
           Opens Global Settings → Comment Chips
         </span>
       </button>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

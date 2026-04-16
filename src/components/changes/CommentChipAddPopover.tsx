@@ -1,4 +1,5 @@
 import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface CommentChipAddPopoverProps {
   anchorRef: RefObject<HTMLElement | null>;
@@ -81,7 +82,7 @@ function CommentChipAddPopover({
     }
   }
 
-  return (
+  return createPortal(
     <div
       ref={popoverRef}
       role="dialog"
@@ -121,7 +122,8 @@ function CommentChipAddPopover({
           Save
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
