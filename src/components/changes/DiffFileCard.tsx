@@ -189,7 +189,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
         cardRef.current = node;
         if (typeof ref === "function") ref(node);
         else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
-      }} className="border-b border-border-default">
+      }} className={expanded ? "" : "border-b border-border-default"}>
         <DiffFileHeader
           file={file}
           expanded={expanded}
