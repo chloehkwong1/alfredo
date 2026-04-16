@@ -66,6 +66,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
             stack_children: vec![],
             stack_rebase_status: None,
             setup_script_error: None,
+            assigned_port: None,
         });
     }
 
@@ -141,6 +142,7 @@ pub async fn create_branch(
         stack_children: vec![],
         stack_rebase_status: None,
         setup_script_error: None,
+        assigned_port: None,
     })
 }
 

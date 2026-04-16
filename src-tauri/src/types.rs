@@ -142,6 +142,9 @@ pub struct Worktree {
     /// successfully; this surfaces script failure without failing the whole op.
     #[serde(default)]
     pub setup_script_error: Option<String>,
+    /// Auto-assigned dev server port for this worktree.
+    #[serde(default)]
+    pub assigned_port: Option<u16>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

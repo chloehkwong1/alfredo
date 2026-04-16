@@ -78,6 +78,8 @@ export interface Worktree {
   stackRebaseStatus?: StackRebaseStatus | null;
   /** Setup script error — worktree was created successfully but post-create scripts failed. */
   setupScriptError?: string | null;
+  /** Auto-assigned dev server port. */
+  assignedPort?: number | null;
 }
 
 export type KanbanColumn =

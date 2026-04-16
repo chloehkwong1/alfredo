@@ -107,6 +107,16 @@ pub async fn create_worktree(
         None
     };
 
+    // Auto-assign a port from the global range
+    let global_config = crate::app_config_manager::load(&app_data_dir).await?;
+    let assigned_port = config_manager::assign_next_port(
+        &mut config,
+        &dir_name,
+        global_config.port_range_start,
+        global_config.port_range_end,
+    );
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+
     Ok(Worktree {
         id: dir_name.clone(),
         name: dir_name,
@@ -132,6 +142,7 @@ pub async fn create_worktree(
         stack_children: vec![],
         stack_rebase_status: None,
         setup_script_error,
+        assigned_port,
     })
 }
 
@@ -200,6 +211,10 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
                 wt.linear_ticket_url = Some(ticket.url);
                 wt.linear_ticket_identifier = Some(ticket.identifier);
             }
+        }
+        // Hydrate assigned port from config
+        for wt in &mut wts {
+            wt.assigned_port = config_manager::get_assigned_port(&config, &wt.name);
         }
         // Compute stack children: for each worktree, find others whose stack_parent matches this branch
         let parent_map: Vec<(String, String)> = wts
@@ -272,9 +287,9 @@ pub async fn get_worktree_status(
     let column = config_manager::get_column_override(&config, &wt_name)
         .unwrap_or(KanbanColumn::InProgress);
 
-    Ok(Worktree {
+    let mut wt = Worktree {
         id: wt_name.clone(),
-        name: wt_name,
+        name: wt_name.clone(),
         path: path_str,
         branch: status.branch,
         repo_path,
@@ -292,7 +307,10 @@ pub async fn get_worktree_status(
         stack_children: vec![],
         stack_rebase_status: None,
         setup_script_error: None,
-    })
+        assigned_port: None,
+    };
+    wt.assigned_port = config_manager::get_assigned_port(&config, &wt_name);
+    Ok(wt)
 }
 
 /// Count how many commits a worktree's branch is behind origin/main (or the stack parent).
