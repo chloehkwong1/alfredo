@@ -12,6 +12,7 @@ export interface UpdateState {
   progress: number; // 0–100
   checking: boolean;
   upToDate: boolean;
+  error: string | null;
   update: () => void;
   restart: () => void;
   dismiss: () => void;
@@ -38,6 +39,7 @@ export function useUpdater(): UpdateState {
   const [pendingUpdate, setPendingUpdate] = useState<{ version: string } | null>(null);
   const [checking, setChecking] = useState(false);
   const [upToDate, setUpToDate] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const checkingRef = useRef(false);
   const upToDateTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -77,9 +79,11 @@ export function useUpdater(): UpdateState {
     if (!pendingUpdate) return;
     setStatus("downloading");
     setProgress(0);
+    setError(null);
 
     let totalBytes: number | undefined;
     let downloaded = 0;
+    let installed = false;
     const unlisteners: UnlistenFn[] = [];
 
     try {
@@ -101,26 +105,35 @@ export function useUpdater(): UpdateState {
       unlisteners.push(unlistenProgress, unlistenFinished);
 
       await invoke("install_pending_update");
+      installed = true;
 
       unlisteners.forEach((fn) => fn());
       setStatus("ready");
       await relaunch();
     } catch (e) {
-      console.error("[updater] update/relaunch failed:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[updater] update/relaunch failed:", msg);
       unlisteners.forEach((fn) => fn());
+      setError(msg);
       // If download succeeded but relaunch failed, stay on "ready" so user can retry restart
-      // If download failed, fall back to "available" for retry
-      if (status === "ready") return;
+      if (installed) {
+        setStatus("ready");
+        return;
+      }
+      // Download failed — fall back to "available" for retry
       setStatus("available");
       setProgress(0);
     }
-  }, [pendingUpdate, status]);
+  }, [pendingUpdate]);
 
   const restart = useCallback(async () => {
     try {
+      setError(null);
       await relaunch();
     } catch (e) {
-      console.error("[updater] relaunch failed:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[updater] relaunch failed:", msg);
+      setError(msg);
     }
   }, []);
 
@@ -139,6 +152,7 @@ export function useUpdater(): UpdateState {
     progress,
     checking,
     upToDate,
+    error,
     update,
     restart,
     dismiss,

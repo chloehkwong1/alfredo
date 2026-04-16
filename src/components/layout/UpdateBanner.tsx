@@ -7,7 +7,7 @@ interface UpdateBannerProps {
 }
 
 export function UpdateBanner({ updater }: UpdateBannerProps) {
-  const { status, version, progress, update, restart, dismiss, openReleaseNotes } = updater;
+  const { status, version, progress, error, update, restart, dismiss, openReleaseNotes } = updater;
 
   if (status === "idle") return null;
 
@@ -66,6 +66,11 @@ export function UpdateBanner({ updater }: UpdateBannerProps) {
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <span>Update ready — restart to apply</span>
             <VersionBadge version={version} />
+            {error && (
+              <span className="text-status-error truncate max-w-[260px]" style={{ fontSize: 11 }}>
+                ({error})
+              </span>
+            )}
           </div>
           <Button variant="primary" size="sm" onClick={restart}>
             Restart now
