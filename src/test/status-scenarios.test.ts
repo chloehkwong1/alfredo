@@ -143,6 +143,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     startupCommandSent: false,
     allowNextClearScrollback: false,
     lastHookAt: now - 5_000,
+    lastHookDesc: "",
     pendingIdleTimer: null,
     ...overrides,
   };
