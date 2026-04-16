@@ -237,7 +237,7 @@ pub async fn start_oauth_flow() -> Result<(String, oneshot::Receiver<Result<Stri
     });
 
     let auth_url = format!(
-        "{}?client_id={}&redirect_uri={REDIRECT_URI}&response_type=code&scope=read&state={state_param}&prompt=consent",
+        "{}?client_id={}&redirect_uri={REDIRECT_URI}&response_type=code&scope=read&state={state_param}",
         AUTH_URL, client_id()?,
     );
 
