@@ -27,6 +27,7 @@ pub async fn spawn_pty(
     on_data: Channel<PtyEvent>,
     agent_type: Option<AgentType>,
     session_type: Option<SessionType>,
+    assigned_port: Option<u16>,
 ) -> Result<String> {
     let command = match mode.as_str() {
         "shell" => std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string()),
@@ -51,6 +52,7 @@ pub async fn spawn_pty(
         agent_type: agent_type.unwrap_or(AgentType::Unknown),
         state_server_port: Some(state_server.port),
         session_type: session_type.unwrap_or(SessionType::Shell),
+        assigned_port,
     };
 
     match manager.spawn(session_id.clone(), config, on_data, std::sync::Arc::clone(&sleep_inhibitor)) {

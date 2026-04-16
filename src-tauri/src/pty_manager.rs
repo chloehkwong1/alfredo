@@ -52,6 +52,7 @@ pub struct SpawnConfig {
     pub agent_type: AgentType,
     pub state_server_port: Option<u16>,
     pub session_type: SessionType,
+    pub assigned_port: Option<u16>,
 }
 
 /// Manages all PTY sessions. Stored as Tauri managed state.
@@ -93,6 +94,7 @@ impl PtyManager {
             agent_type,
             state_server_port,
             session_type,
+            assigned_port,
         } = config;
 
         let pty_system = native_pty_system();
@@ -119,6 +121,12 @@ impl PtyManager {
         // fall back to basic colors. Set them explicitly for xterm.js.
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
+
+        // Inject assigned port so dev servers pick up the right port
+        if let Some(port) = assigned_port {
+            cmd.env("PORT", port.to_string());
+            cmd.env("ALFREDO_PORT", port.to_string());
+        }
 
         // Set env vars for hook callbacks and write hooks config
         if let Some(port) = state_server_port {
@@ -975,6 +983,7 @@ mod tests {
                     agent_type: AgentType::Unknown,
                     state_server_port: None,
                     session_type: SessionType::Agent,
+                    assigned_port: None,
                 },
                 channel,
                 inhibitor,
@@ -1048,6 +1057,7 @@ mod tests {
                         agent_type: AgentType::Unknown,
                         state_server_port: None,
                         session_type: SessionType::Agent,
+                        assigned_port: None,
                     },
                     channel,
                     std::sync::Arc::clone(&inhibitor),

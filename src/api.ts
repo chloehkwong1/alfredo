@@ -28,8 +28,9 @@ export function spawnPty(
   onData: Channel<PtyEvent>,
   agentType?: AgentType,
   sessionType?: SessionType,
+  assignedPort?: number,
 ): Promise<string> {
-  return invoke("spawn_pty", { worktreeId, worktreePath, mode, args, onData, agentType, sessionType });
+  return invoke("spawn_pty", { worktreeId, worktreePath, mode, args, onData, agentType, sessionType, assignedPort });
 }
 
 export function writePty(sessionId: string, data: number[]): Promise<void> {

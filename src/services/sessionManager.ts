@@ -605,6 +605,8 @@ export class SessionManager {
 
     this.sessions.set(sessionKey, session);
 
+    const assignedPort = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId)?.assignedPort ?? undefined;
+
     let sessionId: string;
     try {
       sessionId = await spawnPty(
@@ -615,6 +617,7 @@ export class SessionManager {
         channel,
         agentType,
         sessionType,
+        assignedPort,
       );
     } catch (err) {
       // Spawn failed — remove session from map to prevent zombie
@@ -734,6 +737,7 @@ export class SessionManager {
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);
 
     const agentType = AGENT_TYPE_MAP[mode] as AgentType | undefined;
+    const assignedPort = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId)?.assignedPort ?? undefined;
 
     let sessionId: string;
     try {
@@ -745,6 +749,7 @@ export class SessionManager {
         channel,
         agentType,
         sessionType,
+        assignedPort,
       );
     } catch (e) {
       // Spawn failed — remove session so it doesn't get stuck as scrollback-only
