@@ -11,6 +11,7 @@ interface LayoutRendererProps {
   isServerRunning?: boolean;
   runScriptName?: string;
   runScriptUrl?: string;
+  assignedPort?: number | null;
   hasWorktreeRepos?: boolean;
 }
 
@@ -21,6 +22,7 @@ function RenderNode({
   isServerRunning,
   runScriptName,
   runScriptUrl,
+  assignedPort,
   isFirstLeaf,
 }: {
   node: LayoutNode;
@@ -29,6 +31,7 @@ function RenderNode({
   isServerRunning?: boolean;
   runScriptName?: string;
   runScriptUrl?: string;
+  assignedPort?: number | null;
   isFirstLeaf: boolean;
 }) {
   if (node.type === "leaf") {
@@ -41,6 +44,7 @@ function RenderNode({
           isServerRunning={isFirstLeaf ? isServerRunning : undefined}
           runScriptName={isFirstLeaf ? runScriptName : undefined}
           runScriptUrl={isFirstLeaf ? runScriptUrl : undefined}
+          assignedPort={isFirstLeaf ? assignedPort : undefined}
         />
       </SectionErrorBoundary>
     );
@@ -67,6 +71,7 @@ function RenderNode({
           isServerRunning={isServerRunning}
           runScriptName={runScriptName}
           runScriptUrl={runScriptUrl}
+          assignedPort={assignedPort}
           isFirstLeaf={true}
         />
       </Panel>
@@ -91,6 +96,7 @@ function LayoutRenderer({
   isServerRunning,
   runScriptName,
   runScriptUrl,
+  assignedPort,
   hasWorktreeRepos,
 }: LayoutRendererProps) {
   const layout = useLayoutStore((s) => s.layout[worktreeId]);
@@ -121,6 +127,7 @@ function LayoutRenderer({
       isServerRunning={isServerRunning}
       runScriptName={runScriptName}
       runScriptUrl={runScriptUrl}
+      assignedPort={assignedPort}
       isFirstLeaf={true}
     />
   );

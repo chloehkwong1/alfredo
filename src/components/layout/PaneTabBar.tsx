@@ -103,6 +103,7 @@ interface PaneTabBarProps {
   isServerRunning?: boolean;
   runScriptName?: string;
   runScriptUrl?: string;
+  assignedPort?: number | null;
 }
 
 function SortableTab({
@@ -286,6 +287,7 @@ function PaneTabBar({
   isServerRunning,
   runScriptName,
   runScriptUrl,
+  assignedPort,
 }: PaneTabBarProps) {
   const allTabs = useTabStore((s) => s.tabs);
   const tabs = allTabs[worktreeId] ?? [];
@@ -509,6 +511,18 @@ function PaneTabBar({
       </DropdownMenu>
 
       <div className="flex-1" />
+
+      {assignedPort && (
+        <button
+          type="button"
+          onClick={() => openUrl(`http://localhost:${assignedPort}`)}
+          className="flex items-center gap-1 mr-2 text-xs text-accent-primary hover:text-accent-primary/80 transition-colors cursor-pointer"
+          title={`Open http://localhost:${assignedPort} in browser`}
+        >
+          <ExternalLink size={12} />
+          localhost:{assignedPort}
+        </button>
+      )}
 
       {onToggleServer && runScriptName && (
         <div className="flex items-center gap-1 mr-2">

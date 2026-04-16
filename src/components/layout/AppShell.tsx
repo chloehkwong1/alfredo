@@ -268,6 +268,7 @@ function AppShell() {
                     isServerRunning={isServerRunningHere}
                     runScriptName={runScript?.name}
                     runScriptUrl={runScript?.url}
+                    assignedPort={worktree?.assignedPort}
                     hasWorktreeRepos={hasWorktreeRepos}
                   />
                 </Panel>

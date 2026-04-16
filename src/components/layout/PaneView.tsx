@@ -15,6 +15,7 @@ interface PaneViewProps {
   isServerRunning?: boolean;
   runScriptName?: string;
   runScriptUrl?: string;
+  assignedPort?: number | null;
 }
 
 function PaneView({
@@ -24,6 +25,7 @@ function PaneView({
   isServerRunning,
   runScriptName,
   runScriptUrl,
+  assignedPort,
 }: PaneViewProps) {
   const allTabs = useTabStore((s) => s.tabs);
   const tabs = allTabs[worktreeId] ?? [];
@@ -69,6 +71,7 @@ function PaneView({
         isServerRunning={isServerRunning}
         runScriptName={runScriptName}
         runScriptUrl={runScriptUrl}
+        assignedPort={assignedPort}
       />
       <div className="flex-1 min-h-0 min-w-0 relative overflow-hidden">
         {activeTab && activeTab.type !== "diff" ? (
