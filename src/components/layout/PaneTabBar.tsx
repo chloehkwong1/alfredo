@@ -49,14 +49,16 @@ import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useSessionStatusStore } from "../../stores/sessionStatusStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 
-const SESSION_STATUS_DOT: Partial<Record<AgentState, { cls: string; label: string; pulse?: boolean }>> = {
+const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
   busy: { cls: "bg-status-busy", label: "Thinking" },
+  stale: { cls: "bg-amber-400", label: "Unresponsive" },
   idle: { cls: "bg-status-idle", label: "Idle" },
   waitingForInput: { cls: "bg-accent-primary", label: "Waiting for input", pulse: true },
 };
@@ -154,7 +156,9 @@ function SortableTab({
 
   const Icon = TAB_ICONS[tab.type];
   const sessionStatus = useSessionStatusStore((s) => s.statuses[tab.id]);
-  const statusDot = isAgentTab(tab) && sessionStatus ? SESSION_STATUS_DOT[sessionStatus] : undefined;
+  const staleBusy = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId)?.staleBusy);
+  const effectiveStatus = sessionStatus === "busy" && staleBusy ? "stale" : sessionStatus;
+  const statusDot = isAgentTab(tab) && effectiveStatus ? SESSION_STATUS_DOT[effectiveStatus] : undefined;
   const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
   const setActiveTabId = useTabStore((s) => s.setActiveTabId);
