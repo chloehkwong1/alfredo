@@ -139,10 +139,14 @@ function FileSidebar({
   const firstCommitRef = useRef<HTMLButtonElement>(null);
   const pendingCommitFocusRef = useRef(false);
 
-  // Cmd+F focuses the filter input when this component is visible
+  // Cmd+F focuses the filter input — but only when NOT viewing a commit's diffs,
+  // because in that case Cmd+F should search the diff code content instead.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey && e.key === "f") {
+        // When viewing a commit, let the diff search handle Cmd+F
+        if (selectedCommitIndex !== null) return;
+
         // If filter input is hidden (totalItems <= 5), skip — nothing to focus
         if (!filterInputRef.current) return;
 
@@ -160,7 +164,7 @@ function FileSidebar({
 
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, []);
+  }, [selectedCommitIndex]);
 
   // Clear filter when view mode changes (e.g., switching between files and commits)
   useEffect(() => {

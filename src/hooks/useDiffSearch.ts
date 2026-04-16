@@ -86,8 +86,8 @@ export function useDiffSearch(
       const tag = (e.target as HTMLElement)?.tagName;
       const isInput = tag === "INPUT" || tag === "TEXTAREA";
 
-      // "/" to open search (when not in an input)
-      if (e.key === "/" && !isInput) {
+      // "/" to open search (when not in an input), or Cmd+F anywhere
+      if ((e.key === "/" && !isInput) || (e.metaKey && e.key === "f")) {
         e.preventDefault();
         setSearchOpen(true);
         requestAnimationFrame(() => searchInputRef.current?.focus());
