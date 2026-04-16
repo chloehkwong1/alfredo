@@ -32,6 +32,10 @@ pub struct DiffHunk {
     pub lines: Vec<DiffLine>,
 }
 
+/// A single line in a diff hunk.
+///
+/// `content` includes the diff origin prefix character (`+`, `-`, or ` `)
+/// as its first character. The frontend strips this prefix before rendering.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffLine {
@@ -185,7 +189,8 @@ fn diff_to_files(diff: &git2::Diff<'_>) -> Result<Vec<DiffFile>> {
             }
             '+' => {
                 file.additions += 1;
-                let content = String::from_utf8_lossy(line.content()).to_string();
+                let raw = String::from_utf8_lossy(line.content()).to_string();
+                let content = format!("+{raw}");
                 if let Some(ref mut h) = *current_hunk.borrow_mut() {
                     h.lines.push(DiffLine {
                         line_type: "addition".to_string(),
@@ -197,7 +202,8 @@ fn diff_to_files(diff: &git2::Diff<'_>) -> Result<Vec<DiffFile>> {
             }
             '-' => {
                 file.deletions += 1;
-                let content = String::from_utf8_lossy(line.content()).to_string();
+                let raw = String::from_utf8_lossy(line.content()).to_string();
+                let content = format!("-{raw}");
                 if let Some(ref mut h) = *current_hunk.borrow_mut() {
                     h.lines.push(DiffLine {
                         line_type: "deletion".to_string(),
@@ -208,7 +214,8 @@ fn diff_to_files(diff: &git2::Diff<'_>) -> Result<Vec<DiffFile>> {
                 }
             }
             ' ' => {
-                let content = String::from_utf8_lossy(line.content()).to_string();
+                let raw = String::from_utf8_lossy(line.content()).to_string();
+                let content = format!(" {raw}");
                 if let Some(ref mut h) = *current_hunk.borrow_mut() {
                     h.lines.push(DiffLine {
                         line_type: "context".to_string(),
@@ -369,7 +376,7 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
                     .enumerate()
                     .map(|(i, line)| DiffLine {
                         line_type: "addition".to_string(),
-                        content: line.to_string(),
+                        content: format!("+{line}"),
                         old_line_number: None,
                         new_line_number: Some((i + 1) as u32),
                     })

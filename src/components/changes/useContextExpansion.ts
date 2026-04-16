@@ -106,7 +106,7 @@ export function useContextExpansion(
         const lines = await getFileLines(repoPath, file.path, gap.startLine, gap.endLine, commitHash);
         const contextLines: DiffLine[] = lines.map((l) => ({
           lineType: "context" as const,
-          content: l.content,
+          content: ` ${l.content}`,
           oldLineNumber: l.lineNumber,
           newLineNumber: l.lineNumber,
         }));

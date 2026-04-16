@@ -41,28 +41,33 @@ pub fn parse_patch(patch: &str) -> Vec<DiffHunk> {
             continue;
         };
 
-        if let Some(content) = raw_line.strip_prefix('+') {
+        if raw_line.starts_with('+') {
             hunk.lines.push(DiffLine {
                 line_type: "addition".to_string(),
-                content: content.to_string(),
+                content: raw_line.to_string(),
                 old_line_number: None,
                 new_line_number: Some(new_line),
             });
             new_line += 1;
-        } else if let Some(content) = raw_line.strip_prefix('-') {
+        } else if raw_line.starts_with('-') {
             hunk.lines.push(DiffLine {
                 line_type: "deletion".to_string(),
-                content: content.to_string(),
+                content: raw_line.to_string(),
                 old_line_number: Some(old_line),
                 new_line_number: None,
             });
             old_line += 1;
         } else {
-            // Context line — may or may not have a leading space
-            let content = raw_line.strip_prefix(' ').unwrap_or(raw_line);
+            // Context line — preserve the leading space as the prefix character.
+            // If no leading space, prepend one to match the expected format.
+            let content = if raw_line.starts_with(' ') {
+                raw_line.to_string()
+            } else {
+                format!(" {raw_line}")
+            };
             hunk.lines.push(DiffLine {
                 line_type: "context".to_string(),
-                content: content.to_string(),
+                content,
                 old_line_number: Some(old_line),
                 new_line_number: Some(new_line),
             });
@@ -124,7 +129,7 @@ mod tests {
         assert_eq!(hunks[0].lines.len(), 4);
         assert_eq!(hunks[0].lines[0].line_type, "context");
         assert_eq!(hunks[0].lines[1].line_type, "addition");
-        assert_eq!(hunks[0].lines[1].content, "import { baz } from \"qux\";");
+        assert_eq!(hunks[0].lines[1].content, "+import { baz } from \"qux\";");
         assert_eq!(hunks[0].lines[1].new_line_number, Some(2));
     }
 
