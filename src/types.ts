@@ -403,6 +403,8 @@ export interface GlobalAppConfig {
   commentChips?: string[];
   /** Opt in to pre-release builds from the beta update channel. */
   receiveBetaUpdates?: boolean;
+  portRangeStart?: number;
+  portRangeEnd?: number;
 }
 
 // ── Inline annotation ────────────────────────────────────────────

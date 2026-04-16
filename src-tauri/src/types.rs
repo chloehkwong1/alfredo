@@ -456,10 +456,16 @@ pub struct GlobalAppConfig {
     /// Opt in to pre-release builds from the beta update channel.
     #[serde(default)]
     pub receive_beta_updates: bool,
+    #[serde(default = "default_port_range_start")]
+    pub port_range_start: u16,
+    #[serde(default = "default_port_range_end")]
+    pub port_range_end: u16,
 }
 
 fn default_editor() -> String { "vscode".into() }
 fn default_terminal() -> String { "iterm".into() }
+fn default_port_range_start() -> u16 { 3001 }
+fn default_port_range_end() -> u16 { 3099 }
 
 // ── Linear ──────────────────────────────────────────────────────
 
