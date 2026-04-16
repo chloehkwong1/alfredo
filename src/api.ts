@@ -153,6 +153,10 @@ export function setWorktreeColumn(
   return invoke("set_worktree_column", { repoPath, worktreeName, column });
 }
 
+export function setWorktreePort(repoPath: string, worktreeName: string, port: number): Promise<void> {
+  return invoke("set_worktree_port", { repoPath, worktreeName, port });
+}
+
 // ── Branch Mode ─────────────────────────────────────────────────
 
 export function listBranches(repoPath: string, includeDefaultBranches?: boolean): Promise<Worktree[]> {

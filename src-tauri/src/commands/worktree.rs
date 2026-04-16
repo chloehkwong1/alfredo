@@ -160,10 +160,9 @@ pub async fn delete_worktree(
     // Drop any persisted Linear ticket reference regardless of whether the git
     // deletion succeeds. Leaving a stale entry behind risks it rehydrating onto
     // an unrelated worktree that later reuses the same name.
-    let had_ticket = config.linear_tickets.remove(&worktree_name).is_some();
-    if had_ticket {
-        let _ = config_manager::save_config(&app_data_dir, &repo_path, &config).await;
-    }
+    config.linear_tickets.remove(&worktree_name);
+    config_manager::release_port(&mut config, &worktree_name);
+    let _ = config_manager::save_config(&app_data_dir, &repo_path, &config).await;
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path.as_deref()).await
 }
 
@@ -363,6 +362,23 @@ pub async fn set_worktree_column(
     let app_data_dir = resolve_app_data_dir(&app)?;
     let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     config_manager::set_column_override(&mut config, &worktree_name, column);
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    Ok(())
+}
+
+/// Set the dev server port for a worktree. Returns error if the port is
+/// already assigned to another worktree.
+#[tauri::command]
+pub async fn set_worktree_port(
+    app: AppHandle,
+    repo_path: String,
+    worktree_name: String,
+    port: u16,
+) -> Result<()> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    config_manager::set_worktree_port(&mut config, &worktree_name, port)
+        .map_err(AppError::Config)?;
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
 }
