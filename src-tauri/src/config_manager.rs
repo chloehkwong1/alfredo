@@ -66,6 +66,8 @@ struct ConfigFile {
     pub archive_script: Option<String>,
     #[serde(default)]
     pub linear_tickets: HashMap<String, LinearTicketRef>,
+    #[serde(default)]
+    pub port_assignments: HashMap<String, u16>,
 }
 
 /// Load the repo config from the app data directory.
@@ -99,6 +101,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
             stack_parent_overrides: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
+            port_assignments: HashMap::new(),
         });
     };
 
@@ -141,6 +144,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
         stack_parent_overrides: file.stack_parent_overrides,
         archive_script: file.archive_script,
         linear_tickets: file.linear_tickets,
+        port_assignments: file.port_assignments,
     };
 
     if is_migration || needs_resave {
@@ -184,6 +188,7 @@ pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfi
         stack_parent_overrides: config.stack_parent_overrides.clone(),
         archive_script: config.archive_script.clone(),
         linear_tickets: config.linear_tickets.clone(),
+        port_assignments: config.port_assignments.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -239,6 +244,48 @@ pub fn get_linear_ticket(config: &AppConfig, worktree_name: &str) -> Option<Line
 
 pub fn set_linear_ticket(config: &mut AppConfig, worktree_name: &str, ticket: LinearTicketRef) {
     config.linear_tickets.insert(worktree_name.to_string(), ticket);
+}
+
+/// Get the assigned port for a worktree, if any.
+pub fn get_assigned_port(config: &AppConfig, worktree_name: &str) -> Option<u16> {
+    config.port_assignments.get(worktree_name).copied()
+}
+
+/// Assign the next available port from the given range to a worktree.
+/// Returns the assigned port, or None if the range is exhausted.
+pub fn assign_next_port(
+    config: &mut AppConfig,
+    worktree_name: &str,
+    range_start: u16,
+    range_end: u16,
+) -> Option<u16> {
+    let used: std::collections::HashSet<u16> = config.port_assignments.values().copied().collect();
+    let port = (range_start..=range_end).find(|p| !used.contains(p))?;
+    config.port_assignments.insert(worktree_name.to_string(), port);
+    Some(port)
+}
+
+/// Set a specific port for a worktree. Returns an error string if the port
+/// is already assigned to a different worktree.
+pub fn set_worktree_port(
+    config: &mut AppConfig,
+    worktree_name: &str,
+    port: u16,
+) -> Result<(), String> {
+    if let Some((existing, _)) = config
+        .port_assignments
+        .iter()
+        .find(|(name, &p)| p == port && name.as_str() != worktree_name)
+    {
+        return Err(format!("Port {} is already assigned to {}", port, existing));
+    }
+    config.port_assignments.insert(worktree_name.to_string(), port);
+    Ok(())
+}
+
+/// Release a worktree's port assignment.
+pub fn release_port(config: &mut AppConfig, worktree_name: &str) {
+    config.port_assignments.remove(worktree_name);
 }
 
 /// Run setup scripts sequentially in the given worktree directory.

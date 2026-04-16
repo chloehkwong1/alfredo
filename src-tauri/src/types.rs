@@ -352,6 +352,9 @@ pub struct AppConfig {
     /// Maps worktree name → Linear ticket reference for worktrees created from a Linear ticket.
     #[serde(default)]
     pub linear_tickets: HashMap<String, LinearTicketRef>,
+    /// Maps worktree name → assigned dev server port.
+    #[serde(default)]
+    pub port_assignments: HashMap<String, u16>,
 }
 
 /// Persisted Linear ticket metadata for a worktree. Survives app restart so the

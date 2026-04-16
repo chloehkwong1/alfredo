@@ -190,6 +190,7 @@ export interface AppConfig {
   worktreeOverrides?: Record<string, ClaudeOverrides>;
   defaultAgent?: TabType;
   archiveScript?: string | null;
+  portAssignments?: Record<string, number>;
 }
 
 // ── Linear ──────────────────────────────────────────────────────
