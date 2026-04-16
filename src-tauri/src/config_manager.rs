@@ -368,6 +368,7 @@ mod tests {
             stack_parent_overrides: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
+            port_assignments: HashMap::new(),
         };
         config
             .column_overrides
