@@ -461,11 +461,11 @@ export class SessionManager {
       const worktreeId = sessionKey.split(":")[0];
 
       // ── busy → idle reconciliation ──────────────────────────
-      // The inverse (idle → busy on output bursts) used to live here. It
-      // treated every byte of PTY output as evidence the agent was working,
-      // which broke on Claude Code's status-bar redraws and focus-echo
-      // bytes — flipping the worktree back to busy on every click. Removed
-      // in favour of trusting hooks; see shouldAcceptDetectorState.
+      // ORDERING INVARIANT: the soft check (hook silence + output silence)
+      // MUST come before the force check (hook silence only). The soft
+      // check's `continue` skips the force path, allowing long-running
+      // tools that stream output to stay busy even when hooks are silent.
+      // Reordering these blocks breaks that guard — see e03b8c5.
       if (
         session.agentState === "busy"
         && session.lastHookAt > 0

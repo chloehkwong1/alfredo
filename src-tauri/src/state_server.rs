@@ -16,12 +16,10 @@ use tauri::ipc::Channel;
 struct ChannelRegistry {
     /// session_id → channel
     channels: HashMap<String, Channel<PtyEvent>>,
-    /// worktree_id → list of session_ids (fan-out)
-    worktree_sessions: HashMap<String, Vec<String>>,
 }
 
 /// Shared state for the HTTP server.
-/// Maps session IDs to their PtyEvent channels and provides fan-out by worktree.
+/// Maps session IDs to their PtyEvent channels.
 #[derive(Clone)]
 pub struct StateServerHandle {
     /// The port the server is listening on.
@@ -51,11 +49,7 @@ impl StateServerHandle {
             return;
         };
         eprintln!("[state-server] register session={session_id} worktree={worktree_id} (total={})", reg.channels.len() + 1);
-        reg.channels.insert(session_id.clone(), channel);
-        reg.worktree_sessions
-            .entry(worktree_id)
-            .or_default()
-            .push(session_id);
+        reg.channels.insert(session_id, channel);
     }
 
     /// Create a handle with an empty registry (for testing).
@@ -75,12 +69,6 @@ impl StateServerHandle {
         };
         eprintln!("[state-server] unregister session={session_id} worktree={worktree_id} (remaining={})", reg.channels.len().saturating_sub(1));
         reg.channels.remove(session_id);
-        if let Some(ids) = reg.worktree_sessions.get_mut(worktree_id) {
-            ids.retain(|id| id != session_id);
-            if ids.is_empty() {
-                reg.worktree_sessions.remove(worktree_id);
-            }
-        }
     }
 }
 
@@ -221,60 +209,24 @@ mod tests {
     }
 
     #[test]
-    fn register_multiple_sessions_for_worktree() {
-        let handle = StateServerHandle::new_for_test();
-
-        let ch1 = dummy_channel();
-        let ch2 = dummy_channel();
-        handle.register_channel("s1".into(), "wt1".into(), ch1);
-        handle.register_channel("s2".into(), "wt1".into(), ch2);
-
-        let reg = handle.registry.lock().unwrap();
-        let ids = reg.worktree_sessions.get("wt1").unwrap();
-        assert_eq!(ids.len(), 2);
-        assert!(ids.contains(&"s1".to_string()));
-        assert!(ids.contains(&"s2".to_string()));
-        assert!(reg.channels.contains_key("s1"));
-        assert!(reg.channels.contains_key("s2"));
-    }
-
-    #[test]
-    fn unregister_removes_session_and_cleans_up_empty_worktree() {
-        let handle = StateServerHandle::new_for_test();
-
-        handle.register_channel("s1".into(), "wt1".into(), dummy_channel());
-        handle.register_channel("s2".into(), "wt1".into(), dummy_channel());
-
-        // Remove one session — worktree entry should still exist
-        handle.unregister_channel("s1", "wt1");
-        {
-            let reg = handle.registry.lock().unwrap();
-            assert!(!reg.channels.contains_key("s1"));
-            let ids = reg.worktree_sessions.get("wt1").unwrap();
-            assert_eq!(ids, &vec!["s2".to_string()]);
-        }
-
-        // Remove last session — worktree entry should be cleaned up
-        handle.unregister_channel("s2", "wt1");
-        {
-            let reg = handle.registry.lock().unwrap();
-            assert!(!reg.channels.contains_key("s2"));
-            assert!(!reg.worktree_sessions.contains_key("wt1"));
-        }
-    }
-
-    #[test]
-    fn separate_worktrees_are_independent() {
+    fn register_and_unregister_channels() {
         let handle = StateServerHandle::new_for_test();
 
         handle.register_channel("s1".into(), "wt1".into(), dummy_channel());
         handle.register_channel("s2".into(), "wt2".into(), dummy_channel());
 
+        {
+            let reg = handle.registry.lock().unwrap();
+            assert!(reg.channels.contains_key("s1"));
+            assert!(reg.channels.contains_key("s2"));
+        }
+
         handle.unregister_channel("s1", "wt1");
 
-        let reg = handle.registry.lock().unwrap();
-        assert!(!reg.worktree_sessions.contains_key("wt1"));
-        assert!(reg.worktree_sessions.contains_key("wt2"));
-        assert!(reg.channels.contains_key("s2"));
+        {
+            let reg = handle.registry.lock().unwrap();
+            assert!(!reg.channels.contains_key("s1"));
+            assert!(reg.channels.contains_key("s2"));
+        }
     }
 }
