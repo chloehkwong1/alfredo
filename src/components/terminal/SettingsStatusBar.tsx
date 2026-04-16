@@ -8,6 +8,7 @@ import { useAppConfig } from "../../hooks/useAppConfig";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
 import { toggleRemoteControl } from "../../services/remoteControl";
 import { useRemoteControlStore } from "../../stores/remoteControlStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { ClaudeOverrides } from "../../types";
 
 const CLAUDE_DEFAULTS = {
@@ -156,6 +157,8 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
       setEditingPort(false);
       setPortError(null);
       setHasChanges(true);
+      // Optimistically update the store so sidebar/toolbar reflect the new port immediately
+      useWorkspaceStore.getState().updateWorktree(worktreeId, { assignedPort: port });
     } catch (e: unknown) {
       setPortError(e instanceof Error ? e.message : String(e));
     }

@@ -101,7 +101,6 @@ pub async fn create_worktree(
     let stack_parent = if is_stacked {
         let parent = base_branch.strip_prefix("origin/").unwrap_or(&base_branch);
         config_manager::set_stack_parent(&mut config, &dir_name, parent);
-        config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
         Some(parent.to_string())
     } else {
         None
@@ -115,6 +114,12 @@ pub async fn create_worktree(
         global_config.port_range_start,
         global_config.port_range_end,
     );
+    if assigned_port.is_none() {
+        eprintln!("[worktree] port range {}-{} exhausted, no port assigned to {dir_name}",
+            global_config.port_range_start, global_config.port_range_end);
+    }
+
+    // Single save for both stack parent and port assignment
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
 
     Ok(Worktree {
