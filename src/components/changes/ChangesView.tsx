@@ -253,6 +253,35 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     }
   }, [allCommits, diffTarget, selectedCommitIndex, handleSelectCommit]);
 
+  // Recovery: when a file diffTarget is set but displayFiles was empty at mount time
+  // (new tab created before the first fetch resolves), re-apply file selection +
+  // scroll once displayFiles loads. The render from displayFiles changing already
+  // resolves focusedFile, but the scroll and uncollapse from handleSelectFile are
+  // needed since the primary effect's scroll found no DOM ref on the first pass.
+  // Track which diffTarget filePath we last successfully applied so we don't re-fire
+  // on every displayFiles poll tick.
+  const appliedFileTargetPath = useRef<string | null>(null);
+  useEffect(() => {
+    appliedFileTargetPath.current = null;
+  }, [diffTarget]);
+  useEffect(() => {
+    if (
+      diffTarget?.type !== "file" ||
+      !diffTarget.filePath ||
+      displayFiles.length === 0 ||
+      appliedFileTargetPath.current === diffTarget.filePath
+    ) return;
+    const fileExists = displayFiles.some((f) => f.path === diffTarget.filePath);
+    if (fileExists) {
+      appliedFileTargetPath.current = diffTarget.filePath;
+      handleSelectFile(diffTarget.filePath);
+      requestAnimationFrame(() => {
+        const el = fileRefs.current.get(diffTarget.filePath!);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [displayFiles, diffTarget, handleSelectFile, fileRefs]);
+
   // When a committed file is focused and the same path exists in uncommitted,
   // displayFiles only has the uncommitted version — look in committedFiles instead.
   const focusedFile = focusedFilePath
@@ -261,6 +290,21 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
         : null
       ) ?? displayFiles.find((f) => f.path === focusedFilePath)
     : null;
+
+  // Debug: log once per filePath when focused file can't be resolved despite data
+  // being loaded. This is the state that produces the blank-screen bug.
+  const lastWarnedPath = useRef<string | null>(null);
+  if (focusedFilePath && !focusedFile && displayFiles.length > 0) {
+    if (lastWarnedPath.current !== focusedFilePath) {
+      lastWarnedPath.current = focusedFilePath;
+      console.warn("[ChangesView] blank-screen state: focusedFilePath=%s not found in %d displayFiles (isUncommitted=%s, paths: %s)",
+        focusedFilePath, displayFiles.length, diffTarget?.isUncommitted,
+        displayFiles.map((f) => f.path).join(", "));
+    }
+  } else {
+    lastWarnedPath.current = null;
+  }
+
   const filesToRender = focusedFile ? [focusedFile] : displayFiles;
 
   const activeCommitHash =
