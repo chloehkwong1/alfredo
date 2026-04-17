@@ -192,8 +192,11 @@ export interface AppConfig {
   worktreeOverrides?: Record<string, ClaudeOverrides>;
   defaultAgent?: TabType;
   archiveScript?: string | null;
+  stackParentOverrides?: Record<string, string>;
+  linearTickets?: Record<string, { url: string; identifier: string }>;
   portAssignments?: Record<string, number>;
   autoAssignPorts?: boolean;
+  portEnvVar?: string | null;
 }
 
 // ── Linear ──────────────────────────────────────────────────────

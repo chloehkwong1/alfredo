@@ -70,6 +70,8 @@ struct ConfigFile {
     pub port_assignments: HashMap<String, u16>,
     #[serde(default)]
     pub auto_assign_ports: bool,
+    #[serde(default)]
+    pub port_env_var: Option<String>,
 }
 
 /// Load the repo config from the app data directory.
@@ -105,6 +107,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
             linear_tickets: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
+            port_env_var: None,
         });
     };
 
@@ -149,6 +152,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
         linear_tickets: file.linear_tickets,
         port_assignments: file.port_assignments,
         auto_assign_ports: file.auto_assign_ports,
+        port_env_var: file.port_env_var,
     };
 
     if is_migration || needs_resave {
@@ -194,6 +198,7 @@ pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfi
         linear_tickets: config.linear_tickets.clone(),
         port_assignments: config.port_assignments.clone(),
         auto_assign_ports: config.auto_assign_ports,
+        port_env_var: config.port_env_var.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -375,6 +380,7 @@ mod tests {
             linear_tickets: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
+            port_env_var: None,
         };
         config
             .column_overrides

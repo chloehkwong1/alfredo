@@ -6,7 +6,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AgentState, AgentType, NotifyReason, SessionType } from "../types";
 import { sendNotification, playSoundById, requestDockBounce } from "../hooks/notificationUtils";
-import { spawnPty, closePty, createPtyChannel, resizePty, writePty, getAppConfig, reattachPty } from "../api";
+import { spawnPty, closePty, createPtyChannel, resizePty, writePty, getAppConfig, getConfig, reattachPty } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
@@ -605,7 +605,12 @@ export class SessionManager {
 
     this.sessions.set(sessionKey, session);
 
-    const assignedPort = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId)?.assignedPort ?? undefined;
+    const worktree = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
+    const assignedPort = worktree?.assignedPort ?? undefined;
+    let portEnvVar: string | undefined;
+    if (assignedPort && worktree?.repoPath) {
+      portEnvVar = (await getConfig(worktree.repoPath)).portEnvVar ?? undefined;
+    }
 
     let sessionId: string;
     try {
@@ -618,6 +623,7 @@ export class SessionManager {
         agentType,
         sessionType,
         assignedPort,
+        portEnvVar,
       );
     } catch (err) {
       // Spawn failed — remove session from map to prevent zombie
@@ -737,7 +743,12 @@ export class SessionManager {
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);
 
     const agentType = AGENT_TYPE_MAP[mode] as AgentType | undefined;
-    const assignedPort = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId)?.assignedPort ?? undefined;
+    const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
+    const assignedPort = wt?.assignedPort ?? undefined;
+    let portEnvVar: string | undefined;
+    if (assignedPort && wt?.repoPath) {
+      portEnvVar = (await getConfig(wt.repoPath)).portEnvVar ?? undefined;
+    }
 
     let sessionId: string;
     try {
@@ -750,6 +761,7 @@ export class SessionManager {
         agentType,
         sessionType,
         assignedPort,
+        portEnvVar,
       );
     } catch (e) {
       // Spawn failed — remove session so it doesn't get stuck as scrollback-only

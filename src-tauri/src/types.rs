@@ -361,6 +361,9 @@ pub struct AppConfig {
     /// Whether to auto-assign dev server ports to worktrees.
     #[serde(default)]
     pub auto_assign_ports: bool,
+    /// Environment variable name to inject the assigned port as (defaults to "PORT").
+    #[serde(default)]
+    pub port_env_var: Option<String>,
 }
 
 /// Persisted Linear ticket metadata for a worktree. Survives app restart so the

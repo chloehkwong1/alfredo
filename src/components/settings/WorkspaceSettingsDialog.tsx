@@ -355,6 +355,24 @@ function WorkspaceSettingsDialog({
                           />
                         </button>
                       </div>
+                      {config.autoAssignPorts && (
+                        <div className="mt-4">
+                          <label className="text-[13px] text-text-secondary block mb-1">
+                            Port environment variable
+                          </label>
+                          <input
+                            className={inputClass + " !w-40"}
+                            placeholder="PORT"
+                            value={config.portEnvVar ?? ""}
+                            onChange={(e) =>
+                              updateConfig({ portEnvVar: e.target.value || null })
+                            }
+                          />
+                          <p className="text-xs text-text-tertiary mt-[3px]">
+                            The env var injected into each session. Defaults to PORT.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Archive & Cleanup */}

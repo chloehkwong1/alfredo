@@ -53,6 +53,8 @@ pub struct SpawnConfig {
     pub state_server_port: Option<u16>,
     pub session_type: SessionType,
     pub assigned_port: Option<u16>,
+    /// Environment variable name for the port (defaults to "PORT").
+    pub port_env_var: Option<String>,
 }
 
 /// Manages all PTY sessions. Stored as Tauri managed state.
@@ -95,6 +97,7 @@ impl PtyManager {
             state_server_port,
             session_type,
             assigned_port,
+            port_env_var,
         } = config;
 
         let pty_system = native_pty_system();
@@ -124,7 +127,8 @@ impl PtyManager {
 
         // Inject assigned port so dev servers pick up the right port
         if let Some(port) = assigned_port {
-            cmd.env("PORT", port.to_string());
+            let env_name = port_env_var.as_deref().unwrap_or("PORT");
+            cmd.env(env_name, port.to_string());
             cmd.env("ALFREDO_PORT", port.to_string());
         }
 
@@ -987,6 +991,7 @@ mod tests {
                     state_server_port: None,
                     session_type: SessionType::Agent,
                     assigned_port: None,
+                    port_env_var: None,
                 },
                 channel,
                 inhibitor,
@@ -1061,6 +1066,7 @@ mod tests {
                         state_server_port: None,
                         session_type: SessionType::Agent,
                         assigned_port: None,
+                        port_env_var: None,
                     },
                     channel,
                     std::sync::Arc::clone(&inhibitor),
