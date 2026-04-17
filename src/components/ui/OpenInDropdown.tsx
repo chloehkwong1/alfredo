@@ -19,9 +19,10 @@ export const CATEGORY_ICON: Record<string, typeof FolderOpen> = {
 
 interface OpenInDropdownProps {
   worktreePath: string | undefined;
+  linearTicketUrl?: string;
 }
 
-export function OpenInDropdown({ worktreePath }: OpenInDropdownProps) {
+export function OpenInDropdown({ worktreePath, linearTicketUrl }: OpenInDropdownProps) {
   const apps = useInstalledApps();
 
   const handleSelect = useCallback(
@@ -83,6 +84,15 @@ export function OpenInDropdown({ worktreePath }: OpenInDropdownProps) {
             </div>
           );
         })}
+        {linearTicketUrl && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => window.open(linearTicketUrl, "_blank")}>
+              <ExternalLink size={14} />
+              Linear
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={handleCopy}>
           <Copy size={14} />

@@ -133,6 +133,10 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
     onRestartSession?.();
   }, [onRestartSession]);
 
+  const linearTicketUrl = useWorkspaceStore(
+    useCallback((s) => s.worktrees.find((wt) => wt.id === worktreeId)?.linearTicketUrl, [worktreeId]),
+  );
+
   const isRcActive = useRemoteControlStore(
     useCallback((s) => worktreeId in s.sessions, [worktreeId]),
   );
@@ -258,7 +262,7 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
             Remote
           </button>
         )}
-        <OpenInDropdown worktreePath={worktreePath} />
+        <OpenInDropdown worktreePath={worktreePath} linearTicketUrl={linearTicketUrl} />
       </div>
     </div>
   );

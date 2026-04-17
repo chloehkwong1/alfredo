@@ -44,7 +44,7 @@ function DiffFileHeader({ file, expanded, onToggleExpanded, onDiscardFile }: Dif
       >
         {statusLabel}
       </span>
-      <span className="flex-1 font-mono text-xs text-text-primary truncate">
+      <span className="font-mono text-xs text-text-primary truncate">
         {file.path}
       </span>
       <button

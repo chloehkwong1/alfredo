@@ -100,4 +100,8 @@ export function focusAgentTab(worktreeId: string): void {
   if (paneId) {
     layout.setPaneActiveTab(worktreeId, paneId, agentTab.id);
   }
+  // Trigger DOM focus on the terminal after the layout state update renders
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new CustomEvent("focus-terminal", { detail: { tabId: agentTab.id } }));
+  });
 }

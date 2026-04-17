@@ -216,6 +216,18 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     setReconnectKey((k) => k + 1);
   }, [tabId, activeWorktreeId, worktree, sessionKey, repoPath]);
 
+  // Focus terminal when programmatically switched to (e.g. "Fix with agent")
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.tabId === tabId && ptyTerminal) {
+        ptyTerminal.focus();
+      }
+    };
+    window.addEventListener("focus-terminal", handler);
+    return () => window.removeEventListener("focus-terminal", handler);
+  }, [tabId, ptyTerminal]);
+
   // Cmd+F to toggle terminal search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
