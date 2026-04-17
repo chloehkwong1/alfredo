@@ -329,6 +329,7 @@ function WorkspacePanel({
               prComments={prComments}
               onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
               onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
+              worktreePath={worktree?.path}
             />
           </div>
         </div>

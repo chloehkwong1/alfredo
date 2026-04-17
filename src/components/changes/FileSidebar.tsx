@@ -1,7 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageCircle, Undo2 } from "lucide-react";
+import { Copy, ExternalLink, MessageCircle, Undo2 } from "lucide-react";
 import type { DiffFile, CommitInfo, PrComment } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from "../ui/ContextMenu";
+import { openPathInEditor } from "../../services/openExternal";
 
 type ViewMode = "changes" | "commits";
 
@@ -21,6 +23,7 @@ interface FileSidebarProps {
   prComments?: PrComment[];
   onDoubleClickFile?: (path: string) => void;
   onDoubleClickCommit?: (index: number) => void;
+  worktreePath?: string;
 }
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
@@ -41,68 +44,106 @@ const FileRow = memo(function FileRow({
   file,
   filePath,
   isActive,
+  isCopied,
   commentCount,
   onSelect,
   onDiscard,
   onDoubleClick,
+  onCopyPath,
+  worktreePath,
 }: {
   file: DiffFile;
   filePath: string;
   isActive: boolean;
+  isCopied: boolean;
   commentCount: number;
   onSelect: (path: string) => void;
   onDiscard?: (path: string, status: string) => void;
   onDoubleClick?: (path: string) => void;
+  onCopyPath: (path: string) => void;
+  worktreePath?: string;
 }) {
   const filename = file.path.split("/").pop() ?? file.path;
 
   return (
-    <div
-      className={[
-        "group flex items-center gap-1.5 w-full px-2.5 py-1 text-left text-xs",
-        "hover:bg-bg-hover transition-colors cursor-pointer",
-        isActive ? "bg-bg-hover text-text-primary" : "text-text-secondary",
-      ].join(" ")}
-      onClick={() => onSelect(filePath)}
-      onDoubleClick={() => onDoubleClick?.(filePath)}
-    >
-      <span
-        className={[
-          "text-[9px] font-semibold px-1 py-px rounded-sm flex-shrink-0",
-          STATUS_BADGE_CLASSES[file.status] ?? "",
-        ].join(" ")}
-      >
-        {STATUS_LETTER[file.status] ?? "?"}
-      </span>
-      <span className="truncate flex-1" title={file.path}>{filename}</span>
-      {commentCount > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] text-[var(--color-pr-comment)] flex-shrink-0" title={`${commentCount} comment${commentCount > 1 ? "s" : ""}`}>
-          <MessageCircle size={10} />
-          {commentCount > 1 && commentCount}
-        </span>
-      )}
-      <span className="text-text-tertiary text-[10px] flex-shrink-0 group-hover:hidden">
-        {file.additions > 0 && <span className="text-diff-added">+{file.additions}</span>}
-        {file.deletions > 0 && <span className="text-diff-removed ml-1">-{file.deletions}</span>}
-      </span>
-      {onDiscard && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDiscard(file.path, file.status); }}
-          className="hidden group-hover:flex group-focus-within:flex items-center p-0.5 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors flex-shrink-0"
-          title="Discard changes"
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          className={[
+            "group flex items-center gap-1.5 w-full px-2.5 py-1 text-left text-xs",
+            "hover:bg-bg-hover transition-colors cursor-pointer",
+            isActive ? "bg-bg-hover text-text-primary" : "text-text-secondary",
+          ].join(" ")}
+          onClick={() => onSelect(filePath)}
+          onDoubleClick={() => onDoubleClick?.(filePath)}
         >
-          <Undo2 size={12} />
-        </button>
-      )}
-    </div>
+          <span
+            className={[
+              "text-[9px] font-semibold px-1 py-px rounded-sm flex-shrink-0",
+              STATUS_BADGE_CLASSES[file.status] ?? "",
+            ].join(" ")}
+          >
+            {STATUS_LETTER[file.status] ?? "?"}
+          </span>
+          <span className="truncate flex-1" title={file.path}>{filename}</span>
+          {commentCount > 0 && (
+            <span className="flex items-center gap-0.5 text-[10px] text-[var(--color-pr-comment)] flex-shrink-0" title={`${commentCount} comment${commentCount > 1 ? "s" : ""}`}>
+              <MessageCircle size={10} />
+              {commentCount > 1 && commentCount}
+            </span>
+          )}
+          {isCopied ? (
+            <span className="text-accent-primary text-[10px] flex-shrink-0 group-hover:hidden">Copied!</span>
+          ) : (
+            <span className="text-text-tertiary text-[10px] flex-shrink-0 group-hover:hidden">
+              {file.additions > 0 && <span className="text-diff-added">+{file.additions}</span>}
+              {file.deletions > 0 && <span className="text-diff-removed ml-1">-{file.deletions}</span>}
+            </span>
+          )}
+          {onDiscard && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDiscard(file.path, file.status); }}
+              className="hidden group-hover:flex group-focus-within:flex items-center p-0.5 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors flex-shrink-0"
+              title="Discard changes"
+            >
+              <Undo2 size={12} />
+            </button>
+          )}
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => onCopyPath(file.path)}>
+          <Copy className="h-4 w-4" />
+          Copy Relative Path
+        </ContextMenuItem>
+        {worktreePath && (
+          <ContextMenuItem onSelect={() => onCopyPath(`${worktreePath}/${file.path}`)}>
+            <Copy className="h-4 w-4" />
+            Copy Path
+          </ContextMenuItem>
+        )}
+        {worktreePath && file.status !== "deleted" && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => openPathInEditor(`${worktreePath}/${file.path}`)}>
+              <ExternalLink className="h-4 w-4" />
+              Open in Editor
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }, (prev, next) =>
   prev.filePath === next.filePath &&
   prev.isActive === next.isActive &&
+  prev.isCopied === next.isCopied &&
   prev.commentCount === next.commentCount &&
   prev.onSelect === next.onSelect &&
   prev.onDiscard === next.onDiscard &&
-  prev.onDoubleClick === next.onDoubleClick
+  prev.onDoubleClick === next.onDoubleClick &&
+  prev.onCopyPath === next.onCopyPath &&
+  prev.worktreePath === next.worktreePath
 );
 
 function FileSidebar({
@@ -121,9 +162,23 @@ function FileSidebar({
   prComments = [],
   onDoubleClickFile,
   onDoubleClickCommit,
+  worktreePath,
 }: FileSidebarProps) {
   const [filter, setFilter] = useState("");
   const [upstreamExpanded, setUpstreamExpanded] = useState(false);
+  const [copiedPath, setCopiedPath] = useState<string | null>(null);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleCopyPath = useCallback((path: string) => {
+    navigator.clipboard.writeText(path).catch(console.error);
+    setCopiedPath(path);
+    clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopiedPath(null), 1500);
+  }, []);
+
+  useEffect(() => {
+    return () => clearTimeout(copiedTimerRef.current);
+  }, []);
 
   // Build per-file comment counts from PR comments
   const commentCountByFile = useMemo(() => {
@@ -248,13 +303,16 @@ function FileSidebar({
             activeFilePath === file.path &&
             (activeFileIsUncommitted === undefined || activeFileIsUncommitted === isUncommitted)
           }
+          isCopied={copiedPath === file.path}
           commentCount={commentCountByFile.get(file.path) ?? 0}
           onSelect={(path: string) => onSelectFile(path, isUncommitted)}
           onDiscard={onDiscard}
           onDoubleClick={onDoubleClickFile}
+          onCopyPath={handleCopyPath}
+          worktreePath={worktreePath}
         />
       )),
-    [activeFilePath, activeFileIsUncommitted, commentCountByFile, onSelectFile, onDoubleClickFile],
+    [activeFilePath, activeFileIsUncommitted, copiedPath, commentCountByFile, onSelectFile, onDoubleClickFile, handleCopyPath, worktreePath],
   );
 
   const formatAuthor = useCallback(
