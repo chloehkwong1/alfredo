@@ -172,32 +172,46 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
               }
 
-              // Restore per-tab Claude session IDs. Each tab may have
-              // its own resumeSessionId from a previous save — preserve
-              // those so multiple Claude tabs resume distinct conversations.
+              // Restore per-tab Claude session IDs.
+              // Always check the filesystem for the most recent session so we
+              // don't resume a stale conversation when the user's real session
+              // changed mid-use (e.g. /clear created a new session).
               const agentTabs = session.tabs.filter(isAgentTab);
               const tabsWithSession = agentTabs.filter((t) => t.resumeSessionId);
               const tabsWithoutSession = agentTabs.filter((t) => !t.resumeSessionId);
 
-              if (tabsWithoutSession.length > 0) {
-                let fallbackSessionId = session.claudeSessionId ?? null;
-                try {
-                  const fsSessionId = await findClaudeSession(wt.path);
-                  if (fsSessionId) {
-                    fallbackSessionId = fsSessionId;
-                  }
-                } catch (e) {
-                  console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);
-                }
+              let latestSessionId: string | null = null;
+              try {
+                latestSessionId = await findClaudeSession(wt.path) ?? null;
+              } catch (e) {
+                console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);
+              }
 
-                if (fallbackSessionId) {
-                  wt.claudeSessionId = fallbackSessionId;
-                  for (const tab of tabsWithoutSession) {
-                    updateTab(wt.id, tab.id, { resumeSessionId: fallbackSessionId });
+              if (agentTabs.length === 1) {
+                // Single agent tab: always use the most recent session from
+                // the filesystem — the saved resumeSessionId may be stale.
+                const sessionId = latestSessionId ?? tabsWithSession[0]?.resumeSessionId ?? session.claudeSessionId ?? null;
+                if (sessionId) {
+                  wt.claudeSessionId = sessionId;
+                  updateTab(wt.id, agentTabs[0].id, { resumeSessionId: sessionId });
+                }
+              } else {
+                // Multiple agent tabs: preserve per-tab sessions (each tab
+                // resumes its own conversation). Only discover for tabs
+                // that don't have a saved session ID.
+                if (tabsWithoutSession.length > 0) {
+                  const fallbackSessionId = latestSessionId ?? session.claudeSessionId ?? null;
+                  if (fallbackSessionId) {
+                    for (const tab of tabsWithoutSession) {
+                      updateTab(wt.id, tab.id, { resumeSessionId: fallbackSessionId });
+                    }
                   }
                 }
-              } else if (tabsWithSession.length > 0) {
-                wt.claudeSessionId = tabsWithSession[0].resumeSessionId;
+                if (tabsWithSession.length > 0) {
+                  wt.claudeSessionId = tabsWithSession[0].resumeSessionId;
+                } else if (latestSessionId) {
+                  wt.claudeSessionId = latestSessionId;
+                }
               }
 
               for (const tab of session.tabs) {

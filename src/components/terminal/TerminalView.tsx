@@ -137,25 +137,38 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     sessionType,
   });
 
-  // Capture Claude session ID for fresh tabs (no resumeSessionId) so that
-  // the session persists per-tab and resumes correctly on next restart.
-  // Note: if multiple fresh tabs exist in the same worktree, they'll all
-  // discover the same "most recent" session — no worse than the old behavior,
-  // and after one restart cycle each tab will have its own persisted ID.
+  // Discover and keep the Claude session ID in sync with the filesystem.
+  // Runs once on first output, then periodically to catch mid-session changes
+  // (e.g. /clear creating a new session). Updates resumeSessionId so the
+  // correct session is persisted and resumed on the next app restart.
   const hasDiscoveredSession = useRef(false);
   useEffect(() => {
-    if (hasDiscoveredSession.current) return;
-    if (!hasOutput || !isAgentTab || claudeSessionId) return;
+    if (!hasOutput || !isAgentTab) return;
     if (!activeWorktreeId || !worktree?.path) return;
-    hasDiscoveredSession.current = true;
-    findClaudeSession(worktree.path).then((fsSessionId) => {
-      if (fsSessionId && activeWorktreeId && tabId) {
-        useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: fsSessionId });
-      }
-    }).catch((e) => {
-      console.warn(`[TerminalView] Failed to discover Claude session for ${worktree.path}:`, e);
-    });
-  }, [hasOutput, isAgentTab, claudeSessionId, activeWorktreeId, worktree?.path, tabId]);
+
+    const discover = () => {
+      findClaudeSession(worktree.path).then((fsSessionId) => {
+        if (fsSessionId && activeWorktreeId && tabId) {
+          const current = useTabStore.getState().tabs[activeWorktreeId]?.find((t) => t.id === tabId)?.resumeSessionId;
+          if (fsSessionId !== current) {
+            useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: fsSessionId });
+          }
+        }
+      }).catch((e) => {
+        console.warn(`[TerminalView] Failed to discover Claude session for ${worktree.path}:`, e);
+      });
+    };
+
+    // Initial discovery on first output
+    if (!hasDiscoveredSession.current) {
+      hasDiscoveredSession.current = true;
+      discover();
+    }
+
+    // Re-discover every 30s to catch session changes (e.g. /clear)
+    const interval = setInterval(discover, 30_000);
+    return () => clearInterval(interval);
+  }, [hasOutput, isAgentTab, activeWorktreeId, worktree?.path, tabId]);
 
   const handleSendFeedback = useCallback(async () => {
     if (!activeWorktreeId || annotations.length === 0) return;
