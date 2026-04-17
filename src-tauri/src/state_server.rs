@@ -185,6 +185,9 @@ async fn handle_state_update(
     // Deliver to the specific session only — not fan-out by worktree.
     // When a session is unregistered (tab closed), stale hooks are silently dropped.
     if let Some(channel) = reg.channels.get(session_id) {
+        eprintln!(
+            "[state-server] → {session_id} {state:?} phase={phase:?} notify={notify:?}"
+        );
         if let Err(e) = channel.send(PtyEvent::HookAgentState { state, notify, phase }) {
             eprintln!(
                 "[state-server] failed to send state to session {session_id}: {e}"

@@ -36,7 +36,7 @@ const STALE_OUTPUT_IDLE_MS = 10_000;
  *  of output. Claude Code's TUI can produce output bytes (status bar redraws,
  *  cursor repositioning) while idle, keeping lastOutputAt fresh and preventing
  *  the output-based reconciler from triggering. */
-const STALE_HOOK_FORCE_MS = 120_000;
+const STALE_HOOK_FORCE_MS = 60_000;
 /** Debounce window for idle from Stop/StopFailure hooks.
  *  Subagent Stop fires idle before PostToolUse fires busy on the parent.
  *  Hold the idle and discard it if a non-idle hook arrives within this window. */
@@ -358,7 +358,7 @@ function createSessionChannel(
 
         // Cancel any pending debounced idle — a new hook event supersedes it.
         if (session.pendingIdleTimer !== null) {
-          console.debug(`[status:${worktreeId}] debounced idle CANCELLED by ${hookDesc}`);
+          console.warn(`[status:${worktreeId}] debounced idle CANCELLED by ${hookDesc} (session=${sessionKey})`);
           clearTimeout(session.pendingIdleTimer);
           session.pendingIdleTimer = null;
         }
@@ -372,7 +372,7 @@ function createSessionChannel(
         // SubagentStop fires busy, causing a false idle window. Hold the idle
         // briefly and discard it if a non-idle hook arrives in time.
         if (state === "idle" && phase === "turnEnd") {
-          console.debug(`[status:${worktreeId}] hook → idle (turnEnd, debouncing ${IDLE_DEBOUNCE_MS}ms)`);
+          console.warn(`[status:${worktreeId}] hook → idle (turnEnd, debouncing ${IDLE_DEBOUNCE_MS}ms, session=${sessionKey})`);
           session.pendingIdleTimer = setTimeout(() => {
             session.pendingIdleTimer = null;
             session.agentState = "idle";
@@ -476,7 +476,7 @@ export class SessionManager {
         const silentSec = Math.round((now - session.lastHookAt) / 1000);
         const wt = store.worktrees.find((w) => w.id === worktreeId);
         const branch = wt?.branch ?? worktreeId;
-        console.debug(`[reconcile:${worktreeId}] busy → idle (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms)`);
+        console.warn(`[reconcile:${worktreeId}] busy → idle (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms, last hook: ${session.lastHookDesc || "?"})`);
         fireDebugNotification(`${branch}: stuck busy rescued (last hook: ${session.lastHookDesc || "?"}, ${silentSec}s ago, output stopped)`);
         session.agentState = "idle";
         store.updateWorktree(worktreeId, { agentStatus: "idle" });
@@ -496,7 +496,7 @@ export class SessionManager {
         const silentSec = Math.round((now - session.lastHookAt) / 1000);
         const wt = store.worktrees.find((w) => w.id === worktreeId);
         const branch = wt?.branch ?? worktreeId;
-        console.debug(`[reconcile:${worktreeId}] busy → idle (force: hooks silent ${now - session.lastHookAt}ms, output still flowing)`);
+        console.warn(`[reconcile:${worktreeId}] busy → idle (force: hooks silent ${now - session.lastHookAt}ms, output still flowing, last hook: ${session.lastHookDesc || "?"})`);
         fireDebugNotification(`${branch}: stuck busy rescued (last hook: ${session.lastHookDesc || "?"}, ${silentSec}s ago)`);
         session.agentState = "idle";
         store.updateWorktree(worktreeId, { agentStatus: "idle" });

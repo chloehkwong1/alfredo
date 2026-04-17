@@ -326,6 +326,37 @@ function WorkspaceSettingsDialog({
                       </p>
                     </div>
 
+                    {/* Port Management */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-[13px] font-medium text-text-primary">
+                            Auto-assign dev server ports
+                          </div>
+                          <p className="text-xs text-text-tertiary mt-[3px]">
+                            Assign unique ports (3001–3099) to each worktree so multiple dev servers can run simultaneously.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={config.autoAssignPorts ?? false}
+                          onClick={() => updateConfig({ autoAssignPorts: !config.autoAssignPorts })}
+                          className={[
+                            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 cursor-pointer",
+                            config.autoAssignPorts ? "bg-accent-primary" : "bg-bg-tertiary",
+                          ].join(" ")}
+                        >
+                          <span
+                            className={[
+                              "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
+                              config.autoAssignPorts ? "translate-x-[18px]" : "translate-x-[3px]",
+                            ].join(" ")}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Archive & Cleanup */}
                     <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3 mt-6">
                       Archive &amp; Cleanup

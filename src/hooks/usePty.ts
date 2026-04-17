@@ -8,7 +8,7 @@ import { sessionManager } from "../services/sessionManager";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { ManagedSession } from "../services/sessionManager";
 
-export const STALE_BUSY_MS = 120_000;
+export const STALE_BUSY_MS = 60_000;
 
 export function computeStaleBusy(
   agentStatus: AgentState,

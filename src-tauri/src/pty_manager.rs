@@ -641,24 +641,27 @@ fn write_hooks_config(
     // so the shell expands them correctly per-session — even when
     // settings.local.json is shared across git worktrees.
     // Helper: build a hook entry with optional ?notify= query param.
+    // `cat > /dev/null` drains stdin (hook context JSON) to prevent pipe
+    // buffer deadlock when Claude Code sends large payloads (e.g. tool input).
+    // On curl failure, log to /tmp/alfredo-hooks.log for debugging missed hooks.
     let cmd = |state: &str| -> String {
         format!(
-            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
+            "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\" || echo \"$(date +%H:%M:%S) FAIL {state} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
         )
     };
     let cmd_phase = |state: &str, phase: &str| -> String {
         format!(
-            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}\"; fi; echo '{{}}'"
+            "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}\" || echo \"$(date +%H:%M:%S) FAIL {state}({phase}) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
         )
     };
     let cmd_notify = |state: &str, reason: &str| -> String {
         format!(
-            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}\"; fi; echo '{{}}'"
+            "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}\" || echo \"$(date +%H:%M:%S) FAIL {state} notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
         )
     };
     let cmd_notify_phase = |state: &str, reason: &str, phase: &str| -> String {
         format!(
-            "if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}\"; fi; echo '{{}}'"
+            "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}\" || echo \"$(date +%H:%M:%S) FAIL {state}({phase}) notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
         )
     };
 

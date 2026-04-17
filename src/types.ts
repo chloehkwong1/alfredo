@@ -193,6 +193,7 @@ export interface AppConfig {
   defaultAgent?: TabType;
   archiveScript?: string | null;
   portAssignments?: Record<string, number>;
+  autoAssignPorts?: boolean;
 }
 
 // ── Linear ──────────────────────────────────────────────────────

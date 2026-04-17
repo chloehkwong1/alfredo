@@ -358,6 +358,9 @@ pub struct AppConfig {
     /// Maps worktree name → assigned dev server port.
     #[serde(default)]
     pub port_assignments: HashMap<String, u16>,
+    /// Whether to auto-assign dev server ports to worktrees.
+    #[serde(default)]
+    pub auto_assign_ports: bool,
 }
 
 /// Persisted Linear ticket metadata for a worktree. Survives app restart so the

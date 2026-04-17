@@ -106,18 +106,23 @@ pub async fn create_worktree(
         None
     };
 
-    // Auto-assign a port from the global range
-    let global_config = crate::app_config_manager::load(&app_data_dir).await?;
-    let assigned_port = config_manager::assign_next_port(
-        &mut config,
-        &dir_name,
-        global_config.port_range_start,
-        global_config.port_range_end,
-    );
-    if assigned_port.is_none() {
-        eprintln!("[worktree] port range {}-{} exhausted, no port assigned to {dir_name}",
-            global_config.port_range_start, global_config.port_range_end);
-    }
+    // Auto-assign a port from the global range (only if opt-in enabled)
+    let assigned_port = if config.auto_assign_ports {
+        let global_config = crate::app_config_manager::load(&app_data_dir).await?;
+        let port = config_manager::assign_next_port(
+            &mut config,
+            &dir_name,
+            global_config.port_range_start,
+            global_config.port_range_end,
+        );
+        if port.is_none() {
+            eprintln!("[worktree] port range {}-{} exhausted, no port assigned to {dir_name}",
+                global_config.port_range_start, global_config.port_range_end);
+        }
+        port
+    } else {
+        None
+    };
 
     // Single save for both stack parent and port assignment
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
