@@ -90,6 +90,7 @@ pub enum NotifyReason {
 #[serde(rename_all = "camelCase")]
 pub enum HookPhase {
     None,
+    PromptStart,  // UserPromptSubmit
     ToolStart,    // PreToolUse
     ToolEnd,      // PostToolUse / PostToolUseFailure
     TurnEnd,      // Stop / StopFailure (resets counter)

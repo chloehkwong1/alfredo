@@ -37,10 +37,16 @@ const STALE_OUTPUT_IDLE_MS = 10_000;
  *  cursor repositioning) while idle, keeping lastOutputAt fresh and preventing
  *  the output-based reconciler from triggering. */
 const STALE_HOOK_FORCE_MS = 60_000;
-/** Debounce window for idle from Stop/StopFailure hooks.
- *  Subagent Stop fires idle before PostToolUse fires busy on the parent.
- *  Hold the idle and discard it if a non-idle hook arrives within this window. */
+/** Debounce window for idle(turnEnd) transitions.
+ *  Claude Code fires Stop (turnEnd) between every turn — including sub-agent
+ *  completions. Defer the entire state+notification transition so a following
+ *  busy(promptStart) can cancel it within this window. */
 const IDLE_DEBOUNCE_MS = 300;
+/** Grace period after turnEnd during which bare-busy hooks (no phase) are
+ *  suppressed. Claude Code fires idle(turnEnd) → idle → busy(none) as its
+ *  internal state settles after a turn, but the bare busy is not real work.
+ *  A legitimate new turn would arrive as busy with a phase (e.g. toolStart). */
+const TURN_END_GRACE_MS = 1000;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -130,6 +136,10 @@ export interface ManagedSession {
    *  causing a false idle flash. We hold the idle for a short window and discard
    *  it if a non-idle hook arrives in time. */
   pendingIdleTimer: ReturnType<typeof setTimeout> | null;
+  /** Timestamp of the last turnEnd hook. Used to suppress spurious bare-busy
+   *  hooks that Claude Code fires immediately after a turn ends (internal state
+   *  settling, not real work). Zero until the first turnEnd. */
+  turnEndAt: number;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
 }
@@ -352,13 +362,38 @@ function createSessionChannel(
       case "hookAgentState": {
         const { state, notify, phase } = event.data;
         const hookDesc = `${state}${phase !== "none" ? `(${phase})` : ""}`;
+        // Update lastHookAt unconditionally (proves hook channel is alive for
+        // the reconciler), but defer lastHookDesc until after the suppression
+        // check so reconciler debug logs show the last *accepted* hook.
         session.lastHookAt = Date.now();
-        session.lastHookDesc = hookDesc;
         session.hooksActive = true;
 
-        // Cancel any pending debounced idle — a new hook event supersedes it.
-        if (session.pendingIdleTimer !== null) {
-          console.warn(`[status:${worktreeId}] debounced idle CANCELLED by ${hookDesc} (session=${sessionKey})`);
+        // Suppress spurious bare-busy hooks that fire immediately after turnEnd.
+        // Claude Code's internal state settles with idle(turnEnd) → idle → busy(none),
+        // but the bare busy is not real work. Real new work arrives with a phase.
+        if (
+          state === "busy"
+          && phase === "none"
+          && session.turnEndAt > 0
+          && Date.now() - session.turnEndAt < TURN_END_GRACE_MS
+        ) {
+          console.debug(`[status:${worktreeId}] bare busy SUPPRESSED (${Date.now() - session.turnEndAt}ms after turnEnd)`);
+          break;
+        }
+
+        session.lastHookDesc = hookDesc;
+
+        if (phase === "turnEnd") {
+          session.turnEndAt = Date.now();
+        } else if (state === "busy" && phase !== "none") {
+          // Real work arrived — close the bare-busy suppression window.
+          session.turnEndAt = 0;
+        }
+
+        // Cancel any pending debounced idle — a new non-idle hook supersedes it.
+        // Don't cancel on idle→idle transitions: turnEnd fires notify=finished,
+        // then a bare idle follows — cancelling would swallow the notification.
+        if (session.pendingIdleTimer !== null && state !== "idle") {
           clearTimeout(session.pendingIdleTimer);
           session.pendingIdleTimer = null;
         }
@@ -367,12 +402,12 @@ function createSessionChannel(
           session.ptyExited = true;
         }
 
-        // Debounce idle from Stop/StopFailure (phase=turnEnd).
-        // Subagent Stop hooks fire idle before the parent's PostToolUse or
-        // SubagentStop fires busy, causing a false idle window. Hold the idle
-        // briefly and discard it if a non-idle hook arrives in time.
+        // Debounce idle from turnEnd: Claude Code fires Stop (turnEnd) between
+        // every turn — including between sub-agent completions when the parent
+        // immediately starts another turn. Defer the entire state+notification
+        // transition so busy(promptStart) can cancel it within the window.
         if (state === "idle" && phase === "turnEnd") {
-          console.warn(`[status:${worktreeId}] hook → idle (turnEnd, debouncing ${IDLE_DEBOUNCE_MS}ms, session=${sessionKey})`);
+          console.debug(`[status:${worktreeId}] hook → idle(turnEnd) DEBOUNCING ${IDLE_DEBOUNCE_MS}ms${notify !== "none" ? ` notify=${notify}` : ""}`);
           session.pendingIdleTimer = setTimeout(() => {
             session.pendingIdleTimer = null;
             session.agentState = "idle";
@@ -391,7 +426,7 @@ function createSessionChannel(
           break;
         }
 
-        console.debug(`[status:${worktreeId}] hook → ${state}${notify !== "none" ? ` (notify: ${notify})` : ""}`);
+        console.debug(`[status:${worktreeId}] hook → ${state}${phase !== "none" ? `(${phase})` : ""}${notify !== "none" ? ` notify=${notify}` : ""}`);
         session.agentState = state;
         stateSourceMap.set(worktreeId, "hook");
         useWorkspaceStore
@@ -399,7 +434,8 @@ function createSessionChannel(
           .updateWorktree(worktreeId, { agentStatus: state });
         useSessionStatusStore.getState().setSessionStatus(sessionKey, state);
 
-        // Fire notification directly from hook event
+        // Fire notification for non-turnEnd hooks (e.g. PermissionRequest).
+        // turnEnd notifications are handled inside the debounce above.
         if (notify !== "none") {
           const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
           if (wt) {
@@ -596,6 +632,7 @@ export class SessionManager {
       lastHookAt: 0,
       lastHookDesc: "",
       pendingIdleTimer: null,
+      turnEndAt: 0,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -713,6 +750,7 @@ export class SessionManager {
       lastHookAt: 0,
       lastHookDesc: "",
       pendingIdleTimer: null,
+      turnEndAt: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -844,6 +882,7 @@ export class SessionManager {
       lastHookAt: 0,
       lastHookDesc: "",
       pendingIdleTimer: null,
+      turnEndAt: 0,
     };
 
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);

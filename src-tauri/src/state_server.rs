@@ -125,6 +125,7 @@ fn parse_phase(query: Option<&str>) -> HookPhase {
         .flat_map(|q| q.split('&'))
         .find_map(|pair| pair.strip_prefix("phase="));
     match value {
+        Some("promptStart") => HookPhase::PromptStart,
         Some("toolStart") => HookPhase::ToolStart,
         Some("toolEnd") => HookPhase::ToolEnd,
         Some("turnEnd") => HookPhase::TurnEnd,

@@ -25,7 +25,7 @@ export type PtyEvent =
 /** Hook lifecycle phase — mirrors the Rust `HookPhase` enum. Emitted on the
  *  wire by the backend but currently unused by the frontend (hooks are the
  *  sole source of truth, so phase-based bookkeeping isn't needed). */
-export type HookPhase = "none" | "toolStart" | "toolEnd" | "turnEnd";
+export type HookPhase = "none" | "promptStart" | "toolStart" | "toolEnd" | "turnEnd";
 
 // ── Agent ───────────────────────────────────────────────────────
 

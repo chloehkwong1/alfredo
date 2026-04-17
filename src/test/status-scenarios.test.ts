@@ -145,6 +145,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     lastHookAt: now - 5_000,
     lastHookDesc: "",
     pendingIdleTimer: null,
+    turnEndAt: 0,
     ...overrides,
   };
 }
@@ -191,13 +192,15 @@ describe("SessionManager.reconcileAll", () => {
   });
 
   it("does NOT flip busy → idle when output is still flowing (long-running tool)", () => {
-    // Pins the STALE_OUTPUT_IDLE_MS guard: hooks may have gone silent for
-    // 60s+ during a long-running tool that streams output, but recent output
-    // means the agent is still working — don't reconcile to idle.
+    // Pins the STALE_OUTPUT_IDLE_MS guard: hooks may have gone silent during
+    // a long-running tool that streams output, but recent output means the
+    // agent is still working — don't reconcile to idle.
+    // Uses 50s silence — under the 60s STALE_HOOK_MS threshold so the soft
+    // check fails (output too recent) and the force check doesn't trigger.
     const mgr = new SessionManager();
     const session = makeFakeSession({
       agentState: "busy",
-      lastHookAt: Date.now() - 120_000,
+      lastHookAt: Date.now() - 50_000,
       lastOutputAt: Date.now() - 1_000,
     });
     (mgr as any).sessions.set("wt-streaming:main", session);

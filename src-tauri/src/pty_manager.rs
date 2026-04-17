@@ -690,8 +690,8 @@ fn write_hooks_config(
     let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
         // SessionStart → idle (no notify)
         ("SessionStart",      hook_entry(cmd("idle"))),
-        // UserPromptSubmit → busy
-        ("UserPromptSubmit",  hook_entry(cmd("busy"))),
+        // UserPromptSubmit → busy + phase=promptStart
+        ("UserPromptSubmit",  hook_entry(cmd_phase("busy", "promptStart"))),
         // PreToolUse → busy + phase=toolStart
         ("PreToolUse",        hook_entry(cmd_phase("busy", "toolStart"))),
         // PostToolUse → busy + phase=toolEnd
@@ -700,8 +700,8 @@ fn write_hooks_config(
         ("Stop",              hook_entry(cmd_notify_phase("idle", "finished", "turnEnd"))),
         // StopFailure → idle + notify error + phase=turnEnd
         ("StopFailure",       hook_entry(cmd_notify_phase("idle", "error", "turnEnd"))),
-        // SubagentStop → busy (no-op state; keeps hooks active for parent turn)
-        ("SubagentStop",      hook_entry(cmd_phase("busy", "none"))),
+        // SubagentStop → busy + phase=subagentEnd (distinct phase avoids bare-busy suppression)
+        ("SubagentStop",      hook_entry(cmd_phase("busy", "subagentEnd"))),
         // PermissionRequest → waitingForInput + notify input
         ("PermissionRequest", hook_entry(cmd_notify("waitingForInput", "input"))),
         // PermissionDenied → waitingForInput + notify input
