@@ -447,6 +447,78 @@ impl GithubManager {
         Ok(parse_pr_comments_response(&response))
     }
 
+    /// Fetch review thread resolution status via GitHub GraphQL API.
+    /// Returns a map of comment database ID → resolved bool.
+    pub async fn get_review_thread_resolution(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<HashMap<u64, bool>, AppError> {
+        let query = format!(
+            r#"{{
+  repository(owner: "{owner}", name: "{repo}") {{
+    pullRequest(number: {pr_number}) {{
+      reviewThreads(first: 100) {{
+        nodes {{
+          isResolved
+          comments(first: 1) {{
+            nodes {{
+              databaseId
+            }}
+          }}
+        }}
+      }}
+    }}
+  }}
+}}"#
+        );
+
+        let body = serde_json::json!({ "query": query });
+        let response: serde_json::Value = self
+            .http_client
+            .post("https://api.github.com/graphql")
+            .header("Authorization", format!("Bearer {}", self.token()))
+            .header("User-Agent", "alfredo")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| AppError::Github(format!("GraphQL request failed: {e}")))?
+            .json()
+            .await
+            .map_err(|e| AppError::Github(format!("GraphQL response parse failed: {e}")))?;
+
+        let mut resolution_map = HashMap::new();
+        if let Some(threads) = response
+            .pointer("/data/repository/pullRequest/reviewThreads/nodes")
+            .and_then(|v| v.as_array())
+        {
+            for thread in threads {
+                let is_resolved = thread
+                    .get("isResolved")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                if let Some(comment_id) = thread
+                    .pointer("/comments/nodes/0/databaseId")
+                    .and_then(|v| v.as_u64())
+                {
+                    resolution_map.insert(comment_id, is_resolved);
+                }
+            }
+        }
+
+        Ok(resolution_map)
+    }
+
+    /// Apply thread resolution status to a list of comments.
+    pub fn apply_thread_resolution(comments: &mut [PrComment], resolution: &HashMap<u64, bool>) {
+        for comment in comments.iter_mut() {
+            if let Some(&resolved) = resolution.get(&comment.id) {
+                comment.resolved = resolved;
+            }
+        }
+    }
+
     /// Fetch general (non-line-level) comments on a PR.
     pub async fn get_pr_issue_comments(
         &self,
@@ -508,16 +580,21 @@ impl GithubManager {
             })
             .unwrap_or_default();
 
-        // Fetch reviews, line comments, and issue comments concurrently
-        let (reviews, line_comments, issue_comments) = tokio::join!(
+        // Fetch reviews, line comments, issue comments, and thread resolution concurrently
+        let (reviews, line_comments, issue_comments, resolution) = tokio::join!(
             self.get_pr_reviews(owner, repo, pr_number),
             self.get_pr_comments(owner, repo, pr_number),
             self.get_pr_issue_comments(owner, repo, pr_number),
+            self.get_review_thread_resolution(owner, repo, pr_number),
         );
 
         let reviews = reviews?;
         let mut comments = line_comments?;
         comments.extend(issue_comments?);
+
+        if let Ok(resolution) = resolution {
+            Self::apply_thread_resolution(&mut comments, &resolution);
+        }
 
         let deduped_reviews = dedup_reviews(reviews);
         let review_decision = derive_review_decision(&deduped_reviews, &requested_reviewers);

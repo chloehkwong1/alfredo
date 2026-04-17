@@ -372,12 +372,16 @@ async fn enrich_repo_with_comments(
             let o = &owner;
             let r = &repo;
             async move {
-                let (line_result, issue_result) = tokio::join!(
+                let (line_result, issue_result, resolution) = tokio::join!(
                     mgr.get_pr_comments(o, r, pr_number),
                     mgr.get_pr_issue_comments(o, r, pr_number),
+                    mgr.get_review_thread_resolution(o, r, pr_number),
                 );
                 let mut comments = line_result.unwrap_or_default();
                 comments.extend(issue_result.unwrap_or_default());
+                if let Ok(resolution) = resolution {
+                    GithubManager::apply_thread_resolution(&mut comments, &resolution);
+                }
                 comments
             }
         })

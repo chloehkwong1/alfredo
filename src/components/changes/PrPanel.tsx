@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Check,
   ChevronRight,
   CircleCheck,
   Eye,
@@ -58,7 +59,7 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
   const pr = worktree?.prStatus ?? null;
   const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
 
-  const { checkRuns, reviews, comments, unresolvedComments } = usePrBadgeCounts(worktreeId);
+  const { checkRuns, reviews, comments } = usePrBadgeCounts(worktreeId);
 
   // Loading skeleton: prDetail not yet loaded
   if (prDetail === undefined) {
@@ -117,7 +118,7 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
         </Section>
 
         {/* Comments section */}
-        <Section title="Comments" count={unresolvedComments > 0 ? unresolvedComments : comments.length}>
+        <Section title="Comments" count={comments.length}>
           {comments.length === 0 ? (
             <EmptyRow text="No comments" />
           ) : (
@@ -252,21 +253,64 @@ function CommentsByFile({
     );
   }
 
+  const unresolved = comments.filter((c) => !c.resolved);
+  const resolved = comments.filter((c) => c.resolved);
+
   // Single file (or all general) — render flat, no sub-headers
   if (grouped.size === 1) {
-    return <>{comments.map(renderComment)}</>;
+    return (
+      <>
+        {unresolved.length > 0 && (
+          <div className="space-y-1.5">
+            {unresolved.map(renderComment)}
+          </div>
+        )}
+        {resolved.length > 0 && (
+          <ResolvedToggle count={resolved.length}>
+            {resolved.map(renderComment)}
+          </ResolvedToggle>
+        )}
+      </>
+    );
   }
 
   return (
     <>
       {[...grouped.entries()].map(([filePath, fileComments]) => {
-        const isCollapsed = collapsedFiles.has(filePath);
-        const unresolvedCount = fileComments.filter((c) => !c.resolved).length;
-        const displayName = filePath === "General" ? "General" : filePath.split("/").pop() ?? filePath;
+        const fileUnresolved = fileComments.filter((c) => !c.resolved);
+        const fileResolved = fileComments.filter((c) => c.resolved);
+        const allFileResolved = fileUnresolved.length === 0 && fileResolved.length > 0;
+        // Auto-collapse fully-resolved files unless the user explicitly expanded them
+        const isCollapsed = allFileResolved
+          ? !collapsedFiles.has(`${filePath}:expanded`)
+          : collapsedFiles.has(filePath);
+        const displayName = filePath === "General" ? "PR conversation" : filePath.split("/").pop() ?? filePath;
+
+        // Fully-resolved files: compact single row
+        if (allFileResolved && isCollapsed) {
+          return (
+            <button
+              key={filePath}
+              onClick={() => toggleFile(`${filePath}:expanded`)}
+              className="flex items-center gap-1 px-4 py-0.5 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
+              title={filePath}
+            >
+              <Check size={10} className="text-diff-added shrink-0" />
+              <span className="text-[11px] text-text-tertiary/60 truncate">
+                {displayName}
+              </span>
+              <span className="text-[10px] text-text-tertiary/60 ml-auto shrink-0">
+                {fileResolved.length} resolved
+              </span>
+              <ChevronRight size={10} className="text-text-tertiary/40 shrink-0" />
+            </button>
+          );
+        }
+
         return (
           <div key={filePath} className="mb-px">
             <button
-              onClick={() => toggleFile(filePath)}
+              onClick={() => toggleFile(allFileResolved ? `${filePath}:expanded` : filePath)}
               className="flex items-center gap-1 px-4 py-1 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
               title={filePath}
             >
@@ -277,15 +321,52 @@ function CommentsByFile({
               <span className="text-[11px] text-text-tertiary font-medium truncate">
                 {displayName}
               </span>
-              <span className="text-[10px] text-text-tertiary/60 ml-auto shrink-0">
-                {unresolvedCount > 0 ? `${unresolvedCount} unresolved` : `${fileComments.length}`}
+              <span className={`text-[10px] ml-auto shrink-0 ${fileUnresolved.length > 0 ? "text-status-busy" : "text-text-tertiary"}`}>
+                {fileUnresolved.length > 0 ? `${fileUnresolved.length} unresolved` : `${fileComments.length}`}
               </span>
             </button>
-            {!isCollapsed && fileComments.map(renderComment)}
+            {!isCollapsed && (
+              <>
+                {fileUnresolved.length > 0 && (
+                  <div className="space-y-1.5">
+                    {fileUnresolved.map(renderComment)}
+                  </div>
+                )}
+                {fileResolved.length > 0 && (
+                  <ResolvedToggle count={fileResolved.length}>
+                    {fileResolved.map(renderComment)}
+                  </ResolvedToggle>
+                )}
+              </>
+            )}
           </div>
         );
       })}
     </>
+  );
+}
+
+// ── ResolvedToggle ───────────────────────────────────────────────
+
+function ResolvedToggle({ count, children }: { count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mx-1.5 mt-2 pt-1.5 border-t border-border-subtle">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 px-1.5 py-0.5 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
+      >
+        <Check size={10} className="text-diff-added shrink-0" />
+        <span className="text-[10px] text-text-tertiary">
+          {count} resolved
+        </span>
+        <ChevronRight
+          size={10}
+          className={`text-text-tertiary shrink-0 transition-transform duration-150 ml-auto ${open ? "rotate-90" : ""}`}
+        />
+      </button>
+      {open && children}
+    </div>
   );
 }
 
@@ -347,11 +428,13 @@ function readCollapsedMap(): Record<string, boolean> {
 function Section({
   title,
   count,
+  attentionCount,
   summary,
   children,
 }: {
   title: string;
   count?: number;
+  attentionCount?: number;
   summary?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -364,6 +447,8 @@ function Section({
     map[title] = next;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
   }
+
+  const hasAttention = attentionCount != null && attentionCount > 0;
 
   return (
     <div className="mb-0.5">
@@ -379,8 +464,13 @@ function Section({
           {title}
         </span>
         {count != null && count > 0 && (
-          <span className="text-[10px] bg-bg-secondary text-text-tertiary rounded-full px-1.5 py-px">
+          <span className="text-[10px] bg-bg-hover text-text-secondary rounded-full px-1.5 py-px">
             {count}
+          </span>
+        )}
+        {hasAttention && (
+          <span className="text-[10px] text-status-busy">
+            {attentionCount} unresolved
           </span>
         )}
         {summary}

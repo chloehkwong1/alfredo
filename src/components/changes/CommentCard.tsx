@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { formatTimeAgo } from "./formatRelativeTime";
 import { MarkdownBody } from "../shared/MarkdownBody";
 import { IconButton } from "../ui/IconButton";
+import { Tooltip } from "../ui/Tooltip";
 
 export function CommentCard({
   author,
@@ -55,29 +56,33 @@ export function CommentCard({
         <span className="text-text-tertiary text-[10px] shrink-0">
           {formatTimeAgo(createdAt)}
         </span>
-        <IconButton
-          size="sm"
-          label="Open on GitHub"
-          className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary shrink-0"
-          onClick={(e) => {
-            e.stopPropagation();
-            openUrl(htmlUrl);
-          }}
-        >
-          <ExternalLink size={10} />
-        </IconButton>
-        {onSendToClaude && (
+        <Tooltip content="Open on GitHub">
           <IconButton
             size="sm"
-            label="Send to Claude"
-            className="h-auto w-auto p-0 text-text-tertiary hover:text-accent-primary shrink-0"
+            label="Open on GitHub"
+            className="min-w-[24px] min-h-[24px] h-auto w-auto p-0 text-text-tertiary hover:text-text-primary shrink-0"
             onClick={(e) => {
               e.stopPropagation();
-              onSendToClaude();
+              openUrl(htmlUrl);
             }}
           >
-            <Bot size={10} />
+            <ExternalLink size={12} />
           </IconButton>
+        </Tooltip>
+        {onSendToClaude && (
+          <Tooltip content="Send to Claude">
+            <IconButton
+              size="sm"
+              label="Send to Claude"
+              className="min-w-[24px] min-h-[24px] h-auto w-auto p-0 text-text-tertiary hover:text-accent-primary shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSendToClaude();
+              }}
+            >
+              <Bot size={12} />
+            </IconButton>
+          </Tooltip>
         )}
       </div>
 
@@ -85,14 +90,14 @@ export function CommentCard({
       <div
         className={`relative text-text-primary ${expanded ? "" : "max-h-[60px] overflow-hidden"}`}
       >
-        <MarkdownBody text={body} compact />
+        <MarkdownBody text={body || "*No comment body*"} compact />
         {!expanded && isLong && (
           <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[var(--bg-secondary)] to-transparent pointer-events-none" />
         )}
       </div>
       {isLong && (
         <button
-          className="text-accent-primary text-[10px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
+          className="text-accent-primary text-[11px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit] hover:underline"
           onClick={(e) => {
             e.stopPropagation();
             setExpanded((prev) => !prev);

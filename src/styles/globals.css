@@ -243,6 +243,19 @@ body {
   30% { opacity: 1; transform: scale(1); }
 }
 
+/* ── Compact markdown (PR comment cards) ────── */
+.markdown-compact p {
+  margin-block: 2px;
+}
+.markdown-compact pre {
+  max-height: 120px;
+}
+.markdown-compact ul,
+.markdown-compact ol {
+  padding-left: 1.25rem;
+  margin-block: 2px;
+}
+
 /* Status dot glow — attention states only */
 .dot-glow-attn  { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-primary) 40%, transparent); }
 .dot-glow-error { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-error) 45%, transparent); }

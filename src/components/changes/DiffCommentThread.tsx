@@ -1,6 +1,8 @@
-import { Bot, ExternalLink, GitPullRequest } from "lucide-react";
+import { useState } from "react";
+import { Bot, Check, ChevronRight, ExternalLink, GitPullRequest } from "lucide-react";
 import type { PrComment } from "../../types";
 import { MarkdownBody } from "../shared/MarkdownBody";
+import { formatTimeAgo } from "./formatRelativeTime";
 
 interface DiffCommentThreadProps {
   comments: PrComment[];
@@ -8,8 +10,36 @@ interface DiffCommentThreadProps {
 }
 
 function DiffCommentThread({ comments, onSendToClaude }: DiffCommentThreadProps) {
+  const allResolved = comments.length > 0 && comments.every((c) => c.resolved);
+  const [expanded, setExpanded] = useState(!allResolved);
+
+  // Minimized state for fully-resolved threads
+  if (allResolved && !expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="flex items-center gap-1.5 mx-2 my-1 px-2.5 py-1 rounded-md border border-[var(--border-subtle)] bg-transparent cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 w-[calc(100%-1rem)]"
+      >
+        <Check size={11} className="text-diff-added shrink-0" />
+        <span className="text-[10px] text-text-tertiary">
+          Resolved thread · {comments.length} {comments.length === 1 ? "comment" : "comments"}
+        </span>
+        <ChevronRight size={10} className="text-text-tertiary ml-auto shrink-0" />
+      </button>
+    );
+  }
+
   return (
-    <div className="border border-[var(--color-pr-comment,#60a5fa)]/25 rounded-md mx-2 my-1 overflow-hidden">
+    <div className={`border border-[var(--color-pr-comment,#60a5fa)]/25 rounded-md mx-2 my-1 overflow-hidden ${allResolved ? "opacity-60" : ""}`}>
+      {allResolved && (
+        <button
+          onClick={() => setExpanded(false)}
+          className="flex items-center gap-1 px-2.5 py-0.5 w-full bg-transparent border-none border-b border-[var(--border-subtle)] cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 text-[10px] text-text-tertiary"
+        >
+          <Check size={10} className="text-diff-added shrink-0" />
+          Resolved · click to collapse
+        </button>
+      )}
       {comments.map((comment) => (
         <div key={comment.id} className="border-b border-[var(--border-subtle)] last:border-b-0">
           {/* Header bar */}
@@ -28,7 +58,7 @@ function DiffCommentThread({ comments, onSendToClaude }: DiffCommentThreadProps)
               @{comment.author}
             </span>
             <span className="text-[10px] text-text-tertiary">
-              {new Date(comment.createdAt).toLocaleDateString()}
+              {formatTimeAgo(comment.createdAt)}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {onSendToClaude && (
