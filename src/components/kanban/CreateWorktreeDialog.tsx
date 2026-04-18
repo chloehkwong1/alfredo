@@ -12,7 +12,8 @@ import { Button } from "../ui/Button";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
-import { createWorktreeFrom, getDefaultBranch, setSelectedRepos as setSelectedReposApi } from "../../api";
+import { createWorktreeFrom, setSelectedRepos as setSelectedReposApi } from "../../api";
+import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import type { RepoEntry, Worktree, WorktreeSource } from "../../types";
 import { NewBranchTab, getNewBranchSource } from "./create-worktree/NewBranchTab";
 import { BranchesTab } from "./create-worktree/BranchesTab";
@@ -107,18 +108,16 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
   }, [open, defaultRepoPath, repoPath]);
 
   // Detect default branch for the selected repo
+  const resolvedDefault = useDefaultBranch(
+    open ? currentRepoPath : undefined,
+    lockedBaseBranch,
+  );
   useEffect(() => {
-    if (open && currentRepoPath) {
-      if (lockedBaseBranch) {
-        setBaseBranch(lockedBaseBranch);
-        setActiveTab("newBranch");
-      } else {
-        getDefaultBranch(currentRepoPath)
-          .then((branch) => setBaseBranch(branch))
-          .catch((e) => console.warn('[create-worktree] Failed to get default branch:', e));
-      }
+    if (resolvedDefault) {
+      setBaseBranch(resolvedDefault);
+      if (lockedBaseBranch) setActiveTab("newBranch");
     }
-  }, [open, currentRepoPath, lockedBaseBranch]);
+  }, [resolvedDefault, lockedBaseBranch]);
 
 
   // Reset selection state when dialog closes

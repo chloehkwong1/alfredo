@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, memo } from "react";
 import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, setStackParent, getDefaultBranch, runSetupScripts } from "../../api";
+import { rebaseWorktree, setStackParent, runSetupScripts } from "../../api";
+import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp } from "../../api";
 import { CATEGORY_ICON } from "../ui/OpenInDropdown";
@@ -612,14 +613,7 @@ const AgentItem = memo(function AgentItem({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: worktree.id,
   });
-  const [defaultBranch, setDefaultBranch] = useState<string | null>(null);
-  useEffect(() => {
-    if (!worktree.stackParent && worktree.repoPath) {
-      getDefaultBranch(worktree.repoPath)
-        .then((b) => setDefaultBranch(b))
-        .catch((e) => console.error("Failed to get default branch:", e));
-    }
-  }, [worktree.stackParent, worktree.repoPath]);
+  const defaultBranch = useDefaultBranch(worktree.repoPath, worktree.stackParent);
 
   const installedApps = useInstalledApps();
 

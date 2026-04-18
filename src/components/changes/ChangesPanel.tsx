@@ -11,7 +11,8 @@ import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { useChangesData } from "../../hooks/useChangesData";
 import { useGitUser } from "../../hooks/useGitUser";
-import { discardFile, discardAllUncommitted, getCommitsBehindMain, getDefaultBranch, rebaseWorktree } from "../../api";
+import { discardFile, discardAllUncommitted, getCommitsBehindMain, rebaseWorktree } from "../../api";
+import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import type { ViewMode } from "./FileSidebar";
 import type { PrComment } from "../../types";
 
@@ -20,7 +21,7 @@ const EMPTY_COMMENTS: PrComment[] = [];
 
 function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: string; worktreePath: string; stackParent?: string | null }) {
   const [behindCount, setBehindCount] = useState<number | null>(null);
-  const [baseBranchName, setBaseBranchName] = useState<string | null>(stackParent ?? null);
+  const baseBranchName = useDefaultBranch(repoPath, stackParent);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -35,17 +36,8 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
     fetch();
     const id = setInterval(fetch, 60_000);
 
-    // Resolve display name for the base branch
-    if (stackParent) {
-      setBaseBranchName(stackParent);
-    } else {
-      getDefaultBranch(repoPath).then((name) => {
-        if (!cancelled) setBaseBranchName(name);
-      }).catch((err) => { console.warn("Failed to resolve default branch:", err); });
-    }
-
     return () => { cancelled = true; clearInterval(id); };
-  }, [repoPath, worktreePath, stackParent]);
+  }, [worktreePath, stackParent]);
 
   const [error, setError] = useState<string | null>(null);
 
