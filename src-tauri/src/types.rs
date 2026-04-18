@@ -94,6 +94,7 @@ pub enum HookPhase {
     ToolStart,    // PreToolUse
     ToolEnd,      // PostToolUse / PostToolUseFailure
     TurnEnd,      // Stop / StopFailure (resets counter)
+    SubagentEnd,  // SubagentStop — straggler after parent's TurnEnd must not wake idle sessions
 }
 
 // ── Worktree / Kanban ───────────────────────────────────────────

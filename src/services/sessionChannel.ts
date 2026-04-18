@@ -190,6 +190,25 @@ export function createSessionChannel(
           break;
         }
 
+        // SubagentStop can arrive after the parent's Stop has already fired
+        // (async cleanup of a Task subagent). A straggler busy(subagentEnd)
+        // on an already-idle session must NOT wake it back to busy — the
+        // parent turn is done.
+        //
+        // The `break` here is load-bearing: it deliberately skips the
+        // `turnEndAt` reset (preserving the bare-busy suppression window
+        // for real stragglers) and the `pendingIdleTimer` cancel (which
+        // only fires for non-idle states anyway, but future refactors
+        // could move that assumption).
+        if (
+          state === "busy"
+          && phase === "subagentEnd"
+          && session.agentState !== "busy"
+        ) {
+          console.debug(`[status:${worktreeId}] straggler subagentEnd IGNORED (session is ${session.agentState})`);
+          break;
+        }
+
         session.lastHookDesc = hookDesc;
 
         if (phase === "turnEnd") {

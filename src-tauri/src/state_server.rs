@@ -129,6 +129,7 @@ fn parse_phase(query: Option<&str>) -> HookPhase {
         Some("toolStart") => HookPhase::ToolStart,
         Some("toolEnd") => HookPhase::ToolEnd,
         Some("turnEnd") => HookPhase::TurnEnd,
+        Some("subagentEnd") => HookPhase::SubagentEnd,
         _ => HookPhase::None,
     }
 }
