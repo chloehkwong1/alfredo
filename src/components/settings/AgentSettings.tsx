@@ -1,12 +1,6 @@
 import { useAgentStore } from "../../stores/agentStore";
+import { useClaudeModels } from "../../services/modelCatalog";
 import type { ClaudeDefaults, TabType } from "../../types";
-
-const MODEL_OPTIONS = [
-  { value: "", label: "Default" },
-  { value: "claude-opus-4-6", label: "Opus 4.6" },
-  { value: "claude-sonnet-4-6", label: "Sonnet 4.6 (200K context)" },
-  { value: "claude-haiku-4-5", label: "Haiku 4.5 (200K context)" },
-];
 
 const EFFORT_OPTIONS = ["low", "medium", "high", "max"] as const;
 
@@ -49,6 +43,7 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
     onChange({ ...settings, ...patch });
 
   const availableAgents = useAgentStore((s) => s.availableAgents);
+  const claudeModels = useClaudeModels();
 
   const agentOptions = AGENT_OPTIONS.filter((opt) =>
     availableAgents.includes(opt.agentId),
@@ -93,7 +88,8 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
           onChange={(e) => update({ model: e.target.value || undefined })}
           className={selectClass}
         >
-          {MODEL_OPTIONS.map((opt) => (
+          <option value="">Default</option>
+          {claudeModels.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
