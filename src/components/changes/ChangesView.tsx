@@ -216,10 +216,10 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     if (diffTarget.type === "file" && diffTarget.filePath) {
       handleSelectFile(diffTarget.filePath);
       if (diffTarget.scrollToLine) {
-        requestAnimationFrame(() => {
-          const el = fileRefs.current.get(diffTarget.filePath!);
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
+        // DiffFileCard handles scrolling to the exact comment line via highlightLineRef
+        setHighlightComment({ filePath: diffTarget.filePath, line: diffTarget.scrollToLine });
+      } else {
+        setHighlightComment(null);
       }
     } else if (diffTarget.type === "commit" && diffTarget.commitHash) {
       const commitIndex = allCommitsRef.current.findIndex((c) => c.hash === diffTarget.commitHash);
@@ -275,10 +275,15 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     if (fileExists) {
       appliedFileTargetPath.current = diffTarget.filePath;
       handleSelectFile(diffTarget.filePath);
-      requestAnimationFrame(() => {
-        const el = fileRefs.current.get(diffTarget.filePath!);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      if (diffTarget.scrollToLine) {
+        // DiffFileCard handles scrolling to the exact comment line
+        setHighlightComment({ filePath: diffTarget.filePath, line: diffTarget.scrollToLine });
+      } else {
+        requestAnimationFrame(() => {
+          const el = fileRefs.current.get(diffTarget.filePath!);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
     }
   }, [displayFiles, diffTarget, handleSelectFile, fileRefs]);
 

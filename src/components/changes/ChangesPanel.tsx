@@ -189,9 +189,7 @@ function WorkspacePanel({
   );
 
   const handleJumpToComment = useCallback(
-    (filePath: string, line: number) => {
-      // Switch back to files tab
-      setChangesViewMode(worktreeId, "changes");
+    (filePath: string, line?: number) => {
       setActiveFileIsUncommitted(undefined);
       lifecycleManager.openDiffPreview(worktreeId, {
         type: "file",
@@ -199,7 +197,7 @@ function WorkspacePanel({
         scrollToLine: line,
       });
     },
-    [setChangesViewMode, worktreeId],
+    [worktreeId],
   );
 
   const handleTabChange = useCallback(

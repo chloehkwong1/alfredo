@@ -51,7 +51,7 @@ export function usePrBadgeCounts(worktreeId: string) {
 
 interface PrPanelContentProps {
   worktreeId: string;
-  onJumpToComment: (filePath: string, line: number) => void;
+  onJumpToComment: (filePath: string, line?: number) => void;
 }
 
 export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentProps) {
@@ -205,7 +205,7 @@ function CommentsByFile({
   comments: PrComment[];
   worktreeId: string;
   worktree: Worktree | undefined;
-  onJumpToComment: (filePath: string, line: number) => void;
+  onJumpToComment: (filePath: string, line?: number) => void;
 }) {
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => readFileCollapsedSet(worktreeId));
 
@@ -240,8 +240,8 @@ function CommentsByFile({
         resolved={c.resolved}
         htmlUrl={c.htmlUrl}
         onJump={
-          c.path && c.line != null
-            ? () => onJumpToComment(c.path!, c.line!)
+          c.path
+            ? () => onJumpToComment(c.path!, c.line ?? undefined)
             : undefined
         }
         onSendToClaude={

@@ -1,7 +1,6 @@
 import React from "react";
 import { SyntaxDiffLine } from "./SyntaxDiffLine";
 import { AnnotationBubble } from "./AnnotationBubble";
-import { DiffCommentIndicator } from "./DiffCommentIndicator";
 import { DiffCommentThread } from "./DiffCommentThread";
 import { ExpandContextButton } from "./ExpandContextButton";
 import type { DiffFile, DiffLine, Annotation, PrComment, DiffSide } from "../../types";
@@ -118,19 +117,14 @@ function UnifiedDiffBody({
                   isActiveSearchMatch={isActiveMatch}
                 >
                   {hasComments && lineNumber !== null && (
-                    <div
-                      className="flex justify-end pr-2"
-                      ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}
-                    >
-                      <DiffCommentIndicator
-                        count={lineComments.length}
-                        onClick={() => toggleCommentLine(lineNumber)}
+                    <div ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}>
+                      <DiffCommentThread
+                        comments={lineComments}
+                        expanded={commentsExpanded}
+                        onToggle={() => toggleCommentLine(lineNumber)}
+                        onSendToClaude={onSendToClaude}
                       />
                     </div>
-                  )}
-
-                  {hasComments && commentsExpanded && (
-                    <DiffCommentThread comments={lineComments} onSendToClaude={onSendToClaude} />
                   )}
 
                   {lineAnnotations.map((ann) => (
