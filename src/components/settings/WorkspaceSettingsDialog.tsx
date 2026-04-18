@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FolderOpen } from "lucide-react";
+import { Check, Copy, FolderOpen } from "lucide-react";
 import type { AppConfig, GlobalAppConfig, RepoEntry, RepoMode } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig, setRepoMode } from "../../api";
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/Button";
 import {
   Dialog,
@@ -36,6 +37,21 @@ const textareaClass = [
   "transition-all duration-[var(--transition-fast)]",
   "resize-none",
 ].join(" ");
+
+function CopyButton({ value }: { value: string }) {
+  const { copied, copy } = useCopyToClipboard();
+  if (!value) return null;
+  return (
+    <button
+      type="button"
+      className="absolute top-2 right-2 p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+      title="Copy to clipboard"
+      onClick={() => copy(value)}
+    >
+      {copied ? <Check size={14} className="text-diff-added" /> : <Copy size={14} />}
+    </button>
+  );
+}
 
 interface WorkspaceSettingsDialogProps {
   open: boolean;
@@ -434,20 +450,23 @@ function WorkspaceSettingsDialog({
                     <p className="text-xs text-text-tertiary -mt-2 mb-3">
                       Run automatically when a new worktree is created.
                     </p>
-                    <textarea
-                      className={textareaClass}
-                      rows={2}
-                      style={{ fieldSizing: "content" } as React.CSSProperties}
-                      placeholder="Command (e.g. npm install)"
-                      value={config.setupScripts[0]?.command ?? ""}
-                      onChange={(e) =>
-                        updateConfig({
-                          setupScripts: e.target.value.trim()
-                            ? [{ name: "Setup", command: e.target.value, runOn: "create" }]
-                            : [],
-                        })
-                      }
-                    />
+                    <div className="relative">
+                      <textarea
+                        className={textareaClass}
+                        rows={2}
+                        style={{ fieldSizing: "content" } as React.CSSProperties}
+                        placeholder="Command (e.g. npm install)"
+                        value={config.setupScripts[0]?.command ?? ""}
+                        onChange={(e) =>
+                          updateConfig({
+                            setupScripts: e.target.value.trim()
+                              ? [{ name: "Setup", command: e.target.value, runOn: "create" }]
+                              : [],
+                          })
+                        }
+                      />
+                      <CopyButton value={config.setupScripts[0]?.command ?? ""} />
+                    </div>
                   </>
                 )}
 
@@ -458,20 +477,23 @@ function WorkspaceSettingsDialog({
                 <p className="text-xs text-text-tertiary -mt-2 mb-3">
                   Started from any {currentMode === "worktree" ? "worktree" : "branch"} via the play button in the tab bar.
                 </p>
-                <textarea
-                  className={textareaClass}
-                  rows={2}
-                  style={{ fieldSizing: "content" } as React.CSSProperties}
-                  placeholder="Command (e.g. npm run dev)"
-                  value={config.runScript?.command ?? ""}
-                  onChange={(e) =>
-                    updateConfig({
-                      runScript: e.target.value.trim()
-                        ? { name: "Run", command: e.target.value }
-                        : null,
-                    })
-                  }
-                />
+                <div className="relative">
+                  <textarea
+                    className={textareaClass}
+                    rows={2}
+                    style={{ fieldSizing: "content" } as React.CSSProperties}
+                    placeholder="Command (e.g. npm run dev)"
+                    value={config.runScript?.command ?? ""}
+                    onChange={(e) =>
+                      updateConfig({
+                        runScript: e.target.value.trim()
+                          ? { name: "Run", command: e.target.value }
+                          : null,
+                      })
+                    }
+                  />
+                  <CopyButton value={config.runScript?.command ?? ""} />
+                </div>
 
                 {currentMode === "worktree" && (
                   <>
@@ -482,18 +504,21 @@ function WorkspaceSettingsDialog({
                     <p className="text-xs text-text-tertiary -mt-2 mb-3">
                       Runs when a worktree is archived.
                     </p>
-                    <textarea
-                      className={textareaClass}
-                      rows={2}
-                      style={{ fieldSizing: "content" } as React.CSSProperties}
-                      placeholder="Command (e.g. docker compose down)"
-                      value={config.archiveScript ?? ""}
-                      onChange={(e) =>
-                        updateConfig({
-                          archiveScript: e.target.value.trim() ? e.target.value : null,
-                        })
-                      }
-                    />
+                    <div className="relative">
+                      <textarea
+                        className={textareaClass}
+                        rows={2}
+                        style={{ fieldSizing: "content" } as React.CSSProperties}
+                        placeholder="Command (e.g. docker compose down)"
+                        value={config.archiveScript ?? ""}
+                        onChange={(e) =>
+                          updateConfig({
+                            archiveScript: e.target.value.trim() ? e.target.value : null,
+                          })
+                        }
+                      />
+                      <CopyButton value={config.archiveScript ?? ""} />
+                    </div>
                   </>
                 )}
               </div>
