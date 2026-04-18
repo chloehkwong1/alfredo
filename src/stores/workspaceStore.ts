@@ -120,6 +120,7 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         staleBusy: old.staleBusy,
         archived: old.archived,
         archivedAt: old.archivedAt,
+        unarchivedAt: old.unarchivedAt,
         claudeSessionId: old.claudeSessionId,
         linearTicketUrl: old.linearTicketUrl,
         linearTicketIdentifier: old.linearTicketIdentifier,
@@ -219,14 +220,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   archiveWorktree: (id) =>
     set((state) => ({
       worktrees: state.worktrees.map((wt) =>
-        wt.id === id ? { ...wt, archived: true, archivedAt: Date.now() } : wt,
+        wt.id === id ? { ...wt, archived: true, archivedAt: Date.now(), unarchivedAt: undefined } : wt,
       ),
     })),
 
   unarchiveWorktree: (id) =>
     set((state) => ({
       worktrees: state.worktrees.map((wt) =>
-        wt.id === id ? { ...wt, archived: false, archivedAt: undefined } : wt,
+        wt.id === id ? { ...wt, archived: false, archivedAt: undefined, unarchivedAt: Date.now() } : wt,
       ),
     })),
 

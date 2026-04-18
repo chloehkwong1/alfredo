@@ -93,6 +93,9 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 wt.archived = true;
                 wt.archivedAt = session.archivedAt;
               }
+              if (session.unarchivedAt) {
+                wt.unarchivedAt = session.unarchivedAt;
+              }
 
               restoreTabs(wt.id, session.tabs, session.activeTabId);
 

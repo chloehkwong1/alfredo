@@ -37,6 +37,8 @@ export interface SessionData {
   archived?: boolean;
   /** Unix ms timestamp when the worktree was archived. */
   archivedAt?: number;
+  /** Unix ms timestamp when the worktree was manually unarchived (prevents immediate re-archive). */
+  unarchivedAt?: number;
   /** Inline code annotations for this worktree. */
   annotations?: Annotation[];
 }
@@ -90,6 +92,7 @@ export async function saveAllSessions(
   getClaudeSessionId?: (worktreeId: string) => string | undefined,
   getArchived?: (worktreeId: string) => boolean | undefined,
   getArchivedAt?: (worktreeId: string) => number | undefined,
+  getUnarchivedAt?: (worktreeId: string) => number | undefined,
   getAnnotations?: (worktreeId: string) => Annotation[] | undefined,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
@@ -144,6 +147,7 @@ export async function saveAllSessions(
       claudeSessionId: getClaudeSessionId?.(wtId),
       archived: getArchived?.(wtId),
       archivedAt: getArchivedAt?.(wtId),
+      unarchivedAt: getUnarchivedAt?.(wtId),
       annotations: getAnnotations?.(wtId),
     };
     return saveSession(repoPath, wtId, data);

@@ -48,6 +48,9 @@ export function useGithubSync() {
       const toArchive = state.worktrees
         .filter((wt) => {
           if (wt.column !== "done" || wt.archived) return false;
+          // Skip worktrees manually unarchived after the archive threshold —
+          // without this, unarchiving a merged worktree causes immediate re-archive.
+          if (wt.unarchivedAt && now - wt.unarchivedAt < archiveAfterMs) return false;
           const refTime = wt.prStatus?.mergedAt
             ? new Date(wt.prStatus.mergedAt).getTime()
             : wt.lastActivityAt;
@@ -68,7 +71,7 @@ export function useGithubSync() {
 
         useWorkspaceStore.setState((s) => ({
           worktrees: s.worktrees.map((wt) =>
-            toArchive.includes(wt.id) ? { ...wt, archived: true, archivedAt: now } : wt,
+            toArchive.includes(wt.id) ? { ...wt, archived: true, archivedAt: now, unarchivedAt: undefined } : wt,
           ),
         }));
       }

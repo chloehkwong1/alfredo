@@ -56,6 +56,7 @@ export interface Worktree {
   deletions: number | null;
   archived?: boolean;
   archivedAt?: number; // unix timestamp ms — when moved to archive
+  unarchivedAt?: number; // unix timestamp ms — when manually unarchived (prevents immediate re-archive)
   lastActivityAt?: number; // unix timestamp ms, computed from max(lastCommitEpoch, prUpdatedAt, agentChange)
   lastCommitEpoch?: number; // epoch ms of latest commit on branch (from Rust)
   repoPath: string;
