@@ -181,7 +181,7 @@ pub async fn delete_worktree(
 #[tauri::command]
 pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Worktree>> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.clone().unwrap_or_else(|| {
         std::path::Path::new(&repo_path)
             .parent()
@@ -191,10 +191,42 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
     });
 
     // git2 operations are blocking — run on a blocking thread
+    let repo_path_clone = repo_path.clone();
     let worktrees =
-        tokio::task::spawn_blocking(move || git_manager::list_worktrees(&repo_path, Some(&base_path)))
+        tokio::task::spawn_blocking(move || git_manager::list_worktrees(&repo_path_clone, Some(&base_path)))
             .await
             .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
+
+    // Backfill port assignments for existing worktrees when auto_assign_ports
+    // is enabled but they were created before the feature was turned on.
+    if config.auto_assign_ports {
+        if let Ok(ref wts) = worktrees {
+            let needs_backfill = wts.iter().any(|wt| {
+                config_manager::get_assigned_port(&config, &wt.name).is_none()
+            });
+            if needs_backfill {
+                let global_config = crate::app_config_manager::load(&app_data_dir).await?;
+                let mut backfilled = false;
+                for wt in wts {
+                    if config_manager::get_assigned_port(&config, &wt.name).is_none() {
+                        if config_manager::assign_next_port(
+                            &mut config,
+                            &wt.name,
+                            global_config.port_range_start,
+                            global_config.port_range_end,
+                        ).is_some() {
+                            backfilled = true;
+                        }
+                    }
+                }
+                if backfilled {
+                    if let Err(e) = config_manager::save_config(&app_data_dir, &repo_path, &config).await {
+                        eprintln!("[worktree] failed to persist backfilled port assignments: {e}");
+                    }
+                }
+            }
+        }
+    }
 
     // Apply persisted column overrides from .alfredo.json so worktrees
     // arrive on the frontend with the correct kanban column immediately.
