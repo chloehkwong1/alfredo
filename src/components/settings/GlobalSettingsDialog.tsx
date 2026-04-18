@@ -156,6 +156,7 @@ function GlobalSettingsDialog({
   const [appConfig, setAppConfig] = useState<GlobalAppConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [currentTheme, setCurrentTheme] = useState(
     () => localStorage.getItem("alfredo-theme") || "warm-dark",
   );
@@ -246,6 +247,7 @@ function GlobalSettingsDialog({
   const handleSave = useCallback(async () => {
     if (!appConfig || !repoConfig) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await Promise.all([
         saveAppConfig(appConfig),
@@ -253,10 +255,8 @@ function GlobalSettingsDialog({
       ]);
       setDirty(false);
       onOpenChange(false);
-    } catch {
-      // Backend not available — close anyway during dev
-      setDirty(false);
-      onOpenChange(false);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Failed to save settings");
     } finally {
       setSaving(false);
     }
@@ -459,6 +459,9 @@ function GlobalSettingsDialog({
           {tab === "terminal" || tab === "comment-chips" ? (
             <p className="text-xs text-text-tertiary mr-auto">Changes apply immediately</p>
           ) : null}
+          {saveError && (
+            <p className="text-xs text-red-400 mr-auto">{saveError}</p>
+          )}
           <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
             {dirty ? "Cancel" : "Close"}
           </Button>
