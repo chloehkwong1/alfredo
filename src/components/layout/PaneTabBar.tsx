@@ -54,7 +54,7 @@ import { lifecycleManager } from "../../services/lifecycleManager";
 import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
   busy: { cls: "bg-status-busy", label: "Thinking" },
@@ -176,6 +176,7 @@ function SortableTab({
         <button
           ref={setNodeRef}
           style={style}
+          data-tab-id={tab.id}
           {...attributes}
           {...listeners}
           type="button"
@@ -303,6 +304,10 @@ function PaneTabBar({
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showLeftFade, setShowLeftFade] = useState(false);
+  const [showRightFade, setShowRightFade] = useState(false);
+  const prevTabCountRef = useRef(0);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -434,6 +439,43 @@ function PaneTabBar({
 
   const terminalTabs = paneTabs.filter((t) => t.type in TAB_ICONS);
   const terminalTabIds = terminalTabs.map((t) => t.id);
+  const tabCount = terminalTabs.length;
+  const lastTabId = tabCount > 0 ? terminalTabs[tabCount - 1].id : null;
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const update = () => {
+      setShowLeftFade(el.scrollLeft > 0);
+      setShowRightFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [tabCount]);
+
+  useEffect(() => {
+    if (!activeTabId) return;
+    const el = scrollContainerRef.current?.querySelector(
+      `[data-tab-id="${activeTabId}"]`,
+    );
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [activeTabId]);
+
+  useEffect(() => {
+    if (tabCount > prevTabCountRef.current && lastTabId) {
+      const el = scrollContainerRef.current?.querySelector(
+        `[data-tab-id="${lastTabId}"]`,
+      );
+      el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    }
+    prevTabCountRef.current = tabCount;
+  }, [tabCount, lastTabId]);
 
   return (
     <div
@@ -450,35 +492,56 @@ function PaneTabBar({
         onDragEnd={handleDragEnd}
         onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
       >
-        <SortableContext
-          items={terminalTabIds}
-          strategy={horizontalListSortingStrategy}
-        >
-          {terminalTabs.map((tab, tabIdx) => {
-            const isActive = tab.id === activeTabId;
-            const others = terminalTabs.filter((t) => t.id !== tab.id);
-            const toRight = terminalTabs.slice(tabIdx + 1);
-            return (
-              <SortableTab
-                key={tab.id}
-                tab={tab}
-                isActive={isActive}
-                canClose={canClose(tab)}
-                worktreeId={worktreeId}
-                paneId={paneId}
-                onClose={handleCloseTab}
-                onCloseOthers={handleCloseOthers}
-                onCloseToRight={handleCloseToRight}
-                hasOthersToClose={eligibleToClose(others).length > 0}
-                hasTabsToRightToClose={eligibleToClose(toRight).length > 0}
-                onSplit={handleSplit}
-                onMoveToSibling={handleMoveToSibling}
-                isSplit={isSplit}
-                isPreview={pane?.previewTabId === tab.id}
-              />
-            );
-          })}
-        </SortableContext>
+        <div className="relative flex items-center h-full min-w-0">
+          <div
+            ref={scrollContainerRef}
+            className="flex items-center h-full w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <SortableContext
+              items={terminalTabIds}
+              strategy={horizontalListSortingStrategy}
+            >
+              {terminalTabs.map((tab, tabIdx) => {
+                const isActive = tab.id === activeTabId;
+                const others = terminalTabs.filter((t) => t.id !== tab.id);
+                const toRight = terminalTabs.slice(tabIdx + 1);
+                return (
+                  <SortableTab
+                    key={tab.id}
+                    tab={tab}
+                    isActive={isActive}
+                    canClose={canClose(tab)}
+                    worktreeId={worktreeId}
+                    paneId={paneId}
+                    onClose={handleCloseTab}
+                    onCloseOthers={handleCloseOthers}
+                    onCloseToRight={handleCloseToRight}
+                    hasOthersToClose={eligibleToClose(others).length > 0}
+                    hasTabsToRightToClose={eligibleToClose(toRight).length > 0}
+                    onSplit={handleSplit}
+                    onMoveToSibling={handleMoveToSibling}
+                    isSplit={isSplit}
+                    isPreview={pane?.previewTabId === tab.id}
+                  />
+                );
+              })}
+            </SortableContext>
+          </div>
+          <div
+            aria-hidden
+            className={[
+              "absolute left-0 top-0 bottom-0 w-6 pointer-events-none bg-gradient-to-r from-bg-bar to-transparent transition-opacity duration-150",
+              showLeftFade ? "opacity-100" : "opacity-0",
+            ].join(" ")}
+          />
+          <div
+            aria-hidden
+            className={[
+              "absolute right-0 top-0 bottom-0 w-6 pointer-events-none bg-gradient-to-l from-bg-bar to-transparent transition-opacity duration-150",
+              showRightFade ? "opacity-100" : "opacity-0",
+            ].join(" ")}
+          />
+        </div>
 
         <DragOverlay>
           {draggedTab && draggedTab.type in TAB_ICONS ? (
@@ -494,7 +557,7 @@ function PaneTabBar({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="h-11 px-3 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center"
+            className="h-11 px-3 ml-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
           >
             <Plus size={16} />
           </button>
@@ -520,7 +583,7 @@ function PaneTabBar({
         <button
           type="button"
           onClick={() => openUrl(`http://localhost:${assignedPort}`)}
-          className="flex items-center gap-1 mr-2 text-xs text-accent-primary hover:text-accent-primary/80 transition-colors cursor-pointer"
+          className="flex items-center gap-1 mr-2 text-xs text-accent-primary hover:text-accent-primary/80 transition-colors cursor-pointer flex-shrink-0"
           title={`Open http://localhost:${assignedPort} in browser`}
         >
           <ExternalLink size={12} />
@@ -529,7 +592,7 @@ function PaneTabBar({
       )}
 
       {onToggleServer && runScriptName && (
-        <div className="flex items-center gap-1 mr-2">
+        <div className="flex items-center gap-1 mr-2 flex-shrink-0">
           <AnimatePresence>
             {isServerRunning && runScriptUrl && (
               <motion.div
