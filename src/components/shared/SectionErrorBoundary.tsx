@@ -3,6 +3,8 @@ import { Component, type ReactNode } from "react";
 interface Props {
   children: ReactNode;
   name: string;
+  variant?: "full" | "inline";
+  onReset?: () => void;
 }
 
 interface State {
@@ -50,11 +52,44 @@ export class SectionErrorBoundary extends Component<Props, State> {
     }
   };
 
+  private handleReset = () => {
+    this.setState({ error: null, componentStack: null });
+    this.props.onReset?.();
+  };
+
   render() {
     if (this.state.error) {
       const { error } = this.state;
+      const variant = this.props.variant ?? "full";
+
+      if (variant === "inline") {
+        return (
+          <div className="p-2 text-xs border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] flex items-center justify-between gap-3">
+            <span className="truncate">
+              {this.props.name} error: {error.name}: {error.message}
+            </span>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <button
+                type="button"
+                onClick={this.handleReset}
+                className="text-[var(--accent-primary)] hover:underline"
+              >
+                {this.props.onReset ? "Dismiss" : "Try again"}
+              </button>
+              <button
+                type="button"
+                onClick={this.handleCopy}
+                className="text-[var(--accent-primary)] hover:underline"
+              >
+                {this.state.copied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       return (
-        <div className="flex items-center justify-center h-full p-4 text-xs text-[var(--text-tertiary)] overflow-auto">
+        <div className="flex items-center justify-center h-full min-h-[120px] p-4 text-xs text-[var(--text-tertiary)] overflow-auto">
           <div className="max-w-2xl w-full text-center">
             <p className="text-[var(--text-secondary)] mb-2">
               {this.props.name} encountered an error
@@ -67,7 +102,7 @@ export class SectionErrorBoundary extends Component<Props, State> {
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => this.setState({ error: null, componentStack: null })}
+                onClick={this.handleReset}
                 className="text-[var(--accent-primary)] hover:underline"
               >
                 Try again

@@ -4,6 +4,7 @@ import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { RemoteControlBar } from "./RemoteControlBar";
 import { LayoutRenderer } from "./LayoutRenderer";
+import { SectionErrorBoundary } from "../shared/SectionErrorBoundary";
 import { WorkspacePanel, WorkspacePanelMinimized } from "../changes/ChangesPanel";
 
 import { RepoWelcomeScreen } from "../onboarding/RepoWelcomeScreen";
@@ -189,25 +190,39 @@ function AppShell() {
   if (hasNoRepos) {
     return (
       <>
-        <RepoWelcomeScreen
-          onRepoSelected={handleRepoSelected}
-          error={error}
-          onClearError={clearError}
-        />
-        {setupRepoPath && (
-          <RepoSetupDialog
-            open={setupDialogOpen}
-            onOpenChange={setSetupDialogOpen}
-            repoPath={setupRepoPath}
-            previousRepoConfig={null}
-            onConfigured={handleRepoConfigured}
+        <SectionErrorBoundary name="RepoWelcomeScreen">
+          <RepoWelcomeScreen
+            onRepoSelected={handleRepoSelected}
+            error={error}
+            onClearError={clearError}
           />
+        </SectionErrorBoundary>
+        {setupRepoPath && (
+          <SectionErrorBoundary
+            name="RepoSetupDialog (welcome)"
+            variant="inline"
+            onReset={() => setSetupDialogOpen(false)}
+          >
+            <RepoSetupDialog
+              open={setupDialogOpen}
+              onOpenChange={setSetupDialogOpen}
+              repoPath={setupRepoPath}
+              previousRepoConfig={null}
+              onConfigured={handleRepoConfigured}
+            />
+          </SectionErrorBoundary>
         )}
-        <CreateWorktreeDialog
-          open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
-          repoPath={setupRepoPath ?? undefined}
-        />
+        <SectionErrorBoundary
+          name="CreateWorktreeDialog (welcome)"
+          variant="inline"
+          onReset={() => setCreateDialogOpen(false)}
+        >
+          <CreateWorktreeDialog
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            repoPath={setupRepoPath ?? undefined}
+          />
+        </SectionErrorBoundary>
       </>
     );
   }
@@ -224,34 +239,44 @@ function AppShell() {
         <div
           className={`h-full overflow-hidden ${shouldAnimateSidebar.current ? "animate-slide-in-left" : ""}`}
         >
-          <Sidebar
-            hasRepo={!!repoPath}
-            repos={repos}
-            activeRepo={repoPath}
-            onAddRepo={() => setAddRepoModalOpen(true)}
-            onRemoveRepo={(path: string) => {
-              setRemoveRepoPath(path);
-              setRemoveDialogOpen(true);
-            }}
-            selectedRepos={selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : [])}
-            onToggleRepo={toggleRepo}
-            repoColors={repoColors ?? {}}
-            repoDisplayNames={repoDisplayNames ?? {}}
-            worktreeLabels={worktreeLabels ?? {}}
-            onSetRepoDisplayName={setRepoDisplayName}
-            onSetWorktreeLabel={setWorktreeLabel}
-            onCheckForUpdates={updater.checkNow}
-            checkingForUpdates={updater.checking}
-            upToDate={updater.upToDate}
-          />
+          <SectionErrorBoundary name="Sidebar">
+            <Sidebar
+              hasRepo={!!repoPath}
+              repos={repos}
+              activeRepo={repoPath}
+              onAddRepo={() => setAddRepoModalOpen(true)}
+              onRemoveRepo={(path: string) => {
+                setRemoveRepoPath(path);
+                setRemoveDialogOpen(true);
+              }}
+              selectedRepos={selectedRepos.length > 0 ? selectedRepos : (repoPath ? [repoPath] : [])}
+              onToggleRepo={toggleRepo}
+              repoColors={repoColors ?? {}}
+              repoDisplayNames={repoDisplayNames ?? {}}
+              worktreeLabels={worktreeLabels ?? {}}
+              onSetRepoDisplayName={setRepoDisplayName}
+              onSetWorktreeLabel={setWorktreeLabel}
+              onCheckForUpdates={updater.checkNow}
+              checkingForUpdates={updater.checking}
+              upToDate={updater.upToDate}
+            />
+          </SectionErrorBoundary>
         </div>
       </Panel>
       <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
       <Panel minSize="50%">
       <div className="flex-1 flex flex-col min-w-0 h-full">
-        <UpdateBanner updater={updater} />
-        {activeWorktreeId && <RemoteControlBar worktreeId={activeWorktreeId} />}
-        <StatusBar worktree={worktree} annotationCount={annotationCount} />
+        <SectionErrorBoundary name="UpdateBanner" variant="inline">
+          <UpdateBanner updater={updater} />
+        </SectionErrorBoundary>
+        {activeWorktreeId && (
+          <SectionErrorBoundary name="RemoteControlBar" variant="inline">
+            <RemoteControlBar worktreeId={activeWorktreeId} />
+          </SectionErrorBoundary>
+        )}
+        <SectionErrorBoundary name="StatusBar" variant="inline">
+          <StatusBar worktree={worktree} annotationCount={annotationCount} />
+        </SectionErrorBoundary>
         <main className="flex-1 min-h-0 relative flex">
           {activeWorktreeId ? (
             <>
@@ -276,73 +301,109 @@ function AppShell() {
                   <>
                     <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
                     <Panel id="changes" defaultSize="220px" minSize="140px" maxSize="400px">
-                      <WorkspacePanel
-                        key={activeWorktreeId}
-                        worktreeId={activeWorktreeId}
-                        repoPath={activeRepoPath ?? "."}
-                        onCollapse={() => setChangesPanelCollapsed(activeWorktreeId, true)}
-                      />
+                      <SectionErrorBoundary name="WorkspacePanel">
+                        <WorkspacePanel
+                          key={activeWorktreeId}
+                          worktreeId={activeWorktreeId}
+                          repoPath={activeRepoPath ?? "."}
+                          onCollapse={() => setChangesPanelCollapsed(activeWorktreeId, true)}
+                        />
+                      </SectionErrorBoundary>
                     </Panel>
                   </>
                 )}
               </Group>
               {changesPanelCollapsed && (
-                <WorkspacePanelMinimized
-                  worktreeId={activeWorktreeId}
-                  repoPath={activeRepoPath ?? "."}
-                  onExpand={() => setChangesPanelCollapsed(activeWorktreeId, false)}
-                />
+                <SectionErrorBoundary name="WorkspacePanelMinimized" variant="inline">
+                  <WorkspacePanelMinimized
+                    worktreeId={activeWorktreeId}
+                    repoPath={activeRepoPath ?? "."}
+                    onExpand={() => setChangesPanelCollapsed(activeWorktreeId, false)}
+                  />
+                </SectionErrorBoundary>
               )}
             </>
           ) : (
-            <EmptyWorkspaceView hasWorktreeRepos={hasWorktreeRepos} hasRepos={repos.length > 0} />
+            <SectionErrorBoundary name="EmptyWorkspaceView">
+              <EmptyWorkspaceView hasWorktreeRepos={hasWorktreeRepos} hasRepos={repos.length > 0} />
+            </SectionErrorBoundary>
           )}
         </main>
       </div>
       </Panel>
 
       {/* Multi-repo dialogs */}
-      <AddRepoModal
-        open={addRepoModalOpen}
-        onOpenChange={setAddRepoModalOpen}
-        onRepoSelected={handleRepoSelected}
-        error={error}
-        onClearError={clearError}
-      />
-      {setupRepoPath && (
-        <RepoSetupDialog
-          open={setupDialogOpen}
-          onOpenChange={setSetupDialogOpen}
-          repoPath={setupRepoPath}
-          existingGithubToken={previousRepoConfig?.githubToken ?? null}
-          previousRepoConfig={previousRepoConfig}
-          onConfigured={handleRepoConfigured}
+      <SectionErrorBoundary
+        name="AddRepoModal"
+        variant="inline"
+        onReset={() => setAddRepoModalOpen(false)}
+      >
+        <AddRepoModal
+          open={addRepoModalOpen}
+          onOpenChange={setAddRepoModalOpen}
+          onRepoSelected={handleRepoSelected}
+          error={error}
+          onClearError={clearError}
         />
+      </SectionErrorBoundary>
+      {setupRepoPath && (
+        <SectionErrorBoundary
+          name="RepoSetupDialog"
+          variant="inline"
+          onReset={() => setSetupDialogOpen(false)}
+        >
+          <RepoSetupDialog
+            open={setupDialogOpen}
+            onOpenChange={setSetupDialogOpen}
+            repoPath={setupRepoPath}
+            existingGithubToken={previousRepoConfig?.githubToken ?? null}
+            previousRepoConfig={previousRepoConfig}
+            onConfigured={handleRepoConfigured}
+          />
+        </SectionErrorBoundary>
       )}
-      <RemoveRepoDialog
-        open={removeDialogOpen}
-        onOpenChange={setRemoveDialogOpen}
-        repoName={removeRepoPath?.split("/").filter(Boolean).pop() ?? ""}
-        onConfirm={handleRemoveRepo}
-      />
-      <CreateWorktreeDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        repoPath={repoPath ?? undefined}
-        repos={repos}
-        repoColors={repoColors ?? {}}
-        selectedRepos={effectiveSelectedRepos}
-        defaultRepoPath={
-          worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
-          ?? (selectedRepos.length > 0 ? selectedRepos[0] : undefined)
-          ?? repoPath
-          ?? undefined
-        }
-      />
-      <CommandPalette
-        open={commandPaletteOpen}
-        onOpenChange={setCommandPaletteOpen}
-      />
+      <SectionErrorBoundary
+        name="RemoveRepoDialog"
+        variant="inline"
+        onReset={() => setRemoveDialogOpen(false)}
+      >
+        <RemoveRepoDialog
+          open={removeDialogOpen}
+          onOpenChange={setRemoveDialogOpen}
+          repoName={removeRepoPath?.split("/").filter(Boolean).pop() ?? ""}
+          onConfirm={handleRemoveRepo}
+        />
+      </SectionErrorBoundary>
+      <SectionErrorBoundary
+        name="CreateWorktreeDialog"
+        variant="inline"
+        onReset={() => setCreateDialogOpen(false)}
+      >
+        <CreateWorktreeDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          repoPath={repoPath ?? undefined}
+          repos={repos}
+          repoColors={repoColors ?? {}}
+          selectedRepos={effectiveSelectedRepos}
+          defaultRepoPath={
+            worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
+            ?? (selectedRepos.length > 0 ? selectedRepos[0] : undefined)
+            ?? repoPath
+            ?? undefined
+          }
+        />
+      </SectionErrorBoundary>
+      <SectionErrorBoundary
+        name="CommandPalette"
+        variant="inline"
+        onReset={() => setCommandPaletteOpen(false)}
+      >
+        <CommandPalette
+          open={commandPaletteOpen}
+          onOpenChange={setCommandPaletteOpen}
+        />
+      </SectionErrorBoundary>
     </Group>
   );
 }

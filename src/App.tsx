@@ -94,14 +94,20 @@ class ErrorBoundary extends Component<
   }
 }
 
-function App() {
+function AppInner() {
   useGithubSync();
+  return (
+    <TooltipProvider>
+      <AppShell />
+    </TooltipProvider>
+  );
+}
+
+function App() {
   return (
     <ErrorBoundary>
       <SectionErrorBoundary name="App">
-        <TooltipProvider>
-          <AppShell />
-        </TooltipProvider>
+        <AppInner />
       </SectionErrorBoundary>
     </ErrorBoundary>
   );
