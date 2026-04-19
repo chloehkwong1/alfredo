@@ -35,6 +35,7 @@ src-tauri/gen/
 
 # Claude Code local settings
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # Alfredo legacy per-repo config
 .alfredo.json
