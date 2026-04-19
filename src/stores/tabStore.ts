@@ -45,6 +45,10 @@ export const useTabStore = create<TabState>((set, get) => ({
   ensureDefaultTabs: (worktreeId) => {
     const state = get();
     const existing = state.tabs[worktreeId] ?? [];
+    const hadServer = existing.some((t) => t.type === "server");
+    if (hadServer) {
+      console.log(`[tabStore] ensureDefaultTabs called for ${worktreeId} — has server tab`);
+    }
 
     // Migrate old "changes" tabs to "diff" type (from persisted sessions)
     const migrated = existing.map((t) =>
@@ -87,6 +91,9 @@ export const useTabStore = create<TabState>((set, get) => ({
       tabs.splice(lastAgentIdx + 1, 0, shellTab);
     }
 
+    if (hadServer && !tabs.some((t) => t.type === "server")) {
+      console.warn(`[tabStore] ensureDefaultTabs DROPPED server tab for ${worktreeId}!`, { existing: existing.map(t => t.type), cleaned: tabs.map(t => t.type) });
+    }
     set({
       tabs: { ...state.tabs, [worktreeId]: tabs },
       activeTabId: {
@@ -127,6 +134,9 @@ export const useTabStore = create<TabState>((set, get) => ({
       const existing = state.tabs[worktreeId] ?? [];
       const tabToRemove = existing.find((t) => t.id === tabId);
       if (!tabToRemove) return state;
+      if (tabToRemove.type === "server") {
+        console.warn(`[tabStore] removing server tab ${tabId} from ${worktreeId}`, new Error().stack);
+      }
       const filtered = existing.filter((t) => t.id !== tabId);
       // Don't allow removing the last tab
       if (filtered.length === 0) return state;
@@ -160,6 +170,12 @@ export const useTabStore = create<TabState>((set, get) => ({
         );
       }
     }
+    const existing = useTabStore.getState().tabs[worktreeId] ?? [];
+    const hadServer = existing.some((t) => t.type === "server");
+    const hasServer = tabs.some((t) => t.type === "server");
+    if (hadServer && !hasServer) {
+      console.warn(`[tabStore] restoreTabs is DROPPING server tab for ${worktreeId}`, new Error().stack);
+    }
     set((state) => ({
       tabs: { ...state.tabs, [worktreeId]: tabs },
       activeTabId: { ...state.activeTabId, [worktreeId]: activeTabId },
@@ -192,6 +208,10 @@ export const useTabStore = create<TabState>((set, get) => ({
 
   removeWorktreeTabs: (worktreeId) =>
     set((state) => {
+      const existing = state.tabs[worktreeId] ?? [];
+      if (existing.some((t) => t.type === "server")) {
+        console.warn(`[tabStore] removeWorktreeTabs is DROPPING server tab for ${worktreeId}`, new Error().stack);
+      }
       const { [worktreeId]: _tabs, ...restTabs } = state.tabs;
       const { [worktreeId]: _activeTab, ...restActiveTabId } = state.activeTabId;
       return {
