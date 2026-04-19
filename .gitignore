@@ -49,3 +49,6 @@ docs/
 # AI/Superpowers context
 .context/
 .superpowers/
+
+# Repomix output
+repomix-output.xml
