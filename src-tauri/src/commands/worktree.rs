@@ -253,9 +253,14 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
                 wt.linear_ticket_identifier = Some(ticket.identifier);
             }
         }
-        // Hydrate assigned port from config
-        for wt in &mut wts {
-            wt.assigned_port = config_manager::get_assigned_port(&config, &wt.name);
+        // Hydrate assigned port from config only when auto-assign is enabled.
+        // Leaving stored assignments in place means toggling the feature back
+        // on restores prior ports; toggling off hides them so dev servers fall
+        // back to their default port (e.g. 3000).
+        if config.auto_assign_ports {
+            for wt in &mut wts {
+                wt.assigned_port = config_manager::get_assigned_port(&config, &wt.name);
+            }
         }
         // Compute stack children: for each worktree, find others whose stack_parent matches this branch
         let parent_map: Vec<(String, String)> = wts
@@ -350,7 +355,9 @@ pub async fn get_worktree_status(
         setup_script_error: None,
         assigned_port: None,
     };
-    wt.assigned_port = config_manager::get_assigned_port(&config, &wt_name);
+    if config.auto_assign_ports {
+        wt.assigned_port = config_manager::get_assigned_port(&config, &wt_name);
+    }
     Ok(wt)
 }
 
