@@ -82,6 +82,25 @@ pub fn run() {
             eprintln!("[alfredo] state server listening on port {}", state_handle.port);
             app.manage(state_handle);
 
+            // Strip any stale Alfredo hooks left behind by a prior run that
+            // didn't shut down cleanly (crash, force-quit). Without this, old
+            // hook entries sit in .claude/settings.local.json and fire curl
+            // against a dead state_server port on every tool call.
+            if let Some(cfg) = app_config_manager::load_sync_best_effort() {
+                let mut paths: Vec<String> = Vec::new();
+                for repo in &cfg.repos {
+                    // Include the primary working tree — git2's worktrees()
+                    // only enumerates linked worktrees, not the main one.
+                    paths.push(repo.path.clone());
+                    match git_manager::list_worktrees(&repo.path, None) {
+                        Ok(wts) => paths.extend(wts.into_iter().map(|w| w.path)),
+                        Err(e) => eprintln!("[alfredo] startup-cleanup: list_worktrees({}) failed: {e}", repo.path),
+                    }
+                }
+                let manager = app.state::<PtyManager>();
+                manager.cleanup_stale_hooks_in_paths(&paths);
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

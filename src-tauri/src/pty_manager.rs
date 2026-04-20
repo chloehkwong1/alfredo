@@ -476,25 +476,17 @@ impl PtyManager {
                 // will see the stop flag and exit, which closes the remaining
                 // resources when the last Arc drops.
                 eprintln!("[pty] close: Arc still shared, doing partial teardown for {session_id}");
-                let (worktree_path, stop_flag, pid) = {
+                let (stop_flag, pid) = {
                     let s = arc.lock().map_err(|_| AppError::Pty("session lock poisoned".into()))?;
-                    (
-                        s.worktree_path.clone(),
-                        Arc::clone(&s.stop_flag),
-                        s.child.process_id(),
-                    )
+                    (Arc::clone(&s.stop_flag), s.child.process_id())
                 };
                 // Session lock dropped here.
 
-                if let Err(e) = remove_hooks_config(&worktree_path) {
-                    eprintln!("[alfredo] failed to clean claude hooks on close: {e}");
-                }
-                if let Err(e) = remove_gemini_hooks_config(&worktree_path) {
-                    eprintln!("[alfredo] failed to clean gemini hooks on close: {e}");
-                }
-                if let Err(e) = remove_codex_hooks_config(&worktree_path) {
-                    eprintln!("[alfredo] failed to clean codex hooks on close: {e}");
-                }
+                // Hooks are intentionally NOT stripped here. Multiple sessions
+                // in the same worktree share settings.local.json; stripping on
+                // close would wipe hooks still needed by surviving sessions.
+                // Cleanup runs on app exit via cleanup_all_hooks and on boot
+                // via cleanup_stale_hooks_in_paths.
                 stop_flag.store(true, Ordering::Relaxed);
                 if let Some(pid) = pid {
                     unsafe { libc::kill(-(pid as i32), libc::SIGTERM); }
@@ -503,16 +495,8 @@ impl PtyManager {
             }
         };
 
-        // Full cleanup with owned session
-        if let Err(e) = remove_hooks_config(&session.worktree_path) {
-            eprintln!("[alfredo] failed to clean claude hooks on close: {e}");
-        }
-        if let Err(e) = remove_gemini_hooks_config(&session.worktree_path) {
-            eprintln!("[alfredo] failed to clean gemini hooks on close: {e}");
-        }
-        if let Err(e) = remove_codex_hooks_config(&session.worktree_path) {
-            eprintln!("[alfredo] failed to clean codex hooks on close: {e}");
-        }
+        // Hooks are intentionally NOT stripped on close — see the partial-
+        // teardown branch above for rationale.
 
         // Signal the reader thread to stop before killing the child.
         session.stop_flag.store(true, Ordering::Relaxed);
@@ -569,6 +553,24 @@ impl PtyManager {
             }
             if let Err(e) = remove_codex_hooks_config(&path) {
                 eprintln!("[alfredo] failed to clean codex hooks for {path}: {e}");
+            }
+        }
+    }
+
+    /// Remove stale Alfredo hooks left behind by a previous run that didn't
+    /// shut down cleanly. Walks the given worktree paths and strips any
+    /// Alfredo-written hook entries. User-defined hooks are left intact.
+    pub fn cleanup_stale_hooks_in_paths(&self, paths: &[String]) {
+        eprintln!("[hooks] startup cleanup: {} path(s)", paths.len());
+        for path in paths {
+            if let Err(e) = remove_hooks_config(path) {
+                eprintln!("[alfredo] startup-cleanup claude hooks failed for {path}: {e}");
+            }
+            if let Err(e) = remove_gemini_hooks_config(path) {
+                eprintln!("[alfredo] startup-cleanup gemini hooks failed for {path}: {e}");
+            }
+            if let Err(e) = remove_codex_hooks_config(path) {
+                eprintln!("[alfredo] startup-cleanup codex hooks failed for {path}: {e}");
             }
         }
     }
@@ -639,6 +641,7 @@ fn write_hooks_config(
     std::fs::create_dir_all(&claude_dir)?;
 
     let path = claude_dir.join("settings.local.json");
+    eprintln!("[hooks] write claude hooks → {}", path.display());
 
     // Read existing config, or start with an empty object
     let mut config: serde_json::Value = if path.exists() {
@@ -780,6 +783,7 @@ fn remove_agent_hooks_config(worktree_path: &str, config_subpath: &str) -> Resul
     if !path.exists() {
         return Ok(());
     }
+    eprintln!("[hooks] strip alfredo hooks ← {}", path.display());
 
     let contents = std::fs::read_to_string(&path)?;
     let mut config: serde_json::Value =
