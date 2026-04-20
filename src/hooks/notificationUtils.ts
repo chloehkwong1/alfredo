@@ -25,6 +25,7 @@ export async function playSoundById(soundId: string): Promise<void> {
   try {
     await playSound(soundId);
   } catch (e) {
+    // Best-effort: audio failure must not break the notification flow.
     console.warn("[notifications] playSound failed:", e);
   }
 }

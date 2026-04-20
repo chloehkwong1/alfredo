@@ -18,6 +18,9 @@ pub async fn play_sound(app: AppHandle, id: String) -> Result<(), AppError> {
     }
 
     // Allow-list the id to defend against path traversal via the wav filename.
+    // Current sound ids are lowercase letters only; digits are allowed so
+    // future additions aren't blocked. Update SOUND_IDS in
+    // src/hooks/notificationUtils.ts alongside any new filenames.
     if !id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
         return Err(AppError::Config(format!("invalid sound id: {id}")));
     }
