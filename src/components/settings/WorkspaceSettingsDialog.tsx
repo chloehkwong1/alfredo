@@ -78,6 +78,7 @@ function WorkspaceSettingsDialog({
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [appConfig, setAppConfig] = useState<GlobalAppConfig | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [currentRepoPath, setCurrentRepoPath] = useState(
     defaultRepoPath ?? repoPath,
@@ -94,6 +95,7 @@ function WorkspaceSettingsDialog({
       const initPath = defaultRepoPath ?? repoPath;
       setCurrentRepoPath(initPath);
       setDisplayNameDraft(repoDisplayNames[initPath] ?? "");
+      setSaveError(null);
     }
     if (!open && modeSavedTimerRef.current) {
       clearTimeout(modeSavedTimerRef.current);
@@ -126,11 +128,13 @@ function WorkspaceSettingsDialog({
   const updateConfig = useCallback((patch: Partial<AppConfig>) => {
     setConfig((prev) => (prev ? { ...prev, ...patch } : prev));
     setDirty(true);
+    setSaveError(null);
   }, []);
 
   const updateGlobalConfig = useCallback((patch: Partial<GlobalAppConfig>) => {
     setAppConfig((prev) => (prev ? { ...prev, ...patch } : prev));
     setDirty(true);
+    setSaveError(null);
   }, []);
 
   const handleRepoChange = useCallback(
@@ -159,6 +163,7 @@ function WorkspaceSettingsDialog({
     );
     if (!confirmed) return;
     setSwitchingMode(true);
+    setSaveError(null);
     try {
       await setRepoMode(currentRepoPath, newMode);
       // Re-fetch both configs so local snapshots reflect the saved mode.
@@ -174,6 +179,9 @@ function WorkspaceSettingsDialog({
       setModeSaved(true);
       if (modeSavedTimerRef.current) clearTimeout(modeSavedTimerRef.current);
       modeSavedTimerRef.current = setTimeout(() => setModeSaved(false), 2500);
+    } catch (e) {
+      console.error("Failed to switch repo mode:", e);
+      setSaveError(e instanceof Error ? e.message : String(e));
     } finally {
       setSwitchingMode(false);
     }
@@ -182,6 +190,7 @@ function WorkspaceSettingsDialog({
   const handleSave = useCallback(async () => {
     if (!config) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await Promise.all([
         saveConfig(currentRepoPath, config),
@@ -196,13 +205,13 @@ function WorkspaceSettingsDialog({
       // config-changed triggers useAppConfig to re-fetch and sync to workspace store
       window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
-    } catch {
-      setDirty(false);
-      onOpenChange(false);
+    } catch (e) {
+      console.error("Failed to save workspace settings:", e);
+      setSaveError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
-  }, [config, appConfig, currentRepoPath, onOpenChange]);
+  }, [config, appConfig, currentRepoPath, displayNameDraft, repoDisplayNames, onSetRepoDisplayName, onOpenChange]);
 
   if (!config) return null;
 
@@ -314,6 +323,7 @@ function WorkspaceSettingsDialog({
                     onChange={(e) => {
                       setDisplayNameDraft(e.target.value);
                       setDirty(true);
+                      setSaveError(null);
                     }}
                   />
                   <p className="text-xs text-text-tertiary mt-[5px]">
@@ -527,6 +537,11 @@ function WorkspaceSettingsDialog({
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-border-default">
+          {saveError && (
+            <span className="text-xs text-status-error mr-auto truncate" title={saveError}>
+              {saveError}
+            </span>
+          )}
           <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
