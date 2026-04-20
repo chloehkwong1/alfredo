@@ -12,10 +12,10 @@ use crate::types::{AgentState, HookPhase, NotifyReason, PtyEvent};
 use tauri::ipc::Channel;
 
 /// Inner state shared between the handle and the HTTP router.
-#[derive(Clone, Default)]
+#[derive(Default)]
 struct ChannelRegistry {
-    /// session_id → channel
-    channels: HashMap<String, Channel<PtyEvent>>,
+    /// session_id → (worktree_id, channel)
+    channels: HashMap<String, (String, Channel<PtyEvent>)>,
 }
 
 /// Shared state for the HTTP server.
@@ -38,6 +38,9 @@ struct RouterState {
 impl StateServerHandle {
     /// Register (or replace) a channel for a session so hooks can push state to it.
     /// Called on initial spawn AND on reattach after frontend reload.
+    ///
+    /// Replaces any existing entry for the same session_id. Sibling sessions on
+    /// the same worktree (multi-tab) are left untouched.
     pub fn register_channel(
         &self,
         session_id: String,
@@ -48,8 +51,11 @@ impl StateServerHandle {
             eprintln!("[state-server] registry lock poisoned in register_channel");
             return;
         };
-        eprintln!("[state-server] register session={session_id} worktree={worktree_id} (total={})", reg.channels.len() + 1);
-        reg.channels.insert(session_id, channel);
+        reg.channels.insert(session_id.clone(), (worktree_id.clone(), channel));
+        eprintln!(
+            "[state-server] register session={session_id} worktree={worktree_id} (total={})",
+            reg.channels.len()
+        );
     }
 
     /// Create a handle with an empty registry (for testing).
@@ -186,18 +192,19 @@ async fn handle_state_update(
     };
     // Deliver to the specific session only — not fan-out by worktree.
     // When a session is unregistered (tab closed), stale hooks are silently dropped.
-    if let Some(channel) = reg.channels.get(session_id) {
-        eprintln!(
-            "[state-server] → {session_id} {state:?} phase={phase:?} notify={notify:?}"
+    if let Some((_, channel)) = reg.channels.get(session_id) {
+        let registered = reg.channels.len();
+        let desc = format!(
+            "{session_id} {state:?} phase={phase:?} notify={notify:?}"
         );
-        if let Err(e) = channel.send(PtyEvent::HookAgentState { state, notify, phase }) {
-            eprintln!(
-                "[state-server] failed to send state to session {session_id}: {e}"
-            );
+        match channel.send(PtyEvent::HookAgentState { state, notify, phase }) {
+            Ok(()) => eprintln!("[state-server] → {desc} (SEND OK, registered={registered})"),
+            Err(e) => eprintln!("[state-server] → {desc} (SEND ERR: {e}, registered={registered}) — channel is dead, hook lost"),
         }
     } else {
+        let known: Vec<&String> = reg.channels.keys().collect();
         eprintln!(
-            "[state-server] hook dropped: no channel for session {session_id} (state={state:?}, registered={})",
+            "[state-server] hook dropped: no channel for session {session_id} (state={state:?}, registered={}, known={known:?})",
             reg.channels.len()
         );
     }
@@ -233,5 +240,27 @@ mod tests {
             assert!(!reg.channels.contains_key("s1"));
             assert!(reg.channels.contains_key("s2"));
         }
+    }
+
+    /// Pins: when the PTY reader thread exits (EOF/error) it calls
+    /// `unregister_channel`, which must drop the registry entry for that
+    /// session so subsequent hook POSTs fall through to the "no channel"
+    /// branch instead of fan-ing out to a dead `Channel`. This test is a
+    /// direct proxy for the real reader-thread call site in pty_manager.rs.
+    #[test]
+    fn reader_exit_unregisters_state_server_channel() {
+        let handle = StateServerHandle::new_for_test();
+        handle.register_channel("s1".into(), "wt1".into(), dummy_channel());
+
+        {
+            let reg = handle.registry.lock().unwrap();
+            assert!(reg.channels.contains_key("s1"));
+        }
+
+        // Simulate reader thread exit.
+        handle.unregister_channel("s1", "wt1");
+
+        let reg = handle.registry.lock().unwrap();
+        assert!(!reg.channels.contains_key("s1"));
     }
 }

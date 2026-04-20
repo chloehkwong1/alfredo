@@ -12,6 +12,7 @@ use uuid::Uuid;
 use crate::agent_detector::AgentDetector;
 use crate::platform::augmented_path;
 use crate::sleep_inhibitor::SleepInhibitor;
+use crate::state_server::StateServerHandle;
 use crate::types::{AgentState, AgentType, AppError, HookPhase, NotifyReason, PtyEvent, Session, SessionStatus, SessionType};
 
 /// Swappable channel handle. `None` means the frontend disconnected (e.g. page reload).
@@ -55,6 +56,10 @@ pub struct SpawnConfig {
     pub assigned_port: Option<u16>,
     /// Environment variable name for the port (defaults to "PORT").
     pub port_env_var: Option<String>,
+    /// State server handle used to release the channel registration when the
+    /// PTY reader thread exits (EOF/error). `None` in tests where no state
+    /// server is running.
+    pub state_server: Option<StateServerHandle>,
 }
 
 /// Manages all PTY sessions. Stored as Tauri managed state.
@@ -98,6 +103,7 @@ impl PtyManager {
             session_type,
             assigned_port,
             port_env_var,
+            state_server,
         } = config;
 
         let pty_system = native_pty_system();
@@ -180,11 +186,13 @@ impl PtyManager {
 
         // --- reader thread ---
         let reader_session_id = session_id.clone();
+        let reader_worktree_id = worktree_id.clone();
         let reader_exited = Arc::clone(&exited);
         let reader_signals = Arc::clone(&detector_signals);
         let reader_stop_flag = Arc::clone(&stop_flag);
         let reader_channel = Arc::clone(&arc_channel);
         let reader_inhibitor = std::sync::Arc::clone(&sleep_inhibitor);
+        let reader_state_server = state_server.clone();
         let mut reader = pair
             .master
             .try_clone_reader()
@@ -284,6 +292,14 @@ impl PtyManager {
             if let Ok(mut guard) = reader_exited.lock() {
                 *guard = Some(-1);
             }
+
+            // Release the state_server channel registration so a crashed PTY
+            // (where close_pty is never called) doesn't leave a phantom entry
+            // in the registry.
+            if let Some(handle) = reader_state_server.as_ref() {
+                handle.unregister_channel(&reader_session_id, &reader_worktree_id);
+                eprintln!("[pty-reader {reader_session_id}] exited, unregistered state_server channel");
+            }
         });
 
         // --- heartbeat thread ---
@@ -298,13 +314,13 @@ impl PtyManager {
                 }
                 if let Ok(guard) = hb_channel.read() {
                     if let Some(ch) = guard.as_ref() {
-                        if ch.send(PtyEvent::Heartbeat).is_err() {
+                        if let Err(e) = ch.send(PtyEvent::Heartbeat) {
                             drop(guard);
                             // Channel invalidated — clear it so we skip until reattach
                             if let Ok(mut w) = hb_channel.write() {
                                 *w = None;
                             }
-                            eprintln!("[pty-heartbeat {hb_session_id}] channel invalidated, will skip until reattach");
+                            eprintln!("[pty-heartbeat {hb_session_id}] channel invalidated ({e}), will skip until reattach — NOTE: state_server registry still holds its own copy of this channel and will continue delivering hooks to it until reattach_pty is called");
                         }
                     }
                     // None → frontend disconnected, skip silently
@@ -992,6 +1008,7 @@ mod tests {
                     session_type: SessionType::Agent,
                     assigned_port: None,
                     port_env_var: None,
+                    state_server: None,
                 },
                 channel,
                 inhibitor,
@@ -1067,6 +1084,7 @@ mod tests {
                         session_type: SessionType::Agent,
                         assigned_port: None,
                         port_env_var: None,
+                        state_server: None,
                     },
                     channel,
                     std::sync::Arc::clone(&inhibitor),

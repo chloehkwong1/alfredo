@@ -55,6 +55,7 @@ pub async fn spawn_pty(
         session_type: session_type.unwrap_or(SessionType::Shell),
         assigned_port,
         port_env_var,
+        state_server: Some((*state_server).clone()),
     };
 
     match manager.spawn(session_id.clone(), config, on_data, std::sync::Arc::clone(&sleep_inhibitor)) {
