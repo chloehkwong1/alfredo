@@ -19,6 +19,37 @@ static FETCH_THROTTLE: std::sync::LazyLock<Mutex<HashMap<String, Instant>>> =
 /// When `base_branch` is a plain branch name (e.g. "main"), this function
 /// fetches from origin first and uses `origin/<base_branch>` so the worktree
 /// starts from the latest remote state rather than a potentially stale local ref.
+/// Return the configured remote names for a repo (e.g. `["origin"]`, or
+/// `["origin", "upstream"]` for forks). Origin is listed first when present
+/// so fetch attempts start with the most likely source. Returns an empty
+/// vec if `git remote` fails — callers should handle that as "no fetch".
+async fn list_remote_names(repo_path: &str) -> Vec<String> {
+    let output = match git_command()
+        .args(["remote"])
+        .current_dir(repo_path)
+        .output()
+        .await
+    {
+        Ok(o) if o.status.success() => o,
+        _ => return Vec::new(),
+    };
+
+    let mut names: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+
+    if let Some(pos) = names.iter().position(|n| n == "origin") {
+        if pos != 0 {
+            let origin = names.remove(pos);
+            names.insert(0, origin);
+        }
+    }
+
+    names
+}
+
 pub async fn create_worktree(
     repo_path: &str,
     branch_name: &str,
@@ -73,27 +104,33 @@ pub async fn create_worktree(
     }
 
     // Use the remote tracking branch so worktrees start from the latest
-    // remote state, not a potentially stale local branch.
-    let effective_base = if base_branch.contains('/') {
-        // Already a qualified ref (e.g. "origin/main") — use as-is
-        base_branch.to_string()
-    } else {
-        // Fetch from origin to ensure the tracking ref is up-to-date
+    // remote state, not a potentially stale local branch. Enumerate the
+    // repo's actual remotes (rather than assuming "origin") so forks with
+    // "upstream" or renamed remotes work too. Strip any matching remote
+    // prefix off the caller-provided base, then try fetching from each
+    // remote — the first one that has the branch wins and we use its
+    // tracking ref as the startpoint. If no remote has it (stacked local
+    // branches, local-only repos, offline), fall back to the ref as given.
+    let remote_names = list_remote_names(repo_path).await;
+    let fetch_target = remote_names
+        .iter()
+        .find_map(|r| base_branch.strip_prefix(&format!("{r}/")))
+        .unwrap_or(base_branch);
+
+    let mut effective_base = base_branch.to_string();
+    for remote in &remote_names {
         let fetch_ok = git_command()
-            .args(["fetch", "origin", base_branch])
+            .args(["fetch", remote, fetch_target])
             .current_dir(repo_path)
             .output()
             .await
             .map(|o| o.status.success())
             .unwrap_or(false);
-
         if fetch_ok {
-            format!("origin/{base_branch}")
-        } else {
-            // No remote available (e.g. local-only repo) — fall back to local ref
-            base_branch.to_string()
+            effective_base = format!("{remote}/{fetch_target}");
+            break;
         }
-    };
+    }
 
     // Try creating with a new branch first; if the branch already exists,
     // fall back to using the existing branch.

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use git2::Repository;
 
 use crate::git_manager::git_command;
@@ -17,7 +19,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
     let repo = Repository::open(repo_path)
         .map_err(|e| AppError::Git(format!("failed to open repo: {e}")))?;
 
-    let branches = repo
+    let local_branches = repo
         .branches(Some(git2::BranchType::Local))
         .map_err(|e| AppError::Git(format!("failed to list branches: {e}")))?;
 
@@ -28,8 +30,9 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
         .and_then(|h| h.shorthand().map(std::string::ToString::to_string));
 
     let mut worktrees = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
 
-    for branch_result in branches {
+    for branch_result in local_branches {
         let (branch, _) = branch_result
             .map_err(|e| AppError::Git(format!("failed to read branch: {e}")))?;
 
@@ -46,11 +49,88 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
             .map(|c| (Some(c.time().seconds() * 1000), c.author().name().map(String::from)))
             .unwrap_or((None, None));
 
+        seen.insert(name.clone());
         worktrees.push(Worktree {
             id: format!("branch-{name}"),
             name: name.clone(),
             path: repo_path.to_string(),
             branch: name,
+            repo_path: repo_path.to_string(),
+            pr_status: None,
+            agent_status: AgentState::NotRunning,
+            column: KanbanColumn::InProgress,
+            is_branch_mode: true,
+            additions: None,
+            deletions: None,
+            last_commit_epoch,
+            last_commit_author,
+            linear_ticket_url: None,
+            linear_ticket_identifier: None,
+            stack_parent: None,
+            stack_children: vec![],
+            stack_rebase_status: None,
+            setup_script_error: None,
+            assigned_port: None,
+        });
+    }
+
+    // Also include remote-tracking branches so users can spawn a worktree for
+    // work done on another machine that was only pushed to a remote. Git's
+    // DWIM for `git worktree add <path> <shorthand>` will create a local
+    // tracking branch from the remote ref.
+    let remote_names: Vec<String> = repo
+        .remotes()
+        .ok()
+        .map(|r| r.iter().flatten().map(String::from).collect())
+        .unwrap_or_default();
+
+    let remote_branches = repo
+        .branches(Some(git2::BranchType::Remote))
+        .map_err(|e| AppError::Git(format!("failed to list remote branches: {e}")))?;
+
+    for branch_result in remote_branches {
+        let (branch, _) = branch_result
+            .map_err(|e| AppError::Git(format!("failed to read remote branch: {e}")))?;
+
+        let full_name = match branch.name() {
+            Ok(Some(n)) => n.to_string(),
+            _ => continue,
+        };
+
+        // Skip symbolic HEAD refs like "origin/HEAD"
+        if full_name.ends_with("/HEAD") {
+            continue;
+        }
+
+        // Strip whichever configured remote name prefixes the ref (e.g.
+        // "origin/", "upstream/"). Falling back to split_once would corrupt
+        // branches whose own name contains '/', like "user/feature", on a
+        // multi-remote repo.
+        let short = match remote_names
+            .iter()
+            .find_map(|r| full_name.strip_prefix(&format!("{r}/")))
+        {
+            Some(s) if !s.is_empty() => s.to_string(),
+            _ => continue,
+        };
+
+        if seen.contains(&short) {
+            continue;
+        }
+        seen.insert(short.clone());
+
+        let (last_commit_epoch, last_commit_author) = branch
+            .get()
+            .peel_to_commit()
+            .ok()
+            .map(|c| (Some(c.time().seconds() * 1000), c.author().name().map(String::from)))
+            .unwrap_or((None, None));
+
+        worktrees.push(Worktree {
+            id: format!("branch-{short}"),
+            name: short.clone(),
+            path: repo_path.to_string(),
+            branch: short,
             repo_path: repo_path.to_string(),
             pr_status: None,
             agent_status: AgentState::NotRunning,
