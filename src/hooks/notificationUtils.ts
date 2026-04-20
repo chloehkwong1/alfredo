@@ -3,7 +3,6 @@ import {
   requestPermission,
   sendNotification as tauriNotify,
 } from "@tauri-apps/plugin-notification";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { playSound } from "../api";
 
 // Canonical list of sound ids. Source of truth for the settings dropdown.
@@ -53,12 +52,4 @@ export async function sendNotification(message: string) {
   if (await ensurePermission()) {
     tauriNotify({ title: "Alfredo", body: message });
   }
-}
-
-// ── Dock bounce (macOS attention request) ────────────────────
-
-export function requestDockBounce() {
-  getCurrentWindow()
-    .requestUserAttention(1) // Critical — bounces dock icon until focused
-    .catch(e => console.warn('[notifications] Failed to request dock bounce:', e));
 }

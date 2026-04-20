@@ -1,5 +1,5 @@
 import type { NotifyReason } from "../types";
-import { sendNotification, playSoundById, requestDockBounce } from "../hooks/notificationUtils";
+import { sendNotification, playSoundById } from "../hooks/notificationUtils";
 import { createPtyChannel, getAppConfig } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
@@ -73,7 +73,6 @@ export async function fireHookNotification(
 
   sendNotification(message);
   playSoundById(config.sound);
-  requestDockBounce();
 }
 
 /**
