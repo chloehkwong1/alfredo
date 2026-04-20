@@ -123,15 +123,15 @@ function Sidebar({
 
   const handleArchiveWorktree = useCallback(async (id: string) => {
     const wt = worktrees.find((w) => w.id === id);
-    if (wt && repoPath) {
+    if (wt) {
       try {
-        await runArchiveScript(repoPath, wt.path);
+        await runArchiveScript(wt.repoPath, wt.path);
       } catch (e) {
         console.warn("[sidebar] Archive script failed:", e);
       }
     }
     archiveWorktree(id);
-  }, [worktrees, repoPath, archiveWorktree]);
+  }, [worktrees, archiveWorktree]);
 
   const { config, updateConfig } = useAppConfig();
   const collapsedColumns = config?.collapsedKanbanColumns ?? [];
@@ -146,8 +146,8 @@ function Sidebar({
 
   async function handleDeleteWorktree(id: string) {
     const wt = worktrees.find((w) => w.id === id);
-    if (!wt || !repoPath) return;
-    await lifecycleManager.removeWorktree(id, repoPath, wt.name);
+    if (!wt) return;
+    await lifecycleManager.removeWorktree(id, wt.repoPath, wt.name);
   }
 
   const [archivingAll, setArchivingAll] = useState(false);
@@ -235,7 +235,6 @@ function Sidebar({
   const [deletingCount, setDeletingCount] = useState<{ current: number; total: number } | null>(null);
 
   async function handleDeleteAllArchived() {
-    if (!repoPath) return;
     const total = archivedWorktrees.length;
     for (let i = 0; i < archivedWorktrees.length; i++) {
       setDeletingCount({ current: i + 1, total });

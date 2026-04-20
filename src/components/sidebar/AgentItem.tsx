@@ -830,7 +830,11 @@ const AgentItem = memo(function AgentItem({
               variant="danger"
               onClick={() => {
                 setDeleteDialogOpen(false);
-                onDelete?.(worktree.id);
+                // Defer so Radix's close animation finishes before the store
+                // removal unmounts this AgentItem (and this Dialog with it).
+                // Unmounting mid-animation leaves a pointer-capturing overlay
+                // behind, blocking all clicks until refresh.
+                setTimeout(() => onDelete?.(worktree.id), 200);
               }}
             >
               Delete
