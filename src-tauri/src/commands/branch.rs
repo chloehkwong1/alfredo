@@ -1,4 +1,5 @@
 use crate::branch_manager;
+use crate::git_manager;
 use crate::types::{AppError, Worktree};
 
 type Result<T> = std::result::Result<T, AppError>;
@@ -9,6 +10,11 @@ type Result<T> = std::result::Result<T, AppError>;
 #[tauri::command]
 pub async fn list_branches(repo_path: String, include_default_branches: Option<bool>) -> Result<Vec<Worktree>> {
     let include_defaults = include_default_branches.unwrap_or(false);
+
+    // Refresh remote-tracking refs so branches pushed from another machine
+    // show up in the picker. Throttled to 30s per repo.
+    git_manager::fetch_all_for_branch_list(&repo_path).await;
+
     let (worktrees, _active) =
         tokio::task::spawn_blocking(move || branch_manager::list_branches(&repo_path, include_defaults))
             .await

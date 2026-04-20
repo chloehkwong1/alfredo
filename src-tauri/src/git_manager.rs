@@ -50,6 +50,40 @@ async fn list_remote_names(repo_path: &str) -> Vec<String> {
     names
 }
 
+/// Fetch all remotes for a repo, throttled per repo to once per 30s. Swallows
+/// errors — offline or auth-broken remotes must not prevent the UI from
+/// listing branches. Runs `git fetch --all --no-tags --quiet` so remote-only
+/// branches (e.g. work pushed from another machine) become visible to
+/// `list_branches`.
+pub async fn fetch_all_for_branch_list(repo_path: &str) {
+    const THROTTLE: std::time::Duration = std::time::Duration::from_secs(30);
+    let key = format!("branchlist:{repo_path}");
+
+    let should_fetch = {
+        let mut map = FETCH_THROTTLE.lock().unwrap();
+        match map.get(&key) {
+            Some(last) if last.elapsed() < THROTTLE => false,
+            _ => {
+                map.insert(key, Instant::now());
+                true
+            }
+        }
+    };
+
+    if !should_fetch {
+        return;
+    }
+
+    let fetch = git_command()
+        .args(["fetch", "--all", "--no-tags", "--quiet", "--no-auto-maintenance"])
+        .current_dir(repo_path)
+        .output();
+
+    // Cap the wait so a slow or hung remote can't stall the branch picker.
+    // Stale local refs are still a usable fallback.
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(3), fetch).await;
+}
+
 pub async fn create_worktree(
     repo_path: &str,
     branch_name: &str,
