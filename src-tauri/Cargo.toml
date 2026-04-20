@@ -39,6 +39,7 @@ futures = "0.3.32"
 keyring = { version = "3", features = ["apple-native"] }
 url = "2"
 dirs = "5"
+rodio = { version = "0.20", default-features = false, features = ["wav"] }
 
 [lints.clippy]
 unwrap_used = "warn"

@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod app_config;
+pub mod audio;
 pub mod external_tools;
 pub mod branch;
 pub mod checks;
