@@ -122,6 +122,38 @@ export interface SessionWriter {
 }
 
 /**
+ * Given the current depth, the incoming hook state, and the hook phase,
+ * return the new depth. Pure function — safe to unit test.
+ *
+ *   promptStart / toolStart  → +1
+ *   toolEnd                   → max(0, d - 1)
+ *   turnEnd                   → 0 (hard reset — a turn ended, all work done)
+ *   notRunning (any phase)    → 0 (PTY exited)
+ *   subagentEnd               → unchanged (Task tool's toolEnd will decrement)
+ *   anything else             → unchanged
+ */
+export function applyHookToDepth(
+  depth: number,
+  state: import("../types").AgentState,
+  phase: import("../types").HookPhase,
+): number {
+  if (state === "notRunning") return 0;
+  switch (phase) {
+    case "promptStart":
+    case "toolStart":
+      return depth + 1;
+    case "toolEnd":
+      return Math.max(0, depth - 1);
+    case "turnEnd":
+      return 0;
+    case "subagentEnd":
+    case "none":
+    default:
+      return depth;
+  }
+}
+
+/**
  * Create a Tauri channel wired to pump PTY events into a ManagedSession
  * and the workspace store. Shared by getOrSpawn and spawnForExisting
  * so the callback logic lives in exactly one place.
@@ -177,6 +209,7 @@ export function createSessionChannel(
         // check so reconciler debug logs show the last *accepted* hook.
         session.lastHookAt = Date.now();
         session.hooksActive = true;
+        session.workDepth = applyHookToDepth(session.workDepth, state, phase);
 
         // Suppress spurious bare-busy hooks that fire immediately after turnEnd.
         // Claude Code's internal state settles with idle(turnEnd) → idle → busy(none),
@@ -254,7 +287,7 @@ export function createSessionChannel(
           break;
         }
 
-        console.debug(`[status:${worktreeId}] hook → ${state}${phase !== "none" ? `(${phase})` : ""}${notify !== "none" ? ` notify=${notify}` : ""} sessionKey=${sessionKey} sessionId=${session.sessionId}`);
+        console.debug(`[status:${worktreeId}] hook → ${state}${phase !== "none" ? `(${phase})` : ""}${notify !== "none" ? ` notify=${notify}` : ""} depth=${session.workDepth} sessionKey=${sessionKey} sessionId=${session.sessionId}`);
         session.agentState = state;
         stateSourceMap.set(worktreeId, "hook");
         useSessionStatusStore.getState().setSessionStatus(sessionKey, state);

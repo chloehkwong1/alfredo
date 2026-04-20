@@ -534,6 +534,48 @@ describe("seenWorktrees ordering invariant", () => {
   });
 });
 
+import { applyHookToDepth } from "../services/sessionChannel";
+
+describe("applyHookToDepth", () => {
+  it("increments on promptStart", () => {
+    expect(applyHookToDepth(0, "busy", "promptStart")).toBe(1);
+    expect(applyHookToDepth(2, "busy", "promptStart")).toBe(3);
+  });
+
+  it("increments on toolStart", () => {
+    expect(applyHookToDepth(0, "busy", "toolStart")).toBe(1);
+    expect(applyHookToDepth(1, "busy", "toolStart")).toBe(2);
+  });
+
+  it("decrements on toolEnd, clamped at zero", () => {
+    expect(applyHookToDepth(2, "busy", "toolEnd")).toBe(1);
+    expect(applyHookToDepth(1, "busy", "toolEnd")).toBe(0);
+    expect(applyHookToDepth(0, "busy", "toolEnd")).toBe(0);
+  });
+
+  it("resets to zero on turnEnd regardless of state", () => {
+    expect(applyHookToDepth(5, "idle", "turnEnd")).toBe(0);
+    expect(applyHookToDepth(3, "busy", "turnEnd")).toBe(0);
+  });
+
+  it("resets to zero on notRunning", () => {
+    expect(applyHookToDepth(7, "notRunning", "none")).toBe(0);
+    expect(applyHookToDepth(7, "notRunning", "turnEnd")).toBe(0);
+  });
+
+  it("leaves depth unchanged on subagentEnd (the parent Task toolEnd will decrement)", () => {
+    expect(applyHookToDepth(2, "busy", "subagentEnd")).toBe(2);
+  });
+
+  it("leaves depth unchanged on bare busy (phase=none)", () => {
+    expect(applyHookToDepth(1, "busy", "none")).toBe(1);
+  });
+
+  it("leaves depth unchanged on waitingForInput", () => {
+    expect(applyHookToDepth(1, "waitingForInput", "none")).toBe(1);
+  });
+});
+
 describe("multi-tab reconciler independence", () => {
   it("two independent sessions for one worktree each have their own lastHookAt", () => {
     // Sanity: reconciler state is per-session (keyed by sessionKey), not
