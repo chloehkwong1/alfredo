@@ -243,6 +243,48 @@ describe("SessionManager.reconcileAll", () => {
     expect(session.agentState).toBe("busy");
   });
 
+  it("does NOT force idle on workDepth > 0 even if hooks silent past STALE_HOOK_FORCE_MS", () => {
+    // A long tool is running (workDepth=1). TUI status-bar redraws keep
+    // lastOutputAt fresh, so the force path is the only one that could
+    // fire — it must be blocked while work is genuinely in flight.
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      lastHookAt: Date.now() - 70_000,   // hooks silent >60s (STALE_HOOK_FORCE_MS)
+      lastOutputAt: Date.now() - 500,    // output fresh (TUI redraws)
+      workDepth: 1,
+    });
+    (mgr as any).sessions.set("wt-force:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-force", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.agentState).toBe("busy");
+  });
+
+  it("DOES force idle on workDepth == 0 when hooks silent past force threshold (genuinely stuck)", () => {
+    // Hook channel died after a clean turnEnd: workDepth=0, no further
+    // hooks arrive, but TUI output keeps lastOutputAt fresh. The force
+    // path must still rescue — this is the legit "stuck busy" case.
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      lastHookAt: Date.now() - 70_000,
+      lastOutputAt: Date.now() - 500,
+      workDepth: 0,
+    });
+    (mgr as any).sessions.set("wt-dead-hooks:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-dead-hooks", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.agentState).toBe("idle");
+  });
+
   it("does NOT flip busy → idle while hooks are still arriving (e.g. during tool use)", () => {
     const mgr = new SessionManager();
     const session = makeFakeSession({
