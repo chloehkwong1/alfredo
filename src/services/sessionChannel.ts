@@ -131,6 +131,16 @@ export interface SessionWriter {
  *   notRunning (any phase)    → 0 (PTY exited)
  *   subagentEnd               → unchanged (Task tool's toolEnd will decrement)
  *   anything else             → unchanged
+ *
+ * subagentEnd is intentionally NOT symmetric with toolEnd: Claude's Task
+ * tool wraps subagent execution, firing PreToolUse(toolStart, +1) on entry
+ * and PostToolUse(toolEnd, -1) on exit. SubagentStop fires in between and
+ * is informational — decrementing here would double-count. Edge case: if
+ * SubagentStop fires without a subsequent PostToolUse (e.g. Claude Code
+ * crashes mid-subagent), depth is stuck > 0 until turnEnd or notRunning
+ * resets it. That's the desired failure mode — better stuck-busy than
+ * false-idle — and the force-path reconciler will eventually rescue once
+ * the turn ends or the PTY exits.
  */
 export function applyHookToDepth(
   depth: number,
@@ -209,6 +219,12 @@ export function createSessionChannel(
         // check so reconciler debug logs show the last *accepted* hook.
         session.lastHookAt = Date.now();
         session.hooksActive = true;
+        // Invariant: depth is updated BEFORE any suppression `break` — depth
+        // reflects hook reality, not display reality. This is only safe while
+        // every depth-mutating phase is != "none": bare busy(none) is depth-
+        // neutral, so the bare-busy suppression below can't strand the counter.
+        // If a future phase ever mutates depth at phase="none", move this
+        // line after the suppression check.
         session.workDepth = applyHookToDepth(session.workDepth, state, phase);
 
         // Suppress spurious bare-busy hooks that fire immediately after turnEnd.

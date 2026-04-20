@@ -648,3 +648,41 @@ describe("multi-tab reconciler independence", () => {
     expect(sessA.lastHookAt).not.toBe(sessB.lastHookAt);
   });
 });
+
+import { createSessionChannel } from "../services/sessionChannel";
+
+describe("createSessionChannel wires workDepth updates", () => {
+  it("increments session.workDepth on busy(toolStart) hook event", () => {
+    const session = makeFakeSession({ workDepth: 0 });
+    const fakeWriter = {
+      scheduleWrite: () => {},
+      appendToBuffer: () => {},
+    };
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-wire", "wt-wire:main");
+
+    // Drive the handler with a hook event as the real Tauri channel would.
+    // Tauri Channel exposes the subscribed callback via `onmessage`.
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "busy", phase: "toolStart", notify: "none" },
+    });
+
+    expect(session.workDepth).toBe(1);
+  });
+
+  it("decrements session.workDepth on busy(toolEnd) hook event", () => {
+    const session = makeFakeSession({ workDepth: 2 });
+    const fakeWriter = {
+      scheduleWrite: () => {},
+      appendToBuffer: () => {},
+    };
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-wire", "wt-wire:main");
+
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "busy", phase: "toolEnd", notify: "none" },
+    });
+
+    expect(session.workDepth).toBe(1);
+  });
+});
