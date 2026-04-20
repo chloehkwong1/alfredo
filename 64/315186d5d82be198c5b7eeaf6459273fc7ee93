@@ -1,0 +1,27 @@
+src/api.ts
+  0ecb80484377eb75 448-453
+src/components/settings/NotificationSettings.tsx
+  0ecb80484377eb75 11,14
+src/hooks/notificationUtils.ts
+  0ecb80484377eb75 7-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "64315186d5d82be198c5b7eeaf6459273fc7ee93",
+  "prompts": {
+    "0ecb80484377eb75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90b6b70a-d3f6-473d-ba48-f6d5075b1cce",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 144,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    }
+  }
+}
