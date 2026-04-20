@@ -1,0 +1,29 @@
+src-tauri/src/keychain.rs
+  c1a38947257326eb 45
+src-tauri/tauri.conf.json
+  c1a38947257326eb 4
+package.json
+  c1a38947257326eb 4
+src-tauri/Cargo.toml
+  c1a38947257326eb 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "6eb1336bd3856037f6053e762a22e38bae8df8a8",
+  "prompts": {
+    "c1a38947257326eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac188ae9-84c7-4ae3-8695-417c18f625de",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

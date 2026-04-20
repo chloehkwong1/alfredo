@@ -1,0 +1,23 @@
+.github/workflows/release.yml
+  228ccb7267cff326 45-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "f09c0bc8b762f6185947d77e736281038c608d6b",
+  "prompts": {
+    "228ccb7267cff326": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e642408-3d12-4a23-aca9-549d6b2339cc",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,75 @@
+src-tauri/src/pty_manager.rs
+  6b1efd8775302289 4,52,58,279,281,288-296,298-299,309,317-324,326-327,333,342,344-348,352-381,383,398,408,419,426,429-430,446,451-454,457
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "b142b4c47a54f812eb86e32f9e2155cab014287f",
+  "prompts": {
+    "5693f28490e2eb5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1035e4d8-578f-4efa-a8b3-7bc163044657",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 52,
+      "total_deletions": 44,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    },
+    "5f529c26fbbe63b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fcc3866b-7136-43ef-b090-8dc4b746c678",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "6448cebb6047e0f3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7e8032ac-5be9-430b-8876-db8b189f264d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "6b1efd8775302289": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f9b04b7b-b782-4cf3-b177-3a076bf185f0",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 2467,
+      "total_deletions": 270,
+      "accepted_lines": 2282,
+      "overriden_lines": 0
+    },
+    "adfe5e44e5538b78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b9e3aa0-894e-46bb-8ac2-10de64c1ce18",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 8,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}

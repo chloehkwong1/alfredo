@@ -1,0 +1,38 @@
+src/components/sidebar/Sidebar.tsx
+  26593613f2d6df36 123-136,263
+src/components/sidebar/StatusGroup.tsx
+  26593613f2d6df36 14,27,65,135-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "5c84cef419a014b60bac71474fabe7ac3773af66",
+  "prompts": {
+    "26593613f2d6df36": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08e13909-5352-4536-960f-ac889237843c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    },
+    "a95f69d4abb9674b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01a77bb1-af13-451b-9905-e239b30f38a9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

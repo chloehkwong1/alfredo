@@ -1,0 +1,36 @@
+docs/superpowers/plans/2026-03-31-status-detection-test-specs.md
+  3da7e003b3c707fd 1-976
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "fc0fe997fdd624a2492d579d148be09834b6d1ab",
+  "prompts": {
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "3da7e003b3c707fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1657379-a666-4539-ad16-a46f7b37deef",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 985,
+      "total_deletions": 6,
+      "accepted_lines": 985,
+      "overriden_lines": 0
+    }
+  }
+}

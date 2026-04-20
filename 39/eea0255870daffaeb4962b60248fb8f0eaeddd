@@ -1,0 +1,23 @@
+src/stores/tabStore.ts
+  921ec66f30c89152 4-16,55,59-61,63-65,67,69-74,76-77,86-87,94,103-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "39eea0255870daffaeb4962b60248fb8f0eaeddd",
+  "prompts": {
+    "921ec66f30c89152": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4812d2e-6aaf-413a-9339-5fea8f6b5284",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 42,
+      "total_deletions": 27,
+      "accepted_lines": 42,
+      "overriden_lines": 0
+    }
+  }
+}

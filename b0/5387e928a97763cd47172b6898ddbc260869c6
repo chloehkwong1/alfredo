@@ -1,0 +1,36 @@
+src/stores/workspaceStore.ts
+  ab1aaa90ff800bb5 156-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "b05387e928a97763cd47172b6898ddbc260869c6",
+  "prompts": {
+    "09331a83e1762eb8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a178404-6ff8-430f-8501-88c9f11349a4",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 15,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "ab1aaa90ff800bb5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a75e1480-1161-4179-befa-13aa2c16bb9e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 6,
+      "accepted_lines": 925,
+      "overriden_lines": 0
+    }
+  }
+}

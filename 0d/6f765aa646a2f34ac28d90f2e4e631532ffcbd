@@ -1,0 +1,27 @@
+src-tauri/src/stack_manager.rs
+  08442923b4519b40 62-67
+src/components/sidebar/AgentItem.tsx
+  08442923b4519b40 355,373
+src-tauri/src/commands/worktree.rs
+  08442923b4519b40 80,159,162-164,369-371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "0d6f765aa646a2f34ac28d90f2e4e631532ffcbd",
+  "prompts": {
+    "08442923b4519b40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6a771c8-e9fa-4e23-9ac5-0c154a856195",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 5,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    }
+  }
+}

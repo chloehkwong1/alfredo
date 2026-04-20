@@ -1,0 +1,29 @@
+src/components/sidebar/SidebarDragContext.tsx
+  fe1d427d3c2ad3f8 231
+src/stores/prStore.ts
+  fe1d427d3c2ad3f8 25,40,102-103,105,149-153,169-170
+src/services/SessionPersistence.ts
+  fe1d427d3c2ad3f8 20-21,81
+src/hooks/useSessionRestore.ts
+  fe1d427d3c2ad3f8 136-137,139-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "c3082287593dd0fd5d08f1c6f3a1001a3bc00f14",
+  "prompts": {
+    "fe1d427d3c2ad3f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "44e46cec-968e-407e-8510-189d54093074",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    }
+  }
+}

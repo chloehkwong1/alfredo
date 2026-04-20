@@ -1,0 +1,27 @@
+src/stores/agentStore.ts
+  921ec66f30c89152 1-22
+src/components/layout/AppShell.tsx
+  921ec66f30c89152 30,85-89
+src/components/layout/PaneTabBar.tsx
+  921ec66f30c89152 15-16,39,50,54,83-84,293-300,407-414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "4f085b46069102b821253c8310fcd298b153af89",
+  "prompts": {
+    "921ec66f30c89152": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4812d2e-6aaf-413a-9339-5fea8f6b5284",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 52,
+      "total_deletions": 5,
+      "accepted_lines": 51,
+      "overriden_lines": 0
+    }
+  }
+}

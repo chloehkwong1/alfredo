@@ -1,0 +1,76 @@
+src/components/changes/ChangesPanel.tsx
+  f1abe31c40ab94c3 9,65-78,81,83-87,94-105,112-117,126-134,149-153
+  bc6af50919d527d0 5-6,11,36,44-48,51-61,236,240-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "e5c980da3c5f7f91aca555b45554ea00be2a679a",
+  "prompts": {
+    "0f1d286e2446dcec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d629b93f-e83c-42a1-8370-6e064bc83eee",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    },
+    "1b78e3f43b3aa1e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "af92afae-fd63-4cd8-8f37-76ef6d88296f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    },
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "bc6af50919d527d0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "856dc8e1-83f9-4b35-a7cb-3a7172516116",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 67,
+      "overriden_lines": 0
+    },
+    "f1abe31c40ab94c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1fb82fa-53d9-4c4d-9753-03b49a082f43",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 0,
+      "accepted_lines": 65,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,40 @@
+src/components/changes/DiffFileCard.tsx
+  7c4ad3d441f141f8 42-43,83,91-106,455-458,531-534,627-628
+src/components/changes/PrPanel.tsx
+  7c4ad3d441f141f8 532,535,537,539
+src/components/changes/ChangesView.tsx
+  7c4ad3d441f141f8 98-102,176-178,185,195,516-518
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "28fc3f1a655657f2713597b0ae84a7ba02621b29",
+  "prompts": {
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "7c4ad3d441f141f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f67d5b6-570c-4ebb-9bbf-778ba9d7c148",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}

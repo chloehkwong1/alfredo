@@ -1,0 +1,38 @@
+src/components/sidebar/AgentItemOverlay.tsx
+  a9dedb0248e7c6f5 19
+src/components/sidebar/AgentItem.tsx
+  a9dedb0248e7c6f5 75,77-78,81,83-89,95-101,126,129,177,183,196,213-216,242,328-331,336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "1b27aedb5a2fde7c13e375f2b8e01dbd2771a726",
+  "prompts": {
+    "46d8131245546530": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a7a3d9a8-db55-42bb-acef-20adcdacd530",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 400,
+      "overriden_lines": 0
+    },
+    "a9dedb0248e7c6f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8402b324-2eff-45aa-8fd8-10a7132e7a3c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 34,
+      "total_deletions": 35,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    }
+  }
+}

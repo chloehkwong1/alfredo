@@ -1,0 +1,40 @@
+src-tauri/Cargo.toml
+  d76f7f7ce42cc1ef 3
+package.json
+  d76f7f7ce42cc1ef 4
+src-tauri/tauri.conf.json
+  d76f7f7ce42cc1ef 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "11ce55b2f54e160de4485afa09e8771a442e547b",
+  "prompts": {
+    "ab1aaa90ff800bb5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a75e1480-1161-4179-befa-13aa2c16bb9e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 920,
+      "overriden_lines": 0
+    },
+    "d76f7f7ce42cc1ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46ce4e0b-589d-4796-9589-ad7e3884127e",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

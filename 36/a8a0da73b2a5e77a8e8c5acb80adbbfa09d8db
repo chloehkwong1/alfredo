@@ -1,0 +1,64 @@
+src/hooks/useKeyboardShortcuts.ts
+  f7ba3725da7b0818 6-7,22-25,145-189
+src/components/settings/ShortcutsOverlay.tsx
+  f7ba3725da7b0818 38,40-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "36a8a0da73b2a5e77a8e8c5acb80adbbfa09d8db",
+  "prompts": {
+    "0309011a327565ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff724711-ab6b-46c4-9f5e-a80504f35ff8",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 13,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    },
+    "0fc166bb6fffdde7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c006ac10-983d-4732-8498-fc8e226173c2",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 65,
+      "total_deletions": 93,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    },
+    "5c0fee34c8d28463": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c69461fd-bbe8-44a3-8dc3-77a00b9b5858",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "f7ba3725da7b0818": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b6aacb31-f517-49e2-8e10-bbcc09f3dba3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 59,
+      "total_deletions": 4,
+      "accepted_lines": 57,
+      "overriden_lines": 0
+    }
+  }
+}

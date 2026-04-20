@@ -1,0 +1,55 @@
+src-tauri/src/linear_manager.rs
+  75ec3d71f6efff86 128-186
+src/components/kanban/create-worktree/LinearIssuesTab.tsx
+  7398ff77c5788dd7 4,14-15,21-38,43,53,57,74-75,80,83
+src/api.ts
+  7398ff77c5788dd7 161-164
+src-tauri/src/commands/linear.rs
+  7398ff77c5788dd7 60-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "068e2f6bb5e1c6ebaae1b73ee47bfe5b2b4b7b1b",
+  "prompts": {
+    "7398ff77c5788dd7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ddd4a2b-cf0a-48e9-af91-22eb25edd45d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 7,
+      "accepted_lines": 40,
+      "overriden_lines": 0
+    },
+    "75ec3d71f6efff86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71668b35-6442-4424-a4a3-7bb33168154f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 59,
+      "total_deletions": 0,
+      "accepted_lines": 59,
+      "overriden_lines": 0
+    },
+    "77ea243c6ed3cdb2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54862b47-208b-4a39-9a3f-0e6da5a8b578",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 3,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    }
+  }
+}

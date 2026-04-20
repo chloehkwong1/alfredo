@@ -1,0 +1,81 @@
+src-tauri/src/platform.rs
+  aa6c216ebe411268 18
+  0449c0160cd596f6 20-21
+  1ce195a41de99998 6-17,19,22-41,73-81,83
+  ebc1984aff8b5f31 1-5,50-52,59-61
+src-tauri/src/config_manager.rs
+  aa6c216ebe411268 197,199
+  0449c0160cd596f6 200,202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "7ffc75766af36d9e74a793630074e14843db1263",
+  "prompts": {
+    "0449c0160cd596f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "93291653-ef30-49a0-b86f-685c3e8dddfa",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 3,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "1ce195a41de99998": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e693624f-372f-47e0-9da8-5e4fb055e2d7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 43,
+      "overriden_lines": 0
+    },
+    "4d3a671ada3c2762": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd033ef3-17f8-4d91-9c61-746520bf88ef",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "aa6c216ebe411268": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6c44dea-58db-4fbe-a9ee-2581230ad1e4",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "ebc1984aff8b5f31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9332a1c9-bc4d-41c2-aec6-3a7284908dd7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}

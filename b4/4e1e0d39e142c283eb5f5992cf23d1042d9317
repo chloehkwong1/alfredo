@@ -1,0 +1,25 @@
+src/hooks/useDiffSearch.ts
+  f66c8dd1ad390db5 10-11,22-32,35,37,48,53
+src/hooks/useChangesData.ts
+  f66c8dd1ad390db5 1,126-128,130,135-136,138-140,142-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "b44e1e0d39e142c283eb5f5992cf23d1042d9317",
+  "prompts": {
+    "f66c8dd1ad390db5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "728d7aa7-435f-4e36-a719-1a1564f7040f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 45,
+      "total_deletions": 9,
+      "accepted_lines": 44,
+      "overriden_lines": 0
+    }
+  }
+}

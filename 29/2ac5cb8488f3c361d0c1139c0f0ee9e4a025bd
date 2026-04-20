@@ -1,0 +1,25 @@
+src/hooks/useKeyboardShortcuts.ts
+  f74f92636005a977 13-14,57,59-65
+src/components/settings/ShortcutsOverlay.tsx
+  f74f92636005a977 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "292ac5cb8488f3c361d0c1139c0f0ee9e4a025bd",
+  "prompts": {
+    "f74f92636005a977": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9bcd6d7-61e8-4f0a-b468-f3eead3cc2bf",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}

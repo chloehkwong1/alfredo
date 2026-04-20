@@ -1,0 +1,23 @@
+src/hooks/useChangesData.ts
+  a95f69d4abb9674b 2,10,29,57,96-112,126-143,151-156,158,163,169,205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "8bbaedb153dd191fb3416ba375e3db223ab4ab4d",
+  "prompts": {
+    "a95f69d4abb9674b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01a77bb1-af13-451b-9905-e239b30f38a9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 49,
+      "total_deletions": 7,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    }
+  }
+}

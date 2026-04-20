@@ -1,0 +1,33 @@
+src/components/changes/MergeStatusBanner.tsx
+  0a7697b6e345fa33 6,29,93-95,100,103-104,106-107,183-190
+src-tauri/src/lib.rs
+  0a7697b6e345fa33 103
+src/api.ts
+  0a7697b6e345fa33 330,332-335
+src/services/prActions.ts
+  0a7697b6e345fa33 2,38,40-45
+src-tauri/src/commands/checks.rs
+  0a7697b6e345fa33 26-29,31,33
+src-tauri/src/github_manager.rs
+  0a7697b6e345fa33 668,670-672,676-680,682-683,686,688-690,693-696,698-700,702-705,707,709-714,716-727,729-735,737
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "496428de8b19a8ced6a5481d1c2de5dc9bc0eefa",
+  "prompts": {
+    "0a7697b6e345fa33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a3edfe12-1435-426d-825d-1c2857d86c1b",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 98,
+      "total_deletions": 143,
+      "accepted_lines": 95,
+      "overriden_lines": 0
+    }
+  }
+}

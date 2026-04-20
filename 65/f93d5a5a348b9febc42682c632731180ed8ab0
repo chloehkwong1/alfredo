@@ -1,0 +1,23 @@
+src/services/prActions.ts
+  64760f228dca5743 90-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "65f93d5a5a348b9febc42682c632731180ed8ab0",
+  "prompts": {
+    "64760f228dca5743": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "50446c9a-eb33-4862-a3a3-6d034aed6cab",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}

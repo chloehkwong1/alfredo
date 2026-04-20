@@ -1,0 +1,41 @@
+src-tauri/src/commands/github_auth.rs
+  91f91ceb55de82b7 2,12,28,37,63
+src-tauri/src/github_manager.rs
+  91f91ceb55de82b7 6,111,800
+src-tauri/src/git_manager.rs
+  91f91ceb55de82b7 5,40,58,76,121,133,159,182,193,214,221,238,269,282,291,311,326
+src-tauri/src/branch_manager.rs
+  91f91ceb55de82b7 3,100,163,181
+src-tauri/src/commands/worktree.rs
+  91f91ceb55de82b7 6,368
+src-tauri/src/lib.rs
+  91f91ceb55de82b7 2
+src-tauri/src/stack_manager.rs
+  91f91ceb55de82b7 8,261,294,353
+src-tauri/src/github_sync.rs
+  91f91ceb55de82b7 8,369
+src-tauri/src/platform.rs
+  91f91ceb55de82b7 1-34
+src-tauri/src/commands/diff.rs
+  91f91ceb55de82b7 6,242,325,345,577,669,686,690,765
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "bc571a9d45bdc90ec1f55292ba05714ab108c4fb",
+  "prompts": {
+    "91f91ceb55de82b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47ee441e-1387-404e-b189-30b2072863a8",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 174,
+      "total_deletions": 128,
+      "accepted_lines": 99,
+      "overriden_lines": 0
+    }
+  }
+}

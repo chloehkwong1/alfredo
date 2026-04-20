@@ -1,0 +1,42 @@
+src/components/sidebar/AgentItem.test.ts
+  49de21a398179b9d 1-40
+src/hooks/usePty.test.ts
+  49de21a398179b9d 1-38
+vitest.config.ts
+  49de21a398179b9d 7
+src/services/sessionManager.test.ts
+  49de21a398179b9d 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "a1f5cfdc1b46270c0bfed457f1d8ed7262d1d617",
+  "prompts": {
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "49de21a398179b9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2abce42b-cfb3-4de1-98bb-b1315f189e5f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 106,
+      "total_deletions": 1,
+      "accepted_lines": 106,
+      "overriden_lines": 0
+    }
+  }
+}

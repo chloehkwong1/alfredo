@@ -1,0 +1,75 @@
+src-tauri/src/commands/app_detection.rs
+  cddbdf5cbc7703e7 19-23,27-33,35-39,46-50,52-58,60-64,151-251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "7c8fbc6956dbac6d9d0d604ace24ae5cecc53be2",
+  "prompts": {
+    "0039cab8cf5e3188": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d57bca1-7ffc-448c-8139-9d155aec2766",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 183,
+      "overriden_lines": 0
+    },
+    "491617ac75725224": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7917aa17-e001-4b6b-bc3b-d8ab51666c70",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 292,
+      "total_deletions": 37,
+      "accepted_lines": 2182,
+      "overriden_lines": 24
+    },
+    "613db9ccca62370e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "277e3902-d584-4a5c-ad83-94af172f160e",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1576,
+      "overriden_lines": 0
+    },
+    "66bbfc9a3b5df077": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3252741-e0ed-479c-84ff-0e5ca5dcc3b8",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "cddbdf5cbc7703e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1ba06045-4131-4c23-85dc-f8f4bce5540a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 173,
+      "total_deletions": 292,
+      "accepted_lines": 173,
+      "overriden_lines": 0
+    }
+  }
+}

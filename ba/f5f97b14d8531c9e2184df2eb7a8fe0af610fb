@@ -1,0 +1,36 @@
+src/services/prActions.ts
+  7efa832b4d03386e 1-2,28-30,38-40,42-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "baf5f97b14d8531c9e2184df2eb7a8fe0af610fb",
+  "prompts": {
+    "7efa832b4d03386e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8ff47a3c-0a47-45fc-a29d-f17fc73dbfe6",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 34,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    },
+    "8070510edc551739": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b5380c17-c4dc-40d6-a07d-bbf813b95782",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 5,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

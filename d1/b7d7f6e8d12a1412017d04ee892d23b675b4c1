@@ -1,0 +1,29 @@
+src/components/kanban/CreateWorktreeDialog.tsx
+  00fdb8ba0353532a 79,215,217,223,246,248
+src/components/kanban/create-worktree/BaseBranchPicker.tsx
+  00fdb8ba0353532a 1-155
+src/components/kanban/create-worktree/NewBranchTab.tsx
+  00fdb8ba0353532a 2,6,12,15,29-35
+src/components/kanban/create-worktree/LinearIssuesTab.tsx
+  00fdb8ba0353532a 4,9,18,131-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "d1b7d7f6e8d12a1412017d04ee892d23b675b4c1",
+  "prompts": {
+    "00fdb8ba0353532a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b516cba-d982-4c7c-89f2-d7820514e19d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 182,
+      "overriden_lines": 0
+    }
+  }
+}

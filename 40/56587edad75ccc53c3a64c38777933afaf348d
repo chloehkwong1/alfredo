@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "4056587edad75ccc53c3a64c38777933afaf348d",
+  "prompts": {
+    "7398ff77c5788dd7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ddd4a2b-cf0a-48e9-af91-22eb25edd45d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

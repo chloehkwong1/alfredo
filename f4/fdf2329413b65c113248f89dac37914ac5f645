@@ -1,0 +1,27 @@
+src/hooks/usePty.ts
+  921ec66f30c89152 33
+src/components/terminal/TerminalView.tsx
+  921ec66f30c89152 19-30,56
+src/services/sessionManager.ts
+  921ec66f30c89152 7,282,343-348,441,454-459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "f4fdf2329413b65c113248f89dac37914ac5f645",
+  "prompts": {
+    "921ec66f30c89152": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4812d2e-6aaf-413a-9339-5fea8f6b5284",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 8,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    }
+  }
+}

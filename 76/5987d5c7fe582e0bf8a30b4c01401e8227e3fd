@@ -1,0 +1,36 @@
+src-tauri/src/commands/diff.rs
+  f74f92636005a977 83-86,428-435,437-460,463-467,488-499
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "765987d5c7fe582e0bf8a30b4c01401e8227e3fd",
+  "prompts": {
+    "4b0321dc3a4f5cc6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b45b5f7-6e25-4923-b8eb-c27ee90e84c3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 5,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "f74f92636005a977": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9bcd6d7-61e8-4f0a-b468-f3eead3cc2bf",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 59,
+      "total_deletions": 19,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}

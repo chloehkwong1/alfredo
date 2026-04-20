@@ -1,0 +1,36 @@
+src/hooks/useChangesData.ts
+  7771323b905b0f87 2,48,59-60,89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "1feea0505a30f99107a162fa8750d6b31e96aba7",
+  "prompts": {
+    "7771323b905b0f87": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c748af7-7ab2-466d-b75d-cf8ad6781790",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 74,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "91adbc955da09b23": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15d3bb84-9dfb-471e-b90b-6ccca315b555",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 19,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    }
+  }
+}

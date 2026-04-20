@@ -1,0 +1,23 @@
+src/hooks/useUpdater.ts
+  8070510edc551739 57-58,60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "5d7a8ffae2b0bfaf83a266157914a9254a5ae30e",
+  "prompts": {
+    "8070510edc551739": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b5380c17-c4dc-40d6-a07d-bbf813b95782",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

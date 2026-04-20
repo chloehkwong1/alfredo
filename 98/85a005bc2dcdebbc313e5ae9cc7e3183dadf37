@@ -1,0 +1,36 @@
+src/components/layout/RemoteControlBar.tsx
+  55ee0c1bc3923bd3 40,48-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "9885a005bc2dcdebbc313e5ae9cc7e3183dadf37",
+  "prompts": {
+    "46d8131245546530": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a7a3d9a8-db55-42bb-acef-20adcdacd530",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 400,
+      "overriden_lines": 0
+    },
+    "55ee0c1bc3923bd3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85e12c2f-8671-4aaf-ae52-2f95a4827377",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 6,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

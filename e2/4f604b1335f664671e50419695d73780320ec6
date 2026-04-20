@@ -1,0 +1,51 @@
+src-tauri/src/commands/diff.rs
+  5e29f839d3b9dd38 388-402,417-418,424-432,443
+src-tauri/src/git_manager.rs
+  5e29f839d3b9dd38 157-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "e24f604b1335f664671e50419695d73780320ec6",
+  "prompts": {
+    "0b8269e7261bd637": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09afae83-d300-4637-9ba7-6308a3517813",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 73,
+      "overriden_lines": 0
+    },
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "5e29f839d3b9dd38": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f574474-e355-4d00-a0c2-cac1d3d68784",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 39,
+      "overriden_lines": 0
+    }
+  }
+}

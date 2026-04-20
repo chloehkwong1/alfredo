@@ -1,0 +1,38 @@
+src/hooks/useNotifications.ts
+  929b9b0c60f0227e 24-28,30,36-56,58-62,64-66,68-72,74-76,78-82,84-89,91-94,96,191
+src/components/settings/notificationConfig.ts
+  929b9b0c60f0227e 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "ed61dc125af6040efc0275082961502139992fee",
+  "prompts": {
+    "46d8131245546530": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a7a3d9a8-db55-42bb-acef-20adcdacd530",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 400,
+      "overriden_lines": 0
+    },
+    "929b9b0c60f0227e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20cafc26-0a7b-4c6a-b722-96e050f00aed",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 63,
+      "overriden_lines": 0
+    }
+  }
+}

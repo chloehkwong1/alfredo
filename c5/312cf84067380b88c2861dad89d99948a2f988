@@ -1,0 +1,36 @@
+src-tauri/src/app_config_manager.rs
+  0aa79d99c87cba8b 99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "c5312cf84067380b88c2861dad89d99948a2f988",
+  "prompts": {
+    "00fdb8ba0353532a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b516cba-d982-4c7c-89f2-d7820514e19d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 220,
+      "total_deletions": 76,
+      "accepted_lines": 182,
+      "overriden_lines": 0
+    },
+    "0aa79d99c87cba8b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "779d8ef9-934b-4e32-b979-293d8b79bd60",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

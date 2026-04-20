@@ -1,0 +1,40 @@
+src/services/SessionPersistence.ts
+  3484a26eb3775886 88,92-104
+src/stores/layoutStore.ts
+  3484a26eb3775886 111-119,122
+src/services/sessionManager.ts
+  3484a26eb3775886 359-362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "f5d72c5e7721715f412b7cd012d695d8cb911e5e",
+  "prompts": {
+    "3484a26eb3775886": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c74d212-d4f4-4c7d-b714-4c005b0cb1e3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    },
+    "ee94a35edfbd6761": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d020647a-93ae-4742-8514-2ec007b10b93",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

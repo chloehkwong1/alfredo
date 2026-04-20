@@ -1,0 +1,29 @@
+src/components/layout/AppShell.tsx
+  b5d931de79db9d62 237-238
+src/components/sidebar/Sidebar.tsx
+  b5d931de79db9d62 67-68,82-83,311-312
+src/components/settings/GlobalSettingsDialog.tsx
+  b5d931de79db9d62 86-87,90-97,109,321-323
+src/hooks/useUpdater.ts
+  b5d931de79db9d62 1,12,17,26-27,29-44,50-56,109,114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "750e4b7aa4b1e4f0d71b500b46685e3c9907476d",
+  "prompts": {
+    "b5d931de79db9d62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fab8e7d4-5a04-4cff-b2f9-639a52339ec7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 112,
+      "total_deletions": 70,
+      "accepted_lines": 57,
+      "overriden_lines": 0
+    }
+  }
+}

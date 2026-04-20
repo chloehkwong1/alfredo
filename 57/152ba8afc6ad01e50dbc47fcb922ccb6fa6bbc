@@ -1,0 +1,36 @@
+src/components/onboarding/RepoSetupDialog.tsx
+  75ec3d71f6efff86 15,35-52,60,81-83,85,88-90,104-107,109-121,123,125-132,134,139-148,165,169-178,191-211,213-215,217,239,255,257,282-283,285,287,303-304,306-310,314-390,406,458,475,480,485,492,525,545-548,550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "57152ba8afc6ad01e50dbc47fcb922ccb6fa6bbc",
+  "prompts": {
+    "4ac3c7c4a6de6b33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f9bf45d5-9691-4029-b7ac-916029d75c63",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "75ec3d71f6efff86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71668b35-6442-4424-a4a3-7bb33168154f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 213,
+      "total_deletions": 43,
+      "accepted_lines": 209,
+      "overriden_lines": 0
+    }
+  }
+}

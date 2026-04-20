@@ -1,0 +1,23 @@
+src/components/changes/PrPanel.tsx
+  c7f79adece2b7220 11,124-129,177-291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "ed9dba2bc6e31a2ac251303dde652ddfb0b066dd",
+  "prompts": {
+    "c7f79adece2b7220": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "452afb46-48e1-4099-9c1e-9af16690aa7c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 178,
+      "total_deletions": 79,
+      "accepted_lines": 122,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,39 @@
+src-tauri/src/keychain.rs
+  f4db504223f96e0f 6-8,14-16,25,38,50-83,85-110
+src-tauri/src/commands/setup_script_dialog.rs
+  f4db504223f96e0f 28-34
+  e0d13830790890fe 1-2,4,8-27,35-38,40-42,44-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.4",
+  "base_commit_sha": "8f2603210e1c3af36dd1dbc26a26f2f3a22a8718",
+  "prompts": {
+    "e0d13830790890fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea768d81-f5eb-4511-89bc-85307f192886",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 59,
+      "overriden_lines": 0
+    },
+    "f4db504223f96e0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c189465c-0247-4b9b-b582-2919d6573ed5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 77,
+      "overriden_lines": 0
+    }
+  }
+}

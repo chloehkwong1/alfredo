@@ -1,0 +1,69 @@
+src/components/changes/DiffCommentThread.tsx
+  22acf75f9f50da71 1,14-17
+src/components/layout/PaneTabBar.tsx
+  22acf75f9f50da71 120,134,242,295,317,330
+src/components/changes/ChangesPanel.tsx
+  22acf75f9f50da71 21,26-27,34,90,92,95-101,107,125-150,152,155,162-163,166-172,175
+src/components/layout/RemoteControlBar.tsx
+  22acf75f9f50da71 5,30-52
+src/services/SessionPersistence.ts
+  22acf75f9f50da71 23-24,72
+src/stores/workspaceStore.ts
+  22acf75f9f50da71 18-19,40,44,220-229
+src/stores/prStore.ts
+  22acf75f9f50da71 16,210
+src-tauri/src/github_sync.rs
+  22acf75f9f50da71 34-35,77,292-295
+src/types.ts
+  22acf75f9f50da71 90,219
+src/hooks/useKeyboardShortcuts.ts
+  22acf75f9f50da71 16,69,75,79-81
+src/components/changes/AnnotationBubble.tsx
+  22acf75f9f50da71 1-2,9,12-27,32-34,39-60,65-101
+src/stores/tabStore.ts
+  22acf75f9f50da71 36-37,41,87,93,106-107
+src/components/settings/ShortcutsOverlay.tsx
+  22acf75f9f50da71 25
+src/components/changes/ChangesView.tsx
+  22acf75f9f50da71 52-54,69,369-375,423-427,441,555
+src/components/sidebar/AgentItem.tsx
+  22acf75f9f50da71 3,400,418,424-425,431-436
+src/components/changes/DiffFileCard.tsx
+  f094e8d6ab4cfb16 2,40,347-360
+  22acf75f9f50da71 34,69,458,535,607-608
+src/components/changes/FileSidebar.tsx
+  22acf75f9f50da71 77,117-120,172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "5530a9005008d4064ee4948f67a0c53545b39562",
+  "prompts": {
+    "22acf75f9f50da71": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4eb5f2f6-4730-4ff2-9e3e-2f34f7cababd",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 255,
+      "overriden_lines": 0
+    },
+    "f094e8d6ab4cfb16": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "97c830db-4c79-4744-9c6b-bbe25e2f5091",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}

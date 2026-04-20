@@ -1,0 +1,29 @@
+src/hooks/useDiffSearch.ts
+  1dcc6bf90004fd33 1-121
+src/components/changes/ChangesView.tsx
+  1dcc6bf90004fd33 1,3,8-10,79-103
+src/hooks/useFileNavigation.ts
+  1dcc6bf90004fd33 1-119
+src/hooks/useSendToClaude.ts
+  1dcc6bf90004fd33 1-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "ae06268940ee28c7f6a9f9be53992d1d619483ff",
+  "prompts": {
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 364,
+      "overriden_lines": 0
+    }
+  }
+}

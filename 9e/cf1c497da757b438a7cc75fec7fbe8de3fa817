@@ -1,0 +1,74 @@
+src/components/sidebar/AgentItem.tsx
+  251a650cf17bdc32 3,419,473,475-480,482
+src-tauri/src/github_sync.rs
+  251a650cf17bdc32 56-57,89,251
+src-tauri/src/types.rs
+  251a650cf17bdc32 193
+src-tauri/src/github_manager.rs
+  251a650cf17bdc32 55-57,62-63,431-440,453,460
+src/stores/prStore.ts
+  251a650cf17bdc32 227
+src/components/changes/PrPanel.tsx
+  251a650cf17bdc32 13,31,33-39,48,493-495
+src/types.ts
+  251a650cf17bdc32 287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "9ecf1c497da757b438a7cc75fec7fbe8de3fa817",
+  "prompts": {
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "251a650cf17bdc32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac20a06f-5012-474b-88b3-9bbc562d73e5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 48,
+      "overriden_lines": 0
+    },
+    "3fb63be1892bed11": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4871bac7-590b-45e2-99fa-f0e83975e2a5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 373,
+      "overriden_lines": 0
+    },
+    "661f8ddf0d3bba3f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4d143d8d-6a15-4783-8aa7-a2e38bc231bd",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

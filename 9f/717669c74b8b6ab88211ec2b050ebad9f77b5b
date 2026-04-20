@@ -1,0 +1,27 @@
+src-tauri/src/types.rs
+  921ec66f30c89152 48
+src-tauri/src/commands/pty.rs
+  921ec66f30c89152 34
+src-tauri/src/agent_detector.rs
+  921ec66f30c89152 217-219,226,356-372,600-613
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "9f717669c74b8b6ab88211ec2b050ebad9f77b5b",
+  "prompts": {
+    "921ec66f30c89152": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4812d2e-6aaf-413a-9339-5fea8f6b5284",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 0,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    }
+  }
+}

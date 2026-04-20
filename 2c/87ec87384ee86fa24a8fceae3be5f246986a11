@@ -1,0 +1,27 @@
+src/components/changes/ChangesPanel.tsx
+  9e705b667bc8f1b8 2
+src/components/terminal/SettingsStatusBar.tsx
+  9e705b667bc8f1b8 50-51,55,69,128,195-210
+src/components/layout/PaneView.tsx
+  9e705b667bc8f1b8 4,88-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "2c87ec87384ee86fa24a8fceae3be5f246986a11",
+  "prompts": {
+    "9e705b667bc8f1b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c31fd13d-90bd-4f28-9c1b-d6f090e00b62",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 45,
+      "overriden_lines": 0
+    }
+  }
+}

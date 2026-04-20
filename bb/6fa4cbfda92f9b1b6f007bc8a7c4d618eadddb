@@ -1,0 +1,27 @@
+src/components/settings/GlobalSettingsDialog.tsx
+  921ec66f30c89152 2,341-345
+src/hooks/useAppConfig.ts
+  921ec66f30c89152 26-28
+src/components/settings/AgentSettings.tsx
+  921ec66f30c89152 1-2,34-39,43-44,47,51,53-56,65-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "bb6fa4cbfda92f9b1b6f007bc8a7c4d618eadddb",
+  "prompts": {
+    "921ec66f30c89152": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4812d2e-6aaf-413a-9339-5fea8f6b5284",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 46,
+      "total_deletions": 3,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    }
+  }
+}

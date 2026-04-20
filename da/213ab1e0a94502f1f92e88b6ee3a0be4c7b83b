@@ -1,0 +1,23 @@
+src-tauri/src/github_manager.rs
+  035daba938cab673 668-672,679-684,687-688,690-691,694-695,697,699-703,707-709,713-718,720-732,734,738-757,763-807
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "da213ab1e0a94502f1f92e88b6ee3a0be4c7b83b",
+  "prompts": {
+    "035daba938cab673": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "878c1177-f104-44ee-9a7a-9fbd7f772f26",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 5,
+      "accepted_lines": 119,
+      "overriden_lines": 0
+    }
+  }
+}

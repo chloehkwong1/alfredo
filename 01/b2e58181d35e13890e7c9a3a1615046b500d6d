@@ -1,0 +1,42 @@
+src-tauri/src/commands/linear.rs
+  3da7e003b3c707fd 92
+src-tauri/src/commands/worktree.rs
+  3da7e003b3c707fd 223-228
+src-tauri/src/types.rs
+  3da7e003b3c707fd 374
+src-tauri/src/linear_manager.rs
+  3da7e003b3c707fd 43,63,123,301-305,320,428,473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "01b2e58181d35e13890e7c9a3a1615046b500d6d",
+  "prompts": {
+    "1dcc6bf90004fd33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e3c589a-ad3c-47a5-ad74-9c962fac28c7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "3da7e003b3c707fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1657379-a666-4539-ad16-a46f7b37deef",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 8,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}

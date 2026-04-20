@@ -1,0 +1,23 @@
+src-tauri/src/state_server.rs
+  cefdc7232d233a50 10,33-39,86-88,91-94,101,137,158-159,161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "aa169148fea7d44480e598557819d675e65c0fd3",
+  "prompts": {
+    "cefdc7232d233a50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5a28b4f-426b-419a-bf51-978b3af69067",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 1,
+      "accepted_lines": 2257,
+      "overriden_lines": 0
+    }
+  }
+}

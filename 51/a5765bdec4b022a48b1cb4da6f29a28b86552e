@@ -1,0 +1,40 @@
+src/components/terminal/TerminalView.tsx
+  91adbc955da09b23 11,137
+src/components/changes/ChangesView.tsx
+  91adbc955da09b23 1,15,158,160-161,163-176
+src/services/formatAnnotationsMessage.ts
+  91adbc955da09b23 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "51a5765bdec4b022a48b1cb4da6f29a28b86552e",
+  "prompts": {
+    "7771323b905b0f87": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c748af7-7ab2-466d-b75d-cf8ad6781790",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "91adbc955da09b23": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15d3bb84-9dfb-471e-b90b-6ccca315b555",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    }
+  }
+}
