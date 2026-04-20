@@ -132,6 +132,7 @@ export function createSessionChannel(
   worktreeId: string,
   sessionKey: string,
 ): ReturnType<typeof createPtyChannel> {
+  console.debug(`[chan-created] sessionKey=${sessionKey} worktreeId=${worktreeId} sessionId=${session.sessionId || "(pre-spawn)"}`);
   return createPtyChannel((event) => {
     switch (event.event) {
       case "output": {
@@ -240,10 +241,9 @@ export function createSessionChannel(
             session.pendingIdleTimer = null;
             session.agentState = "idle";
             stateSourceMap.set(worktreeId, "hook");
-            useWorkspaceStore
-              .getState()
-              .updateWorktree(worktreeId, { agentStatus: "idle" });
             useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
+            // each session fires its own notifications; phantoms are prevented
+            // at the Rust registry level (reader-exit unregister).
             if (notify !== "none") {
               const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
               if (wt) {
@@ -254,16 +254,15 @@ export function createSessionChannel(
           break;
         }
 
-        console.debug(`[status:${worktreeId}] hook → ${state}${phase !== "none" ? `(${phase})` : ""}${notify !== "none" ? ` notify=${notify}` : ""}`);
+        console.debug(`[status:${worktreeId}] hook → ${state}${phase !== "none" ? `(${phase})` : ""}${notify !== "none" ? ` notify=${notify}` : ""} sessionKey=${sessionKey} sessionId=${session.sessionId}`);
         session.agentState = state;
         stateSourceMap.set(worktreeId, "hook");
-        useWorkspaceStore
-          .getState()
-          .updateWorktree(worktreeId, { agentStatus: state });
         useSessionStatusStore.getState().setSessionStatus(sessionKey, state);
 
         // Fire notification for non-turnEnd hooks (e.g. PermissionRequest).
         // turnEnd notifications are handled inside the debounce above.
+        // each session fires its own notifications; phantoms are prevented
+        // at the Rust registry level (reader-exit unregister).
         if (notify !== "none") {
           const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
           if (wt) {
@@ -285,9 +284,6 @@ export function createSessionChannel(
         }
         session.agentState = event.data;
         stateSourceMap.set(worktreeId, "detector");
-        useWorkspaceStore
-          .getState()
-          .updateWorktree(worktreeId, { agentStatus: event.data });
         useSessionStatusStore.getState().setSessionStatus(sessionKey, event.data);
         break;
       }

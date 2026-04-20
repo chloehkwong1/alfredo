@@ -371,6 +371,18 @@ describe("updateWorktree", () => {
 
     expect(store.getState().seenWorktrees.has("wt-1")).toBe(true);
   });
+
+  it("preserves seen flag when busy is re-asserted on an already-busy worktree", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [makeWorktree({ agentStatus: "busy" })],
+      seenWorktrees: new Set(["wt-1"]),
+    });
+
+    store.getState().updateWorktree("wt-1", { agentStatus: "busy" });
+
+    expect(store.getState().seenWorktrees.has("wt-1")).toBe(true);
+  });
 });
 
 // ── archiveWorktree / unarchiveWorktree ───────────────────────────

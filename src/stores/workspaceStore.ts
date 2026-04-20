@@ -233,15 +233,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   updateWorktree: (id, patch) =>
     set((state) => {
-      // When agent starts working, clear the "seen" flag
+      const prev = state.worktrees.find((wt) => wt.id === id);
+      // Clear "seen" only on the idle→busy transition, not on busy re-assertion.
       const newSeen = new Set(state.seenWorktrees);
-      if (patch.agentStatus === "busy") {
+      if (patch.agentStatus === "busy" && prev?.agentStatus !== "busy") {
         newSeen.delete(id);
       }
       return {
         worktrees: state.worktrees.map((wt) => {
           if (wt.id !== id) return wt;
-          // Update lastActivityAt when agent status changes
           const activityPatch =
             patch.agentStatus && patch.agentStatus !== wt.agentStatus
               ? { lastActivityAt: Date.now() }

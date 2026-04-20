@@ -120,6 +120,9 @@ describe("shared status scenarios (frontend)", () => {
 
 import { SessionManager, type ManagedSession } from "../services/sessionManager";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useSessionStatusStore } from "../stores/sessionStatusStore";
+import { useTabStore } from "../stores/tabStore";
+import { startStatusMirror } from "../services/statusMirror";
 
 function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSession {
   const now = Date.now();
@@ -184,11 +187,15 @@ describe("SessionManager.reconcileAll", () => {
     useWorkspaceStore.setState({
       worktrees: [{ id: "wt-xyz", agentStatus: "busy", staleBusy: false } as any],
     });
+    useSessionStatusStore.getState().setSessionStatus("wt-xyz:main", "busy");
 
     (mgr as any).reconcileAll();
 
     expect(session.agentState).toBe("idle");
-    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("idle");
+    // reconcileAll writes to sessionStatusStore; statusMirror projects from
+    // there onto workspaceStore.agentStatus, so the mirror is what the test
+    // for the visible sidebar state belongs to.
+    expect(useSessionStatusStore.getState().statuses["wt-xyz:main"]).toBe("idle");
   });
 
   it("does NOT flip busy → idle when output is still flowing (long-running tool)", () => {
@@ -330,5 +337,170 @@ describe("hookAgentState debounce", () => {
 
     expect(session.agentState).toBe("idle");
     expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("idle");
+  });
+});
+
+describe("statusMirror", () => {
+  function makeAgentTab(id: string) {
+    return { id, type: "claude" as const, label: "Claude" };
+  }
+
+  beforeEach(() => {
+    // Reset stores to a clean baseline. startStatusMirror() is idempotent
+    // (guarded by a module-level `started` flag) — calling it every test is
+    // safe; subscriptions registered by the first call drive subsequent syncs.
+    useTabStore.getState().clearStore();
+    useSessionStatusStore.setState({ statuses: {} });
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-mirror", agentStatus: "notRunning", staleBusy: false } as any],
+    });
+    startStatusMirror();
+  });
+
+  it("aggregates highest-priority status across agent tabs", () => {
+    const tabA = makeAgentTab("wt-mirror:claude:aaa");
+    const tabB = makeAgentTab("wt-mirror:claude:bbb");
+    useTabStore.setState({
+      tabs: { "wt-mirror": [tabA, tabB] },
+      activeTabId: { "wt-mirror": tabA.id },
+    });
+    useSessionStatusStore.getState().setSessionStatus(tabA.id, "busy");
+    useSessionStatusStore.getState().setSessionStatus(tabB.id, "idle");
+
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("busy");
+  });
+
+  it("projects waitingForInput when any tab is waiting even if another is busy", () => {
+    const tabA = makeAgentTab("wt-mirror:claude:aaa");
+    const tabB = makeAgentTab("wt-mirror:claude:bbb");
+    useTabStore.setState({
+      tabs: { "wt-mirror": [tabA, tabB] },
+      activeTabId: { "wt-mirror": tabA.id },
+    });
+    useSessionStatusStore.getState().setSessionStatus(tabA.id, "busy");
+    useSessionStatusStore.getState().setSessionStatus(tabB.id, "waitingForInput");
+
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("waitingForInput");
+  });
+
+  it("projects notRunning when no agent tabs exist", () => {
+    useTabStore.setState({
+      tabs: { "wt-mirror": [] },
+      activeTabId: {},
+    });
+    // Force a sync by nudging the status store.
+    useSessionStatusStore.setState({ statuses: {} });
+
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("notRunning");
+  });
+
+  it("projects notRunning when all agent tabs are notRunning", () => {
+    const tabA = makeAgentTab("wt-mirror:claude:aaa");
+    const tabB = makeAgentTab("wt-mirror:claude:bbb");
+    useTabStore.setState({
+      tabs: { "wt-mirror": [tabA, tabB] },
+      activeTabId: { "wt-mirror": tabA.id },
+    });
+    useSessionStatusStore.getState().setSessionStatus(tabA.id, "notRunning");
+    useSessionStatusStore.getState().setSessionStatus(tabB.id, "notRunning");
+
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("notRunning");
+  });
+
+  it("drops to lower-priority status when the higher-priority tab closes", () => {
+    // Regression: tab-close aggregation gap. Before, closing the busy tab left
+    // the worktree stuck at busy because nothing recomputed the projection.
+    const tabA = makeAgentTab("wt-mirror:claude:aaa");
+    const tabB = makeAgentTab("wt-mirror:claude:bbb");
+    useTabStore.setState({
+      tabs: { "wt-mirror": [tabA, tabB] },
+      activeTabId: { "wt-mirror": tabA.id },
+    });
+    useSessionStatusStore.getState().setSessionStatus(tabA.id, "busy");
+    useSessionStatusStore.getState().setSessionStatus(tabB.id, "idle");
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("busy");
+
+    // Simulate tab A closing: its status is cleared AND it's removed from tabs.
+    useSessionStatusStore.getState().clearSessionStatus(tabA.id);
+    useTabStore.setState({
+      tabs: { "wt-mirror": [tabB] },
+      activeTabId: { "wt-mirror": tabB.id },
+    });
+
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("idle");
+  });
+});
+
+describe("seenWorktrees ordering invariant", () => {
+  it("preserves seenWorktrees when spawn order is setSessionStatus(busy) → markWorktreeSeen", () => {
+    // Pins: after a session writes busy via the mirror and the user marks the
+    // worktree seen, a subsequent mirror sync (which sees no change in the
+    // projected status) must NOT run updateWorktree again — otherwise busy's
+    // seen-clearing side-effect would undo the markWorktreeSeen.
+    //
+    // This exercises the statusMirror guard `if (wt.agentStatus !== projected)`
+    // which is what keeps the ordering invariant holding.
+    useTabStore.getState().clearStore();
+    useSessionStatusStore.setState({ statuses: {} });
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-order", agentStatus: "notRunning", staleBusy: false } as any],
+      seenWorktrees: new Set<string>(),
+    });
+    startStatusMirror();
+
+    const tab = { id: "wt-order:claude:zzz", type: "claude" as const, label: "Claude" };
+    useTabStore.setState({
+      tabs: { "wt-order": [tab] },
+      activeTabId: { "wt-order": tab.id },
+    });
+
+    // Session writes busy — mirror projects onto worktree, clearing any seen flag.
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "busy");
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("busy");
+
+    // User now views the worktree.
+    useWorkspaceStore.getState().markWorktreeSeen("wt-order");
+    expect(useWorkspaceStore.getState().seenWorktrees.has("wt-order")).toBe(true);
+
+    // A further mirror sync (e.g. session writes busy again) must not touch
+    // the worktree since the projection hasn't changed. Seen flag survives.
+    useSessionStatusStore.getState().setSessionStatus(tab.id, "busy");
+    expect(useWorkspaceStore.getState().seenWorktrees.has("wt-order")).toBe(true);
+  });
+});
+
+describe("multi-tab reconciler independence", () => {
+  it("two independent sessions for one worktree each have their own lastHookAt", () => {
+    // Sanity: reconciler state is per-session (keyed by sessionKey), not
+    // per-worktree. Two tabs on the same worktree must track their own
+    // lastHookAt so one going stale doesn't reconcile the other.
+    const mgr = new SessionManager();
+    const sessA = makeFakeSession({
+      sessionId: "sess-a",
+      agentState: "busy",
+      lastHookAt: Date.now() - 2_000, // fresh
+      lastOutputAt: Date.now() - 500,
+    });
+    const sessB = makeFakeSession({
+      sessionId: "sess-b",
+      agentState: "busy",
+      lastHookAt: Date.now() - 120_000, // stale
+      lastOutputAt: Date.now() - 120_000,
+    });
+    (mgr as any).sessions.set("wt-multi:claude:aaa", sessA);
+    (mgr as any).sessions.set("wt-multi:claude:bbb", sessB);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-multi", agentStatus: "busy", staleBusy: false } as any],
+    });
+    useSessionStatusStore.getState().setSessionStatus("wt-multi:claude:aaa", "busy");
+    useSessionStatusStore.getState().setSessionStatus("wt-multi:claude:bbb", "busy");
+
+    (mgr as any).reconcileAll();
+
+    // A stays busy (fresh hooks). B reconciles to idle (stale).
+    expect(sessA.agentState).toBe("busy");
+    expect(sessB.agentState).toBe("idle");
+    // Confirms reconciler didn't conflate the two sessions' lastHookAt.
+    expect(sessA.lastHookAt).not.toBe(sessB.lastHookAt);
   });
 });

@@ -70,10 +70,9 @@ export class SessionManager implements SessionWriter {
         const silentSec = Math.round((now - session.lastHookAt) / 1000);
         const wt = store.worktrees.find((w) => w.id === worktreeId);
         const branch = wt?.branch ?? worktreeId;
-        console.warn(`[reconcile:${worktreeId}] busy → idle (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms, last hook: ${session.lastHookDesc || "?"})`);
+        console.warn(`[reconcile:${worktreeId}] busy → idle (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms, last hook: ${session.lastHookDesc || "?"}, sessionKey=${sessionKey}, sessionId=${session.sessionId})`);
         fireDebugNotification(`${branch}: stuck busy rescued (last hook: ${session.lastHookDesc || "?"}, ${silentSec}s ago, output stopped)`);
         session.agentState = "idle";
-        store.updateWorktree(worktreeId, { agentStatus: "idle" });
         useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
         continue;
       }
@@ -90,10 +89,9 @@ export class SessionManager implements SessionWriter {
         const silentSec = Math.round((now - session.lastHookAt) / 1000);
         const wt = store.worktrees.find((w) => w.id === worktreeId);
         const branch = wt?.branch ?? worktreeId;
-        console.warn(`[reconcile:${worktreeId}] busy → idle (force: hooks silent ${now - session.lastHookAt}ms, output still flowing, last hook: ${session.lastHookDesc || "?"})`);
+        console.warn(`[reconcile:${worktreeId}] busy → idle (force: hooks silent ${now - session.lastHookAt}ms, output still flowing, last hook: ${session.lastHookDesc || "?"}, sessionKey=${sessionKey}, sessionId=${session.sessionId})`);
         fireDebugNotification(`${branch}: stuck busy rescued (last hook: ${session.lastHookDesc || "?"}, ${silentSec}s ago)`);
         session.agentState = "idle";
-        store.updateWorktree(worktreeId, { agentStatus: "idle" });
         useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
         continue;
       }
@@ -143,11 +141,10 @@ export class SessionManager implements SessionWriter {
       const isZombie = !existing.sessionId && existing.lastHeartbeat > 0 &&
         Date.now() - existing.lastHeartbeat > 10_000;
       if (!isZombie) return existing;
-      // Clean up the zombie so we can spawn fresh — reset agent status so the
-      // new session's notRunning → idle doesn't trigger a false notification.
-      useWorkspaceStore
-        .getState()
-        .updateWorktree(worktreeId, { agentStatus: "notRunning" });
+      // Clean up the zombie so we can spawn fresh. Clearing the session
+      // status triggers the status mirror to project "notRunning" to the
+      // worktree, so the new session's notRunning → idle doesn't fire
+      // a false notification.
       useSessionStatusStore.getState().clearSessionStatus(sessionKey);
       existing.terminal.dispose();
       this.sessions.delete(sessionKey);
@@ -227,19 +224,17 @@ export class SessionManager implements SessionWriter {
       throw err;
     }
     session.sessionId = sessionId;
+    console.debug(`[sessionManager] spawned sessionKey=${sessionKey} worktreeId=${worktreeId} sessionId=${sessionId} mode=${mode}`);
     registerKittyProtocol(terminal, sessionId);
 
-    // Push initial state for Claude sessions. The "busy" status clears
-    // seenWorktrees in the store, so re-mark as seen to prevent the
-    // upcoming busy→idle transition from triggering a false "finished"
-    // notification — this is a boot, not task completion.
+    // Push initial state. The "busy" status (projected by the mirror)
+    // clears seenWorktrees, so re-mark as seen to prevent the upcoming
+    // busy→idle transition from firing a false "finished" notification —
+    // this is a boot, not task completion.
+    useSessionStatusStore.getState().setSessionStatus(sessionKey, session.agentState);
     if (mode === "claude") {
-      useWorkspaceStore
-        .getState()
-        .updateWorktree(worktreeId, { agentStatus: session.agentState });
       useWorkspaceStore.getState().markWorktreeSeen(worktreeId);
     }
-    useSessionStatusStore.getState().setSessionStatus(sessionKey, session.agentState);
 
     this.startReconciler();
     return session;
@@ -385,13 +380,10 @@ export class SessionManager implements SessionWriter {
     }
 
     // Push initial state and re-mark as seen (same rationale as getOrSpawn).
+    useSessionStatusStore.getState().setSessionStatus(sessionKey, session.agentState);
     if (mode === "claude") {
-      useWorkspaceStore
-        .getState()
-        .updateWorktree(worktreeId, { agentStatus: session.agentState });
       useWorkspaceStore.getState().markWorktreeSeen(worktreeId);
     }
-    useSessionStatusStore.getState().setSessionStatus(sessionKey, session.agentState);
 
     this.startReconciler();
     return session;
@@ -445,7 +437,9 @@ export class SessionManager implements SessionWriter {
 
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);
 
+    console.debug(`[sessionManager] reattaching sessionKey=${sessionKey} sessionId=${sessionId} worktreeId=${worktreeId}`);
     const returnedWorktreeId = await reattachPty(sessionId, channel);
+    console.debug(`[sessionManager] reattached sessionKey=${sessionKey} sessionId=${sessionId} returnedWorktreeId=${returnedWorktreeId}`);
     if (returnedWorktreeId !== worktreeId) {
       console.warn(
         `[sessionManager] reattach worktree mismatch: expected ${worktreeId}, got ${returnedWorktreeId}`,
@@ -490,13 +484,9 @@ export class SessionManager implements SessionWriter {
     session.hooksActive = false;
     session.agentState = "notRunning";
 
-    // Mirror closeSession's store update so the sidebar reflects "Not running"
-    // and the notification hook's notRunning→busy filter suppresses the next spawn.
-    useWorkspaceStore
-      .getState()
-      .updateWorktree(worktreeId, { agentStatus: "notRunning" });
     // Intentionally kept as "notRunning" (not cleared): the session still exists,
-    // just without a PTY, so the tab dot should stay visible.
+    // just without a PTY, so the tab dot should stay visible. The status mirror
+    // projects this onto the worktree's agentStatus.
     useSessionStatusStore.getState().setSessionStatus(sessionKey, "notRunning");
   }
 
@@ -514,11 +504,10 @@ export class SessionManager implements SessionWriter {
     const worktreeId = sessionKey.split(":")[0];
     useRemoteControlStore.getState().disable(worktreeId);
 
-    // Reset agent status so that the subsequent session spawn
-    // (notRunning → idle) doesn't trigger a false "finished" notification.
-    useWorkspaceStore
-      .getState()
-      .updateWorktree(worktreeId, { agentStatus: "notRunning" });
+    // Clearing the session status causes the status mirror to project
+    // "notRunning" onto the worktree, so the subsequent session spawn's
+    // notRunning → idle transition doesn't trigger a false "finished"
+    // notification.
     useSessionStatusStore.getState().clearSessionStatus(sessionKey);
 
     this.sessions.delete(sessionKey);
