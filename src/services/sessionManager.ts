@@ -60,8 +60,14 @@ export class SessionManager implements SessionWriter {
       // check's `continue` skips the force path, allowing long-running
       // tools that stream output to stay busy even when hooks are silent.
       // Reordering these blocks breaks that guard — see e03b8c5.
+      //
+      // Both paths are additionally gated on workDepth === 0: a tool in
+      // flight (workDepth > 0) means we have structural proof work is
+      // happening — no time-based rescue should fire until toolEnd
+      // decrements the counter or turnEnd resets it.
       if (
         session.agentState === "busy"
+        && session.workDepth === 0
         && session.lastHookAt > 0
         && now - session.lastHookAt > STALE_HOOK_MS
         && session.lastOutputAt > 0
@@ -83,6 +89,7 @@ export class SessionManager implements SessionWriter {
       // fresh and prevents the check above from ever triggering.
       if (
         session.agentState === "busy"
+        && session.workDepth === 0
         && session.lastHookAt > 0
         && now - session.lastHookAt > STALE_HOOK_FORCE_MS
       ) {

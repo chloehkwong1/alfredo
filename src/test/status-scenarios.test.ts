@@ -221,6 +221,28 @@ describe("SessionManager.reconcileAll", () => {
     expect(session.agentState).toBe("busy");
   });
 
+  it("does NOT flip busy → idle when workDepth > 0, even if hooks AND output both stale", () => {
+    // A long-running tool (e.g. 10-min git push via Bash) fires toolStart, then
+    // produces no output and no further hooks for 90s+. The soft check's
+    // silence-on-both-signals condition would normally fire idle rescue —
+    // workDepth > 0 blocks it because we know a tool is genuinely running.
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      lastHookAt: Date.now() - 90_000,   // hooks silent >60s (STALE_HOOK_MS)
+      lastOutputAt: Date.now() - 30_000, // output silent >10s (STALE_OUTPUT_IDLE_MS)
+      workDepth: 1,                       // tool genuinely in flight
+    });
+    (mgr as any).sessions.set("wt-long-tool:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-long-tool", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.agentState).toBe("busy");
+  });
+
   it("does NOT flip busy → idle while hooks are still arriving (e.g. during tool use)", () => {
     const mgr = new SessionManager();
     const session = makeFakeSession({
