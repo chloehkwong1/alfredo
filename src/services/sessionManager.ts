@@ -188,6 +188,7 @@ export class SessionManager implements SessionWriter {
       lastHookDesc: "",
       pendingIdleTimer: null,
       turnEndAt: 0,
+      workDepth: 0,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -304,6 +305,7 @@ export class SessionManager implements SessionWriter {
       lastHookDesc: "",
       pendingIdleTimer: null,
       turnEndAt: 0,
+      workDepth: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -364,6 +366,7 @@ export class SessionManager implements SessionWriter {
     session.sessionId = sessionId;
     session.ptyExited = false;
     session.agentState = mode === "shell" ? "notRunning" : "busy";
+    session.workDepth = 0;
     session.lastHeartbeat = Date.now();
     // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the
     // PTY actually produces output, rather than seeing the stale value from
@@ -433,6 +436,7 @@ export class SessionManager implements SessionWriter {
       lastHookDesc: "",
       pendingIdleTimer: null,
       turnEndAt: 0,
+      workDepth: 0,
     };
 
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);
@@ -483,6 +487,7 @@ export class SessionManager implements SessionWriter {
     // Without this, stale hooksActive=true would permanently reject detector events.
     session.hooksActive = false;
     session.agentState = "notRunning";
+    session.workDepth = 0;
 
     // Intentionally kept as "notRunning" (not cleared): the session still exists,
     // just without a PTY, so the tab dot should stay visible. The status mirror

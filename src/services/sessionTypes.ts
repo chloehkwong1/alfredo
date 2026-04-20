@@ -60,6 +60,11 @@ export interface ManagedSession {
    *  hooks that Claude Code fires immediately after a turn ends (internal state
    *  settling, not real work). Zero until the first turnEnd. */
   turnEndAt: number;
+  /** Turns/tools currently in flight. Incremented on `promptStart` and
+   *  `toolStart`; decremented on `toolEnd` (clamped ≥0); hard-reset on
+   *  `turnEnd` and `notRunning`. While > 0 the reconciler is forbidden
+   *  from flipping busy → idle, regardless of hook or output silence. */
+  workDepth: number;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
 }
