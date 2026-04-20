@@ -173,13 +173,12 @@ function SortableTab({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <button
+        <div
           ref={setNodeRef}
           style={style}
           data-tab-id={tab.id}
           {...attributes}
           {...listeners}
-          type="button"
           onClick={() => {
             setPaneActiveTab(worktreeId, paneId, tab.id);
             setActivePaneId(worktreeId, paneId);
@@ -231,7 +230,7 @@ function SortableTab({
               transition={{ type: "spring", stiffness: 500, damping: 35 }}
             />
           )}
-        </button>
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem
