@@ -318,6 +318,43 @@ describe("SessionManager.reconcileAll", () => {
 
     expect(session.agentState).toBe("idle");
   });
+
+  it("end-to-end: long tool stays busy through stale window, then rescues after toolEnd+turnEnd", () => {
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      lastHookAt: Date.now() - 5_000,
+      lastOutputAt: Date.now() - 1_000,
+      workDepth: 0,
+    });
+    (mgr as any).sessions.set("wt-e2e:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-e2e", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    // 1. toolStart arrives → depth = 1
+    session.workDepth = applyHookToDepth(session.workDepth, "busy", "toolStart");
+    expect(session.workDepth).toBe(1);
+
+    // 2. Simulate 80s of silence on both hook and output channels
+    session.lastHookAt = Date.now() - 80_000;
+    session.lastOutputAt = Date.now() - 80_000;
+
+    // 3. Reconciler runs — must NOT flip to idle (depth > 0)
+    (mgr as any).reconcileAll();
+    expect(session.agentState).toBe("busy");
+
+    // 4. toolEnd arrives → depth = 0
+    session.workDepth = applyHookToDepth(session.workDepth, "busy", "toolEnd");
+    expect(session.workDepth).toBe(0);
+
+    // 5. Hook channel then dies — lastHookAt and lastOutputAt remain stale
+    //    (already set in step 2)
+    (mgr as any).reconcileAll();
+
+    // 6. Reconciler now rescues → idle
+    expect(session.agentState).toBe("idle");
+  });
 });
 
 describe("shouldAcceptDetectorState", () => {
