@@ -445,6 +445,12 @@ export function openInTerminal(
   return invoke("open_in_terminal", { path, terminal, customPath: customPath ?? null });
 }
 
+// ── Audio ───────────────────────────────────────────────────────
+
+export function playSound(id: string): Promise<void> {
+  return invoke("play_sound", { id });
+}
+
 // ── App Detection ─────────────────────────────────────────────
 
 export interface InstalledApp {
