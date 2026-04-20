@@ -1,0 +1,25 @@
+scripts/render-sounds.mjs
+  0ecb80484377eb75 1-142
+package.json
+  0ecb80484377eb75 15-16,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "528553261569052dcaf64cd1c99d5b60ec9fbea6",
+  "prompts": {
+    "0ecb80484377eb75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90b6b70a-d3f6-473d-ba48-f6d5075b1cce",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3150,
+      "total_deletions": 65,
+      "accepted_lines": 3086,
+      "overriden_lines": 0
+    }
+  }
+}
