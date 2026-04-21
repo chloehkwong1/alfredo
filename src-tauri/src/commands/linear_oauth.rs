@@ -66,6 +66,7 @@ pub async fn linear_oauth_disconnect(app: AppHandle) -> Result<()> {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LinearOAuthStatus {
     pub connected: bool,
     pub display_name: Option<String>,
