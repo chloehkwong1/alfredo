@@ -86,10 +86,12 @@ export function useCrossPaneDrag(): CrossPaneDrag | null {
   );
 }
 
-const TAB_ICONS: Record<TabType, ComponentType<{ size?: number; className?: string }>> = {
-  claude: AGENT_ICONS.claude,
-  codex: AGENT_ICONS.codex,
-  gemini: AGENT_ICONS.gemini,
+// Agent tabs (claude/codex/gemini) intentionally omit a type icon — the OSC
+// title each agent emits already starts with a brand glyph (e.g. Claude Code's
+// ✱ prefix), so our own icon next to it would just duplicate the shape at a
+// different size. Agent icons still render in the "+" menu below where no
+// dynamic label sits beside them.
+const TAB_ICONS: Partial<Record<TabType, ComponentType<{ size?: number; className?: string }>>> = {
   shell: Terminal,
   server: Radio,
   diff: GitCompareArrows,
@@ -196,7 +198,7 @@ function SortableTab({
               : "text-text-tertiary hover:text-text-secondary",
           ].join(" ")}
         >
-          <Icon size={14} />
+          {Icon && <Icon size={14} />}
           <span title={effectiveLabel} className={["max-w-[240px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{effectiveLabel}</span>
           {statusDot && (
             <span
@@ -543,9 +545,12 @@ function PaneTabBar({
         </div>
 
         <DragOverlay>
-          {draggedTab && draggedTab.type in TAB_ICONS ? (
+          {draggedTab ? (
             <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
-              {(() => { const Icon = TAB_ICONS[draggedTab.type]; return <Icon size={14} />; })()}
+              {(() => {
+                const Icon = TAB_ICONS[draggedTab.type];
+                return Icon ? <Icon size={14} /> : null;
+              })()}
               <span className="max-w-[240px] truncate">{draggedTab.dynamicLabel ?? draggedTab.label}</span>
             </div>
           ) : null}
