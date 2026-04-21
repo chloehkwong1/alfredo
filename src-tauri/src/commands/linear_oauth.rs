@@ -39,7 +39,7 @@ pub async fn linear_oauth_start(app: AppHandle) -> Result<()> {
                         // resolves later when Settings' on-mount status call fires.
                         let _ = app_clone.emit(
                             "linear-oauth-complete",
-                            serde_json::json!({ "displayName": serde_json::Value::Null }),
+                            serde_json::json!({ "displayName": null }),
                         );
                     }
                     Err(e) => {
