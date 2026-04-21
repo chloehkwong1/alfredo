@@ -3,7 +3,6 @@ import {
   Plus,
   X,
   Terminal,
-  Sparkles,
   Play,
   GitCompareArrows,
   Square,
@@ -12,9 +11,8 @@ import {
   PanelBottom,
   Radio,
   Combine,
-  Bot,
-  Hexagon,
 } from "lucide-react";
+import { AGENT_ICONS } from "../icons/agents";
 import { IconButton } from "../ui/IconButton";
 import {
   DndContext,
@@ -54,7 +52,7 @@ import { lifecycleManager } from "../../services/lifecycleManager";
 import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
   busy: { cls: "bg-status-busy", label: "Thinking" },
@@ -88,10 +86,10 @@ export function useCrossPaneDrag(): CrossPaneDrag | null {
   );
 }
 
-const TAB_ICONS: Record<TabType, typeof Terminal> = {
-  claude: Sparkles,
-  codex: Bot,
-  gemini: Hexagon,
+const TAB_ICONS: Record<TabType, ComponentType<{ size?: number; className?: string }>> = {
+  claude: AGENT_ICONS.claude,
+  codex: AGENT_ICONS.codex,
+  gemini: AGENT_ICONS.gemini,
   shell: Terminal,
   server: Radio,
   diff: GitCompareArrows,
@@ -389,9 +387,9 @@ function PaneTabBar({
   const availableAgents = useAgentStore((s) => s.availableAgents);
 
   const agentMenuItems: { type: TabType; agentId: string; label: string; icon: ReactNode }[] = [
-    { type: "claude", agentId: "claudeCode", label: "Claude", icon: <Sparkles size={14} /> },
-    { type: "codex", agentId: "codex", label: "Codex", icon: <Bot size={14} /> },
-    { type: "gemini", agentId: "geminiCli", label: "Gemini", icon: <Hexagon size={14} /> },
+    { type: "claude", agentId: "claudeCode", label: "Claude", icon: <AGENT_ICONS.claude size={14} /> },
+    { type: "codex", agentId: "codex", label: "Codex", icon: <AGENT_ICONS.codex size={14} /> },
+    { type: "gemini", agentId: "geminiCli", label: "Gemini", icon: <AGENT_ICONS.gemini size={14} /> },
   ];
 
   function handleDragStart(tabId: string) {
