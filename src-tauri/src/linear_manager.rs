@@ -386,35 +386,56 @@ pub async fn list_teams(api_key: &str) -> Result<Vec<LinearTeam>, AppError> {
     Ok(teams)
 }
 
-/// Fetch the authenticated Linear user's display name via the `viewer` query.
-pub async fn get_viewer_name(api_key: &str) -> Result<Option<String>, AppError> {
+/// Outcome of a viewer validation call against the Linear API.
+/// Distinguishes definite-auth-failure (401/403) from transient issues
+/// (network, 5xx, parse) so callers can decide whether to wipe tokens.
+#[derive(Debug)]
+pub enum ViewerResult {
+    /// Token is valid. `display_name` may be None if the viewer has no name set.
+    Authed { display_name: Option<String> },
+    /// Linear returned 401/403. Token is definitively bad; safe to wipe.
+    Unauthed { status: u16 },
+    /// Network failure, 5xx, rate limit, parse error. Token state unknown — keep.
+    Transient { reason: String },
+}
+
+/// Validate a Linear token by calling the `viewer` GraphQL query.
+/// Does NOT mutate stored tokens — the caller decides.
+pub async fn get_viewer_name(api_key: &str) -> ViewerResult {
     let graphql_query = r#"{ viewer { id name } }"#;
     let body = serde_json::json!({ "query": graphql_query });
 
-    let resp = client(api_key)?
-        .post(GRAPHQL_ENDPOINT)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| AppError::Linear(format!("viewer request failed: {e}")))?;
+    let client = match client(api_key) {
+        Ok(c) => c,
+        Err(e) => return ViewerResult::Transient { reason: format!("client build failed: {e}") },
+    };
 
-    if !resp.status().is_success() {
-        let status = resp.status();
-        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
-            return Err(AppError::Linear(format!("viewer request returned {status}")));
-        }
-        return Ok(None); // Non-auth failure — degrade gracefully
+    let resp = match client.post(GRAPHQL_ENDPOINT).json(&body).send().await {
+        Ok(r) => r,
+        Err(e) => return ViewerResult::Transient { reason: format!("viewer request failed: {e}") },
+    };
+
+    let status = resp.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        return ViewerResult::Unauthed { status: status.as_u16() };
+    }
+    if !status.is_success() {
+        return ViewerResult::Transient {
+            reason: format!("viewer returned {status}"),
+        };
     }
 
-    let json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| AppError::Linear(format!("failed to parse viewer response: {e}")))?;
+    let json: serde_json::Value = match resp.json().await {
+        Ok(j) => j,
+        Err(e) => return ViewerResult::Transient { reason: format!("parse viewer response: {e}") },
+    };
 
-    Ok(json
+    let display_name = json
         .pointer("/data/viewer/name")
         .and_then(|v| v.as_str())
-        .map(String::from))
+        .map(String::from);
+
+    ViewerResult::Authed { display_name }
 }
 
 /// Parse a GraphQL issue node into a LinearTicket.
@@ -666,5 +687,20 @@ mod tests {
         };
         assert_eq!(ticket.updated_at, Some("2026-03-31T12:00:00.000Z".into()));
         assert_eq!(ticket.assignee, Some("Chloe".into()));
+    }
+
+    #[test]
+    fn viewer_result_variants_are_distinguishable() {
+        use ViewerResult::*;
+        fn wipe_decision(r: &ViewerResult) -> bool {
+            matches!(r, Unauthed { .. })
+        }
+
+        assert!(!wipe_decision(&Authed { display_name: Some("Chloe".into()) }));
+        assert!(!wipe_decision(&Authed { display_name: None }));
+        assert!(wipe_decision(&Unauthed { status: 401 }));
+        assert!(wipe_decision(&Unauthed { status: 403 }));
+        assert!(!wipe_decision(&Transient { reason: "timeout".into() }));
+        assert!(!wipe_decision(&Transient { reason: "500 internal".into() }));
     }
 }

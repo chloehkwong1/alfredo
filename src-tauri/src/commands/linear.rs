@@ -12,7 +12,11 @@ static LINEAR_VIEWER_NAME: OnceCell<Option<String>> = OnceCell::const_new();
 async fn get_viewer_name_cached(api_key: &str) -> Option<String> {
     LINEAR_VIEWER_NAME
         .get_or_init(|| async {
-            linear_manager::get_viewer_name(api_key).await.unwrap_or(None)
+            match linear_manager::get_viewer_name(api_key).await {
+                linear_manager::ViewerResult::Authed { display_name } => display_name,
+                linear_manager::ViewerResult::Unauthed { .. } => None,
+                linear_manager::ViewerResult::Transient { .. } => None,
+            }
         })
         .await
         .clone()
