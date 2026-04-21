@@ -1,6 +1,7 @@
 mod agent_detector;
 mod platform;
 mod app_config_manager;
+mod ask_alfredo;
 mod branch_manager;
 mod commands;
 mod config_manager;
