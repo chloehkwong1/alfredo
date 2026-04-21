@@ -55,7 +55,7 @@ async fn call_claude_cli(system: &str, user: &str) -> Result<Answer, String> {
             "--output-format",
             "json",
             "--model",
-            "sonnet",
+            "haiku",
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -103,7 +103,7 @@ async fn call_claude_cli(system: &str, user: &str) -> Result<Answer, String> {
 
 async fn call_anthropic_api(api_key: &str, system: &str, user: &str) -> Result<Answer, String> {
     let body = serde_json::json!({
-        "model": "claude-sonnet-4-6",
+        "model": "claude-haiku-4-5",
         "max_tokens": 512,
         "system": [
             { "type": "text", "text": system, "cache_control": { "type": "ephemeral" } }
