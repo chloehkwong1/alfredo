@@ -1,4 +1,5 @@
-import { Bot, Check, ChevronRight, ChevronUp, ExternalLink, GitPullRequest } from "lucide-react";
+import { Check, ChevronRight, ChevronUp, ExternalLink, GitPullRequest } from "lucide-react";
+import { ClaudeIcon } from "../icons/agents";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { PrComment } from "../../types";
 import { MarkdownBody, stripToPlainText } from "../shared/MarkdownBody";
@@ -120,7 +121,7 @@ function DiffCommentThread({ comments, expanded, onToggle, onSendToClaude }: Dif
                     className="p-1 rounded hover:bg-[var(--bg-hover)] transition-colors cursor-pointer bg-transparent border-none text-text-tertiary hover:text-accent-primary"
                     aria-label="Send to Claude"
                   >
-                    <Bot size={12} />
+                    <ClaudeIcon size={12} />
                   </button>
                 </Tooltip>
               )}

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ExternalLink, Bot } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+import { ClaudeIcon } from "../icons/agents";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { formatTimeAgo } from "./formatRelativeTime";
 import { MarkdownBody } from "../shared/MarkdownBody";
@@ -80,7 +81,7 @@ export function CommentCard({
                 onSendToClaude();
               }}
             >
-              <Bot size={12} />
+              <ClaudeIcon size={12} />
             </IconButton>
           </Tooltip>
         )}
