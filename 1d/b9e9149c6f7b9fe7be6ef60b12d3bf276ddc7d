@@ -1,0 +1,38 @@
+src-tauri/src/ask_alfredo/search.rs
+  4662ff1a4384f47f 29-33,38,43-47
+docs/features/auto-cleanup.md
+  14e8b11c926dc071 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "1db9e9149c6f7b9fe7be6ef60b12d3bf276ddc7d",
+  "prompts": {
+    "14e8b11c926dc071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fcae061-ad12-45a1-856e-546f999f58a6",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 23,
+      "total_deletions": 76,
+      "accepted_lines": 23,
+      "overriden_lines": 0
+    },
+    "4662ff1a4384f47f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9126e3a4-c4ac-4eae-bf24-4fa0e4bfdd80",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 87,
+      "total_deletions": 7,
+      "accepted_lines": 493,
+      "overriden_lines": 0
+    }
+  }
+}
