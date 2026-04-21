@@ -51,6 +51,13 @@ export interface ManagedSession {
    *  Stored so the reconciler can report what the last hook was when
    *  it rescues a stuck busy state. */
   lastHookDesc: string;
+  /** The most recent agent state declared by a hook event (i.e. a state
+   *  transition actually applied by the hook handler — suppressed hooks
+   *  don't count). Null until the first hook-driven transition. Used to
+   *  mute detector events when hooks have definitively declared idle,
+   *  preventing the detector/reconciler race that flickers the status
+   *  badge and spams `[debug] stuck busy rescued` notifications. */
+  hookDerivedState: AgentState | null;
   /** Debounce timer for idle transitions from Stop/StopFailure hooks.
    *  Subagent Stop hooks fire idle before the parent's PostToolUse fires busy,
    *  causing a false idle flash. We hold the idle for a short window and discard

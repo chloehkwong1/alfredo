@@ -147,6 +147,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     allowNextClearScrollback: false,
     lastHookAt: now - 5_000,
     lastHookDesc: "",
+    hookDerivedState: null,
     pendingIdleTimer: null,
     turnEndAt: 0,
     workDepth: 0,
@@ -649,7 +650,7 @@ describe("multi-tab reconciler independence", () => {
   });
 });
 
-import { createSessionChannel } from "../services/sessionChannel";
+import { createSessionChannel, stateSourceMap } from "../services/sessionChannel";
 
 describe("createSessionChannel wires workDepth updates", () => {
   it("increments session.workDepth on busy(toolStart) hook event", () => {
@@ -684,5 +685,98 @@ describe("createSessionChannel wires workDepth updates", () => {
     });
 
     expect(session.workDepth).toBe(1);
+  });
+});
+
+describe("detector mute while hook-derived state is idle", () => {
+  // Reproduces the detector-vs-reconciler race: after an idle hook, the
+  // detector's 60s fallback re-engages and can false-flip the state to busy
+  // purely from TUI output patterns. The reconciler then force-idles within
+  // 500ms, producing visible status-badge flicker and `[debug] stuck busy
+  // rescued` spam. Mute rule: once the hook channel has declared idle, ignore
+  // detector events regardless of hook-silence age.
+
+  it("rejects detector busy event after idle(none) hook, even with stale lastHookAt", () => {
+    const session = makeFakeSession({
+      agentState: "busy",
+      hooksActive: true,
+      lastHookAt: Date.now(),
+    });
+    const fakeWriter = { scheduleWrite: () => {}, appendToBuffer: () => {} };
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-mute-none", "wt-mute-none:main");
+
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "idle", phase: "none", notify: "none" },
+    });
+    expect(session.agentState).toBe("idle");
+
+    // Simulate 61s of hook silence so the detector's stale-hook fallback would
+    // otherwise accept the next event.
+    session.lastHookAt = Date.now() - 61_000;
+
+    (channel as any).onmessage({ event: "agentState", data: "busy" });
+
+    expect(session.agentState).toBe("idle");
+    // Rejection, not acceptance — source map must still reflect the last
+    // hook-driven transition, not a detector flip.
+    expect(stateSourceMap.get("wt-mute-none")).toBe("hook");
+  });
+
+  it("rejects detector busy event after idle(turnEnd) debounce settles, even with stale lastHookAt", () => {
+    vi.useFakeTimers();
+    try {
+      useWorkspaceStore.setState({
+        worktrees: [{ id: "wt-mute-te", agentStatus: "busy", staleBusy: false } as any],
+      });
+      const session = makeFakeSession({
+        agentState: "busy",
+        hooksActive: true,
+        lastHookAt: Date.now(),
+      });
+      const fakeWriter = { scheduleWrite: () => {}, appendToBuffer: () => {} };
+      const channel = createSessionChannel(fakeWriter as any, session, "wt-mute-te", "wt-mute-te:main");
+
+      (channel as any).onmessage({
+        event: "hookAgentState",
+        data: { state: "idle", phase: "turnEnd", notify: "finished" },
+      });
+      // turnEnd debounces for IDLE_DEBOUNCE_MS before applying idle.
+      expect(session.agentState).toBe("busy");
+      vi.advanceTimersByTime(500);
+      expect(session.agentState).toBe("idle");
+
+      session.lastHookAt = Date.now() - 61_000;
+
+      (channel as any).onmessage({ event: "agentState", data: "busy" });
+
+      expect(session.agentState).toBe("idle");
+      expect(stateSourceMap.get("wt-mute-te")).toBe("hook");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still accepts detector event when last hook-derived state was busy (safety net)", () => {
+    // Sanity check: the mute is specifically for idle → busy false-flips.
+    // If the hook channel went silent mid-busy, the detector's 60s fallback
+    // should still fire so the state can recover.
+    const session = makeFakeSession({
+      agentState: "busy",
+      hooksActive: true,
+      lastHookAt: Date.now(),
+    });
+    const fakeWriter = { scheduleWrite: () => {}, appendToBuffer: () => {} };
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-safety", "wt-safety:main");
+
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "busy", phase: "toolStart", notify: "none" },
+    });
+    session.lastHookAt = Date.now() - 61_000;
+
+    (channel as any).onmessage({ event: "agentState", data: "idle" });
+
+    expect(session.agentState).toBe("idle");
   });
 });

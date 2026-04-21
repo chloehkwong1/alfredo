@@ -301,6 +301,7 @@ export function createSessionChannel(
           session.pendingIdleTimer = setTimeout(() => {
             session.pendingIdleTimer = null;
             session.agentState = "idle";
+            session.hookDerivedState = "idle";
             stateSourceMap.set(worktreeId, "hook");
             useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
             // each session fires its own notifications; phantoms are prevented
@@ -317,6 +318,7 @@ export function createSessionChannel(
 
         console.debug(`[status:${worktreeId}] hook → ${state}${phase !== "none" ? `(${phase})` : ""}${notify !== "none" ? ` notify=${notify}` : ""} depth=${session.workDepth} sessionKey=${sessionKey} sessionId=${session.sessionId}`);
         session.agentState = state;
+        session.hookDerivedState = state;
         stateSourceMap.set(worktreeId, "hook");
         useSessionStatusStore.getState().setSessionStatus(sessionKey, state);
 
@@ -335,6 +337,17 @@ export function createSessionChannel(
       case "agentState": {
         if (!shouldAcceptDetectorState(session.hooksActive, session.lastHookAt)) {
           console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hooks active)`);
+          break;
+        }
+        // Mute detector while hooks have definitively declared idle. The 60s
+        // stale-hook fallback above otherwise re-engages the detector, which
+        // misreads Claude Code's TUI redraws as "busy" — triggering the
+        // reconciler's force-idle rescue 500ms later in a flicker loop. Only
+        // the idle→busy false-flip is the problem; when the last hook was
+        // busy or waitingForInput, the fallback is still the right escape
+        // hatch for a dead hook channel.
+        if (session.hookDerivedState === "idle") {
+          console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (last hook-derived state = idle)`);
           break;
         }
         const fallback = session.hooksActive;

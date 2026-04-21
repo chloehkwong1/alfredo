@@ -193,6 +193,7 @@ export class SessionManager implements SessionWriter {
       allowNextClearScrollback: false,
       lastHookAt: 0,
       lastHookDesc: "",
+      hookDerivedState: null,
       pendingIdleTimer: null,
       turnEndAt: 0,
       workDepth: 0,
@@ -310,6 +311,7 @@ export class SessionManager implements SessionWriter {
       allowNextClearScrollback: false,
       lastHookAt: 0,
       lastHookDesc: "",
+      hookDerivedState: null,
       pendingIdleTimer: null,
       turnEndAt: 0,
       workDepth: 0,
@@ -441,6 +443,7 @@ export class SessionManager implements SessionWriter {
       allowNextClearScrollback: false,
       lastHookAt: 0,
       lastHookDesc: "",
+      hookDerivedState: null,
       pendingIdleTimer: null,
       turnEndAt: 0,
       workDepth: 0,
@@ -495,6 +498,7 @@ export class SessionManager implements SessionWriter {
     session.hooksActive = false;
     session.agentState = "notRunning";
     session.workDepth = 0;
+    session.hookDerivedState = null;
 
     // Intentionally kept as "notRunning" (not cleared): the session still exists,
     // just without a PTY, so the tab dot should stay visible. The status mirror
