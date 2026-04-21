@@ -1,5 +1,7 @@
-import { Component, type ReactNode } from "react";
+import { Component, useState, type ReactNode } from "react";
 import { AppShell } from "./components/layout/AppShell";
+import { AskButton } from "./components/askAlfredo/AskButton";
+import { AskDrawer } from "./components/askAlfredo/AskDrawer";
 import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
@@ -96,9 +98,12 @@ class ErrorBoundary extends Component<
 
 function AppInner() {
   useGithubSync();
+  const [askOpen, setAskOpen] = useState(false);
   return (
     <TooltipProvider>
       <AppShell />
+      <AskButton onClick={() => setAskOpen((v) => !v)} isOpen={askOpen} />
+      <AskDrawer open={askOpen} onClose={() => setAskOpen(false)} />
     </TooltipProvider>
   );
 }
