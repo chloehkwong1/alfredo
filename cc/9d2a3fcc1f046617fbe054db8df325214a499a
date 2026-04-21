@@ -1,0 +1,25 @@
+src/components/changes/CommentCard.tsx
+  e0526eab05a1e96f 2-3,84
+src/components/changes/DiffCommentThread.tsx
+  e0526eab05a1e96f 1-2,124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "cc9d2a3fcc1f046617fbe054db8df325214a499a",
+  "prompts": {
+    "e0526eab05a1e96f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf431a3b-6cb9-494e-bcfa-7a78d93ce463",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 4,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    }
+  }
+}
