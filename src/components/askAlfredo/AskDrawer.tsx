@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, ArrowRight } from "lucide-react";
+import { X, ArrowRight, Loader2 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { CatLogo } from "../ui/CatLogo";
 import { Message } from "./Message";
@@ -122,7 +122,21 @@ export function AskDrawer({ open, onClose }: AskDrawerProps) {
         ))}
 
         {loading && (
-          <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>Thinking…</div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12,
+              color: "var(--text-tertiary)",
+            }}
+          >
+            <Loader2
+              size={12}
+              style={{ animation: "alfredo-spin 0.9s linear infinite" }}
+            />
+            Thinking…
+          </div>
         )}
       </div>
 
@@ -152,7 +166,6 @@ export function AskDrawer({ open, onClose }: AskDrawerProps) {
               }
             }}
             placeholder={turns.length > 0 ? "Ask another..." : "Ask a question..."}
-            disabled={loading}
             style={{
               width: "100%",
               minHeight: 54,

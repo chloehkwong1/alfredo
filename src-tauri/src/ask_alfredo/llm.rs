@@ -25,14 +25,19 @@ pub struct LlmClient {
 
 impl LlmClient {
     pub async fn ask(&self, system: String, user: String) -> Result<Answer, String> {
-        if claude_cli_available().await {
-            return call_claude_cli(&system, &user).await;
-        }
-        let key = self.anthropic_api_key.as_ref().ok_or_else(|| {
-            "No LLM configured. Install Claude Code or add an Anthropic API key in Settings."
-                .to_string()
-        })?;
-        call_anthropic_api(key, &system, &user).await
+        let fut = async {
+            if claude_cli_available().await {
+                return call_claude_cli(&system, &user).await;
+            }
+            let key = self.anthropic_api_key.as_ref().ok_or_else(|| {
+                "No LLM configured. Install Claude Code or add an Anthropic API key in Settings."
+                    .to_string()
+            })?;
+            call_anthropic_api(key, &system, &user).await
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(60), fut)
+            .await
+            .map_err(|_| "LLM call timed out after 60s".to_string())?
     }
 }
 
