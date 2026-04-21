@@ -291,7 +291,12 @@ pub async fn resolve_token(config_token: Option<&str>) -> Result<String, AppErro
 fn format_octocrab_error(context: &str, e: &octocrab::Error) -> AppError {
     let detail = match e {
         octocrab::Error::GitHub { source, .. } => {
-            format!("{context}: {} ({})", source.message, source.documentation_url.as_deref().unwrap_or(""))
+            let status = source.status_code.as_u16();
+            format!(
+                "[{status}] {context}: {} ({})",
+                source.message,
+                source.documentation_url.as_deref().unwrap_or("")
+            )
         }
         _ => format!("{context}: {e:?}"),
     };
@@ -332,6 +337,23 @@ impl GithubManager {
             .header("Authorization", format!("Bearer {}", self.token()))
             .header("User-Agent", "alfredo")
             .header("Accept", "application/vnd.github+json")
+    }
+
+    /// Fetch the unix-timestamp when the authenticated user's core REST rate
+    /// limit resets. `/rate_limit` itself does not count against the limit.
+    pub async fn rate_limit_reset(&self) -> Result<u64, AppError> {
+        let resp = self
+            .authed_get("https://api.github.com/rate_limit")
+            .send()
+            .await
+            .map_err(|e| AppError::Github(format!("rate_limit request failed: {e}")))?;
+        let json: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| AppError::Github(format!("rate_limit parse failed: {e}")))?;
+        json.pointer("/resources/core/reset")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| AppError::Github("rate_limit response missing core.reset".into()))
     }
 
     /// Fetch all open PRs and recently merged PRs for the given owner/repo.

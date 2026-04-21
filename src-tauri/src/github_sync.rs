@@ -98,36 +98,78 @@ impl PrStatusWithColumn {
 
 /// Start the background GitHub PR sync loop.
 ///
-/// Polls every 30 seconds normally. When all repos fail (e.g. GitHub outage),
-/// backs off: 30s → 60s → 2min (stays at 2min until a successful sync).
+/// Polls every 60 seconds normally. On rate-limit 403s, sleeps until the
+/// `X-RateLimit-Reset` timestamp (via the /rate_limit endpoint). On generic
+/// failures, backs off: 60s → 120s → 240s until a successful sync.
 pub fn start_sync_loop(app_handle: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut consecutive_failures: u32 = 0;
 
         loop {
-            let success = match poll_once(&app_handle).await {
-                Ok(any_repo_ok) => any_repo_ok,
+            let outcome = poll_once(&app_handle).await;
+
+            let delay = match outcome {
+                // Rate-limit branches are checked BEFORE any_success so that a
+                // partial-success poll (one repo ok, another 403'd) still
+                // respects the reset window instead of re-hitting the limit in
+                // 60s.
+                Ok(PollOutcome { rate_limit_reset: Some(reset_ts), .. }) => {
+                    consecutive_failures = 0;
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let wait = reset_ts.saturating_sub(now).saturating_add(5);
+                    let wait = wait.clamp(60, 3600);
+                    eprintln!("[github_sync] rate-limited; sleeping {wait}s until reset");
+                    Duration::from_secs(wait)
+                }
+                Ok(PollOutcome { rate_limit_fallback: true, .. }) => {
+                    consecutive_failures = 0;
+                    eprintln!(
+                        "[github_sync] rate-limited (secondary or unknown reset); sleeping {RATE_LIMIT_FALLBACK_SECS}s"
+                    );
+                    Duration::from_secs(RATE_LIMIT_FALLBACK_SECS)
+                }
+                Ok(PollOutcome { any_success: true, .. }) => {
+                    consecutive_failures = 0;
+                    Duration::from_secs(60)
+                }
+                Ok(PollOutcome { any_success: false, .. }) => {
+                    if consecutive_failures < 2 {
+                        consecutive_failures += 1;
+                    }
+                    eprintln!("[github_sync] all repos failed, backing off (tier {consecutive_failures})");
+                    match consecutive_failures {
+                        1 => Duration::from_secs(120),
+                        _ => Duration::from_secs(240),
+                    }
+                }
                 Err(e) => {
                     eprintln!("[github_sync] poll error: {e}");
-                    false
+                    if consecutive_failures < 2 {
+                        consecutive_failures += 1;
+                    }
+                    Duration::from_secs(120)
                 }
-            };
-
-            if success {
-                consecutive_failures = 0;
-            } else if consecutive_failures < 2 {
-                consecutive_failures += 1;
-                eprintln!("[github_sync] all repos failed, backing off (tier {consecutive_failures})");
-            }
-
-            let delay = match consecutive_failures {
-                0 => Duration::from_secs(30),
-                1 => Duration::from_secs(60),
-                _ => Duration::from_secs(120),
             };
             time::sleep(delay).await;
         }
     });
+}
+
+/// Result of a single poll iteration.
+#[derive(Default)]
+struct PollOutcome {
+    /// True if at least one repo synced successfully.
+    any_success: bool,
+    /// Set when any repo hit a rate-limit 403; the unix timestamp when the
+    /// core REST limit resets. Loop uses this to sleep until the window opens.
+    rate_limit_reset: Option<u64>,
+    /// Set when we saw a rate-limit but either couldn't read the reset
+    /// timestamp, or it was a secondary/abuse limit (which uses a separate
+    /// budget from `/rate_limit`'s core counters).
+    rate_limit_fallback: bool,
 }
 
 /// Resolve the repo paths from managed state.
@@ -165,7 +207,7 @@ pub async fn set_sync_repo_paths(
         let mut branches = state.active_branches.lock().map_err(|e| e.to_string())?;
         *branches = active_branches.into_iter().collect();
     }
-    // Fire an immediate poll so the frontend doesn't wait 30s for PR status
+    // Fire an immediate poll so the frontend doesn't wait for the next tick.
     if let Err(e) = poll_once(&app_handle).await {
         eprintln!("[github_sync] immediate poll after set_sync_repo_paths: {e}");
     }
@@ -180,12 +222,12 @@ pub async fn set_sync_repo_paths(
 /// Phase 2 (slower): Fetches comments for active PRs, emits an update.
 /// The frontend preserves cached comments until this arrives.
 ///
-/// Returns `Ok(true)` if at least one repo synced successfully,
-/// `Ok(false)` if all repos failed (triggers backoff in the sync loop).
-async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
+/// Returns a `PollOutcome` describing success/failure state and any
+/// rate-limit signal. The sync loop uses this to pick the next sleep.
+async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     let (repo_paths, active_branches) = get_sync_state(app_handle);
     if repo_paths.is_empty() {
-        return Ok(true); // No repos configured yet — not a failure
+        return Ok(PollOutcome { any_success: true, ..Default::default() });
     }
 
     let app_data_dir = app_handle.path().app_data_dir()
@@ -193,6 +235,8 @@ async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
 
     let mut all_prs: Vec<PrStatusWithColumn> = Vec::new();
     let mut any_repo_succeeded = false;
+    let mut rate_limit_fallback = false;
+    let mut saw_primary_rate_limit_in: Option<String> = None;
 
     for repo_path in &repo_paths {
         match poll_repo(&app_data_dir, repo_path, &active_branches).await {
@@ -206,9 +250,34 @@ async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
             }
             Err(e) => {
                 eprintln!("[github_sync] error syncing {repo_path}: {e}");
+                if is_rate_limit_error(&e) {
+                    if is_secondary_rate_limit(&e) {
+                        // Secondary/abuse limits use a separate budget from
+                        // /rate_limit's core counter, so querying it would lie.
+                        rate_limit_fallback = true;
+                    } else if saw_primary_rate_limit_in.is_none() {
+                        // Defer the /rate_limit lookup: one call covers all
+                        // repos on the same token.
+                        saw_primary_rate_limit_in = Some(repo_path.clone());
+                    }
+                }
             }
         }
     }
+
+    // Resolve primary rate-limit reset once — all repos share the same token.
+    let rate_limit_reset = if let Some(repo_path) = saw_primary_rate_limit_in {
+        match fetch_rate_limit_reset(&app_data_dir, &repo_path).await {
+            Some(ts) => Some(ts),
+            None => {
+                eprintln!("[github_sync] /rate_limit lookup failed — using fallback sleep");
+                rate_limit_fallback = true;
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     // Emit immediately — frontend gets prStatus/prNumber/baseBranch and can start loading files.
     // comments is None in these payloads; the frontend will preserve its cached comment data.
@@ -242,7 +311,41 @@ async fn poll_once(app_handle: &AppHandle) -> Result<bool, String> {
     // Task 12: compute and emit stack rebase statuses
     crate::stack_manager::compute_stack_statuses(app_handle, &app_data_dir, &repo_paths).await;
 
-    Ok(any_repo_succeeded)
+    Ok(PollOutcome {
+        any_success: any_repo_succeeded,
+        rate_limit_reset,
+        rate_limit_fallback,
+    })
+}
+
+/// Heuristic: the octocrab error message includes GitHub's verbatim text
+/// "API rate limit exceeded" when a request is 403'd by the primary limiter.
+fn is_rate_limit_error(err: &str) -> bool {
+    err.contains("[403]")
+        || err.contains("rate limit exceeded")
+        || err.contains("secondary rate limit")
+}
+
+/// Secondary/abuse limits use a different budget than `/rate_limit` reports,
+/// so core.reset is misleading — sleep a conservative window instead.
+fn is_secondary_rate_limit(err: &str) -> bool {
+    err.contains("secondary rate limit") || err.contains("abuse")
+}
+
+/// Fallback sleep when we detect a rate-limit but can't read the reset
+/// timestamp (network error, secondary limit). 15 min beats the old 240s loop.
+const RATE_LIMIT_FALLBACK_SECS: u64 = 900;
+
+/// Look up the reset timestamp via `/rate_limit` (which doesn't count against
+/// the limit) using the same token `poll_repo` would have used.
+async fn fetch_rate_limit_reset(
+    app_data_dir: &std::path::Path,
+    repo_path: &str,
+) -> Option<u64> {
+    let config = config_manager::load_config(app_data_dir, repo_path).await.ok()?;
+    let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await.ok()?;
+    let manager = GithubManager::new(&token).ok()?;
+    manager.rate_limit_reset().await.ok()
 }
 
 /// Fetch and enrich PRs for a single repo. Returns the enriched PR list.
