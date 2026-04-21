@@ -170,6 +170,8 @@ function SortableTab({
 
   const effectiveCanClose = canClose || tab.type === "diff";
 
+  const effectiveLabel = tab.dynamicLabel ?? tab.label;
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -197,7 +199,7 @@ function SortableTab({
           ].join(" ")}
         >
           <Icon size={14} />
-          <span title={tab.label} className={["max-w-[180px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{tab.label}</span>
+          <span title={effectiveLabel} className={["max-w-[240px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{effectiveLabel}</span>
           {statusDot && (
             <span
               aria-label={statusDot.label}
@@ -212,7 +214,7 @@ function SortableTab({
           <button
             type="button"
             tabIndex={effectiveCanClose ? 0 : -1}
-            aria-label={`Close ${tab.label} tab`}
+            aria-label={`Close ${effectiveLabel} tab`}
             onClick={(e) => effectiveCanClose && onClose(e, tab.id)}
             className={[
               "ml-0.5 rounded p-1 transition-opacity",
@@ -546,7 +548,7 @@ function PaneTabBar({
           {draggedTab && draggedTab.type in TAB_ICONS ? (
             <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
               {(() => { const Icon = TAB_ICONS[draggedTab.type]; return <Icon size={14} />; })()}
-              <span className="max-w-[180px] truncate">{draggedTab.label}</span>
+              <span className="max-w-[240px] truncate">{draggedTab.dynamicLabel ?? draggedTab.label}</span>
             </div>
           ) : null}
         </DragOverlay>
