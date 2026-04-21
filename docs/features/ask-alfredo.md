@@ -1,6 +1,6 @@
 ---
 title: Ask Alfredo — the in-app help search
-keywords: [help, search, ask, how do i, question, ask alfredo, docs, find]
+keywords: [ask alfredo, help, help button, question mark button, in-app help]
 ui_path: Floating ? button in the bottom-right corner of the window
 ---
 

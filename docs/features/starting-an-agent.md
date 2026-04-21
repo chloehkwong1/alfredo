@@ -1,6 +1,6 @@
 ---
 title: Starting an agent on a new worktree
-keywords: [new worktree, start agent, new branch, create session]
+keywords: [start agent, launch agent, run claude, run codex, run gemini, agent session, auto start]
 ui_path: Sidebar footer → "New worktree" (or ⌘N)
 ---
 

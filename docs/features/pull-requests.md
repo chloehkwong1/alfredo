@@ -1,6 +1,6 @@
 ---
 title: Reviewing a pull request
-keywords: [pr, pull request, review, checks, comments]
+keywords: [pr, pull request, review pr, pr comments, pr panel, github pr]
 ui_path: Worktree tab → Changes panel → PR section (⌘⇧C / ⌘I to toggle)
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: Splitting the main pane
-keywords: [split, pane, side-by-side, two tabs]
+keywords: [split pane, split view, split right, split down, vertical split, horizontal split, side-by-side, two tabs]
 ui_path: Tab bar → right-click a tab → Split Right or Split Down
 ---
 

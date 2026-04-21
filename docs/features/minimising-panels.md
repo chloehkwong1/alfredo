@@ -1,6 +1,6 @@
 ---
 title: Minimising the side panels
-keywords: [collapse, hide sidebar, full width, changes panel, zen]
+keywords: [collapse, minimise, minimize, hide sidebar, hide changes panel, hide panels, full width, zen mode]
 ui_path: ⌘B (sidebar) · ⌘I or ⌘⇧C (Changes panel) · Changes header → collapse icon
 ---
 

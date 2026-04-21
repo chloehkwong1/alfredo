@@ -1,6 +1,6 @@
 ---
 title: Switching the default agent provider
-keywords: [agent, provider, claude, codex, gemini, change agent]
+keywords: [switch agent, change agent, default agent, agent provider, switch claude to codex, swap provider]
 ui_path: Global Settings → Agents → Default Agent
 ---
 

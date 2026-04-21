@@ -1,6 +1,6 @@
 ---
 title: Renaming a worktree
-keywords: [rename, label, alias, nickname]
+keywords: [rename worktree, rename, change name, relabel, label, alias, nickname]
 ui_path: Sidebar → double-click worktree label (or use inline edit)
 ---
 

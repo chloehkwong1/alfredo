@@ -1,6 +1,6 @@
 ---
 title: Todo column for worktrees
-keywords: [todo, to do, backlog, parked, kanban]
+keywords: [todo column, to do column, hidden column, park worktree, backlog]
 ui_path: Sidebar kanban → drag any worktree to reveal "To do"
 ---
 

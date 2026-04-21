@@ -1,6 +1,6 @@
 ---
 title: PR panel — viewing and rerunning GitHub checks
-keywords: [checks, ci, github actions, workflow, rerun, failing, fix failing, pr checks, status]
+keywords: [pr checks, ci, github actions, workflow, rerun checks, failing check, fix failing ci]
 ui_path: Changes panel → PR tab → Checks section
 ---
 

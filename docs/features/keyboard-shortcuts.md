@@ -1,10 +1,10 @@
 ---
 title: Keyboard shortcuts
-keywords: [shortcuts, hotkeys, keybindings, cheatsheet]
-ui_path: Press ⌘? anywhere in the app
+keywords: [shortcut, shortcuts, hotkey, hotkeys, keybinding, keybindings, keymap, cheatsheet]
+ui_path: Press ⌘⇧? anywhere in the app
 ---
 
-Press ⌘? from anywhere in Alfredo to open the Keyboard Shortcuts overlay,
+Press ⌘⇧? (Cmd+Shift+/) from anywhere in Alfredo to open the Keyboard Shortcuts overlay,
 which lists every binding grouped by area. The essentials: ⌘1–9 jumps to
 a worktree by its position in the sidebar, ⌘N creates a new worktree,
 ⌘⇧R opens the Add Repository dialog, and ⌘⇧P opens the command palette

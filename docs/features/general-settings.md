@@ -1,6 +1,6 @@
 ---
 title: General settings — theme, editor, terminal, updates, diff view
-keywords: [theme, dark mode, light mode, appearance, editor, vscode, cursor, zed, vim, terminal, iterm, warp, ghostty, updates, beta, diff view, unified, split, settings]
+keywords: [general settings, theme, dark mode, light mode, warm dark, appearance, default editor, default terminal, auto update, default diff view]
 ui_path: Sidebar → ⚙ Settings → General tab
 ---
 

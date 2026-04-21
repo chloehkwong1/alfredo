@@ -1,6 +1,6 @@
 ---
 title: Notification settings — enable, triggers, sound, test
-keywords: [notifications, notify, alerts, sound, notification sound, waiting, idle, banner, test notification, debug]
+keywords: [notifications, notify, alerts, sound, notification sound, mute, do not disturb, waiting, idle, banner, test notification]
 ui_path: Sidebar → ⚙ Settings → Notifications tab
 ---
 
