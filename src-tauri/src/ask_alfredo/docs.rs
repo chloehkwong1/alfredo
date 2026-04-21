@@ -35,11 +35,12 @@ pub fn parse_doc(raw: &str) -> Result<FeatureDoc, String> {
 }
 
 pub fn load_all(app: &AppHandle) -> Result<Vec<FeatureDoc>, String> {
-    let resource_dir = app
+    // Tauri encodes resource paths that escape the config dir (e.g.
+    // `../docs/features/*.md`) under `_up_/` in the bundled layout.
+    let features_dir = app
         .path()
-        .resource_dir()
-        .map_err(|e| format!("resource dir: {e}"))?;
-    let features_dir = resource_dir.join("docs/features");
+        .resolve("_up_/docs/features", tauri::path::BaseDirectory::Resource)
+        .map_err(|e| format!("resolve docs/features: {e}"))?;
     load_from_dir(&features_dir)
 }
 
