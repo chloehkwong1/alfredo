@@ -1,0 +1,25 @@
+src/components/layout/AppShell.tsx
+  839bb380ba3babf2 13,408
+src/components/askAlfredo/HelpSearch.tsx
+  839bb380ba3babf2 2,383-390
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "052aec87c121864c33199ff7beb382a9eafa0a5c",
+  "prompts": {
+    "839bb380ba3babf2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d8e3a1a-c1aa-4ddf-bf9f-e33b25124f4e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 1,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}
