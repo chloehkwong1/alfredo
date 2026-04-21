@@ -5,9 +5,16 @@ import { getVersion } from "@tauri-apps/api/app";
 import { CatLogo } from "../ui/CatLogo";
 import { MarkdownBody } from "../shared/MarkdownBody";
 import { searchAlfredoDocs, type HelpHit } from "../../api";
+import { useAppConfig } from "../../hooks/useAppConfig";
 
 const REPO_URL = "https://github.com/chloehkwong1/alfredo";
-const SUGGESTIONS = [
+const NEW_USER_SUGGESTIONS = [
+  "first run setup",
+  "add a repo",
+  "switch agent provider",
+  "keyboard shortcuts",
+];
+const RETURNING_USER_SUGGESTIONS = [
   "rename a worktree",
   "notification sound",
   "mark as blocked",
@@ -44,6 +51,8 @@ export function HelpSearch({ open, onClose }: HelpSearchProps) {
   const [expandedTitle, setExpandedTitle] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState("unknown");
   const inputRef = useRef<HTMLInputElement>(null);
+  const { repos } = useAppConfig();
+  const suggestions = repos.length === 0 ? NEW_USER_SUGGESTIONS : RETURNING_USER_SUGGESTIONS;
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => {});
@@ -191,7 +200,7 @@ export function HelpSearch({ open, onClose }: HelpSearchProps) {
           >
             <div style={{ marginBottom: 10 }}>Ask how anything in Alfredo works.</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
-              {SUGGESTIONS.map((s) => (
+              {suggestions.map((s) => (
                 <button
                   key={s}
                   onClick={() => {
