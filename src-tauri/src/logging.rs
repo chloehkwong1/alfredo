@@ -1,5 +1,7 @@
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// Resolve `~/Library/Logs/Alfredo` on macOS, `~/.local/state/alfredo`
@@ -33,11 +35,13 @@ pub fn init() {
         return;
     }
 
+    static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
+
     let file_appender = tracing_appender::rolling::never(&dir, "alfredo.log");
-    // Intentionally non-blocking; drop the guard on shutdown only. Losing the
-    // tail of the log during an unclean exit is acceptable.
+    // Hold the guard for process lifetime so the background writer thread
+    // can flush on clean shutdown.
     let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
-    std::mem::forget(guard);
+    let _ = LOG_GUARD.set(guard);
 
     let stderr_layer = fmt::layer().with_writer(std::io::stderr).with_target(false);
     let file_layer = fmt::layer().with_writer(file_writer).with_ansi(false);
