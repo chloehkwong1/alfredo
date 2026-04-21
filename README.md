@@ -52,6 +52,7 @@ Most AI coding tools either wrap agents in a chat UI or leave you juggling termi
 - **Keyboard-first** — ⌘+N, ⌘+1-9, arrow navigation, and configurable shortcuts
 - **Remote control** — Monitor and manage sessions from your phone via QR code
 - **Notifications** — Configurable sound alerts when agents need attention or finish work
+- **Ask Alfredo** — Built-in help search over the feature docs, one keystroke from the sidebar
 
 ## Status
 
@@ -66,6 +67,15 @@ Download the latest release for your platform from [Releases](../../releases/lat
 | **macOS** (Apple Silicon) | `Alfredo_x.x.x_aarch64.dmg` |
 | **macOS** (Intel) | `Alfredo_x.x.x_x64.dmg` |
 | **Linux** | `Alfredo_x.x.x_amd64.AppImage` or `.deb` |
+
+On first launch Alfredo will ask you to point it at a Git repository and pick an agent — after that, create a worktree from the sidebar and you're running.
+
+## Getting help
+
+- **In the app:** click **Ask Alfredo** in the sidebar toolbar to search the built-in feature docs.
+- **Docs:** browse [`docs/features/`](docs/features) — one file per feature, same content that powers Ask Alfredo.
+- **Keyboard shortcuts:** `⌘ ⇧ ?` opens the shortcuts overlay.
+- **Bugs & feature requests:** open a [GitHub issue](../../issues). If Ask Alfredo couldn't answer something, tag the issue `ask-alfredo-miss` so the gap gets tracked.
 
 ## Development
 
