@@ -42,12 +42,33 @@ pub async fn resolve_token(
         })
 }
 
+/// Returns true if the string looks like a Linear issue identifier (e.g. "PRO-5196").
+/// Linear's `searchableContent` filter is full-text over title/description/comments
+/// and does not reliably match identifiers, so we route these to `issue(id: ...)`.
+fn looks_like_identifier(s: &str) -> bool {
+    let Some((prefix, number)) = s.split_once('-') else { return false };
+    !prefix.is_empty()
+        && prefix.chars().all(|c| c.is_ascii_alphabetic())
+        && !number.is_empty()
+        && number.chars().all(|c| c.is_ascii_digit())
+}
+
 /// Search Linear issues by query text, optionally filtered by team.
 pub async fn search_issues(
     api_key: &str,
     query: &str,
     team_id: Option<&str>,
 ) -> Result<Vec<LinearTicket>, AppError> {
+    let trimmed = query.trim();
+    if looks_like_identifier(trimmed) {
+        let hit = lookup_by_identifier(api_key, &trimmed.to_uppercase()).await?;
+        // Fall through to searchableContent when the identifier doesn't resolve —
+        // covers partial/typo input during debounce (e.g. "PRO-51" mid-typing).
+        if !hit.is_empty() {
+            return Ok(hit);
+        }
+    }
+
     let (graphql_query, variables) = if team_id.is_some() {
         (
             r#"query SearchIssues($term: String!, $teamId: String!) {
@@ -131,6 +152,65 @@ pub async fn search_issues(
 
     let tickets = nodes.iter().map(parse_issue_node).collect::<Result<Vec<_>, _>>()?;
     Ok(tickets)
+}
+
+/// Fetch a single issue by its human identifier (e.g. "PRO-5196"). Returns an empty
+/// Vec when Linear has no such issue, so the caller can treat it as a zero-result search.
+async fn lookup_by_identifier(
+    api_key: &str,
+    identifier: &str,
+) -> Result<Vec<LinearTicket>, AppError> {
+    let graphql_query = r#"query LookupIssue($id: String!) {
+  issue(id: $id) {
+    id
+    identifier
+    title
+    description
+    url
+    state { name }
+    labels { nodes { name } }
+    assignee { name }
+    branchName
+    updatedAt
+  }
+}"#;
+
+    let body = serde_json::json!({
+        "query": graphql_query,
+        "variables": { "id": identifier }
+    });
+
+    let resp = client(api_key)?
+        .post(GRAPHQL_ENDPOINT)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::Linear(format!("request failed: {e}")))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(AppError::Linear(format!(
+            "Linear API returned {status}: {text}"
+        )));
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::Linear(format!("failed to parse response: {e}")))?;
+
+    // Treat "no issue returned" as zero results regardless of error shape — Linear
+    // surfaces unknown identifiers as EntityNotFound / InvalidInput / etc. and the
+    // exact code varies. Only surface errors when we don't have data either way.
+    let Some(node) = json.pointer("/data/issue").filter(|v| !v.is_null()) else {
+        if let Some(errors) = json.get("errors") {
+            eprintln!("linear identifier lookup errors (treating as empty): {errors}");
+        }
+        return Ok(Vec::new());
+    };
+
+    Ok(vec![parse_issue_node(node)?])
 }
 
 /// List issues assigned to the authenticated viewer.
@@ -529,6 +609,19 @@ mod tests {
         assert!(md.contains("**Labels:** bug, auth"));
         assert!(md.contains("**Assignee:** Chloe"));
         assert!(md.contains("The auth flow is broken"));
+    }
+
+    #[test]
+    fn test_looks_like_identifier() {
+        assert!(looks_like_identifier("PRO-5196"));
+        assert!(looks_like_identifier("ALF-1"));
+        assert!(looks_like_identifier("pro-5196"));
+        assert!(!looks_like_identifier("pro 5196"));
+        assert!(!looks_like_identifier("fix auth"));
+        assert!(!looks_like_identifier("PRO-"));
+        assert!(!looks_like_identifier("-5196"));
+        assert!(!looks_like_identifier("PRO-abc"));
+        assert!(!looks_like_identifier("PRO1-5196"));
     }
 
     #[test]
