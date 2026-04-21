@@ -106,7 +106,13 @@ function AppInner() {
   return (
     <TooltipProvider>
       <AppShell />
-      <HelpSearch open={askOpen} onClose={() => setAskOpen(false)} />
+      <HelpSearch
+        open={askOpen}
+        onClose={() => {
+          setAskOpen(false);
+          window.dispatchEvent(new CustomEvent("alfredo:close-ask"));
+        }}
+      />
     </TooltipProvider>
   );
 }

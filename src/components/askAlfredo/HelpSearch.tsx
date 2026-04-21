@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Search, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { X, Search, ChevronRight, Keyboard, Bug, BarChart3 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getVersion } from "@tauri-apps/api/app";
 import { CatLogo } from "../ui/CatLogo";
@@ -12,14 +12,39 @@ const NEW_USER_SUGGESTIONS = [
   "first run setup",
   "add a repo",
   "switch agent provider",
-  "keyboard shortcuts",
 ];
 const RETURNING_USER_SUGGESTIONS = [
   "rename a worktree",
   "notification sound",
   "mark as blocked",
-  "keyboard shortcuts",
 ];
+
+function QuickAction({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "6px 8px",
+        background: "transparent",
+        border: "none",
+        borderRadius: "var(--radius-md)",
+        color: "var(--text-secondary)",
+        fontSize: 12,
+        textAlign: "left",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-elevated)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      <span style={{ color: "var(--text-tertiary)", display: "inline-flex" }}>{icon}</span>
+      {label}
+    </button>
+  );
+}
 
 interface HelpSearchProps {
   open: boolean;
@@ -51,6 +76,8 @@ export function HelpSearch({ open, onClose }: HelpSearchProps) {
   const [expandedTitle, setExpandedTitle] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState("unknown");
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<{ left: number; top: number; tailLeft: number } | null>(null);
   const { repos } = useAppConfig();
   const suggestions = repos.length === 0 ? NEW_USER_SUGGESTIONS : RETURNING_USER_SUGGESTIONS;
 
@@ -71,9 +98,47 @@ export function HelpSearch({ open, onClose }: HelpSearchProps) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
+    const onClickAway = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (panelRef.current?.contains(target)) return;
+      if ((target as Element | null)?.closest?.("[data-ask-trigger]")) return;
+      onClose();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onClickAway);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onClickAway);
+    };
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) {
+      setAnchor(null);
+      return;
+    }
+    const place = () => {
+      const trigger = document.querySelector<HTMLElement>("[data-ask-trigger]");
+      const panelWidth = 360;
+      const gap = 8;
+      if (!trigger) {
+        setAnchor({ left: 16, top: 48, tailLeft: 16 });
+        return;
+      }
+      const rect = trigger.getBoundingClientRect();
+      const viewportRight = window.innerWidth - 8;
+      // Align panel's left edge with trigger's left edge, but keep panel on screen.
+      let left = rect.left;
+      if (left + panelWidth > viewportRight) left = viewportRight - panelWidth;
+      if (left < 8) left = 8;
+      const top = rect.bottom + gap;
+      const tailLeft = Math.max(10, Math.min(panelWidth - 20, rect.left + rect.width / 2 - left));
+      setAnchor({ left, top, tailLeft });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
 
   // Debounced search as the user types.
   useEffect(() => {
@@ -112,23 +177,38 @@ export function HelpSearch({ open, onClose }: HelpSearchProps) {
 
   return (
     <div
+      ref={panelRef}
       style={{
         position: "fixed",
-        right: 16,
-        bottom: 56,
-        width: 380,
-        height: 520,
-        maxHeight: "calc(100vh - 80px)",
+        left: anchor?.left ?? 16,
+        top: anchor?.top ?? 48,
+        width: 360,
+        maxHeight: "calc(100vh - 64px)",
         background: "var(--bg-secondary)",
         border: "1px solid var(--border-default)",
         borderRadius: "var(--radius-lg)",
         boxShadow: "0 12px 32px rgba(0, 0, 0, 0.5)",
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
+        overflow: "visible",
         zIndex: 40,
+        opacity: anchor ? 1 : 0,
       }}
     >
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: -5,
+          left: anchor?.tailLeft ?? 16,
+          width: 9,
+          height: 9,
+          background: "var(--bg-secondary)",
+          borderTop: "1px solid var(--border-default)",
+          borderLeft: "1px solid var(--border-default)",
+          transform: "rotate(45deg)",
+        }}
+      />
       <div
         style={{
           display: "flex",
@@ -143,7 +223,7 @@ export function HelpSearch({ open, onClose }: HelpSearchProps) {
           Ask Alfredo
         </div>
         <button onClick={onClose} aria-label="Close" className="icon-btn icon-btn-sm">
-          <X size={14} />
+          <X size={13} />
         </button>
       </div>
 
@@ -190,16 +270,14 @@ export function HelpSearch({ open, onClose }: HelpSearchProps) {
         {showEmptyState && (
           <div
             style={{
-              margin: "auto 0",
-              padding: "20px 16px",
-              textAlign: "center",
+              padding: "14px 14px 10px",
               color: "var(--text-tertiary)",
               fontSize: 12,
-              lineHeight: 1.6,
+              lineHeight: 1.5,
             }}
           >
-            <div style={{ marginBottom: 10 }}>Ask how anything in Alfredo works.</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+            <div style={{ marginBottom: 10, color: "var(--text-secondary)" }}>Ask how anything in Alfredo works.</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {suggestions.map((s) => (
                 <button
                   key={s}
@@ -290,6 +368,37 @@ export function HelpSearch({ open, onClose }: HelpSearchProps) {
               </div>
             )}
           </>
+        )}
+
+        {showEmptyState && (
+          <div
+            style={{
+              padding: "8px 10px 12px",
+              borderTop: "1px solid var(--border-subtle)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            <QuickAction
+              icon={<Keyboard size={13} />}
+              label="Keyboard shortcuts"
+              onClick={() => {
+                onClose();
+                window.dispatchEvent(new CustomEvent("alfredo:shortcuts-overlay"));
+              }}
+            />
+            <QuickAction
+              icon={<Bug size={13} />}
+              label="Report bug or request feature"
+              onClick={() => openUrl(`${REPO_URL}/issues/new/choose`)}
+            />
+            <QuickAction
+              icon={<BarChart3 size={13} />}
+              label="Claude usage"
+              onClick={() => openUrl("https://claude.ai/settings/usage")}
+            />
+          </div>
         )}
 
         {showNoResults && (
