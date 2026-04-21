@@ -15,6 +15,41 @@ function getDefaultAgent(): TabType {
   return "claude";
 }
 
+interface TabLabelInputs {
+  titleFromOsc: string | null;
+  foregroundProcess: string | null;
+  cwd: string | null;
+}
+
+/** Derive the effective dynamic label from raw inputs. First match wins. */
+function deriveDynamicLabel(inputs: TabLabelInputs | undefined): string | null {
+  if (!inputs) return null;
+  return inputs.titleFromOsc ?? inputs.foregroundProcess ?? inputs.cwd ?? null;
+}
+
+function applyLabelInput(
+  state: TabState,
+  worktreeId: string,
+  tabId: string,
+  patch: Partial<TabLabelInputs>,
+): Partial<TabState> {
+  const prev = state.labelInputs[tabId] ?? {
+    titleFromOsc: null,
+    foregroundProcess: null,
+    cwd: null,
+  };
+  const next: TabLabelInputs = { ...prev, ...patch };
+  const dynamicLabel = deriveDynamicLabel(next);
+  const tabs = state.tabs[worktreeId] ?? [];
+  const updatedTabs = tabs.map((t) =>
+    t.id === tabId ? { ...t, dynamicLabel } : t,
+  );
+  return {
+    labelInputs: { ...state.labelInputs, [tabId]: next },
+    tabs: { ...state.tabs, [worktreeId]: updatedTabs },
+  };
+}
+
 interface TabState {
   /** Tabs per worktree. Keyed by worktreeId. */
   tabs: Record<string, WorkspaceTab[]>;
@@ -22,6 +57,8 @@ interface TabState {
   activeTabId: Record<string, string>;
   /** Tab IDs awaiting resume/fresh decision after app restart. */
   disconnectedTabs: Set<string>;
+  /** Raw label inputs per tab. Keyed by tabId. */
+  labelInputs: Record<string, TabLabelInputs>;
 
   addTab: (worktreeId: string, type: TabType) => void;
   removeTab: (worktreeId: string, tabId: string) => void;
@@ -35,12 +72,19 @@ interface TabState {
   /** Remove all tab state for a worktree (used during worktree cleanup). */
   removeWorktreeTabs: (worktreeId: string) => void;
   clearStore: () => void;
+  /** Set the OSC-emitted title for a tab. `null` clears it. */
+  setTabTitle: (worktreeId: string, tabId: string, title: string | null) => void;
+  /** Set the foreground process command for a tab. `null` = no process. */
+  setTabProcess: (worktreeId: string, tabId: string, process: string | null) => void;
+  /** Set the CWD for a tab. `null` = unknown. */
+  setTabCwd: (worktreeId: string, tabId: string, cwd: string | null) => void;
 }
 
 export const useTabStore = create<TabState>((set, get) => ({
   tabs: {},
   activeTabId: {},
   disconnectedTabs: new Set<string>(),
+  labelInputs: {},
 
   ensureDefaultTabs: (worktreeId) => {
     const state = get();
@@ -150,9 +194,11 @@ export const useTabStore = create<TabState>((set, get) => ({
         state.activeTabId[worktreeId] === tabId
           ? (filtered[0]?.id ?? "")
           : state.activeTabId[worktreeId];
+      const { [tabId]: _removed, ...restInputs } = state.labelInputs;
       return {
         tabs: { ...state.tabs, [worktreeId]: filtered },
         activeTabId: { ...state.activeTabId, [worktreeId]: newActiveId },
+        labelInputs: restInputs,
       };
     }),
 
@@ -212,11 +258,17 @@ export const useTabStore = create<TabState>((set, get) => ({
       if (existing.some((t) => t.type === "server")) {
         console.warn(`[tabStore] removeWorktreeTabs is DROPPING server tab for ${worktreeId}`, new Error().stack);
       }
+      const idsToRemove = new Set(existing.map((t) => t.id));
+      const restInputs: Record<string, TabLabelInputs> = {};
+      for (const [k, v] of Object.entries(state.labelInputs)) {
+        if (!idsToRemove.has(k)) restInputs[k] = v;
+      }
       const { [worktreeId]: _tabs, ...restTabs } = state.tabs;
       const { [worktreeId]: _activeTab, ...restActiveTabId } = state.activeTabId;
       return {
         tabs: restTabs,
         activeTabId: restActiveTabId,
+        labelInputs: restInputs,
       };
     }),
 
@@ -225,5 +277,15 @@ export const useTabStore = create<TabState>((set, get) => ({
       tabs: {},
       activeTabId: {},
       disconnectedTabs: new Set<string>(),
+      labelInputs: {},
     }),
+
+  setTabTitle: (worktreeId, tabId, title) =>
+    set((state) => applyLabelInput(state, worktreeId, tabId, { titleFromOsc: title })),
+
+  setTabProcess: (worktreeId, tabId, process) =>
+    set((state) => applyLabelInput(state, worktreeId, tabId, { foregroundProcess: process })),
+
+  setTabCwd: (worktreeId, tabId, cwd) =>
+    set((state) => applyLabelInput(state, worktreeId, tabId, { cwd })),
 }));

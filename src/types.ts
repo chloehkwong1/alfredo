@@ -356,6 +356,12 @@ export interface WorkspaceTab {
   /** Set only on tabs restored from a saved session — triggers --resume on first spawn. */
   resumeSessionId?: string;
   diffTarget?: DiffTarget;
+  /**
+   * Live, dynamically-resolved label (OSC title / foreground process / CWD).
+   * When set, renderers prefer this over `label`. `null` or undefined means
+   * fall back to `label`.
+   */
+  dynamicLabel?: string | null;
 }
 
 // ── App Config (multi-repo) ──────────────────────────────────────
