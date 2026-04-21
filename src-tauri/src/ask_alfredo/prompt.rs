@@ -7,7 +7,7 @@ Answer the user's question using ONLY the feature docs provided below. Keep answ
 Respond with JSON matching this schema, and nothing else:
 {
   "answer": "<your answer>",
-  "ui_path": "<the ui_path from the matching doc, or null>",
+  "uiPath": "<the ui_path from the matching doc, or null>",
   "confidence": "high" | "low"
 }
 
