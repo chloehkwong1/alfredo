@@ -47,6 +47,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             receive_beta_updates: false,
             port_range_start: 3001,
             port_range_end: 3099,
+            anthropic_api_key: None,
         });
     }
 
@@ -185,6 +186,7 @@ pub async fn migrate_if_needed(
         receive_beta_updates: false,
         port_range_start: 3001,
         port_range_end: 3099,
+        anthropic_api_key: None,
     };
 
     save(app_data_dir, &global).await?;

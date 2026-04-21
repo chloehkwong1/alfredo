@@ -474,6 +474,8 @@ pub struct GlobalAppConfig {
     pub port_range_start: u16,
     #[serde(default = "default_port_range_end")]
     pub port_range_end: u16,
+    #[serde(default)]
+    pub anthropic_api_key: Option<String>,
 }
 
 fn default_editor() -> String { "vscode".into() }
