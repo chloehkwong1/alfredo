@@ -1,0 +1,36 @@
+src-tauri/src/pty_manager.rs
+  e0526eab05a1e96f 18-178,1287-1362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "20dd6e915d7acb5beadf049dbaf7d1f0314ba554",
+  "prompts": {
+    "668c34fc9e5f6fcc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a155b8ed-0bc8-4049-8f88-6179b302591f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 48,
+      "total_deletions": 4,
+      "accepted_lines": 82,
+      "overriden_lines": 0
+    },
+    "e0526eab05a1e96f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf431a3b-6cb9-494e-bcfa-7a78d93ce463",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 237,
+      "total_deletions": 0,
+      "accepted_lines": 237,
+      "overriden_lines": 0
+    }
+  }
+}
