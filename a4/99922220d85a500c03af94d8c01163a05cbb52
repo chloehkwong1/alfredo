@@ -1,0 +1,40 @@
+src/components/askAlfredo/HelpSearch.tsx
+  668c34fc9e5f6fcc 8,11-17,54-55,203
+docs/features/branch-vs-worktree-mode.md
+  668c34fc9e5f6fcc 1-30
+docs/features/whats-new.md
+  668c34fc9e5f6fcc 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "a499922220d85a500c03af94d8c01163a05cbb52",
+  "prompts": {
+    "668c34fc9e5f6fcc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a155b8ed-0bc8-4049-8f88-6179b302591f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 86,
+      "overriden_lines": 0
+    },
+    "e0526eab05a1e96f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf431a3b-6cb9-494e-bcfa-7a78d93ce463",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
