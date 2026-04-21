@@ -48,6 +48,15 @@ pub enum PtyEvent {
     },
     /// Periodic heartbeat so the frontend can detect a dead PTY channel.
     Heartbeat,
+    /// OSC 0/1/2 title emitted by the child process. `None` means the child
+    /// set an empty title — frontend reverts to fallback label.
+    Title(Option<String>),
+    /// Foreground process name/command string for shell sessions.
+    /// `None` when the shell itself is the foreground process (idle at prompt).
+    Process(Option<String>),
+    /// Current working directory for shell sessions. Tilde-abbreviated if
+    /// under $HOME (e.g. "~/alfredo"); `None` if resolution failed.
+    Cwd(Option<String>),
 }
 
 // ── Agent ───────────────────────────────────────────────────────
