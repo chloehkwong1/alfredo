@@ -1,7 +1,7 @@
 import { Component, useState, type ReactNode } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { AskButton } from "./components/askAlfredo/AskButton";
-import { AskDrawer } from "./components/askAlfredo/AskDrawer";
+import { HelpSearch } from "./components/askAlfredo/HelpSearch";
 import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
@@ -103,7 +103,7 @@ function AppInner() {
     <TooltipProvider>
       <AppShell />
       <AskButton onClick={() => setAskOpen((v) => !v)} isOpen={askOpen} />
-      <AskDrawer open={askOpen} onClose={() => setAskOpen(false)} />
+      <HelpSearch open={askOpen} onClose={() => setAskOpen(false)} />
     </TooltipProvider>
   );
 }

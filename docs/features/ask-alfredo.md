@@ -1,29 +1,25 @@
 ---
-title: Ask Alfredo — the in-app help assistant
-keywords: [help, ask, assistant, how do i, question, ask alfredo, chat, support]
+title: Ask Alfredo — the in-app help search
+keywords: [help, search, ask, how do i, question, ask alfredo, docs, find]
 ui_path: Floating ? button in the bottom-right corner of the window
 ---
 
 The floating **?** button in the bottom-right corner opens **Ask
-Alfredo**, a chat popover for "how do I…" questions about Alfredo
-itself.
+Alfredo**, a fast local search over Alfredo's bundled feature docs.
 
-Ask anything task-oriented ("how do I rename a worktree?", "where's
-the notification sound setting?") and Alfredo answers from its
-bundled feature docs in one shot. Answers include a UI breadcrumb
-pointing you at the exact menu path.
+Type a few words ("notification sound", "mark as blocked",
+"keyboard shortcuts") and the top matches appear instantly with the
+exact UI path underneath. Click a result to read the full doc inline.
 
 Notes:
 
-- **One shot, no memory** — each question is independent; closing
-  the popover clears the chat history.
-- **If it says "I don't know"** — tap the **Tell Chloe** button.
-  That opens a pre-filled GitHub issue with the `ask-alfredo-miss`
-  label so the gap can be filled.
-- **No LLM configured** — Alfredo uses your local `claude` CLI when
-  present. If the CLI isn't installed, the popover returns an error
-  asking you to install Claude Code (an Anthropic API-key fallback
-  is wired in the backend but no settings UI exists yet).
+- **Local, offline, instant.** No network, no LLM, no account.
+- **Press Esc** to close. Closing clears the search state.
+- **Keyword-based.** Results match on titles, keyword tags in the
+  doc frontmatter, UI paths, and body text. Misspellings may miss.
+- **"Tell Chloe"** — if nothing matches your query, a button opens a
+  pre-filled GitHub issue with the `ask-alfredo-miss` label so the
+  doc gap can be filled.
 
-Ask Alfredo is only for questions about Alfredo. For coding help,
-use the agent tab in your worktree (Claude / Codex / Gemini).
+For coding help (not help *about* Alfredo), use the agent tab in
+your worktree (Claude / Codex / Gemini).

@@ -469,12 +469,14 @@ export function openInApp(appId: string, path: string): Promise<void> {
 
 // ── Ask Alfredo ───────────────────────────────────────────────
 
-export interface AskAlfredoAnswer {
-  answer: string;
+export interface HelpHit {
+  title: string;
   uiPath: string | null;
-  confidence: "high" | "low";
+  keywords: string[];
+  body: string;
+  score: number;
 }
 
-export function askAlfredo(question: string): Promise<AskAlfredoAnswer> {
-  return invoke<AskAlfredoAnswer>("ask_alfredo", { question });
+export function searchAlfredoDocs(query: string, limit = 5): Promise<HelpHit[]> {
+  return invoke<HelpHit[]>("search_alfredo_docs", { query, limit });
 }

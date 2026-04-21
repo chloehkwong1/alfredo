@@ -108,7 +108,7 @@ pub fn run() {
             // Audio
             audio::play_sound,
             // Ask Alfredo
-            ask_alfredo_cmd::ask_alfredo,
+            ask_alfredo_cmd::search_alfredo_docs,
             // App Config
             app_config::get_app_config,
             app_config::save_app_config,

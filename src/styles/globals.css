@@ -119,10 +119,6 @@
   animation: slide-up 150ms ease-out;
 }
 
-@keyframes alfredo-spin {
-  to { transform: rotate(360deg); }
-}
-
 @keyframes card-in {
   from {
     opacity: 0;
