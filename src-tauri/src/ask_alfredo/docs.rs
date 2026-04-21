@@ -92,4 +92,37 @@ mod tests {
     fn rejects_doc_without_frontmatter() {
         assert!(parse_doc("no frontmatter here").is_err());
     }
+
+    /// Every shipped feature doc must parse. Catches YAML typos
+    /// (unquoted colons, em-dashes in keyword arrays, stray tabs)
+    /// before they ship and silently disappear from the index.
+    #[test]
+    fn every_shipped_doc_parses() {
+        let manifest = env!("CARGO_MANIFEST_DIR");
+        let features = std::path::Path::new(manifest).join("../docs/features");
+        let mut failures: Vec<String> = Vec::new();
+        let mut count = 0;
+        for entry in fs::read_dir(&features).expect("read docs/features") {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("md") {
+                continue;
+            }
+            if path.file_name().and_then(|s| s.to_str()) == Some("README.md") {
+                continue;
+            }
+            count += 1;
+            let raw = fs::read_to_string(&path).unwrap();
+            if let Err(e) = parse_doc(&raw) {
+                failures.push(format!("{}: {}", path.display(), e));
+            }
+        }
+        assert!(count > 0, "no .md docs found in {}", features.display());
+        assert!(
+            failures.is_empty(),
+            "{} doc(s) failed to parse:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+    }
 }
