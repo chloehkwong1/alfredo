@@ -26,21 +26,25 @@ pub fn search(query: &str, limit: usize, docs: &[FeatureDoc]) -> Vec<HelpHit> {
         .iter()
         .map(|d| {
             let mut s = String::new();
-            // Weight frontmatter by repeating it — cheap way to bias results
-            // toward title/keyword/ui_path matches over body matches.
-            for _ in 0..3 {
+            // Weight frontmatter by repeating it — title and keyword matches
+            // should dominate incidental body mentions. E.g. "Delete an
+            // annotation" in a comments doc shouldn't outrank "Deleting a
+            // worktree" for a "delete worktree" query.
+            for _ in 0..6 {
                 s.push_str(&d.frontmatter.title);
                 s.push(' ');
             }
             for kw in &d.frontmatter.keywords {
-                for _ in 0..2 {
+                for _ in 0..3 {
                     s.push_str(kw);
                     s.push(' ');
                 }
             }
-            if let Some(p) = &d.frontmatter.ui_path {
-                s.push_str(p);
-                s.push(' ');
+            for _ in 0..2 {
+                if let Some(p) = &d.frontmatter.ui_path {
+                    s.push_str(p);
+                    s.push(' ');
+                }
             }
             s.push_str(&d.body);
             s
