@@ -1,0 +1,40 @@
+src/components/ui/OpenInDropdown.tsx
+  839bb380ba3babf2 59
+src/components/sidebar/Sidebar.tsx
+  839bb380ba3babf2 365,389
+src/components/terminal/TerminalView.tsx
+  839bb380ba3babf2 410
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "3c2df7ac1c6c8c4dceb5c3c0e66a1b174c0dfa1f",
+  "prompts": {
+    "822a629222fabe84": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9d50d814-add5-4bca-985c-9a571c0375e2",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "839bb380ba3babf2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d8e3a1a-c1aa-4ddf-bf9f-e33b25124f4e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
