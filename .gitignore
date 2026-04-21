@@ -44,8 +44,10 @@ src-tauri/gen/
 designs/*.html
 designs/*.png
 
-# Docs assets (local only)
-docs/
+# Docs: specs/plans are local, but the Ask Alfredo feature corpus is
+# bundled into release builds and must be checked in.
+docs/*
+!docs/features/
 
 # AI/Superpowers context
 .context/
