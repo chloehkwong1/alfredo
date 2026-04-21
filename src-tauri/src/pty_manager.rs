@@ -15,6 +15,167 @@ use crate::sleep_inhibitor::SleepInhibitor;
 use crate::state_server::StateServerHandle;
 use crate::types::{AgentState, AgentType, AppError, HookPhase, NotifyReason, PtyEvent, Session, SessionStatus, SessionType};
 
+/// Events emitted by the OSC scanner.
+#[derive(Debug, Clone, PartialEq)]
+pub enum OscEvent {
+    /// OSC 0/1/2 title. `None` means empty title (revert to fallback).
+    Title(Option<String>),
+    /// OSC 7 working directory. `None` means failed to parse.
+    Cwd(Option<String>),
+}
+
+/// Maximum bytes we'll buffer for a single OSC payload. Titles longer
+/// than this are silently discarded to bound memory usage per session.
+const OSC_MAX_PAYLOAD: usize = 256;
+
+/// Byte-stream state machine that extracts OSC 0/1/2 title and OSC 7 CWD
+/// sequences from PTY output. Tolerant of sequences split across chunks.
+#[derive(Debug)]
+pub struct OscScanner {
+    state: OscState,
+    /// Which OSC number we're collecting (0, 1, 2, or 7). `None` = ignore.
+    kind: Option<u8>,
+    /// Collected payload bytes for the current sequence.
+    buf: Vec<u8>,
+    /// Set when we've exceeded OSC_MAX_PAYLOAD; remain in Collecting until
+    /// terminator, then discard.
+    overflowed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum OscState {
+    /// Normal byte stream.
+    Idle,
+    /// Saw ESC (0x1b) — waiting for `]`.
+    EscSeen,
+    /// Saw ESC ] — reading the numeric prefix.
+    ReadingNumber,
+    /// Inside the payload, collecting until terminator.
+    Collecting,
+    /// Saw ESC inside Collecting — waiting for `\` (ST terminator) or abort.
+    CollectingEsc,
+}
+
+impl OscScanner {
+    pub fn new() -> Self {
+        Self {
+            state: OscState::Idle,
+            kind: None,
+            buf: Vec::new(),
+            overflowed: false,
+        }
+    }
+
+    /// Feed a chunk of bytes. Any complete OSC events are appended to `out`.
+    pub fn feed(&mut self, bytes: &[u8], out: &mut Vec<OscEvent>) {
+        for &b in bytes {
+            self.step(b, out);
+        }
+    }
+
+    fn step(&mut self, b: u8, out: &mut Vec<OscEvent>) {
+        match self.state {
+            OscState::Idle => {
+                if b == 0x1b {
+                    self.state = OscState::EscSeen;
+                }
+            }
+            OscState::EscSeen => {
+                if b == b']' {
+                    self.state = OscState::ReadingNumber;
+                    self.kind = None;
+                    self.buf.clear();
+                    self.overflowed = false;
+                } else {
+                    // Not an OSC — ignore and reset.
+                    self.state = OscState::Idle;
+                }
+            }
+            OscState::ReadingNumber => {
+                if b == b';' {
+                    // Number terminated. If we don't care about this OSC, we
+                    // still need to consume until terminator so we don't
+                    // mis-parse the payload as subsequent bytes.
+                    self.state = OscState::Collecting;
+                } else if b.is_ascii_digit() {
+                    let digit = b - b'0';
+                    self.kind = Some(match self.kind {
+                        Some(n) => n.saturating_mul(10).saturating_add(digit),
+                        None => digit,
+                    });
+                } else {
+                    // Malformed — reset.
+                    self.state = OscState::Idle;
+                    self.kind = None;
+                }
+            }
+            OscState::Collecting => {
+                match b {
+                    0x07 => {
+                        // BEL terminator.
+                        self.emit(out);
+                        self.state = OscState::Idle;
+                    }
+                    0x1b => {
+                        self.state = OscState::CollectingEsc;
+                    }
+                    _ => {
+                        if self.buf.len() >= OSC_MAX_PAYLOAD {
+                            self.overflowed = true;
+                        } else {
+                            self.buf.push(b);
+                        }
+                    }
+                }
+            }
+            OscState::CollectingEsc => {
+                if b == b'\\' {
+                    // ST terminator (ESC \).
+                    self.emit(out);
+                    self.state = OscState::Idle;
+                } else {
+                    // Not ST — abort this OSC, consume byte as normal.
+                    self.state = OscState::Idle;
+                    self.buf.clear();
+                    self.kind = None;
+                    self.overflowed = false;
+                }
+            }
+        }
+    }
+
+    fn emit(&mut self, out: &mut Vec<OscEvent>) {
+        if !self.overflowed {
+            match self.kind {
+                Some(0) | Some(1) | Some(2) => {
+                    let title = String::from_utf8(std::mem::take(&mut self.buf))
+                        .ok()
+                        .filter(|s| !s.is_empty());
+                    out.push(OscEvent::Title(title));
+                }
+                Some(7) => {
+                    let raw = String::from_utf8(std::mem::take(&mut self.buf)).ok();
+                    let cwd = raw.and_then(parse_osc7_path);
+                    out.push(OscEvent::Cwd(cwd));
+                }
+                _ => {}
+            }
+        }
+        self.buf.clear();
+        self.kind = None;
+        self.overflowed = false;
+    }
+}
+
+/// Extract the path from an OSC 7 payload like `file://host/Users/chloe/alfredo`.
+/// Returns `None` if the payload doesn't parse.
+fn parse_osc7_path(payload: String) -> Option<String> {
+    let rest = payload.strip_prefix("file://")?;
+    // Skip the host component (everything up to the first '/').
+    let slash = rest.find('/')?;
+    Some(rest[slash..].to_string())
+}
+
 /// Swappable channel handle. `None` means the frontend disconnected (e.g. page reload).
 type SwappableChannel = Arc<RwLock<Option<Channel<PtyEvent>>>>;
 
@@ -1122,5 +1283,81 @@ mod tests {
         for id in &session_ids {
             let _ = manager.close(id);
         }
+    }
+
+    // ── OSC scanner tests ──
+
+    #[test]
+    fn osc_title_simple_bel_terminator() {
+        let mut s = OscScanner::new();
+        let mut out = Vec::new();
+        s.feed(b"\x1b]0;hello world\x07", &mut out);
+        assert_eq!(out, vec![OscEvent::Title(Some("hello world".to_string()))]);
+    }
+
+    #[test]
+    fn osc_title_st_terminator() {
+        let mut s = OscScanner::new();
+        let mut out = Vec::new();
+        s.feed(b"\x1b]2;my title\x1b\\", &mut out);
+        assert_eq!(out, vec![OscEvent::Title(Some("my title".to_string()))]);
+    }
+
+    #[test]
+    fn osc_title_empty_payload_is_none() {
+        let mut s = OscScanner::new();
+        let mut out = Vec::new();
+        s.feed(b"\x1b]0;\x07", &mut out);
+        assert_eq!(out, vec![OscEvent::Title(None)]);
+    }
+
+    #[test]
+    fn osc_title_split_across_chunks() {
+        let mut s = OscScanner::new();
+        let mut out = Vec::new();
+        s.feed(b"\x1b]0;hel", &mut out);
+        assert_eq!(out, vec![]);
+        s.feed(b"lo\x07rest-of-stream", &mut out);
+        assert_eq!(out, vec![OscEvent::Title(Some("hello".to_string()))]);
+    }
+
+    #[test]
+    fn osc_cwd_routes_separately() {
+        let mut s = OscScanner::new();
+        let mut out = Vec::new();
+        s.feed(b"\x1b]7;file://host/Users/chloe/alfredo\x07", &mut out);
+        assert_eq!(
+            out,
+            vec![OscEvent::Cwd(Some("/Users/chloe/alfredo".to_string()))]
+        );
+    }
+
+    #[test]
+    fn osc_oversized_title_discarded() {
+        let mut s = OscScanner::new();
+        let mut out = Vec::new();
+        let big = "x".repeat(512);
+        let mut bytes = b"\x1b]0;".to_vec();
+        bytes.extend_from_slice(big.as_bytes());
+        bytes.push(0x07);
+        s.feed(&bytes, &mut out);
+        assert_eq!(out, vec![]); // discarded, not emitted
+    }
+
+    #[test]
+    fn osc_ignored_sequence_numbers() {
+        let mut s = OscScanner::new();
+        let mut out = Vec::new();
+        // OSC 8 is the hyperlink sequence — we don't care about it.
+        s.feed(b"\x1b]8;;http://example.com\x07click\x1b]8;;\x07", &mut out);
+        assert_eq!(out, vec![]);
+    }
+
+    #[test]
+    fn osc_mixed_with_regular_output() {
+        let mut s = OscScanner::new();
+        let mut out = Vec::new();
+        s.feed(b"prompt$ \x1b]0;vim\x07 some output", &mut out);
+        assert_eq!(out, vec![OscEvent::Title(Some("vim".to_string()))]);
     }
 }
