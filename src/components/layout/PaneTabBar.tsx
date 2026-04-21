@@ -86,12 +86,17 @@ export function useCrossPaneDrag(): CrossPaneDrag | null {
   );
 }
 
-// Agent tabs (claude/codex/gemini) intentionally omit a type icon — the OSC
-// title each agent emits already starts with a brand glyph (e.g. Claude Code's
-// ✱ prefix), so our own icon next to it would just duplicate the shape at a
-// different size. Agent icons still render in the "+" menu below where no
+// Agent tabs (claude/codex/gemini) intentionally omit a type icon at render
+// time — the OSC title each agent emits already starts with a brand glyph
+// (e.g. Claude Code's ✱ prefix), so our own icon next to it would duplicate
+// the shape at a different size. We still keep agents in TAB_ICONS so the
+// `type in TAB_ICONS` membership check in the render filter treats them as
+// valid tab types. Agent icons still render in the "+" menu below, where no
 // dynamic label sits beside them.
-const TAB_ICONS: Partial<Record<TabType, ComponentType<{ size?: number; className?: string }>>> = {
+const TAB_ICONS: Record<TabType, ComponentType<{ size?: number; className?: string }>> = {
+  claude: AGENT_ICONS.claude,
+  codex: AGENT_ICONS.codex,
+  gemini: AGENT_ICONS.gemini,
   shell: Terminal,
   server: Radio,
   diff: GitCompareArrows,
@@ -198,7 +203,7 @@ function SortableTab({
               : "text-text-tertiary hover:text-text-secondary",
           ].join(" ")}
         >
-          {Icon && <Icon size={14} />}
+          {!isAgentTab(tab) && <Icon size={14} />}
           <span title={effectiveLabel} className={["max-w-[240px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{effectiveLabel}</span>
           {statusDot && (
             <span
@@ -547,9 +552,9 @@ function PaneTabBar({
         <DragOverlay>
           {draggedTab ? (
             <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
-              {(() => {
+              {!isAgentTab(draggedTab) && (() => {
                 const Icon = TAB_ICONS[draggedTab.type];
-                return Icon ? <Icon size={14} /> : null;
+                return <Icon size={14} />;
               })()}
               <span className="max-w-[240px] truncate">{draggedTab.dynamicLabel ?? draggedTab.label}</span>
             </div>
