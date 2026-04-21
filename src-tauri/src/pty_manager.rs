@@ -363,6 +363,15 @@ impl PtyManager {
             let id = &reader_session_id;
             let mut buf = [0u8; 4096];
             let mut detector = AgentDetector::with_agent_type(agent_type);
+            let mut osc = OscScanner::new();
+            let mut osc_events: Vec<OscEvent> = Vec::new();
+            // Debounce title emissions: some agents update the title many times
+            // per second. Only emit to the frontend if the title changed and at
+            // least DEBOUNCE_MS has elapsed since the last emission, OR it's a
+            // clear-to-None (those go through immediately so fallbacks can kick in).
+            let mut last_title_sent: Option<Option<String>> = None;
+            let mut last_title_sent_at: Option<Instant> = None;
+            const DEBOUNCE_MS: u128 = 100;
             eprintln!("[pty-reader {id}] started");
             loop {
                 if reader_stop_flag.load(Ordering::Relaxed) {
@@ -390,13 +399,50 @@ impl PtyManager {
 
                         // Run output through agent detector before forwarding
                         if let Some((_agent_type, agent_state)) = detector.feed(&data) {
-                            // Update sleep inhibitor from detector (fallback path)
                             reader_inhibitor.update(id, &agent_state);
-                            // State changed — notify frontend
                             if let Ok(guard) = reader_channel.read() {
                                 if let Some(ch) = guard.as_ref() {
                                     if let Err(err) = ch.send(PtyEvent::AgentState(agent_state)) {
                                         eprintln!("[pty-reader {id}] channel send failed (AgentState): {err}");
+                                    }
+                                }
+                            }
+                        }
+
+                        // Scan for OSC title/cwd sequences. Scanner has tiny
+                        // overhead (byte-per-byte state machine, no allocs on
+                        // the hot path for non-OSC bytes).
+                        osc_events.clear();
+                        osc.feed(&data, &mut osc_events);
+                        for ev in osc_events.drain(..) {
+                            match ev {
+                                OscEvent::Title(title) => {
+                                    let now = Instant::now();
+                                    let changed = last_title_sent.as_ref() != Some(&title);
+                                    let debounced = last_title_sent_at
+                                        .map(|t| now.duration_since(t).as_millis() >= DEBOUNCE_MS)
+                                        .unwrap_or(true);
+                                    // Emit if the value changed AND either it's
+                                    // a clear-to-None or enough time has passed.
+                                    if changed && (title.is_none() || debounced) {
+                                        if let Ok(guard) = reader_channel.read() {
+                                            if let Some(ch) = guard.as_ref() {
+                                                if let Err(e) = ch.send(PtyEvent::Title(title.clone())) {
+                                                    eprintln!("[pty-reader {id}] channel send failed (Title): {e}");
+                                                }
+                                            }
+                                        }
+                                        last_title_sent = Some(title);
+                                        last_title_sent_at = Some(now);
+                                    }
+                                }
+                                OscEvent::Cwd(cwd) => {
+                                    if let Ok(guard) = reader_channel.read() {
+                                        if let Some(ch) = guard.as_ref() {
+                                            if let Err(e) = ch.send(PtyEvent::Cwd(cwd)) {
+                                                eprintln!("[pty-reader {id}] channel send failed (Cwd): {e}");
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -424,8 +470,6 @@ impl PtyManager {
             }
 
             // Notify the frontend that the agent is no longer running.
-            // Sent as HookAgentState (authoritative) rather than AgentState
-            // (detector) so it bypasses the detector filter when hooks are active.
             if let Ok(guard) = reader_channel.read() {
                 if let Some(ch) = guard.as_ref() {
                     if let Err(e) = ch.send(PtyEvent::HookAgentState {
@@ -435,28 +479,18 @@ impl PtyManager {
                     }) {
                         eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");
                     }
+                    // Clear title on exit so stale titles don't linger.
+                    let _ = ch.send(PtyEvent::Title(None));
                 }
             }
 
-            // Clear this session from the sleep inhibitor so a crashed/abandoned
-            // process doesn't keep the system awake indefinitely.
             reader_inhibitor.remove_session(id);
-
-            // Stop the heartbeat thread so the frontend sees channelAlive go stale.
             reader_stop_flag.store(true, Ordering::Relaxed);
 
-            // Mark session as exited. We don't know the exit code from the
-            // reader thread, so store a sentinel (-1). The real code is
-            // available via `child.wait()` but we can't call that here without
-            // the child handle. We'll reconcile when `list` or `close` is
-            // called.
             if let Ok(mut guard) = reader_exited.lock() {
                 *guard = Some(-1);
             }
 
-            // Release the state_server channel registration so a crashed PTY
-            // (where close_pty is never called) doesn't leave a phantom entry
-            // in the registry.
             if let Some(handle) = reader_state_server.as_ref() {
                 handle.unregister_channel(&reader_session_id, &reader_worktree_id);
                 eprintln!("[pty-reader {reader_session_id}] exited, unregistered state_server channel");
