@@ -497,6 +497,10 @@ impl PtyManager {
             }
         });
 
+        // Capture shell PID before `child` gets moved into PtySession — only
+        // used by the poller thread for shell sessions.
+        let shell_pid_opt = child.process_id();
+
         // --- heartbeat thread ---
         let hb_channel = Arc::clone(&arc_channel);
         let hb_stop = Arc::clone(&stop_flag);
@@ -522,6 +526,50 @@ impl PtyManager {
                 }
             }
         });
+
+        // --- process + cwd poller (shell sessions only) ---
+        if session_type == SessionType::Shell {
+            if let Some(shell_pid) = shell_pid_opt {
+                let poll_channel = Arc::clone(&arc_channel);
+                let poll_stop = Arc::clone(&stop_flag);
+                let poll_session_id = session_id.clone();
+                thread::spawn(move || {
+                    let mut last_process: Option<Option<String>> = None;
+                    let mut last_cwd: Option<Option<String>> = None;
+                    // Short grace period so OSC 7 from a shell prompt has a
+                    // chance to arrive before our first poll.
+                    thread::sleep(Duration::from_millis(300));
+                    while !poll_stop.load(Ordering::Relaxed) {
+                        let process = resolve_foreground_process(shell_pid);
+                        let cwd = resolve_cwd(shell_pid);
+
+                        if last_process.as_ref() != Some(&process) {
+                            if let Ok(guard) = poll_channel.read() {
+                                if let Some(ch) = guard.as_ref() {
+                                    if let Err(e) = ch.send(PtyEvent::Process(process.clone())) {
+                                        eprintln!("[pty-poller {poll_session_id}] send failed (Process): {e}");
+                                    }
+                                }
+                            }
+                            last_process = Some(process);
+                        }
+
+                        if last_cwd.as_ref() != Some(&cwd) {
+                            if let Ok(guard) = poll_channel.read() {
+                                if let Some(ch) = guard.as_ref() {
+                                    if let Err(e) = ch.send(PtyEvent::Cwd(cwd.clone())) {
+                                        eprintln!("[pty-poller {poll_session_id}] send failed (Cwd): {e}");
+                                    }
+                                }
+                            }
+                            last_cwd = Some(cwd);
+                        }
+
+                        thread::sleep(Duration::from_secs(1));
+                    }
+                });
+            }
+        }
 
         let writer = pair
             .master
@@ -1151,6 +1199,107 @@ fn write_codex_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+/// Abbreviate an absolute path with `~` when under $HOME.
+fn tilde_abbrev(path: &str) -> String {
+    let Ok(home) = std::env::var("HOME") else {
+        return path.to_string();
+    };
+    if path == home {
+        return "~".to_string();
+    }
+    if let Some(rest) = path.strip_prefix(&format!("{home}/")) {
+        return format!("~/{rest}");
+    }
+    path.to_string()
+}
+
+/// True if the given `ps -o comm=` result is a shell itself (so we should
+/// treat it as "no foreground process"). Handles login-shell prefix `-`
+/// and absolute paths like `/bin/zsh`.
+fn is_shell_process(comm: &str) -> bool {
+    let trimmed = comm.trim_start_matches('-');
+    let basename = std::path::Path::new(trimmed)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(trimmed);
+    matches!(basename, "zsh" | "bash" | "fish" | "sh" | "dash" | "tcsh" | "ksh")
+}
+
+/// Resolve the foreground process command string for a shell session.
+/// Returns `Some("npm run dev")` style strings; `None` when the shell is
+/// its own foreground (idle at prompt) or resolution fails.
+#[cfg(target_os = "macos")]
+fn resolve_foreground_process(shell_pid: u32) -> Option<String> {
+    let tpgid_out = std::process::Command::new("ps")
+        .args(["-o", "tpgid=", "-p", &shell_pid.to_string()])
+        .output()
+        .ok()?;
+    let tpgid: u32 = std::str::from_utf8(&tpgid_out.stdout).ok()?.trim().parse().ok()?;
+
+    // tpgid == shell's pgid when shell is foreground — that means no child
+    // is running, so we report None.
+    if tpgid == shell_pid || tpgid == 0 {
+        return None;
+    }
+
+    let args_out = std::process::Command::new("ps")
+        .args(["-o", "args=", "-g", &tpgid.to_string()])
+        .output()
+        .ok()?;
+    let first_line = std::str::from_utf8(&args_out.stdout).ok()?.lines().next()?.trim();
+    if first_line.is_empty() {
+        return None;
+    }
+    if is_shell_process(first_line.split_whitespace().next().unwrap_or("")) {
+        return None;
+    }
+    Some(first_line.to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_foreground_process(shell_pid: u32) -> Option<String> {
+    let stat = std::fs::read_to_string(format!("/proc/{shell_pid}/stat")).ok()?;
+    // Format: pid (comm) state ppid pgrp session tty tpgid ...
+    // comm is in parens and may contain spaces, so split on last ')'.
+    let close_paren = stat.rfind(')')?;
+    let rest = stat[close_paren + 1..].trim();
+    let fields: Vec<&str> = rest.split_whitespace().collect();
+    let tpgid: u32 = fields.get(4)?.parse().ok()?;
+    if tpgid == shell_pid || tpgid == 0 {
+        return None;
+    }
+    let cmdline = std::fs::read_to_string(format!("/proc/{tpgid}/cmdline")).ok()?;
+    let first = cmdline.replace('\0', " ").trim().to_string();
+    if first.is_empty() || is_shell_process(first.split_whitespace().next().unwrap_or("")) {
+        return None;
+    }
+    Some(first)
+}
+
+/// Resolve the CWD of the shell process.
+#[cfg(target_os = "macos")]
+fn resolve_cwd(shell_pid: u32) -> Option<String> {
+    let out = std::process::Command::new("lsof")
+        .args(["-a", "-p", &shell_pid.to_string(), "-d", "cwd", "-Fn"])
+        .output()
+        .ok()?;
+    let s = std::str::from_utf8(&out.stdout).ok()?;
+    // lsof -Fn output has lines starting with 'n' followed by the path.
+    for line in s.lines() {
+        if let Some(rest) = line.strip_prefix('n') {
+            return Some(tilde_abbrev(rest));
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_cwd(shell_pid: u32) -> Option<String> {
+    std::fs::read_link(format!("/proc/{shell_pid}/cwd"))
+        .ok()
+        .and_then(|p| p.to_str().map(|s| tilde_abbrev(s)))
+}
+
 /// Returns true if a hook entry was created by Alfredo.
 /// Detects both old HTTP hooks (url contains marker) and new command hooks
 /// (command contains $ALFREDO_STATE_URL).
@@ -1393,5 +1542,32 @@ mod tests {
         let mut out = Vec::new();
         s.feed(b"prompt$ \x1b]0;vim\x07 some output", &mut out);
         assert_eq!(out, vec![OscEvent::Title(Some("vim".to_string()))]);
+    }
+
+    #[test]
+    fn tilde_abbrev_under_home() {
+        std::env::set_var("HOME", "/Users/chloe");
+        assert_eq!(tilde_abbrev("/Users/chloe/alfredo"), "~/alfredo");
+        assert_eq!(tilde_abbrev("/Users/chloe"), "~");
+        assert_eq!(tilde_abbrev("/Users/chloe/dev/alfredo/src"), "~/dev/alfredo/src");
+    }
+
+    #[test]
+    fn tilde_abbrev_outside_home() {
+        std::env::set_var("HOME", "/Users/chloe");
+        assert_eq!(tilde_abbrev("/tmp"), "/tmp");
+        assert_eq!(tilde_abbrev("/Users/someone-else/proj"), "/Users/someone-else/proj");
+    }
+
+    #[test]
+    fn shell_process_names_filtered() {
+        assert!(is_shell_process("zsh"));
+        assert!(is_shell_process("bash"));
+        assert!(is_shell_process("fish"));
+        assert!(is_shell_process("-zsh")); // login shell
+        assert!(is_shell_process("/bin/zsh"));
+        assert!(!is_shell_process("npm"));
+        assert!(!is_shell_process("vim"));
+        assert!(!is_shell_process("cargo"));
     }
 }
