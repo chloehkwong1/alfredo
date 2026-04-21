@@ -197,6 +197,7 @@ pub async fn refresh_if_needed(
 struct OAuthCallbackState {
     expected_state: String,
     result_tx: Mutex<Option<oneshot::Sender<Result<String, String>>>>,
+    shutdown_tx: Mutex<Option<oneshot::Sender<()>>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -210,10 +211,12 @@ struct CallbackParams {
 pub async fn start_oauth_flow() -> Result<(String, oneshot::Receiver<Result<String, String>>), AppError> {
     let state_param = uuid::Uuid::new_v4().to_string();
     let (result_tx, result_rx) = oneshot::channel();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
     let shared = Arc::new(OAuthCallbackState {
         expected_state: state_param.clone(),
         result_tx: Mutex::new(Some(result_tx)),
+        shutdown_tx: Mutex::new(Some(shutdown_tx)),
     });
 
     let app = Router::new()
@@ -226,11 +229,16 @@ pub async fn start_oauth_flow() -> Result<(String, oneshot::Receiver<Result<Stri
 
     let server_shared = Arc::clone(&shared);
     tokio::spawn(async move {
-        let server = axum::serve(listener, app);
-        let _ = tokio::time::timeout(
-            std::time::Duration::from_secs(120),
-            server.into_future(),
-        ).await;
+        let shutdown = async move {
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_secs(120),
+                shutdown_rx,
+            ).await;
+        };
+        let _ = axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown)
+            .into_future()
+            .await;
         if let Some(tx) = server_shared.result_tx.lock().await.take() {
             let _ = tx.send(Err("OAuth flow timed out".into()));
         }
@@ -264,6 +272,9 @@ async fn handle_oauth_callback(
     let is_ok = result.is_ok();
     if let Some(tx) = state.result_tx.lock().await.take() {
         let _ = tx.send(result);
+    }
+    if let Some(tx) = state.shutdown_tx.lock().await.take() {
+        let _ = tx.send(());
     }
 
     let html = if is_ok {
