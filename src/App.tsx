@@ -1,6 +1,5 @@
-import { Component, useState, type ReactNode } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import { AppShell } from "./components/layout/AppShell";
-import { AskButton } from "./components/askAlfredo/AskButton";
 import { HelpSearch } from "./components/askAlfredo/HelpSearch";
 import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { TooltipProvider } from "./components/ui";
@@ -99,10 +98,14 @@ class ErrorBoundary extends Component<
 function AppInner() {
   useGithubSync();
   const [askOpen, setAskOpen] = useState(false);
+  useEffect(() => {
+    const handler = () => setAskOpen((v) => !v);
+    window.addEventListener("alfredo:toggle-ask", handler);
+    return () => window.removeEventListener("alfredo:toggle-ask", handler);
+  }, []);
   return (
     <TooltipProvider>
       <AppShell />
-      <AskButton onClick={() => setAskOpen((v) => !v)} isOpen={askOpen} />
       <HelpSearch open={askOpen} onClose={() => setAskOpen(false)} />
     </TooltipProvider>
   );

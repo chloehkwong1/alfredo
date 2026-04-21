@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, BarChart3, Bug, Keyboard } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { Settings, Plus, HelpCircle } from "lucide-react";
 import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -52,14 +51,6 @@ function groupByColumn(
   return groups;
 }
 
-
-function openUsagePage() {
-  openUrl("https://claude.ai/settings/usage");
-}
-
-function openFeedbackPage() {
-  openUrl("https://github.com/chloehkwong1/alfredo/issues/new/choose");
-}
 
 function GitHubAuthBanner() {
   const authErrors = useWorkspaceStore((s) => s.githubAuthErrors);
@@ -266,14 +257,13 @@ function Sidebar({
           <CatLogo aria-label="Alfredo" width={22} height={22} className="flex-shrink-0 text-text-tertiary" />
         </div>
         <div className="flex items-center gap-2">
-          <IconButton size="sm" label="Report bug or request feature" className="rounded-[6px]" onClick={openFeedbackPage}>
-            <Bug />
-          </IconButton>
-          <IconButton size="sm" label="Usage" className="rounded-[6px]" onClick={openUsagePage}>
-            <BarChart3 />
-          </IconButton>
-          <IconButton size="sm" label="Keyboard shortcuts" className="rounded-[6px]" onClick={() => setShortcutsOpen(true)}>
-            <Keyboard />
+          <IconButton
+            size="sm"
+            label="Help"
+            className="rounded-[6px]"
+            onClick={() => window.dispatchEvent(new CustomEvent("alfredo:toggle-ask"))}
+          >
+            <HelpCircle />
           </IconButton>
           <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
             <Settings />
