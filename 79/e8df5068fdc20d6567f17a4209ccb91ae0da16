@@ -1,0 +1,23 @@
+src/components/layout/PaneTabBar.tsx
+  e0526eab05a1e96f 173-174,202,217,551
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "79e8df5068fdc20d6567f17a4209ccb91ae0da16",
+  "prompts": {
+    "e0526eab05a1e96f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf431a3b-6cb9-494e-bcfa-7a78d93ce463",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 3,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}
