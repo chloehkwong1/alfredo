@@ -362,6 +362,7 @@ function Sidebar({
                 />
                 <button
                   type="button"
+                  data-tour-id="create-worktree"
                   className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] border border-dashed border-accent-primary/25 text-accent-primary/70 text-sm font-medium hover:bg-accent-muted hover:border-accent-primary/40 hover:text-accent-primary transition-all cursor-pointer"
                   onClick={() => setCreateWorktreeOpen(true)}
                 >
@@ -385,6 +386,7 @@ function Sidebar({
               )}
               <button
                 type="button"
+                data-tour-id="setup-script"
                 className="text-xs text-text-tertiary hover:text-text-secondary hover:underline cursor-pointer transition-colors"
                 onClick={() => setWorkspaceSettingsOpen(true)}
               >

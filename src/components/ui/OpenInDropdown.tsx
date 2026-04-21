@@ -56,6 +56,7 @@ export function OpenInDropdown({ worktreePath, linearTicketUrl }: OpenInDropdown
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          data-tour-id="open-in-ide"
           className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-text-secondary bg-bg-hover border border-border-default rounded-[var(--radius-sm)] hover:text-text-primary hover:border-border-hover transition-colors cursor-pointer"
         >
           <ExternalLink size={11} />

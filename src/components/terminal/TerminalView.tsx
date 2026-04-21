@@ -407,6 +407,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         )}
         <div
           ref={containerRef}
+          data-tour-id="agent-terminal"
           className="h-full pl-1 pr-0.5"
           onClick={() => ptyTerminal?.focus()}
         />
