@@ -31,7 +31,7 @@ fn updater_endpoint_urls(receive_beta: bool) -> Vec<url::Url> {
         .collect()
 }
 
-use commands::{agents, app_config, app_detection, audio, branch, checks, config, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -107,6 +107,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Audio
             audio::play_sound,
+            // Ask Alfredo
+            ask_alfredo_cmd::ask_alfredo,
             // App Config
             app_config::get_app_config,
             app_config::save_app_config,
