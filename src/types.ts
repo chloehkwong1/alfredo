@@ -20,7 +20,10 @@ export type PtyEvent =
   | { event: "output"; data: number[] }
   | { event: "agentState"; data: AgentState }
   | { event: "hookAgentState"; data: { state: AgentState; notify: NotifyReason; phase: HookPhase } }
-  | { event: "heartbeat" };
+  | { event: "heartbeat" }
+  | { event: "title"; data: string | null }
+  | { event: "process"; data: string | null }
+  | { event: "cwd"; data: string | null };
 
 /** Hook lifecycle phase — mirrors the Rust `HookPhase` enum. */
 export type HookPhase = "none" | "promptStart" | "toolStart" | "toolEnd" | "turnEnd" | "subagentEnd";

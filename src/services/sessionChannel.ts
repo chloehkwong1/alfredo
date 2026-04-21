@@ -3,6 +3,7 @@ import { sendNotification, playSoundById } from "../hooks/notificationUtils";
 import { createPtyChannel, getAppConfig } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
+import { useTabStore } from "../stores/tabStore";
 import type { ManagedSession } from "./sessionTypes";
 import { stripClearScrollback } from "./terminalFactory";
 
@@ -208,6 +209,18 @@ export function createSessionChannel(
       }
       case "heartbeat": {
         session.lastHeartbeat = Date.now();
+        break;
+      }
+      case "title": {
+        useTabStore.getState().setTabTitle(worktreeId, sessionKey, event.data ?? null);
+        break;
+      }
+      case "process": {
+        useTabStore.getState().setTabProcess(worktreeId, sessionKey, event.data ?? null);
+        break;
+      }
+      case "cwd": {
+        useTabStore.getState().setTabCwd(worktreeId, sessionKey, event.data ?? null);
         break;
       }
       case "hookAgentState": {
