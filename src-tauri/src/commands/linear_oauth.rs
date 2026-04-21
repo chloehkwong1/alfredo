@@ -83,7 +83,7 @@ pub async fn linear_oauth_status(app: AppHandle) -> Result<LinearOAuthStatus> {
             Ok(LinearOAuthStatus { connected: false, display_name: None })
         }
         linear_manager::ViewerResult::Transient { reason } => {
-            tracing::warn!(%reason, "linear viewer transient failure; keeping tokens");
+            tracing::warn!(reason, "linear viewer transient failure; keeping tokens");
             // Optimistic: keep tokens, report connected. Next mount revalidates.
             Ok(LinearOAuthStatus { connected: true, display_name: None })
         }
