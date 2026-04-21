@@ -17,10 +17,31 @@ pub async fn get_app_config(app: AppHandle) -> Result<GlobalAppConfig, AppError>
     app_config_manager::load(&dir).await
 }
 
+/// Save the UI-managed portion of `app.json`.
+///
+/// The frontend holds its own snapshot of `GlobalAppConfig` and may send us a
+/// stale copy (e.g. the onboarding dialog loads config, then the user connects
+/// Linear, then the dialog saves — the dialog's `config.linearOauth` is null).
+/// To stop that wiping backend-owned state, we load the current on-disk config
+/// and copy backend-managed fields from disk before writing. The incoming
+/// `config` is only trusted for frontend-owned fields.
+///
+/// Backend-owned fields (do NOT copy from the incoming blob):
+///   - `linear_oauth` — written by `linear_oauth_start` / `refresh_if_needed`.
+///
+/// When a new backend-managed field is added (e.g. `linear_oauth_last_error`
+/// in B4), add it to the preserve list below.
 #[tauri::command]
 pub async fn save_app_config(app: AppHandle, config: GlobalAppConfig) -> Result<(), AppError> {
     let dir = app_data_dir(&app)?;
-    app_config_manager::save(&dir, &config).await
+    let on_disk = app_config_manager::load(&dir).await?;
+
+    let merged = GlobalAppConfig {
+        linear_oauth: on_disk.linear_oauth,
+        ..config
+    };
+
+    app_config_manager::save(&dir, &merged).await
 }
 
 #[tauri::command]
