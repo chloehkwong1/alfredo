@@ -21,6 +21,7 @@ import {
   linearOAuthStatus,
   linearOAuthDisconnect,
 } from "../../api";
+import type { LinearOAuthCompletePayload } from "../../api";
 import type { AppConfig, RepoMode, Worktree } from "../../types";
 
 interface RepoSetupDialogProps {
@@ -202,15 +203,11 @@ function RepoSetupDialog({
   useEffect(() => {
     if (!isOpen) return;
 
-    const unlistenComplete = listen("linear-oauth-complete", () => {
-      linearOAuthStatus()
-        .then((status) => {
-          setLinearState({
-            step: "connected",
-            displayName: status.displayName ?? "Connected",
-          });
-        })
-        .catch(() => setLinearState({ step: "connected", displayName: "Connected" }));
+    const unlistenComplete = listen<LinearOAuthCompletePayload>("linear-oauth-complete", (event) => {
+      setLinearState({
+        step: "connected",
+        displayName: event.payload.displayName ?? "Connected",
+      });
     });
 
     const unlistenError = listen<string>("linear-oauth-error", (event) => {

@@ -237,6 +237,10 @@ export function linearOAuthDisconnect(): Promise<void> {
   return invoke("linear_oauth_disconnect");
 }
 
+export interface LinearOAuthCompletePayload {
+  displayName: string | null;
+}
+
 export interface LinearOAuthStatus {
   connected: boolean;
   displayName: string | null;

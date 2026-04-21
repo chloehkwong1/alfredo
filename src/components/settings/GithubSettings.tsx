@@ -12,6 +12,7 @@ import {
   linearOAuthDisconnect,
   linearOAuthStatus,
 } from "../../api";
+import type { LinearOAuthCompletePayload } from "../../api";
 
 interface GithubSettingsProps {
   repoPath: string;
@@ -109,15 +110,11 @@ function GithubSettings({
 
   // Listen for OAuth completion/error events
   useEffect(() => {
-    const unlistenComplete = listen("linear-oauth-complete", () => {
-      linearOAuthStatus()
-        .then((status) => {
-          setLinearState({
-            step: "connected",
-            displayName: status.displayName ?? "Connected",
-          });
-        })
-        .catch(() => setLinearState({ step: "connected", displayName: "Connected" }));
+    const unlistenComplete = listen<LinearOAuthCompletePayload>("linear-oauth-complete", (event) => {
+      setLinearState({
+        step: "connected",
+        displayName: event.payload.displayName ?? "Connected",
+      });
     });
 
     const unlistenError = listen<string>("linear-oauth-error", (event) => {

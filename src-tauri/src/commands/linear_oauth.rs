@@ -33,7 +33,14 @@ pub async fn linear_oauth_start(app: AppHandle) -> Result<()> {
                             let _ = app_clone.emit("linear-oauth-error", format!("Failed to save tokens: {e}"));
                             return;
                         }
-                        let _ = app_clone.emit("linear-oauth-complete", ());
+                        // No re-validation here. The access token is valid by construction
+                        // from Linear's token endpoint; re-validating risks hitting Linear's
+                        // token-propagation window and wiping a good token. The displayName
+                        // resolves later when Settings' on-mount status call fires.
+                        let _ = app_clone.emit(
+                            "linear-oauth-complete",
+                            serde_json::json!({ "displayName": serde_json::Value::Null }),
+                        );
                     }
                     Err(e) => {
                         let _ = app_clone.emit("linear-oauth-error", e.to_string());
