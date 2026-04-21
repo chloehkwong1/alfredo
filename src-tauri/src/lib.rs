@@ -11,6 +11,7 @@ mod github_sync;
 mod keychain;
 mod linear_manager;
 mod linear_oauth;
+mod logging;
 mod patch_parser;
 mod pty_manager;
 mod sleep_inhibitor;
@@ -56,6 +57,7 @@ pub fn run() {
         })
         .manage(StackState::new())
         .setup(|app| {
+            crate::logging::init();
             // Replace the default macOS menu with one that omits the "Help"
             // submenu. macOS binds ⌘⇧? to the Help menu's search field at the
             // OS level, which swallows our keyboard-shortcuts overlay binding
