@@ -1,0 +1,23 @@
+README.md
+  915f1ef3d8374996 55,71-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "ab296d1490293473be1cdb319ffaeee9924f5a44",
+  "prompts": {
+    "915f1ef3d8374996": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9fcdd780-e033-47fd-bed7-2646f3ef95a6",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 1,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}
