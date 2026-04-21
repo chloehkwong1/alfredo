@@ -466,3 +466,15 @@ export function detectInstalledApps(): Promise<InstalledApp[]> {
 export function openInApp(appId: string, path: string): Promise<void> {
   return invoke("open_in_app", { appId, path });
 }
+
+// ── Ask Alfredo ───────────────────────────────────────────────
+
+export interface AskAlfredoAnswer {
+  answer: string;
+  uiPath: string | null;
+  confidence: "high" | "low";
+}
+
+export function askAlfredo(question: string): Promise<AskAlfredoAnswer> {
+  return invoke<AskAlfredoAnswer>("ask_alfredo", { question });
+}
