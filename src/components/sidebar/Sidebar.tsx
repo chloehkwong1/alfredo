@@ -221,6 +221,17 @@ function Sidebar({
     return () => window.removeEventListener("open-global-settings", handler);
   }, []);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+  useEffect(() => {
+    const toggle = () => setAskOpen((v) => !v);
+    const close = () => setAskOpen(false);
+    window.addEventListener("alfredo:toggle-ask", toggle);
+    window.addEventListener("alfredo:close-ask", close);
+    return () => {
+      window.removeEventListener("alfredo:toggle-ask", toggle);
+      window.removeEventListener("alfredo:close-ask", close);
+    };
+  }, []);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
   const [deletingCount, setDeletingCount] = useState<{ current: number; total: number } | null>(null);
@@ -259,8 +270,10 @@ function Sidebar({
         <div className="flex items-center gap-2">
           <IconButton
             size="sm"
-            label="Help"
-            className="rounded-[6px]"
+            label="Ask Alfredo"
+            data-ask-trigger=""
+            aria-expanded={askOpen}
+            className={`rounded-[6px] ${askOpen ? "bg-accent-muted text-accent-primary hover:bg-accent-muted hover:text-accent-primary" : ""}`}
             onClick={() => window.dispatchEvent(new CustomEvent("alfredo:toggle-ask"))}
           >
             <HelpCircle />
