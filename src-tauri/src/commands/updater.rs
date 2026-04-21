@@ -7,6 +7,7 @@ use tauri_plugin_updater::UpdaterExt;
 pub struct PendingUpdate(pub(crate) tokio::sync::Mutex<Option<tauri_plugin_updater::Update>>);
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {
     pub version: String,
     pub current_version: String,
