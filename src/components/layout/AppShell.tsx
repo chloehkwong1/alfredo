@@ -10,6 +10,7 @@ import { WorkspacePanel, WorkspacePanelMinimized } from "../changes/ChangesPanel
 import { RepoWelcomeScreen } from "../onboarding/RepoWelcomeScreen";
 import { AddRepoModal } from "../onboarding/AddRepoModal";
 import { RepoSetupDialog } from "../onboarding/RepoSetupDialog";
+import { QuickStartPanel } from "../onboarding/QuickStartPanel";
 import { RemoveRepoDialog } from "../sidebar/RemoveRepoDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -404,6 +405,7 @@ function AppShell() {
           onOpenChange={setCommandPaletteOpen}
         />
       </SectionErrorBoundary>
+      <QuickStartPanel />
     </Group>
   );
 }

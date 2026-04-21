@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { X, Search, ChevronRight, Keyboard, Bug, BarChart3 } from "lucide-react";
+import { X, Search, ChevronRight, Keyboard, Bug, BarChart3, Compass } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getVersion } from "@tauri-apps/api/app";
 import { CatLogo } from "../ui/CatLogo";
@@ -380,6 +380,14 @@ export function HelpSearch({ open, onClose }: HelpSearchProps) {
               gap: 2,
             }}
           >
+            <QuickAction
+              icon={<Compass size={13} />}
+              label="Take the quick-start tour"
+              onClick={() => {
+                onClose();
+                window.dispatchEvent(new Event("alfredo:open-quickstart"));
+              }}
+            />
             <QuickAction
               icon={<Keyboard size={13} />}
               label="Keyboard shortcuts"
