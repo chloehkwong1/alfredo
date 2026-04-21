@@ -56,6 +56,32 @@ pub fn run() {
         })
         .manage(StackState::new())
         .setup(|app| {
+            // Replace the default macOS menu with one that omits the "Help"
+            // submenu. macOS binds ⌘⇧? to the Help menu's search field at the
+            // OS level, which swallows our keyboard-shortcuts overlay binding
+            // before it reaches the webview.
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::Menu;
+                let menu = Menu::default(app.handle())?;
+                let items = menu.items()?;
+                // Help is always the last submenu in the macOS default menu.
+                // Match by title first; fall back to positional removal so
+                // non-English locales (Aide, Ayuda, …) still work.
+                let help_idx = items
+                    .iter()
+                    .position(|item| {
+                        item.as_submenu()
+                            .and_then(|s| s.text().ok())
+                            .is_some_and(|t| t == "Help")
+                    })
+                    .or_else(|| items.len().checked_sub(1));
+                if let Some(i) = help_idx {
+                    menu.remove_at(i)?;
+                }
+                app.set_menu(menu)?;
+            }
+
             // Migrate legacy single-repo config to app.json
             let app_data = app.path().app_data_dir()
                 .map_err(|e| format!("failed to resolve app data dir: {e}"))?;

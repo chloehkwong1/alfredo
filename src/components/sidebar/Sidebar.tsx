@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, HelpCircle, BarChart3, Bug } from "lucide-react";
+import { Settings, Plus, BarChart3, Bug, Keyboard } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
@@ -273,7 +273,7 @@ function Sidebar({
             <BarChart3 />
           </IconButton>
           <IconButton size="sm" label="Keyboard shortcuts" className="rounded-[6px]" onClick={() => setShortcutsOpen(true)}>
-            <HelpCircle />
+            <Keyboard />
           </IconButton>
           <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
             <Settings />

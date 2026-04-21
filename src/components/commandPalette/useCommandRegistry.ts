@@ -263,7 +263,7 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       id: "go-to-keyboard-shortcuts",
       label: "Keyboard shortcuts",
       category: "navigation",
-      shortcut: "⌘?",
+      shortcut: "⌘⇧?",
       icon: Keyboard,
       action: () => window.dispatchEvent(new CustomEvent("alfredo:shortcuts-overlay")),
       enabled: () => true,
