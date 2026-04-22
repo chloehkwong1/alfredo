@@ -150,10 +150,12 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     const discover = () => {
       findClaudeSession(worktree.path).then((fsSessionId) => {
         if (fsSessionId && activeWorktreeId && tabId) {
-          const current = useTabStore.getState().tabs[activeWorktreeId]?.find((t) => t.id === tabId)?.resumeSessionId;
-          if (fsSessionId !== current) {
-            setResumeSessionId(activeWorktreeId, tabId, fsSessionId, worktree.path);
-          }
+          // Always call setResumeSessionId, even when the UUID hasn't
+          // changed: a previous poll may have fetched the summary before
+          // Claude wrote its first `last-prompt`, and we need to retry.
+          // The helper skips the setTabSummary write when the fetched
+          // summary would clobber an existing one with a transient null.
+          setResumeSessionId(activeWorktreeId, tabId, fsSessionId, worktree.path);
         }
       }).catch((e) => {
         console.warn(`[TerminalView] Failed to discover Claude session for ${worktree.path}:`, e);
@@ -166,8 +168,10 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       discover();
     }
 
-    // Re-discover every 30s to catch session changes (e.g. /clear)
-    const interval = setInterval(discover, 30_000);
+    // Re-discover every 5s to catch session changes (e.g. /clear creating a
+    // new session UUID) and to retry the summary fetch if Claude hadn't
+    // written a last-prompt by the previous poll.
+    const interval = setInterval(discover, 5_000);
     return () => clearInterval(interval);
   }, [hasOutput, isAgentTab, activeWorktreeId, worktree?.path, tabId]);
 

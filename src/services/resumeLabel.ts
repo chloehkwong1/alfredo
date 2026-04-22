@@ -17,12 +17,23 @@ export function setResumeSessionId(
   sessionId: string | undefined,
   worktreePath: string,
 ): void {
-  const { updateTab, setTabSummary } = useTabStore.getState();
-  updateTab(worktreeId, tabId, { resumeSessionId: sessionId });
+  const store = useTabStore.getState();
+  const prevSessionId = store.tabs[worktreeId]?.find((t) => t.id === tabId)
+    ?.resumeSessionId;
+  const sessionChanged = prevSessionId !== sessionId;
+
+  store.updateTab(worktreeId, tabId, { resumeSessionId: sessionId });
 
   if (!sessionId) {
-    setTabSummary(worktreeId, tabId, null);
+    store.setTabSummary(worktreeId, tabId, null);
     return;
+  }
+
+  // On session rotation, eagerly clear the stale summary so the old label
+  // doesn't linger while we fetch. Same-session polls keep the existing
+  // summary until a non-null fetch replaces it.
+  if (sessionChanged) {
+    store.setTabSummary(worktreeId, tabId, null);
   }
 
   getSessionSummary(sessionId, worktreePath)
@@ -33,6 +44,10 @@ export function setResumeSessionId(
         .getState()
         .tabs[worktreeId]?.find((t) => t.id === tabId)?.resumeSessionId;
       if (current !== sessionId) return;
+      // Avoid clobbering a good summary with a transient null — e.g. the
+      // next poll after /clear where Claude hasn't written last-prompt yet.
+      // The eager clear above already handled the session-rotation case.
+      if (summary === null && !sessionChanged) return;
       useTabStore.getState().setTabSummary(worktreeId, tabId, summary);
     })
     .catch((e) => {
