@@ -8,7 +8,6 @@ import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { sessionManager } from "../../services/sessionManager";
-import { setResumeSessionId } from "../../services/resumeLabel";
 import { writePty, getConfig, getAppConfig, findClaudeSession } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
@@ -149,29 +148,12 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
     const discover = () => {
       findClaudeSession(worktree.path).then((fsSessionId) => {
-        if (!fsSessionId || !activeWorktreeId || !tabId) return;
-
-        const tabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
-        const ourCurrent = tabs.find((t) => t.id === tabId)?.resumeSessionId;
-
-        // Same-session poll: re-fetch summary in case Claude hadn't
-        // written last-prompt yet on a prior poll. The helper skips the
-        // write when it would clobber an existing summary with a null.
-        if (fsSessionId === ourCurrent) {
-          setResumeSessionId(activeWorktreeId, tabId, fsSessionId, worktree.path);
-          return;
+        if (fsSessionId && activeWorktreeId && tabId) {
+          const current = useTabStore.getState().tabs[activeWorktreeId]?.find((t) => t.id === tabId)?.resumeSessionId;
+          if (fsSessionId !== current) {
+            useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: fsSessionId });
+          }
         }
-
-        // Different UUID from ours. `findClaudeSession` returns the single
-        // most-recent JSONL in the project dir, which in multi-tab worktrees
-        // is whichever sibling tab was touched last — not this tab's session.
-        // Skip adoption when a sibling tab already owns the discovered UUID.
-        const ownedBySibling = tabs.some(
-          (t) => t.id !== tabId && t.resumeSessionId === fsSessionId,
-        );
-        if (ownedBySibling) return;
-
-        setResumeSessionId(activeWorktreeId, tabId, fsSessionId, worktree.path);
       }).catch((e) => {
         console.warn(`[TerminalView] Failed to discover Claude session for ${worktree.path}:`, e);
       });
@@ -183,10 +165,8 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       discover();
     }
 
-    // Re-discover every 5s to catch session changes (e.g. /clear creating a
-    // new session UUID) and to retry the summary fetch if Claude hadn't
-    // written a last-prompt by the previous poll.
-    const interval = setInterval(discover, 5_000);
+    // Re-discover every 30s to catch session changes (e.g. /clear)
+    const interval = setInterval(discover, 30_000);
     return () => clearInterval(interval);
   }, [hasOutput, isAgentTab, activeWorktreeId, worktree?.path, tabId]);
 
@@ -230,11 +210,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     // Clear the stale resumeSessionId so the discovery effect can find the
     // new session that the fresh Claude instance will create.
     hasDiscoveredSession.current = false;
-    if (worktree?.path) {
-      setResumeSessionId(activeWorktreeId, tabId, undefined, worktree.path);
-    } else {
-      useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: undefined });
-    }
+    useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: undefined });
 
     await sessionManager.closeSession(sessionKey);
     setReconnectKey((k) => k + 1);

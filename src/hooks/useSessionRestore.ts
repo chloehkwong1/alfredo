@@ -5,7 +5,6 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
-import { setResumeSessionId } from "../services/resumeLabel";
 import { usePrStore } from "../stores/prStore";
 import { isAgentTab } from "../types";
 import type { RepoEntry, Worktree } from "../types";
@@ -19,6 +18,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
   const clearWorktreesForRepo = useWorkspaceStore((s) => s.clearWorktreesForRepo);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useTabStore((s) => s.restoreTabs);
+  const updateTab = useTabStore((s) => s.updateTab);
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   const markWorktreeSeen = useWorkspaceStore((s) => s.markWorktreeSeen);
   const restoredRepos = useRef(new Set<string>());
@@ -196,7 +196,7 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                 const sessionId = latestSessionId ?? tabsWithSession[0]?.resumeSessionId ?? session.claudeSessionId ?? null;
                 if (sessionId) {
                   wt.claudeSessionId = sessionId;
-                  setResumeSessionId(wt.id, agentTabs[0].id, sessionId, wt.path);
+                  updateTab(wt.id, agentTabs[0].id, { resumeSessionId: sessionId });
                 }
               } else {
                 // Multiple agent tabs: preserve per-tab sessions (each tab
@@ -206,16 +206,8 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
                   const fallbackSessionId = latestSessionId ?? session.claudeSessionId ?? null;
                   if (fallbackSessionId) {
                     for (const tab of tabsWithoutSession) {
-                      setResumeSessionId(wt.id, tab.id, fallbackSessionId, wt.path);
+                      updateTab(wt.id, tab.id, { resumeSessionId: fallbackSessionId });
                     }
-                  }
-                }
-                // For tabs that already had a resumeSessionId from restoreTabs,
-                // fetch their summary (the single-agent path above already
-                // calls setResumeSessionId, which covers that case).
-                for (const tab of tabsWithSession) {
-                  if (tab.resumeSessionId) {
-                    setResumeSessionId(wt.id, tab.id, tab.resumeSessionId, wt.path);
                   }
                 }
                 if (tabsWithSession.length > 0) {

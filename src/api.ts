@@ -442,13 +442,6 @@ export function findClaudeSession(worktreePath: string): Promise<string | null> 
   return invoke("find_claude_session", { worktreePath });
 }
 
-export function getSessionSummary(
-  sessionId: string,
-  worktreePath: string,
-): Promise<string | null> {
-  return invoke("get_session_summary", { sessionId, worktreePath });
-}
-
 export function openInEditor(
   path: string,
   editor: string,

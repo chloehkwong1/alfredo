@@ -17,27 +17,14 @@ function getDefaultAgent(): TabType {
 
 interface TabLabelInputs {
   titleFromOsc: string | null;
-  summaryFromJsonl: string | null;
   foregroundProcess: string | null;
   cwd: string | null;
-}
-
-/**
- * Claude Code emits `<spinner-glyph> Claude Code` as its default OSC title
- * while idle or busy on an unnamed conversation — not descriptive. Ignore
- * those so `summaryFromJsonl` can surface instead. Real topic titles like
- * `✳ Open pull request workflow` don't end in "Claude Code" and pass through.
- */
-function isGenericClaudeOscTitle(title: string | null): boolean {
-  if (!title) return false;
-  return /(^|\s)Claude Code$/.test(title);
 }
 
 /** Derive the effective dynamic label from raw inputs. First match wins. */
 function deriveDynamicLabel(inputs: TabLabelInputs | undefined): string | null {
   if (!inputs) return null;
-  const osc = isGenericClaudeOscTitle(inputs.titleFromOsc) ? null : inputs.titleFromOsc;
-  return osc ?? inputs.summaryFromJsonl ?? inputs.foregroundProcess ?? inputs.cwd ?? null;
+  return inputs.titleFromOsc ?? inputs.foregroundProcess ?? inputs.cwd ?? null;
 }
 
 function applyLabelInput(
@@ -48,7 +35,6 @@ function applyLabelInput(
 ): Partial<TabState> {
   const prev = state.labelInputs[tabId] ?? {
     titleFromOsc: null,
-    summaryFromJsonl: null,
     foregroundProcess: null,
     cwd: null,
   };
@@ -88,8 +74,6 @@ interface TabState {
   clearStore: () => void;
   /** Set the OSC-emitted title for a tab. `null` clears it. */
   setTabTitle: (worktreeId: string, tabId: string, title: string | null) => void;
-  /** Set the JSONL-derived conversation summary. `null` clears it. */
-  setTabSummary: (worktreeId: string, tabId: string, summary: string | null) => void;
   /** Set the foreground process command for a tab. `null` = no process. */
   setTabProcess: (worktreeId: string, tabId: string, process: string | null) => void;
   /** Set the CWD for a tab. `null` = unknown. */
@@ -298,9 +282,6 @@ export const useTabStore = create<TabState>((set, get) => ({
 
   setTabTitle: (worktreeId, tabId, title) =>
     set((state) => applyLabelInput(state, worktreeId, tabId, { titleFromOsc: title })),
-
-  setTabSummary: (worktreeId, tabId, summary) =>
-    set((state) => applyLabelInput(state, worktreeId, tabId, { summaryFromJsonl: summary })),
 
   setTabProcess: (worktreeId, tabId, process) =>
     set((state) => applyLabelInput(state, worktreeId, tabId, { foregroundProcess: process })),

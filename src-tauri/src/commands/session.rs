@@ -1,6 +1,5 @@
 use crate::types::AppError;
 use tauri::Manager;
-use tokio::io::AsyncBufReadExt;
 
 type Result<T> = std::result::Result<T, AppError>;
 
@@ -69,102 +68,6 @@ pub async fn find_claude_session(worktree_path: String) -> Result<Option<String>
     }
 
     Ok(best.map(|(uuid, _)| uuid))
-}
-
-/// Maximum length of the returned summary. Keeps IPC messages compact and
-/// bounds memory if a user pastes a huge prompt. Tab UI truncates further
-/// via CSS.
-const SUMMARY_MAX_CHARS: usize = 80;
-
-/// Maximum number of JSONL lines to scan looking for the first `last-prompt`
-/// entry. Claude writes it early in the file, but we cap so a malformed
-/// session without any `last-prompt` can't OOM us.
-const SUMMARY_MAX_LINES_SCANNED: usize = 5_000;
-
-/// Read the first user prompt from a Claude Code session JSONL and return it
-/// as a truncated string, suitable for use as a tab label.
-///
-/// Returns `Ok(None)` when:
-/// - the project directory doesn't exist,
-/// - the session `.jsonl` file doesn't exist,
-/// - the file contains no `last-prompt` entries within the scan cap.
-///
-/// Errors only on unexpected IO failures (permissions, disk).
-#[tauri::command]
-pub async fn get_session_summary(
-    session_id: String,
-    worktree_path: String,
-) -> Result<Option<String>> {
-    let home = std::env::var("HOME").map(std::path::PathBuf::from).map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::NotFound, "could not determine home directory")
-    })?;
-    let projects_dir = home.join(".claude").join("projects");
-
-    let needle = normalize_project_dir(&worktree_path.replace('/', "-"));
-
-    // Find the matching project directory (same tolerance as find_claude_session).
-    let mut dir_listing = match tokio::fs::read_dir(&projects_dir).await {
-        Ok(rd) => rd,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e.into()),
-    };
-
-    let mut jsonl_path: Option<std::path::PathBuf> = None;
-    while let Some(entry) = dir_listing.next_entry().await? {
-        let name = entry.file_name();
-        let Some(name_str) = name.to_str() else { continue };
-        if normalize_project_dir(name_str) != needle {
-            continue;
-        }
-        let candidate = entry.path().join(format!("{session_id}.jsonl"));
-        if tokio::fs::try_exists(&candidate).await.unwrap_or(false) {
-            jsonl_path = Some(candidate);
-            break;
-        }
-    }
-
-    let Some(jsonl_path) = jsonl_path else { return Ok(None) };
-
-    let file = match tokio::fs::File::open(&jsonl_path).await {
-        Ok(f) => f,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e.into()),
-    };
-
-    let reader = tokio::io::BufReader::new(file);
-    let mut lines = reader.lines();
-    let mut scanned = 0usize;
-
-    while let Some(line) = lines.next_line().await? {
-        scanned += 1;
-        if scanned > SUMMARY_MAX_LINES_SCANNED {
-            break;
-        }
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) else { continue };
-        if value.get("type").and_then(|v| v.as_str()) != Some("last-prompt") {
-            continue;
-        }
-        let Some(prompt) = value.get("lastPrompt").and_then(|v| v.as_str()) else { continue };
-        let trimmed = prompt.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        return Ok(Some(truncate_chars(trimmed, SUMMARY_MAX_CHARS)));
-    }
-
-    Ok(None)
-}
-
-/// Truncate a string to at most `max` chars (not bytes). Appends an ellipsis
-/// only if truncation occurred.
-fn truncate_chars(s: &str, max: usize) -> String {
-    let mut chars = s.chars();
-    let head: String = chars.by_ref().take(max).collect();
-    if chars.next().is_some() {
-        format!("{head}…")
-    } else {
-        head
-    }
 }
 
 /// Sanitise a worktree ID for use as a flat filename.
