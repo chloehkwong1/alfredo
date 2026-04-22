@@ -22,8 +22,11 @@ https://github.com/chloehkwong1/alfredo/releases.
 - **"Pinned only" filter** in the sidebar (appears once you have pins).
 - **Rolling file logger** in release builds for post-mortem debugging.
 - **Linear OAuth stability** — transient errors no longer wipe tokens.
+- **Tab cycling** — ⌘⌥← / ⌘⌥→ step through tabs in order.
+- **Native titlebar** on macOS now matches the selected theme.
 - Various fixes: GitHub sync rate-limit handling, session-status
-  flicker, config persistence, updater/Linear camelCase serialization.
+  flicker, config persistence, updater/Linear camelCase serialization,
+  terminal font preload race that could blank the WebGL atlas.
 
 **v0.8.1 — 2026-04-21**
 - Notification sounds now play via a native Rust audio pipeline for

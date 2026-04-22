@@ -10,8 +10,9 @@ a worktree by its position in the sidebar, ⌘N creates a new worktree,
 ⌘⇧R opens the Add Repository dialog, and ⌘⇧P opens the command palette
 for fuzzy-searching actions.
 
-For tabs and panes, ⌘T opens a new tab, ⌘W closes the current one, and
-⌘\ / ⌘⇧\ split the pane right or down. ⌘B toggles the sidebar and ⌘I
+For tabs and panes, ⌘T opens a new tab, ⌘W closes the current one,
+⌘⌥← / ⌘⌥→ cycle between open tabs, and ⌘\ / ⌘⇧\ split the pane right
+or down. ⌘B toggles the sidebar and ⌘I
 (or ⌘⇧C) toggles the Changes panel. Inside a terminal, ⌘K clears the
 buffer, ⌘F searches it, and ⌘+ / ⌘− / ⌘0 control zoom. In the diff view,
 ] or n jumps to the next file, [ or p jumps back, and x collapses the
