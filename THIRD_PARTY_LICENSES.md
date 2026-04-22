@@ -51,3 +51,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Fonts
+
+Alfredo bundles the following terminal fonts so xterm.js has a real regular + bold face on every install. All are distributed under the SIL Open Font License 1.1. Full license and copyright text for each is preserved alongside the font files in `src/assets/fonts/`.
+
+- **JetBrains Mono** — Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono). See `src/assets/fonts/JetBrainsMono-OFL.txt`.
+- **Fira Code** — Copyright 2014 The Fira Code Project Authors (https://github.com/tonsky/FiraCode). See `src/assets/fonts/FiraCode-OFL.txt`.
+- **Cascadia Code** — Copyright Microsoft Corporation (https://github.com/microsoft/cascadia-code). See `src/assets/fonts/CascadiaCode-OFL.txt`.

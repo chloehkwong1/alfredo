@@ -123,6 +123,24 @@ export function usePty({
       sessionRef.current = session;
       const { terminal: term, fitAddon } = session;
 
+      // Wait for the active terminal font (regular + bold) BEFORE any renderer
+      // gets to paint — otherwise the first frame rasterizes against the
+      // fallback font and xterm's atlas bakes synthetic-bold glyphs, producing
+      // a blurry/glowing look that persists until the next reload (GH#19).
+      // The `"${family}", monospace` shape is set by terminalFactory and
+      // sessionManager — split handles it but isn't a general CSS parser.
+      try {
+        const fam = term.options.fontFamily?.split(",")[0].trim().replace(/^"|"$/g, "") ?? "monospace";
+        const size = term.options.fontSize ?? 13;
+        await Promise.all([
+          document.fonts.load(`${size}px "${fam}"`),
+          document.fonts.load(`bold ${size}px "${fam}"`),
+        ]);
+      } catch {
+        // Font loading API failed — proceed anyway.
+      }
+      if (disposed) return;
+
       if (term.element) {
         container.appendChild(term.element);
         // Force a full redraw — canvas/WebGL content may be stale after DOM detach
@@ -150,6 +168,19 @@ export function usePty({
             }
           });
           term.loadAddon(webgl);
+          // Defense-in-depth for GH#19: once all pending font loads settle,
+          // clear the atlas and repaint. `document.fonts.load` resolves on
+          // file fetch; the atlas may still have been rasterized before glyph
+          // paints were ready. Rebaking once fonts.ready is cheap insurance.
+          document.fonts.ready.then(() => {
+            if (disposed) return;
+            try {
+              webgl.clearTextureAtlas();
+              term.refresh(0, term.rows - 1);
+            } catch {
+              // addon may have been disposed
+            }
+          });
         } catch {
           // WebGL unavailable — canvas renderer is fine
         }

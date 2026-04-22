@@ -32,6 +32,10 @@ export class SessionManager implements SessionWriter {
 
   private reconcileTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** Incremented on each applyPreferences call so a slower-resolving font-load
+   * from an older call can't stamp its fontFamily over a newer one. */
+  private prefsSeq = 0;
+
   /** Start the global reconciler if not already running. Idempotent. */
   private startReconciler(): void {
     if (this.reconcileTimer !== null) return;
@@ -588,20 +592,36 @@ export class SessionManager implements SessionWriter {
 
   /** Apply terminal preferences to all existing sessions. */
   applyPreferences(prefs: TerminalPreferences): void {
+    // Apply non-font options synchronously so UI feels responsive; defer the
+    // fontFamily swap until regular + bold are loaded, otherwise xterm rebuilds
+    // its WebGL atlas against the fallback font and we get synthetic-bold blur
+    // (GH#19) until the next reload.
     for (const session of this.sessions.values()) {
       const { terminal } = session;
-      terminal.options.fontFamily = `"${prefs.fontFamily}", monospace`;
       terminal.options.fontSize = prefs.fontSize;
       terminal.options.lineHeight = prefs.lineHeight;
       terminal.options.letterSpacing = prefs.letterSpacing;
       terminal.options.cursorStyle = prefs.cursorStyle;
       terminal.options.cursorBlink = prefs.cursorBlink;
-      try {
-        session.fitAddon.fit();
-      } catch {
-        // Terminal may not be attached to DOM
-      }
     }
+
+    const seq = ++this.prefsSeq;
+    Promise.all([
+      document.fonts.load(`${prefs.fontSize}px "${prefs.fontFamily}"`),
+      document.fonts.load(`bold ${prefs.fontSize}px "${prefs.fontFamily}"`),
+    ]).finally(() => {
+      // Bail if a newer applyPreferences call superseded us — otherwise a
+      // slower-loading older font could stamp itself over the new family.
+      if (seq !== this.prefsSeq) return;
+      for (const session of this.sessions.values()) {
+        session.terminal.options.fontFamily = `"${prefs.fontFamily}", monospace`;
+        try {
+          session.fitAddon.fit();
+        } catch {
+          // Terminal may not be attached to DOM
+        }
+      }
+    });
   }
 
   /** Get all active session keys. */
