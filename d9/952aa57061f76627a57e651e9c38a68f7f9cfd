@@ -1,0 +1,44 @@
+src/components/sidebar/Sidebar.tsx
+  2fb83831f5298fcf 2,129,139-142,322-340,351
+src-tauri/src/app_config_manager.rs
+  2fb83831f5298fcf 39,178,247,295,340
+src/components/sidebar/StatusGroup.tsx
+  2fb83831f5298fcf 25,67,102-106,108-110,151-153,175-176
+src-tauri/src/types.rs
+  2fb83831f5298fcf 464-465
+src/types.ts
+  2fb83831f5298fcf 405-406
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "d9952aa57061f76627a57e651e9c38a68f7f9cfd",
+  "prompts": {
+    "2fb83831f5298fcf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7110550-b5fc-4630-b203-f706ebbcf438",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 50,
+      "overriden_lines": 0
+    },
+    "839bb380ba3babf2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d8e3a1a-c1aa-4ddf-bf9f-e33b25124f4e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 43,
+      "overriden_lines": 0
+    }
+  }
+}
