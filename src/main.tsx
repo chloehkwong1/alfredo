@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { startStatusMirror } from "./services/statusMirror";
+import { preloadTerminalFonts } from "./services/fontPreload";
 import "./styles/globals.css";
 
 // Fast theme apply from cache (avoids flash)
@@ -14,8 +15,12 @@ if (cachedTheme && cachedTheme !== "warm-dark") {
 // session channel fires its first status event.
 startStatusMirror();
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+// Block React mount on bundled terminal fonts so xterm WebGL atlases never
+// bake against the fallback font (GH#19).
+preloadTerminalFonts().finally(() => {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+});

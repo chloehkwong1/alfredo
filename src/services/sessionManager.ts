@@ -1,4 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit";
+import FontFaceObserver from "fontfaceobserver";
 import type { AgentType, SessionType } from "../types";
 import { spawnPty, closePty, resizePty, reattachPty, getConfig } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -606,9 +607,12 @@ export class SessionManager implements SessionWriter {
     }
 
     const seq = ++this.prefsSeq;
-    Promise.all([
-      document.fonts.load(`${prefs.fontSize}px "${prefs.fontFamily}"`),
-      document.fonts.load(`bold ${prefs.fontSize}px "${prefs.fontFamily}"`),
+    // FontFaceObserver verifies canvas-rasterization readiness (measures text
+    // width vs fallback), which `document.fonts.load` does not guarantee —
+    // without this, the WebGL atlas can rebake against the fallback (GH#19).
+    Promise.allSettled([
+      new FontFaceObserver(prefs.fontFamily).load(null, 3000),
+      new FontFaceObserver(prefs.fontFamily, { weight: 700 }).load(null, 3000),
     ]).finally(() => {
       // Bail if a newer applyPreferences call superseded us — otherwise a
       // slower-loading older font could stamp itself over the new family.
