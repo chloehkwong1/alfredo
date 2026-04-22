@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AppConfig, GlobalAppConfig, TabType } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig } from "../../api";
 import { Button } from "../ui/Button";
@@ -119,6 +120,9 @@ function applyTheme(theme: string) {
   } else {
     document.documentElement.setAttribute("data-theme", theme);
   }
+  getCurrentWindow()
+    .setTheme(theme === "light" ? "light" : "dark")
+    .catch(() => {});
 }
 
 function GlobalSettingsDialog({
