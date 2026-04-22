@@ -1,25 +1,25 @@
 ---
 title: Sidebar header buttons
-keywords: [sidebar header, toolbar, icon buttons, bug report, feature request, file an issue, claude usage, anthropic subscription]
+keywords: [sidebar header, toolbar, icon buttons, ask alfredo, help button, question mark, app settings, cog, gear]
 ui_path: Top of the sidebar, right of the Alfredo logo
 ---
 
 The row of icon buttons at the top of the sidebar, to the right of the
-Alfredo cat logo, is the main entry point for app-wide actions. From
-left to right:
+Alfredo cat logo, is the app-wide action bar. There are two buttons:
 
-- **🐞 Bug / feature request.** Opens the GitHub "New issue" chooser
-  for the Alfredo repo so you can submit a bug report, report an
-  error or crash, or request a new feature.
-- **📊 Usage.** Opens `claude.ai/settings/usage` in your browser — the
-  Anthropic dashboard for your Claude subscription usage.
-- **⌨️ Keyboard shortcuts.** Opens the Keyboard Shortcuts overlay
-  listing every binding in the app. Also reachable via ⌘⇧?. See also
-  *Keyboard shortcuts*.
-- **⚙️ App settings.** Opens the global settings dialog (general,
-  agents, integrations, notifications, comment chips, terminal
+- **? Ask Alfredo.** Opens the in-app help popover. Search Alfredo's
+  bundled feature docs, or use the quick-action chips to take the
+  quick-start tour, open the keyboard shortcuts overlay, report a bug
+  or request a feature on GitHub, or jump to the Anthropic Claude
+  usage dashboard. See also *Ask Alfredo*.
+- **⚙ App settings.** Opens the global settings dialog (General,
+  Agent, Integrations, Notifications, Comment chips, Terminal
   appearance). Also reachable via ⌘,.
 
-The floating **?** button in the bottom-right corner is a separate
-control — it opens Ask Alfredo, not the shortcuts overlay. See
-*Ask Alfredo*.
+Directly below this header row, Alfredo shows the repo selector with a
+fixed **+** icon on its right to add a repository (also ⌘⇧R). See
+*Adding a repository*.
+
+Older builds had separate 🐞 / 📊 / ⌨️ icons here and a floating **?**
+button in the bottom-right — those are gone. Everything they did is
+folded into the Ask Alfredo popover.

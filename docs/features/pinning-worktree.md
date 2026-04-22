@@ -1,6 +1,6 @@
 ---
 title: Pinning a worktree
-keywords: [pin, unpin, sticky, prioritize]
+keywords: [pin, unpin, sticky, prioritize, pinned only, filter]
 ui_path: Sidebar → right-click worktree → Pin
 ---
 
@@ -17,3 +17,12 @@ pinned rows. It does not prevent archiving, deletion, or status changes,
 and it doesn't move the worktree between groups. Pinned state lives in
 the Zustand workspace store, so it resets when the app restarts — pin is
 a session-level focus tool, not a persistent favorite.
+
+## Pinned only filter
+
+Once you have at least one pinned worktree, a small **"Pinned only"**
+toggle appears as a sticky chip at the top of the sidebar list. Click
+it to hide every unpinned worktree across all status groups so only
+your pins remain. Click it again to bring the rest back. Like the pin
+state itself, the toggle is session-only — it resets to off on
+restart.

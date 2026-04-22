@@ -7,6 +7,24 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.9.0 — 2026-04-22**
+- **Ask Alfredo** — instant local search over Alfredo's feature docs,
+  anchored to a new `?` button in the sidebar header. Folds in bug
+  report, keyboard shortcuts and Claude usage as quick actions.
+- **Quick-start tour** — first-launch walkthrough with pulse
+  highlights, reopenable any time from the Ask Alfredo popover.
+- **Smart agent tabs** — tabs now render a dynamic label from the
+  agent's OSC title / foreground process / cwd, and use monochrome
+  brand icons for Claude, Codex and Gemini.
+- **Custom output styles** — styles in `.claude/output-styles/` are
+  picked up automatically; project styles override user styles with
+  the same name.
+- **"Pinned only" filter** in the sidebar (appears once you have pins).
+- **Rolling file logger** in release builds for post-mortem debugging.
+- **Linear OAuth stability** — transient errors no longer wipe tokens.
+- Various fixes: GitHub sync rate-limit handling, session-status
+  flicker, config persistence, updater/Linear camelCase serialization.
+
 **v0.8.1 — 2026-04-21**
 - Notification sounds now play via a native Rust audio pipeline for
   more reliable playback.

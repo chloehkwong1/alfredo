@@ -1,6 +1,6 @@
 ---
 title: Agent settings — default agent, model, effort, permissions, output style
-keywords: [agent, claude, codex, gemini, model, effort, permission mode, output style, verbose, default agent, plan mode, accept edits, bypass permissions]
+keywords: [agent, claude, codex, gemini, model, effort, permission mode, output style, custom output style, verbose, default agent, plan mode, accept edits, bypass permissions]
 ui_path: Sidebar → ⚙ Settings → Agent tab
 ---
 
@@ -16,7 +16,13 @@ status bar at the bottom of each session.
   thinking time for quality.
 - **Permission Mode** — Default, Accept Edits, Plan, Auto, Don't Ask,
   or Bypass. Controls how often Claude asks before acting.
-- **Style** — Default / Explanatory / Learning output style.
+- **Style** — output style for Claude Code. Built-in options are
+  Default, Explanatory and Learning. Any Markdown file dropped into
+  `~/.claude/output-styles/` (user-level) is picked up as a custom
+  style; a project-level style with the same name — in the repo's
+  `.claude/output-styles/` — overrides the user one. When only
+  built-ins are present the picker renders as a segmented control;
+  with any custom styles it switches to a dropdown.
 - **Verbose output** — toggle; shows more tool activity in the pane.
 
 Model/Effort/Permissions/Style only appear when the default agent is
