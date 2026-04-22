@@ -265,7 +265,7 @@ html[data-theme="light"] .dot-glow-attn  { box-shadow: 0 0 6px 1px color-mix(in 
 html[data-theme="light"] .dot-glow-error { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--status-error) 35%, transparent); }
 
 @keyframes tour-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.55); }
-  70% { box-shadow: 0 0 0 10px rgba(168, 85, 247, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.85); }
+  70% { box-shadow: 0 0 0 16px rgba(168, 85, 247, 0); }
   100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); }
 }

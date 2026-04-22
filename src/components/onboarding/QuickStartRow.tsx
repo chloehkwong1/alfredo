@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import { PulseHighlight } from "./PulseHighlight";
 import { resolveTarget, type TourTargetId } from "./tourTargets";
 
@@ -33,33 +34,36 @@ export function QuickStartRow({
   };
 
   return (
-    <li className="flex items-start justify-between gap-3 py-1.5">
-      <div className="min-w-0">
-        <div className="text-xs text-text-primary flex items-center gap-1.5">
-          <span>{label}</span>
-          {shortcut && (
-            <kbd className="px-1 py-[1px] rounded bg-bg-elevated border border-border-default font-mono text-[10px] text-text-tertiary">
-              {shortcut}
-            </kbd>
-          )}
-        </div>
-        {subtitle && (
-          <div className="text-[11px] text-text-tertiary mt-0.5 leading-snug">
-            {subtitle}
-          </div>
-        )}
-        {statusMessage && (
-          <div role="status" className="text-[11px] text-text-tertiary italic mt-1">
-            {statusMessage}
-          </div>
-        )}
-      </div>
+    <li>
       <button
         type="button"
         onClick={handleClick}
-        className="text-[11px] text-accent-primary hover:underline cursor-pointer flex-shrink-0 mt-[2px]"
+        className="group w-full flex items-start justify-between gap-3 py-1.5 px-2 -mx-2 rounded-[var(--radius-sm)] hover:bg-bg-hover text-left cursor-pointer"
       >
-        Show me
+        <div className="min-w-0">
+          <div className="text-xs text-text-primary flex items-center gap-1.5">
+            <span>{label}</span>
+            {shortcut && (
+              <kbd className="px-1 py-[1px] rounded bg-bg-elevated border border-border-default font-mono text-[10px] text-text-tertiary">
+                {shortcut}
+              </kbd>
+            )}
+          </div>
+          {subtitle && (
+            <div className="text-[11px] text-text-tertiary mt-0.5 leading-snug">
+              {subtitle}
+            </div>
+          )}
+          {statusMessage && (
+            <div role="status" className="text-[11px] text-text-tertiary italic mt-1">
+              {statusMessage}
+            </div>
+          )}
+        </div>
+        <ChevronRight
+          size={12}
+          className="text-text-tertiary group-hover:text-accent-primary flex-shrink-0 mt-[3px] transition-colors"
+        />
       </button>
       {pulseTarget && (
         <PulseHighlight target={pulseTarget} onDone={() => setPulseTarget(null)} />
