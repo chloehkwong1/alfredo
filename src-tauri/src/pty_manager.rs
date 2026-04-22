@@ -966,8 +966,12 @@ fn write_hooks_config(
         ("SubagentStop",      hook_entry(cmd_phase("busy", "subagentEnd"))),
         // PermissionRequest → waitingForInput + notify input
         ("PermissionRequest", hook_entry(cmd_notify("waitingForInput", "input"))),
-        // PermissionDenied → waitingForInput + notify input
-        ("PermissionDenied",  hook_entry(cmd_notify("waitingForInput", "input"))),
+        // PermissionDenied → busy + phase=toolEnd. Auto-mode-only hook: only fires
+        // when the auto-mode classifier rejects a tool call (never on user-driven
+        // Deny). The agent continues autonomously, so this is a tool-end, not a
+        // request for user input. toolEnd phase decrements workDepth incremented
+        // by the matching PreToolUse(toolStart).
+        ("PermissionDenied",  hook_entry(cmd_phase("busy", "toolEnd"))),
         // Elicitation → waitingForInput + notify input
         ("Elicitation",       hook_entry(cmd_notify("waitingForInput", "input"))),
         // Notification matchers: idle_prompt, permission_prompt, elicitation_dialog
