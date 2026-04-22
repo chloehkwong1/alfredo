@@ -1,0 +1,25 @@
+src/components/sidebar/RepoSelector.tsx
+  839bb380ba3babf2 2,86
+src/components/sidebar/Sidebar.tsx
+  839bb380ba3babf2 287-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "b0a3c3a85b20fb0d97646d6f23fecd982b7238d0",
+  "prompts": {
+    "839bb380ba3babf2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d8e3a1a-c1aa-4ddf-bf9f-e33b25124f4e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 41,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    }
+  }
+}
