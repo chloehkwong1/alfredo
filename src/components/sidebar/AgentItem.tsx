@@ -1,10 +1,10 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw } from "lucide-react";
+import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw, ArrowRightLeft } from "lucide-react";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, setStackParent, runSetupScripts } from "../../api";
+import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn } from "../../api";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp } from "../../api";
@@ -35,6 +35,7 @@ import { RelativeTime } from "../ui/RelativeTime";
 import { RepoTag } from "./RepoTag";
 import { PrSummary, hasPrStats, formatDiffStat, PrStatsRow } from "./PrStatsRow";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
+import { columnIcon, columnLabel, COLUMN_ORDER } from "./StatusGroup";
 
 const THINKING_VERBS = [
   "Thinking…",
@@ -639,6 +640,18 @@ const AgentItem = memo(function AgentItem({
     }
   };
 
+  const handleMoveToColumn = async (target: typeof worktree.column) => {
+    if (target === worktree.column) return;
+    const origin = worktree.column;
+    useWorkspaceStore.getState().setManualColumn(worktree.id, target);
+    usePrStore.getState().setManualColumn(worktree.id, target, origin);
+    try {
+      await setWorktreeColumn(worktree.repoPath, worktree.name, target);
+    } catch (e) {
+      console.error("Failed to persist column change:", e);
+    }
+  };
+
   const handleDetachFromStack = async () => {
     try {
       await setStackParent(worktree.repoPath, worktree.name, null);
@@ -757,6 +770,23 @@ const AgentItem = memo(function AgentItem({
             <Copy className="h-4 w-4" />
             Copy Branch Name
           </ContextMenuItem>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <ArrowRightLeft className="h-4 w-4" />
+              Move to
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {COLUMN_ORDER.filter((col) => col !== worktree.column).map((col) => {
+                const Icon = columnIcon[col];
+                return (
+                  <ContextMenuItem key={col} onSelect={() => handleMoveToColumn(col)}>
+                    <Icon className="h-4 w-4" />
+                    {columnLabel[col]}
+                  </ContextMenuItem>
+                );
+              })}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
           <ContextMenuSeparator />
           {worktree.linearTicketUrl && (
             <ContextMenuItem onSelect={() => openUrl(worktree.linearTicketUrl!)}>

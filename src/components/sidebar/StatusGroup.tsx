@@ -59,6 +59,18 @@ const columnLabel: Record<KanbanColumn, string> = {
   done: "Done",
 };
 
+const COLUMN_ORDER: KanbanColumn[] = [
+  "toDo",
+  "inProgress",
+  "blocked",
+  "draftPr",
+  "openPr",
+  "needsReview",
+  "done",
+];
+
+export { columnIcon, columnLabel, COLUMN_ORDER };
+
 function StatusGroup({
   column,
   worktrees,
