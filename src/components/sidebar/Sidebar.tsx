@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Settings, Plus, HelpCircle } from "lucide-react";
+import { Settings, Plus, HelpCircle, Pin } from "lucide-react";
 import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -126,6 +126,7 @@ function Sidebar({
 
   const { config, updateConfig } = useAppConfig();
   const collapsedColumns = config?.collapsedKanbanColumns ?? [];
+  const hideUnpinned = config?.hideUnpinnedWorktrees ?? false;
 
   const handleToggleCollapsed = useCallback((column: KanbanColumn) => {
     const current = config?.collapsedKanbanColumns ?? [];
@@ -134,6 +135,10 @@ function Sidebar({
       : [...current, column];
     updateConfig({ collapsedKanbanColumns: next });
   }, [config, updateConfig]);
+
+  const handleToggleHideUnpinned = useCallback(() => {
+    updateConfig({ hideUnpinnedWorktrees: !hideUnpinned });
+  }, [hideUnpinned, updateConfig]);
 
   async function handleDeleteWorktree(id: string) {
     const wt = worktrees.find((w) => w.id === id);
@@ -314,7 +319,25 @@ function Sidebar({
 
       <>
         {/* Scrollable agent list */}
-        <div className="flex-1 overflow-y-auto py-3">
+        <div className="flex-1 overflow-y-auto pb-3">
+          {hasWorktreeRepos && (pinnedWorktrees.size > 0 || hideUnpinned) && (
+            <div className="sticky top-0 z-10 flex justify-end px-3.5 pb-1 bg-gradient-to-b from-[var(--bg-sidebar)] via-[var(--bg-sidebar)] to-transparent">
+              <button
+                type="button"
+                onClick={handleToggleHideUnpinned}
+                aria-pressed={hideUnpinned}
+                className={[
+                  "inline-flex items-center gap-1.5 h-[22px] px-2 rounded-md text-[11px] font-medium transition-colors cursor-pointer",
+                  hideUnpinned
+                    ? "text-accent-primary bg-accent-muted"
+                    : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover",
+                ].join(" ")}
+              >
+                <Pin className="h-2.5 w-2.5" fill={hideUnpinned ? "currentColor" : "none"} />
+                Pinned only
+              </button>
+            </div>
+          )}
           {hasWorktreeRepos && (
             <SidebarDragContext collapsedColumns={collapsedColumns} onExpandColumn={handleToggleCollapsed} worktreeLabels={worktreeLabels}>
               {(isDragging, dragActiveId) =>
@@ -325,6 +348,7 @@ function Sidebar({
                     worktrees={grouped[col]}
                     activeWorktreeId={activeWorktreeId}
                     pinnedWorktrees={pinnedWorktrees}
+                    hideUnpinned={hideUnpinned}
                     onSelectWorktree={setActiveWorktree}
                     onDeleteWorktree={handleDeleteWorktree}
                     onArchiveWorktree={handleArchiveWorktree}

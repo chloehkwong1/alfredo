@@ -22,6 +22,7 @@ interface StatusGroupProps {
   worktrees: Worktree[];
   activeWorktreeId: string | null;
   pinnedWorktrees?: Set<string>;
+  hideUnpinned?: boolean;
   onSelectWorktree: (id: string) => void;
   onDeleteWorktree?: (id: string) => void;
   onArchiveWorktree?: (id: string) => void;
@@ -63,6 +64,7 @@ function StatusGroup({
   worktrees,
   activeWorktreeId,
   pinnedWorktrees,
+  hideUnpinned,
   onSelectWorktree,
   onDeleteWorktree,
   onArchiveWorktree,
@@ -97,8 +99,15 @@ function StatusGroup({
     };
   }, [collapsed, isOver, dragActiveId, column, onToggleCollapsed]);
 
+  const pinned = pinnedWorktrees ?? new Set<string>();
+  const visibleWorktrees = hideUnpinned
+    ? worktrees.filter((wt) => pinned.has(wt.id))
+    : worktrees;
+
   const isVisible =
-    worktrees.length > 0 || column === "inProgress" || forceVisible === true;
+    visibleWorktrees.length > 0
+    || (column === "inProgress" && !hideUnpinned)
+    || forceVisible === true;
 
   if (!isVisible) return null;
 
@@ -139,7 +148,9 @@ function StatusGroup({
         <span className="flex-1 h-[1.5px] bg-gradient-to-r from-white/20 to-transparent mx-3" />
         <span className="flex items-center gap-2">
           <span className="text-2xs text-text-secondary tabular-nums font-semibold bg-bg-elevated rounded-full px-1.5 py-0.5">
-            {worktrees.length}
+            {hideUnpinned && visibleWorktrees.length !== worktrees.length
+              ? `${visibleWorktrees.length} / ${worktrees.length}`
+              : worktrees.length}
           </span>
           <ChevronRight
             className={[
@@ -161,9 +172,8 @@ function StatusGroup({
             className="overflow-hidden"
           >
             {(() => {
-              const pinned = pinnedWorktrees ?? new Set<string>();
-              const pinnedItems = worktrees.filter((wt) => pinned.has(wt.id));
-              const unpinnedItems = worktrees.filter((wt) => !pinned.has(wt.id));
+              const pinnedItems = visibleWorktrees.filter((wt) => pinned.has(wt.id));
+              const unpinnedItems = visibleWorktrees.filter((wt) => !pinned.has(wt.id));
               const sorted = [...pinnedItems, ...unpinnedItems];
               return (
             <SortableContext items={sorted.map((wt) => wt.id)} strategy={verticalListSortingStrategy}>

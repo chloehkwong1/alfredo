@@ -461,6 +461,8 @@ pub struct GlobalAppConfig {
     #[serde(default)]
     pub sidebar_collapsed: Option<bool>,
     #[serde(default)]
+    pub hide_unpinned_worktrees: Option<bool>,
+    #[serde(default)]
     pub has_seen_orientation: bool,
     #[serde(default)]
     pub active_worktree_id: Option<String>,
