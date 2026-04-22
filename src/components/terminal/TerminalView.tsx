@@ -125,7 +125,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   const isAgentTab = mode !== "shell";
 
-  const { terminal: ptyTerminal, channelAlive, isConnected, searchAddon, hasOutput } = usePty({
+  const { terminal: ptyTerminal, channelAlive, isConnected, searchAddon, hasOutput, pendingInput } = usePty({
     sessionKey,
     worktreeId: activeWorktreeId ?? "",
     worktreePath: worktree?.path ?? "",
@@ -403,7 +403,11 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           />
         )}
         {isAgentTab && (
-          <TerminalLoadingScreen tabType={tabType} visible={!hasOutput} />
+          <TerminalLoadingScreen
+            tabType={tabType}
+            visible={!hasOutput}
+            typedPreview={pendingInput}
+          />
         )}
         <div
           ref={containerRef}

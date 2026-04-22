@@ -49,7 +49,15 @@ interface UsePtyReturn {
   channelAlive: boolean;
   /** True once the PTY session has produced at least one byte of output. */
   hasOutput: boolean;
+  /**
+   * Keystrokes typed before the agent produced its first output, echoed so
+   * users aren't typing into a void while SessionStart hooks block the TUI.
+   * Empty once `hasOutput` flips true.
+   */
+  pendingInput: string;
 }
+
+const PENDING_INPUT_MAX = 400;
 
 /**
  * Thin attach/detach hook. The SessionManager owns the PTY session and xterm
@@ -73,7 +81,10 @@ export function usePty({
   const [isConnected, setIsConnected] = useState(false);
   const [channelAlive, setChannelAlive] = useState(true);
   const [hasOutput, setHasOutput] = useState(false);
+  const [pendingInput, setPendingInput] = useState("");
   const sessionRef = useRef<ManagedSession | null>(null);
+  const hasOutputRef = useRef(false);
+  hasOutputRef.current = hasOutput;
 
   // Use refs for args and startupCommand so they don't trigger re-attach cycles.
   // Track whether args have resolved (null → array) so the effect re-fires.
@@ -98,6 +109,7 @@ export function usePty({
     // Reset state immediately so UI updates while we spin up the new session.
     setChannelAlive(true);
     setHasOutput(false);
+    setPendingInput("");
     if (mode === "claude") {
       useWorkspaceStore.getState().updateWorktree(worktreeId, { channelAlive: true });
     }
@@ -153,6 +165,22 @@ export function usePty({
           const bytes = Array.from(new TextEncoder().encode(data));
           writePty(session.sessionId, bytes).catch(console.error);
 
+          // Mirror typed keys into a preview buffer while the agent's TUI
+          // hasn't initialized yet (e.g. SessionStart hooks are blocking).
+          // The bytes are already in the kernel stdin buffer; this just makes
+          // the typing visible so users don't think the app is frozen.
+          if (!hasOutputRef.current) {
+            if (data === "\r" || data === "\n") {
+              setPendingInput((p) => (p + "\n").slice(-PENDING_INPUT_MAX));
+            } else if (data === "\x7f") {
+              setPendingInput((p) => p.slice(0, -1));
+            } else if (data === "\x03" || data === "\x15") {
+              setPendingInput("");
+            } else if (data.length === 1 && data.charCodeAt(0) >= 0x20 && data.charCodeAt(0) <= 0x7e) {
+              setPendingInput((p) => (p + data).slice(-PENDING_INPUT_MAX));
+            }
+          }
+
           // Buffer input to detect /clear command. Reset on Enter or Ctrl+C.
           // Only accumulate printable ASCII (0x20–0x7e) to avoid arrow keys,
           // function keys, and other escape sequences corrupting the buffer.
@@ -207,8 +235,13 @@ export function usePty({
       // Otherwise register a callback to fire on first output byte.
       if (session.lastOutputAt > 0) {
         setHasOutput(true);
+        setPendingInput("");
       } else {
-        session.onFirstOutput = () => { if (!disposed) setHasOutput(true); };
+        session.onFirstOutput = () => {
+          if (disposed) return;
+          setHasOutput(true);
+          setPendingInput("");
+        };
       }
 
       setTerminal(term);
@@ -329,5 +362,5 @@ export function usePty({
     };
   }, [sessionKey, worktreeId, worktreePath, mode, containerRef, reconnectKey, argsResolved]);
 
-  return { terminal, searchAddon, agentState, isConnected, channelAlive, hasOutput };
+  return { terminal, searchAddon, agentState, isConnected, channelAlive, hasOutput, pendingInput };
 }
