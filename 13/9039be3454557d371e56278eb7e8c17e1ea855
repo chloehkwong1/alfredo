@@ -1,0 +1,23 @@
+src/components/terminal/TerminalView.tsx
+  b755c2a0edb179bf 152-160,162,164-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "139039be3454557d371e56278eb7e8c17e1ea855",
+  "prompts": {
+    "b755c2a0edb179bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "358a23a8-7462-4402-9659-d4c343066df0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 6,
+      "accepted_lines": 65,
+      "overriden_lines": 0
+    }
+  }
+}
