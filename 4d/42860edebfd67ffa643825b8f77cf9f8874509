@@ -1,0 +1,48 @@
+THIRD_PARTY_LICENSES.md
+  fa32383dda902aa4 54-61
+src/hooks/usePty.ts
+  fa32383dda902aa4 126-143,171-183
+src/services/sessionManager.ts
+  fa32383dda902aa4 35-38,595-598,607-624
+src/styles/globals.css
+  fa32383dda902aa4 5-38
+src/assets/fonts/JetBrainsMono-OFL.txt
+  fa32383dda902aa4 1-93
+src/assets/fonts/FiraCode-OFL.txt
+  fa32383dda902aa4 1-93
+src/assets/fonts/CascadiaCode-OFL.txt
+  fa32383dda902aa4 1-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "4d42860edebfd67ffa643825b8f77cf9f8874509",
+  "prompts": {
+    "c14e39309e4f87c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80f55705-84a8-469a-8b5a-45b9f7ee0ace",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 88,
+      "overriden_lines": 0
+    },
+    "fa32383dda902aa4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de8e74e7-b29a-456b-b52c-4a678002f520",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 797,
+      "total_deletions": 0,
+      "accepted_lines": 2528,
+      "overriden_lines": 0
+    }
+  }
+}
