@@ -1,0 +1,27 @@
+src/services/resumeLabel.ts
+  b755c2a0edb179bf 1-44
+src/components/terminal/TerminalView.tsx
+  b755c2a0edb179bf 11,155,214-218
+src/hooks/useSessionRestore.ts
+  b755c2a0edb179bf 8,199,209,213-218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "0c2cdb5b4295cef797bd2d40f4d2714a47caa344",
+  "prompts": {
+    "b755c2a0edb179bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "358a23a8-7462-4402-9659-d4c343066df0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 62,
+      "total_deletions": 5,
+      "accepted_lines": 64,
+      "overriden_lines": 0
+    }
+  }
+}
