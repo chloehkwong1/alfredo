@@ -1,0 +1,23 @@
+src-tauri/src/commands/output_styles.rs
+  529119407b719298 6,18-23,25-53,56-58,62,68-72,101-103,145-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "6a526f693cd2c28b1e4d745521ee6d8780a9001e",
+  "prompts": {
+    "529119407b719298": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78784c2d-ffdb-4ae2-89e6-347838ea528d",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 84,
+      "total_deletions": 23,
+      "accepted_lines": 605,
+      "overriden_lines": 4
+    }
+  }
+}
