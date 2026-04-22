@@ -1,6 +1,7 @@
 export type TourTargetId =
   | "create-worktree"
   | "setup-script"
+  | "setup-script-tab"
   | "agent-terminal"
   | "open-in-ide";
 

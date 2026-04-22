@@ -34,6 +34,7 @@ export function QuickStartPanel() {
           label="(Optional) Configure setup script"
           subtitle="Runs after each worktree is created — e.g. copy env files, install deps."
           target="setup-script"
+          followUpTarget="setup-script-tab"
           missingMessage="Open a repo first."
         />
         <QuickStartRow

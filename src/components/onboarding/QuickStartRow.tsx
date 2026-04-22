@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { PulseHighlight } from "./PulseHighlight";
 import { resolveTarget, type TourTargetId } from "./tourTargets";
@@ -9,7 +9,10 @@ interface QuickStartRowProps {
   shortcut?: string;
   target: TourTargetId;
   missingMessage: string;
+  followUpTarget?: TourTargetId;
 }
+
+const FOLLOW_UP_TIMEOUT_MS = 10_000;
 
 export function QuickStartRow({
   label,
@@ -17,15 +20,42 @@ export function QuickStartRow({
   shortcut,
   target,
   missingMessage,
+  followUpTarget,
 }: QuickStartRowProps) {
   const [pulseTarget, setPulseTarget] = useState<HTMLElement | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const followUpCleanupRef = useRef<(() => void) | null>(null);
+
+  const cancelFollowUp = () => {
+    followUpCleanupRef.current?.();
+    followUpCleanupRef.current = null;
+  };
+
+  const scheduleFollowUp = (id: TourTargetId) => {
+    cancelFollowUp();
+    const observer = new MutationObserver(() => {
+      const state = resolveTarget(id);
+      if (state.kind === "visible") {
+        cancelFollowUp();
+        setPulseTarget(state.element);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    const timer = window.setTimeout(cancelFollowUp, FOLLOW_UP_TIMEOUT_MS);
+    followUpCleanupRef.current = () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
+  };
+
+  useEffect(() => cancelFollowUp, []);
 
   const handleClick = () => {
     const state = resolveTarget(target);
     if (state.kind === "visible") {
       setStatusMessage(null);
       setPulseTarget(state.element);
+      if (followUpTarget) scheduleFollowUp(followUpTarget);
     } else if (state.kind === "hidden-sidebar") {
       setStatusMessage("Sidebar is hidden — ⌘B to reopen.");
     } else {

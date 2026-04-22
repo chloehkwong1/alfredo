@@ -238,6 +238,7 @@ function WorkspaceSettingsDialog({
               <button
                 key={t.id}
                 type="button"
+                data-tour-id={t.id === "scripts" ? "setup-script-tab" : undefined}
                 onClick={() => setTab(t.id)}
                 className={[
                   "px-3 py-2 text-[13px] rounded-[var(--radius-md)] text-left",
