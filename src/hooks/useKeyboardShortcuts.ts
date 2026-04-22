@@ -19,6 +19,7 @@ import type { WorkspaceTab } from "../types";
  * - Cmd+Shift+\: split pane down (vertical)
  * - Cmd+Shift+C: toggle changes side panel
  * - Cmd+Shift+T: switch to first terminal/claude tab in active pane
+ * - Cmd+Option+Left/Right: previous/next tab in active pane (wraps)
  * - Cmd+K: clear active terminal
  * - Cmd+Plus: zoom in terminal font
  * - Cmd+Minus: zoom out terminal font
@@ -114,6 +115,31 @@ export function useKeyboardShortcuts(
           const shellTab = allTabs.find((t) => t.type === "shell");
           if (shellTab) {
             useTabStore.getState().setActiveTabId(activeWorktreeId, shellTab.id);
+          }
+        }
+        return;
+      }
+
+      // Cmd+Option+Left / Cmd+Option+Right: cycle tabs in active pane (wraps)
+      if (
+        event.metaKey &&
+        event.altKey &&
+        !event.shiftKey &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      ) {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const layoutState = useLayoutStore.getState();
+          const activePaneId = layoutState.activePaneId[activeWorktreeId];
+          const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
+          if (pane && pane.tabIds.length > 1 && pane.activeTabId) {
+            const idx = pane.tabIds.indexOf(pane.activeTabId);
+            if (idx !== -1) {
+              const delta = event.key === "ArrowRight" ? 1 : -1;
+              const nextId = pane.tabIds[(idx + delta + pane.tabIds.length) % pane.tabIds.length];
+              layoutState.setPaneActiveTab(activeWorktreeId, activePaneId, nextId);
+              useTabStore.getState().setActiveTabId(activeWorktreeId, nextId);
+            }
           }
         }
         return;

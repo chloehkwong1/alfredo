@@ -25,6 +25,8 @@ const SHORTCUT_GROUPS = [
       { keys: "⌘ ⇧ \\", description: "Split pane down" },
       { keys: "⌘ ⇧ C", description: "Toggle changes panel" },
       { keys: "⌘ ⇧ T", description: "Switch to terminal tab" },
+      { keys: "⌘ ⌥ ←", description: "Previous tab" },
+      { keys: "⌘ ⌥ →", description: "Next tab" },
     ],
   },
   {
