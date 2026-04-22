@@ -1,6 +1,5 @@
 import { useAgentStore } from "../../stores/agentStore";
 import { useClaudeModels } from "../../services/modelCatalog";
-import { useAppConfig } from "../../hooks/useAppConfig";
 import { useOutputStyles } from "../../hooks/useOutputStyles";
 import type { ClaudeDefaults, TabType } from "../../types";
 
@@ -44,8 +43,7 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
 
   const availableAgents = useAgentStore((s) => s.availableAgents);
   const claudeModels = useClaudeModels();
-  const { activeRepo } = useAppConfig();
-  const outputOptions = useOutputStyles(activeRepo);
+  const outputOptions = useOutputStyles(null);
 
   const agentOptions = AGENT_OPTIONS.filter((opt) =>
     availableAgents.includes(opt.agentId),
@@ -149,13 +147,15 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
       </div>
 
       <div className="mb-4">
-        <div className="text-[13px] font-medium text-text-primary mb-1.5">Style</div>
-        {outputOptions.length <= 4 ? (
-          <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
+        <label htmlFor="output-style-select" className="block text-[13px] font-medium text-text-primary mb-1.5">Style</label>
+        {outputOptions.every((o) => o.source === "builtin") ? (
+          <div role="radiogroup" aria-label="Output style" className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
             {outputOptions.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
+                role="radio"
+                aria-checked={(settings.outputStyle ?? "Default") === opt.value}
                 onClick={() => update({ outputStyle: opt.value })}
                 className={[
                   "flex-1 px-3 py-[7px] text-xs font-medium transition-colors cursor-pointer",
@@ -170,6 +170,7 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
           </div>
         ) : (
           <select
+            id="output-style-select"
             value={settings.outputStyle ?? "Default"}
             onChange={(e) => update({ outputStyle: e.target.value })}
             className={selectClass}
