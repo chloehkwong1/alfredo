@@ -17,7 +17,7 @@
 
 ---
 
-<!-- TODO: Replace with actual screenshot or GIF -->
+<!-- TODO: Replace with real screenshot from seeded fake repos -->
 <p align="center">
   <em>Screenshot coming soon</em>
 </p>
