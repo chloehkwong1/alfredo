@@ -80,8 +80,6 @@ function RepoSelector({
     return getRepoColor(idx >= 0 ? idx : 0);
   }
 
-  if (repos.length <= 1) return null;
-
   return (
     <div ref={ref} className="relative flex-1 min-w-0">
       <button
