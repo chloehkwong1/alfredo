@@ -82,11 +82,15 @@ function RepoSelector({
 
   // With a single repo, render a static chip — no dropdown affordance needed.
   if (repos.length === 1) {
+    const color = getColorForRepo(repos[0].path);
     return (
       <div className="relative flex-1 min-w-0">
         <div className="flex items-center gap-1.5 w-full px-2.5 py-1.5 rounded-[var(--radius-md)] border border-border-subtle bg-[rgba(255,255,255,0.02)]">
-          <span className="text-xs text-text-secondary font-medium truncate">
-            {repoDisplayName(repos[0].path, repoDisplayNames)}
+          <span
+            className="text-[11px] font-medium px-1.5 py-px rounded-[3px]"
+            style={{ background: color.bg, color: color.text }}
+          >
+            {repoAbbrev(repos[0].path, repoDisplayNames)}
           </span>
         </div>
       </div>
