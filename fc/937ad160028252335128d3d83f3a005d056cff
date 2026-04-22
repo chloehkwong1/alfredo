@@ -1,0 +1,35 @@
+docs/features/tab-labels-and-icons.md
+  3d512a66290c4b19 1-31
+docs/features/ask-alfredo.md
+  3d512a66290c4b19 3-4,7-9,15-23,26-27
+docs/features/adding-a-repo.md
+  3d512a66290c4b19 3-4,7-13,15-20
+docs/features/pinning-worktree.md
+  3d512a66290c4b19 3,20-28
+docs/features/whats-new.md
+  3d512a66290c4b19 10-27
+docs/features/sidebar-header-buttons.md
+  3d512a66290c4b19 3,8,10-16,19-25
+docs/features/agent-settings.md
+  3d512a66290c4b19 3,19-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "fc937ad160028252335128d3d83f3a005d056cff",
+  "prompts": {
+    "3d512a66290c4b19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5daceb33-ccae-4d47-b8c5-233c96a30293",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 115,
+      "total_deletions": 39,
+      "accepted_lines": 115,
+      "overriden_lines": 0
+    }
+  }
+}
