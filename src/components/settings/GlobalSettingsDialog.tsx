@@ -254,6 +254,10 @@ function GlobalSettingsDialog({
         ...(effectiveRepoPath ? [saveConfig(effectiveRepoPath, repoConfig)] : []),
       ]);
       setDirty(false);
+      // Notify useAppConfig consumers so their in-memory snapshot re-syncs
+      // from disk. Without this, the next updateConfig() call elsewhere could
+      // write stale cached fields over what we just saved.
+      window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Failed to save settings");

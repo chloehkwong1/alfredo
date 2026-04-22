@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getAppConfig,
   saveAppConfig,
@@ -19,6 +19,12 @@ export function useAppConfig() {
   const [config, setConfig] = useState<GlobalAppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Mirror of `config` for use inside stable callbacks. Lets updateConfig /
+  // updateRepoMode read cached state without re-creating the callback on every
+  // config update — important for consumers like useStatePersistence that pass
+  // the callback into a subscription effect.
+  const configRef = useRef<GlobalAppConfig | null>(null);
+  useEffect(() => { configRef.current = config; }, [config]);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,30 +102,46 @@ export function useAppConfig() {
   }, []);
 
   const updateRepoMode = useCallback(async (path: string, mode: RepoMode) => {
-    if (!config) return;
+    // Read fresh to avoid clobbering fields another writer (dialog, backend
+    // command) may have just persisted to disk. See updateConfig for rationale.
+    let current: GlobalAppConfig;
+    try {
+      current = await getAppConfig();
+    } catch (e) {
+      console.warn("updateRepoMode: failed to refresh config before write, using cached state", e);
+      if (!configRef.current) return;
+      current = configRef.current;
+    }
     const updated = {
-      ...config,
-      repos: config.repos.map((r) =>
+      ...current,
+      repos: current.repos.map((r) =>
         r.path === path ? { ...r, mode } : r,
       ),
     };
     await saveAppConfig(updated);
     setConfig(updated);
-  }, [config]);
-
-  const updateGlobalSettings = useCallback(async (patch: Partial<Pick<GlobalAppConfig, "theme" | "notifications">>) => {
-    if (!config) return;
-    const updated = { ...config, ...patch };
-    await saveAppConfig(updated);
-    setConfig(updated);
-  }, [config]);
+  }, []);
 
   const updateConfig = useCallback(async (patch: Partial<GlobalAppConfig>) => {
-    if (!config) return;
-    const updated = { ...config, ...patch };
+    // Read fresh disk state before merging the patch. The hook's in-memory
+    // `config` can be stale relative to `app.json` — e.g. after the settings
+    // dialog saves its own snapshot, nothing re-syncs this hook until a
+    // `config-changed` event fires. Spreading stale state here would clobber
+    // the dialog's write the next time any consumer calls updateConfig (sidebar
+    // click → persist activeWorktreeId). Fall back to cached state only if the
+    // disk read fails, so persistence still attempts to make progress.
+    let current: GlobalAppConfig;
+    try {
+      current = await getAppConfig();
+    } catch (e) {
+      console.warn("updateConfig: failed to refresh config before write, using cached state", e);
+      if (!configRef.current) return;
+      current = configRef.current;
+    }
+    const updated = { ...current, ...patch };
     await saveAppConfig(updated);
     setConfig(updated);
-  }, [config]);
+  }, []);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -166,7 +188,6 @@ export function useAppConfig() {
     removeRepo,
     switchRepo,
     updateRepoMode,
-    updateGlobalSettings,
     updateConfig,
     selectedRepos: config?.selectedRepos ?? [],
     displayName: config?.displayName ?? null,
