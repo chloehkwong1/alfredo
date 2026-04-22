@@ -1,0 +1,36 @@
+src-tauri/src/commands/session.rs
+  b755c2a0edb179bf 3,74-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "4a02246d567748f53a67c722681697785711db56",
+  "prompts": {
+    "0d0620b39836d0f0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5074c1cf-605b-470a-9376-24729a10720d",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    },
+    "b755c2a0edb179bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "358a23a8-7462-4402-9659-d4c343066df0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 338,
+      "total_deletions": 0,
+      "accepted_lines": 99,
+      "overriden_lines": 0
+    }
+  }
+}
