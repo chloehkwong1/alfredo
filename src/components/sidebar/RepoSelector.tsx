@@ -105,24 +105,18 @@ function RepoSelector({
         className="flex items-center gap-1.5 w-full px-2.5 py-1.5 rounded-[var(--radius-md)] border border-border-subtle bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] transition-colors cursor-pointer"
       >
         <span className="flex gap-1 flex-1 flex-wrap items-center">
-          {selectedRepos.length === 1 ? (
-            <span className="text-xs text-text-secondary font-medium">
-              {repoDisplayName(selectedRepos[0], repoDisplayNames)}
-            </span>
-          ) : (
-            selectedRepos.map((path) => {
-              const color = getColorForRepo(path);
-              return (
-                <span
-                  key={path}
-                  className="text-[11px] font-medium px-1.5 py-px rounded-[3px]"
-                  style={{ background: color.bg, color: color.text }}
-                >
-                  {repoAbbrev(path, repoDisplayNames)}
-                </span>
-              );
-            })
-          )}
+          {selectedRepos.map((path) => {
+            const color = getColorForRepo(path);
+            return (
+              <span
+                key={path}
+                className="text-[11px] font-medium px-1.5 py-px rounded-[3px]"
+                style={{ background: color.bg, color: color.text }}
+              >
+                {repoAbbrev(path, repoDisplayNames)}
+              </span>
+            );
+          })}
         </span>
         {selectedRepos.length === 1 && repos.length > 1 && (
           <span className="text-2xs text-text-tertiary px-1.5 py-px rounded-full bg-bg-elevated border border-border-default">
