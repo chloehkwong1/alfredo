@@ -1,0 +1,33 @@
+src/types.ts
+  c14e39309e4f87c3 85-86
+src-tauri/src/git_manager.rs
+  c14e39309e4f87c3 740,763,799-807
+src-tauri/src/types.rs
+  c14e39309e4f87c3 159-163
+src-tauri/src/commands/worktree.rs
+  c14e39309e4f87c3 9,131,158,339,361
+src-tauri/src/branch_manager.rs
+  c14e39309e4f87c3 5,45-53,77,126-134,157,234
+src/components/changes/ChangesPanel.tsx
+  c14e39309e4f87c3 314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "a71512ba107a4f9c5a6ab3b8297a9d2157cc054f",
+  "prompts": {
+    "c14e39309e4f87c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80f55705-84a8-469a-8b5a-45b9f7ee0ace",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 46,
+      "total_deletions": 14,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    }
+  }
+}
