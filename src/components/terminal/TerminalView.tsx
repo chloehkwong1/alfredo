@@ -149,14 +149,29 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
     const discover = () => {
       findClaudeSession(worktree.path).then((fsSessionId) => {
-        if (fsSessionId && activeWorktreeId && tabId) {
-          // Always call setResumeSessionId, even when the UUID hasn't
-          // changed: a previous poll may have fetched the summary before
-          // Claude wrote its first `last-prompt`, and we need to retry.
-          // The helper skips the setTabSummary write when the fetched
-          // summary would clobber an existing one with a transient null.
+        if (!fsSessionId || !activeWorktreeId || !tabId) return;
+
+        const tabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
+        const ourCurrent = tabs.find((t) => t.id === tabId)?.resumeSessionId;
+
+        // Same-session poll: re-fetch summary in case Claude hadn't
+        // written last-prompt yet on a prior poll. The helper skips the
+        // write when it would clobber an existing summary with a null.
+        if (fsSessionId === ourCurrent) {
           setResumeSessionId(activeWorktreeId, tabId, fsSessionId, worktree.path);
+          return;
         }
+
+        // Different UUID from ours. `findClaudeSession` returns the single
+        // most-recent JSONL in the project dir, which in multi-tab worktrees
+        // is whichever sibling tab was touched last — not this tab's session.
+        // Skip adoption when a sibling tab already owns the discovered UUID.
+        const ownedBySibling = tabs.some(
+          (t) => t.id !== tabId && t.resumeSessionId === fsSessionId,
+        );
+        if (ownedBySibling) return;
+
+        setResumeSessionId(activeWorktreeId, tabId, fsSessionId, worktree.path);
       }).catch((e) => {
         console.warn(`[TerminalView] Failed to discover Claude session for ${worktree.path}:`, e);
       });
