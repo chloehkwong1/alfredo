@@ -284,21 +284,33 @@ function Sidebar({
         </div>
       </div>
 
-      {/* Repo selector */}
-      {repos.length >= 2 && (
-        <RepoSelector
-          repos={repos}
-          selectedRepos={effectiveSelectedRepos}
-          repoColors={effectiveRepoColors}
-          repoDisplayNames={repoDisplayNames ?? {}}
-          onToggleRepo={onToggleRepo ?? (() => {})}
-          onAddRepo={onAddRepo}
-          onRemoveRepo={onRemoveRepo}
-          worktreeCountByRepo={Object.fromEntries(
-            repos.map((r) => [r.path, activeWorktrees.filter((wt) => wt.repoPath === r.path).length])
-          )}
-        />
-      )}
+      {/* Repo selector + Add repo (Add is always visible; selector only when multi-repo) */}
+      <div className="flex items-stretch gap-1 px-3.5 py-2">
+        {repos.length >= 2 && (
+          <RepoSelector
+            repos={repos}
+            selectedRepos={effectiveSelectedRepos}
+            repoColors={effectiveRepoColors}
+            repoDisplayNames={repoDisplayNames ?? {}}
+            onToggleRepo={onToggleRepo ?? (() => {})}
+            onRemoveRepo={onRemoveRepo}
+            worktreeCountByRepo={Object.fromEntries(
+              repos.map((r) => [r.path, activeWorktrees.filter((wt) => wt.repoPath === r.path).length])
+            )}
+          />
+        )}
+        <button
+          type="button"
+          data-tour-id="add-repo"
+          aria-label="Add a repo"
+          title="Add a repo (⌘⇧R)"
+          onClick={onAddRepo}
+          className={`flex items-center justify-center rounded-[var(--radius-md)] border border-border-subtle bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] text-text-secondary hover:text-text-primary transition-colors cursor-pointer ${repos.length >= 2 ? "px-2" : "w-full gap-1.5 px-2.5 py-1.5 text-xs"}`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {repos.length < 2 && <span>Add a repo</span>}
+        </button>
+      </div>
 
       <GitHubAuthBanner />
 
@@ -372,19 +384,6 @@ function Sidebar({
               </>
             )}
             <div className="flex items-center justify-center gap-1 mt-2">
-              {repos.length < 2 && (
-                <>
-                  <button
-                    type="button"
-                    data-tour-id="add-repo"
-                    className="text-xs text-text-tertiary hover:text-text-secondary hover:underline cursor-pointer transition-colors"
-                    onClick={onAddRepo}
-                  >
-                    Add repo
-                  </button>
-                  <span className="text-text-quaternary text-xs">·</span>
-                </>
-              )}
               <button
                 type="button"
                 data-tour-id="setup-script"

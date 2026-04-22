@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import type { RepoEntry } from "../../types";
 
 const REPO_COLOR_PALETTE = [
@@ -45,7 +45,6 @@ interface RepoSelectorProps {
   repoColors: Record<string, string>;
   repoDisplayNames: Record<string, string>;
   onToggleRepo: (path: string) => void;
-  onAddRepo: () => void;
   onRemoveRepo?: (path: string) => void;
   worktreeCountByRepo: Record<string, number>;
 }
@@ -56,7 +55,6 @@ function RepoSelector({
   repoColors,
   repoDisplayNames,
   onToggleRepo,
-  onAddRepo,
   onRemoveRepo,
   worktreeCountByRepo,
 }: RepoSelectorProps) {
@@ -85,10 +83,9 @@ function RepoSelector({
   if (repos.length <= 1) return null;
 
   return (
-    <div ref={ref} className="relative px-3.5 py-2">
+    <div ref={ref} className="relative flex-1 min-w-0">
       <button
         type="button"
-        data-tour-id="add-repo"
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 w-full px-2.5 py-1.5 rounded-[var(--radius-md)] border border-border-subtle bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] transition-colors cursor-pointer"
       >
@@ -176,14 +173,6 @@ function RepoSelector({
               </button>
             );
           })}
-          <button
-            type="button"
-            onClick={() => { setOpen(false); onAddRepo(); }}
-            className="flex items-center gap-2 w-full px-2.5 py-1.5 border-t border-border-subtle text-xs text-text-tertiary hover:text-text-secondary cursor-pointer transition-colors"
-          >
-            <Plus className="h-3 w-3" />
-            Add repository
-          </button>
         </div>
       )}
     </div>
