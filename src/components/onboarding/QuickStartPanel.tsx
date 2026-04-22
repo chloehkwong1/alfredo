@@ -121,6 +121,9 @@ export function QuickStartPanel() {
         {renderInfoFooter(
           <span>PRs and changes appear in the main view once you push a branch.</span>,
         )}
+        <div className="text-[10px] text-text-tertiary/70 mt-1.5 text-center">
+          Reopen any time from Help
+        </div>
       </div>
       {pulse && (
         <PulseHighlight
