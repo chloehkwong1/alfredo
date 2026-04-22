@@ -8,6 +8,7 @@ import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { sessionManager } from "../../services/sessionManager";
+import { setResumeSessionId } from "../../services/resumeLabel";
 import { writePty, getConfig, getAppConfig, findClaudeSession } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
@@ -151,7 +152,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         if (fsSessionId && activeWorktreeId && tabId) {
           const current = useTabStore.getState().tabs[activeWorktreeId]?.find((t) => t.id === tabId)?.resumeSessionId;
           if (fsSessionId !== current) {
-            useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: fsSessionId });
+            setResumeSessionId(activeWorktreeId, tabId, fsSessionId, worktree.path);
           }
         }
       }).catch((e) => {
@@ -210,7 +211,11 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     // Clear the stale resumeSessionId so the discovery effect can find the
     // new session that the fresh Claude instance will create.
     hasDiscoveredSession.current = false;
-    useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: undefined });
+    if (worktree?.path) {
+      setResumeSessionId(activeWorktreeId, tabId, undefined, worktree.path);
+    } else {
+      useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: undefined });
+    }
 
     await sessionManager.closeSession(sessionKey);
     setReconnectKey((k) => k + 1);
