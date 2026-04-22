@@ -80,6 +80,19 @@ function RepoSelector({
     return getRepoColor(idx >= 0 ? idx : 0);
   }
 
+  // With a single repo, render a static chip — no dropdown affordance needed.
+  if (repos.length === 1) {
+    return (
+      <div className="relative flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 w-full px-2.5 py-1.5 rounded-[var(--radius-md)] border border-border-subtle bg-[rgba(255,255,255,0.02)]">
+          <span className="text-xs text-text-secondary font-medium truncate">
+            {repoDisplayName(repos[0].path, repoDisplayNames)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div ref={ref} className="relative flex-1 min-w-0">
       <button
