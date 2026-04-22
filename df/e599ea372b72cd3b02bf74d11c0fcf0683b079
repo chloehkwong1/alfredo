@@ -1,0 +1,31 @@
+docs/features/whats-new.md
+  e03473d9ae896100 25-26,28-29
+src-tauri/Cargo.toml
+  e03473d9ae896100 3
+package.json
+  e03473d9ae896100 4
+src-tauri/tauri.conf.json
+  e03473d9ae896100 4
+docs/features/keyboard-shortcuts.md
+  e03473d9ae896100 13-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "dfe599ea372b72cd3b02bf74d11c0fcf0683b079",
+  "prompts": {
+    "e03473d9ae896100": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2685ba48-6a03-41df-b3aa-4144c53c9385",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 183,
+      "total_deletions": 117,
+      "accepted_lines": 73,
+      "overriden_lines": 0
+    }
+  }
+}
