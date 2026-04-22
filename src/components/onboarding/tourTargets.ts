@@ -1,4 +1,5 @@
 export type TourTargetId =
+  | "add-repo"
   | "create-worktree"
   | "setup-script"
   | "setup-script-tab"

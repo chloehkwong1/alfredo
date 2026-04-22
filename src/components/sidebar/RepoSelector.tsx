@@ -88,6 +88,7 @@ function RepoSelector({
     <div ref={ref} className="relative px-3.5 py-2">
       <button
         type="button"
+        data-tour-id="add-repo"
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 w-full px-2.5 py-1.5 rounded-[var(--radius-md)] border border-border-subtle bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] transition-colors cursor-pointer"
       >

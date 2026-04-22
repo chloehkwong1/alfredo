@@ -376,6 +376,7 @@ function Sidebar({
                 <>
                   <button
                     type="button"
+                    data-tour-id="add-repo"
                     className="text-xs text-text-tertiary hover:text-text-secondary hover:underline cursor-pointer transition-colors"
                     onClick={onAddRepo}
                   >

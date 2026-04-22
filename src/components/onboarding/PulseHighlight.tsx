@@ -11,27 +11,38 @@ export function PulseHighlight({ target, onDone }: PulseHighlightProps) {
 
   useEffect(() => {
     target.scrollIntoView({ block: "nearest", inline: "nearest" });
-    setRect(target.getBoundingClientRect());
+    const nextRect = target.getBoundingClientRect();
+    setRect(nextRect);
 
+    // Skip the scale-bump on large surfaces (e.g. the terminal pane) — scaling a
+    // huge container jumps all its content and reads as a layout bug rather than
+    // a hint. Ring pulse alone is enough there.
+    const shouldScale = nextRect.width < 400 && nextRect.height < 300;
     const originalTransform = target.style.transform;
     const originalTransition = target.style.transition;
-    target.style.transition = "transform 200ms ease-out";
-    target.style.transform = "scale(1.06)";
-    const scaleDown = window.setTimeout(() => {
-      target.style.transform = originalTransform;
-    }, 220);
-    const cleanupTransition = window.setTimeout(() => {
-      target.style.transition = originalTransition;
-    }, 500);
+    let scaleDown: number | undefined;
+    let cleanupTransition: number | undefined;
+    if (shouldScale) {
+      target.style.transition = "transform 200ms ease-out";
+      target.style.transform = "scale(1.06)";
+      scaleDown = window.setTimeout(() => {
+        target.style.transform = originalTransform;
+      }, 220);
+      cleanupTransition = window.setTimeout(() => {
+        target.style.transition = originalTransition;
+      }, 500);
+    }
 
     const done = window.setTimeout(onDone, 3700);
 
     return () => {
-      window.clearTimeout(scaleDown);
-      window.clearTimeout(cleanupTransition);
+      if (scaleDown !== undefined) window.clearTimeout(scaleDown);
+      if (cleanupTransition !== undefined) window.clearTimeout(cleanupTransition);
       window.clearTimeout(done);
-      target.style.transform = originalTransform;
-      target.style.transition = originalTransition;
+      if (shouldScale) {
+        target.style.transform = originalTransform;
+        target.style.transition = originalTransition;
+      }
     };
   }, [target, onDone]);
 
