@@ -5,6 +5,7 @@ import { SettingsChip } from "./SettingsChip";
 import { getConfig, saveConfig, getAppConfig, setWorktreePort } from "../../api";
 import { OpenInDropdown } from "../ui/OpenInDropdown";
 import { useAppConfig } from "../../hooks/useAppConfig";
+import { useOutputStyles } from "../../hooks/useOutputStyles";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
 import { toggleRemoteControl } from "../../services/remoteControl";
 import { useRemoteControlStore } from "../../stores/remoteControlStore";
@@ -33,12 +34,6 @@ const PERMISSION_OPTIONS = [
   { value: "bypassPermissions", label: "Bypass" },
 ];
 
-const OUTPUT_OPTIONS = [
-  { value: "Default", label: "Default" },
-  { value: "Explanatory", label: "Explanatory" },
-  { value: "Learning", label: "Learning" },
-];
-
 function displayLabel(options: { value: string; label: string }[], value: string | undefined, defaultValue: string): string {
   const effective = value || defaultValue;
   return options.find((o) => o.value === effective)?.label ?? effective;
@@ -61,6 +56,7 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
   const [editingPort, setEditingPort] = useState(false);
   const [portValue, setPortValue] = useState("");
   const [portError, setPortError] = useState<string | null>(null);
+  const outputOptions = useOutputStyles(repoPath);
 
   // Resolved settings (defaults merged with overrides)
   const [resolved, setResolved] = useState<{
@@ -192,9 +188,9 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
               onChange={(v) => handleChange("permissionMode", v)}
             />
             <SettingsChip
-              label={displayLabel(OUTPUT_OPTIONS, resolved.outputStyle, CLAUDE_DEFAULTS.outputStyle)}
+              label={displayLabel(outputOptions, resolved.outputStyle, CLAUDE_DEFAULTS.outputStyle)}
               prefix="Output Style"
-              options={OUTPUT_OPTIONS}
+              options={outputOptions}
               value={resolved.outputStyle ?? ""}
               isOpen={openDropdown === "outputStyle"}
               onToggle={() => toggleDropdown("outputStyle")}

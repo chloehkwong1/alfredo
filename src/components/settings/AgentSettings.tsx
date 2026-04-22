@@ -1,5 +1,7 @@
 import { useAgentStore } from "../../stores/agentStore";
 import { useClaudeModels } from "../../services/modelCatalog";
+import { useAppConfig } from "../../hooks/useAppConfig";
+import { useOutputStyles } from "../../hooks/useOutputStyles";
 import type { ClaudeDefaults, TabType } from "../../types";
 
 const EFFORT_OPTIONS = ["low", "medium", "high", "max"] as const;
@@ -12,8 +14,6 @@ const PERMISSION_OPTIONS = [
   { value: "dontAsk", label: "Don't Ask", hint: "Runs all tools without asking — use with caution" },
   { value: "bypassPermissions", label: "Bypass Permissions", hint: "No checks at all — sandboxed environments only" },
 ];
-
-const OUTPUT_OPTIONS = ["Default", "Explanatory", "Learning"] as const;
 
 const selectClass = [
   "h-8 w-full px-3 text-[13px] font-normal",
@@ -44,6 +44,8 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
 
   const availableAgents = useAgentStore((s) => s.availableAgents);
   const claudeModels = useClaudeModels();
+  const { activeRepo } = useAppConfig();
+  const outputOptions = useOutputStyles(activeRepo);
 
   const agentOptions = AGENT_OPTIONS.filter((opt) =>
     availableAgents.includes(opt.agentId),
@@ -148,23 +150,35 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
 
       <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Style</div>
-        <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
-          {OUTPUT_OPTIONS.map((style) => (
-            <button
-              key={style}
-              type="button"
-              onClick={() => update({ outputStyle: style })}
-              className={[
-                "flex-1 px-3 py-[7px] text-xs font-medium transition-colors cursor-pointer",
-                (settings.outputStyle ?? "Default") === style
-                  ? "bg-accent-primary text-white"
-                  : "bg-bg-primary text-text-secondary hover:text-text-primary",
-              ].join(" ")}
-            >
-              {style}
-            </button>
-          ))}
-        </div>
+        {outputOptions.length <= 4 ? (
+          <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
+            {outputOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => update({ outputStyle: opt.value })}
+                className={[
+                  "flex-1 px-3 py-[7px] text-xs font-medium transition-colors cursor-pointer",
+                  (settings.outputStyle ?? "Default") === opt.value
+                    ? "bg-accent-primary text-white"
+                    : "bg-bg-primary text-text-secondary hover:text-text-primary",
+                ].join(" ")}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <select
+            value={settings.outputStyle ?? "Default"}
+            onChange={(e) => update({ outputStyle: e.target.value })}
+            className={selectClass}
+          >
+            {outputOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="flex items-center justify-between py-2">

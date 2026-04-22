@@ -18,4 +18,5 @@ pub mod session;
 pub mod worktree;
 pub mod git_ops;
 pub mod app_detection;
+pub mod output_styles;
 pub mod updater;

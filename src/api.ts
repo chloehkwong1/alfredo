@@ -70,6 +70,15 @@ export function detectAvailableAgents(): Promise<string[]> {
   return invoke("detect_available_agents");
 }
 
+export interface CustomOutputStyle {
+  name: string;
+  source: "user" | "project";
+}
+
+export function listOutputStyles(repoPath?: string | null): Promise<CustomOutputStyle[]> {
+  return invoke("list_output_styles", { repoPath: repoPath ?? null });
+}
+
 /** Helper: create a Channel for PTY events with a callback. */
 export function createPtyChannel(
   onEvent: (event: PtyEvent) => void,
