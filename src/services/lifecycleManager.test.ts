@@ -436,6 +436,41 @@ describe("lifecycleManager", () => {
       expect(mockOpenPreviewTab).not.toHaveBeenCalled();
     });
 
+    it("does NOT focus a pinned committed tab when opening the uncommitted variant of the same file", () => {
+      (layoutStoreState.activePaneId as Record<string, string>)[worktreeId] =
+        "pane-1";
+      mockGetPane.mockReturnValue({
+        tabIds: ["pinned-committed"],
+        previewTabId: undefined,
+      });
+
+      tabStoreState.tabs = {
+        [worktreeId]: [
+          {
+            id: "pinned-committed",
+            type: "diff",
+            label: "App.tsx",
+            diffTarget: { ...fileDiffTarget, isUncommitted: false },
+          },
+        ],
+      };
+
+      const result = lifecycleManager.openDiffPreview(worktreeId, {
+        ...fileDiffTarget,
+        isUncommitted: true,
+      });
+
+      expect(result).not.toBe("pinned-committed");
+      expect(mockSetPaneActiveTab).not.toHaveBeenCalledWith(
+        worktreeId,
+        "pane-1",
+        "pinned-committed",
+      );
+      // Should create a new tab for the uncommitted variant
+      expect(mockRestoreTabs).toHaveBeenCalled();
+      expect(mockOpenPreviewTab).toHaveBeenCalled();
+    });
+
     it("uses commit hash prefix as label for commit diffs", () => {
       const commitTarget = {
         type: "commit" as const,

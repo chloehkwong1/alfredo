@@ -190,10 +190,11 @@ function WorkspacePanel({
 
   const handleJumpToComment = useCallback(
     (filePath: string, line?: number) => {
-      setActiveFileIsUncommitted(undefined);
+      setActiveFileIsUncommitted(false);
       lifecycleManager.openDiffPreview(worktreeId, {
         type: "file",
         filePath,
+        isUncommitted: false,
         scrollToLine: line,
       });
     },

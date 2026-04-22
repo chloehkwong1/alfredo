@@ -121,7 +121,9 @@ class LifecycleManager {
       .map((id) => allTabs.find((t) => t.id === id))
       .find((t) => {
         if (!t || t.type !== "diff" || !t.diffTarget) return false;
-        if (diffTarget.type === "file") return t.diffTarget.type === "file" && t.diffTarget.filePath === diffTarget.filePath;
+        if (diffTarget.type === "file") return t.diffTarget.type === "file"
+          && t.diffTarget.filePath === diffTarget.filePath
+          && (t.diffTarget.isUncommitted ?? false) === (diffTarget.isUncommitted ?? false);
         if (diffTarget.type === "commit") return t.diffTarget.type === "commit" && t.diffTarget.commitHash === diffTarget.commitHash;
         return false;
       });
