@@ -1,0 +1,27 @@
+src-tauri/src/commands/mod.rs
+  c14e39309e4f87c3 15
+src-tauri/src/commands/pr_walkthrough.rs
+  c14e39309e4f87c3 1-45
+src-tauri/src/lib.rs
+  c14e39309e4f87c3 37,61,242-245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "3a189413c93c4e79a279f619f19cd05681f88518",
+  "prompts": {
+    "c14e39309e4f87c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80f55705-84a8-469a-8b5a-45b9f7ee0ace",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 52,
+      "total_deletions": 1,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}
