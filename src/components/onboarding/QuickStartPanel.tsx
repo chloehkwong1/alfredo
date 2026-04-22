@@ -84,6 +84,7 @@ export function QuickStartPanel() {
         <ul className="space-y-0.5">
           <QuickStartRow
             label="Add a repo"
+            shortcut="⌘⇧R"
             target="add-repo"
             missingMessage="Add-repo affordance is hidden."
             onPulse={handlePulse}
