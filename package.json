@@ -63,7 +63,7 @@
     "jsdom": "^29.0.1",
     "node-web-audio-api": "^1.0.9",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4",
+    "vite": "^8.0.9",
     "vitest": "^4.1.2"
   }
 }
