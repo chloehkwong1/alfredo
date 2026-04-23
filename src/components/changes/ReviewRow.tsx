@@ -34,10 +34,10 @@ export function ReviewRow({
   const hasBody = Boolean(body && body.trim().length > 0);
 
   return (
-    <div className="px-2.5 py-1 text-xs">
+    <div className="px-2.5 py-1.5 text-[13px]">
       <div className="flex items-center gap-2">
         {/* Avatar */}
-        <div className="w-5 h-5 rounded-full bg-bg-hover flex items-center justify-center text-[10px] font-bold text-text-primary shrink-0">
+        <div className="w-5 h-5 rounded-full bg-bg-hover flex items-center justify-center text-[11px] font-semibold text-text-primary shrink-0">
           {initial}
         </div>
         <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-text-primary">
@@ -47,7 +47,7 @@ export function ReviewRow({
           {stateLabel}
         </span>
         {submittedAt && (
-          <span className="text-text-tertiary shrink-0 text-[10px]">
+          <span className="text-text-tertiary shrink-0 text-[11px]">
             {formatTimeAgo(submittedAt)}
           </span>
         )}

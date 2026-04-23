@@ -29,7 +29,7 @@ export function CheckRunSummary({ checkRuns }: { checkRuns: CheckRun[] }) {
   if (parts.length === 0) return null;
 
   return (
-    <span className="text-[10px] ml-auto">
+    <span className="text-[13px] font-medium ml-auto">
       {parts.reduce<React.ReactNode[]>((acc, part, i) => {
         if (i > 0) acc.push(<span key={`sep-${i}`} className="text-text-tertiary"> &middot; </span>);
         acc.push(part);
@@ -65,10 +65,10 @@ export function CheckRunRow({ run }: { run: CheckRun }) {
       : null;
 
   return (
-    <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs">
+    <div className="flex items-center gap-2 px-2.5 py-1.5 text-[13px]">
       {isPending ? (
         <RefreshCw
-          size={10}
+          size={11}
           className={`${dotColorClass} shrink-0 animate-spin`}
         />
       ) : (
@@ -83,7 +83,7 @@ export function CheckRunRow({ run }: { run: CheckRun }) {
         {run.name}
       </span>
       {duration && (
-        <span className="text-text-tertiary shrink-0">
+        <span className="text-[11px] text-text-tertiary shrink-0">
           {duration}
         </span>
       )}

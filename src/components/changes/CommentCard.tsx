@@ -20,6 +20,9 @@ export function CommentCard({
 }: {
   author: string;
   body: string;
+  // path + line retained in the API for navigation (onJump) even though the
+  // card no longer renders them — they're already shown by the file-group
+  // header above each group of comments.
   path: string | null;
   line: number | null;
   createdAt: string;
@@ -30,33 +33,29 @@ export function CommentCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = body.length > 150;
+  // Silence unused-var warnings while keeping the props available to callers.
+  void path;
+  void line;
 
   return (
     <div
       onClick={onJump}
-      className={`mx-1.5 px-2 py-1.5 bg-bg-secondary rounded-md text-xs ${
+      className={`mx-1.5 px-2.5 py-2 bg-bg-secondary rounded-md text-[13px] ${
         resolved ? "border border-border-subtle opacity-50" : "border border-border-default"
       } ${onJump ? "cursor-pointer hover:border-accent-primary/40" : ""}`}
     >
       {/* Author row */}
       <div
-        className="flex items-center gap-[5px] mb-[3px]"
+        className="flex items-center gap-1.5 mb-1"
       >
-        <span className="font-semibold text-text-primary">
+        <span className="text-[11px] font-semibold text-text-primary">
           {author}
         </span>
-        {path && (
-          <span
-            className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-text-tertiary text-[11px]"
-            title={line != null ? `${path}:${line}` : path}
-          >
-            {path.split("/").pop()}
-            {line != null ? `:${line}` : ""}
-          </span>
-        )}
-        <span className="text-text-tertiary text-[10px] shrink-0">
+        <span className="text-[11px] text-text-tertiary">·</span>
+        <span className="text-[11px] text-text-tertiary shrink-0">
           {formatTimeAgo(createdAt)}
         </span>
+        <span className="ml-auto inline-flex items-center gap-1 shrink-0">
         <Tooltip content="Open on GitHub">
           <IconButton
             size="sm"
@@ -85,6 +84,7 @@ export function CommentCard({
             </IconButton>
           </Tooltip>
         )}
+        </span>
       </div>
 
       {/* Body */}

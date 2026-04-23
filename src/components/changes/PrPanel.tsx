@@ -78,8 +78,8 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
     return (
       <div className="flex flex-col items-center justify-center flex-1 px-4 py-8 text-center">
         <GitPullRequestDraft className="text-lg text-text-tertiary/30 mb-2" size={32} />
-        <span className="text-xs text-text-tertiary">No pull request</span>
-        <span className="text-[10px] text-text-tertiary/60 mt-1">
+        <span className="text-[13px] text-text-tertiary">No pull request</span>
+        <span className="text-[11px] text-text-tertiary/60 mt-1">
           Push this branch and open a PR to see checks, reviews, and comments.
         </span>
       </div>
@@ -292,17 +292,17 @@ function CommentsByFile({
             <button
               key={filePath}
               onClick={() => toggleFile(`${filePath}:expanded`)}
-              className="flex items-center gap-1 px-4 py-0.5 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
+              className="flex items-center gap-1.5 px-4 py-1 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
               title={filePath}
             >
-              <Check size={10} className="text-diff-added shrink-0" />
-              <span className="text-[11px] text-text-tertiary/60 truncate">
+              <Check size={11} className="text-diff-added shrink-0" />
+              <span className="text-[13px] text-text-tertiary/70 truncate">
                 {displayName}
               </span>
-              <span className="text-[10px] text-text-tertiary/60 ml-auto shrink-0">
+              <span className="text-[11px] text-text-tertiary/60 ml-auto shrink-0">
                 {fileResolved.length} resolved
               </span>
-              <ChevronRight size={10} className="text-text-tertiary/40 shrink-0" />
+              <ChevronRight size={11} className="text-text-tertiary/40 shrink-0" />
             </button>
           );
         }
@@ -311,17 +311,17 @@ function CommentsByFile({
           <div key={filePath} className="mb-px">
             <button
               onClick={() => toggleFile(allFileResolved ? `${filePath}:expanded` : filePath)}
-              className="flex items-center gap-1 px-4 py-1 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
+              className="flex items-center gap-1.5 px-4 py-1.5 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
               title={filePath}
             >
               <ChevronRight
-                size={11}
+                size={12}
                 className={`text-text-tertiary shrink-0 transition-transform duration-150 ${isCollapsed ? "" : "rotate-90"}`}
               />
-              <span className="text-[11px] text-text-tertiary font-medium truncate">
+              <span className="text-[13px] text-text-primary font-medium truncate">
                 {displayName}
               </span>
-              <span className={`text-[10px] ml-auto shrink-0 ${fileUnresolved.length > 0 ? "text-status-busy" : "text-text-tertiary"}`}>
+              <span className={`text-[11px] ml-auto shrink-0 ${fileUnresolved.length > 0 ? "text-status-busy" : "text-text-tertiary"}`}>
                 {fileUnresolved.length > 0 ? `${fileUnresolved.length} unresolved` : `${fileComments.length}`}
               </span>
             </button>
@@ -354,14 +354,14 @@ function ResolvedToggle({ count, children }: { count: number; children: React.Re
     <div className="mx-1.5 mt-2 pt-1.5 border-t border-border-subtle">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 px-1.5 py-0.5 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
+        className="flex items-center gap-1.5 px-1.5 py-1 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
       >
-        <Check size={10} className="text-diff-added shrink-0" />
-        <span className="text-[10px] text-text-tertiary">
+        <Check size={11} className="text-diff-added shrink-0" />
+        <span className="text-[11px] text-text-tertiary">
           {count} resolved
         </span>
         <ChevronRight
-          size={10}
+          size={11}
           className={`text-text-tertiary shrink-0 transition-transform duration-150 ml-auto ${open ? "rotate-90" : ""}`}
         />
       </button>
@@ -454,22 +454,22 @@ function Section({
     <div className="mb-0.5">
       <button
         onClick={toggle}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
+        className="flex items-center gap-1.5 px-2.5 py-2 w-full bg-transparent border-none cursor-pointer text-left font-[inherit] hover:bg-bg-hover/50 rounded-sm"
       >
         <ChevronRight
           size={14}
           className={`text-text-tertiary shrink-0 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
         />
-        <span className="text-xs text-text-secondary font-semibold leading-normal">
+        <span className="text-[13px] text-text-secondary font-semibold leading-normal">
           {title}
         </span>
         {count != null && count > 0 && (
-          <span className="text-[10px] bg-bg-hover text-text-secondary rounded-full px-1.5 py-px">
+          <span className="text-[11px] bg-bg-hover text-text-secondary rounded-full px-1.5 py-px">
             {count}
           </span>
         )}
         {hasAttention && (
-          <span className="text-[10px] text-status-busy">
+          <span className="text-[11px] text-status-busy">
             {attentionCount} unresolved
           </span>
         )}
@@ -482,7 +482,7 @@ function Section({
 
 function EmptyRow({ text }: { text: string }) {
   return (
-    <div className="px-2.5 py-1 text-xs text-text-tertiary italic">
+    <div className="px-2.5 py-1.5 text-[13px] text-text-tertiary italic">
       {text}
     </div>
   );

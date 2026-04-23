@@ -61,21 +61,19 @@ export function PrDescription({
   const { images, videos } = countMedia(body);
   const hasMedia = images + videos > 0;
   const isLong = body.split("\n").length > 6;
-
-  const mediaSummary = [
-    images > 0 ? `${images} image${images !== 1 ? "s" : ""}` : null,
-    videos > 0 ? `${videos} video${videos !== 1 ? "s" : ""}` : null,
-  ].filter(Boolean).join(", ");
+  // "X images not shown" removed — the "Open on GitHub" link is the
+  // actionable escape hatch; surfacing the limitation added cognitive noise.
+  void images; void videos;
 
   return (
-    <div className="px-2.5 py-1.5 text-xs text-text-secondary leading-[1.5] overflow-hidden">
+    <div className="px-2.5 py-1.5 text-[13px] text-text-secondary leading-[1.5] overflow-hidden">
       <div className={expanded || !isLong ? "" : "max-h-[4.5em] overflow-hidden"}>
         {formatPrBody(body)}
       </div>
       {isLong && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-accent-primary text-[10px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit]"
+          className="text-accent-primary text-[11px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit] hover:underline"
         >
           {expanded ? "Show less" : "Show more"}
         </button>
@@ -86,13 +84,10 @@ export function PrDescription({
             href={prUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-accent-primary text-[10px] hover:underline"
+            className="text-accent-primary text-[11px] hover:underline"
           >
-            View full description on GitHub ↗
+            Open on GitHub ↗
           </a>
-          <div className="text-[10px] text-text-tertiary mt-0.5">
-            {mediaSummary} not shown
-          </div>
         </div>
       )}
     </div>
