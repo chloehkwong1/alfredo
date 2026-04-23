@@ -1,0 +1,38 @@
+src/components/changes/FileSidebar.tsx
+  dba0988644f802c9 2,8,24,69-70,77,86,92-110,112,118,120,184,354,359,382,389-390,393-394,397-398,401-402,411,421,423-427,442-443,445,449,452-453,456-457,460-461,476-477,483,486-489,491-502,518-519,522,533
+src/components/changes/ChangesPanel.tsx
+  dba0988644f802c9 2,227-228,243,247,250,258,262,271,274,305
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "aa6b9b20fc68ba04b37fae903a6f6c25f8d1f169",
+  "prompts": {
+    "dba0988644f802c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a9528ad1-b8b0-4f43-8796-976f6b8daa29",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 144,
+      "overriden_lines": 0
+    },
+    "ffb658ea2b88c970": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d30abeff-74fb-4db8-8b93-b001fda17efc",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
