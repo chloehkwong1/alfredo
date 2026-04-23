@@ -26,6 +26,7 @@ interface PrState {
     reviewDecision?: string | null;
     mergeable?: boolean | null;
     requestedReviewers?: string[];
+    merged?: boolean;
   }>;
   prPanelState: Record<string, PrPanelState>;
   reviewedFiles: Record<string, Set<string>>;
@@ -232,6 +233,7 @@ export const usePrStore = create<PrState>((set, get) => ({
         reviewDecision: pr.reviewDecision ?? prev?.reviewDecision,
         mergeable: pr.mergeable ?? prev?.mergeable,
         requestedReviewers: pr.requestedReviewers ?? prev?.requestedReviewers,
+        merged: pr.merged,
       };
 
       // PR panel full data (only update if enrichment data is present)

@@ -7,6 +7,7 @@ import {
   Clock,
   MessageCircle,
   AlertTriangle,
+  GitMerge,
 } from "lucide-react";
 
 export type PrSummary = {
@@ -16,10 +17,12 @@ export type PrSummary = {
   reviewDecision?: string | null;
   mergeable?: boolean | null;
   requestedReviewers?: string[];
+  merged?: boolean;
 };
 
 export function hasPrStats(s: PrSummary): boolean {
-  const { failingCheckCount, unresolvedCommentCount, reviewDecision, mergeable } = s;
+  const { failingCheckCount, unresolvedCommentCount, reviewDecision, mergeable, merged } = s;
+  if (merged) return true;
   if (failingCheckCount != null) return true;
   if (
     reviewDecision === "approved" ||
@@ -47,7 +50,21 @@ export function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
     unresolvedCommentCount,
     reviewDecision,
     mergeable,
+    merged,
   } = prSummary;
+
+  // Merged is a terminal state — suppress precursor chips (Approved / Checks pass
+  // / etc.) so the card stops implying work-to-do.
+  if (merged) {
+    return (
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="flex items-center gap-1 text-xs text-accent-primary">
+          <GitMerge size={12} />
+          Merged
+        </span>
+      </div>
+    );
+  }
 
   const checksRunning = (pendingCheckCount ?? 0) > 0;
   const checksPass = !checksRunning && failingCheckCount != null && failingCheckCount === 0;
