@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GitBranch, PanelLeftClose, PanelLeftOpen, Trash2 } from "lucide-react";
+import { GitBranch, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
 import { PrPanelContent, PrRailIcons, usePrBadgeCounts } from "./PrPanel";
@@ -224,8 +224,8 @@ function WorkspacePanel({
   return (
     <div className="flex flex-col h-full bg-bg-primary border-l border-border-default overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-border-subtle flex-shrink-0">
-        <span className="text-xs uppercase tracking-wider text-text-tertiary font-medium">
+      <div className="flex items-center justify-between px-2.5 py-2 border-b border-border-subtle flex-shrink-0">
+        <span className="text-[13px] font-medium text-text-secondary">
           Changes
         </span>
         <IconButton
@@ -240,14 +240,14 @@ function WorkspacePanel({
 
       {/* Tab bar — hidden when only uncommitted changes exist (branch-mode on default branch) */}
       {!isBranchModeDefault && (
-        <div className="flex px-2.5 py-1.5 gap-0 flex-shrink-0">
+        <div className="flex px-2.5 py-2 gap-0 flex-shrink-0">
           <button
             onClick={() => handleTabChange("changes")}
             className={[
-              "flex-1 px-2 py-1 text-[11px] border border-border-default rounded-l-md",
+              "flex-1 px-2 py-1.5 text-xs font-medium border border-border-default rounded-l-md transition-colors",
               panelTab === "changes"
                 ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-                : "text-text-tertiary",
+                : "text-text-tertiary hover:text-text-secondary",
             ].join(" ")}
           >
             Files{fileCount > 0 ? ` (${fileCount})` : ""}
@@ -255,11 +255,11 @@ function WorkspacePanel({
           <button
             onClick={() => handleTabChange("commits")}
             className={[
-              "flex-1 px-2 py-1 text-[11px] border border-l-0 border-border-default",
+              "flex-1 px-2 py-1.5 text-xs font-medium border border-l-0 border-border-default transition-colors",
               hasPr ? "" : "rounded-r-md",
               panelTab === "commits"
                 ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-                : "text-text-tertiary",
+                : "text-text-tertiary hover:text-text-secondary",
             ].join(" ")}
           >
             Commits{commits.length > 0 ? ` (${commits.length})` : ""}
@@ -268,10 +268,10 @@ function WorkspacePanel({
             <button
               onClick={() => handleTabChange("pr")}
               className={[
-                "flex-1 px-2 py-1 text-[11px] border border-l-0 border-border-default rounded-r-md",
+                "flex-1 px-2 py-1.5 text-xs font-medium border border-l-0 border-border-default rounded-r-md transition-colors",
                 panelTab === "pr"
                   ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-                  : "text-text-tertiary",
+                  : "text-text-tertiary hover:text-text-secondary",
               ].join(" ")}
             >
               PR
@@ -288,21 +288,6 @@ function WorkspacePanel({
         />
       ) : (
         <div className="flex-1 overflow-hidden flex flex-col">
-          {panelTab === "changes" && uncommittedFiles.length > 0 && (
-            <div className="flex items-center gap-2 px-2 py-1 border-b border-border-default flex-shrink-0">
-              <span className="text-[10px] text-text-tertiary">
-                {uncommittedFiles.length} uncommitted
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowDiscardAllDialog(true)}
-                className="ml-auto text-[10px] text-red-400 hover:text-red-300 transition-colors cursor-pointer"
-                title="Discard all uncommitted changes"
-              >
-                <Trash2 size={11} />
-              </button>
-            </div>
-          )}
           <div className="flex-1 overflow-hidden">
             <FileSidebar
               viewMode={dataViewMode}
@@ -317,6 +302,7 @@ function WorkspacePanel({
               activeFileIsUncommitted={activeFileIsUncommitted}
               onSelectFile={handleSelectFile}
               onDiscardFile={handleDiscardFile}
+              onDiscardAllUncommitted={uncommittedFiles.length > 0 ? () => setShowDiscardAllDialog(true) : undefined}
               prComments={prComments}
               onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
               onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
