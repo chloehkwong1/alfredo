@@ -13,6 +13,7 @@ export function useDiffSearch(
   displayFiles: DiffFile[],
   setCollapsedFiles: React.Dispatch<React.SetStateAction<Set<string>>>,
   setActiveFilePath: (path: string | null) => void,
+  containerRef: React.RefObject<HTMLElement | null>,
 ) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -80,14 +81,26 @@ export function useDiffSearch(
     [matches, currentMatchIndex, setCollapsedFiles, setActiveFilePath],
   );
 
-  // Keyboard: "/" to open search, Escape to close, Enter/Shift+Enter to navigate
+  // Keyboard: "/" to open search, Escape to close, Enter/Shift+Enter to navigate.
+  // Scoped to the owning ChangesView subtree so Cmd+F pressed in a terminal
+  // (or any other pane) doesn't steal focus into the diff search here.
   useEffect(() => {
+    const root = containerRef.current;
+    if (!root) return;
+
     function handleSearchKeys(e: KeyboardEvent) {
+      const inScope =
+        root!.contains(document.activeElement) || searchOpen;
+      if (!inScope) return;
+
       const tag = (e.target as HTMLElement)?.tagName;
       const isInput = tag === "INPUT" || tag === "TEXTAREA";
 
-      // "/" to open search (when not in an input), or Cmd+F anywhere
-      if ((e.key === "/" && !isInput) || (e.metaKey && e.key === "f")) {
+      // "/" to open search (when not in an input), or Cmd/Ctrl+F within scope
+      if (
+        (e.key === "/" && !isInput) ||
+        ((e.metaKey || e.ctrlKey) && e.key === "f")
+      ) {
         e.preventDefault();
         setSearchOpen(true);
         requestAnimationFrame(() => searchInputRef.current?.focus());
@@ -111,9 +124,9 @@ export function useDiffSearch(
       }
     }
 
-    window.addEventListener("keydown", handleSearchKeys);
-    return () => window.removeEventListener("keydown", handleSearchKeys);
-  }, [searchOpen, navigateMatch]);
+    root.addEventListener("keydown", handleSearchKeys);
+    return () => root.removeEventListener("keydown", handleSearchKeys);
+  }, [searchOpen, navigateMatch, containerRef]);
 
   // Compute active search match for highlighting
   const activeSearchMatch = useMemo(() => {
