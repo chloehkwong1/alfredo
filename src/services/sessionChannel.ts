@@ -50,14 +50,35 @@ export const TURN_END_GRACE_MS = 1000;
 export const stateSourceMap = new Map<string, string>();
 
 /**
+ * Dedupe window for notifications keyed by (worktreeId, notify). Multiple tabs
+ * on the same worktree each fire their own hook → one Stop becomes N banners
+ * without this. Keep the window short — legitimate back-to-back turns on the
+ * same worktree should still notify.
+ */
+const NOTIFY_DEDUPE_MS = 1500;
+const lastNotifyAt = new Map<string, number>();
+
+/**
  * Fire an OS notification for a hook event.
  * Reads config each time so changes take effect immediately.
  */
 export async function fireHookNotification(
   branch: string,
   notify: NotifyReason,
+  worktreeId?: string,
 ) {
   if (notify === "none") return;
+
+  if (worktreeId) {
+    const key = `${worktreeId}:${notify}`;
+    const now = Date.now();
+    const prev = lastNotifyAt.get(key) ?? 0;
+    if (now - prev < NOTIFY_DEDUPE_MS) {
+      console.debug(`[notify] DEDUPED ${key} (${now - prev}ms since last)`);
+      return;
+    }
+    lastNotifyAt.set(key, now);
+  }
 
   const appConfig = await getAppConfig();
   const config = appConfig.notifications;
@@ -226,6 +247,13 @@ export function createSessionChannel(
       case "hookAgentState": {
         const { state, notify, phase } = event.data;
         const hookDesc = `${state}${phase !== "none" ? `(${phase})` : ""}`;
+        // Diagnostic: log hook arrival with delta since last turnEnd. Helps
+        // identify stragglers (e.g. busy(toolEnd) arriving seconds after
+        // turnEnd) that flip an idle session back to busy.
+        const sinceTurnEnd = session.turnEndAt > 0 ? Date.now() - session.turnEndAt : -1;
+        console.debug(
+          `[hook-arrive:${worktreeId}] ${hookDesc} notify=${notify} sinceTurnEnd=${sinceTurnEnd}ms agentState=${session.agentState} sessionKey=${sessionKey}`
+        );
         // Update lastHookAt unconditionally (proves hook channel is alive for
         // the reconciler), but defer lastHookDesc until after the suppression
         // check so reconciler debug logs show the last *accepted* hook.
@@ -309,7 +337,7 @@ export function createSessionChannel(
             if (notify !== "none") {
               const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
               if (wt) {
-                fireHookNotification(wt.branch, notify);
+                fireHookNotification(wt.branch, notify, worktreeId);
               }
             }
           }, IDLE_DEBOUNCE_MS);
@@ -329,7 +357,7 @@ export function createSessionChannel(
         if (notify !== "none") {
           const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
           if (wt) {
-            fireHookNotification(wt.branch, notify);
+            fireHookNotification(wt.branch, notify, worktreeId);
           }
         }
         break;

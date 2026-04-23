@@ -11,11 +11,24 @@ use crate::sleep_inhibitor::SleepInhibitor;
 use crate::types::{AgentState, HookPhase, NotifyReason, PtyEvent};
 use tauri::ipc::Channel;
 
+/// Per-session registration details.
+struct SessionEntry {
+    #[allow(dead_code)]
+    worktree_id: String,
+    channel: Channel<PtyEvent>,
+    /// First hook-script ppid seen for this session. Subsequent hooks with a
+    /// different ppid are dropped — this filters out hooks fired by child
+    /// `claude -p` processes spawned by plugins (e.g. memsearch's summariser)
+    /// that inherit $ALFREDO_STATE_URL and would otherwise mis-attribute
+    /// phantom busy/idle transitions to the parent session.
+    authoritative_ppid: Option<String>,
+}
+
 /// Inner state shared between the handle and the HTTP router.
 #[derive(Default)]
 struct ChannelRegistry {
-    /// session_id → (worktree_id, channel)
-    channels: HashMap<String, (String, Channel<PtyEvent>)>,
+    /// session_id → SessionEntry
+    channels: HashMap<String, SessionEntry>,
 }
 
 /// Shared state for the HTTP server.
@@ -48,11 +61,24 @@ impl StateServerHandle {
         channel: Channel<PtyEvent>,
     ) {
         let Ok(mut reg) = self.registry.lock() else {
-            eprintln!("[state-server] registry lock poisoned in register_channel");
+            tracing::info!("[state-server] registry lock poisoned in register_channel");
             return;
         };
-        reg.channels.insert(session_id.clone(), (worktree_id.clone(), channel));
-        eprintln!(
+        // Preserve authoritative_ppid across reattach (frontend reload calls
+        // register again with a new Channel but the session is the same).
+        let authoritative_ppid = reg
+            .channels
+            .get(&session_id)
+            .and_then(|e| e.authoritative_ppid.clone());
+        reg.channels.insert(
+            session_id.clone(),
+            SessionEntry {
+                worktree_id: worktree_id.clone(),
+                channel,
+                authoritative_ppid,
+            },
+        );
+        tracing::info!(
             "[state-server] register session={session_id} worktree={worktree_id} (total={})",
             reg.channels.len()
         );
@@ -67,13 +93,29 @@ impl StateServerHandle {
         }
     }
 
+    /// Bind the authoritative parent pid for a session to the known PTY child
+    /// pid (the `claude` process Alfredo spawned). This makes the hppid gate
+    /// deterministic instead of first-seen, eliminating the race where a
+    /// plugin-spawned `claude -p` child could bind the session to itself if
+    /// its hook fired before the parent's first hook.
+    pub fn bind_authoritative_pid(&self, session_id: &str, child_pid: u32) {
+        let Ok(mut reg) = self.registry.lock() else {
+            tracing::info!("[state-server] registry lock poisoned in bind_authoritative_pid");
+            return;
+        };
+        if let Some(entry) = reg.channels.get_mut(session_id) {
+            entry.authoritative_ppid = Some(child_pid.to_string());
+            tracing::info!("[state-server] bind session={session_id} authoritative_pid={child_pid} (from PTY child)");
+        }
+    }
+
     /// Remove a channel when a session is closed.
     pub fn unregister_channel(&self, session_id: &str, worktree_id: &str) {
         let Ok(mut reg) = self.registry.lock() else {
-            eprintln!("[state-server] registry lock poisoned in unregister_channel");
+            tracing::info!("[state-server] registry lock poisoned in unregister_channel");
             return;
         };
-        eprintln!("[state-server] unregister session={session_id} worktree={worktree_id} (remaining={})", reg.channels.len().saturating_sub(1));
+        tracing::info!("[state-server] unregister session={session_id} worktree={worktree_id} (remaining={})", reg.channels.len().saturating_sub(1));
         reg.channels.remove(session_id);
     }
 }
@@ -102,7 +144,7 @@ pub async fn start(
 
     tokio::spawn(async move {
         if let Err(e) = axum::serve(listener, app).await {
-            eprintln!("[state-server] server error: {e}");
+            tracing::info!("[state-server] server error: {e}");
         }
     });
 
@@ -123,6 +165,15 @@ fn parse_notify_reason(query: Option<&str>) -> NotifyReason {
         Some("input") => NotifyReason::Input,
         _ => NotifyReason::None,
     }
+}
+
+fn parse_hppid(query: Option<&str>) -> Option<String> {
+    query
+        .into_iter()
+        .flat_map(|q| q.split('&'))
+        .find_map(|pair| pair.strip_prefix("hppid="))
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
 }
 
 fn parse_phase(query: Option<&str>) -> HookPhase {
@@ -182,28 +233,49 @@ async fn handle_state_update(
 
     let notify = parse_notify_reason(uri.query());
     let phase = parse_phase(uri.query());
+    let hppid = parse_hppid(uri.query());
 
     // Update sleep inhibitor based on agent state
     router_state.sleep_inhibitor.update(session_id, &state);
 
-    let Ok(reg) = router_state.registry.lock() else {
-        eprintln!("[state-server] registry lock poisoned in handle_state_update");
+    let Ok(mut reg) = router_state.registry.lock() else {
+        tracing::info!("[state-server] registry lock poisoned in handle_state_update");
         return StatusCode::INTERNAL_SERVER_ERROR;
     };
     // Deliver to the specific session only — not fan-out by worktree.
     // When a session is unregistered (tab closed), stale hooks are silently dropped.
-    if let Some((_, channel)) = reg.channels.get(session_id) {
-        let registered = reg.channels.len();
+    if let Some(entry) = reg.channels.get_mut(session_id) {
+        // Authoritative-ppid gate: first hook whose hppid query param is set
+        // binds the session to that ppid. Later hooks from a *different* ppid
+        // (e.g. a child `claude -p` spawned by memsearch's Stop hook) are
+        // dropped — they inherit $ALFREDO_STATE_URL but have a different
+        // parent process. Hooks without hppid bypass the gate (backward-compat
+        // during tab transition).
+        match (&entry.authoritative_ppid, &hppid) {
+            (None, Some(pp)) => {
+                entry.authoritative_ppid = Some(pp.clone());
+                tracing::info!("[state-server] bind session={session_id} hppid={pp}");
+            }
+            (Some(expected), Some(pp)) if expected != pp => {
+                tracing::info!(
+                    "[state-server] ⊘ drop foreign hook session={session_id} state={state:?} phase={phase:?} notify={notify:?} hppid={pp} (expected {expected})"
+                );
+                return StatusCode::OK;
+            }
+            _ => {}
+        }
         let desc = format!(
             "{session_id} {state:?} phase={phase:?} notify={notify:?}"
         );
-        match channel.send(PtyEvent::HookAgentState { state, notify, phase }) {
-            Ok(()) => eprintln!("[state-server] → {desc} (SEND OK, registered={registered})"),
-            Err(e) => eprintln!("[state-server] → {desc} (SEND ERR: {e}, registered={registered}) — channel is dead, hook lost"),
+        let send_result = entry.channel.send(PtyEvent::HookAgentState { state, notify, phase });
+        let registered = reg.channels.len();
+        match send_result {
+            Ok(()) => tracing::info!("[state-server] → {desc} (SEND OK, registered={registered})"),
+            Err(e) => tracing::info!("[state-server] → {desc} (SEND ERR: {e}, registered={registered}) — channel is dead, hook lost"),
         }
     } else {
         let known: Vec<&String> = reg.channels.keys().collect();
-        eprintln!(
+        tracing::info!(
             "[state-server] hook dropped: no channel for session {session_id} (state={state:?}, registered={}, known={known:?})",
             reg.channels.len()
         );

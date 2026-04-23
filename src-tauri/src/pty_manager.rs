@@ -501,6 +501,16 @@ impl PtyManager {
         // used by the poller thread for shell sessions.
         let shell_pid_opt = child.process_id();
 
+        // Bind the state server's authoritative ppid for this session to the
+        // PTY child pid. For Claude Code sessions the PTY child *is* `claude`,
+        // so hook scripts (run via `sh -c`) will report HPPID == this pid.
+        // Plugin-spawned `claude -p` children have a different pid and will
+        // be filtered by the hppid gate. Deterministic from spawn time —
+        // removes the "first hook wins" race.
+        if let (Some(pid), Some(handle)) = (shell_pid_opt, state_server.as_ref()) {
+            handle.bind_authoritative_pid(&session_id, pid);
+        }
+
         // --- heartbeat thread ---
         let hb_channel = Arc::clone(&arc_channel);
         let hb_stop = Arc::clone(&stop_flag);
@@ -910,24 +920,30 @@ fn write_hooks_config(
     // `cat > /dev/null` drains stdin (hook context JSON) to prevent pipe
     // buffer deadlock when Claude Code sends large payloads (e.g. tool input).
     // On curl failure, log to /tmp/alfredo-hooks.log for debugging missed hooks.
+    // hppid=$(ps -o ppid= -p $$ | tr -d ' ') captures the ppid of the hook
+    // shell, which is the Claude process that invoked it. The state server
+    // binds the first hppid it sees per session and drops hooks from any
+    // other ppid — this filters out hooks fired by child `claude -p`
+    // processes spawned by plugins (e.g. memsearch's Stop summariser), which
+    // inherit $ALFREDO_STATE_URL/$ALFREDO_SESSION_ID but have a distinct ppid.
     let cmd = |state: &str| -> String {
         format!(
-            "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\" || echo \"$(date +%H:%M:%S) FAIL {state} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
+            "cat > /dev/null; HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?hppid=$HPPID\" || echo \"$(date +%H:%M:%S) FAIL {state} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
         )
     };
     let cmd_phase = |state: &str, phase: &str| -> String {
         format!(
-            "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}\" || echo \"$(date +%H:%M:%S) FAIL {state}({phase}) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
+            "cat > /dev/null; HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}&hppid=$HPPID\" || echo \"$(date +%H:%M:%S) FAIL {state}({phase}) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
         )
     };
     let cmd_notify = |state: &str, reason: &str| -> String {
         format!(
-            "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}\" || echo \"$(date +%H:%M:%S) FAIL {state} notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
+            "cat > /dev/null; HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&hppid=$HPPID\" || echo \"$(date +%H:%M:%S) FAIL {state} notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
         )
     };
     let cmd_notify_phase = |state: &str, reason: &str, phase: &str| -> String {
         format!(
-            "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}\" || echo \"$(date +%H:%M:%S) FAIL {state}({phase}) notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
+            "cat > /dev/null; HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}&hppid=$HPPID\" || echo \"$(date +%H:%M:%S) FAIL {state}({phase}) notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
         )
     };
 
@@ -984,7 +1000,7 @@ fn write_hooks_config(
         ("PostToolUseFailure", serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": "if [ -n \"$ALFREDO_STATE_URL\" ]; then INPUT=$(cat); if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput?phase=toolEnd\"; else curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy?phase=toolEnd\"; fi; fi; echo '{}'"
+                "command": "INPUT=$(cat); HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput?phase=toolEnd&hppid=$HPPID\"; else curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy?phase=toolEnd&hppid=$HPPID\"; fi; fi; echo '{}'"
             }]
         })),
     ];
