@@ -230,19 +230,22 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     return () => window.removeEventListener("focus-terminal", handler);
   }, [tabId, ptyTerminal]);
 
-  // Cmd+F to toggle terminal search
+  // Cmd+F to toggle terminal search — scoped to this pane so it doesn't
+  // fire for other panes / surfaces that are mounted in a split layout.
   useEffect(() => {
+    const root = dropZoneRef.current;
+    if (!root) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
-        // Only handle if our terminal container has focus
-        if (containerRef.current?.contains(document.activeElement) || showSearch) {
-          e.preventDefault();
-          setShowSearch((s) => !s);
-        }
-      }
+      if (!((e.metaKey || e.ctrlKey) && e.key === "f")) return;
+      // Only when focus is actually inside this pane, or the search bar is already open.
+      if (!root.contains(document.activeElement) && !showSearch) return;
+      e.preventDefault();
+      setShowSearch((s) => !s);
     };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+
+    root.addEventListener("keydown", handleKeyDown);
+    return () => root.removeEventListener("keydown", handleKeyDown);
   }, [showSearch]);
 
   // Track whether the terminal is scrolled away from the bottom.
