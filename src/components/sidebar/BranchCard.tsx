@@ -1,5 +1,5 @@
-import { memo } from "react";
-import { GitBranch } from "lucide-react";
+import { memo, useState } from "react";
+import { GitBranch, LayoutGrid } from "lucide-react";
 import { REPO_COLOR_PALETTE, repoDisplayName, resolveColorId } from "./RepoSelector";
 import { RepoTag } from "./RepoTag";
 import { formatDiffStat, PrStatsRow, hasPrStats } from "./PrStatsRow";
@@ -7,6 +7,13 @@ import type { PrSummary } from "./PrStatsRow";
 import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { computeEffectiveStatus, statusDotColor, statusText } from "./AgentItem";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "../ui/ContextMenu";
+import { setRepoMode } from "../../api";
 
 const ATTN_STATES = new Set(["waitingForInput", "done", "ready"]);
 
@@ -79,84 +86,120 @@ const BranchCard = memo(function BranchCard({
   const add = formatDiffStat(repo.additions);
   const del = formatDiffStat(repo.deletions);
 
+  const [converting, setConverting] = useState(false);
+  const handleConvertToWorktree = async () => {
+    if (converting) return;
+    const confirmed = window.confirm(
+      `Convert "${displayName}" to worktree mode? The board will reload to reflect the change.`,
+    );
+    if (!confirmed) return;
+    setConverting(true);
+    try {
+      await setRepoMode(repo.repoPath, "worktree");
+      window.dispatchEvent(new Event("config-changed"));
+      window.dispatchEvent(
+        new CustomEvent("alfredo:open-workspace-settings", {
+          detail: { repoPath: repo.repoPath },
+        }),
+      );
+    } catch (e) {
+      console.error("Failed to convert repo to worktree mode:", e);
+      window.alert(
+        `Failed to convert: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      setConverting(false);
+    }
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "w-full text-left mx-2.5 my-1 rounded-[var(--radius-md)] transition-all duration-[var(--transition-fast)] cursor-pointer",
-        isSelected ? "brightness-125" : "hover:brightness-115",
-      ].join(" ")}
-      style={{
-        padding: "10px 12px",
-        border: `1px solid ${isSelected ? borderSelected : borderBase}`,
-        ...(attn ? { borderLeft: `3px ${attn.style} ${attn.color}` } : {}),
-        background: isSelected ? bgSelected : bgBase,
-        filter: isSelected ? "brightness(1.25)" : undefined,
-        width: "calc(100% - 20px)",
-      }}
-      onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.filter = "brightness(1.15)";
-      }}
-      onMouseLeave={(e) => {
-        if (!isSelected) e.currentTarget.style.filter = "";
-      }}
-    >
-      {/* Row 1: repo name, PR number, repo tag */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-text-primary truncate">
-          {displayName}
-        </span>
-        {showRepoTag && (
-          <span className="ml-auto flex-shrink-0">
-            <RepoTag
-              repoPath={repo.repoPath}
-              repoColors={repoColors}
-              repoDisplayNames={repoDisplayNames}
-              repoShortLabels={repoShortLabels}
-              repoIndex={repoIndex}
-              visible
-            />
-          </span>
-        )}
-      </div>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          className={[
+            "w-full text-left mx-2.5 my-1 rounded-[var(--radius-md)] transition-all duration-[var(--transition-fast)] cursor-pointer",
+            isSelected ? "brightness-125" : "hover:brightness-115",
+          ].join(" ")}
+          style={{
+            padding: "10px 12px",
+            border: `1px solid ${isSelected ? borderSelected : borderBase}`,
+            ...(attn ? { borderLeft: `3px ${attn.style} ${attn.color}` } : {}),
+            background: isSelected ? bgSelected : bgBase,
+            filter: isSelected ? "brightness(1.25)" : undefined,
+            width: "calc(100% - 20px)",
+          }}
+          onMouseEnter={(e) => {
+            if (!isSelected) e.currentTarget.style.filter = "brightness(1.15)";
+          }}
+          onMouseLeave={(e) => {
+            if (!isSelected) e.currentTarget.style.filter = "";
+          }}
+        >
+          {/* Row 1: repo name, PR number, repo tag */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-text-primary truncate">
+              {displayName}
+            </span>
+            {showRepoTag && (
+              <span className="ml-auto flex-shrink-0">
+                <RepoTag
+                  repoPath={repo.repoPath}
+                  repoColors={repoColors}
+                  repoDisplayNames={repoDisplayNames}
+                  repoShortLabels={repoShortLabels}
+                  repoIndex={repoIndex}
+                  visible
+                />
+              </span>
+            )}
+          </div>
 
-      {/* Row 2: git branch icon + branch name */}
-      <div className="flex items-center gap-1.5 mt-1">
-        <GitBranch size={12} className="text-text-tertiary flex-shrink-0" />
-        <span className="text-xs text-text-tertiary font-mono truncate">
-          {repo.branch ?? "unknown"}
-        </span>
-      </div>
+          {/* Row 2: git branch icon + branch name */}
+          <div className="flex items-center gap-1.5 mt-1">
+            <GitBranch size={12} className="text-text-tertiary flex-shrink-0" />
+            <span className="text-xs text-text-tertiary font-mono truncate">
+              {repo.branch ?? "unknown"}
+            </span>
+          </div>
 
-      {/* Row 3: agent status + diff stats */}
-      <div className="flex items-center gap-2 mt-1">
-        <span className="flex items-center gap-1.5">
-          <span
-            className={[
-              "h-1.5 w-1.5 rounded-full flex-shrink-0",
-              dotColor,
-              glow,
-              shouldPulse ? "animate-pulse-dot" : "",
-            ].join(" ")}
-          />
-          <span className="text-xs text-text-tertiary">{statusLabel}</span>
-        </span>
-        {(add || del) && (
-          <span className="flex items-center gap-1 text-xs ml-auto flex-shrink-0">
-            {add && <span className="text-diff-added">+{add}</span>}
-            {del && <span className="text-diff-removed">-{del}</span>}
-          </span>
-        )}
-      </div>
+          {/* Row 3: agent status + diff stats */}
+          <div className="flex items-center gap-2 mt-1">
+            <span className="flex items-center gap-1.5">
+              <span
+                className={[
+                  "h-1.5 w-1.5 rounded-full flex-shrink-0",
+                  dotColor,
+                  glow,
+                  shouldPulse ? "animate-pulse-dot" : "",
+                ].join(" ")}
+              />
+              <span className="text-xs text-text-tertiary">{statusLabel}</span>
+            </span>
+            {(add || del) && (
+              <span className="flex items-center gap-1 text-xs ml-auto flex-shrink-0">
+                {add && <span className="text-diff-added">+{add}</span>}
+                {del && <span className="text-diff-removed">-{del}</span>}
+              </span>
+            )}
+          </div>
 
-      {/* Row 4: PR stats (only when PR data exists) */}
-      {prSummary && hasPrStats(prSummary) && (
-        <div className="pt-2 mt-2.5 border-t border-border-subtle">
-          <PrStatsRow prSummary={prSummary} />
-        </div>
-      )}
-    </button>
+          {/* Row 4: PR stats (only when PR data exists) */}
+          {prSummary && hasPrStats(prSummary) && (
+            <div className="pt-2 mt-2.5 border-t border-border-subtle">
+              <PrStatsRow prSummary={prSummary} />
+            </div>
+          )}
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={handleConvertToWorktree} disabled={converting}>
+          <LayoutGrid className="h-4 w-4" />
+          Convert to worktree mode
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 });
 

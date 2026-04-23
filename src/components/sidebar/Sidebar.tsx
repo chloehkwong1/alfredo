@@ -244,6 +244,17 @@ function Sidebar({
     };
   }, []);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
+  const [workspaceSettingsRepoOverride, setWorkspaceSettingsRepoOverride] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ repoPath?: string }>;
+      if (ce.detail?.repoPath) setWorkspaceSettingsRepoOverride(ce.detail.repoPath);
+      setWorkspaceSettingsOpen(true);
+    };
+    window.addEventListener("alfredo:open-workspace-settings", handler);
+    return () => window.removeEventListener("alfredo:open-workspace-settings", handler);
+  }, []);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
   const [deletingCount, setDeletingCount] = useState<{ current: number; total: number } | null>(null);
 
@@ -455,8 +466,11 @@ function Sidebar({
       <ShortcutsOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <WorkspaceSettingsDialog
         open={workspaceSettingsOpen}
-        onOpenChange={setWorkspaceSettingsOpen}
-        repoPath={repoPath || "."}
+        onOpenChange={(open) => {
+          setWorkspaceSettingsOpen(open);
+          if (!open) setWorkspaceSettingsRepoOverride(null);
+        }}
+        repoPath={workspaceSettingsRepoOverride || repoPath || "."}
         repos={repos}
         repoColors={effectiveRepoColors}
         repoDisplayNames={repoDisplayNames ?? {}}
@@ -464,7 +478,7 @@ function Sidebar({
         onSetRepoDisplayName={onSetRepoDisplayName}
         onSetRepoShortLabel={onSetRepoShortLabel}
         onSetRepoColor={onSetRepoColor}
-        defaultRepoPath={defaultRepoPath}
+        defaultRepoPath={workspaceSettingsRepoOverride ?? defaultRepoPath}
       />
       {hasRepo && (
         <CreateWorktreeDialog
