@@ -1,9 +1,24 @@
 import React from "react";
-import { Search, Maximize2, Minimize2, MessageSquare, Copy, Check, ExternalLink } from "lucide-react";
+import { Search, Maximize2, Minimize2, MessageSquare, Copy, Check, ArrowUpRight, MoreHorizontal } from "lucide-react";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "../ui/DropdownMenu";
 import { DiffSearchBar } from "./DiffSearchBar";
 import { openInEditor } from "../../api";
+
+const EDITOR_LABELS: Record<string, string> = {
+  vscode: "VS Code",
+  cursor: "Cursor",
+  zed: "Zed",
+  vim: "Vim",
+  custom: "editor",
+};
 import type { DiffFile, DiffViewMode, PrStatus, GlobalAppConfig } from "../../types";
 import type { SearchMatch } from "../../hooks/useDiffSearch";
 
@@ -135,14 +150,16 @@ function SearchControl({
     );
   }
   return (
-    <IconButton
-      size="sm"
-      label="Search in diffs (/)"
-      className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
+    <button
+      type="button"
+      aria-label="Search in diffs"
+      className="inline-flex items-center gap-1 h-[22px] px-2 rounded text-[11px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
       onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()); }}
     >
-      <Search size={12} />
-    </IconButton>
+      <Search size={11} />
+      Search
+      <span className="ml-0.5 font-mono text-[9px] px-1 h-[14px] inline-grid place-items-center border border-border-default rounded-[3px] text-text-tertiary">/</span>
+    </button>
   );
 }
 
@@ -196,33 +213,7 @@ function ChangesToolbar({
               : <Copy size={11} className="flex-shrink-0 text-text-tertiary opacity-0 group-hover/path:opacity-100 transition-opacity" />
             }
           </button>
-          <div className="flex items-center gap-1.5 ml-auto">
-            <IconButton
-              size="sm"
-              label="Open in editor"
-              className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
-              onClick={() => {
-                if (appConfig) {
-                  openInEditor(
-                    `${repoPath}/${focusedFilePath}`,
-                    appConfig.preferredEditor,
-                    appConfig.customEditorPath ?? undefined,
-                  );
-                }
-              }}
-            >
-              <ExternalLink size={12} />
-            </IconButton>
-            <span className="text-text-tertiary/50">|</span>
-            <IconButton
-              size="sm"
-              label={expandFullFile ? "Show diffs only" : "Expand full file"}
-              className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
-              onClick={() => setExpandFullFile(!expandFullFile)}
-            >
-              {expandFullFile ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-            </IconButton>
-            <span className="text-text-tertiary/50">|</span>
+          <div className="flex items-center gap-2.5 ml-auto">
             <SearchControl
               searchOpen={searchOpen}
               setSearchOpen={setSearchOpen}
@@ -233,18 +224,56 @@ function ChangesToolbar({
               currentMatchIndex={currentMatchIndex}
               navigateMatch={navigateMatch}
             />
-            <span className="text-text-tertiary/50">|</span>
-            <PrCommentsToggle
-              pr={pr}
-              showPrComments={showPrComments}
-              setShowPrComments={setShowPrComments}
-              worktreeId={worktreeId}
-            />
+            {appConfig && (
+              <button
+                type="button"
+                aria-label={`Open in ${EDITOR_LABELS[appConfig.preferredEditor] ?? "editor"}`}
+                className="inline-flex items-center gap-1 h-[22px] px-2 rounded text-[11px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                onClick={() =>
+                  openInEditor(
+                    `${repoPath}/${focusedFilePath}`,
+                    appConfig.preferredEditor,
+                    appConfig.customEditorPath ?? undefined,
+                  )
+                }
+              >
+                Open in {EDITOR_LABELS[appConfig.preferredEditor] ?? "editor"}
+                <ArrowUpRight size={11} />
+              </button>
+            )}
             <ViewModeToggle
               diffViewMode={diffViewMode}
               setDiffViewMode={setDiffViewMode}
               worktreeId={worktreeId}
             />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="More actions"
+                  className="w-[22px] h-[22px] rounded grid place-items-center text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setExpandFullFile(!expandFullFile)}>
+                  {expandFullFile ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  {expandFullFile ? "Show diffs only" : "Show full file"}
+                </DropdownMenuItem>
+                {pr && (
+                  <DropdownMenuItem onSelect={() => setShowPrComments(worktreeId, !showPrComments)}>
+                    <MessageSquare size={14} />
+                    {showPrComments ? "Hide PR comments" : "Show PR comments"}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => copyPath(focusedFilePath)}>
+                  {copiedPath ? <Check size={14} className="text-diff-added" /> : <Copy size={14} />}
+                  Copy file path
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </>
       ) : (

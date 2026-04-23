@@ -6,14 +6,14 @@ import {
   Play,
   GitCompareArrows,
   Square,
-  ExternalLink,
+  Globe,
+  ArrowUpRight,
   PanelRight,
   PanelBottom,
   Radio,
   Combine,
 } from "lucide-react";
 import { AGENT_ICONS } from "../icons/agents";
-import { IconButton } from "../ui/IconButton";
 import {
   DndContext,
   type DragEndEvent,
@@ -592,11 +592,12 @@ function PaneTabBar({
         <button
           type="button"
           onClick={() => openUrl(`http://localhost:${assignedPort}`)}
-          className="flex items-center gap-1 mr-2 text-xs text-accent-primary hover:text-accent-primary/80 transition-colors cursor-pointer flex-shrink-0"
+          className="inline-flex items-center gap-1.5 h-6 px-2 mr-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
           title={`Open http://localhost:${assignedPort} in browser`}
         >
-          <ExternalLink size={12} />
+          <Globe size={12} />
           localhost:{assignedPort}
+          <ArrowUpRight size={11} className="opacity-70" />
         </button>
       )}
 
@@ -610,29 +611,33 @@ function PaneTabBar({
                 exit={{ opacity: 0, width: 0 }}
                 transition={{ duration: 0.15 }}
               >
-                <IconButton
-                  size="md"
-                  label={`Open in browser (${runScriptUrl})`}
+                <button
+                  type="button"
                   onClick={() => openUrl(runScriptUrl)}
-                  className="text-text-secondary hover:text-text-primary bg-bg-tertiary/50 hover:bg-bg-tertiary"
+                  className="inline-flex items-center gap-1.5 h-6 px-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
+                  title={`Open ${runScriptUrl} in browser`}
                 >
-                  <ExternalLink />
-                </IconButton>
+                  <Globe size={12} />
+                  {runScriptUrl.replace(/^https?:\/\//, "")}
+                  <ArrowUpRight size={11} className="opacity-70" />
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
-          <IconButton
-            size="md"
-            label={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
+          <button
+            type="button"
+            aria-label={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
             onClick={onToggleServer}
-            className={
+            className={[
+              "inline-flex items-center gap-1.5 h-6 px-2.5 rounded text-xs font-medium border transition-colors",
               isServerRunning
-                ? "text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20"
-                : "text-green-500 hover:text-green-400 bg-green-500/10 hover:bg-green-500/20"
-            }
+                ? "text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 border-red-400/25"
+                : "text-green-500 hover:text-green-400 bg-green-500/10 hover:bg-green-500/20 border-green-500/25",
+            ].join(" ")}
           >
-            {isServerRunning ? <Square /> : <Play />}
-          </IconButton>
+            {isServerRunning ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
+            {isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
+          </button>
         </div>
       )}
     </div>
