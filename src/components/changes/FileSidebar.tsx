@@ -191,34 +191,35 @@ function FileSidebar({
     return counts;
   }, [prComments]);
   const filterInputRef = useRef<HTMLInputElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const firstCommitRef = useRef<HTMLButtonElement>(null);
   const pendingCommitFocusRef = useRef(false);
 
-  // Cmd+F focuses the filter input — but only when NOT viewing a commit's diffs,
-  // because in that case Cmd+F should search the diff code content instead.
+  // Cmd+F focuses the filter input — scoped to this sidebar so it doesn't
+  // steal Cmd+F from terminal panes or other surfaces in a split layout.
   useEffect(() => {
+    const root = sidebarRef.current;
+    if (!root) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === "f") {
-        // When viewing a commit, let the diff search handle Cmd+F
-        if (selectedCommitIndex !== null) return;
+      if (!(e.metaKey && e.key === "f")) return;
+      // When viewing a commit, let the diff search handle Cmd+F
+      if (selectedCommitIndex !== null) return;
+      // If filter input is hidden (totalItems <= 5 or commits view), skip
+      if (!filterInputRef.current) return;
 
-        // If filter input is hidden (totalItems <= 5), skip — nothing to focus
-        if (!filterInputRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
 
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (document.activeElement === filterInputRef.current) {
-          // Already focused — select all text (standard Cmd+F-again behavior)
-          filterInputRef.current.select();
-        } else {
-          filterInputRef.current.focus();
-        }
+      if (document.activeElement === filterInputRef.current) {
+        filterInputRef.current.select();
+      } else {
+        filterInputRef.current.focus();
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    root.addEventListener("keydown", handleKeyDown);
+    return () => root.removeEventListener("keydown", handleKeyDown);
   }, [selectedCommitIndex]);
 
   // Clear filter when view mode changes (e.g., switching between files and commits)
@@ -253,27 +254,11 @@ function FileSidebar({
     () => committedFiles.filter(filterFile),
     [committedFiles, filterFile],
   );
-  const filteredCommits = useMemo(() => {
-    const filtered =
-      filter === ""
-        ? commits
-        : commits.filter((c) =>
-            c.message.toLowerCase().includes(filter.toLowerCase()),
-          );
-    return [...filtered].reverse();
-  }, [commits, filter]);
+  const filteredCommits = useMemo(() => [...commits].reverse(), [commits]);
 
   const filteredUpstream = useMemo(
-    () => {
-      if (!upstreamExpanded) return [];
-      const filtered = filter === ""
-        ? upstreamCommits
-        : upstreamCommits.filter((c) =>
-            c.message.toLowerCase().includes(filter.toLowerCase()),
-          );
-      return [...filtered].reverse();
-    },
-    [upstreamCommits, upstreamExpanded, filter],
+    () => (upstreamExpanded ? [...upstreamCommits].reverse() : []),
+    [upstreamCommits, upstreamExpanded],
   );
 
   const allFiles = viewMode === "changes"
@@ -326,13 +311,13 @@ function FileSidebar({
   );
 
   return (
-    <div className="w-full bg-bg-primary border-r border-border-default flex flex-col overflow-y-auto">
-      {totalItems > 5 && (
+    <div ref={sidebarRef} className="w-full bg-bg-primary border-r border-border-default flex flex-col overflow-y-auto">
+      {viewMode === "changes" && totalItems > 5 && (
         <div className="px-2.5 pb-1">
           <input
             ref={filterInputRef}
             type="text"
-            placeholder={viewMode === "commits" ? "Filter commits..." : "Filter files..."}
+            placeholder="Filter files..."
             className="w-full px-2 py-1 text-[10px] bg-bg-secondary border border-border-subtle rounded text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary/40"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
