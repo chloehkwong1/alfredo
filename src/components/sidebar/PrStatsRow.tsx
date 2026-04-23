@@ -17,7 +17,7 @@ export type PrSummary = {
   reviewDecision?: string | null;
   mergeable?: boolean | null;
   requestedReviewers?: string[];
-  merged?: boolean;
+  merged: boolean;
 };
 
 export function hasPrStats(s: PrSummary): boolean {
