@@ -56,7 +56,7 @@ export function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
   return (
     <div className="flex items-center gap-3 flex-wrap">
       {checksRunning && !checksFail && (
-        <span className="flex items-center gap-1 text-xs text-status-busy">
+        <span className="flex items-center gap-1 text-xs text-status-waiting">
           <Loader size={12} className="animate-spin" />
           Checks running
         </span>
