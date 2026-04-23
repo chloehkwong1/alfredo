@@ -1,0 +1,36 @@
+vite.config.ts
+  034cf04a99ad60f0 30-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "6c41c6f395896117cd546eb4eaac8b7880b1ef7c",
+  "prompts": {
+    "034cf04a99ad60f0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80606b14-a0da-41a5-b939-bd3333d16b65",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "4d35f88ee3261ae7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1e1aace-7b6d-411c-bdac-2cf57af4cd5d",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
