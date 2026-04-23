@@ -1,0 +1,38 @@
+src/hooks/useDiffSearch.ts
+  06d5e629eacba0dc 16,84-86,88-90,92-95,99-103,127-129
+src/components/changes/ChangesView.tsx
+  06d5e629eacba0dc 76,150,322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "3efe70d976638682972841fbf9b646bd88bc8e3b",
+  "prompts": {
+    "06d5e629eacba0dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "346d75bc-8d3c-4a74-828f-c2076fa93135",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 132,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    },
+    "6d86d7821ad14fef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "31cc84af-3170-495d-a7d4-bb0fa479eb6d",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 202,
+      "total_deletions": 0,
+      "accepted_lines": 212,
+      "overriden_lines": 0
+    }
+  }
+}
