@@ -28,19 +28,19 @@ function DiffSearchBar({
   if (!isOpen) return null;
 
   return (
-    <div className="flex items-center gap-1 border border-border-default rounded bg-bg-primary px-1.5 py-0.5">
+    <div className="flex items-center gap-1 border border-border-default rounded bg-bg-primary px-1.5 py-1">
       <Search size={11} className="text-text-tertiary flex-shrink-0" />
       <input
         ref={inputRef}
         type="text"
         placeholder="Search in diffs..."
-        className="w-32 text-[10px] bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none"
+        className="w-40 text-xs bg-transparent text-text-primary placeholder:text-text-tertiary focus:outline-none"
         value={searchTerm}
         onChange={(e) => onSearchChange(e.target.value)}
         autoFocus
       />
       {searchTerm && (
-        <span className="text-[9px] text-text-tertiary whitespace-nowrap">
+        <span className="text-[10px] text-text-tertiary whitespace-nowrap min-w-[48px] text-center">
           {matchCount > 0
             ? `${activeMatch + 1}/${matchCount}`
             : "0 results"}
@@ -49,28 +49,28 @@ function DiffSearchBar({
       <IconButton
         size="sm"
         label="Previous match"
-        className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
+        className="h-auto w-auto p-0.5 text-text-tertiary hover:text-text-primary"
         onClick={onPrev}
         disabled={matchCount === 0}
       >
-        <ChevronUp size={12} />
+        <ChevronUp size={14} />
       </IconButton>
       <IconButton
         size="sm"
         label="Next match"
-        className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
+        className="h-auto w-auto p-0.5 text-text-tertiary hover:text-text-primary"
         onClick={onNext}
         disabled={matchCount === 0}
       >
-        <ChevronDown size={12} />
+        <ChevronDown size={14} />
       </IconButton>
       <IconButton
         size="sm"
         label="Close search"
-        className="h-auto w-auto p-0 text-text-tertiary hover:text-text-primary"
+        className="h-auto w-auto p-0.5 text-text-tertiary hover:text-text-primary"
         onClick={onClose}
       >
-        <X size={11} />
+        <X size={14} />
       </IconButton>
     </div>
   );
