@@ -5,6 +5,22 @@ import { RepoTag } from "./RepoTag";
 import { formatDiffStat, PrStatsRow, hasPrStats } from "./PrStatsRow";
 import type { PrSummary } from "./PrStatsRow";
 import { usePrStore } from "../../stores/prStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { computeEffectiveStatus, statusDotColor, statusText } from "./AgentItem";
+
+const ATTN_STATES = new Set(["waitingForInput", "done", "ready"]);
+
+function attnBorder(status: string, isUnread: boolean): { color: string; style: "solid" | "dashed" } | null {
+  if (status === "error") return { color: "var(--status-error)", style: isUnread ? "dashed" : "solid" };
+  if (ATTN_STATES.has(status)) return { color: "var(--accent-primary)", style: isUnread ? "dashed" : "solid" };
+  return null;
+}
+
+function dotGlowClass(status: string): string {
+  if (status === "error") return "dot-glow-error";
+  if (ATTN_STATES.has(status)) return "dot-glow-attn";
+  return "";
+}
 import type { BranchRepoState } from "../../hooks/useBranchRepos";
 
 interface BranchCardProps {
@@ -27,6 +43,23 @@ const BranchCard = memo(function BranchCard({
   showRepoTag,
 }: BranchCardProps) {
   const prSummary = usePrStore((s) => s.prSummary[repo.id]) as PrSummary | undefined;
+  const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === repo.id));
+  const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(repo.id));
+  const isUnread = useWorkspaceStore((s) => s.unreadWorktrees.has(repo.id));
+  const effectiveStatus = worktree
+    ? computeEffectiveStatus(
+        worktree.agentStatus,
+        worktree.channelAlive,
+        worktree.staleBusy,
+        isSeen && !isUnread,
+        worktree.justCreated,
+      )
+    : "notRunning";
+  const statusLabel = statusText[effectiveStatus] ?? "Not running";
+  const dotColor = statusDotColor[effectiveStatus] ?? "bg-text-tertiary";
+  const shouldPulse = effectiveStatus === "waitingForInput";
+  const attn = attnBorder(effectiveStatus, isUnread);
+  const glow = dotGlowClass(effectiveStatus);
 
   const colorId = repoColors[repo.repoPath];
   const color = REPO_COLOR_PALETTE.find((c) => c.id === colorId)
@@ -54,6 +87,7 @@ const BranchCard = memo(function BranchCard({
       style={{
         padding: "10px 12px",
         border: `1px solid ${isSelected ? borderSelected : borderBase}`,
+        ...(attn ? { borderLeft: `3px ${attn.style} ${attn.color}` } : {}),
         background: isSelected ? bgSelected : bgBase,
         filter: isSelected ? "brightness(1.25)" : undefined,
         width: "calc(100% - 20px)",
@@ -93,7 +127,17 @@ const BranchCard = memo(function BranchCard({
 
       {/* Row 3: agent status + diff stats */}
       <div className="flex items-center gap-2 mt-1">
-        <span className="text-xs text-text-tertiary">Not running</span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className={[
+              "h-1.5 w-1.5 rounded-full flex-shrink-0",
+              dotColor,
+              glow,
+              shouldPulse ? "animate-pulse-dot" : "",
+            ].join(" ")}
+          />
+          <span className="text-xs text-text-tertiary">{statusLabel}</span>
+        </span>
         {(add || del) && (
           <span className="flex items-center gap-1 text-xs ml-auto flex-shrink-0">
             {add && <span className="text-diff-added">+{add}</span>}

@@ -205,7 +205,7 @@ interface AgentItemProps {
   showRepoTag?: boolean;
 }
 
-const statusDotColor: Record<string, string> = {
+export const statusDotColor: Record<string, string> = {
   waitingForInput: "bg-accent-primary",
   busy: "bg-status-busy",
   idle: "bg-status-idle",
@@ -217,7 +217,7 @@ const statusDotColor: Record<string, string> = {
   stale: "bg-amber-400",
 };
 
-const statusText: Record<string, string> = {
+export const statusText: Record<string, string> = {
   waitingForInput: "Waiting for input",
   busy: "Thinking...",
   idle: "Idle",
