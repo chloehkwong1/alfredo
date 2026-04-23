@@ -73,6 +73,7 @@ function CommitHeader({ commit, gitUser }: { commit: CommitInfo; gitUser: string
 }
 
 function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const panelTab = useWorkspaceStore((s) => s.changesViewMode[worktreeId]) ?? "changes";
   // Map panel tab to data view mode — "pr" tab doesn't affect data fetching
   const viewMode = panelTab === "commits" ? "commits" : "changes";
@@ -146,7 +147,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     currentMatchIndex,
     navigateMatch,
     activeSearchMatch,
-  } = useDiffSearch(displayFiles, setCollapsedFiles, setActiveFilePath);
+  } = useDiffSearch(displayFiles, setCollapsedFiles, setActiveFilePath, rootRef);
 
   const handleSendPrComment = useCallback(
     (comment: PrComment) => {
@@ -318,7 +319,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
       : undefined;
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div ref={rootRef} className="flex flex-col h-full relative">
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <ChangesToolbar
             focusedFilePath={focusedFilePath}
