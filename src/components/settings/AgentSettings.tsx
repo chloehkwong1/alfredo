@@ -1,18 +1,7 @@
 import { useAgentStore } from "../../stores/agentStore";
-import { useClaudeModels } from "../../services/modelCatalog";
+import { useClaudeModels, useEffortOptions, usePermissionModes } from "../../services/modelCatalog";
 import { useOutputStyles } from "../../hooks/useOutputStyles";
 import type { ClaudeDefaults, TabType } from "../../types";
-
-const EFFORT_OPTIONS = ["low", "medium", "high", "max"] as const;
-
-const PERMISSION_OPTIONS = [
-  { value: "default", label: "Default", hint: "Asks before edits and commands" },
-  { value: "acceptEdits", label: "Accept Edits", hint: "Auto-accepts file edits, asks before commands" },
-  { value: "plan", label: "Plan", hint: "Read-only exploration, no edits or commands" },
-  { value: "auto", label: "Auto", hint: "AI decides which permissions to grant — may still ask" },
-  { value: "dontAsk", label: "Don't Ask", hint: "Runs all tools without asking — use with caution" },
-  { value: "bypassPermissions", label: "Bypass Permissions", hint: "No checks at all — sandboxed environments only" },
-];
 
 const selectClass = [
   "h-8 w-full px-3 text-[13px] font-normal",
@@ -43,6 +32,8 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
 
   const availableAgents = useAgentStore((s) => s.availableAgents);
   const claudeModels = useClaudeModels();
+  const effortOptions = useEffortOptions();
+  const permissionOptions = usePermissionModes();
   const outputOptions = useOutputStyles(null);
 
   const agentOptions = AGENT_OPTIONS.filter((opt) =>
@@ -98,19 +89,19 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
       <div className="mb-4">
         <div className="text-[13px] font-medium text-text-primary mb-1.5">Effort</div>
         <div className="flex rounded-[var(--radius-md)] border border-border-default overflow-hidden">
-          {EFFORT_OPTIONS.map((level) => (
+          {effortOptions.map((opt) => (
             <button
-              key={level}
+              key={opt.value}
               type="button"
-              onClick={() => update({ effort: level })}
+              onClick={() => update({ effort: opt.value })}
               className={[
-                "flex-1 px-3 py-[7px] text-xs font-medium capitalize transition-colors cursor-pointer",
-                (settings.effort ?? "high") === level
+                "flex-1 px-3 py-[7px] text-xs font-medium transition-colors cursor-pointer",
+                (settings.effort ?? "high") === opt.value
                   ? "bg-accent-primary text-white"
                   : "bg-bg-primary text-text-secondary hover:text-text-primary",
               ].join(" ")}
             >
-              {level}
+              {opt.label}
             </button>
           ))}
         </div>
@@ -133,12 +124,12 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
           }}
           className={selectClass}
         >
-          {PERMISSION_OPTIONS.map((opt) => (
+          {permissionOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
         <p className="text-xs text-text-tertiary mt-[5px]">
-          {PERMISSION_OPTIONS.find((o) => o.value === permissionValue)?.hint}
+          {permissionOptions.find((o) => o.value === permissionValue)?.hint}
         </p>
       </div>
 

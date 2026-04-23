@@ -4,5 +4,20 @@
     { "value": "claude-opus-4-6", "label": "Opus 4.6" },
     { "value": "claude-sonnet-4-6", "label": "Sonnet 4.6 (200K context)" },
     { "value": "claude-haiku-4-5", "label": "Haiku 4.5 (200K context)" }
+  ],
+  "effort": [
+    { "value": "low", "label": "Low" },
+    { "value": "medium", "label": "Medium" },
+    { "value": "high", "label": "High" },
+    { "value": "xhigh", "label": "XHigh" },
+    { "value": "max", "label": "Max" }
+  ],
+  "permissionModes": [
+    { "value": "default", "label": "Default", "hint": "Asks before edits and commands" },
+    { "value": "acceptEdits", "label": "Accept Edits", "hint": "Auto-accepts file edits, asks before commands" },
+    { "value": "plan", "label": "Plan", "hint": "Read-only exploration, no edits or commands" },
+    { "value": "auto", "label": "Auto", "hint": "AI decides which permissions to grant — may still ask" },
+    { "value": "dontAsk", "label": "Don't Ask", "hint": "Runs all tools without asking — use with caution" },
+    { "value": "bypassPermissions", "label": "Bypass Permissions", "hint": "No checks at all — sandboxed environments only" }
   ]
 }

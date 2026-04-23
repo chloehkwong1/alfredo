@@ -6,6 +6,7 @@ import { getConfig, saveConfig, getAppConfig, setWorktreePort } from "../../api"
 import { OpenInDropdown } from "../ui/OpenInDropdown";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useOutputStyles } from "../../hooks/useOutputStyles";
+import { useEffortOptions, usePermissionModes } from "../../services/modelCatalog";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
 import { toggleRemoteControl } from "../../services/remoteControl";
 import { useRemoteControlStore } from "../../stores/remoteControlStore";
@@ -17,22 +18,6 @@ const CLAUDE_DEFAULTS = {
   permissionMode: "default",
   outputStyle: "Default",
 } as const;
-
-const EFFORT_OPTIONS = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "max", label: "Max" },
-];
-
-const PERMISSION_OPTIONS = [
-  { value: "default", label: "Default" },
-  { value: "acceptEdits", label: "Accept Edits" },
-  { value: "plan", label: "Plan" },
-  { value: "auto", label: "Auto" },
-  { value: "dontAsk", label: "Don't Ask" },
-  { value: "bypassPermissions", label: "Bypass" },
-];
 
 function displayLabel(options: { value: string; label: string }[], value: string | undefined, defaultValue: string): string {
   const effective = value || defaultValue;
@@ -57,6 +42,8 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
   const [portValue, setPortValue] = useState("");
   const [portError, setPortError] = useState<string | null>(null);
   const outputOptions = useOutputStyles(repoPath);
+  const effortOptions = useEffortOptions();
+  const permissionOptions = usePermissionModes();
 
   // Resolved settings (defaults merged with overrides)
   const [resolved, setResolved] = useState<{
@@ -170,18 +157,18 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
         {showClaudeSettings && (
           <>
             <SettingsChip
-              label={displayLabel(EFFORT_OPTIONS, resolved.effort, CLAUDE_DEFAULTS.effort)}
+              label={displayLabel(effortOptions, resolved.effort, CLAUDE_DEFAULTS.effort)}
               prefix="Effort"
-              options={EFFORT_OPTIONS}
+              options={effortOptions}
               value={resolved.effort ?? ""}
               isOpen={openDropdown === "effort"}
               onToggle={() => toggleDropdown("effort")}
               onChange={(v) => handleChange("effort", v)}
             />
             <SettingsChip
-              label={displayLabel(PERMISSION_OPTIONS, resolved.permissionMode, CLAUDE_DEFAULTS.permissionMode)}
+              label={displayLabel(permissionOptions, resolved.permissionMode, CLAUDE_DEFAULTS.permissionMode)}
               prefix="Permissions"
-              options={PERMISSION_OPTIONS}
+              options={permissionOptions}
               value={resolved.permissionMode ?? ""}
               isOpen={openDropdown === "permissionMode"}
               onToggle={() => toggleDropdown("permissionMode")}

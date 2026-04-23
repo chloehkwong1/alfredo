@@ -1,19 +1,45 @@
 import { useEffect, useState } from "react";
 
 export type ModelOption = { value: string; label: string };
+export type EffortOption = { value: string; label: string };
+export type PermissionModeOption = { value: string; label: string; hint?: string };
 
 const FALLBACK_CLAUDE_MODELS: ModelOption[] = [
+  { value: "claude-opus-4-7", label: "Opus 4.7 (1M context)" },
   { value: "claude-opus-4-6", label: "Opus 4.6" },
   { value: "claude-sonnet-4-6", label: "Sonnet 4.6 (200K context)" },
   { value: "claude-haiku-4-5", label: "Haiku 4.5 (200K context)" },
 ];
 
+const FALLBACK_EFFORT: EffortOption[] = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "XHigh" },
+  { value: "max", label: "Max" },
+];
+
+const FALLBACK_PERMISSION_MODES: PermissionModeOption[] = [
+  { value: "default", label: "Default", hint: "Asks before edits and commands" },
+  { value: "acceptEdits", label: "Accept Edits", hint: "Auto-accepts file edits, asks before commands" },
+  { value: "plan", label: "Plan", hint: "Read-only exploration, no edits or commands" },
+  { value: "auto", label: "Auto", hint: "AI decides which permissions to grant — may still ask" },
+  { value: "dontAsk", label: "Don't Ask", hint: "Runs all tools without asking — use with caution" },
+  { value: "bypassPermissions", label: "Bypass Permissions", hint: "No checks at all — sandboxed environments only" },
+];
+
 const MANIFEST_URL =
   "https://api.github.com/repos/chloehkwong1/alfredo/contents/models.json?ref=main";
-const CACHE_KEY = "alfredo:model-catalog";
+// Bumped from v1 to v2 when effort + permissionModes were added — old caches
+// lacked these keys and would silently fall back.
+const CACHE_KEY = "alfredo:model-catalog:v2";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-type Manifest = { claude?: ModelOption[] };
+type Manifest = {
+  claude?: ModelOption[];
+  effort?: EffortOption[];
+  permissionModes?: PermissionModeOption[];
+};
 type CacheEntry = { fetchedAt: number; manifest: Manifest };
 
 function readCache(): Manifest | null {
@@ -53,16 +79,29 @@ async function fetchManifest(): Promise<Manifest | null> {
   }
 }
 
-export function useClaudeModels(): ModelOption[] {
-  const [models, setModels] = useState<ModelOption[]>(
-    () => readCache()?.claude ?? FALLBACK_CLAUDE_MODELS,
-  );
+// Shared single-flight fetch so the three hooks don't trigger three network calls.
+let inflight: Promise<Manifest | null> | null = null;
+function loadManifestOnce(): Promise<Manifest | null> {
+  if (!inflight) inflight = fetchManifest();
+  return inflight;
+}
+
+function useManifestField<T>(
+  pick: (m: Manifest) => T[] | undefined,
+  fallback: T[],
+): T[] {
+  const [value, setValue] = useState<T[]>(() => {
+    const cached = readCache();
+    const fromCache = cached ? pick(cached) : undefined;
+    return fromCache && fromCache.length > 0 ? fromCache : fallback;
+  });
 
   useEffect(() => {
     let cancelled = false;
-    fetchManifest().then((manifest) => {
-      if (cancelled || !manifest?.claude) return;
-      setModels(manifest.claude);
+    loadManifestOnce().then((manifest) => {
+      if (cancelled || !manifest) return;
+      const next = pick(manifest);
+      if (next && next.length > 0) setValue(next);
       writeCache(manifest);
     });
     return () => {
@@ -70,5 +109,17 @@ export function useClaudeModels(): ModelOption[] {
     };
   }, []);
 
-  return models;
+  return value;
+}
+
+export function useClaudeModels(): ModelOption[] {
+  return useManifestField((m) => m.claude, FALLBACK_CLAUDE_MODELS);
+}
+
+export function useEffortOptions(): EffortOption[] {
+  return useManifestField((m) => m.effort, FALLBACK_EFFORT);
+}
+
+export function usePermissionModes(): PermissionModeOption[] {
+  return useManifestField((m) => m.permissionModes, FALLBACK_PERMISSION_MODES);
 }
