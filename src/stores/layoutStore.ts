@@ -242,9 +242,24 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
 
   setActivePaneId: (worktreeId, paneId) => {
-    set((s) => ({
-      activePaneId: { ...s.activePaneId, [worktreeId]: paneId },
-    }));
+    set((s) => {
+      // If the newly-active pane's active tab is an agent tab, treat the
+      // pane-switch as "focusing" that agent so "Send to agent" routing
+      // follows the user's current attention — not just their last
+      // tab-chip click.
+      const activeTabId = s.panes[worktreeId]?.[paneId]?.activeTabId;
+      const tab = activeTabId
+        ? useTabStore.getState().tabs[worktreeId]?.find((t) => t.id === activeTabId)
+        : undefined;
+      const nextLastFocused =
+        tab && isAgentTab(tab)
+          ? { ...s.lastFocusedAgentTabId, [worktreeId]: activeTabId! }
+          : s.lastFocusedAgentTabId;
+      return {
+        activePaneId: { ...s.activePaneId, [worktreeId]: paneId },
+        lastFocusedAgentTabId: nextLastFocused,
+      };
+    });
   },
 
   setLastFocusedAgentTab: (worktreeId, tabId) => {

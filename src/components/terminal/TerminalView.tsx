@@ -20,7 +20,6 @@ import {
   resolveSettings,
   buildClaudeArgs,
 } from "../../services/claudeSettingsResolver";
-import { getAgentSessionInfo } from "../../services/agentMessenger";
 import type { Annotation, SessionType, TabType } from "../../types";
 
 function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell"; sessionType: SessionType } {
@@ -173,15 +172,18 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   const handleSendFeedback = useCallback(async () => {
     if (!activeWorktreeId || annotations.length === 0) return;
 
-    const { sessionKey: targetKey } = getAgentSessionInfo(activeWorktreeId);
-    const session = sessionManager.getSession(targetKey);
+    // Send to THIS tab's session — the button lives inside a specific
+    // TerminalView, so "Send as feedback" should target that tab, not
+    // whatever getAgentSessionInfo re-resolves (which can point at the
+    // last tab-bar click, not the tab currently on-screen).
+    const session = sessionManager.getSession(sessionKey);
     if (!session) return;
 
     const message = formatAnnotationsMessage(annotations);
     const bytes = Array.from(new TextEncoder().encode(message));
     await writePty(session.sessionId, bytes);
     clearAnnotations(activeWorktreeId);
-  }, [activeWorktreeId, annotations, clearAnnotations]);
+  }, [activeWorktreeId, annotations, clearAnnotations, sessionKey]);
 
   const handleClearAnnotations = useCallback(() => {
     if (activeWorktreeId) {
@@ -356,7 +358,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   return (
     <div className="flex flex-col h-full bg-bg-primary overflow-hidden">
-      {annotations.length > 0 && (
+      {isAgentTab && annotations.length > 0 && (
         <div className="flex items-center gap-3 px-3 py-1.5 bg-accent-primary/8 border-b border-accent-primary/20 flex-shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-accent-primary font-medium">
             <MessageSquare size={14} />
