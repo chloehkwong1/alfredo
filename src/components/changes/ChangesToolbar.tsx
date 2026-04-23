@@ -285,9 +285,10 @@ function ChangesToolbar({
                 ? `${displayFiles.length} file${displayFiles.length !== 1 ? "s" : ""} in commit`
                 : "Select a commit"}
           </span>
-          {displayFiles.length > 0 && (
+          {(searchOpen || displayFiles.length > 0) && (
             <div className="flex items-center gap-1.5 ml-auto">
-              {/* Search within diffs */}
+              {/* Search within diffs — pre-mounts when searchOpen so Cmd+F works
+                  even before displayFiles has loaded (e.g. just-selected commit). */}
               <SearchControl
                 searchOpen={searchOpen}
                 setSearchOpen={setSearchOpen}
@@ -298,26 +299,30 @@ function ChangesToolbar({
                 currentMatchIndex={currentMatchIndex}
                 navigateMatch={navigateMatch}
               />
-              <span className="text-text-tertiary/50">|</span>
-              <Button size="sm" variant="ghost" className="h-auto px-0 text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
-                Expand all
-              </Button>
-              <span className="text-text-tertiary/50">|</span>
-              <Button size="sm" variant="ghost" className="h-auto px-0 text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
-                Collapse all
-              </Button>
-              <span className="text-text-tertiary/50 mx-1">|</span>
-              <PrCommentsToggle
-                pr={pr}
-                showPrComments={showPrComments}
-                setShowPrComments={setShowPrComments}
-                worktreeId={worktreeId}
-              />
-              <ViewModeToggle
-                diffViewMode={diffViewMode}
-                setDiffViewMode={setDiffViewMode}
-                worktreeId={worktreeId}
-              />
+              {displayFiles.length > 0 && (
+                <>
+                  <span className="text-text-tertiary/50">|</span>
+                  <Button size="sm" variant="ghost" className="h-auto px-0 text-[10px] text-text-tertiary hover:text-text-primary" onClick={expandAll}>
+                    Expand all
+                  </Button>
+                  <span className="text-text-tertiary/50">|</span>
+                  <Button size="sm" variant="ghost" className="h-auto px-0 text-[10px] text-text-tertiary hover:text-text-primary" onClick={collapseAll}>
+                    Collapse all
+                  </Button>
+                  <span className="text-text-tertiary/50 mx-1">|</span>
+                  <PrCommentsToggle
+                    pr={pr}
+                    showPrComments={showPrComments}
+                    setShowPrComments={setShowPrComments}
+                    worktreeId={worktreeId}
+                  />
+                  <ViewModeToggle
+                    diffViewMode={diffViewMode}
+                    setDiffViewMode={setDiffViewMode}
+                    worktreeId={worktreeId}
+                  />
+                </>
+              )}
             </div>
           )}
         </>
