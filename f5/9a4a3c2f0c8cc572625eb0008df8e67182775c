@@ -1,0 +1,25 @@
+src/services/queueRunner.ts
+  c7195f9924642327 1-107
+src/services/queueRunner.test.ts
+  c7195f9924642327 1-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f59a4a3c2f0c8cc572625eb0008df8e67182775c",
+  "prompts": {
+    "c7195f9924642327": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "465ff34c-ee8d-4723-9a4c-5239e5cd1f31",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 199,
+      "total_deletions": 0,
+      "accepted_lines": 199,
+      "overriden_lines": 0
+    }
+  }
+}
