@@ -3,7 +3,7 @@ import { vi } from "vitest";
 // Mock @tauri-apps/api modules that get imported transitively.
 // Tests only exercise pure logic functions, but imports may pull in Tauri IPC.
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(),
+  invoke: vi.fn(() => Promise.resolve()),
   Channel: vi.fn(),
 }));
 
