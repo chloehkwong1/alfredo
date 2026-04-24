@@ -6,6 +6,7 @@ import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSessio
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
+import { repoId } from "./useBranchRepos";
 import { isAgentTab } from "../types";
 import type { RepoEntry, Worktree } from "../types";
 
@@ -13,7 +14,33 @@ import type { RepoEntry, Worktree } from "../types";
  * Loads worktrees for all selected repos, restores persisted sessions
  * (once per app lifecycle), and fetches diff stats in the background.
  */
-export function useSessionRestore(repoPath: string | null, selectedRepos: string[], repos: RepoEntry[]) {
+function buildSyntheticBranchWorktree(
+  repoPath: string,
+  branch: string | null,
+  isPinnedMainCard: boolean = false,
+): Worktree {
+  return {
+    id: repoId(repoPath),
+    name: repoPath.split("/").pop() ?? repoPath,
+    path: repoPath,
+    branch: branch ?? "main",
+    prStatus: null,
+    agentStatus: "notRunning",
+    column: "inProgress",
+    isBranchMode: true,
+    additions: null,
+    deletions: null,
+    repoPath,
+    ...(isPinnedMainCard ? { isPinnedMainCard: true } : {}),
+  };
+}
+
+export function useSessionRestore(
+  repoPath: string | null,
+  selectedRepos: string[],
+  repos: RepoEntry[],
+  showMainCardRepos: string[] = [],
+) {
   const setWorktreesForRepo = useWorkspaceStore((s) => s.setWorktreesForRepo);
   const clearWorktreesForRepo = useWorkspaceStore((s) => s.clearWorktreesForRepo);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
@@ -25,8 +52,80 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
 
   const selectedReposKey = selectedRepos.join(",");
   const repoModeKey = repos.map((r) => `${r.path}:${r.mode}`).join(",");
+  const showMainCardReposKey = [...showMainCardRepos].sort().join(",");
+
+  // Own the synthetic "main card" entries for worktree-mode repos that opted
+  // in via showMainCardRepos. Decoupled from listWorktrees so the entry is
+  // present as soon as the config says it should be — the main effect below
+  // may take seconds (listWorktrees + session restore), and the user can
+  // click the card in that window. buildSyntheticBranchWorktree uses "main"
+  // as a fallback; useBranchRepos polls getActiveBranch and syncs the real
+  // branch name back via updateWorktree.
+  // Declared BEFORE the listWorktrees effect so it runs first on mount and
+  // the synthetic is in place before any later writes.
+  useEffect(() => {
+    const repoModeMap = new Map(repos.map((r) => [r.path, r.mode]));
+    const expectedIds = new Set<string>();
+    const toAdd: string[] = [];
+    for (const repo of showMainCardRepos) {
+      if (!selectedRepos.includes(repo)) continue;
+      if (repoModeMap.get(repo) !== "worktree") continue;
+      const id = repoId(repo);
+      expectedIds.add(id);
+      const present = useWorkspaceStore.getState().worktrees.some((wt) => wt.id === id);
+      if (!present) toAdd.push(repo);
+    }
+
+    // Remove synthetic entries that are no longer expected (unpinned or
+    // repo deselected / mode switched).
+    const currentWorktrees = useWorkspaceStore.getState().worktrees;
+    const staleByRepo = new Map<string, Worktree[]>();
+    for (const wt of currentWorktrees) {
+      if (!wt.isBranchMode) continue;
+      if (repoModeMap.get(wt.repoPath) !== "worktree") continue;
+      if (expectedIds.has(wt.id)) continue;
+      const list = staleByRepo.get(wt.repoPath) ?? [];
+      list.push(wt);
+      staleByRepo.set(wt.repoPath, list);
+    }
+
+    // Skip the writes when nothing is dirty. The effect re-fires on
+    // `selectedReposKey` / `repoModeKey` changes (most config changes), so
+    // bailing out here avoids forcing every `useWorkspaceStore` subscriber
+    // to re-render when no synthetic add/remove is actually needed.
+    if (staleByRepo.size === 0 && toAdd.length === 0) return;
+
+    for (const [repo, stales] of staleByRepo) {
+      const staleIds = new Set(stales.map((wt) => wt.id));
+      const kept = currentWorktrees.filter(
+        (wt) => wt.repoPath === repo && !staleIds.has(wt.id),
+      );
+      if (kept.length === 0) {
+        clearWorktreesForRepo(repo);
+      } else {
+        setWorktreesForRepo(repo, kept);
+      }
+    }
+
+    for (const repo of toAdd) {
+      const latest = useWorkspaceStore.getState().worktrees.filter(
+        (wt) => wt.repoPath === repo,
+      );
+      const existing = latest.find((wt) => wt.id === repoId(repo));
+      if (existing && existing.isPinnedMainCard === true) continue;
+      // Either no entry yet, or a non-pinned (branch-mode-created) entry needs upgrading.
+      const withoutExisting = existing ? latest.filter((wt) => wt.id !== existing.id) : latest;
+      setWorktreesForRepo(repo, [...withoutExisting, buildSyntheticBranchWorktree(repo, null, true)]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedReposKey, repoModeKey, showMainCardReposKey, setWorktreesForRepo, clearWorktreesForRepo]);
+
   useEffect(() => {
     if (!repoPath) return;
+    // Guards stale async closures from overwriting store state set by a newer
+    // effect run (e.g. user pins a main card; previous run's listWorktrees
+    // resolves late and wipes the synthetic).
+    let cancelled = false;
     const reposToLoad = selectedRepos.length > 0 ? selectedRepos : [repoPath];
 
     // Clean up worktrees for repos that were deselected
@@ -48,27 +147,14 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
       // of the app (TerminalView, ChangesPanel) can find it in the store.
       if (isBranchMode) {
         getActiveBranch(repo).then((branch) => {
-          const id = `branch::${repo}`;
-          const name = repo.split("/").pop() ?? repo;
-          const synthetic: Worktree = {
-            id,
-            name,
-            path: repo,
-            branch: branch ?? "main",
-            prStatus: null,
-            agentStatus: "notRunning",
-            column: "inProgress",
-            isBranchMode: true,
-            additions: null,
-            deletions: null,
-            repoPath: repo,
-          };
-          setWorktreesForRepo(repo, [synthetic]);
+          if (cancelled) return;
+          setWorktreesForRepo(repo, [buildSyntheticBranchWorktree(repo, branch)]);
         }).catch((e) => console.warn(`[session-restore] Failed to get active branch for ${repo}:`, e));
         continue;
       }
 
       listWorktrees(repo).then(async (wts) => {
+        if (cancelled) return;
         if (wts.length > 0) {
           if (!restoredRepos.current.has(repo)) {
             restoredRepos.current.add(repo);
@@ -229,7 +315,17 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
           // Tabs, layouts, and session IDs are already in their stores, so
           // ensureDefaultTabs will be a no-op and TerminalView will mount
           // with resumeSessionId available from the first render.
-          setWorktreesForRepo(repo, wts);
+          // Preserve any synthetic main-card entries owned by the effect
+          // above. Read synthetics inside the builder so the read is
+          // atomic with the write — otherwise Effect 1 could insert a new
+          // synthetic between our read and the store update, and we'd
+          // clobber it.
+          setWorktreesForRepo(repo, (existing) => {
+            const existingSynthetics = existing.filter(
+              (w) => w.isBranchMode && w.id === repoId(repo),
+            );
+            return [...wts, ...existingSynthetics];
+          });
 
           for (const wt of wts) {
             ensureDefaultTabs(wt.id);
@@ -264,5 +360,11 @@ export function useSessionRestore(repoPath: string | null, selectedRepos: string
         console.warn(`[AppShell] Failed to list worktrees for ${repo}:`, e);
       });
     }
+
+    return () => { cancelled = true; };
+    // showMainCardReposKey intentionally excluded: Effect 2 owns synthetic
+    // lifecycle; Effect 1 only manages real worktrees + branch-mode synthetics
+    // and must not re-run on pin/unpin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repoPath, selectedReposKey, repoModeKey, setWorktreesForRepo, clearWorktreesForRepo, updateWorktree, restoreTabs, ensureDefaultTabs]);
 }

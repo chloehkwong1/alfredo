@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Settings, Plus, HelpCircle, Pin } from "lucide-react";
 import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
@@ -133,18 +133,21 @@ function Sidebar({
   const { config, updateConfig } = useAppConfig();
   const collapsedColumns = config?.collapsedKanbanColumns ?? [];
   const hideUnpinned = config?.hideUnpinnedWorktrees ?? false;
+  const showMainCardRepos = config?.showMainCardRepos ?? [];
 
   const handleToggleCollapsed = useCallback((column: KanbanColumn) => {
-    const current = config?.collapsedKanbanColumns ?? [];
-    const next = current.includes(column)
-      ? current.filter((c: string) => c !== column)
-      : [...current, column];
-    updateConfig({ collapsedKanbanColumns: next });
-  }, [config, updateConfig]);
+    updateConfig((prev) => {
+      const current = prev.collapsedKanbanColumns ?? [];
+      const next = current.includes(column)
+        ? current.filter((c: string) => c !== column)
+        : [...current, column];
+      return { collapsedKanbanColumns: next };
+    });
+  }, [updateConfig]);
 
   const handleToggleHideUnpinned = useCallback(() => {
-    updateConfig({ hideUnpinnedWorktrees: !hideUnpinned });
-  }, [hideUnpinned, updateConfig]);
+    updateConfig((prev) => ({ hideUnpinnedWorktrees: !(prev.hideUnpinnedWorktrees ?? false) }));
+  }, [updateConfig]);
 
   async function handleDeleteWorktree(id: string) {
     const wt = worktrees.find((w) => w.id === id);
@@ -310,13 +313,58 @@ function Sidebar({
     ?? activeRepo
     ?? undefined;
   const effectiveRepoColors = repoColors ?? {};
-  const repoIndexMap = Object.fromEntries(repos.map((r, i) => [r.path, i]));
+  const repoIndexMap = useMemo(
+    () => Object.fromEntries(repos.map((r, i) => [r.path, i])),
+    [repos],
+  );
   const showRepoTags = effectiveSelectedRepos.length > 1;
-  const branchRepos = useBranchRepos(repos, effectiveSelectedRepos);
+  const branchRepos = useBranchRepos(repos, effectiveSelectedRepos, showMainCardRepos);
+  const worktreeModeRepoSet = useMemo(
+    () => new Set(repos.filter((r) => r.mode === "worktree").map((r) => r.path)),
+    [repos],
+  );
   const hasWorktreeRepos = repos.some(
     (r) => effectiveSelectedRepos.includes(r.path) && r.mode === "worktree",
   );
   const hasWorktreeItems = activeWorktrees.length > 0;
+  const pinnedSet = useMemo(() => new Set(showMainCardRepos), [showMainCardRepos]);
+  const eligibleWorktreeRepos = useMemo(
+    () =>
+      repos.filter(
+        (r) =>
+          r.mode === "worktree" &&
+          effectiveSelectedRepos.includes(r.path) &&
+          !pinnedSet.has(r.path),
+      ),
+    [repos, effectiveSelectedRepos, pinnedSet],
+  );
+  const worktreeCountByRepo = useMemo(
+    () =>
+      Object.fromEntries(
+        repos.map((r) => {
+          const liveCount = activeWorktrees.filter((wt) => wt.repoPath === r.path).length;
+          const isSelected = effectiveSelectedRepos.includes(r.path);
+          return [r.path, isSelected ? liveCount : cachedRepoCounts[r.path] ?? 0];
+        }),
+      ),
+    [repos, activeWorktrees, effectiveSelectedRepos, cachedRepoCounts],
+  );
+  // Use the updater form so the read-modify-write happens inside updateConfig's
+  // serialization queue against fresh disk state. Computing the new array from
+  // the local `config` snapshot would lose writes when the user pins/unpins
+  // back-to-back faster than the config-changed event can refresh state.
+  const handlePinRepo = useCallback((path: string) => {
+    updateConfig((prev) => {
+      const current = prev.showMainCardRepos ?? [];
+      if (current.includes(path)) return {};
+      return { showMainCardRepos: [...current, path] };
+    });
+  }, [updateConfig]);
+  const handleUnpinRepo = useCallback((path: string) => {
+    updateConfig((prev) => ({
+      showMainCardRepos: (prev.showMainCardRepos ?? []).filter((p) => p !== path),
+    }));
+  }, [updateConfig]);
 
   return (
     <div data-sidebar className="relative flex flex-col w-full h-full sidebar-bg border-r border-border-subtle flex-shrink-0">
@@ -352,13 +400,7 @@ function Sidebar({
           repoDisplayNames={repoDisplayNames ?? {}}
           onToggleRepo={onToggleRepo ?? (() => {})}
           onRemoveRepo={onRemoveRepo}
-          worktreeCountByRepo={Object.fromEntries(
-            repos.map((r) => {
-              const liveCount = activeWorktrees.filter((wt) => wt.repoPath === r.path).length;
-              const isSelected = effectiveSelectedRepos.includes(r.path);
-              return [r.path, isSelected ? liveCount : cachedRepoCounts[r.path] ?? 0];
-            })
-          )}
+          worktreeCountByRepo={worktreeCountByRepo}
         />
         <button
           type="button"
@@ -427,7 +469,9 @@ function Sidebar({
             </SidebarDragContext>
           )}
 
-          {/* Branch-mode repos — below kanban columns */}
+          {/* Branch-mode repos — below kanban columns.
+              Worktree-mode repos that opted into the main card also appear here,
+              rendered in a distinct "branch-title" layout. */}
           <BranchSection
             branchRepos={branchRepos}
             activeRepoId={activeWorktreeId}
@@ -438,6 +482,11 @@ function Sidebar({
             repoIndexMap={repoIndexMap}
             showRepoTags={showRepoTags}
             hasWorktreeItems={hasWorktreeItems}
+            worktreeModeRepoSet={worktreeModeRepoSet}
+            eligibleWorktreeRepos={eligibleWorktreeRepos}
+            worktreeCountByRepo={worktreeCountByRepo}
+            onPinRepo={handlePinRepo}
+            onUnpinRepo={handleUnpinRepo}
           />
         </div>
 

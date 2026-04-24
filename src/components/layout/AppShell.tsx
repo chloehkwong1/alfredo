@@ -104,7 +104,7 @@ function AppShell() {
   useStatePersistence(config, worktrees, activeWorktreeId, updateConfig);
 
   // Extracted hooks
-  useSessionRestore(repoPath, selectedRepos, repos);
+  useSessionRestore(repoPath, selectedRepos, repos, config?.showMainCardRepos ?? []);
   const { runScript, isServerRunningHere, handleToggleServer } = useServer(activeWorktreeId);
   useStaleServerCleanup();
   useServerReconciliation();
