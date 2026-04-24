@@ -1,0 +1,27 @@
+.github/workflows/ci.yml
+  c273a80ddb4c0b99 48
+src-tauri/Cargo.toml
+  c273a80ddb4c0b99 26
+src/services/sessionChannel.ts
+  c273a80ddb4c0b99 84,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "db1d7d2f168679620de3626d3106754d9de685e9",
+  "prompts": {
+    "c273a80ddb4c0b99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "19a751d7-2b7f-4964-9a6d-959d66987189",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 398,
+      "total_deletions": 4,
+      "accepted_lines": 398,
+      "overriden_lines": 0
+    }
+  }
+}
