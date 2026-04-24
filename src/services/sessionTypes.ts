@@ -31,10 +31,18 @@ export interface ManagedSession {
   ptyExited: boolean;
   /** Timestamp of the last PTY output received. Used to detect stale busy state. */
   lastOutputAt: number;
-  /** Pending output chunks awaiting the next animation frame flush. */
+  /** Pending output chunks awaiting drain into xterm. Drained via xterm's
+   *  write() callback so we apply back-pressure: only one write is in flight
+   *  at a time, and the next write is issued when xterm reports the previous
+   *  one as parsed. Prevents unbounded growth of xterm's internal WriteBuffer
+   *  when PTY output exceeds parse+render throughput (e.g. `rails console`). */
   pendingOutput: Uint8Array[];
-  /** Whether a requestAnimationFrame flush is already scheduled. */
-  writeScheduled: boolean;
+  /** True while an xterm.write() call is awaiting its parsed-callback. While
+   *  set, new output is queued on pendingOutput instead of handed to xterm. */
+  writeInFlight: boolean;
+  /** Set by closeSession before terminal.dispose() so the write-drain callback
+   *  bails out instead of calling write() on a disposed terminal. */
+  disposed: boolean;
   /** Whether this session was restored from saved scrollback (for auto-resume). */
   restoredFromScrollback: boolean;
   /** True once a startup command has been written to this session's PTY.

@@ -158,6 +158,8 @@ export class SessionManager implements SessionWriter {
       // worktree, so the new session's notRunning → idle doesn't fire
       // a false notification.
       useSessionStatusStore.getState().clearSessionStatus(sessionKey);
+      existing.disposed = true;
+      existing.pendingOutput = [];
       existing.terminal.dispose();
       this.sessions.delete(sessionKey);
     }
@@ -192,7 +194,8 @@ export class SessionManager implements SessionWriter {
       ptyExited: false,
       lastOutputAt: Date.now(),
       pendingOutput: [],
-      writeScheduled: false,
+      writeInFlight: false,
+      disposed: false,
       restoredFromScrollback: false,
       startupCommandSent: false,
       allowNextClearScrollback: false,
@@ -233,6 +236,8 @@ export class SessionManager implements SessionWriter {
       );
     } catch (err) {
       // Spawn failed — remove session from map to prevent zombie
+      session.disposed = true;
+      session.pendingOutput = [];
       session.terminal.dispose();
       this.sessions.delete(sessionKey);
       throw err;
@@ -310,7 +315,8 @@ export class SessionManager implements SessionWriter {
       ptyExited: false,
       lastOutputAt: 0,
       pendingOutput: [],
-      writeScheduled: false,
+      writeInFlight: false,
+      disposed: false,
       restoredFromScrollback: true,
       startupCommandSent: false,
       allowNextClearScrollback: false,
@@ -372,6 +378,8 @@ export class SessionManager implements SessionWriter {
       );
     } catch (e) {
       // Spawn failed — remove session so it doesn't get stuck as scrollback-only
+      session.disposed = true;
+      session.pendingOutput = [];
       session.terminal.dispose();
       this.sessions.delete(sessionKey);
       useSessionStatusStore.getState().clearSessionStatus(sessionKey);
@@ -442,7 +450,8 @@ export class SessionManager implements SessionWriter {
       ptyExited: false,
       lastOutputAt: 0,
       pendingOutput: [],
-      writeScheduled: false,
+      writeInFlight: false,
+      disposed: false,
       restoredFromScrollback: false,
       startupCommandSent: true,
       allowNextClearScrollback: false,
@@ -538,6 +547,10 @@ export class SessionManager implements SessionWriter {
     } catch {
       // Session may already be dead on the Rust side — that's fine.
     }
+    // Mark disposed BEFORE dispose() so an in-flight write callback bails
+    // instead of calling .write() on a disposed terminal.
+    session.disposed = true;
+    session.pendingOutput = [];
     session.terminal.dispose();
   }
 
@@ -551,31 +564,66 @@ export class SessionManager implements SessionWriter {
   // ── Internal helpers ───────────────────────────────────────────
 
   /**
-   * Batch terminal writes via requestAnimationFrame so the browser's event
-   * loop can process click/input events between frames. Without this, rapid
-   * PTY output (hundreds of IPC events/sec) can starve the main thread.
+   * Feed PTY output into xterm with back-pressure. Only one write() is in
+   * flight at a time; new output accumulates in pendingOutput until xterm's
+   * parsed-callback fires, at which point we merge everything pending into
+   * a single write and loop. Prevents xterm's internal WriteBuffer from
+   * growing unbounded when PTY throughput exceeds parse+render throughput
+   * (e.g. a noisy `rails console`), which otherwise queues keystroke echo
+   * behind minutes of backlog.
+   *
+   * Per-call cap: merge up to PER_WRITE_CAP bytes; leave the remainder in
+   * pendingOutput so no single write() call parks xterm's parser for too
+   * long. xterm internally yields every 65 KB, so 256 KB = ~4 yields per
+   * call — plenty of room for keydown events to interleave.
    */
   /** @internal Exposed for createSessionChannel — not part of the public API. */
   scheduleWrite(session: ManagedSession, bytes: Uint8Array): void {
     session.pendingOutput.push(bytes);
-    if (session.writeScheduled) return;
-    session.writeScheduled = true;
-    requestAnimationFrame(() => {
-      const chunks = session.pendingOutput;
+    this.drainPending(session);
+  }
+
+  private drainPending(session: ManagedSession): void {
+    if (session.writeInFlight) return;
+    if (session.disposed) {
       session.pendingOutput = [];
-      session.writeScheduled = false;
-      if (chunks.length === 1) {
-        session.terminal.write(chunks[0]);
-      } else if (chunks.length > 1) {
-        const total = chunks.reduce((sum, c) => sum + c.length, 0);
-        const merged = new Uint8Array(total);
-        let offset = 0;
-        for (const chunk of chunks) {
-          merged.set(chunk, offset);
-          offset += chunk.length;
-        }
-        session.terminal.write(merged);
+      return;
+    }
+    if (session.pendingOutput.length === 0) return;
+
+    const PER_WRITE_CAP = 256 * 1024;
+    const chunks = session.pendingOutput;
+    let total = 0;
+    let consumed = 0;
+    for (const c of chunks) {
+      if (total + c.length > PER_WRITE_CAP && consumed > 0) break;
+      total += c.length;
+      consumed++;
+    }
+
+    let merged: Uint8Array;
+    if (consumed === 1) {
+      merged = chunks[0];
+    } else {
+      merged = new Uint8Array(total);
+      let offset = 0;
+      for (let i = 0; i < consumed; i++) {
+        merged.set(chunks[i], offset);
+        offset += chunks[i].length;
       }
+    }
+    session.pendingOutput = chunks.slice(consumed);
+
+    session.writeInFlight = true;
+    session.terminal.write(merged, () => {
+      session.writeInFlight = false;
+      // Re-check disposal here: closeSession can run between write dispatch
+      // and callback, in which case the terminal is gone.
+      if (session.disposed) {
+        session.pendingOutput = [];
+        return;
+      }
+      this.drainPending(session);
     });
   }
 
@@ -583,12 +631,28 @@ export class SessionManager implements SessionWriter {
   appendToBuffer(session: ManagedSession, bytes: Uint8Array): void {
     const buf = session.outputBuffer;
     const cap = buf.length;
+    const len = bytes.length;
 
-    for (let i = 0; i < bytes.length; i++) {
-      buf[session.outputBufferPos] = bytes[i];
-      session.outputBufferPos = (session.outputBufferPos + 1) % cap;
+    // Bytes larger than the ring capacity: keep only the tail — older bytes
+    // would be overwritten by the wraparound anyway. Single set() is enough.
+    if (len >= cap) {
+      buf.set(bytes.subarray(len - cap), 0);
+      session.outputBufferPos = 0;
+      session.outputBufferTotal += len;
+      return;
     }
-    session.outputBufferTotal += bytes.length;
+
+    const pos = session.outputBufferPos;
+    const tail = cap - pos;
+    if (len <= tail) {
+      buf.set(bytes, pos);
+      session.outputBufferPos = (pos + len) % cap;
+    } else {
+      buf.set(bytes.subarray(0, tail), pos);
+      buf.set(bytes.subarray(tail), 0);
+      session.outputBufferPos = len - tail;
+    }
+    session.outputBufferTotal += len;
   }
 
   /** Apply terminal preferences to all existing sessions. */
