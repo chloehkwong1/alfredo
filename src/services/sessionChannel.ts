@@ -81,13 +81,13 @@ export async function fireHookNotification(
   }
 
   const appConfig = await getAppConfig();
-  const config = appConfig.notifications;
+  const config = appConfig?.notifications;
   if (!config?.enabled) return;
 
   if (notify === "input" && !config.notifyOnWaiting) return;
   if ((notify === "finished" || notify === "error") && !config.notifyOnIdle) return;
 
-  const dbg = appConfig.debugMode ? " [hook]" : "";
+  const dbg = appConfig?.debugMode ? " [hook]" : "";
   const message =
     notify === "finished" ? `${branch} finished${dbg}` :
     notify === "error"    ? `${branch} stopped (error)${dbg}` :
