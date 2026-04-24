@@ -112,7 +112,7 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
             <EmptyRow text="No reviews yet" />
           ) : (
             reviews.map((r) => (
-              <ReviewRow key={`${r.reviewer}-${r.submittedAt}`} reviewer={r.reviewer} state={r.state} submittedAt={r.submittedAt} />
+              <ReviewRow key={`${r.reviewer}-${r.submittedAt}`} reviewer={r.reviewer} state={r.state} submittedAt={r.submittedAt} body={r.body} />
             ))
           )}
         </Section>
