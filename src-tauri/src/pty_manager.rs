@@ -1317,7 +1317,7 @@ fn resolve_cwd(shell_pid: u32) -> Option<String> {
 fn resolve_cwd(shell_pid: u32) -> Option<String> {
     std::fs::read_link(format!("/proc/{shell_pid}/cwd"))
         .ok()
-        .and_then(|p| p.to_str().map(|s| tilde_abbrev(s)))
+        .and_then(|p| p.to_str().map(tilde_abbrev))
 }
 
 /// Returns true if a hook entry was created by Alfredo.
