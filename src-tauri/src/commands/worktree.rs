@@ -208,8 +208,8 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
                 let global_config = crate::app_config_manager::load(&app_data_dir).await?;
                 let mut backfilled = false;
                 for wt in wts {
-                    if config_manager::get_assigned_port(&config, &wt.name).is_none() {
-                        if config_manager::assign_next_port(
+                    if config_manager::get_assigned_port(&config, &wt.name).is_none()
+                        && config_manager::assign_next_port(
                             &mut config,
                             &wt.name,
                             global_config.port_range_start,
@@ -217,7 +217,6 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
                         ).is_some() {
                             backfilled = true;
                         }
-                    }
                 }
                 if backfilled {
                     if let Err(e) = config_manager::save_config(&app_data_dir, &repo_path, &config).await {

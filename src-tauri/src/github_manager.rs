@@ -518,11 +518,11 @@ impl GithubManager {
             for thread in threads {
                 let is_resolved = thread
                     .get("isResolved")
-                    .and_then(|v| v.as_bool())
+                    .and_then(serde_json::Value::as_bool)
                     .unwrap_or(false);
                 if let Some(comment_id) = thread
                     .pointer("/comments/nodes/0/databaseId")
-                    .and_then(|v| v.as_u64())
+                    .and_then(serde_json::Value::as_u64)
                 {
                     resolution_map.insert(comment_id, is_resolved);
                 }

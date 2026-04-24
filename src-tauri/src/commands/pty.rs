@@ -43,7 +43,7 @@ pub async fn spawn_pty(
 
     // Register the channel with the state server BEFORE spawning so that
     // early hook callbacks (e.g. SessionStart) are not silently dropped.
-    state_server.register_channel(session_id.clone(), worktree_id.clone(), on_data.clone());
+    state_server.register_channel(&session_id, &worktree_id, on_data.clone());
 
     let config = SpawnConfig {
         worktree_id: worktree_id.clone(),
@@ -112,7 +112,7 @@ pub async fn reattach_pty(
 ) -> Result<String> {
     let worktree_id = manager.reattach(&session_id, on_data.clone())?;
     // Re-register channel with state server so hook callbacks reach the new channel
-    state_server.register_channel(session_id, worktree_id.clone(), on_data);
+    state_server.register_channel(&session_id, &worktree_id, on_data);
     Ok(worktree_id)
 }
 

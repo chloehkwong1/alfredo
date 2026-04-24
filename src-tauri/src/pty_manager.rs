@@ -155,7 +155,7 @@ impl OscScanner {
                 }
                 Some(7) => {
                     let raw = String::from_utf8(std::mem::take(&mut self.buf)).ok();
-                    let cwd = raw.and_then(parse_osc7_path);
+                    let cwd = raw.as_deref().and_then(parse_osc7_path);
                     out.push(OscEvent::Cwd(cwd));
                 }
                 _ => {}
@@ -169,7 +169,7 @@ impl OscScanner {
 
 /// Extract the path from an OSC 7 payload like `file://host/Users/chloe/alfredo`.
 /// Returns `None` if the payload doesn't parse.
-fn parse_osc7_path(payload: String) -> Option<String> {
+fn parse_osc7_path(payload: &str) -> Option<String> {
     let rest = payload.strip_prefix("file://")?;
     // Skip the host component (everything up to the first '/').
     let slash = rest.find('/')?;

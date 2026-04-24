@@ -287,7 +287,7 @@ pub fn set_worktree_port(
         .iter()
         .find(|(name, &p)| p == port && name.as_str() != worktree_name)
     {
-        return Err(format!("Port {} is already assigned to {}", port, existing));
+        return Err(format!("Port {port} is already assigned to {existing}"));
     }
     config.port_assignments.insert(worktree_name.to_string(), port);
     Ok(())
