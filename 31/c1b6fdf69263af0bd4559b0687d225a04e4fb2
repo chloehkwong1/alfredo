@@ -1,0 +1,23 @@
+src/components/layout/PaneView.tsx
+  4f6ea7b77fbf8db5 46-53,57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "31c1b6fdf69263af0bd4559b0687d225a04e4fb2",
+  "prompts": {
+    "4f6ea7b77fbf8db5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "444b0049-9a1f-4c19-a7cd-69389b0fc4cf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 386,
+      "overriden_lines": 0
+    }
+  }
+}
