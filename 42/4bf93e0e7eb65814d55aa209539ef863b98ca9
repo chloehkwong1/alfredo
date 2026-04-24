@@ -1,0 +1,29 @@
+src/services/lifecycleManager.ts
+  c7195f9924642327 4,48
+src/services/SessionPersistence.ts
+  c7195f9924642327 44-45,99,155
+src/components/layout/useSessionAutoSave.ts
+  c7195f9924642327 8,80-90,117
+src/hooks/useSessionRestore.ts
+  c7195f9924642327 9,140-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "424bf93e0e7eb65814d55aa209539ef863b98ca9",
+  "prompts": {
+    "c7195f9924642327": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "465ff34c-ee8d-4723-9a4c-5239e5cd1f31",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 0,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    }
+  }
+}

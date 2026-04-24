@@ -1,0 +1,29 @@
+src/components/queue/index.ts
+  c7195f9924642327 1-3
+src/components/queue/QueuePanel.tsx
+  c7195f9924642327 1-139,150-192
+src/components/terminal/TerminalView.tsx
+  c7195f9924642327 441
+src/components/queue/QueueItem.tsx
+  c7195f9924642327 2-24,26,28-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "6f78216c34d432f4113cda065661962fb28fe746",
+  "prompts": {
+    "c7195f9924642327": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "465ff34c-ee8d-4723-9a4c-5239e5cd1f31",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 241,
+      "total_deletions": 0,
+      "accepted_lines": 227,
+      "overriden_lines": 0
+    }
+  }
+}
