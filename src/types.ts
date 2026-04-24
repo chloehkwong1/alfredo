@@ -306,6 +306,10 @@ export interface PrReview {
   reviewer: string;
   state: string; // "approved" | "changes_requested" | "pending" | "dismissed"
   submittedAt: string | null;
+  /** Top-level review summary body, when the reviewer left one (e.g. cubic's
+   *  issue roll-up). `null`/`undefined` for stub reviews that only carry
+   *  inline comments. */
+  body?: string | null;
 }
 
 export interface PrComment {

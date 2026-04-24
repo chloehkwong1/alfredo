@@ -234,6 +234,10 @@ pub struct PrReview {
     pub reviewer: String,
     pub state: String,       // "approved", "changes_requested", "pending", "dismissed"
     pub submitted_at: Option<String>,
+    /// Top-level review body (e.g. cubic's summary). `None` for review stubs
+    /// that only carry inline comments.
+    #[serde(default)]
+    pub body: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

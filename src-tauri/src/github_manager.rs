@@ -164,10 +164,17 @@ fn parse_reviews_response(response: &serde_json::Value) -> Vec<PrReview> {
         .map(|arr| {
             arr.iter()
                 .filter_map(|review| {
+                    let body = review
+                        .get("body")
+                        .and_then(|v| v.as_str())
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(std::string::ToString::to_string);
                     Some(PrReview {
                         reviewer: review.get("user")?.get("login")?.as_str()?.to_string(),
                         state: review.get("state")?.as_str()?.to_lowercase(),
                         submitted_at: review.get("submitted_at").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
+                        body,
                     })
                 })
                 .collect()
@@ -1162,11 +1169,13 @@ mod tests {
                 reviewer: "alice".into(),
                 state: "approved".into(),
                 submitted_at: Some("2026-03-29T10:00:00Z".into()),
+                body: None,
             },
             PrReview {
                 reviewer: "alice".into(),
                 state: "changes_requested".into(),
                 submitted_at: Some("2026-03-29T12:00:00Z".into()),
+                body: None,
             },
         ];
         let result = dedup_reviews(reviews);
@@ -1181,11 +1190,13 @@ mod tests {
                 reviewer: "alice".into(),
                 state: "approved".into(),
                 submitted_at: Some("2026-03-29T10:00:00Z".into()),
+                body: None,
             },
             PrReview {
                 reviewer: "bob".into(),
                 state: "changes_requested".into(),
                 submitted_at: Some("2026-03-29T11:00:00Z".into()),
+                body: None,
             },
         ];
         let result = dedup_reviews(reviews);
@@ -1200,6 +1211,7 @@ mod tests {
             reviewer: "alice".into(),
             state: "changes_requested".into(),
             submitted_at: Some("2026-03-29T10:00:00Z".into()),
+            body: None,
         }];
         assert_eq!(
             derive_review_decision(&reviews, &[]),
@@ -1213,6 +1225,7 @@ mod tests {
             reviewer: "alice".into(),
             state: "approved".into(),
             submitted_at: Some("2026-03-29T10:00:00Z".into()),
+            body: None,
         }];
         assert_eq!(
             derive_review_decision(&reviews, &[]),
@@ -1226,6 +1239,7 @@ mod tests {
             reviewer: "alice".into(),
             state: "commented".into(),
             submitted_at: Some("2026-03-29T10:00:00Z".into()),
+            body: None,
         }];
         let requested = vec!["bob".to_string()];
         assert_eq!(
@@ -1384,23 +1398,35 @@ mod tests {
             {
                 "user": { "login": "alice" },
                 "state": "APPROVED",
-                "submitted_at": "2026-03-29T11:00:00Z"
+                "submitted_at": "2026-03-29T11:00:00Z",
+                "body": "LGTM, shipping"
             },
             {
                 "user": { "login": "bob" },
                 "state": "CHANGES_REQUESTED",
-                "submitted_at": null
+                "submitted_at": null,
+                "body": "   "
+            },
+            {
+                "user": { "login": "carol" },
+                "state": "COMMENTED",
+                "submitted_at": "2026-03-29T12:00:00Z"
             }
         ]);
 
         let reviews = parse_reviews_response(&json);
-        assert_eq!(reviews.len(), 2);
+        assert_eq!(reviews.len(), 3);
         assert_eq!(reviews[0].reviewer, "alice");
         assert_eq!(reviews[0].state, "approved");
         assert_eq!(reviews[0].submitted_at.as_deref(), Some("2026-03-29T11:00:00Z"));
+        assert_eq!(reviews[0].body.as_deref(), Some("LGTM, shipping"));
         assert_eq!(reviews[1].reviewer, "bob");
         assert_eq!(reviews[1].state, "changes_requested");
         assert_eq!(reviews[1].submitted_at, None);
+        // Whitespace-only bodies collapse to None so the UI doesn't render an empty summary.
+        assert_eq!(reviews[1].body, None);
+        // Missing body field → None.
+        assert_eq!(reviews[2].body, None);
     }
 
     #[test]

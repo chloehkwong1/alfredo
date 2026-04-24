@@ -8,6 +8,20 @@ use crate::github_manager::{dedup_reviews, derive_review_decision, determine_col
 use crate::platform::gh_command;
 use crate::types::{PrStatus, CheckRun, PrReview, PrComment};
 
+/// Window during which a just-merged PR is still worth enriching (reviews, checks,
+/// comments). Covers the common case of a cubic/human reviewer leaving a comment
+/// moments before or after merge without burning API budget on stale merged PRs.
+const RECENTLY_MERGED_WINDOW_HOURS: i64 = 24;
+
+/// Whether a PR was merged within the recent-enrichment window.
+/// Treats unparseable timestamps as "not recent" (safer — we stop polling).
+fn is_recently_merged(merged_at: Option<&str>) -> bool {
+    let Some(raw) = merged_at else { return false; };
+    let Ok(ts) = chrono::DateTime::parse_from_rfc3339(raw) else { return false; };
+    let age = chrono::Utc::now().signed_duration_since(ts.with_timezone(&chrono::Utc));
+    age.num_hours() < RECENTLY_MERGED_WINDOW_HOURS
+}
+
 /// Payload emitted on the `github:pr-update` Tauri event.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -389,7 +403,7 @@ async fn poll_repo(
     // for PRs the user isn't looking at. This keeps API usage proportional to
     // the number of worktrees (typically 2-5), not the total open PRs (can be 80+).
     for pr_with_col in payload_prs.iter_mut() {
-        if pr_with_col.merged {
+        if pr_with_col.merged && !is_recently_merged(pr_with_col.merged_at.as_deref()) {
             continue;
         }
         if !active_branches.contains(&pr_with_col.branch) {
@@ -461,7 +475,7 @@ async fn enrich_repo_with_comments(
         .enumerate()
         .filter(|(_, pr)| {
             pr.repo_path == repo_path
-                && !pr.merged
+                && (!pr.merged || is_recently_merged(pr.merged_at.as_deref()))
                 && active_branches.contains(&pr.branch)
         })
         .map(|(i, pr)| (i, pr.number))
