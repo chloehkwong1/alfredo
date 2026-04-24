@@ -1,0 +1,72 @@
+src/styles/theme.css
+  2797b88e261791b0 83-93
+src/api.ts
+  2797b88e261791b0 429-432
+src/components/sidebar/AgentItem.tsx
+  2797b88e261791b0 202,289,305,409,592,701
+src-tauri/src/commands/app_config.rs
+  2797b88e261791b0 157-187
+src/components/layout/AppShell.tsx
+  2797b88e261791b0 70,74-75,260,263-264
+src/components/sidebar/StatusGroup.tsx
+  2797b88e261791b0 34,89,207
+src/components/sidebar/BranchSection.tsx
+  2797b88e261791b0 10,23,42
+src-tauri/src/app_config_manager.rs
+  2797b88e261791b0 25,165,235,284,330
+src/components/sidebar/RepoTag.tsx
+  2797b88e261791b0 1,7,12-19,22-23,26,30,36
+src/components/settings/GlobalSettingsDialog.tsx
+  2797b88e261791b0 216
+src/components/sidebar/Sidebar.tsx
+  2797b88e261791b0 82,85-86,103,106-107,366,386,463,465-466
+src/components/sidebar/BranchCard.tsx
+  2797b88e261791b0 3,32,43,66-67,70-75,116
+src/components/sidebar/RepoSelector.tsx
+  2797b88e261791b0 5-7,9-33,39-54,113-114,228-251
+src-tauri/src/types.rs
+  2797b88e261791b0 439-442
+src/hooks/useAppConfig.ts
+  2797b88e261791b0 12-13,17,86-99,184-193,221,226-227
+src-tauri/src/lib.rs
+  2797b88e261791b0 150
+src/components/ui/RepoDropdown.tsx
+  2797b88e261791b0 7,30-31,57-58,80
+src/components/settings/WorkspaceSettingsDialog.tsx
+  2797b88e261791b0 1,12-16,68,70-71,82,84-85,98,110,118,164,167,218-226,237-259,376-412,416-447
+src/types.ts
+  2797b88e261791b0 392-393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a763832263cf89734813aae5156b3bb1e365e48d",
+  "prompts": {
+    "2797b88e261791b0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0d3c643a-d356-48f9-a15c-852372f99bdd",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 342,
+      "total_deletions": 1469,
+      "accepted_lines": 341,
+      "overriden_lines": 0
+    },
+    "6f42f020a7ad5754": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80df3952-144a-486f-914f-c43785d98c7b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 489,
+      "total_deletions": 0,
+      "accepted_lines": 489,
+      "overriden_lines": 0
+    }
+  }
+}
