@@ -426,6 +426,10 @@ export function setRepoDisplayName(repoPath: string, name: string | null): Promi
   return invoke<GlobalAppConfig>("set_repo_display_name", { repoPath, name });
 }
 
+export function setRepoShortLabel(repoPath: string, label: string | null): Promise<GlobalAppConfig> {
+  return invoke<GlobalAppConfig>("set_repo_short_label", { repoPath, label });
+}
+
 export function setWorktreeLabel(worktreePath: string, label: string | null): Promise<GlobalAppConfig> {
   return invoke<GlobalAppConfig>("set_worktree_label", { worktreePath, label });
 }

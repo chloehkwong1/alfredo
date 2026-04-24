@@ -2,17 +2,54 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown, X } from "lucide-react";
 import type { RepoEntry } from "../../types";
 
+// Solid-fill palette backed by --chip-* tokens in theme.css. Deliberately
+// off-axis from status colours (green/amber/blue/red) so a chip can't be
+// misread as a state indicator.
 const REPO_COLOR_PALETTE = [
-  { bg: "rgba(147,51,234,0.12)", border: "rgba(147,51,234,0.25)", text: "#a78bfa", id: "purple" },
-  { bg: "rgba(96,165,250,0.12)", border: "rgba(96,165,250,0.2)", text: "#60a5fa", id: "blue" },
-  { bg: "rgba(74,222,128,0.12)", border: "rgba(74,222,128,0.2)", text: "#4ade80", id: "green" },
-  { bg: "rgba(251,191,36,0.12)", border: "rgba(251,191,36,0.2)", text: "#fbbf24", id: "amber" },
-  { bg: "rgba(244,114,182,0.12)", border: "rgba(244,114,182,0.2)", text: "#f472b6", id: "pink" },
-  { bg: "rgba(34,211,238,0.12)", border: "rgba(34,211,238,0.2)", text: "#22d3ee", id: "cyan" },
-];
+  { id: "violet",  bg: "var(--chip-violet)",  border: "var(--chip-violet)",  text: "var(--chip-text)" },
+  { id: "teal",    bg: "var(--chip-teal)",    border: "var(--chip-teal)",    text: "var(--chip-text)" },
+  { id: "fuchsia", bg: "var(--chip-fuchsia)", border: "var(--chip-fuchsia)", text: "var(--chip-text)" },
+  { id: "coral",   bg: "var(--chip-coral)",   border: "var(--chip-coral)",   text: "var(--chip-text)" },
+  { id: "ochre",   bg: "var(--chip-ochre)",   border: "var(--chip-ochre)",   text: "var(--chip-text)" },
+  { id: "slate",   bg: "var(--chip-slate)",   border: "var(--chip-slate)",   text: "var(--chip-text)" },
+] as const;
+
+// Maps pre-existing palette ids (from before the chip-palette rework) onto
+// their nearest replacement, so users' saved repo colours shift to a sensible
+// hue instead of resetting to the default.
+const LEGACY_COLOR_ID_ALIASES: Record<string, string> = {
+  purple: "violet",
+  blue: "slate",
+  green: "teal",
+  amber: "ochre",
+  pink: "coral",
+  cyan: "fuchsia",
+};
+
+function resolveColorId(id: string | undefined): string | undefined {
+  if (!id) return undefined;
+  if (REPO_COLOR_PALETTE.some((c) => c.id === id)) return id;
+  return LEGACY_COLOR_ID_ALIASES[id];
+}
 
 function getRepoColor(index: number) {
   return REPO_COLOR_PALETTE[index % REPO_COLOR_PALETTE.length];
+}
+
+/** Pick the first palette colour not yet used by any repo. Falls back to
+ *  round-robin when every slot is taken. */
+function pickNextRepoColorId(
+  existingColors: Record<string, string>,
+  repoCountForFallback: number,
+): string {
+  const used = new Set(
+    Object.values(existingColors)
+      .map((c) => resolveColorId(c))
+      .filter((c): c is string => !!c),
+  );
+  const free = REPO_COLOR_PALETTE.find((c) => !used.has(c.id));
+  if (free) return free.id;
+  return REPO_COLOR_PALETTE[repoCountForFallback % REPO_COLOR_PALETTE.length].id;
 }
 
 function repoDisplayName(path: string, displayNames?: Record<string, string>): string {
@@ -73,8 +110,8 @@ function RepoSelector({
   }, [open]);
 
   function getColorForRepo(path: string) {
-    const colorId = repoColors[path];
-    const found = REPO_COLOR_PALETTE.find((c) => c.id === colorId);
+    const resolved = resolveColorId(repoColors[path]);
+    const found = resolved ? REPO_COLOR_PALETTE.find((c) => c.id === resolved) : undefined;
     if (found) return found;
     const idx = repos.findIndex((r) => r.path === path);
     return getRepoColor(idx >= 0 ? idx : 0);
@@ -188,4 +225,27 @@ function RepoSelector({
   );
 }
 
-export { RepoSelector, REPO_COLOR_PALETTE, getRepoColor, repoDisplayName, repoAbbrev, repoInitials };
+/** Short badge label for a repo. Prefers the user's custom `repoShortLabels`
+ *  override; falls back to auto-generated 2-letter initials of the display name. */
+function repoBadgeLabel(
+  path: string,
+  displayNames?: Record<string, string>,
+  shortLabels?: Record<string, string>,
+): string {
+  const custom = shortLabels?.[path]?.trim();
+  if (custom) return custom;
+  return repoInitials(path, displayNames);
+}
+
+export {
+  RepoSelector,
+  REPO_COLOR_PALETTE,
+  LEGACY_COLOR_ID_ALIASES,
+  resolveColorId,
+  getRepoColor,
+  pickNextRepoColorId,
+  repoDisplayName,
+  repoAbbrev,
+  repoInitials,
+  repoBadgeLabel,
+};

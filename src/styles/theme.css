@@ -80,4 +80,15 @@
 
   /* ── PR comment accent ───────────────────────── */
   --color-pr-comment: #60a5fa;
+
+  /* ── Repo chip palette ──────────────────────────
+     Deliberately off-axis from status colours so a repo chip can never be
+     misread as a state indicator. Keep this set to 6 — matches chip slot count. */
+  --chip-violet:  #8b5cf6;
+  --chip-teal:    #14b8a6;
+  --chip-fuchsia: #d946ef;
+  --chip-coral:   #fb7185;
+  --chip-ochre:   #ca8a04;
+  --chip-slate:   #64748b;
+  --chip-text:    var(--text-on-accent);
 }

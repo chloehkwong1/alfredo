@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { GitBranch } from "lucide-react";
-import { REPO_COLOR_PALETTE, repoDisplayName } from "./RepoSelector";
+import { REPO_COLOR_PALETTE, repoDisplayName, resolveColorId } from "./RepoSelector";
 import { RepoTag } from "./RepoTag";
 import { formatDiffStat, PrStatsRow, hasPrStats } from "./PrStatsRow";
 import type { PrSummary } from "./PrStatsRow";
@@ -29,6 +29,7 @@ interface BranchCardProps {
   onClick: () => void;
   repoColors: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
+  repoShortLabels?: Record<string, string>;
   repoIndex: number;
   showRepoTag: boolean;
 }
@@ -39,6 +40,7 @@ const BranchCard = memo(function BranchCard({
   onClick,
   repoColors,
   repoDisplayNames,
+  repoShortLabels,
   repoIndex,
   showRepoTag,
 }: BranchCardProps) {
@@ -61,15 +63,16 @@ const BranchCard = memo(function BranchCard({
   const attn = attnBorder(effectiveStatus, isUnread);
   const glow = dotGlowClass(effectiveStatus);
 
-  const colorId = repoColors[repo.repoPath];
-  const color = REPO_COLOR_PALETTE.find((c) => c.id === colorId)
+  const colorId = resolveColorId(repoColors[repo.repoPath]);
+  const color = (colorId ? REPO_COLOR_PALETTE.find((c) => c.id === colorId) : undefined)
     ?? REPO_COLOR_PALETTE[repoIndex % REPO_COLOR_PALETTE.length];
 
-  // Tinted bg/border from the repo's assigned color
-  const bgBase = color.bg.replace(/[\d.]+\)$/, "0.04)");
-  const bgSelected = color.bg.replace(/[\d.]+\)$/, "0.06)");
-  const borderBase = color.border.replace(/[\d.]+\)$/, "0.12)");
-  const borderSelected = color.border.replace(/[\d.]+\)$/, "0.2)");
+  // Tinted bg/border derived from the solid chip colour via color-mix (so
+  // palette entries stay a single CSS var and can be swapped theme-wide).
+  const bgBase = `color-mix(in srgb, ${color.bg} 4%, transparent)`;
+  const bgSelected = `color-mix(in srgb, ${color.bg} 6%, transparent)`;
+  const borderBase = `color-mix(in srgb, ${color.border} 12%, transparent)`;
+  const borderSelected = `color-mix(in srgb, ${color.border} 20%, transparent)`;
 
   const displayName = repoDisplayName(repo.repoPath, repoDisplayNames);
 
@@ -110,6 +113,7 @@ const BranchCard = memo(function BranchCard({
               repoPath={repo.repoPath}
               repoColors={repoColors}
               repoDisplayNames={repoDisplayNames}
+              repoShortLabels={repoShortLabels}
               repoIndex={repoIndex}
               visible
             />

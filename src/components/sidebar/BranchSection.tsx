@@ -7,6 +7,7 @@ interface BranchSectionProps {
   onSelectRepo: (id: string) => void;
   repoColors: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
+  repoShortLabels?: Record<string, string>;
   repoIndexMap: Record<string, number>;
   showRepoTags: boolean;
   /** Whether worktree items exist above — controls divider visibility */
@@ -19,6 +20,7 @@ function BranchSection({
   onSelectRepo,
   repoColors,
   repoDisplayNames,
+  repoShortLabels,
   repoIndexMap,
   showRepoTags,
   hasWorktreeItems,
@@ -37,6 +39,7 @@ function BranchSection({
           onClick={() => onSelectRepo(repo.id)}
           repoColors={repoColors}
           repoDisplayNames={repoDisplayNames}
+          repoShortLabels={repoShortLabels}
           repoIndex={repoIndexMap[repo.repoPath] ?? 0}
           showRepoTag={showRepoTags}
         />

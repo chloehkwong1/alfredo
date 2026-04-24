@@ -389,6 +389,8 @@ export interface GlobalAppConfig {
   displayName: string | null;
   repoColors: Record<string, string>;
   repoDisplayNames: Record<string, string>;
+  /** Optional 1–4 char badge label per repo; falls back to initials. */
+  repoShortLabels: Record<string, string>;
   worktreeLabels: Record<string, string>;
   preferredEditor: string;
   customEditorPath: string | null;

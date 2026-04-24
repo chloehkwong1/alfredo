@@ -436,6 +436,10 @@ pub struct GlobalAppConfig {
     pub repo_colors: HashMap<String, String>,
     #[serde(default)]
     pub repo_display_names: HashMap<String, String>,
+    /// Optional 1–4 char badge label shown on sidebar cards. Falls back to
+    /// `repo_display_names` initials when unset.
+    #[serde(default)]
+    pub repo_short_labels: HashMap<String, String>,
     #[serde(default)]
     pub worktree_labels: HashMap<String, String>,
     #[serde(default = "default_editor")]
