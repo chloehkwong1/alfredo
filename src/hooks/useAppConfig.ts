@@ -18,6 +18,24 @@ import { pickNextRepoColorId } from "../components/sidebar/RepoSelector";
 import type { GlobalAppConfig, RepoMode } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
+/** Assigns a chip colour to every repo missing one. Repos added before the
+ *  palette rework have no saved colour and otherwise fall through to an
+ *  index-based fallback that can collide with a sibling's saved legacy id. */
+async function backfillRepoColors(c: GlobalAppConfig): Promise<GlobalAppConfig> {
+  const missing = c.repos.filter((r) => !c.repoColors[r.path]);
+  if (missing.length === 0) return c;
+  let next = c;
+  for (const repo of missing) {
+    const colorId = pickNextRepoColorId(next.repoColors, next.repos.findIndex((r) => r.path === repo.path));
+    try {
+      next = await setRepoColorApi(repo.path, colorId);
+    } catch (e) {
+      console.warn("backfill repo colour failed", repo.path, e);
+    }
+  }
+  return next;
+}
+
 export function useAppConfig() {
   const [config, setConfig] = useState<GlobalAppConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,20 +50,24 @@ export function useAppConfig() {
   useEffect(() => {
     let cancelled = false;
     getAppConfig()
-      .then((c) => {
-        if (!cancelled) {
-          setConfig(c);
-          // Sync default agent to localStorage so tabStore can read it
-          // synchronously. Write "claude" when unset so stale localStorage
-          // values from a previous session don't override the intended default.
-          localStorage.setItem("alfredo-default-agent", c.defaultAgent ?? "claude");
-          // Sync archive/delete settings to workspace store
-          useWorkspaceStore.setState({
-            archiveAfterDays: c.archiveAfterDays ?? 2,
-            deleteAfterDays: c.deleteAfterDays ?? 0,
-          });
-          setLoading(false);
-        }
+      .then(async (c) => {
+        if (cancelled) return;
+        // Backfill chip colours for any repo that predates the palette rework
+        // and has no saved colour. Without this they fall through to an index
+        // fallback that can collide with another repo's saved legacy id.
+        const migrated = await backfillRepoColors(c);
+        if (cancelled) return;
+        setConfig(migrated);
+        // Sync default agent to localStorage so tabStore can read it
+        // synchronously. Write "claude" when unset so stale localStorage
+        // values from a previous session don't override the intended default.
+        localStorage.setItem("alfredo-default-agent", migrated.defaultAgent ?? "claude");
+        // Sync archive/delete settings to workspace store
+        useWorkspaceStore.setState({
+          archiveAfterDays: migrated.archiveAfterDays ?? 2,
+          deleteAfterDays: migrated.deleteAfterDays ?? 0,
+        });
+        setLoading(false);
       })
       .catch((e) => {
         if (!cancelled) {

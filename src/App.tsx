@@ -1,6 +1,7 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { HelpSearch } from "./components/askAlfredo/HelpSearch";
+import { PortExhaustionDialogHost } from "./components/settings/PortExhaustionDialogHost";
 import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
@@ -113,6 +114,7 @@ function AppInner() {
           window.dispatchEvent(new CustomEvent("alfredo:close-ask"));
         }}
       />
+      <PortExhaustionDialogHost />
     </TooltipProvider>
   );
 }

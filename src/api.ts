@@ -8,6 +8,7 @@ import type {
   GlobalAppConfig,
   KanbanColumn,
   LinearTicket,
+  PortClaimResult,
   PrStatus,
   PtyEvent,
   RepoMode,
@@ -169,6 +170,14 @@ export function setWorktreeColumn(
 
 export function setWorktreePort(repoPath: string, worktreeName: string, port: number): Promise<void> {
   return invoke("set_worktree_port", { repoPath, worktreeName, port });
+}
+
+export function claimWorktreePort(repoPath: string, worktreeName: string): Promise<PortClaimResult> {
+  return invoke("claim_worktree_port", { repoPath, worktreeName });
+}
+
+export function releaseWorktreePort(repoPath: string, worktreeName: string): Promise<void> {
+  return invoke("release_worktree_port", { repoPath, worktreeName });
 }
 
 // ── Branch Mode ─────────────────────────────────────────────────
@@ -500,4 +509,10 @@ export interface HelpHit {
 
 export function searchAlfredoDocs(query: string, limit = 5): Promise<HelpHit[]> {
   return invoke<HelpHit[]>("search_alfredo_docs", { query, limit });
+}
+
+// ── Debug log bridge (frontend → alfredo.log) ─────────────────
+
+export function debugLog(message: string): Promise<void> {
+  return invoke("debug_log", { message });
 }

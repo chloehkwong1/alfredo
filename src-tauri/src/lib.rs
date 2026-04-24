@@ -32,7 +32,7 @@ fn updater_endpoint_urls(receive_beta: bool) -> Vec<url::Url> {
         .collect()
 }
 
-use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, debug_log as debug_log_cmd, diff, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -56,6 +56,7 @@ pub fn run() {
             active_branches: std::sync::Mutex::new(std::collections::HashSet::new()),
         })
         .manage(StackState::new())
+        .manage(commands::worktree::PortConfigLock::default())
         .setup(|app| {
             crate::logging::init();
             // Replace the default macOS menu with one that omits the "Help"
@@ -135,6 +136,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Audio
             audio::play_sound,
+            // Debug logging bridge (frontend → alfredo.log)
+            debug_log_cmd::debug_log,
             // Ask Alfredo
             ask_alfredo_cmd::search_alfredo_docs,
             // App Config
@@ -171,6 +174,8 @@ pub fn run() {
             worktree::rebase_worktree,
             worktree::set_stack_parent,
             worktree::set_worktree_port,
+            worktree::claim_worktree_port,
+            worktree::release_worktree_port,
             // GitHub
             github::sync_pr_status,
             github::get_pr_for_branch,

@@ -379,6 +379,14 @@ pub struct AppConfig {
     /// Environment variable name to inject the assigned port as (defaults to "PORT").
     #[serde(default)]
     pub port_env_var: Option<String>,
+    /// Inclusive lower bound of the dev-server port range. `None` means the
+    /// user hasn't configured a range — auto-assign is treated as disabled
+    /// regardless of `auto_assign_ports` until both bounds are set.
+    #[serde(default)]
+    pub port_range_start: Option<u16>,
+    /// Inclusive upper bound. See `port_range_start`.
+    #[serde(default)]
+    pub port_range_end: Option<u16>,
 }
 
 /// Persisted Linear ticket metadata for a worktree. Survives app restart so the
@@ -489,16 +497,10 @@ pub struct GlobalAppConfig {
     /// Opt in to pre-release builds from the beta update channel.
     #[serde(default)]
     pub receive_beta_updates: bool,
-    #[serde(default = "default_port_range_start")]
-    pub port_range_start: u16,
-    #[serde(default = "default_port_range_end")]
-    pub port_range_end: u16,
 }
 
 fn default_editor() -> String { "vscode".into() }
 fn default_terminal() -> String { "iterm".into() }
-fn default_port_range_start() -> u16 { 3001 }
-fn default_port_range_end() -> u16 { 3099 }
 
 // ── Linear ──────────────────────────────────────────────────────
 
@@ -525,6 +527,33 @@ pub struct LinearTeam {
     pub id: String,
     pub name: String,
     pub key: String,
+}
+
+// ── Port claim ──────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PortHolder {
+    pub worktree_name: String,
+    pub port: u16,
+}
+
+/// Outcome of a port-claim attempt. Exhaustion is modelled in the Ok path so
+/// the frontend can render a choice dialog without fighting the AppError
+/// string serializer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PortClaimResult {
+    /// Port was assigned (new or pre-existing sticky claim).
+    Assigned { port: u16 },
+    /// Auto-assign is off — caller should not inject a port env var.
+    Disabled,
+    /// Every port in the configured range is already held by another worktree.
+    RangeFull {
+        range_start: u16,
+        range_end: u16,
+        holders: Vec<PortHolder>,
+    },
 }
 
 // ── Errors ──────────────────────────────────────────────────────

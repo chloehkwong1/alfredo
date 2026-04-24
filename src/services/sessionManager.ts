@@ -1,8 +1,9 @@
 import { FitAddon } from "@xterm/addon-fit";
 import FontFaceObserver from "fontfaceobserver";
 import type { AgentType, SessionType } from "../types";
-import { spawnPty, closePty, resizePty, reattachPty, getConfig } from "../api";
+import { spawnPty, closePty, resizePty, reattachPty, getConfig, debugLog, claimWorktreePort, listWorktrees } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { usePortClaimStore } from "../stores/portClaimStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
 import type { TerminalPreferences } from "./terminalPreferences";
@@ -25,6 +26,48 @@ import {
 // Re-export for external consumers
 export type { ManagedSession } from "./sessionTypes";
 export { shouldAcceptDetectorState, stateSourceMap } from "./sessionChannel";
+
+/** Lazy port resolution: returns an existing sticky port, claims a new one,
+ *  or opens the exhaustion dialog and waits for the user to free a slot.
+ *  Throws if the user cancels the dialog — callers should abort the spawn.
+ *
+ *  Safe to call concurrently for the same worktree: backend idempotency means
+ *  a second call arriving after the first's assignment short-circuits to the
+ *  already-persisted port. */
+async function resolveWorktreePort(
+  worktreeId: string,
+  repoPath: string,
+  branchForDisplay: string,
+): Promise<number | undefined> {
+  const result = await claimWorktreePort(repoPath, worktreeId);
+  if (result.kind === "disabled") return undefined;
+  if (result.kind === "assigned") {
+    await refreshWorktrees(repoPath);
+    return result.port;
+  }
+  // Range full — hand off to the dialog and wait for a successful release+retry.
+  const port = await usePortClaimStore.getState().showExhaustion({
+    repoPath,
+    worktreeId,
+    targetBranch: branchForDisplay,
+    rangeStart: result.rangeStart,
+    rangeEnd: result.rangeEnd,
+    holders: result.holders,
+  });
+  await refreshWorktrees(repoPath);
+  return port;
+}
+
+/** Refresh the workspace store for a repo so sidebar chips reflect the latest
+ *  port state. Silent on error — the next natural refresh will reconcile. */
+async function refreshWorktrees(repoPath: string): Promise<void> {
+  try {
+    const fresh = await listWorktrees(repoPath);
+    useWorkspaceStore.getState().setWorktreesForRepo(repoPath, fresh);
+  } catch (e) {
+    console.warn("[sessionManager] post-claim refresh failed", e);
+  }
+}
 
 // ── SessionManager ─────────────────────────────────────────────
 
@@ -81,7 +124,9 @@ export class SessionManager implements SessionWriter {
         const silentSec = Math.round((now - session.lastHookAt) / 1000);
         const wt = store.worktrees.find((w) => w.id === worktreeId);
         const branch = wt?.branch ?? worktreeId;
-        console.warn(`[reconcile:${worktreeId}] busy → idle (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms, last hook: ${session.lastHookDesc || "?"}, sessionKey=${sessionKey}, sessionId=${session.sessionId})`);
+        const softMsg = `[reconcile:${worktreeId}] busy → idle (SOFT: hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms, depth=${session.workDepth}, last hook: ${session.lastHookDesc || "?"}, sessionKey=${sessionKey}, sessionId=${session.sessionId})`;
+        console.warn(softMsg);
+        debugLog(softMsg).catch(() => {});
         fireDebugNotification(`${branch}: stuck busy rescued (last hook: ${session.lastHookDesc || "?"}, ${silentSec}s ago, output stopped)`);
         session.agentState = "idle";
         useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
@@ -101,7 +146,9 @@ export class SessionManager implements SessionWriter {
         const silentSec = Math.round((now - session.lastHookAt) / 1000);
         const wt = store.worktrees.find((w) => w.id === worktreeId);
         const branch = wt?.branch ?? worktreeId;
-        console.warn(`[reconcile:${worktreeId}] busy → idle (force: hooks silent ${now - session.lastHookAt}ms, output still flowing, last hook: ${session.lastHookDesc || "?"}, sessionKey=${sessionKey}, sessionId=${session.sessionId})`);
+        const forceMsg = `[reconcile:${worktreeId}] busy → idle (FORCE: hooks silent ${now - session.lastHookAt}ms, output still flowing, depth=${session.workDepth}, last hook: ${session.lastHookDesc || "?"}, sessionKey=${sessionKey}, sessionId=${session.sessionId})`;
+        console.warn(forceMsg);
+        debugLog(forceMsg).catch(() => {});
         fireDebugNotification(`${branch}: stuck busy rescued (last hook: ${session.lastHookDesc || "?"}, ${silentSec}s ago)`);
         session.agentState = "idle";
         useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
@@ -215,10 +262,24 @@ export class SessionManager implements SessionWriter {
     this.sessions.set(sessionKey, session);
 
     const worktree = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
-    const assignedPort = worktree?.assignedPort ?? undefined;
+    // Always round-trip through resolveWorktreePort rather than reading
+    // worktree.assignedPort directly — the store snapshot can be stale
+    // immediately after a release+retry flow on another worktree, and
+    // claim_worktree_port is idempotent on already-assigned.
+    let assignedPort: number | undefined;
     let portEnvVar: string | undefined;
-    if (assignedPort && worktree?.repoPath) {
-      portEnvVar = (await getConfig(worktree.repoPath)).portEnvVar ?? undefined;
+    if (worktree?.repoPath) {
+      const repoConfig = await getConfig(worktree.repoPath);
+      if (repoConfig.autoAssignPorts) {
+        assignedPort = await resolveWorktreePort(
+          worktreeId,
+          worktree.repoPath,
+          worktree.branch ?? worktreeId,
+        );
+        if (assignedPort) {
+          portEnvVar = repoConfig.portEnvVar ?? undefined;
+        }
+      }
     }
 
     let sessionId: string;
@@ -357,10 +418,20 @@ export class SessionManager implements SessionWriter {
 
     const agentType = AGENT_TYPE_MAP[mode] as AgentType | undefined;
     const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
-    const assignedPort = wt?.assignedPort ?? undefined;
+    let assignedPort: number | undefined;
     let portEnvVar: string | undefined;
-    if (assignedPort && wt?.repoPath) {
-      portEnvVar = (await getConfig(wt.repoPath)).portEnvVar ?? undefined;
+    if (wt?.repoPath) {
+      const repoConfig = await getConfig(wt.repoPath);
+      if (repoConfig.autoAssignPorts) {
+        assignedPort = await resolveWorktreePort(
+          worktreeId,
+          wt.repoPath,
+          wt.branch ?? worktreeId,
+        );
+        if (assignedPort) {
+          portEnvVar = repoConfig.portEnvVar ?? undefined;
+        }
+      }
     }
 
     let sessionId: string;

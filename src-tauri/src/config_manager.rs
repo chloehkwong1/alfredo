@@ -72,6 +72,10 @@ struct ConfigFile {
     pub auto_assign_ports: bool,
     #[serde(default)]
     pub port_env_var: Option<String>,
+    #[serde(default)]
+    pub port_range_start: Option<u16>,
+    #[serde(default)]
+    pub port_range_end: Option<u16>,
 }
 
 /// Load the repo config from the app data directory.
@@ -108,6 +112,8 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: None,
+            port_range_start: None,
+            port_range_end: None,
         });
     };
 
@@ -153,6 +159,8 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
         port_assignments: file.port_assignments,
         auto_assign_ports: file.auto_assign_ports,
         port_env_var: file.port_env_var,
+        port_range_start: file.port_range_start,
+        port_range_end: file.port_range_end,
     };
 
     if is_migration || needs_resave {
@@ -199,6 +207,8 @@ pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfi
         port_assignments: config.port_assignments.clone(),
         auto_assign_ports: config.auto_assign_ports,
         port_env_var: config.port_env_var.clone(),
+        port_range_start: config.port_range_start,
+        port_range_end: config.port_range_end,
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -381,6 +391,8 @@ mod tests {
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: None,
+            port_range_start: None,
+            port_range_end: None,
         };
         config
             .column_overrides

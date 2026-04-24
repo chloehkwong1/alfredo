@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
+use tokio::sync::Mutex;
 
 use crate::config_manager;
 use crate::git_manager;
@@ -8,9 +9,18 @@ use crate::git_manager::git_command;
 use crate::git_manager::get_diff_stats;
 use crate::github_manager::{self, GithubManager};
 use crate::linear_manager;
-use crate::types::{AgentState, AppError, KanbanColumn, Worktree, WorktreeSource};
+use crate::types::{AgentState, AppError, KanbanColumn, PortClaimResult, PortHolder, Worktree, WorktreeSource};
 
 type Result<T> = std::result::Result<T, AppError>;
+
+/// Serializes port claim / release / column-move operations across the whole
+/// app. These operations read + mutate + write `config.json` — without a lock,
+/// two concurrent claims for the last free slot can both observe the same
+/// on-disk state and double-assign (last writer wins). Contention is
+/// negligible (personal desktop app, short file I/O), so a single app-wide
+/// lock is simpler than a per-repo map.
+#[derive(Default)]
+pub struct PortConfigLock(pub Mutex<()>);
 
 const DEFAULT_CI_FAILURE_CMD: &str = include_str!("../assets/slash_commands/ci-failure.md");
 const DEFAULT_INVESTIGATE_LOG_CMD: &str = include_str!("../assets/slash_commands/investigate-log.md");
@@ -114,25 +124,10 @@ pub async fn create_worktree(
         None
     };
 
-    // Auto-assign a port from the global range (only if opt-in enabled)
-    let assigned_port = if config.auto_assign_ports {
-        let global_config = crate::app_config_manager::load(&app_data_dir).await?;
-        let port = config_manager::assign_next_port(
-            &mut config,
-            &dir_name,
-            global_config.port_range_start,
-            global_config.port_range_end,
-        );
-        if port.is_none() {
-            eprintln!("[worktree] port range {}-{} exhausted, no port assigned to {dir_name}",
-                global_config.port_range_start, global_config.port_range_end);
-        }
-        port
-    } else {
-        None
-    };
+    // Ports are claimed lazily the first time the worktree starts a session,
+    // not eagerly on creation. See claim_worktree_port.
+    let assigned_port: Option<u16> = None;
 
-    // Single save for both stack parent and port assignment
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
 
     Ok(Worktree {
@@ -189,7 +184,7 @@ pub async fn delete_worktree(
 #[tauri::command]
 pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Worktree>> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.clone().unwrap_or_else(|| {
         std::path::Path::new(&repo_path)
             .parent()
@@ -204,36 +199,6 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
         tokio::task::spawn_blocking(move || git_manager::list_worktrees(&repo_path_clone, Some(&base_path)))
             .await
             .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
-
-    // Backfill port assignments for existing worktrees when auto_assign_ports
-    // is enabled but they were created before the feature was turned on.
-    if config.auto_assign_ports {
-        if let Ok(ref wts) = worktrees {
-            let needs_backfill = wts.iter().any(|wt| {
-                config_manager::get_assigned_port(&config, &wt.name).is_none()
-            });
-            if needs_backfill {
-                let global_config = crate::app_config_manager::load(&app_data_dir).await?;
-                let mut backfilled = false;
-                for wt in wts {
-                    if config_manager::get_assigned_port(&config, &wt.name).is_none()
-                        && config_manager::assign_next_port(
-                            &mut config,
-                            &wt.name,
-                            global_config.port_range_start,
-                            global_config.port_range_end,
-                        ).is_some() {
-                            backfilled = true;
-                        }
-                }
-                if backfilled {
-                    if let Err(e) = config_manager::save_config(&app_data_dir, &repo_path, &config).await {
-                        eprintln!("[worktree] failed to persist backfilled port assignments: {e}");
-                    }
-                }
-            }
-        }
-    }
 
     // Apply persisted column overrides from .alfredo.json so worktrees
     // arrive on the frontend with the correct kanban column immediately.
@@ -433,12 +398,21 @@ pub async fn set_stack_parent(
 #[tauri::command]
 pub async fn set_worktree_column(
     app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
     repo_path: String,
     worktree_name: String,
     column: KanbanColumn,
 ) -> Result<()> {
+    // Released-on-Done path touches port_assignments; serialize with claims.
+    let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
     let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    // Releasing the port here keeps the "sticky until Done" contract in the
+    // backend itself — the frontend can't forget to release by moving a
+    // worktree through a different code path (drag, kanban, keyboard shortcut).
+    if column == KanbanColumn::Done {
+        config_manager::release_port(&mut config, &worktree_name);
+    }
     config_manager::set_column_override(&mut config, &worktree_name, column);
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
@@ -457,6 +431,78 @@ pub async fn set_worktree_port(
     let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     config_manager::set_worktree_port(&mut config, &worktree_name, port)
         .map_err(AppError::Config)?;
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    Ok(())
+}
+
+/// Claim a dev server port for a worktree. Returns the existing sticky port
+/// if one is persisted, otherwise assigns the next free port from the global
+/// range and persists it. Exhaustion is returned as `PortClaimResult::RangeFull`
+/// (not an error) so the frontend can render a choice dialog.
+#[tauri::command]
+pub async fn claim_worktree_port(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<PortClaimResult> {
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+
+    if !config.auto_assign_ports {
+        return Ok(PortClaimResult::Disabled);
+    }
+
+    // A missing or inverted range means the repo hasn't been configured yet —
+    // treat as disabled. The settings UI prompts the user to fill in a range
+    // when they flip the toggle on.
+    let (range_start, range_end) = match (config.port_range_start, config.port_range_end) {
+        (Some(s), Some(e)) if s <= e => (s, e),
+        _ => return Ok(PortClaimResult::Disabled),
+    };
+
+    if let Some(port) = config_manager::get_assigned_port(&config, &worktree_name) {
+        return Ok(PortClaimResult::Assigned { port });
+    }
+
+    match config_manager::assign_next_port(&mut config, &worktree_name, range_start, range_end) {
+        Some(port) => {
+            config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+            Ok(PortClaimResult::Assigned { port })
+        }
+        None => {
+            let holders = config
+                .port_assignments
+                .iter()
+                .filter(|(_, &p)| p >= range_start && p <= range_end)
+                .map(|(name, &port)| PortHolder {
+                    worktree_name: name.clone(),
+                    port,
+                })
+                .collect();
+            Ok(PortClaimResult::RangeFull {
+                range_start,
+                range_end,
+                holders,
+            })
+        }
+    }
+}
+
+/// Release a worktree's port assignment. Called from the exhaustion dialog
+/// when the user frees up a slot to claim for a different worktree.
+#[tauri::command]
+pub async fn release_worktree_port(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<()> {
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    config_manager::release_port(&mut config, &worktree_name);
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
 }

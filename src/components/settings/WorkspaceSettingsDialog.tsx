@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, FolderOpen } from "lucide-react";
 import type { AppConfig, GlobalAppConfig, RepoEntry, RepoMode } from "../../types";
-import { getConfig, saveConfig, getAppConfig, saveAppConfig, setRepoMode } from "../../api";
+import { getConfig, saveConfig, getAppConfig, saveAppConfig, setRepoMode, listWorktrees } from "../../api";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/Button";
 import {
@@ -13,6 +14,7 @@ import {
   REPO_COLOR_PALETTE,
   resolveColorId,
   repoBadgeLabel,
+  repoInitials,
 } from "../sidebar/RepoSelector";
 
 type WorkspaceTab = "repository" | "scripts";
@@ -225,6 +227,16 @@ function WorkspaceSettingsDialog({
         await onSetRepoShortLabel?.(currentRepoPath, newLabel);
       }
       setDirty(false);
+      // Refresh worktrees for this repo so assignedPort hydration in
+      // list_worktrees picks up any persisted claims immediately. Without
+      // this, toggling auto-assign on wouldn't surface existing sticky
+      // ports in the sidebar until the next repo switch / app restart.
+      try {
+        const fresh = await listWorktrees(currentRepoPath);
+        useWorkspaceStore.getState().setWorktreesForRepo(currentRepoPath, fresh);
+      } catch (e) {
+        console.warn("Failed to refresh worktrees after settings save:", e);
+      }
       // config-changed triggers useAppConfig to re-fetch and sync to workspace store
       window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
@@ -247,6 +259,15 @@ function WorkspaceSettingsDialog({
       [currentRepoPath]: displayNameDraft.trim() || repoDisplayNames[currentRepoPath] || "",
     });
   }, [shortLabelDraft, displayNameDraft, currentRepoPath, repoDisplayNames]);
+
+  // Placeholder mirrors the auto-generated initials for the currently selected
+  // repo so users see the fallback label they'd get if they leave the field blank.
+  const labelPlaceholder = useMemo(() => {
+    return repoInitials(currentRepoPath, {
+      ...repoDisplayNames,
+      [currentRepoPath]: displayNameDraft.trim() || repoDisplayNames[currentRepoPath] || "",
+    });
+  }, [displayNameDraft, currentRepoPath, repoDisplayNames]);
 
   const handlePickColor = useCallback(async (colorId: string) => {
     if (!onSetRepoColor) return;
@@ -387,7 +408,7 @@ function WorkspaceSettingsDialog({
                       type="text"
                       className={[inputClass, "w-28 uppercase tracking-wide font-semibold"].join(" ")}
                       maxLength={4}
-                      placeholder="FLEX"
+                      placeholder={labelPlaceholder}
                       value={shortLabelDraft}
                       onChange={(e) => {
                         // Strip non-alphanumeric live; backend also sanitises on save.
@@ -476,7 +497,7 @@ function WorkspaceSettingsDialog({
                             Auto-assign dev server ports
                           </div>
                           <p className="text-xs text-text-tertiary mt-[3px]">
-                            Assign unique ports (3001–3099) to each worktree so multiple dev servers can run simultaneously.
+                            Claim a unique port for each worktree when its first dev server starts, so multiple can run at once.
                           </p>
                         </div>
                         <button
@@ -497,24 +518,91 @@ function WorkspaceSettingsDialog({
                           />
                         </button>
                       </div>
-                      {config.autoAssignPorts && (
-                        <div className="mt-4">
-                          <label className="text-[13px] text-text-secondary block mb-1">
-                            Port environment variable
-                          </label>
-                          <input
-                            className={inputClass + " !w-40"}
-                            placeholder="PORT"
-                            value={config.portEnvVar ?? ""}
-                            onChange={(e) =>
-                              updateConfig({ portEnvVar: e.target.value || null })
-                            }
-                          />
-                          <p className="text-xs text-text-tertiary mt-[3px]">
-                            The env var injected into each session. Defaults to PORT.
-                          </p>
-                        </div>
-                      )}
+                      {config.autoAssignPorts && (() => {
+                        const rangeStart = config.portRangeStart ?? null;
+                        const rangeEnd = config.portRangeEnd ?? null;
+                        const rangeUnset = rangeStart == null || rangeEnd == null;
+                        const rangeInvalid = !rangeUnset && rangeStart! > rangeEnd!;
+                        const slotCount =
+                          rangeUnset || rangeInvalid ? 0 : rangeEnd! - rangeStart! + 1;
+                        const helperText = rangeUnset
+                          ? "Set a start and end port to enable auto-assign"
+                          : rangeInvalid
+                            ? "Start must be ≤ end"
+                            : `${slotCount} port${slotCount === 1 ? "" : "s"}`;
+                        const helperTone =
+                          rangeUnset || rangeInvalid ? "text-status-error" : "text-text-tertiary";
+                        const parseRangeInput = (raw: string): number | null => {
+                          if (raw === "") return null;
+                          const v = parseInt(raw, 10);
+                          if (!Number.isFinite(v)) return null;
+                          return Math.max(1024, Math.min(65535, v));
+                        };
+                        return (
+                          <div className="mt-4 space-y-4">
+                            <div>
+                              <label className="text-[13px] text-text-secondary block mb-1">
+                                Port range
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min={1024}
+                                  max={65535}
+                                  placeholder="3000"
+                                  className={[
+                                    inputClass,
+                                    "!w-24 text-center",
+                                    rangeInvalid || rangeUnset ? "!border-status-error" : "",
+                                  ].join(" ")}
+                                  value={rangeStart ?? ""}
+                                  onChange={(e) =>
+                                    updateConfig({ portRangeStart: parseRangeInput(e.target.value) })
+                                  }
+                                />
+                                <span className="text-text-tertiary">–</span>
+                                <input
+                                  type="number"
+                                  min={1024}
+                                  max={65535}
+                                  placeholder="3099"
+                                  className={[
+                                    inputClass,
+                                    "!w-24 text-center",
+                                    rangeInvalid || rangeUnset ? "!border-status-error" : "",
+                                  ].join(" ")}
+                                  value={rangeEnd ?? ""}
+                                  onChange={(e) =>
+                                    updateConfig({ portRangeEnd: parseRangeInput(e.target.value) })
+                                  }
+                                />
+                                <span className={`text-xs ml-2 ${helperTone}`}>
+                                  {helperText}
+                                </span>
+                              </div>
+                              <p className="text-xs text-text-tertiary mt-[5px]">
+                                The first dev server to run in a worktree claims the next free port and keeps it until the worktree is marked Done.
+                              </p>
+                            </div>
+                            <div>
+                              <label className="text-[13px] text-text-secondary block mb-1">
+                                Port environment variable
+                              </label>
+                              <input
+                                className={inputClass + " !w-40"}
+                                placeholder="PORT"
+                                value={config.portEnvVar ?? ""}
+                                onChange={(e) =>
+                                  updateConfig({ portEnvVar: e.target.value || null })
+                                }
+                              />
+                              <p className="text-xs text-text-tertiary mt-[3px]">
+                                The env var injected into each session. Defaults to PORT.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Archive & Cleanup */}

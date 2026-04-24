@@ -588,7 +588,7 @@ function PaneTabBar({
 
       <div className="flex-1" />
 
-      {assignedPort && (
+      {assignedPort && !isServerRunning && (
         <button
           type="button"
           onClick={() => openUrl(`http://localhost:${assignedPort}`)}

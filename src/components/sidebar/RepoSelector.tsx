@@ -2,16 +2,16 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown, X } from "lucide-react";
 import type { RepoEntry } from "../../types";
 
-// Solid-fill palette backed by --chip-* tokens in theme.css. Deliberately
-// off-axis from status colours (green/amber/blue/red) so a chip can't be
-// misread as a state indicator.
+// Translucent-fill palette backed by --chip-*-bg / --chip-*-text tokens in
+// theme.css. Deliberately off-axis from status colours (green/amber/blue/red)
+// so a chip can't be misread as a state indicator.
 const REPO_COLOR_PALETTE = [
-  { id: "violet",  bg: "var(--chip-violet)",  border: "var(--chip-violet)",  text: "var(--chip-text)" },
-  { id: "teal",    bg: "var(--chip-teal)",    border: "var(--chip-teal)",    text: "var(--chip-text)" },
-  { id: "fuchsia", bg: "var(--chip-fuchsia)", border: "var(--chip-fuchsia)", text: "var(--chip-text)" },
-  { id: "coral",   bg: "var(--chip-coral)",   border: "var(--chip-coral)",   text: "var(--chip-text)" },
-  { id: "ochre",   bg: "var(--chip-ochre)",   border: "var(--chip-ochre)",   text: "var(--chip-text)" },
-  { id: "slate",   bg: "var(--chip-slate)",   border: "var(--chip-slate)",   text: "var(--chip-text)" },
+  { id: "violet",  bg: "var(--chip-violet-bg)",  border: "var(--chip-violet-text)",  text: "var(--chip-violet-text)" },
+  { id: "teal",    bg: "var(--chip-teal-bg)",    border: "var(--chip-teal-text)",    text: "var(--chip-teal-text)" },
+  { id: "fuchsia", bg: "var(--chip-fuchsia-bg)", border: "var(--chip-fuchsia-text)", text: "var(--chip-fuchsia-text)" },
+  { id: "coral",   bg: "var(--chip-coral-bg)",   border: "var(--chip-coral-text)",   text: "var(--chip-coral-text)" },
+  { id: "ochre",   bg: "var(--chip-ochre-bg)",   border: "var(--chip-ochre-text)",   text: "var(--chip-ochre-text)" },
+  { id: "slate",   bg: "var(--chip-slate-bg)",   border: "var(--chip-slate-text)",   text: "var(--chip-slate-text)" },
 ] as const;
 
 // Maps pre-existing palette ids (from before the chip-palette rework) onto

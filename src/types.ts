@@ -84,6 +84,23 @@ export interface Worktree {
   assignedPort?: number | null;
 }
 
+// ── Port claim ──────────────────────────────────────────────────
+
+export interface PortHolder {
+  worktreeName: string;
+  port: number;
+}
+
+export type PortClaimResult =
+  | { kind: "assigned"; port: number }
+  | { kind: "disabled" }
+  | {
+      kind: "rangeFull";
+      rangeStart: number;
+      rangeEnd: number;
+      holders: PortHolder[];
+    };
+
 export type KanbanColumn =
   | "toDo"
   | "inProgress"
@@ -199,6 +216,11 @@ export interface AppConfig {
   portAssignments?: Record<string, number>;
   autoAssignPorts?: boolean;
   portEnvVar?: string | null;
+  /** Inclusive dev-server port range for this repo. Both must be set for
+   *  auto-assign to actually claim ports; a missing/inverted range is treated
+   *  as "not configured" on the backend. */
+  portRangeStart?: number | null;
+  portRangeEnd?: number | null;
 }
 
 // ── Linear ──────────────────────────────────────────────────────
@@ -426,8 +448,6 @@ export interface GlobalAppConfig {
   commentChips?: string[];
   /** Opt in to pre-release builds from the beta update channel. */
   receiveBetaUpdates?: boolean;
-  portRangeStart?: number;
-  portRangeEnd?: number;
 }
 
 // ── Inline annotation ────────────────────────────────────────────

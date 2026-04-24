@@ -83,12 +83,19 @@
 
   /* ── Repo chip palette ──────────────────────────
      Deliberately off-axis from status colours so a repo chip can never be
-     misread as a state indicator. Keep this set to 6 — matches chip slot count. */
-  --chip-violet:  #8b5cf6;
-  --chip-teal:    #14b8a6;
-  --chip-fuchsia: #d946ef;
-  --chip-coral:   #fb7185;
-  --chip-ochre:   #ca8a04;
-  --chip-slate:   #64748b;
-  --chip-text:    var(--text-on-accent);
+     misread as a state indicator. Two tokens per slot: translucent bg for
+     the fill, saturated text for label + hairline border. Keep this set to
+     6 — matches chip slot count. */
+  --chip-violet-bg:    rgba(139, 92, 246, 0.14);
+  --chip-violet-text:  #a78bfa;
+  --chip-teal-bg:      rgba(20, 184, 166, 0.14);
+  --chip-teal-text:    #2dd4bf;
+  --chip-fuchsia-bg:   rgba(217, 70, 239, 0.14);
+  --chip-fuchsia-text: #e879f9;
+  --chip-coral-bg:     rgba(251, 113, 133, 0.14);
+  --chip-coral-text:   #fda4af;
+  --chip-ochre-bg:     rgba(202, 138, 4, 0.18);
+  --chip-ochre-text:   #eab308;
+  --chip-slate-bg:     rgba(100, 116, 139, 0.22);
+  --chip-slate-text:   #94a3b8;
 }

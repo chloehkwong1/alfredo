@@ -47,8 +47,6 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             debug_mode: None,
             comment_chips: vec![],
             receive_beta_updates: false,
-            port_range_start: 3001,
-            port_range_end: 3099,
         });
     }
 
@@ -187,8 +185,6 @@ pub async fn migrate_if_needed(
         debug_mode: None,
         comment_chips: vec![],
         receive_beta_updates: false,
-        port_range_start: 3001,
-        port_range_end: 3099,
     };
 
     save(app_data_dir, &global).await?;
@@ -257,8 +253,6 @@ mod tests {
             debug_mode: None,
             comment_chips: vec![],
             receive_beta_updates: false,
-            port_range_start: 3001,
-            port_range_end: 3099,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -306,8 +300,6 @@ mod tests {
             debug_mode: None,
             comment_chips: vec![],
             receive_beta_updates: false,
-            port_range_start: 3001,
-            port_range_end: 3099,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -352,8 +344,6 @@ mod tests {
             debug_mode: None,
             comment_chips: vec![],
             receive_beta_updates: false,
-            port_range_start: 3001,
-            port_range_end: 3099,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);
