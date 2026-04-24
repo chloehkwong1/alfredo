@@ -175,48 +175,51 @@ function RepoSelector({
             const color = getColorForRepo(repo.path);
             const count = worktreeCountByRepo[repo.path] ?? 0;
             return (
-              <button
-                key={repo.path}
-                type="button"
-                onClick={() => onToggleRepo(repo.path)}
-                className={[
-                  "group/repo flex items-center gap-2 w-full px-2.5 py-1.5 text-left cursor-pointer transition-colors",
-                  isSelected ? "bg-[rgba(255,255,255,0.03)]" : "hover:bg-bg-hover",
-                ].join(" ")}
-              >
-                <span
-                  className="w-3.5 h-3.5 rounded-[3px] border flex items-center justify-center text-[9px] flex-shrink-0"
-                  style={{
-                    borderColor: isSelected ? color.border : "var(--border-default)",
-                    background: isSelected ? color.bg : "transparent",
-                    color: isSelected ? color.text : "transparent",
-                  }}
+              <div key={repo.path} className="group/repo relative">
+                <button
+                  type="button"
+                  onClick={() => onToggleRepo(repo.path)}
+                  className={[
+                    "flex items-center gap-2 w-full px-2.5 py-1.5 text-left cursor-pointer transition-colors",
+                    isSelected ? "bg-[rgba(255,255,255,0.03)]" : "hover:bg-bg-hover",
+                    onRemoveRepo ? "pr-7" : "",
+                  ].join(" ")}
                 >
-                  {isSelected ? "✓" : ""}
-                </span>
-                <span className="text-xs text-text-primary font-medium flex-1 truncate">
-                  {repoDisplayName(repo.path, repoDisplayNames)}
-                </span>
-                {repo.mode !== "branch" && (
-                  <span className="text-2xs text-text-tertiary flex-shrink-0">
-                    {count} worktree{count !== 1 ? "s" : ""}
+                  <span
+                    className="w-3.5 h-3.5 rounded-[3px] border flex items-center justify-center text-[9px] flex-shrink-0"
+                    style={{
+                      borderColor: isSelected ? color.border : "var(--border-default)",
+                      background: isSelected ? color.bg : "transparent",
+                      color: isSelected ? color.text : "transparent",
+                    }}
+                  >
+                    {isSelected ? "✓" : ""}
                   </span>
-                )}
+                  <span className="text-xs text-text-primary font-medium flex-1 truncate">
+                    {repoDisplayName(repo.path, repoDisplayNames)}
+                  </span>
+                  {repo.mode !== "branch" && (
+                    <span className="text-2xs text-text-tertiary flex-shrink-0">
+                      {count} worktree{count !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </button>
                 {onRemoveRepo && (
+                  // Sibling of the row <button>, not a descendant, so no
+                  // stopPropagation needed — the row's onClick can't fire.
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    onClick={() => {
                       setOpen(false);
                       onRemoveRepo(repo.path);
                     }}
-                    className="opacity-0 group-hover/repo:opacity-100 p-0.5 rounded hover:bg-[rgba(255,255,255,0.08)] text-text-tertiary hover:text-text-secondary transition-all flex-shrink-0"
+                    className="absolute top-1/2 right-1.5 -translate-y-1/2 opacity-0 group-hover/repo:opacity-100 focus:opacity-100 p-0.5 rounded hover:bg-[rgba(255,255,255,0.08)] text-text-tertiary hover:text-text-secondary transition-all"
                     title="Remove repository"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
