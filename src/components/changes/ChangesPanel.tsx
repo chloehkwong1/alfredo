@@ -325,8 +325,9 @@ function WorkspacePanel({
         />
       )}
 
-      {/* Rebase banner — hidden for branch-mode (already on main) and merge conflicts */}
-      {worktree && !isBranchModeDefault && mergeable !== false && <RebaseBanner repoPath={repoPath} worktreePath={worktree.path} stackParent={worktree.stackParent} />}
+      {/* Rebase banner — hidden for real branch-mode browsing (already on main) and merge conflicts.
+          Pinned main cards still get it: they want "N commits behind origin/main" → Rebase = fast-forward pull. */}
+      {worktree && (!isBranchModeDefault || worktree.isPinnedMainCard) && mergeable !== false && <RebaseBanner repoPath={repoPath} worktreePath={worktree.path} stackParent={worktree.stackParent} />}
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>

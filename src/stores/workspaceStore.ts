@@ -65,7 +65,15 @@ interface WorkspaceState {
   setChangesPanelCollapsed: (worktreeId: string, collapsed: boolean) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
-  setWorktreesForRepo: (repoPath: string, worktrees: Worktree[]) => void;
+  /** Pass a `Worktree[]` for the common case, or a builder
+   *  `(existing: Worktree[]) => Worktree[]` when the fresh list depends on
+   *  the current store state (e.g. to merge in synthetic entries owned by
+   *  another effect — the builder runs inside the atomic update so the
+   *  read can't tear against a concurrent write). */
+  setWorktreesForRepo: (
+    repoPath: string,
+    worktrees: Worktree[] | ((existing: Worktree[]) => Worktree[]),
+  ) => void;
   clearWorktreesForRepo: (repoPath: string) => void;
   clearStore: () => void;
   setRunningServer: (worktreeId: string, server: { sessionId: string; tabId: string; port?: number; createdAt?: number } | null) => void;
@@ -387,10 +395,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   setSidebarCollapsed: (collapsed) =>
     set({ sidebarCollapsed: collapsed }),
 
-  setWorktreesForRepo: (repoPath, freshWorktrees) =>
+  setWorktreesForRepo: (repoPath, freshArg) =>
     set((state) => {
       const otherRepoWorktrees = state.worktrees.filter((wt) => wt.repoPath !== repoPath);
       const existingForRepo = state.worktrees.filter((wt) => wt.repoPath === repoPath);
+      const freshWorktrees =
+        typeof freshArg === "function" ? freshArg(existingForRepo) : freshArg;
       return { worktrees: [...otherRepoWorktrees, ...mergeWorktreeState(freshWorktrees, existingForRepo)] };
     }),
 

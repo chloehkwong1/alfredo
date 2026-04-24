@@ -21,12 +21,18 @@ function repoId(path: string): string {
 export function useBranchRepos(
   repos: RepoEntry[],
   selectedRepos: string[],
+  showMainCardRepos: string[] = [],
 ): BranchRepoState[] {
   const [states, setStates] = useState<BranchRepoState[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
+  const mainCardSet = new Set(showMainCardRepos);
   const branchRepoPaths = repos
-    .filter((r) => r.mode === "branch" && selectedRepos.includes(r.path))
+    .filter(
+      (r) =>
+        selectedRepos.includes(r.path) &&
+        (r.mode === "branch" || (r.mode === "worktree" && mainCardSet.has(r.path))),
+    )
     .map((r) => r.path);
 
   useEffect(() => {
