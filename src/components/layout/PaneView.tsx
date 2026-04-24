@@ -43,9 +43,18 @@ function PaneView({
 
   const showChanges = activeTab?.type === "diff";
 
+  // Tab-bar clicks update activePaneId; typing into an xterm textarea doesn't.
+  // Route focus→active here so pane-scoped shortcuts (Cmd+K, Cmd+T, Cmd+W, splits)
+  // target the pane the user is actually in.
+  const handleFocusIn = () => {
+    if (useLayoutStore.getState().activePaneId[worktreeId] === paneId) return;
+    useLayoutStore.getState().setActivePaneId(worktreeId, paneId);
+  };
+
   return (
     <div
       data-pane-drop-target={paneId}
+      onFocusCapture={handleFocusIn}
       className="flex flex-col h-full min-h-0 relative"
     >
       <AnimatePresence>
