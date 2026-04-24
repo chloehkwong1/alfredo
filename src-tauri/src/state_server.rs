@@ -16,12 +16,6 @@ struct SessionEntry {
     #[allow(dead_code)]
     worktree_id: String,
     channel: Channel<PtyEvent>,
-    /// First hook-script ppid seen for this session. Subsequent hooks with a
-    /// different ppid are dropped — this filters out hooks fired by child
-    /// `claude -p` processes spawned by plugins (e.g. memsearch's summariser)
-    /// that inherit $ALFREDO_STATE_URL and would otherwise mis-attribute
-    /// phantom busy/idle transitions to the parent session.
-    authoritative_ppid: Option<String>,
 }
 
 /// Inner state shared between the handle and the HTTP router.
@@ -64,18 +58,11 @@ impl StateServerHandle {
             tracing::info!("[state-server] registry lock poisoned in register_channel");
             return;
         };
-        // Preserve authoritative_ppid across reattach (frontend reload calls
-        // register again with a new Channel but the session is the same).
-        let authoritative_ppid = reg
-            .channels
-            .get(session_id)
-            .and_then(|e| e.authoritative_ppid.clone());
         reg.channels.insert(
             session_id.to_string(),
             SessionEntry {
                 worktree_id: worktree_id.to_string(),
                 channel,
-                authoritative_ppid,
             },
         );
         tracing::info!(
@@ -90,22 +77,6 @@ impl StateServerHandle {
         Self {
             port: 0,
             registry: Arc::new(Mutex::new(ChannelRegistry::default())),
-        }
-    }
-
-    /// Bind the authoritative parent pid for a session to the known PTY child
-    /// pid (the `claude` process Alfredo spawned). This makes the hppid gate
-    /// deterministic instead of first-seen, eliminating the race where a
-    /// plugin-spawned `claude -p` child could bind the session to itself if
-    /// its hook fired before the parent's first hook.
-    pub fn bind_authoritative_pid(&self, session_id: &str, child_pid: u32) {
-        let Ok(mut reg) = self.registry.lock() else {
-            tracing::info!("[state-server] registry lock poisoned in bind_authoritative_pid");
-            return;
-        };
-        if let Some(entry) = reg.channels.get_mut(session_id) {
-            entry.authoritative_ppid = Some(child_pid.to_string());
-            tracing::info!("[state-server] bind session={session_id} authoritative_pid={child_pid} (from PTY child)");
         }
     }
 
@@ -167,15 +138,6 @@ fn parse_notify_reason(query: Option<&str>) -> NotifyReason {
     }
 }
 
-fn parse_hppid(query: Option<&str>) -> Option<String> {
-    query
-        .into_iter()
-        .flat_map(|q| q.split('&'))
-        .find_map(|pair| pair.strip_prefix("hppid="))
-        .filter(|v| !v.is_empty())
-        .map(str::to_string)
-}
-
 fn parse_phase(query: Option<&str>) -> HookPhase {
     let value = query
         .into_iter()
@@ -233,7 +195,6 @@ async fn handle_state_update(
 
     let notify = parse_notify_reason(uri.query());
     let phase = parse_phase(uri.query());
-    let hppid = parse_hppid(uri.query());
 
     // Update sleep inhibitor based on agent state
     router_state.sleep_inhibitor.update(session_id, &state);
@@ -244,26 +205,10 @@ async fn handle_state_update(
     };
     // Deliver to the specific session only — not fan-out by worktree.
     // When a session is unregistered (tab closed), stale hooks are silently dropped.
+    // Hooks spawned inside a nested `claude -p` (e.g. memsearch's Stop summariser)
+    // are suppressed at the shell layer in pty_manager::write_hooks_config, so we
+    // don't need to filter them here.
     if let Some(entry) = reg.channels.get_mut(session_id) {
-        // Authoritative-ppid gate: first hook whose hppid query param is set
-        // binds the session to that ppid. Later hooks from a *different* ppid
-        // (e.g. a child `claude -p` spawned by memsearch's Stop hook) are
-        // dropped — they inherit $ALFREDO_STATE_URL but have a different
-        // parent process. Hooks without hppid bypass the gate (backward-compat
-        // during tab transition).
-        match (&entry.authoritative_ppid, &hppid) {
-            (None, Some(pp)) => {
-                entry.authoritative_ppid = Some(pp.clone());
-                tracing::info!("[state-server] bind session={session_id} hppid={pp}");
-            }
-            (Some(expected), Some(pp)) if expected != pp => {
-                tracing::info!(
-                    "[state-server] ⊘ drop foreign hook session={session_id} state={state:?} phase={phase:?} notify={notify:?} hppid={pp} (expected {expected})"
-                );
-                return StatusCode::OK;
-            }
-            _ => {}
-        }
         let desc = format!(
             "{session_id} {state:?} phase={phase:?} notify={notify:?}"
         );

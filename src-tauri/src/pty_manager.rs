@@ -495,20 +495,27 @@ impl PtyManager {
                 handle.unregister_channel(&reader_session_id, &reader_worktree_id);
                 eprintln!("[pty-reader {reader_session_id}] exited, unregistered state_server channel");
             }
+
+            // Remove the session's pid file (best-effort; stale files are harmless
+            // because the pid they reference is gone from the host process table).
+            let _ = std::fs::remove_file(format!("/tmp/alfredo-claude-{reader_session_id}.pid"));
         });
 
         // Capture shell PID before `child` gets moved into PtySession — only
         // used by the poller thread for shell sessions.
         let shell_pid_opt = child.process_id();
 
-        // Bind the state server's authoritative ppid for this session to the
-        // PTY child pid. For Claude Code sessions the PTY child *is* `claude`,
-        // so hook scripts (run via `sh -c`) will report HPPID == this pid.
-        // Plugin-spawned `claude -p` children have a different pid and will
-        // be filtered by the hppid gate. Deterministic from spawn time —
-        // removes the "first hook wins" race.
-        if let (Some(pid), Some(handle)) = (shell_pid_opt, state_server.as_ref()) {
-            handle.bind_authoritative_pid(&session_id, pid);
+        // Write the PTY child pid to a per-session file so hook scripts can
+        // short-circuit their nested-claude ancestry walk: if walking upward
+        // they reach this pid without first encountering a `claude -p`
+        // ancestor, they know they're a legitimate main-session hook and can
+        // skip the rest of the walk. Cleanup happens in the reader thread's
+        // exit handler below.
+        if let Some(pid) = shell_pid_opt {
+            let pid_path = format!("/tmp/alfredo-claude-{session_id}.pid");
+            if let Err(e) = std::fs::write(&pid_path, pid.to_string()) {
+                eprintln!("[pty] failed to write pid file {pid_path}: {e}");
+            }
         }
 
         // --- heartbeat thread ---
@@ -920,30 +927,43 @@ fn write_hooks_config(
     // `cat > /dev/null` drains stdin (hook context JSON) to prevent pipe
     // buffer deadlock when Claude Code sends large payloads (e.g. tool input).
     // On curl failure, log to /tmp/alfredo-hooks.log for debugging missed hooks.
-    // hppid=$(ps -o ppid= -p $$ | tr -d ' ') captures the ppid of the hook
-    // shell, which is the Claude process that invoked it. The state server
-    // binds the first hppid it sees per session and drops hooks from any
-    // other ppid — this filters out hooks fired by child `claude -p`
-    // processes spawned by plugins (e.g. memsearch's Stop summariser), which
-    // inherit $ALFREDO_STATE_URL/$ALFREDO_SESSION_ID but have a distinct ppid.
+    //
+    // `alfredo_nested` walks up the process tree looking for a `claude -p` /
+    // `claude --print` ancestor. Plugin-spawned headless claude invocations
+    // (e.g. memsearch's Stop summariser) inherit $ALFREDO_STATE_URL /
+    // $ALFREDO_SESSION_ID from the parent session, so without this gate their
+    // own Busy/Stop hooks would flip the parent session's state. Self-
+    // suppressing at the shell layer lets us keep the server-side dispatch
+    // dumb (no ppid tracking required).
+    // Pattern is constructed via printf so the function source itself doesn't
+    // contain the literal "claude -p" / "claude --print" substring — otherwise
+    // any shell ancestor that has our hook source in its argv (e.g. a wrapping
+    // `sh -c "<hook body>"`) would falsely match against itself.
+    //
+    // `_own` reads this session's known-main-claude pid (written at PTY spawn).
+    // When set, reaching that pid in the ancestry walk is a positive signal
+    // we're a legitimate main-session hook — no nested claude was crossed, so
+    // we can short-circuit without walking all the way to init. This cuts the
+    // common-case hook overhead from ~10 ps calls to ~4-6.
+    let nested_fn = r#"alfredo_nested(){ _pp=$(printf 'c%s' 'laude -p'); _pn=$(printf 'c%s' 'laude --print'); _own=$(cat "/tmp/alfredo-claude-$ALFREDO_SESSION_ID.pid" 2>/dev/null); _p=$$; for _ in 1 2 3 4 5 6 7 8 9 10; do _p=$(ps -o ppid= -p "$_p" 2>/dev/null | tr -d ' '); case "$_p" in ''|0|1) return 1;; esac; if [ -n "$_own" ] && [ "$_p" = "$_own" ]; then return 1; fi; _c=$(ps -ww -o command= -p "$_p" 2>/dev/null); case "$_c" in *"$_pp"*|*"$_pn"*) return 0;; esac; done; return 1; }"#;
     let cmd = |state: &str| -> String {
         format!(
-            "cat > /dev/null; HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?hppid=$HPPID\" || echo \"$(date +%H:%M:%S) FAIL {state} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
+            r#"cat > /dev/null; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}" || echo "$(date +%H:%M:%S) FAIL {state} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
     let cmd_phase = |state: &str, phase: &str| -> String {
         format!(
-            "cat > /dev/null; HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}&hppid=$HPPID\" || echo \"$(date +%H:%M:%S) FAIL {state}({phase}) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
+            r#"cat > /dev/null; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}" || echo "$(date +%H:%M:%S) FAIL {state}({phase}) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
     let cmd_notify = |state: &str, reason: &str| -> String {
         format!(
-            "cat > /dev/null; HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&hppid=$HPPID\" || echo \"$(date +%H:%M:%S) FAIL {state} notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
+            r#"cat > /dev/null; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}" || echo "$(date +%H:%M:%S) FAIL {state} notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
     let cmd_notify_phase = |state: &str, reason: &str, phase: &str| -> String {
         format!(
-            "cat > /dev/null; HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -sf --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}&hppid=$HPPID\" || echo \"$(date +%H:%M:%S) FAIL {state}({phase}) notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL\" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"
+            r#"cat > /dev/null; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}" || echo "$(date +%H:%M:%S) FAIL {state}({phase}) notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
 
@@ -1000,7 +1020,9 @@ fn write_hooks_config(
         ("PostToolUseFailure", serde_json::json!({
             "hooks": [{
                 "type": "command",
-                "command": "INPUT=$(cat); HPPID=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' '); if [ -n \"$ALFREDO_STATE_URL\" ]; then if printf '%s' \"$INPUT\" | grep -q '\"is_interrupt\".*true'; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput?phase=toolEnd&hppid=$HPPID\"; else curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy?phase=toolEnd&hppid=$HPPID\"; fi; fi; echo '{}'"
+                "command": format!(
+                    r#"INPUT=$(cat); {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested postToolUseFailure session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then if printf '%s' "$INPUT" | grep -q '"is_interrupt".*true'; then curl -s --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/waitingForInput?phase=toolEnd"; else curl -s --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy?phase=toolEnd"; fi; fi; echo '{{}}'"#
+                )
             }]
         })),
     ];
