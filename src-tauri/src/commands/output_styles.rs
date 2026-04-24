@@ -18,7 +18,7 @@ struct FrontmatterName {
 fn filename_stem(path: &Path) -> Option<String> {
     path.file_stem()
         .and_then(|s| s.to_str())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 fn parse_style_name(path: &Path) -> Option<String> {
@@ -32,7 +32,7 @@ fn parse_style_name(path: &Path) -> Option<String> {
     // Strip UTF-8 BOM before whitespace trimming so BOM'd files still parse.
     let contents = raw.trim_start_matches('\u{feff}').trim_start();
     let mut lines = contents.lines();
-    if lines.next().map(str::trim_end).map_or(false, |l| l == "---") {
+    if lines.next().map(str::trim_end) == Some("---") {
         let mut yaml = String::new();
         let mut closed = false;
         for line in lines {
@@ -106,7 +106,7 @@ pub async fn list_output_styles(repo_path: Option<String>) -> Result<Vec<OutputS
         seen.insert(style.name.clone(), style);
     }
     let mut result: Vec<OutputStyle> = seen.into_values().collect();
-    result.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    result.sort_by_key(|a| a.name.to_lowercase());
     Ok(result)
 }
 

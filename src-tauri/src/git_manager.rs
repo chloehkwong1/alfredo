@@ -60,7 +60,10 @@ pub async fn fetch_all_for_branch_list(repo_path: &str) {
     let key = format!("branchlist:{repo_path}");
 
     let should_fetch = {
-        let mut map = FETCH_THROTTLE.lock().unwrap();
+        let Ok(mut map) = FETCH_THROTTLE.lock() else {
+            tracing::warn!("[fetch_all_for_branch_list] FETCH_THROTTLE poisoned; skipping fetch");
+            return;
+        };
         match map.get(&key) {
             Some(last) if last.elapsed() < THROTTLE => false,
             _ => {

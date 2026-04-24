@@ -56,8 +56,8 @@ impl StateServerHandle {
     /// the same worktree (multi-tab) are left untouched.
     pub fn register_channel(
         &self,
-        session_id: String,
-        worktree_id: String,
+        session_id: &str,
+        worktree_id: &str,
         channel: Channel<PtyEvent>,
     ) {
         let Ok(mut reg) = self.registry.lock() else {
@@ -68,12 +68,12 @@ impl StateServerHandle {
         // register again with a new Channel but the session is the same).
         let authoritative_ppid = reg
             .channels
-            .get(&session_id)
+            .get(session_id)
             .and_then(|e| e.authoritative_ppid.clone());
         reg.channels.insert(
-            session_id.clone(),
+            session_id.to_string(),
             SessionEntry {
-                worktree_id: worktree_id.clone(),
+                worktree_id: worktree_id.to_string(),
                 channel,
                 authoritative_ppid,
             },
@@ -296,8 +296,8 @@ mod tests {
     fn register_and_unregister_channels() {
         let handle = StateServerHandle::new_for_test();
 
-        handle.register_channel("s1".into(), "wt1".into(), dummy_channel());
-        handle.register_channel("s2".into(), "wt2".into(), dummy_channel());
+        handle.register_channel("s1", "wt1", dummy_channel());
+        handle.register_channel("s2", "wt2", dummy_channel());
 
         {
             let reg = handle.registry.lock().unwrap();
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn reader_exit_unregisters_state_server_channel() {
         let handle = StateServerHandle::new_for_test();
-        handle.register_channel("s1".into(), "wt1".into(), dummy_channel());
+        handle.register_channel("s1", "wt1", dummy_channel());
 
         {
             let reg = handle.registry.lock().unwrap();
