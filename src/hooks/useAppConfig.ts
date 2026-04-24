@@ -9,9 +9,12 @@ import {
   setSelectedRepos as setSelectedReposApi,
   setDisplayName as setDisplayNameApi,
   setRepoDisplayName as setRepoDisplayNameApi,
+  setRepoShortLabel as setRepoShortLabelApi,
+  setRepoColor as setRepoColorApi,
   setWorktreeLabel as setWorktreeLabelApi,
   setCommentChips as setCommentChipsApi,
 } from "../api";
+import { pickNextRepoColorId } from "../components/sidebar/RepoSelector";
 import type { GlobalAppConfig, RepoMode } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
@@ -80,8 +83,20 @@ export function useAppConfig() {
     }
     try {
       const updated = await addRepoApi(path, mode);
-      setConfig(updated);
-      return updated;
+      // Auto-assign a chip colour from the first unused palette slot so the
+      // new repo is immediately distinguishable in the sidebar. Don't clobber
+      // an already-set colour (shouldn't happen on add, but cheap guard).
+      let next = updated;
+      if (!updated.repoColors[path]) {
+        const nextColorId = pickNextRepoColorId(updated.repoColors, updated.repos.length - 1);
+        try {
+          next = await setRepoColorApi(path, nextColorId);
+        } catch (colorErr) {
+          console.warn("auto-assign repo colour failed", colorErr);
+        }
+      }
+      setConfig(next);
+      return next;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       return null;
@@ -166,6 +181,16 @@ export function useAppConfig() {
     setConfig(updated);
   }, []);
 
+  const setRepoShortLabel = useCallback(async (repoPath: string, label: string | null) => {
+    const updated = await setRepoShortLabelApi(repoPath, label);
+    setConfig(updated);
+  }, []);
+
+  const setRepoColor = useCallback(async (repoPath: string, color: string) => {
+    const updated = await setRepoColorApi(repoPath, color);
+    setConfig(updated);
+  }, []);
+
   const setWorktreeLabel = useCallback(async (worktreePath: string, label: string | null) => {
     const updated = await setWorktreeLabelApi(worktreePath, label);
     setConfig(updated);
@@ -193,10 +218,13 @@ export function useAppConfig() {
     displayName: config?.displayName ?? null,
     repoColors: config?.repoColors ?? {},
     repoDisplayNames: config?.repoDisplayNames ?? {},
+    repoShortLabels: config?.repoShortLabels ?? {},
     worktreeLabels: config?.worktreeLabels ?? {},
     toggleRepo,
     setWorkspaceName,
     setRepoDisplayName,
+    setRepoShortLabel,
+    setRepoColor,
     setWorktreeLabel,
     setCommentChips,
   } as const;

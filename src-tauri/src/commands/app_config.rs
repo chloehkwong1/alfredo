@@ -154,6 +154,37 @@ pub async fn set_repo_color(app: AppHandle, repo_path: String, color: String) ->
     Ok(config)
 }
 
+/// Maximum length of a custom repo badge label.
+const REPO_SHORT_LABEL_MAX_LEN: usize = 4;
+
+/// Sanitise a user-entered badge label: strip non-alphanumeric, uppercase,
+/// truncate to 4 chars. Returns `None` for empty input.
+fn sanitize_short_label(input: &str) -> Option<String> {
+    let cleaned: String = input
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .take(REPO_SHORT_LABEL_MAX_LEN)
+        .collect::<String>()
+        .to_uppercase();
+    if cleaned.is_empty() { None } else { Some(cleaned) }
+}
+
+#[tauri::command]
+pub async fn set_repo_short_label(
+    app: AppHandle,
+    repo_path: String,
+    label: Option<String>,
+) -> Result<GlobalAppConfig, AppError> {
+    let dir = app_data_dir(&app)?;
+    let mut config = app_config_manager::load(&dir).await?;
+    match label.as_deref().and_then(sanitize_short_label) {
+        Some(l) => { config.repo_short_labels.insert(repo_path, l); }
+        None => { config.repo_short_labels.remove(&repo_path); }
+    }
+    app_config_manager::save(&dir, &config).await?;
+    Ok(config)
+}
+
 /// Check if any PTY sessions are running for worktrees under a given repo.
 #[tauri::command]
 pub async fn has_active_sessions(app: AppHandle, repo_path: String) -> Result<bool, AppError> {

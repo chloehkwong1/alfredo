@@ -213,6 +213,7 @@ function GlobalSettingsDialog({
           displayName: null,
           repoColors: {},
           repoDisplayNames: {},
+          repoShortLabels: {},
           worktreeLabels: {},
           preferredEditor: "vscode",
           customEditorPath: null,

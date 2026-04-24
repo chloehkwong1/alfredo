@@ -4,6 +4,7 @@ import {
   REPO_COLOR_PALETTE,
   getRepoColor,
   repoDisplayName,
+  resolveColorId,
 } from "../sidebar/RepoSelector";
 import {
   DropdownMenu,
@@ -26,8 +27,8 @@ function getColorForRepo(
   repos: RepoEntry[],
   repoColors: Record<string, string>,
 ) {
-  const colorId = repoColors[path];
-  const found = REPO_COLOR_PALETTE.find((c) => c.id === colorId);
+  const colorId = resolveColorId(repoColors[path]);
+  const found = colorId ? REPO_COLOR_PALETTE.find((c) => c.id === colorId) : undefined;
   if (found) return found;
   const idx = repos.findIndex((r) => r.path === path);
   return getRepoColor(idx >= 0 ? idx : 0);
@@ -53,8 +54,8 @@ function RepoDropdown({
             <span
               className="w-2.5 h-2.5 rounded-full flex-shrink-0"
               style={{
-                background: activeColor.text,
-                boxShadow: `0 0 6px 1px ${activeColor.text}33`,
+                background: activeColor.bg,
+                boxShadow: `0 0 6px 1px color-mix(in srgb, ${activeColor.bg} 20%, transparent)`,
               }}
             />
             <span className="flex-1 text-left truncate">
@@ -76,7 +77,7 @@ function RepoDropdown({
               >
                 <span
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ background: color.text }}
+                  style={{ background: color.bg }}
                 />
                 <span className="flex-1 truncate text-[13px]">
                   {repoDisplayName(path, repoDisplayNames)}

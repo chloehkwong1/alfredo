@@ -199,6 +199,7 @@ interface AgentItemProps {
   repoPath?: string;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
+  repoShortLabels?: Record<string, string>;
   label?: string;
   onRename?: (worktreePath: string, label: string | null) => void;
   repoIndex?: number;
@@ -285,6 +286,7 @@ interface AgentItemContentProps {
   repoPath?: string;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
+  repoShortLabels?: Record<string, string>;
   displayLabel: string;
   isEditing: boolean;
   onStartEdit: () => void;
@@ -300,7 +302,7 @@ function getDotColor(status: AgentState | string): string {
 
 function AgentItemContent({
   worktree, effectiveStatus, isSelected, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
-  repoPath, repoColors, repoDisplayNames, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
+  repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
   repoIndex = 0, showRepoTag = false,
 }: AgentItemContentProps) {
   return (
@@ -404,6 +406,7 @@ function AgentItemContent({
                 repoPath={repoPath}
                 repoColors={repoColors}
                 repoDisplayNames={repoDisplayNames}
+                repoShortLabels={repoShortLabels}
                 repoIndex={repoIndex}
                 visible={showRepoTag}
               />
@@ -586,7 +589,7 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
 
 const AgentItem = memo(function AgentItem({
   worktree, isSelected, isPinned, isDimmed, onClick, onDelete, onArchive,
-  repoPath, repoColors, repoDisplayNames, label, onRename, repoIndex = 0, showRepoTag = false,
+  repoPath, repoColors, repoDisplayNames, repoShortLabels, label, onRename, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFromOpen, setCreateFromOpen] = useState(false);
@@ -695,6 +698,7 @@ const AgentItem = memo(function AgentItem({
       repoPath={repoPath}
       repoColors={repoColors}
       repoDisplayNames={repoDisplayNames}
+      repoShortLabels={repoShortLabels}
       displayLabel={displayLabel}
       isEditing={isEditingLabel}
       onStartEdit={handleStartEdit}

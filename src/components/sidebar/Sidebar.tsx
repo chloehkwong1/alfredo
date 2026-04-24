@@ -79,8 +79,11 @@ interface SidebarProps {
   onRemoveRepo: (path: string) => void;
   repoColors?: Record<string, string>;
   repoDisplayNames?: Record<string, string>;
+  repoShortLabels?: Record<string, string>;
   worktreeLabels?: Record<string, string>;
   onSetRepoDisplayName?: (repoPath: string, name: string | null) => void;
+  onSetRepoShortLabel?: (repoPath: string, label: string | null) => void;
+  onSetRepoColor?: (repoPath: string, color: string) => void;
   onSetWorktreeLabel?: (worktreePath: string, label: string | null) => void;
   onCheckForUpdates?: () => Promise<void>;
   checkingForUpdates?: boolean;
@@ -97,8 +100,11 @@ function Sidebar({
   onRemoveRepo,
   repoColors,
   repoDisplayNames,
+  repoShortLabels,
   worktreeLabels,
   onSetRepoDisplayName,
+  onSetRepoShortLabel,
+  onSetRepoColor,
   onSetWorktreeLabel,
   onCheckForUpdates,
   checkingForUpdates,
@@ -357,6 +363,7 @@ function Sidebar({
                     dragActiveId={dragActiveId}
                     repoColors={effectiveRepoColors}
                     repoDisplayNames={repoDisplayNames}
+                    repoShortLabels={repoShortLabels}
                     worktreeLabels={worktreeLabels}
                     onSetWorktreeLabel={onSetWorktreeLabel}
                     showRepoTags={showRepoTags}
@@ -376,6 +383,7 @@ function Sidebar({
             onSelectRepo={setActiveWorktree}
             repoColors={effectiveRepoColors}
             repoDisplayNames={repoDisplayNames}
+            repoShortLabels={repoShortLabels}
             repoIndexMap={repoIndexMap}
             showRepoTags={showRepoTags}
             hasWorktreeItems={hasWorktreeItems}
@@ -452,7 +460,10 @@ function Sidebar({
         repos={repos}
         repoColors={effectiveRepoColors}
         repoDisplayNames={repoDisplayNames ?? {}}
+        repoShortLabels={repoShortLabels ?? {}}
         onSetRepoDisplayName={onSetRepoDisplayName}
+        onSetRepoShortLabel={onSetRepoShortLabel}
+        onSetRepoColor={onSetRepoColor}
         defaultRepoPath={defaultRepoPath}
       />
       {hasRepo && (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, FolderOpen } from "lucide-react";
 import type { AppConfig, GlobalAppConfig, RepoEntry, RepoMode } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig, setRepoMode } from "../../api";
@@ -9,6 +9,11 @@ import {
   DialogContent,
 } from "../ui/Dialog";
 import { RepoDropdown } from "../ui/RepoDropdown";
+import {
+  REPO_COLOR_PALETTE,
+  resolveColorId,
+  repoBadgeLabel,
+} from "../sidebar/RepoSelector";
 
 type WorkspaceTab = "repository" | "scripts";
 
@@ -60,7 +65,10 @@ interface WorkspaceSettingsDialogProps {
   repos: RepoEntry[];
   repoColors: Record<string, string>;
   repoDisplayNames: Record<string, string>;
+  repoShortLabels?: Record<string, string>;
   onSetRepoDisplayName?: (repoPath: string, name: string | null) => void;
+  onSetRepoShortLabel?: (repoPath: string, label: string | null) => void;
+  onSetRepoColor?: (repoPath: string, color: string) => void;
   defaultRepoPath?: string;
 }
 
@@ -71,7 +79,10 @@ function WorkspaceSettingsDialog({
   repos,
   repoColors,
   repoDisplayNames,
+  repoShortLabels,
   onSetRepoDisplayName,
+  onSetRepoShortLabel,
+  onSetRepoColor,
   defaultRepoPath,
 }: WorkspaceSettingsDialogProps) {
   const [tab, setTab] = useState<WorkspaceTab>("repository");
@@ -84,6 +95,7 @@ function WorkspaceSettingsDialog({
     defaultRepoPath ?? repoPath,
   );
   const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [shortLabelDraft, setShortLabelDraft] = useState("");
   const [switchingMode, setSwitchingMode] = useState(false);
   const [modeSaved, setModeSaved] = useState(false);
   const modeSavedTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -95,6 +107,7 @@ function WorkspaceSettingsDialog({
       const initPath = defaultRepoPath ?? repoPath;
       setCurrentRepoPath(initPath);
       setDisplayNameDraft(repoDisplayNames[initPath] ?? "");
+      setShortLabelDraft(repoShortLabels?.[initPath] ?? "");
       setSaveError(null);
     }
     if (!open && modeSavedTimerRef.current) {
@@ -102,7 +115,7 @@ function WorkspaceSettingsDialog({
       setModeSaved(false);
     }
     prevOpenRef.current = open;
-  }, [open, defaultRepoPath, repoPath, repoDisplayNames]);
+  }, [open, defaultRepoPath, repoPath, repoDisplayNames, repoShortLabels]);
 
   // Load config when dialog opens or currentRepoPath changes
   useEffect(() => {
@@ -148,9 +161,10 @@ function WorkspaceSettingsDialog({
       }
       setCurrentRepoPath(newPath);
       setDisplayNameDraft(repoDisplayNames[newPath] ?? "");
+      setShortLabelDraft(repoShortLabels?.[newPath] ?? "");
       setModeSaved(false);
     },
-    [currentRepoPath, dirty, repoDisplayNames],
+    [currentRepoPath, dirty, repoDisplayNames, repoShortLabels],
   );
 
   const currentMode: RepoMode = repos.find((r) => r.path === currentRepoPath)?.mode ?? "worktree";
@@ -201,6 +215,15 @@ function WorkspaceSettingsDialog({
       if (newName !== oldName) {
         await onSetRepoDisplayName?.(currentRepoPath, newName);
       }
+      const cleanedLabel = shortLabelDraft
+        .replace(/[^A-Za-z0-9]/g, "")
+        .slice(0, 4)
+        .toUpperCase();
+      const newLabel = cleanedLabel || null;
+      const oldLabel = repoShortLabels?.[currentRepoPath] ?? null;
+      if (newLabel !== oldLabel) {
+        await onSetRepoShortLabel?.(currentRepoPath, newLabel);
+      }
       setDirty(false);
       // config-changed triggers useAppConfig to re-fetch and sync to workspace store
       window.dispatchEvent(new Event("config-changed"));
@@ -211,7 +234,29 @@ function WorkspaceSettingsDialog({
     } finally {
       setSaving(false);
     }
-  }, [config, appConfig, currentRepoPath, displayNameDraft, repoDisplayNames, onSetRepoDisplayName, onOpenChange]);
+  }, [config, appConfig, currentRepoPath, displayNameDraft, shortLabelDraft, repoDisplayNames, repoShortLabels, onSetRepoDisplayName, onSetRepoShortLabel, onOpenChange]);
+
+  // Current + preview state for the Badge controls
+  const currentColorId = resolveColorId(repoColors[currentRepoPath]);
+  const previewColor = (currentColorId ? REPO_COLOR_PALETTE.find((c) => c.id === currentColorId) : undefined) ?? REPO_COLOR_PALETTE[0];
+  const previewLabel = useMemo(() => {
+    const draft = shortLabelDraft.replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase();
+    if (draft) return draft;
+    return repoBadgeLabel(currentRepoPath, {
+      ...repoDisplayNames,
+      [currentRepoPath]: displayNameDraft.trim() || repoDisplayNames[currentRepoPath] || "",
+    });
+  }, [shortLabelDraft, displayNameDraft, currentRepoPath, repoDisplayNames]);
+
+  const handlePickColor = useCallback(async (colorId: string) => {
+    if (!onSetRepoColor) return;
+    try {
+      await onSetRepoColor(currentRepoPath, colorId);
+    } catch (e) {
+      console.error("Failed to set repo colour:", e);
+      setSaveError(e instanceof Error ? e.message : String(e));
+    }
+  }, [currentRepoPath, onSetRepoColor]);
 
   if (!config) return null;
 
@@ -328,8 +373,78 @@ function WorkspaceSettingsDialog({
                     }}
                   />
                   <p className="text-xs text-text-tertiary mt-[5px]">
-                    Short name shown in sidebar repo chips. Defaults to directory name.
+                    Shown in the repo selector. Defaults to the directory name.
                   </p>
+                </div>
+
+                {/* Badge Label */}
+                <div className="mb-4">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
+                    Badge Label
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      className={[inputClass, "w-28 uppercase tracking-wide font-semibold"].join(" ")}
+                      maxLength={4}
+                      placeholder="FLEX"
+                      value={shortLabelDraft}
+                      onChange={(e) => {
+                        // Strip non-alphanumeric live; backend also sanitises on save.
+                        const cleaned = e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 4);
+                        setShortLabelDraft(cleaned);
+                        setDirty(true);
+                        setSaveError(null);
+                      }}
+                      onBlur={(e) => {
+                        setShortLabelDraft(e.target.value.toUpperCase());
+                      }}
+                    />
+                    <span
+                      className="text-[11px] font-semibold px-1.5 py-0.5 rounded-[4px] tracking-wide"
+                      style={{ background: previewColor.bg, color: previewColor.text }}
+                      aria-label="Badge preview"
+                    >
+                      {previewLabel}
+                    </span>
+                  </div>
+                  <p className="text-xs text-text-tertiary mt-[5px]">
+                    1–4 characters shown on sidebar cards. Defaults to initials.
+                  </p>
+                </div>
+
+                {/* Badge Colour */}
+                <div className="mb-4">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
+                    Badge Colour
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {REPO_COLOR_PALETTE.map((c) => {
+                      const isActive = (currentColorId ?? REPO_COLOR_PALETTE[0].id) === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          title={c.id}
+                          aria-label={`Set badge colour to ${c.id}`}
+                          aria-pressed={isActive}
+                          onClick={() => handlePickColor(c.id)}
+                          className={[
+                            "h-6 w-6 rounded-full transition-all cursor-pointer",
+                            "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/60",
+                            isActive
+                              ? "ring-2 ring-offset-2 ring-offset-bg-secondary"
+                              : "hover:scale-110",
+                          ].join(" ")}
+                          style={{
+                            background: c.bg,
+                            // Ring colour matches the swatch so the active state reads cleanly.
+                            ...(isActive ? { ["--tw-ring-color" as string]: c.border } : {}),
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {currentMode === "worktree" && (
