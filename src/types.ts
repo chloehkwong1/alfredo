@@ -82,6 +82,10 @@ export interface Worktree {
   setupScriptError?: string | null;
   /** Auto-assigned dev server port. */
   assignedPort?: number | null;
+  /** Frontend-only: true for synthetic "main-branch card" entries pinned by
+      worktree-mode repos. Distinguishes them from real branch-mode entries
+      so UI surfaces like the rebase banner know to show "behind origin/main". */
+  isPinnedMainCard?: boolean;
 }
 
 // ── Port claim ──────────────────────────────────────────────────
@@ -432,6 +436,8 @@ export interface GlobalAppConfig {
   sidebarCollapsed?: boolean;
   /** Hide unpinned worktrees in the sidebar. */
   hideUnpinnedWorktrees?: boolean;
+  /** Worktree-mode repo paths that opt in to the sidebar "main branch" card. */
+  showMainCardRepos?: string[];
   /** Whether the user has dismissed the orientation banner. */
   hasSeenOrientation?: boolean;
   /** Last-active worktree ID, restored on app launch. */
