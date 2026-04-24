@@ -1,0 +1,25 @@
+src/components/sidebar/BranchCard.tsx
+  223144ef794518f6 1-2,10-16,89-114,116-150,152-157,159-165,167-186,188-202
+src/components/sidebar/Sidebar.tsx
+  223144ef794518f6 247-257,469-473,481
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "8ef4546b03ec1e3d52a24aefcaa2dbd48fcd0e25",
+  "prompts": {
+    "223144ef794518f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "19d2175f-4e07-4b09-ae6d-1e3daa282046",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 135,
+      "total_deletions": 78,
+      "accepted_lines": 135,
+      "overriden_lines": 0
+    }
+  }
+}

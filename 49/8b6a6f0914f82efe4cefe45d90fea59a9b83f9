@@ -1,0 +1,26 @@
+src/components/sidebar/PrStatsRow.tsx
+  bdeb546dba346cae 76
+  d11560e5e03af99c 20
+src/stores/prStore.ts
+  d11560e5e03af99c 29,236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "498b6a6f0914f82efe4cefe45d90fea59a9b83f9",
+  "prompts": {
+    "d11560e5e03af99c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d551c4f0-d676-4b54-b71d-88edd92fc627",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 2,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
