@@ -1,0 +1,19 @@
+# Lint staged changes before commit.
+# Skips each check if no relevant files are staged.
+# Bypass the whole hook with: git commit --no-verify
+
+set -e
+
+staged() { git diff --cached --name-only --diff-filter=ACMR | grep -E "$1" > /dev/null; }
+
+if staged '^src/.*\.(ts|tsx)$'; then
+  echo "→ tsc --noEmit"
+  npx tsc --noEmit
+  echo "→ vitest"
+  npm test --silent
+fi
+
+if staged '^src-tauri/.*\.rs$|^src-tauri/Cargo\.(toml|lock)$'; then
+  echo "→ cargo clippy"
+  (cd src-tauri && cargo clippy --lib -- -D warnings)
+fi
