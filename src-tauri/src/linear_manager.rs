@@ -545,6 +545,9 @@ pub fn generate_context_md(ticket: &LinearTicket) -> String {
         }
     }
 
+    content.push_str("\n## Context hygiene\n\n");
+    content.push_str("For bulk reads (CI logs, large diffs, long greps) use `/ci-failure`, `/investigate-log`, or `/diff-summary` — they dispatch a subagent so the raw output stays out of this transcript.\n");
+
     content
 }
 

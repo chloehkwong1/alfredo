@@ -12,6 +12,10 @@ use crate::types::{AgentState, AppError, KanbanColumn, Worktree, WorktreeSource}
 
 type Result<T> = std::result::Result<T, AppError>;
 
+const DEFAULT_CI_FAILURE_CMD: &str = include_str!("../assets/slash_commands/ci-failure.md");
+const DEFAULT_INVESTIGATE_LOG_CMD: &str = include_str!("../assets/slash_commands/investigate-log.md");
+const DEFAULT_DIFF_SUMMARY_CMD: &str = include_str!("../assets/slash_commands/diff-summary.md");
+
 /// Create a worktree from any supported source (branch, PR, Linear ticket).
 #[tauri::command]
 pub async fn create_worktree_from(
@@ -70,6 +74,10 @@ pub async fn create_worktree(
     ensure_claude_excludes(&repo_path).await;
 
     let path_str = worktree_path.to_string_lossy().to_string();
+
+    // Seed the new worktree with default slash commands. Non-fatal on failure.
+    write_default_slash_commands(&path_str).await;
+
     let create_scripts: Vec<_> = config
         .setup_scripts
         .iter()
@@ -493,6 +501,11 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
         .await
         .map_err(|e| AppError::Linear(format!("failed to write CLAUDE.local.md: {e}")))?;
 
+    // Also seed default slash commands for the Linear-created worktree.
+    // Idempotent — `create_worktree` above already wrote them, but call again
+    // to keep the two creation paths visibly symmetrical.
+    write_default_slash_commands(&worktree.path).await;
+
     Ok(worktree)
 }
 
@@ -540,6 +553,39 @@ fn resolve_app_data_dir(app: &AppHandle) -> Result<PathBuf> {
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))
 }
 
+/// Seed a newly created worktree with Alfredo's default slash commands under
+/// `.claude/commands/`. Failures are non-fatal — the worktree is already usable
+/// without these helpers, so we just log and move on.
+async fn write_default_slash_commands(worktree_path: &str) {
+    let commands_dir = std::path::Path::new(worktree_path)
+        .join(".claude")
+        .join("commands");
+
+    if let Err(e) = tokio::fs::create_dir_all(&commands_dir).await {
+        eprintln!(
+            "[alfredo] failed to create slash commands dir at {}: {e}",
+            commands_dir.display()
+        );
+        return;
+    }
+
+    let files = [
+        ("ci-failure.md", DEFAULT_CI_FAILURE_CMD),
+        ("investigate-log.md", DEFAULT_INVESTIGATE_LOG_CMD),
+        ("diff-summary.md", DEFAULT_DIFF_SUMMARY_CMD),
+    ];
+
+    for (name, contents) in &files {
+        let path = commands_dir.join(name);
+        if let Err(e) = tokio::fs::write(&path, contents).await {
+            eprintln!(
+                "[alfredo] failed to write default slash command {}: {e}",
+                path.display()
+            );
+        }
+    }
+}
+
 /// Ensure the repo's `.git/info/exclude` contains entries for AI tool artifacts
 /// that Alfredo injects into worktrees (CLAUDE.local.md, settings.local.json).
 /// These should never appear as uncommitted changes in the UI.
@@ -549,7 +595,11 @@ async fn ensure_claude_excludes(repo_path: &str) {
         .join("info")
         .join("exclude");
 
-    let entries = [".claude/CLAUDE.local.md", ".claude/settings.local.json"];
+    let entries = [
+        ".claude/CLAUDE.local.md",
+        ".claude/settings.local.json",
+        ".claude/commands/",
+    ];
 
     let existing = tokio::fs::read_to_string(&exclude_path)
         .await
