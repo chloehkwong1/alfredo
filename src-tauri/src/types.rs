@@ -478,6 +478,10 @@ pub struct GlobalAppConfig {
     pub sidebar_collapsed: Option<bool>,
     #[serde(default)]
     pub hide_unpinned_worktrees: Option<bool>,
+    /// Worktree-mode repos for which a synthetic "main branch" card is shown
+    /// in the sidebar. Opt-in per repo.
+    #[serde(default)]
+    pub show_main_card_repos: Vec<String>,
     #[serde(default)]
     pub has_seen_orientation: bool,
     #[serde(default)]
