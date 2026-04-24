@@ -16,7 +16,7 @@ import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
-import { runArchiveScript } from "../../api";
+import { runArchiveScript, countWorktrees } from "../../api";
 
 const COLUMNS: KanbanColumn[] = [
   "toDo",
@@ -268,6 +268,42 @@ function Sidebar({
   }
 
   const effectiveSelectedRepos = selectedRepos ?? (activeRepo ? [activeRepo] : []);
+
+  // Worktree counts for the repo-selector dropdown. Unselected repos don't
+  // have their worktrees in the workspace store (useSessionRestore clears
+  // them), so deriving the count from `activeWorktrees` alone would show 0
+  // for every unselected repo. Fetch counts directly via `count_worktrees`
+  // and prefer the live store count for repos that are currently selected.
+  const [cachedRepoCounts, setCachedRepoCounts] = useState<Record<string, number>>({});
+  const worktreeReposKey = repos
+    .filter((r) => r.mode !== "branch")
+    .map((r) => r.path)
+    .sort()
+    .join(",");
+  const selectedReposKey = effectiveSelectedRepos.slice().sort().join(",");
+  useEffect(() => {
+    const paths = worktreeReposKey ? worktreeReposKey.split(",") : [];
+    if (paths.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      paths.map((p) =>
+        countWorktrees(p)
+          .then((n) => [p, n] as const)
+          .catch(() => [p, 0] as const),
+      ),
+    ).then((entries) => {
+      if (cancelled) return;
+      setCachedRepoCounts((prev) => {
+        const next = { ...prev };
+        for (const [p, n] of entries) next[p] = n;
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [worktreeReposKey, selectedReposKey]);
+
   const defaultRepoPath =
     worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
     ?? effectiveSelectedRepos[0]
@@ -317,7 +353,11 @@ function Sidebar({
           onToggleRepo={onToggleRepo ?? (() => {})}
           onRemoveRepo={onRemoveRepo}
           worktreeCountByRepo={Object.fromEntries(
-            repos.map((r) => [r.path, activeWorktrees.filter((wt) => wt.repoPath === r.path).length])
+            repos.map((r) => {
+              const liveCount = activeWorktrees.filter((wt) => wt.repoPath === r.path).length;
+              const isSelected = effectiveSelectedRepos.includes(r.path);
+              return [r.path, isSelected ? liveCount : cachedRepoCounts[r.path] ?? 0];
+            })
           )}
         />
         <button

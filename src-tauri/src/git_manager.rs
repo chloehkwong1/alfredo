@@ -768,6 +768,36 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
     Ok(worktrees)
 }
 
+/// Count worktrees filtered to `base_path`. Cheaper than `list_worktrees` —
+/// skips branch + commit lookups and struct construction. Used by the
+/// repo-selector dropdown so unselected repos still show an accurate badge
+/// without populating the workspace store.
+pub fn count_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<usize, AppError> {
+    let repo = Repository::open(repo_path)
+        .map_err(|e| AppError::Git(format!("failed to open repo: {e}")))?;
+
+    let worktree_names = repo
+        .worktrees()
+        .map_err(|e| AppError::Git(format!("failed to list worktrees: {e}")))?;
+
+    let base_filter = base_path.and_then(|p| std::path::Path::new(p).canonicalize().ok());
+
+    let mut count = 0usize;
+    for name in worktree_names.iter() {
+        let Some(name) = name else { continue };
+        let Ok(wt) = repo.find_worktree(name) else { continue };
+        let wt_path = wt.path().to_path_buf();
+        if let Some(ref base) = base_filter {
+            match wt_path.canonicalize() {
+                Ok(canonical) if canonical.starts_with(base) => {}
+                _ => continue,
+            }
+        }
+        count += 1;
+    }
+    Ok(count)
+}
+
 /// Get detailed status for a single worktree path.
 pub fn get_status(worktree_path: &str) -> Result<WorktreeStatus, AppError> {
     let repo = Repository::open(worktree_path)

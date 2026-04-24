@@ -285,6 +285,28 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
     })
 }
 
+/// Count worktrees for a repo, filtered to the configured base path. Cheaper
+/// than `list_worktrees` — backs the repo-selector dropdown badges so repos
+/// that aren't currently selected still show an accurate count without
+/// populating the workspace store.
+#[tauri::command]
+pub async fn count_worktrees(app: AppHandle, repo_path: String) -> Result<usize> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let base_path = config.worktree_base_path.clone().unwrap_or_else(|| {
+        std::path::Path::new(&repo_path)
+            .parent()
+            .unwrap_or(std::path::Path::new(&repo_path))
+            .to_string_lossy()
+            .to_string()
+    });
+
+    let repo_path_clone = repo_path.clone();
+    tokio::task::spawn_blocking(move || git_manager::count_worktrees(&repo_path_clone, Some(&base_path)))
+        .await
+        .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
 /// Get diff stats (additions, deletions) for a single worktree. Lightweight — no config or status loading.
 #[tauri::command]
 pub async fn get_worktree_diff_stats(
