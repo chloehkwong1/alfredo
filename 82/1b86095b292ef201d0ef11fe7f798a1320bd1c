@@ -1,0 +1,33 @@
+src-tauri/src/github_manager.rs
+  41ff7bef2674c832 167-172,177,1172,1178,1193,1199,1214,1228,1242,1401-1402,1407-1413,1418,1422,1426-1429
+src/types.ts
+  41ff7bef2674c832 309-312
+src-tauri/src/github_sync.rs
+  41ff7bef2674c832 11-24,406,478
+src-tauri/src/types.rs
+  41ff7bef2674c832 237-240
+src/components/changes/PrPanel.tsx
+  41ff7bef2674c832 115
+src/components/changes/ReviewRow.tsx
+  41ff7bef2674c832 2,8,13,34,37-47,49-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "821b86095b292ef201d0ef11fe7f798a1320bd1c",
+  "prompts": {
+    "41ff7bef2674c832": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fc5b993-54d2-463b-a7c8-02a42c50a0c3",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 2916,
+      "total_deletions": 21,
+      "accepted_lines": 640,
+      "overriden_lines": 0
+    }
+  }
+}
