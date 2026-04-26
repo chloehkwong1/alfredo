@@ -1198,7 +1198,7 @@ mod tests {
         repo.branch("main", &head_commit, true).unwrap();
 
         let result = resolve_default_branch(&repo, None);
-        assert!(result.is_ok(), "should resolve: {:?}", result);
+        assert!(result.is_ok(), "should resolve: {result:?}");
     }
 
     #[test]
@@ -1215,7 +1215,7 @@ mod tests {
         repo.branch("develop", &head_commit, true).unwrap();
 
         let result = resolve_default_branch(&repo, Some("develop"));
-        assert!(result.is_ok(), "should resolve explicit branch: {:?}", result);
+        assert!(result.is_ok(), "should resolve explicit branch: {result:?}");
     }
 
     #[test]
@@ -1444,6 +1444,7 @@ mod tests {
         revwalk.hide(default_oid).unwrap();
         revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME).unwrap();
 
+        #[allow(clippy::redundant_closure_for_method_calls)]
         let commits: Vec<git2::Oid> = revwalk.filter_map(|r| r.ok()).collect();
         assert_eq!(commits.len(), 2, "should find exactly the 2 feature commits");
 

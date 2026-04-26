@@ -137,8 +137,8 @@ mod tests {
         FeatureDoc {
             frontmatter: FeatureDocFrontmatter {
                 title: title.into(),
-                keywords: keywords.iter().map(|s| s.to_string()).collect(),
-                ui_path: ui_path.map(|s| s.into()),
+                keywords: keywords.iter().map(std::string::ToString::to_string).collect(),
+                ui_path: ui_path.map(Into::into),
             },
             body: body.into(),
         }
