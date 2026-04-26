@@ -1,0 +1,27 @@
+src-tauri/src/lib.rs
+  2d04c803b9159932 1-2
+src-tauri/src/commands/diff.rs
+  2d04c803b9159932 1201,1218,1447
+src-tauri/src/ask_alfredo/search.rs
+  2d04c803b9159932 140-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "b51bc2a169e0979856c402ec8edc79bf4fbbe2ff",
+  "prompts": {
+    "2d04c803b9159932": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "634aec65-931b-47ca-8b01-db25ba43405e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 1978,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}
