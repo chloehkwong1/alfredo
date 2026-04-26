@@ -1,6 +1,29 @@
-import { useState, useRef, useEffect } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
+import { ChevronDown, Settings, X } from "lucide-react";
 import type { RepoEntry } from "../../types";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "../ui/ContextMenu";
+import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
+
+/** Wraps a chip element with a right-click menu that opens Workspace Settings
+ *  scoped to the given repo path. */
+function RepoChipMenu({ repoPath, children }: { repoPath: string; children: ReactNode }) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => openWorkspaceSettings(repoPath)}>
+          <Settings className="h-4 w-4" />
+          Open Repo Settings
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
 
 // Translucent-fill palette backed by --chip-*-bg / --chip-*-text tokens in
 // theme.css. Deliberately off-axis from status colours (green/amber/blue/red)
@@ -123,12 +146,14 @@ function RepoSelector({
     return (
       <div className="relative flex-1 min-w-0">
         <div className="flex items-center gap-1.5 w-full px-2.5 py-1.5 rounded-[var(--radius-md)] border border-border-subtle bg-[rgba(255,255,255,0.02)]">
-          <span
-            className="text-[11px] font-medium px-1.5 py-px rounded-[3px]"
-            style={{ background: color.bg, color: color.text }}
-          >
-            {repoAbbrev(repos[0].path, repoDisplayNames)}
-          </span>
+          <RepoChipMenu repoPath={repos[0].path}>
+            <span
+              className="text-[11px] font-medium px-1.5 py-px rounded-[3px]"
+              style={{ background: color.bg, color: color.text }}
+            >
+              {repoAbbrev(repos[0].path, repoDisplayNames)}
+            </span>
+          </RepoChipMenu>
         </div>
       </div>
     );
@@ -145,13 +170,14 @@ function RepoSelector({
           {selectedRepos.map((path) => {
             const color = getColorForRepo(path);
             return (
-              <span
-                key={path}
-                className="text-[11px] font-medium px-1.5 py-px rounded-[3px]"
-                style={{ background: color.bg, color: color.text }}
-              >
-                {repoAbbrev(path, repoDisplayNames)}
-              </span>
+              <RepoChipMenu key={path} repoPath={path}>
+                <span
+                  className="text-[11px] font-medium px-1.5 py-px rounded-[3px]"
+                  style={{ background: color.bg, color: color.text }}
+                >
+                  {repoAbbrev(path, repoDisplayNames)}
+                </span>
+              </RepoChipMenu>
             );
           })}
         </span>

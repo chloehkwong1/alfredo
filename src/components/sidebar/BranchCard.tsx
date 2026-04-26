@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { GitBranch, LayoutGrid, X } from "lucide-react";
+import { GitBranch, LayoutGrid, Settings, X } from "lucide-react";
 import { REPO_COLOR_PALETTE, repoDisplayName, resolveColorId } from "./RepoSelector";
 import { RepoTag } from "./RepoTag";
 import { formatDiffStat, PrStatsRow, hasPrStats } from "./PrStatsRow";
@@ -12,8 +12,10 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
 } from "../ui/ContextMenu";
 import { setRepoMode } from "../../api";
+import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 
 const ATTN_STATES = new Set(["waitingForInput", "done", "ready"]);
 
@@ -107,11 +109,7 @@ const BranchCard = memo(function BranchCard({
     try {
       await setRepoMode(repo.repoPath, "worktree");
       window.dispatchEvent(new Event("config-changed"));
-      window.dispatchEvent(
-        new CustomEvent("alfredo:open-workspace-settings", {
-          detail: { repoPath: repo.repoPath },
-        }),
-      );
+      openWorkspaceSettings(repo.repoPath);
     } catch (e) {
       console.error("Failed to convert repo to worktree mode:", e);
       window.alert(
@@ -230,14 +228,21 @@ const BranchCard = memo(function BranchCard({
           )}
         </div>
       </ContextMenuTrigger>
-      {titleMode === "repo" && (
-        <ContextMenuContent>
-          <ContextMenuItem onSelect={handleConvertToWorktree} disabled={converting}>
-            <LayoutGrid className="h-4 w-4" />
-            Convert to worktree mode
-          </ContextMenuItem>
-        </ContextMenuContent>
-      )}
+      <ContextMenuContent>
+        {titleMode === "repo" && (
+          <>
+            <ContextMenuItem onSelect={handleConvertToWorktree} disabled={converting}>
+              <LayoutGrid className="h-4 w-4" />
+              Convert to worktree mode
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+        <ContextMenuItem onSelect={() => openWorkspaceSettings(repo.repoPath)}>
+          <Settings className="h-4 w-4" />
+          Open Repo Settings
+        </ContextMenuItem>
+      </ContextMenuContent>
     </ContextMenu>
   );
 });

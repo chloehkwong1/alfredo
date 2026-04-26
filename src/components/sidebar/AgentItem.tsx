@@ -1,7 +1,8 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw, ArrowRightLeft } from "lucide-react";
+import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw, ArrowRightLeft, Settings } from "lucide-react";
+import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn } from "../../api";
@@ -837,6 +838,11 @@ const AgentItem = memo(function AgentItem({
           >
             <Trash2 className="h-4 w-4" />
             Delete worktree...
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={() => openWorkspaceSettings(worktree.repoPath)}>
+            <Settings className="h-4 w-4" />
+            Open Repo Settings
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>

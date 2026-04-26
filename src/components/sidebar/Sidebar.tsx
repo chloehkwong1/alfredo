@@ -12,6 +12,7 @@ import { useBranchRepos } from "../../hooks/useBranchRepos";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
 import { ShortcutsOverlay } from "../settings/ShortcutsOverlay";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
+import { OPEN_WORKSPACE_SETTINGS_EVENT } from "../settings/openWorkspaceSettings";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
@@ -255,8 +256,8 @@ function Sidebar({
       if (ce.detail?.repoPath) setWorkspaceSettingsRepoOverride(ce.detail.repoPath);
       setWorkspaceSettingsOpen(true);
     };
-    window.addEventListener("alfredo:open-workspace-settings", handler);
-    return () => window.removeEventListener("alfredo:open-workspace-settings", handler);
+    window.addEventListener(OPEN_WORKSPACE_SETTINGS_EVENT, handler);
+    return () => window.removeEventListener(OPEN_WORKSPACE_SETTINGS_EVENT, handler);
   }, []);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
   const [deletingCount, setDeletingCount] = useState<{ current: number; total: number } | null>(null);
