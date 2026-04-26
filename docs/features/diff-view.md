@@ -21,6 +21,11 @@ Other diff-view controls:
 - **Working tree vs. committed** — uncommitted changes show above
   the committed diff. A header separates them; they can't currently
   be toggled off individually.
+- **In-diff search** — ⌘F inside the Changes panel opens the diff
+  search bar and highlights matches across the visible diff,
+  including diffs scoped to a single commit. The shortcut is
+  pane-scoped, so it won't fire if your focus is in a terminal pane
+  alongside the diff.
 
 Syntax highlighting and file icons are per-extension. Binary files
 and images render as "binary diff" placeholders rather than line-by-line.

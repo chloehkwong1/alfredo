@@ -13,8 +13,12 @@ unresolved review comments threaded by file.
 
 The sidebar row for the worktree shows the PR number, title, and a
 condensed stats row (approvals, failing checks, unresolved comments) so
-you can triage at a glance. Right-clicking the worktree in the sidebar
-gives you "View PR on GitHub" to jump to the full PR in your browser.
+you can triage at a glance. Once the PR is merged, the stats row
+collapses to a single purple **Merged** chip — the precursor chips
+(Approved, Checks pass, etc.) are suppressed so a merged PR doesn't
+look like it still needs action. Right-clicking the worktree in the
+sidebar gives you "View PR on GitHub" to jump to the full PR in your
+browser.
 Review comments can be sent straight into the agent session as context
 via the inline actions on each comment card, so you can ask Claude or
 Codex to address feedback without copy-pasting.
