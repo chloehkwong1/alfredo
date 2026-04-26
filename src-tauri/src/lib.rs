@@ -23,6 +23,29 @@ mod types;
 
 use tauri::{Manager, RunEvent};
 
+/// In debug builds on macOS, paint the dock icon with a DEV-badged variant so
+/// the running dev binary is visually distinct from the installed release
+/// build. Must run after `RunEvent::Ready` — Tauri sets its own icon during
+/// window initialization, and a `setup` hook would lose the race.
+#[cfg(all(debug_assertions, target_os = "macos"))]
+fn apply_dev_dock_icon() {
+    use objc2::AnyThread;
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::{MainThreadMarker, NSData, NSProcessInfo, NSString};
+
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    unsafe {
+        let ns_app = NSApplication::sharedApplication(mtm);
+        let data = NSData::with_bytes(include_bytes!("../icons/icon-dev.png"));
+        if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
+            ns_app.setApplicationIconImage(Some(&image));
+        }
+        NSProcessInfo::processInfo().setProcessName(&NSString::from_str("Alfredo Dev"));
+    }
+}
+
 fn updater_endpoint_urls(receive_beta: bool) -> Vec<url::Url> {
     const STABLE: &str =
         "https://github.com/chloehkwong1/alfredo/releases/latest/download/latest.json";
@@ -86,6 +109,7 @@ pub fn run() {
                 }
                 app.set_menu(menu)?;
             }
+
 
             // Migrate legacy single-repo config to app.json
             let app_data = app.path().app_data_dir()
@@ -251,14 +275,19 @@ pub fn run() {
             eprintln!("error while running tauri application: {e}");
             std::process::exit(1);
         })
-        .run(|app, event| {
-            if let RunEvent::Exit = event {
+        .run(|app, event| match event {
+            RunEvent::Ready => {
+                #[cfg(all(debug_assertions, target_os = "macos"))]
+                apply_dev_dock_icon();
+            }
+            RunEvent::Exit => {
                 // Remove Alfredo hooks from all worktrees so standalone
                 // Claude Code sessions don't inherit stale hook config.
                 if let Some(manager) = app.try_state::<PtyManager>() {
                     manager.cleanup_all_hooks();
                 }
             }
+            _ => {}
         });
 }
 
