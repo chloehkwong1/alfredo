@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { FolderOpen, Check, Github, Loader2, ChevronLeft } from "lucide-react";
+import { FolderOpen, Check, Github, Loader2, ChevronLeft, Palette } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
@@ -23,6 +23,7 @@ import {
 } from "../../api";
 import type { LinearOAuthCompletePayload } from "../../api";
 import type { AppConfig, RepoMode, Worktree } from "../../types";
+import { REPO_COLOR_PALETTE, resolveColorId, repoInitials } from "../sidebar/RepoSelector";
 
 interface RepoSetupDialogProps {
   open: boolean;
@@ -31,6 +32,12 @@ interface RepoSetupDialogProps {
   existingGithubToken?: string | null;
   /** Config from most recently added repo, for carry-forward. Null for first repo. */
   previousRepoConfig?: AppConfig | null;
+  repoColors?: Record<string, string>;
+  repoDisplayNames?: Record<string, string>;
+  repoShortLabels?: Record<string, string>;
+  onSetRepoDisplayName?: (repoPath: string, name: string | null) => void | Promise<void>;
+  onSetRepoShortLabel?: (repoPath: string, label: string | null) => void | Promise<void>;
+  onSetRepoColor?: (repoPath: string, color: string) => void | Promise<void>;
   onConfigured: (result: { mode: RepoMode; selectedWorktreeIds?: string[] }) => void;
 }
 
@@ -71,6 +78,12 @@ function RepoSetupDialog({
   repoPath,
   existingGithubToken,
   previousRepoConfig,
+  repoColors,
+  repoDisplayNames,
+  repoShortLabels,
+  onSetRepoDisplayName,
+  onSetRepoShortLabel,
+  onSetRepoColor,
   onConfigured,
 }: RepoSetupDialogProps) {
   // ── Step state ────────────────────────────────────────────────
@@ -101,13 +114,19 @@ function RepoSetupDialog({
   // ── Existing github username (for "use existing" offer) ───────
   const [existingGithubUsername, setExistingGithubUsername] = useState<string | null>(null);
 
+  // ── Identity (display name / badge) ───────────────────────────
+  const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [shortLabelDraft, setShortLabelDraft] = useState("");
+  const [colorIdDraft, setColorIdDraft] = useState<string>(REPO_COLOR_PALETTE[0].id);
+  const [colorDirty, setColorDirty] = useState(false);
+
   // ── Initialize on open ────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
 
     // Reset form
     setStep(1);
-    setMode("branch");
+    setMode("worktree");
     setGithubConnected(null);
     setGithubChecking(false);
     setGithubToken("");
@@ -120,6 +139,10 @@ function RepoSetupDialog({
     setDetectedWorktrees([]);
     setSelectedWorktreeIds(new Set());
     setExistingGithubUsername(null);
+    setDisplayNameDraft(repoDisplayNames?.[repoPath] ?? "");
+    setShortLabelDraft(repoShortLabels?.[repoPath] ?? "");
+    setColorIdDraft(resolveColorId(repoColors?.[repoPath]) ?? REPO_COLOR_PALETTE[0].id);
+    setColorDirty(false);
 
     // Detect existing worktrees
     listWorktrees(repoPath)
@@ -197,6 +220,12 @@ function RepoSetupDialog({
         })
         .catch((e) => console.warn("[repo-setup] Failed to check existing GitHub auth:", e));
     }
+    // Identity maps (repoColors / repoDisplayNames / repoShortLabels) are
+    // intentionally excluded from deps: they're only read here to seed drafts
+    // on open, and `useAppConfig` returns fresh references on every save —
+    // including them would clobber in-progress edits whenever a sibling fires
+    // `config-changed`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, repoPath, existingGithubToken, previousRepoConfig]);
 
   // ── Linear OAuth event listeners ──────────────────────────────
@@ -319,6 +348,25 @@ function RepoSetupDialog({
       }
 
       await saveConfig(repoPath, updated);
+
+      // Persist identity (display name / badge label / colour) only when changed.
+      const trimmedName = displayNameDraft.trim();
+      const newName = trimmedName || null;
+      const oldName = repoDisplayNames?.[repoPath] ?? null;
+      if (newName !== oldName) await onSetRepoDisplayName?.(repoPath, newName);
+
+      const cleanedLabel = shortLabelDraft
+        .replace(/[^A-Za-z0-9]/g, "")
+        .slice(0, 4)
+        .toUpperCase();
+      const newLabel = cleanedLabel || null;
+      const oldLabel = repoShortLabels?.[repoPath] ?? null;
+      if (newLabel !== oldLabel) await onSetRepoShortLabel?.(repoPath, newLabel);
+
+      // Only write on explicit user pick — avoids racing the auto-seed in
+      // `useAppConfig` (`AppShell` may still be mid-flight assigning the
+      // initial palette colour when this dialog opens).
+      if (colorDirty) await onSetRepoColor?.(repoPath, colorIdDraft);
     } catch (e) {
       console.error("Failed to save config:", e);
     }
@@ -330,7 +378,7 @@ function RepoSetupDialog({
     } else {
       onConfigured({ mode: "worktree" });
     }
-  }, [repoPath, githubToken, mode, worktreeBasePathInput, setupScript, runScript, archiveScript, onConfigured, hasDetectedWorktrees, selectedWorktreeIds]);
+  }, [repoPath, githubToken, mode, worktreeBasePathInput, setupScript, runScript, archiveScript, onConfigured, hasDetectedWorktrees, selectedWorktreeIds, displayNameDraft, shortLabelDraft, colorIdDraft, colorDirty, repoDisplayNames, repoShortLabels, onSetRepoDisplayName, onSetRepoShortLabel, onSetRepoColor]);
 
   // ── Show "use existing" offer ─────────────────────────────────
   const showExistingGithubOffer =
@@ -584,6 +632,94 @@ function RepoSetupDialog({
                 </div>
               )}
             </div>
+
+            {/* ── Identity (display name / badge) ─────────────── */}
+            {(() => {
+              const previewColor =
+                REPO_COLOR_PALETTE.find((c) => c.id === colorIdDraft) ?? REPO_COLOR_PALETTE[0];
+              const cleanedDraftLabel = shortLabelDraft
+                .replace(/[^A-Za-z0-9]/g, "")
+                .slice(0, 4)
+                .toUpperCase();
+              const synthDisplayNames = {
+                ...(repoDisplayNames ?? {}),
+                [repoPath]: displayNameDraft.trim() || repoDisplayNames?.[repoPath] || "",
+              };
+              const previewLabel = cleanedDraftLabel || repoInitials(repoPath, synthDisplayNames);
+              const labelPlaceholder = repoInitials(repoPath, synthDisplayNames);
+              return (
+                <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-7 w-7 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
+                      <Palette className="h-3.5 w-3.5 text-text-tertiary" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-caption font-medium text-text-primary">Repo identity</div>
+                      <div className="text-micro text-text-tertiary">Display name and badge for this repo in the sidebar</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Input
+                      placeholder={repoPath.split("/").filter(Boolean).pop() ?? ""}
+                      value={displayNameDraft}
+                      onChange={(e) => setDisplayNameDraft(e.target.value)}
+                    />
+
+                    <div className="flex items-center gap-2.5">
+                      <Input
+                        className="!w-24 uppercase tracking-wide font-semibold text-center"
+                        maxLength={4}
+                        placeholder={labelPlaceholder}
+                        value={shortLabelDraft}
+                        onChange={(e) => {
+                          const cleaned = e.target.value
+                            .replace(/[^A-Za-z0-9]/g, "")
+                            .slice(0, 4);
+                          setShortLabelDraft(cleaned);
+                        }}
+                        onBlur={(e) => setShortLabelDraft(e.target.value.toUpperCase())}
+                      />
+                      <span
+                        className="text-[11px] font-semibold px-1.5 py-0.5 rounded-[4px] tracking-wide"
+                        style={{ background: previewColor.bg, color: previewColor.text }}
+                      >
+                        {previewLabel}
+                      </span>
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        {REPO_COLOR_PALETTE.map((c) => {
+                          const isActive = c.id === colorIdDraft;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              title={c.id}
+                              aria-label={`Set badge colour to ${c.id}`}
+                              aria-pressed={isActive}
+                              onClick={() => {
+                                setColorIdDraft(c.id);
+                                setColorDirty(true);
+                              }}
+                              className={[
+                                "h-5 w-5 rounded-full transition-all cursor-pointer",
+                                "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/60",
+                                isActive
+                                  ? "ring-2 ring-offset-2 ring-offset-bg-secondary"
+                                  : "hover:scale-110",
+                              ].join(" ")}
+                              style={{
+                                background: c.bg,
+                                ...(isActive ? { ["--tw-ring-color" as string]: c.border } : {}),
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── Worktree location (worktree mode only) ──────── */}
             {mode === "worktree" && (

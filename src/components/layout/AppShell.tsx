@@ -212,6 +212,12 @@ function AppShell() {
               onOpenChange={setSetupDialogOpen}
               repoPath={setupRepoPath}
               previousRepoConfig={null}
+              repoColors={repoColors ?? {}}
+              repoDisplayNames={repoDisplayNames ?? {}}
+              repoShortLabels={repoShortLabels ?? {}}
+              onSetRepoDisplayName={setRepoDisplayName}
+              onSetRepoShortLabel={setRepoShortLabel}
+              onSetRepoColor={setRepoColor}
               onConfigured={handleRepoConfigured}
             />
           </SectionErrorBoundary>
@@ -365,6 +371,12 @@ function AppShell() {
             repoPath={setupRepoPath}
             existingGithubToken={previousRepoConfig?.githubToken ?? null}
             previousRepoConfig={previousRepoConfig}
+            repoColors={repoColors ?? {}}
+            repoDisplayNames={repoDisplayNames ?? {}}
+            repoShortLabels={repoShortLabels ?? {}}
+            onSetRepoDisplayName={setRepoDisplayName}
+            onSetRepoShortLabel={setRepoShortLabel}
+            onSetRepoColor={setRepoColor}
             onConfigured={handleRepoConfigured}
           />
         </SectionErrorBoundary>
