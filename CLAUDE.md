@@ -10,6 +10,7 @@ npm run dev                   # Vite only (rare — usually want tauri dev)
 npm run build                 # Production frontend build
 npm test                      # Vitest
 cd src-tauri && cargo check   # Rust typecheck without running
+cd src-tauri && cargo clippy --lib -- -D warnings  # Lint gate (also enforced by pre-commit)
 ```
 
 Package manager is **npm**, not pnpm or yarn. Lockfile is `package-lock.json`.
@@ -41,7 +42,7 @@ Package manager is **npm**, not pnpm or yarn. Lockfile is `package-lock.json`.
 
 ## Testing
 
-No test infrastructure exists yet. Do NOT create new test files speculatively. Rust has inline `#[cfg(test)]` modules (see `app_config_manager.rs`); add to existing ones if relevant.
+Vitest for frontend, inline `#[cfg(test)]` modules for Rust. Existing Vitest files: `src/{hooks,stores,services,components}/**/*.test.ts(x)`. Extend existing test files when relevant; create new ones only when explicitly asked.
 
 ## Gotchas
 
@@ -50,6 +51,7 @@ No test infrastructure exists yet. Do NOT create new test files speculatively. R
 - `#[serde(default)]` is required on new `GlobalAppConfig` fields or existing `app.json` files fail to deserialize.
 - Windows build is disabled in CI (broken). macOS + Linux only.
 - Releases: use the `release-alfredo` skill, do not bump versions manually.
+- Husky pre-commit runs `tsc --noEmit`, `vitest`, and `cargo clippy --lib -- -D warnings` on staged files. Fix the underlying issue rather than bypassing with `--no-verify`.
 
 ## Links
 
