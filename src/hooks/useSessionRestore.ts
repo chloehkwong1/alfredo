@@ -288,12 +288,17 @@ export function useSessionRestore(
                 // Multiple agent tabs: preserve per-tab sessions (each tab
                 // resumes its own conversation). Only discover for tabs
                 // that don't have a saved session ID.
+                //
+                // Assign the fallback UUID to *only* the first tab without a
+                // saved session — assigning it to all of them would collapse
+                // them onto the same Claude identity, the same shape as the
+                // discover() contamination bug. Remaining tabs stay at
+                // resumeSessionId=undefined and get adopted independently by
+                // discover() once each owns its own JSONL on disk.
                 if (tabsWithoutSession.length > 0) {
                   const fallbackSessionId = latestSessionId ?? session.claudeSessionId ?? null;
                   if (fallbackSessionId) {
-                    for (const tab of tabsWithoutSession) {
-                      updateTab(wt.id, tab.id, { resumeSessionId: fallbackSessionId });
-                    }
+                    updateTab(wt.id, tabsWithoutSession[0].id, { resumeSessionId: fallbackSessionId });
                   }
                 }
                 if (tabsWithSession.length > 0) {
