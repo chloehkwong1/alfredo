@@ -1,0 +1,38 @@
+src-tauri/src/lib.rs
+  6a776f4666cec948 26-48,113,278-283,290
+src-tauri/Cargo.toml
+  6a776f4666cec948 49-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "2d24915a920dd8d1a1317c96ca106f943f9d38b4",
+  "prompts": {
+    "6a776f4666cec948": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e3d31738-2c00-4568-a1fd-29a5657513ba",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 104,
+      "overriden_lines": 0
+    },
+    "bc58c7786f178cb9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f17f91a-9b0a-4b03-b58a-1b062feda388",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 219,
+      "total_deletions": 0,
+      "accepted_lines": 311,
+      "overriden_lines": 0
+    }
+  }
+}
