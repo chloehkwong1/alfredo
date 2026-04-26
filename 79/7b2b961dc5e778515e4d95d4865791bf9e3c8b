@@ -1,0 +1,25 @@
+src/components/terminal/TerminalView.tsx
+  1627454d7d0c2642 150-168,180-183
+src/hooks/useSessionRestore.ts
+  1627454d7d0c2642 291-297,301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "797b2b961dc5e778515e4d95d4865791bf9e3c8b",
+  "prompts": {
+    "1627454d7d0c2642": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a0fb3ef3-94d4-401e-acaf-1b0726083efd",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 515,
+      "total_deletions": 12,
+      "accepted_lines": 501,
+      "overriden_lines": 1
+    }
+  }
+}
