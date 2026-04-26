@@ -7,6 +7,7 @@
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
+    "beforeBundleCommand": "bash src-tauri/scripts/compile-liquid-glass-icon.sh",
     "frontendDist": "../dist"
   },
   "app": {
@@ -34,6 +35,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "files": {
+        "Resources/Assets.car": "icons/Assets.car"
+      }
+    },
     "createUpdaterArtifacts": true
   },
   "plugins": {
