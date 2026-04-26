@@ -103,7 +103,7 @@ export function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
         </span>
       )}
       {reviewDecision === "review_requested" && (
-        <span className="flex items-center gap-1 text-xs text-status-busy">
+        <span className="flex items-center gap-1 text-xs text-text-tertiary">
           <UserPlus size={12} />
           {prSummary.requestedReviewers && prSummary.requestedReviewers.length > 0
             ? prSummary.requestedReviewers.length === 1
