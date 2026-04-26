@@ -1,0 +1,46 @@
+src-tauri/Info.plist
+  bc58c7786f178cb9 1-8
+src-tauri/.gitignore
+  bc58c7786f178cb9 8-10
+src-tauri/tauri.conf.json
+  bc58c7786f178cb9 10,38-42
+designs/icon-fg.svg
+  6a776f4666cec948 1-12
+designs/icon-bg.svg
+  6a776f4666cec948 1-5
+src-tauri/scripts/compile-liquid-glass-icon.sh
+  bc58c7786f178cb9 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "0931c957431d9ad3f04e72ac4ce340f416afd47a",
+  "prompts": {
+    "6a776f4666cec948": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e3d31738-2c00-4568-a1fd-29a5657513ba",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 465,
+      "total_deletions": 42,
+      "accepted_lines": 121,
+      "overriden_lines": 0
+    },
+    "bc58c7786f178cb9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f17f91a-9b0a-4b03-b58a-1b062feda388",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4663,
+      "total_deletions": 3801,
+      "accepted_lines": 4608,
+      "overriden_lines": 0
+    }
+  }
+}
