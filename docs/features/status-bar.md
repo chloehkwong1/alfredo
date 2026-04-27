@@ -22,8 +22,9 @@ Right side:
   Linear ticket.
 - **PR badge** — "Draft PR #123" or "Open PR #123". Click to open
   on GitHub. Appears once Alfredo detects a PR for the branch.
-- **Annotation count** — small pill with the number of inline
-  diff annotations on the current worktree.
+- **Annotation count** — small pill (e.g. `3 annotations`) showing
+  how many [inline diff comments](inline-diff-comments.md) the
+  worktree has. Display-only; open the changes panel to read them.
 
 Beyond identifiers, the status bar is the quickest path to toggle
 the diff view mode (Unified / Split) when you're looking at a diff —

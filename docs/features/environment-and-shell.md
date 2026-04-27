@@ -11,6 +11,10 @@ that git and `gh` commands see. That's why `claude`, `codex`, and
 `gemini` work out of the box even though your shell profile never
 ran.
 
+Without this, typing `claude` (or `gh`, `pnpm`, `mise`-managed
+tools) in a worktree terminal would fail with `command not found`,
+even though it works from your regular Terminal.
+
 Env vars Alfredo sets on every agent PTY:
 
 - **`PATH`** — augmented to include common install locations so CLI
@@ -24,5 +28,9 @@ Env vars Alfredo sets on every agent PTY:
   is enabled. The `PORT` name is configurable per repo.
 
 What Alfredo does **not** do: source your `.zshrc` / `.bashrc`.
-If a tool needs an env var you set there, either add it to the
-repo's setup scripts or move it into your launch-time environment.
+If a tool needs an env var you set there — for example
+`OPENAI_API_KEY=sk-...` exported from `.zshrc`, or
+`NODE_OPTIONS=--max-old-space-size=8192` — the agent PTY won't see
+it. Either add it to the repo's setup scripts (`export OPENAI_API_KEY=...`),
+move it into your launch-time environment (a `~/.zprofile` that
+macOS reads at login), or set it on the run script line directly.

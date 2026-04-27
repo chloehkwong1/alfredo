@@ -14,15 +14,21 @@ status bar at the bottom of each session.
   "Default" to let Claude Code decide.
 - **Effort** (Claude only) — Low / Medium / High / XHigh / Max.
   Trades thinking time for quality.
-- **Permission Mode** — Default, Accept Edits, Plan, Auto, Don't Ask,
-  or Bypass Permissions. Controls how often Claude asks before
-  acting.
+- **Permission Mode** — Controls how often Claude asks before acting.
+  The same hints surface in the picker itself:
+  - **Default** — asks before edits and commands. Safest for
+    unfamiliar codebases.
+  - **Accept Edits** — auto-accepts file edits, still asks before
+    commands. Good middle ground for routine refactors.
+  - **Plan** — read-only exploration, no edits or commands. Use when
+    you want Claude to investigate without touching anything.
+  - **Auto** — Claude decides which permissions to grant; may still
+    ask for risky tools.
+  - **Don't Ask** — runs all tools without asking. Use with caution
+    on trusted code.
+  - **Bypass Permissions** — no checks at all. Sandboxed
+    environments only (e.g. ephemeral worktrees).
 
-The Model, Effort, and Permission Mode option lists are pulled from
-a small `models.json` manifest hosted in the Alfredo repo (cached
-locally for 24h), so when Anthropic ships a new effort level or
-permission mode it can show up in Alfredo without a new release —
-just by reopening the dialog.
 - **Style** — output style for Claude Code. Built-in options are
   Default, Explanatory and Learning. Any Markdown file dropped into
   `~/.claude/output-styles/` (user-level) is picked up as a custom

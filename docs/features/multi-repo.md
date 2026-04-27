@@ -15,12 +15,19 @@ What you can do with repos:
   "Switch repo" navigation command for each.
 - **Colour a repo** — right-click a chip and pick a colour. The
   colour shows in the chip and as a thin accent on each worktree
-  row, which helps scan a busy sidebar.
+  row, which helps scan a busy sidebar. Concrete example: tag
+  `florence-app` violet and `florence-auth` teal, and a busy "In
+  progress" column instantly reads as "two violet rows on the
+  frontend, one teal on auth" without you having to read every
+  branch name.
 - **Rename** — Settings → Repository → Display Name gives the chip
   a shorter label.
 - **Show/hide in sidebar** — you can keep a repo on record but hide
   its worktrees from the active view (useful when a repo is idle).
-  The selected-repos list persists globally.
+  Example: you have ten repos but only actively work in three this
+  week — hide the other seven and the sidebar's repo strip and
+  kanban shrink to just those three. They're not removed; tick them
+  back on later. The selected-repos list persists globally.
 - **Remove** — Repository Settings → Remove Repo. Removing doesn't
   touch the git repo on disk, only Alfredo's pointer to it.
 

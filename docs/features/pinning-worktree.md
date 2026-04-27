@@ -18,6 +18,13 @@ and it doesn't move the worktree between groups. Pinned state lives in
 the Zustand workspace store, so it resets when the app restarts — pin is
 a session-level focus tool, not a persistent favorite.
 
+Concrete example: "In progress" has six worktrees but you only care
+about two today. Pin those two and they jump to the top of the group
+with a small pin icon next to the timestamp; the other four drop
+below them and render at lower opacity. You haven't lost the four —
+they're still right there to click into — they're just visually
+demoted so the pinned pair stand out.
+
 ## Pinned only filter
 
 Once you have at least one pinned worktree, a small **"Pinned only"**
