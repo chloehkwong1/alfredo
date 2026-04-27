@@ -546,13 +546,16 @@ pub struct PortHolder {
 /// the frontend can render a choice dialog without fighting the AppError
 /// string serializer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum PortClaimResult {
     /// Port was assigned (new or pre-existing sticky claim).
     Assigned { port: u16 },
     /// Auto-assign is off — caller should not inject a port env var.
     Disabled,
     /// Every port in the configured range is already held by another worktree.
+    /// `rename_all_fields` is required: a serde enum's `rename_all` only renames
+    /// variant tags, so without it `range_start` / `range_end` ship as snake_case
+    /// and the TS dialog reads `undefined` → renders "All NaN ports in use".
     RangeFull {
         range_start: u16,
         range_end: u16,
@@ -584,5 +587,32 @@ impl Serialize for AppError {
         S: serde::ser::Serializer,
     {
         serializer.serialize_str(self.to_string().as_ref())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn port_claim_result_range_full_serializes_camel_case_fields() {
+        // Guards against `rename_all` on the enum being dropped or replaced —
+        // serde only renames variant tags, not struct-variant fields, so the
+        // explicit `rename_all_fields = "camelCase"` is what keeps the TS
+        // dialog from rendering "All NaN ports in use".
+        let value = PortClaimResult::RangeFull {
+            range_start: 3000,
+            range_end: 3005,
+            holders: vec![PortHolder {
+                worktree_name: "wt-1".to_string(),
+                port: 3001,
+            }],
+        };
+        let json = serde_json::to_value(&value).unwrap();
+        assert_eq!(json["kind"], "rangeFull");
+        assert_eq!(json["rangeStart"], 3000);
+        assert_eq!(json["rangeEnd"], 3005);
+        assert_eq!(json["holders"][0]["worktreeName"], "wt-1");
+        assert_eq!(json["holders"][0]["port"], 3001);
     }
 }
