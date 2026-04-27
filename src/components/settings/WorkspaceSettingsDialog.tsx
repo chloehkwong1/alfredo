@@ -536,7 +536,7 @@ function WorkspaceSettingsDialog({
                           if (raw === "") return null;
                           const v = parseInt(raw, 10);
                           if (!Number.isFinite(v)) return null;
-                          return Math.max(1024, Math.min(65535, v));
+                          return v;
                         };
                         return (
                           <div className="mt-4 space-y-4">
