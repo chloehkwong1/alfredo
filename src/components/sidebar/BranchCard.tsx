@@ -16,6 +16,7 @@ import {
 } from "../ui/ContextMenu";
 import { setRepoMode } from "../../api";
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
+import { ServerIndicator } from "./ServerIndicator";
 
 const ATTN_STATES = new Set(["waitingForInput", "done", "ready"]);
 
@@ -66,6 +67,9 @@ const BranchCard = memo(function BranchCard({
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === repo.id));
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(repo.id));
   const isUnread = useWorkspaceStore((s) => s.unreadWorktrees.has(repo.id));
+  const serverEntry = useWorkspaceStore((s) => s.runningServers[repo.id]);
+  const isServerRunning = !!serverEntry;
+  const serverPort = serverEntry?.port;
   const effectiveStatus = worktree
     ? computeEffectiveStatus(
         worktree.agentStatus,
@@ -197,6 +201,7 @@ const BranchCard = memo(function BranchCard({
                   ].join(" ")}
                 />
                 <span className="text-xs text-text-tertiary">{statusLabel}</span>
+                {isServerRunning && <ServerIndicator port={serverPort} />}
               </span>
               {(add || del) && (
                 <span className="flex items-center gap-1 text-xs ml-auto flex-shrink-0">
