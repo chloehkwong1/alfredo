@@ -20,11 +20,12 @@ A short list of the things that go wrong most often.
 - **Worktree operation failed.** Most git errors (dirty tree, rebase
   conflicts, missing base branch) are resolved in the worktree's
   terminal tab with normal git commands.
-- **"No free dev-server ports" dialog.** Auto-assign is on and every
-  port in the configured range is already claimed. The dialog lists
-  the worktrees currently holding a port — pick one to release and
-  retry, or close the dialog and widen the range in Repository
-  Settings → Auto-assign dev server ports. Ports auto-release when a
-  worktree is dragged to Done.
+- **"Pick a port" dropdown when starting a server.** Auto-assign is
+  on and every port in the configured range is already claimed.
+  The dropdown lists each port in the range with the worktree
+  currently holding it — click any held port to take it from that
+  worktree (its server stops), or widen the range in Repository
+  Settings. Ports also auto-release when a worktree is dragged to
+  Done. See [Auto-assigning dev server ports](auto-assign-ports.md).
 - **Still stuck?** Open an issue at
   https://github.com/chloehkwong1/alfredo/issues.

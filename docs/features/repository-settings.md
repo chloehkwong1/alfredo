@@ -28,18 +28,15 @@ Settings**. The dialog opens scoped to whichever repo you clicked.
   (purple/blue/green/amber/pink/cyan) alias to the nearest new hue.
 - **Worktree Directory** (worktree mode only) — where new worktrees
   are created. Defaults to the repo's parent folder.
-- **Auto-assign dev server ports** — toggle. When on, the first dev
-  server to start in a worktree claims the next free port from the
-  configured **port range** (per-repo: set start and end yourself).
-  A typical setup is `3000`–`3010` for a Node app or `5173`–`5183`
-  for a Vite project — give yourself ten or so slots so you can run
-  several worktrees side by side. The claim is sticky for the
-  worktree's lifetime and is released when the worktree is dragged
-  to **Done** in the kanban. If the range is full when a session
-  needs a port, Alfredo opens a release-and-retry dialog listing the
-  worktrees currently holding ports so you can free one up. **Port
-  environment variable** lets you choose the env var name your
-  scripts read (defaults to `PORT`).
+- **Auto-assign dev server ports** — toggle. When on, the **Start
+  server** button claims the next free port from the configured
+  **port range** (per-repo: set start and end yourself). A typical
+  setup is `3000`–`3010` for a Node app or `5173`–`5183` for a Vite
+  project — give yourself ten or so slots so you can run several
+  worktrees side by side. **Port environment variable** lets you
+  choose the env var name your scripts read (defaults to `PORT`).
+  See [Auto-assigning dev server ports](auto-assign-ports.md) for
+  the full lifecycle (lazy claim, takeover picker, release on Done).
 - **Default Agent** (per-repo) — overrides the global default just
   for this repo.
 
