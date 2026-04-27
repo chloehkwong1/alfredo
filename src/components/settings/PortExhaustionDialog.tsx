@@ -94,11 +94,10 @@ function PortExhaustionDialog({
                 ].join(" ")}
               >
                 <span
-                  className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-[5px] text-[9px] font-semibold flex-shrink-0"
+                  className="text-[11px] font-semibold px-1.5 py-0.5 rounded-[4px] flex-shrink-0 tracking-wide"
                   style={{
                     background: h.chip.bg,
                     color: h.chip.text,
-                    border: `1px solid ${h.chip.text}`,
                   }}
                 >
                   {h.chip.label}
