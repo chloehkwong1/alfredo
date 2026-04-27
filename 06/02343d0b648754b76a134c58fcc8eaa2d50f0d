@@ -1,0 +1,45 @@
+docs/features/switching-agent-provider.md
+  4d27591af3e3d070 16-18
+docs/features/status-bar.md
+  4d27591af3e3d070 25-27
+docs/features/todo-column.md
+  4d27591af3e3d070 13-39
+docs/features/comment-chips-settings.md
+  4d27591af3e3d070 7-10,12,14-17,19-47
+docs/features/repository-settings.md
+  4d27591af3e3d070 25-28,34-42,48-53,55-58,60-61
+docs/features/default-slash-commands.md
+  4d27591af3e3d070 16-19,24-26,31-34
+docs/features/inline-diff-comments.md
+  4d27591af3e3d070 16-19
+docs/features/agent-settings.md
+  4d27591af3e3d070 17-30
+docs/features/pinning-worktree.md
+  4d27591af3e3d070 21-27
+docs/features/multi-repo.md
+  4d27591af3e3d070 18-22,27-30
+docs/features/integrations-settings.md
+  4d27591af3e3d070 17-28
+docs/features/environment-and-shell.md
+  4d27591af3e3d070 14-17,31-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "0602343d0b648754b76a134c58fcc8eaa2d50f0d",
+  "prompts": {
+    "4d27591af3e3d070": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1cff1ec2-50e4-4bb1-b203-2a565759e21d",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 177,
+      "total_deletions": 79,
+      "accepted_lines": 165,
+      "overriden_lines": 0
+    }
+  }
+}
