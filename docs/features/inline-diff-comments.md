@@ -13,8 +13,9 @@ inline. Type your note and submit; the comment pins to that line and
 renders in the gutter on future visits.
 
 The strip of **Comment chips** above the input inserts reusable
-snippets (e.g. "Why is this needed?", "Add a test for this") with one
-click. Manage the chip list in Settings → Comment Chips.
+snippets with one click — for example, you might have chips labelled
+"Add test", "Why?", and "Nitpick" that each paste a pre-written prompt
+into the box. Manage the chip list in Settings → Comment Chips.
 
 Annotations are local to the worktree by default — they don't sync to
 GitHub automatically. If the worktree has a PR, inline comments from
