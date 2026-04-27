@@ -32,25 +32,29 @@ function useStatePersistence(
     return unsub;
   }, [updateConfig]);
 
-  // Restore active worktree from app config (one-time)
+  // Restore active worktree from app config (one-time). Arms the
+  // persistence subscriber even when nothing was restored — otherwise
+  // users whose persisted id is null can never write a new selection
+  // back to disk, and every restart starts with no active card.
   const worktreeRestored = useRef(false);
   useEffect(() => {
-    if (worktreeRestored.current || !config?.activeWorktreeId) return;
-    // Only restore once worktrees have loaded so the ID is valid
-    if (worktrees.length > 0) {
-      worktreeRestored.current = true;
-      const exists = worktrees.some((wt) => wt.id === config.activeWorktreeId);
-      if (exists) {
-        useWorkspaceStore.getState().setActiveWorktree(config.activeWorktreeId!);
-      }
+    if (worktreeRestored.current) return;
+    if (!config || worktrees.length === 0) return;
+    worktreeRestored.current = true;
+    const persisted = config.activeWorktreeId;
+    if (persisted && worktrees.some((wt) => wt.id === persisted)) {
+      useWorkspaceStore.getState().setActiveWorktree(persisted);
     }
   }, [config, worktrees]);
 
-  // Persist active worktree to config when it changes
+  // Persist active worktree to config when it changes. The
+  // worktreeRestored gate is read inside the subscriber so it picks up
+  // the ref's live value on each store change — placing it outside
+  // would freeze it at effect-mount time and never arm.
   useEffect(() => {
-    if (!worktreeRestored.current) return;
     let prev = useWorkspaceStore.getState().activeWorktreeId;
     const unsub = useWorkspaceStore.subscribe((state) => {
+      if (!worktreeRestored.current) return;
       if (state.activeWorktreeId !== prev) {
         prev = state.activeWorktreeId;
         updateConfig({ activeWorktreeId: state.activeWorktreeId });

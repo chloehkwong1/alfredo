@@ -643,13 +643,33 @@ export class SessionManager implements SessionWriter {
     session.pendingOutput = chunks.slice(consumed);
 
     session.writeInFlight = true;
+    session.pasteDiagDrainChain += 1;
+    const writeStartAt = Date.now();
+    const writeBytes = total;
     session.terminal.write(merged, () => {
+      const parseLatencyMs = Date.now() - writeStartAt;
       session.writeInFlight = false;
-      // Re-check disposal here: closeSession can run between write dispatch
-      // and callback, in which case the terminal is gone.
+
       if (session.disposed) {
         session.pendingOutput = [];
         return;
+      }
+
+      const pendingAfter = session.pendingOutput.reduce((s, c) => s + c.length, 0);
+      const tripped =
+        parseLatencyMs > 200 ||
+        pendingAfter > 512 * 1024 ||
+        session.pasteDiagDrainChain > 50;
+      const now = Date.now();
+      if (tripped && now - session.pasteDiagLastLogAt > 1000) {
+        session.pasteDiagLastLogAt = now;
+        debugLog(
+          `[paste-diag] sessionId=${session.sessionId} bytes=${writeBytes} parseMs=${parseLatencyMs} pendingAfter=${pendingAfter}B chain=${session.pasteDiagDrainChain}`,
+        ).catch(() => {});
+      }
+
+      if (session.pendingOutput.length === 0) {
+        session.pasteDiagDrainChain = 0;
       }
       this.drainPending(session);
     });

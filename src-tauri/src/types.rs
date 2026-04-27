@@ -563,6 +563,22 @@ pub enum PortClaimResult {
     },
 }
 
+/// Outcome of an atomic port-take. `previous_holder` lets the frontend stop
+/// the holder's dev server and surface an Undo toast when the take displaced
+/// a running session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum TakePortResult {
+    Taken {
+        port: u16,
+        previous_holder: Option<String>,
+    },
+    /// Auto-assign is off or the range isn't set — caller should fall back to
+    /// no-port behaviour. Mirrors `PortClaimResult::Disabled` so callers can
+    /// branch identically on either result.
+    Disabled,
+}
+
 // ── Errors ──────────────────────────────────────────────────────
 
 #[derive(Debug, thiserror::Error)]

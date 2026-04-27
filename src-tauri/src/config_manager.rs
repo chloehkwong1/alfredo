@@ -285,24 +285,6 @@ pub fn assign_next_port(
     Some(port)
 }
 
-/// Set a specific port for a worktree. Returns an error string if the port
-/// is already assigned to a different worktree.
-pub fn set_worktree_port(
-    config: &mut AppConfig,
-    worktree_name: &str,
-    port: u16,
-) -> Result<(), String> {
-    if let Some((existing, _)) = config
-        .port_assignments
-        .iter()
-        .find(|(name, &p)| p == port && name.as_str() != worktree_name)
-    {
-        return Err(format!("Port {port} is already assigned to {existing}"));
-    }
-    config.port_assignments.insert(worktree_name.to_string(), port);
-    Ok(())
-}
-
 /// Release a worktree's port assignment.
 pub fn release_port(config: &mut AppConfig, worktree_name: &str) {
     config.port_assignments.remove(worktree_name);

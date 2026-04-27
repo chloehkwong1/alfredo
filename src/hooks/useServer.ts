@@ -9,7 +9,7 @@ import { useTabStore } from "../stores/tabStore";
  */
 const revivingServers = new Set<string>();
 import { getConfig, listSessions, claimWorktreePort, listWorktrees } from "../api";
-import { usePortClaimStore } from "../stores/portClaimStore";
+import { usePortPickerStore } from "../stores/portPickerStore";
 import { sessionManager } from "../services/sessionManager";
 import { lifecycleManager } from "../services/lifecycleManager";
 import type { RunScript, Session } from "../types";
@@ -291,29 +291,23 @@ export function useServer(activeWorktreeId: string | null) {
 
       // Port claim happens here, on the explicit Start-server path, rather than
       // eagerly at session spawn — opening a worktree must never trigger the
-      // exhaustion dialog. If a port is already persisted we skip; if the
-      // range is full we hand off to the dialog and abort on user cancel.
+      // picker. If a port is already persisted we skip; if the range is full
+      // we ask the active pane's split-button to open its picker and await
+      // the user's choice. Cancel aborts the start.
       const repoConfig = await getConfig(worktreeRepoPath);
       if (repoConfig.autoAssignPorts && wt.assignedPort == null) {
         const result = await claimWorktreePort(worktreeRepoPath, activeWorktreeId);
         if (result.kind === "rangeFull") {
           try {
-            // Return value intentionally discarded — the dialog persists the
-            // claim on the backend, and we re-read via listWorktrees below.
-            await usePortClaimStore.getState().showExhaustion({
+            await usePortPickerStore.getState().openForStart({
               repoPath: worktreeRepoPath,
               worktreeId: activeWorktreeId,
-              targetBranch: wt.branch ?? activeWorktreeId,
-              rangeStart: result.rangeStart,
-              rangeEnd: result.rangeEnd,
-              holders: result.holders,
             });
           } catch (e) {
-            // showExhaustion rejects on user cancel and on supersede; both
-            // mean "abort this start". Logged so a future unexpected throw
-            // (e.g. release_worktree_port failure surfaced through the
-            // dialog) doesn't masquerade as a quiet cancel.
-            console.log("[handleToggleServer] port-claim aborted:", e);
+            // openForStart rejects on user cancel and on supersede; both mean
+            // "abort this start". Logged so a future unexpected throw doesn't
+            // masquerade as a quiet cancel.
+            console.log("[handleToggleServer] port-picker aborted:", e);
             return;
           }
         }

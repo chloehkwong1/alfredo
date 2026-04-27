@@ -105,6 +105,10 @@ export type PortClaimResult =
       holders: PortHolder[];
     };
 
+export type TakePortResult =
+  | { kind: "taken"; port: number; previousHolder: string | null }
+  | { kind: "disabled" };
+
 export type KanbanColumn =
   | "toDo"
   | "inProgress"

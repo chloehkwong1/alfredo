@@ -82,4 +82,10 @@ export interface ManagedSession {
   workDepth: number;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
+  /** Diagnostic: consecutive drainPending dispatches since the queue last
+   *  emptied. High values suggest the drain loop is starving the event loop. */
+  pasteDiagDrainChain: number;
+  /** Diagnostic: timestamp of the last [paste-diag] log line, used for rate
+   *  limiting so a sustained stall logs at most once per second per session. */
+  pasteDiagLastLogAt: number;
 }

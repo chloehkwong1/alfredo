@@ -453,6 +453,25 @@ describe("setWorktreesForRepo", () => {
     expect(wt.agentStatus).toBe("busy");
     expect(wt.column).toBe("needsReview");
   });
+
+  it("preserves branch-mode synthetics across a fresh refresh", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [
+        makeWorktree({ id: "branch::/repo-a", repoPath: "/repo-a", isBranchMode: true }),
+        makeWorktree({ id: "wt-real", repoPath: "/repo-a" }),
+      ],
+    });
+
+    // Simulate a refresh from listWorktrees (only real worktrees)
+    store.getState().setWorktreesForRepo("/repo-a", [
+      makeWorktree({ id: "wt-real", repoPath: "/repo-a", branch: "feature-1-updated" }),
+    ]);
+
+    const ids = store.getState().worktrees.map((w) => w.id);
+    expect(ids).toContain("branch::/repo-a");
+    expect(ids).toContain("wt-real");
+  });
 });
 
 // ── moveWorktreeToFront ───────────────────────────────────────────

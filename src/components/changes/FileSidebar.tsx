@@ -89,18 +89,18 @@ const FileRow = memo(function FileRow({
           >
             {STATUS_LETTER[file.status] ?? "?"}
           </span>
-          {/* Path-first display: dimmed directory prefix (left-truncates on
-              overflow via direction: rtl + unicode-bidi: plaintext) then the
-              filename at the row's default emphasis. */}
+          {/* Path-first display: dimmed directory prefix that left-truncates on
+              overflow (direction: rtl makes the ellipsis land on the left and
+              anchors the text against the filename); filename at the row's
+              default emphasis. Don't add text-align or unicode-bidi here —
+              both fight the rtl trick and bring back the mid-word clipping. */}
           <span className="flex-1 flex items-baseline min-w-0 overflow-hidden" title={file.path}>
             {parentPath && (
               <span
                 className="text-text-tertiary overflow-hidden whitespace-nowrap min-w-0"
                 style={{
                   direction: "rtl",
-                  textAlign: "left",
                   textOverflow: "ellipsis",
-                  unicodeBidi: "plaintext",
                 }}
               >
                 {parentPath}

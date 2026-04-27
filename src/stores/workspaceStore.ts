@@ -143,10 +143,15 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
     }
     return wt;
   });
-  // Preserve creating/errored placeholders — they don't exist on disk yet.
-  // Exclude any whose ID already appears in the fresh data (creation completed between refreshes).
+  // Preserve in-memory-only entries that don't exist on disk: creation
+  // placeholders and branch-mode synthetics (the "main card" pin and full
+  // branch-mode repos). listWorktrees never returns these, so a plain
+  // refresh would otherwise silently drop them. Deliberate removal goes
+  // through removeWorktree.
   const freshIds = new Set(fresh.map((wt) => wt.id));
-  const placeholders = existing.filter((wt) => (wt.creating || wt.createError) && !freshIds.has(wt.id));
+  const placeholders = existing.filter(
+    (wt) => (wt.creating || wt.createError || wt.isBranchMode) && !freshIds.has(wt.id),
+  );
   return [...withActivityTimestamps(merged, existing), ...placeholders];
 }
 
@@ -282,6 +287,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     set((state) => {
       const newUnread = new Set(state.unreadWorktrees);
       if (id) newUnread.delete(id);
+      const found = state.worktrees.some((w) => w.id === id);
+      import("../api").then(({ debugLog }) =>
+        debugLog(
+          `[pin-diag] setActiveWorktree id=${id} foundInStore=${found} ids=${JSON.stringify(state.worktrees.map((w) => w.id))}`,
+        ).catch(() => {}),
+      );
       return {
         activeWorktreeId: id,
         unreadWorktrees: newUnread,

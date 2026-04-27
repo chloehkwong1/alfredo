@@ -9,7 +9,7 @@ use crate::git_manager::git_command;
 use crate::git_manager::get_diff_stats;
 use crate::github_manager::{self, GithubManager};
 use crate::linear_manager;
-use crate::types::{AgentState, AppError, KanbanColumn, PortClaimResult, PortHolder, Worktree, WorktreeSource};
+use crate::types::{AgentState, AppError, KanbanColumn, PortClaimResult, PortHolder, TakePortResult, Worktree, WorktreeSource};
 
 type Result<T> = std::result::Result<T, AppError>;
 
@@ -418,23 +418,6 @@ pub async fn set_worktree_column(
     Ok(())
 }
 
-/// Set the dev server port for a worktree. Returns error if the port is
-/// already assigned to another worktree.
-#[tauri::command]
-pub async fn set_worktree_port(
-    app: AppHandle,
-    repo_path: String,
-    worktree_name: String,
-    port: u16,
-) -> Result<()> {
-    let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
-    config_manager::set_worktree_port(&mut config, &worktree_name, port)
-        .map_err(AppError::Config)?;
-    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
-    Ok(())
-}
-
 /// Claim a dev server port for a worktree. Returns the existing sticky port
 /// if one is persisted, otherwise assigns the next free port from the global
 /// range and persists it. Exhaustion is returned as `PortClaimResult::RangeFull`
@@ -525,6 +508,65 @@ pub async fn release_worktree_port(
     config_manager::release_port(&mut config, &worktree_name);
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
+}
+
+/// Atomically reassign a specific port to a worktree, releasing whichever
+/// worktree currently holds it (if any). Used by the port picker when the
+/// user explicitly takes a port. Returns the previous holder's name so the
+/// frontend can stop their dev server and surface an Undo affordance.
+///
+/// Validates that the port falls within the configured range. Returns
+/// `Disabled` if auto-assign is off or the range is unset, mirroring
+/// `claim_worktree_port`'s contract so the frontend has a single shape to
+/// branch on.
+#[tauri::command]
+pub async fn take_worktree_port(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+    worktree_name: String,
+    port: u16,
+) -> Result<TakePortResult> {
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+
+    if !config.auto_assign_ports {
+        return Ok(TakePortResult::Disabled);
+    }
+
+    let (range_start, range_end) = match (config.port_range_start, config.port_range_end) {
+        (Some(s), Some(e)) if s <= e => (s, e),
+        _ => return Ok(TakePortResult::Disabled),
+    };
+
+    if port < range_start || port > range_end {
+        return Err(AppError::Config(format!(
+            "Port {port} is outside the configured range {range_start}–{range_end}"
+        )));
+    }
+
+    let previous_holder: Option<String> = config
+        .port_assignments
+        .iter()
+        .find(|(name, &p)| p == port && name.as_str() != worktree_name)
+        .map(|(name, _)| name.clone());
+
+    if let Some(ref name) = previous_holder {
+        config_manager::release_port(&mut config, name);
+    }
+    // Drop any other port currently held by the target so they don't end up
+    // with two assignments. release_port is a no-op when nothing's held.
+    config_manager::release_port(&mut config, &worktree_name);
+    config
+        .port_assignments
+        .insert(worktree_name.clone(), port);
+
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    Ok(TakePortResult::Taken {
+        port,
+        previous_holder,
+    })
 }
 
 /// Create a worktree from a Linear ticket, injecting ticket context.

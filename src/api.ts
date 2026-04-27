@@ -9,6 +9,7 @@ import type {
   KanbanColumn,
   LinearTicket,
   PortClaimResult,
+  TakePortResult,
   PrStatus,
   PtyEvent,
   RepoMode,
@@ -168,16 +169,20 @@ export function setWorktreeColumn(
   return invoke("set_worktree_column", { repoPath, worktreeName, column });
 }
 
-export function setWorktreePort(repoPath: string, worktreeName: string, port: number): Promise<void> {
-  return invoke("set_worktree_port", { repoPath, worktreeName, port });
-}
-
 export function claimWorktreePort(repoPath: string, worktreeName: string): Promise<PortClaimResult> {
   return invoke("claim_worktree_port", { repoPath, worktreeName });
 }
 
 export function releaseWorktreePort(repoPath: string, worktreeName: string): Promise<void> {
   return invoke("release_worktree_port", { repoPath, worktreeName });
+}
+
+export function takeWorktreePort(
+  repoPath: string,
+  worktreeName: string,
+  port: number,
+): Promise<TakePortResult> {
+  return invoke("take_worktree_port", { repoPath, worktreeName, port });
 }
 
 export function getAssignedWorktreePort(repoPath: string, worktreeName: string): Promise<number | null> {

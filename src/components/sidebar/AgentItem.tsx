@@ -384,7 +384,7 @@ function AgentItemContent({
             </span>
             {isServerRunning && <ServerIndicator port={serverPort} />}
             {!isServerRunning && assignedPort && (
-              <span className="text-2xs text-text-tertiary tabular-nums bg-white/5 px-1 rounded-sm">
+              <span className="inline-flex items-center h-4 px-[5px] text-[11px] font-mono tabular-nums text-text-secondary border border-border-default rounded-sm">
                 :{assignedPort}
               </span>
             )}

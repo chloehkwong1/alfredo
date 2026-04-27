@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch } from "../api";
+import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, debugLog } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
@@ -43,6 +43,7 @@ export function useSessionRestore(
 ) {
   const setWorktreesForRepo = useWorkspaceStore((s) => s.setWorktreesForRepo);
   const clearWorktreesForRepo = useWorkspaceStore((s) => s.clearWorktreesForRepo);
+  const removeWorktree = useWorkspaceStore((s) => s.removeWorktree);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const restoreTabs = useTabStore((s) => s.restoreTabs);
   const updateTab = useTabStore((s) => s.updateTab);
@@ -89,21 +90,22 @@ export function useSessionRestore(
       staleByRepo.set(wt.repoPath, list);
     }
 
+    debugLog(
+      `[pin-diag] effect2 showMain=${JSON.stringify(showMainCardRepos)} selected=${JSON.stringify(selectedRepos)} expectedIds=${JSON.stringify([...expectedIds])} toAdd=${JSON.stringify(toAdd)} stale=${JSON.stringify([...staleByRepo.keys()])} currentBranchModeIds=${JSON.stringify(currentWorktrees.filter((w) => w.isBranchMode).map((w) => w.id))}`,
+    ).catch(() => {});
+
     // Skip the writes when nothing is dirty. The effect re-fires on
     // `selectedReposKey` / `repoModeKey` changes (most config changes), so
     // bailing out here avoids forcing every `useWorkspaceStore` subscriber
     // to re-render when no synthetic add/remove is actually needed.
     if (staleByRepo.size === 0 && toAdd.length === 0) return;
 
-    for (const [repo, stales] of staleByRepo) {
-      const staleIds = new Set(stales.map((wt) => wt.id));
-      const kept = currentWorktrees.filter(
-        (wt) => wt.repoPath === repo && !staleIds.has(wt.id),
-      );
-      if (kept.length === 0) {
-        clearWorktreesForRepo(repo);
-      } else {
-        setWorktreesForRepo(repo, kept);
+    // Remove stale synthetics by id. setWorktreesForRepo would no longer
+    // drop them — the store now preserves isBranchMode entries through
+    // refreshes, so deliberate removals must go through removeWorktree.
+    for (const stales of staleByRepo.values()) {
+      for (const wt of stales) {
+        removeWorktree(wt.id);
       }
     }
 
@@ -118,7 +120,7 @@ export function useSessionRestore(
       setWorktreesForRepo(repo, [...withoutExisting, buildSyntheticBranchWorktree(repo, null, true)]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedReposKey, repoModeKey, showMainCardReposKey, setWorktreesForRepo, clearWorktreesForRepo]);
+  }, [selectedReposKey, repoModeKey, showMainCardReposKey, setWorktreesForRepo, removeWorktree]);
 
   useEffect(() => {
     if (!repoPath) return;
@@ -132,11 +134,16 @@ export function useSessionRestore(
     const currentWorktrees = useWorkspaceStore.getState().worktrees;
     const loadedRepoPaths = new Set(currentWorktrees.map((wt) => wt.repoPath));
     const reposToLoadSet = new Set(reposToLoad);
+    const wiped: string[] = [];
     for (const loadedRepo of loadedRepoPaths) {
       if (!reposToLoadSet.has(loadedRepo)) {
         clearWorktreesForRepo(loadedRepo);
+        wiped.push(loadedRepo);
       }
     }
+    debugLog(
+      `[pin-diag] effect1-fire repoPath=${repoPath} reposToLoad=${JSON.stringify(reposToLoad)} loaded=${JSON.stringify([...loadedRepoPaths])} wiped=${JSON.stringify(wiped)}`,
+    ).catch(() => {});
 
     const repoModeMap = new Map(repos.map((r) => [r.path, r.mode]));
 
@@ -329,6 +336,9 @@ export function useSessionRestore(
             const existingSynthetics = existing.filter(
               (w) => w.isBranchMode && w.id === repoId(repo),
             );
+            debugLog(
+              `[pin-diag] effect1 listWorktrees-resolved repo=${repo} realCount=${wts.length} preservedSynth=${existingSynthetics.length} preservedIds=${JSON.stringify(existingSynthetics.map((w) => w.id))}`,
+            ).catch(() => {});
             return [...wts, ...existingSynthetics];
           });
 

@@ -152,6 +152,8 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     pendingIdleTimer: null,
     turnEndAt: 0,
     workDepth: 0,
+    pasteDiagDrainChain: 0,
+    pasteDiagLastLogAt: 0,
     ...overrides,
   };
 }

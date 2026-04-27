@@ -3,9 +3,7 @@ import {
   Plus,
   X,
   Terminal,
-  Play,
   GitCompareArrows,
-  Square,
   Globe,
   ArrowUpRight,
   PanelRight,
@@ -13,6 +11,7 @@ import {
   Radio,
   Combine,
 } from "lucide-react";
+import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
 import {
   DndContext,
@@ -588,7 +587,7 @@ function PaneTabBar({
 
       <div className="flex-1" />
 
-      {assignedPort && !isServerRunning && (
+      {assignedPort && isServerRunning && !runScriptUrl && (
         <button
           type="button"
           onClick={() => openUrl(`http://localhost:${assignedPort}`)}
@@ -624,20 +623,12 @@ function PaneTabBar({
               </motion.div>
             )}
           </AnimatePresence>
-          <button
-            type="button"
-            aria-label={isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
-            onClick={onToggleServer}
-            className={[
-              "inline-flex items-center gap-1.5 h-6 px-2.5 rounded text-xs font-medium border transition-colors",
-              isServerRunning
-                ? "text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 border-red-400/25"
-                : "text-green-500 hover:text-green-400 bg-green-500/10 hover:bg-green-500/20 border-green-500/25",
-            ].join(" ")}
-          >
-            {isServerRunning ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
-            {isServerRunning ? `Stop ${runScriptName}` : `Start ${runScriptName}`}
-          </button>
+          <StartServerControl
+            worktreeId={worktreeId}
+            isServerRunning={!!isServerRunning}
+            runScriptName={runScriptName}
+            onToggleServer={onToggleServer}
+          />
         </div>
       )}
     </div>

@@ -8,7 +8,7 @@ import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { sessionManager } from "../../services/sessionManager";
-import { writePty, getConfig, getAppConfig, findClaudeSession } from "../../api";
+import { writePty, getConfig, getAppConfig, findClaudeSession, debugLog } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { Button } from "../ui/Button";
@@ -367,6 +367,12 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   }
 
   if (!worktree) {
+    if (activeWorktreeId) {
+      const allIds = useWorkspaceStore.getState().worktrees.map((w) => w.id);
+      debugLog(
+        `[pin-diag] TerminalView !worktree active=${activeWorktreeId} ids=${JSON.stringify(allIds)}`,
+      ).catch(() => {});
+    }
     return (
       <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
         Starting session...
@@ -460,7 +466,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           sessionKey={sessionKey}
           onRestartSession={handleRestartSession}
           showClaudeSettings={mode === "claude"}
-          assignedPort={worktree.assignedPort}
         />
       )}
     </div>

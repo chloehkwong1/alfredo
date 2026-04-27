@@ -199,9 +199,9 @@ pub fn run() {
             worktree::get_commits_behind_main,
             worktree::rebase_worktree,
             worktree::set_stack_parent,
-            worktree::set_worktree_port,
             worktree::claim_worktree_port,
             worktree::release_worktree_port,
+            worktree::take_worktree_port,
             worktree::get_assigned_worktree_port,
             // GitHub
             github::sync_pr_status,
