@@ -59,7 +59,7 @@ function TerminalLoadingScreen({ tabType, visible, typedPreview }: TerminalLoadi
       />
       {/* Screen-reader-announced status: only the stable "starting" + hint text,
           not the per-keystroke preview below, which would spam AT users. */}
-      <div role="status" aria-live="polite">
+      <div role="status" aria-live="polite" className="flex flex-col items-center">
         <div className="flex items-center gap-2 text-sm text-text-secondary">
           <span>Starting {label}</span>
           <span aria-hidden className="inline-flex items-center gap-[3px]">
@@ -72,7 +72,7 @@ function TerminalLoadingScreen({ tabType, visible, typedPreview }: TerminalLoadi
           )}
         </div>
         {showHookHint && (
-          <div className="mt-3 max-w-md px-3 text-center text-xs text-text-tertiary">
+          <div className="mt-3 w-[28rem] max-w-[calc(100vw-2rem)] px-3 text-center text-xs text-text-tertiary">
             Waiting for {label} SessionStart hooks to finish. Long startup hooks
             (e.g. claude-mem corpus priming) block the UI until they return.
           </div>
