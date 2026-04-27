@@ -1,0 +1,23 @@
+src/components/sidebar/ServerIndicator.tsx
+  555fc8c5d8e39b9a 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "ccd4f716ee9c083de1c34113ef4e742f24d12f7a",
+  "prompts": {
+    "555fc8c5d8e39b9a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3ff2a8c2-d0ca-4c35-a967-7e116e53c663",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1503,
+      "overriden_lines": 0
+    }
+  }
+}
