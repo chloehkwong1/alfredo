@@ -8,7 +8,7 @@ function ServerIndicator({ port }: { port?: number }) {
         <span className="w-[2.5px] rounded-[1px] bg-status-idle animate-eq-bar-4" />
       </div>
       {port && (
-        <span className="text-2xs text-text-tertiary tabular-nums leading-none">:{port}</span>
+        <span className="text-[11px] font-medium text-text-secondary tabular-nums leading-none">:{port}</span>
       )}
     </div>
   );
