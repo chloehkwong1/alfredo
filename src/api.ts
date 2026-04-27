@@ -180,6 +180,10 @@ export function releaseWorktreePort(repoPath: string, worktreeName: string): Pro
   return invoke("release_worktree_port", { repoPath, worktreeName });
 }
 
+export function getAssignedWorktreePort(repoPath: string, worktreeName: string): Promise<number | null> {
+  return invoke("get_assigned_worktree_port", { repoPath, worktreeName });
+}
+
 // ── Branch Mode ─────────────────────────────────────────────────
 
 export function listBranches(repoPath: string, includeDefaultBranches?: boolean): Promise<Worktree[]> {

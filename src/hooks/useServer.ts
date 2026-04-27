@@ -8,7 +8,8 @@ import { useTabStore } from "../stores/tabStore";
  * two ticks could both revive the same worktree and thrash the store.
  */
 const revivingServers = new Set<string>();
-import { getConfig, listSessions } from "../api";
+import { getConfig, listSessions, claimWorktreePort, listWorktrees } from "../api";
+import { usePortClaimStore } from "../stores/portClaimStore";
 import { sessionManager } from "../services/sessionManager";
 import { lifecycleManager } from "../services/lifecycleManager";
 import type { RunScript, Session } from "../types";
@@ -288,6 +289,45 @@ export function useServer(activeWorktreeId: string | null) {
         return;
       }
 
+      // Port claim happens here, on the explicit Start-server path, rather than
+      // eagerly at session spawn — opening a worktree must never trigger the
+      // exhaustion dialog. If a port is already persisted we skip; if the
+      // range is full we hand off to the dialog and abort on user cancel.
+      const repoConfig = await getConfig(worktreeRepoPath);
+      if (repoConfig.autoAssignPorts && wt.assignedPort == null) {
+        const result = await claimWorktreePort(worktreeRepoPath, activeWorktreeId);
+        if (result.kind === "rangeFull") {
+          try {
+            // Return value intentionally discarded — the dialog persists the
+            // claim on the backend, and we re-read via listWorktrees below.
+            await usePortClaimStore.getState().showExhaustion({
+              repoPath: worktreeRepoPath,
+              worktreeId: activeWorktreeId,
+              targetBranch: wt.branch ?? activeWorktreeId,
+              rangeStart: result.rangeStart,
+              rangeEnd: result.rangeEnd,
+              holders: result.holders,
+            });
+          } catch (e) {
+            // showExhaustion rejects on user cancel and on supersede; both
+            // mean "abort this start". Logged so a future unexpected throw
+            // (e.g. release_worktree_port failure surfaced through the
+            // dialog) doesn't masquerade as a quiet cancel.
+            console.log("[handleToggleServer] port-claim aborted:", e);
+            return;
+          }
+        }
+        // Refresh worktrees so the sidebar's port chip shows the new
+        // assignment immediately. Silent on failure — sessionManager reads
+        // the port directly from the backend on spawn either way.
+        try {
+          const fresh = await listWorktrees(worktreeRepoPath);
+          useWorkspaceStore.getState().setWorktreesForRepo(worktreeRepoPath, fresh);
+        } catch (e) {
+          console.warn("[handleToggleServer] post-claim refresh failed", e);
+        }
+      }
+
       const existingTabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
       const oldServerTab = existingTabs.find((t) => t.type === "server");
       if (oldServerTab) {
@@ -304,8 +344,14 @@ export function useServer(activeWorktreeId: string | null) {
         });
       }
 
-      // Extract port from run script URL if available
-      const port = runScript.url ? extractPort(runScript.url) : undefined;
+      // Prefer the freshly-claimed assignedPort so the sidebar pill is
+      // correct between server start and the first port-bearing log line.
+      // Fall back to the run script's URL template port, then to undefined
+      // (auto-detect-from-output effect will fill it in once the server logs).
+      const freshWt = useWorkspaceStore.getState().worktrees.find((w) => w.id === activeWorktreeId);
+      const port =
+        freshWt?.assignedPort ??
+        (runScript.url ? extractPort(runScript.url) : undefined);
 
       setRunningServer(activeWorktreeId, {
         sessionId: "",

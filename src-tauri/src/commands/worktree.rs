@@ -490,6 +490,26 @@ pub async fn claim_worktree_port(
     }
 }
 
+/// Read-only lookup of the persisted port for a worktree. Returns `None` if
+/// auto-assign is disabled, the range is unset, or no claim exists. Never
+/// assigns — used on session spawn so opening a worktree never triggers the
+/// exhaustion dialog (port claim moves to the explicit "Start server" path).
+#[tauri::command]
+pub async fn get_assigned_worktree_port(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<Option<u16>> {
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    if !config.auto_assign_ports {
+        return Ok(None);
+    }
+    Ok(config_manager::get_assigned_port(&config, &worktree_name))
+}
+
 /// Release a worktree's port assignment. Called from the exhaustion dialog
 /// when the user frees up a slot to claim for a different worktree.
 #[tauri::command]

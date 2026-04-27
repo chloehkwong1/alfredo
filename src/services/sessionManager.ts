@@ -1,9 +1,8 @@
 import { FitAddon } from "@xterm/addon-fit";
 import FontFaceObserver from "fontfaceobserver";
 import type { AgentType, SessionType } from "../types";
-import { spawnPty, closePty, resizePty, reattachPty, getConfig, debugLog, claimWorktreePort, listWorktrees } from "../api";
+import { spawnPty, closePty, resizePty, reattachPty, getConfig, debugLog, getAssignedWorktreePort } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
-import { usePortClaimStore } from "../stores/portClaimStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
 import type { TerminalPreferences } from "./terminalPreferences";
@@ -26,48 +25,6 @@ import {
 // Re-export for external consumers
 export type { ManagedSession } from "./sessionTypes";
 export { shouldAcceptDetectorState, stateSourceMap } from "./sessionChannel";
-
-/** Lazy port resolution: returns an existing sticky port, claims a new one,
- *  or opens the exhaustion dialog and waits for the user to free a slot.
- *  Throws if the user cancels the dialog — callers should abort the spawn.
- *
- *  Safe to call concurrently for the same worktree: backend idempotency means
- *  a second call arriving after the first's assignment short-circuits to the
- *  already-persisted port. */
-async function resolveWorktreePort(
-  worktreeId: string,
-  repoPath: string,
-  branchForDisplay: string,
-): Promise<number | undefined> {
-  const result = await claimWorktreePort(repoPath, worktreeId);
-  if (result.kind === "disabled") return undefined;
-  if (result.kind === "assigned") {
-    await refreshWorktrees(repoPath);
-    return result.port;
-  }
-  // Range full — hand off to the dialog and wait for a successful release+retry.
-  const port = await usePortClaimStore.getState().showExhaustion({
-    repoPath,
-    worktreeId,
-    targetBranch: branchForDisplay,
-    rangeStart: result.rangeStart,
-    rangeEnd: result.rangeEnd,
-    holders: result.holders,
-  });
-  await refreshWorktrees(repoPath);
-  return port;
-}
-
-/** Refresh the workspace store for a repo so sidebar chips reflect the latest
- *  port state. Silent on error — the next natural refresh will reconcile. */
-async function refreshWorktrees(repoPath: string): Promise<void> {
-  try {
-    const fresh = await listWorktrees(repoPath);
-    useWorkspaceStore.getState().setWorktreesForRepo(repoPath, fresh);
-  } catch (e) {
-    console.warn("[sessionManager] post-claim refresh failed", e);
-  }
-}
 
 // ── SessionManager ─────────────────────────────────────────────
 
@@ -252,6 +209,8 @@ export class SessionManager implements SessionWriter {
       pendingIdleTimer: null,
       turnEndAt: 0,
       workDepth: 0,
+      pasteDiagDrainChain: 0,
+      pasteDiagLastLogAt: 0,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -262,21 +221,18 @@ export class SessionManager implements SessionWriter {
     this.sessions.set(sessionKey, session);
 
     const worktree = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
-    // Always round-trip through resolveWorktreePort rather than reading
-    // worktree.assignedPort directly — the store snapshot can be stale
-    // immediately after a release+retry flow on another worktree, and
-    // claim_worktree_port is idempotent on already-assigned.
+    // Read-only lookup: we never claim a port at session spawn. The explicit
+    // "Start server" path (useServer.handleToggleServer) is the only place
+    // that can assign a new port and surface the exhaustion dialog. Sessions
+    // for worktrees that have never run a server simply spawn portless.
     let assignedPort: number | undefined;
     let portEnvVar: string | undefined;
     if (worktree?.repoPath) {
       const repoConfig = await getConfig(worktree.repoPath);
       if (repoConfig.autoAssignPorts) {
-        assignedPort = await resolveWorktreePort(
-          worktreeId,
-          worktree.repoPath,
-          worktree.branch ?? worktreeId,
-        );
-        if (assignedPort) {
+        const persisted = await getAssignedWorktreePort(worktree.repoPath, worktreeId);
+        if (persisted) {
+          assignedPort = persisted;
           portEnvVar = repoConfig.portEnvVar ?? undefined;
         }
       }
@@ -387,6 +343,8 @@ export class SessionManager implements SessionWriter {
       pendingIdleTimer: null,
       turnEndAt: 0,
       workDepth: 0,
+      pasteDiagDrainChain: 0,
+      pasteDiagLastLogAt: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -423,12 +381,9 @@ export class SessionManager implements SessionWriter {
     if (wt?.repoPath) {
       const repoConfig = await getConfig(wt.repoPath);
       if (repoConfig.autoAssignPorts) {
-        assignedPort = await resolveWorktreePort(
-          worktreeId,
-          wt.repoPath,
-          wt.branch ?? worktreeId,
-        );
-        if (assignedPort) {
+        const persisted = await getAssignedWorktreePort(wt.repoPath, worktreeId);
+        if (persisted) {
+          assignedPort = persisted;
           portEnvVar = repoConfig.portEnvVar ?? undefined;
         }
       }
@@ -532,6 +487,8 @@ export class SessionManager implements SessionWriter {
       pendingIdleTimer: null,
       turnEndAt: 0,
       workDepth: 0,
+      pasteDiagDrainChain: 0,
+      pasteDiagLastLogAt: 0,
     };
 
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);

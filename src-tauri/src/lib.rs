@@ -202,6 +202,7 @@ pub fn run() {
             worktree::set_worktree_port,
             worktree::claim_worktree_port,
             worktree::release_worktree_port,
+            worktree::get_assigned_worktree_port,
             // GitHub
             github::sync_pr_status,
             github::get_pr_for_branch,
