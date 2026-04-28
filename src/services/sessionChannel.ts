@@ -378,6 +378,20 @@ export function createSessionChannel(
           console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (last hook-derived state = idle)`);
           break;
         }
+        // Symmetric mute for the busy-with-open-work case. During a long LLM
+        // stream after the last tool call (e.g. `/read-plan` printing a huge
+        // plan), no hooks fire for minutes; after STALE_HOOK_MS the detector
+        // unmutes and misreads Claude Code's `❯` prompt redraws as idle, then
+        // the next text chunk as busy → sidebar flickers busy/idle/done at a
+        // few-second cadence. workDepth > 0 means hooks structurally proved
+        // the turn is still open (UserPromptSubmit not yet matched by Stop),
+        // so the detector's idle reading is a false positive. The reconciler
+        // already trusts workDepth > 0 (see sessionManager.ts:69-72) — this
+        // makes the detector path consistent.
+        if (session.hookDerivedState === "busy" && session.workDepth > 0) {
+          console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hook=busy, workDepth=${session.workDepth})`);
+          break;
+        }
         const fallback = session.hooksActive;
         if (fallback) {
           console.debug(`[status:${worktreeId}] detector → ${event.data} (fallback: hooks silent ${Date.now() - session.lastHookAt}ms)`);

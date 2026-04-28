@@ -760,10 +760,11 @@ describe("detector mute while hook-derived state is idle", () => {
     }
   });
 
-  it("still accepts detector event when last hook-derived state was busy (safety net)", () => {
-    // Sanity check: the mute is specifically for idle → busy false-flips.
-    // If the hook channel went silent mid-busy, the detector's 60s fallback
-    // should still fire so the state can recover.
+  it("still accepts detector event when last hook was busy AND workDepth==0 (safety net)", () => {
+    // Sanity check: when the hook channel went silent after work structurally
+    // completed (toolStart → toolEnd brought depth back to 0, but Stop never
+    // arrived), the detector's 60s fallback should still fire so the state can
+    // recover. This is the "Stop hook dropped" rescue path.
     const session = makeFakeSession({
       agentState: "busy",
       hooksActive: true,
@@ -776,10 +777,61 @@ describe("detector mute while hook-derived state is idle", () => {
       event: "hookAgentState",
       data: { state: "busy", phase: "toolStart", notify: "none" },
     });
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "busy", phase: "toolEnd", notify: "none" },
+    });
+    expect(session.workDepth).toBe(0);
     session.lastHookAt = Date.now() - 61_000;
 
     (channel as any).onmessage({ event: "agentState", data: "idle" });
 
     expect(session.agentState).toBe("idle");
+  });
+
+  it("rejects detector idle event when last hook was busy AND workDepth>0 (long-stream flicker fix)", () => {
+    // Reproduces the `/read-plan`-on-a-huge-plan flicker: UserPromptSubmit
+    // increments depth to 1, tool calls fluctuate it back to 1, then the LLM
+    // streams response text for >60s with no further hooks. The detector
+    // unmutes and Claude Code's `❯` prompt redraws look like idle, then the
+    // next text chunk looks like busy → sidebar flickers busy/idle/done.
+    // workDepth > 0 is structural proof the turn is still open — detector must
+    // defer to hooks here, even when lastHookAt is past the stale threshold.
+    const session = makeFakeSession({
+      agentState: "busy",
+      hooksActive: true,
+      lastHookAt: Date.now(),
+    });
+    const fakeWriter = { scheduleWrite: () => {}, appendToBuffer: () => {} };
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-stream", "wt-stream:main");
+
+    // UserPromptSubmit → depth=1
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "busy", phase: "promptStart", notify: "none" },
+    });
+    // PreToolUse + PostToolUse for the Read call → depth back to 1
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "busy", phase: "toolStart", notify: "none" },
+    });
+    (channel as any).onmessage({
+      event: "hookAgentState",
+      data: { state: "busy", phase: "toolEnd", notify: "none" },
+    });
+    expect(session.workDepth).toBe(1);
+    expect(session.hookDerivedState).toBe("busy");
+
+    // Long stream begins; hooks go silent past STALE_HOOK_MS (60s).
+    session.lastHookAt = Date.now() - 81_000;
+
+    // Detector misreads `❯` prompt redraw as idle.
+    (channel as any).onmessage({ event: "agentState", data: "idle" });
+    expect(session.agentState).toBe("busy");
+
+    // Detector then misreads next text chunk as busy (no-op, but proves the
+    // flip from above didn't sneak through).
+    (channel as any).onmessage({ event: "agentState", data: "busy" });
+    expect(session.agentState).toBe("busy");
   });
 });
