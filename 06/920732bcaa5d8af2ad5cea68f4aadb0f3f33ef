@@ -1,0 +1,43 @@
+docs/features/pin-main-card.md
+  4223173fe1531734 34-42
+docs/features/pr-checks.md
+  4223173fe1531734 14-17
+docs/features/whats-new.md
+  4223173fe1531734 10-24
+.claude/commands/update-alfredo-docs.md
+  59bb767545470a1a 1-42,57-94,96-109
+  4223173fe1531734 43-56,95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "06920732bcaa5d8af2ad5cea68f4aadb0f3f33ef",
+  "prompts": {
+    "4223173fe1531734": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21bfc017-e82f-4c6e-afac-9828db24b254",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 43,
+      "total_deletions": 6,
+      "accepted_lines": 43,
+      "overriden_lines": 0
+    },
+    "59bb767545470a1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc880bb0-eea6-49be-a189-b072dc192980",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 94,
+      "overriden_lines": 0
+    }
+  }
+}
