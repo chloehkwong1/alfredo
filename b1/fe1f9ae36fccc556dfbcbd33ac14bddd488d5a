@@ -1,0 +1,38 @@
+src/test/status-scenarios.test.ts
+  d2c64cc97dc49f03 794-795
+src/services/sessionChannel.ts
+  d2c64cc97dc49f03 389-390
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "b1fe1f9ae36fccc556dfbcbd33ac14bddd488d5a",
+  "prompts": {
+    "59bb767545470a1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc880bb0-eea6-49be-a189-b072dc192980",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 95,
+      "total_deletions": 0,
+      "accepted_lines": 95,
+      "overriden_lines": 0
+    },
+    "d2c64cc97dc49f03": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f9322676-f46d-4064-8859-96ba9d4a6900",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
