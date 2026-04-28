@@ -27,6 +27,7 @@ import { useAppConfig } from "../../hooks/useAppConfig";
 
 interface ChangesViewProps {
   worktreeId: string;
+  paneId: string;
   repoPath: string;
   diffTarget?: DiffTarget;
 }
@@ -72,7 +73,7 @@ function CommitHeader({ commit, gitUser }: { commit: CommitInfo; gitUser: string
   );
 }
 
-function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
+function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const panelTab = useWorkspaceStore((s) => s.changesViewMode[worktreeId]) ?? "changes";
   // Map panel tab to data view mode — "pr" tab doesn't affect data fetching
@@ -147,7 +148,7 @@ function ChangesView({ worktreeId, repoPath, diffTarget }: ChangesViewProps) {
     currentMatchIndex,
     navigateMatch,
     activeSearchMatch,
-  } = useDiffSearch(displayFiles, setCollapsedFiles, setActiveFilePath, rootRef);
+  } = useDiffSearch(displayFiles, setCollapsedFiles, setActiveFilePath, rootRef, worktreeId, paneId);
 
   const handleSendPrComment = useCallback(
     (comment: PrComment) => {

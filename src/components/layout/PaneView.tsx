@@ -91,6 +91,7 @@ function PaneView({
             <ChangesView
               key={activeTab.id}
               worktreeId={worktreeId}
+              paneId={paneId}
               repoPath={worktree?.path ?? "."}
               diffTarget={activeTab.diffTarget}
             />

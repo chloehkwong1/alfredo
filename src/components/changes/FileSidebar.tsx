@@ -231,8 +231,14 @@ function FileSidebar({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!(e.metaKey && e.key === "f")) return;
-      // When viewing a commit, let the diff search handle Cmd+F
-      if (selectedCommitIndex !== null) return;
+      // When viewing a commit, hand off to the diff search. FileSidebar lives
+      // outside ChangesView's subtree, so a passive bail-out wouldn't reach it.
+      if (selectedCommitIndex !== null) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent("alfredo:open-diff-search"));
+        return;
+      }
       // If filter input is hidden (totalItems <= 5 or commits view), skip
       if (!filterInputRef.current) return;
 

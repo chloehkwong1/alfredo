@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DiffFile } from "../types";
+import { useLayoutStore } from "../stores/layoutStore";
 
 export interface SearchMatch {
   filePath: string;
@@ -14,6 +15,8 @@ export function useDiffSearch(
   setCollapsedFiles: React.Dispatch<React.SetStateAction<Set<string>>>,
   setActiveFilePath: (path: string | null) => void,
   containerRef: React.RefObject<HTMLElement | null>,
+  worktreeId: string,
+  paneId: string,
 ) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -124,9 +127,25 @@ export function useDiffSearch(
       }
     }
 
+    // Companion to FileSidebar's Cmd+F handler: when the user is viewing a
+    // commit, FileSidebar dispatches alfredo:open-diff-search instead of
+    // bailing silently (the keydown listener above can't reach FileSidebar
+    // since it's a sibling subtree). Only the ChangesView in the currently
+    // active pane should claim the event so split layouts don't double-open.
+    function handleOpenDiffSearch() {
+      const activePaneId = useLayoutStore.getState().activePaneId[worktreeId];
+      if (activePaneId !== paneId) return;
+      setSearchOpen(true);
+      requestAnimationFrame(() => searchInputRef.current?.focus());
+    }
+
     root.addEventListener("keydown", handleSearchKeys);
-    return () => root.removeEventListener("keydown", handleSearchKeys);
-  }, [searchOpen, navigateMatch, containerRef]);
+    window.addEventListener("alfredo:open-diff-search", handleOpenDiffSearch);
+    return () => {
+      root.removeEventListener("keydown", handleSearchKeys);
+      window.removeEventListener("alfredo:open-diff-search", handleOpenDiffSearch);
+    };
+  }, [searchOpen, navigateMatch, containerRef, worktreeId, paneId]);
 
   // Compute active search match for highlighting
   const activeSearchMatch = useMemo(() => {
