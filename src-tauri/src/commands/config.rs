@@ -5,6 +5,18 @@ use crate::types::{AppConfig, AppError, RepoMode};
 
 type Result<T> = std::result::Result<T, AppError>;
 
+/// True when `worktree_path` resolves to the repo root. Setup/archive scripts
+/// are designed for worktrees that symlink into main; running them with cwd =
+/// main destroys the canonical files (e.g. `ln -sf $repo/.env .env` becomes a
+/// self-pointing symlink and unlinks the real `.env`). The pinned main card
+/// reuses `repo_path` as its `path`, so guard at the command boundary.
+fn is_repo_root(worktree_path: &str, repo_path: &str) -> bool {
+    match (std::fs::canonicalize(worktree_path), std::fs::canonicalize(repo_path)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => worktree_path == repo_path,
+    }
+}
+
 /// Load the app configuration for a repository.
 #[tauri::command]
 pub async fn get_config(app: tauri::AppHandle, repo_path: String) -> Result<AppConfig> {
@@ -29,6 +41,10 @@ pub async fn run_setup_scripts(
     repo_path: String,
     worktree_path: String,
 ) -> Result<()> {
+    if is_repo_root(&worktree_path, &repo_path) {
+        return Ok(());
+    }
+
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
     let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
@@ -78,6 +94,10 @@ pub async fn run_archive_script(
     repo_path: String,
     worktree_path: String,
 ) -> Result<()> {
+    if is_repo_root(&worktree_path, &repo_path) {
+        return Ok(());
+    }
+
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
     let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
