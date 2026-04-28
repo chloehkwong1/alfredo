@@ -11,6 +11,10 @@ failure, cancelled), duration, and a link to the run logs on GitHub.
 
 Clicking a check expands it with the most recent log output inline,
 so you don't have to jump to the browser to see why something failed.
+Each failing entry also has an **external-link icon** that opens the
+run on GitHub in one click. When the failure list is long it scrolls
+inside its own container so the bulk actions (rerun / fix / merge-and-fix)
+stay reachable below.
 
 Two command-palette actions speed up a common loop when checks fail:
 

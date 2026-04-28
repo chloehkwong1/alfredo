@@ -31,3 +31,12 @@ The pinned-state list is persisted in your global app config under
 `showMainCardRepos`, so it survives restarts. **Branch-mode repos
 always show a main card** — they don't appear in the popover because
 they're already covered.
+
+### Gotcha — setup and archive scripts skip the pinned card
+
+The pinned-main card uses the repo root as its working directory
+rather than a real worktree path. Setup and archive scripts are
+**skipped** when they would run at the repo root, because most
+setups (`ln -sf $repo/.env .env`, `cp -R …`) would either no-op or
+clobber the real files in the repo. If you specifically want the
+script to run there, invoke it manually from a terminal.

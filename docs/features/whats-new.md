@@ -7,6 +7,21 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.11.0 — 2026-04-28**
+- **Failed-check shortcuts** — each failing PR check now has an
+  external-link icon to open the run on GitHub in one click; long
+  failure lists scroll inside their own container so the rerun /
+  fix / merge-and-fix actions stay reachable below.
+- **Pinned-main fixes** — setup and archive scripts are skipped when
+  they would run against the repo root (most setups would clobber
+  real files), and stale PR badges clear when the pinned card swaps
+  branches.
+- **Cmd+F polish** — Cmd+F in the changes file sidebar now hands
+  focus to the commit-diff search instead of dead-ending; the
+  path/filename separator stays visible in the file list.
+- Fewer false-busy flickers — the session detector mutes itself when
+  hooks have already proved an agent is busy mid-turn.
+
 **v0.10.0 — 2026-04-28**
 - **Pinned main-branch card** — worktree-mode repos can pin a synthetic
   main card at the top of the sidebar for quick access without leaving
@@ -81,10 +96,5 @@ https://github.com/chloehkwong1/alfredo/releases.
 - **Beta updates toggle** under General → Updates.
 - Close others / close to the right in tab context menu.
 - Stale-status dot for unresponsive agent tabs.
-
-**v0.7.0 — 2026-04-14**
-- Inline worktree label editing (double-click in sidebar).
-- Global session reconciler that recovers stuck agent states.
-- Terminal re-focuses on click and on attach.
 
 Check the releases page for older versions and full detail.
