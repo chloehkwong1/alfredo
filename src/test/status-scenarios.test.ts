@@ -791,8 +791,8 @@ describe("detector mute while hook-derived state is idle", () => {
 
   it("rejects detector idle event when last hook was busy AND workDepth>0 (long-stream flicker fix)", () => {
     // Reproduces the `/read-plan`-on-a-huge-plan flicker: UserPromptSubmit
-    // increments depth to 1, tool calls fluctuate it back to 1, then the LLM
-    // streams response text for >60s with no further hooks. The detector
+    // increments depth to 1, tool calls bring it to 2 then back to 1, then
+    // the LLM streams response text for >60s with no further hooks. The detector
     // unmutes and Claude Code's `❯` prompt redraws look like idle, then the
     // next text chunk looks like busy → sidebar flickers busy/idle/done.
     // workDepth > 0 is structural proof the turn is still open — detector must

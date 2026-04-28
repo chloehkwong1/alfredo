@@ -386,8 +386,8 @@ export function createSessionChannel(
         // few-second cadence. workDepth > 0 means hooks structurally proved
         // the turn is still open (UserPromptSubmit not yet matched by Stop),
         // so the detector's idle reading is a false positive. The reconciler
-        // already trusts workDepth > 0 (see sessionManager.ts:69-72) — this
-        // makes the detector path consistent.
+        // already trusts workDepth > 0 (see sessionManager.ts:75 and :99) —
+        // this makes the detector path consistent.
         if (session.hookDerivedState === "busy" && session.workDepth > 0) {
           console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hook=busy, workDepth=${session.workDepth})`);
           break;
