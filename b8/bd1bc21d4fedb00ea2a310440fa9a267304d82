@@ -1,0 +1,23 @@
+src/components/changes/FileSidebar.tsx
+  025a3382a340db6c 69-72,101-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "b8bd1bc21d4fedb00ea2a310440fa9a267304d82",
+  "prompts": {
+    "025a3382a340db6c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4631d5be-f494-414b-aa4a-57d386190438",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 11,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}
