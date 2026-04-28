@@ -14,6 +14,7 @@ const NEW_USER_SUGGESTIONS = [
   "switch agent provider",
 ];
 const RETURNING_USER_SUGGESTIONS = [
+  "what's new",
   "rename a worktree",
   "notification sound",
   "mark as blocked",

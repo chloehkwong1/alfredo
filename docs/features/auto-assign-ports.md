@@ -1,6 +1,6 @@
 ---
 title: Auto-assigning dev server ports per worktree
-keywords: [port, ports, auto assign, auto-assign, dev server, port range, port picker, takeover, take port, exhaustion, sticky port, PORT env var, claim port, release port]
+keywords: [port, ports, auto assign, auto-assign, dev server, port range, port picker, takeover, take port, exhaustion, sticky port, PORT env var, claim port, release port, port badge, sidebar port]
 ui_path: Worktree tab → Start server (when auto-assign is enabled per-repo)
 ---
 
@@ -34,6 +34,10 @@ range and exports it as `$PORT` for that session.
 This means you can have ten worktrees set up but only the three
 running dev servers actually consume ports. The other seven hold
 nothing.
+
+Once a port is claimed, it shows on the worktree's sidebar card as a
+small port badge — a quick way to see at a glance which worktree is
+on which port without opening the run pane.
 
 ### When the port is released
 

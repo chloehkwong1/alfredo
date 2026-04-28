@@ -1,6 +1,6 @@
 ---
 title: First-run setup — your first five minutes in Alfredo
-keywords: [first run, setup, onboarding, getting started, new user, welcome, install]
+keywords: [first run, setup, onboarding, getting started, new user, welcome, install, repo identity, display name, badge label, badge colour, worktree mode default]
 ui_path: Welcome screen on first launch
 ---
 
@@ -9,7 +9,11 @@ The fastest path to something useful:
 
 1. **Add a repo.** Drag a local git folder onto the welcome screen,
    or use the folder picker. Alfredo validates it's a git repo and
-   saves it to your global config.
+   saves it to your global config. The setup dialog also asks for a
+   **display name**, **badge label** (1–4 characters) and **badge
+   colour** so the repo is recognisable in the sidebar from day one
+   — you can change all three later in Repository Settings. New
+   repos default to **worktree mode**.
 2. **Pick your default agent.** Open Global Settings → Agents and
    choose Claude Code, Codex, or Gemini CLI. Only providers Alfredo
    detected on your `PATH` appear. Set model / permission mode

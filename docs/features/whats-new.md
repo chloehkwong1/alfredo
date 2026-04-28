@@ -7,6 +7,41 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.10.0 — 2026-04-28**
+- **Pinned main-branch card** — worktree-mode repos can pin a synthetic
+  main card at the top of the sidebar for quick access without leaving
+  worktree mode.
+- **Repo badges** — assign a colour and 1–4 character label per repo
+  from Repository Settings, with a new off-axis 6-slot palette to keep
+  multi-repo sidebars scannable.
+- **Default slash commands in new worktrees** — Alfredo seeds 3
+  starter `.claude/commands/*.md` files when you create a worktree.
+- **Port picker dropdown** — when the auto-assign range is full, pick
+  a slot to take over instead of being blocked by an exhaustion
+  dialog. Sticky port claims now happen lazily on **Start server**.
+- **Smarter sidebar cards** — branch cards show live agent status,
+  the running server port, and a **Merged** chip on shipped PRs.
+  Right-click any sidebar surface to open repo settings, or convert a
+  branch-mode repo to worktree mode in one click.
+- **Liquid Glass app icon** on macOS 26+, plus a DEV-badged dock icon
+  in debug builds.
+- Effort and permission modes pull from the remote model manifest in
+  Settings.
+- First-run setup surfaces repo identity so multi-repo setups are
+  unambiguous from the start.
+- Diff toolbar and pane tab bar icons cleaned up; FileSidebar
+  redesigned with path-first rows and an in-header **Discard all**.
+- Cmd+F is now scoped per pane (sidebar, changes, commit-diff,
+  terminal) — no more cross-pane interception.
+- Various fixes: multi-Claude-tab worktrees no longer collapse onto
+  one session, notifications dedupe per-worktree, nested `claude -p`
+  hooks suppressed at the shell layer, xterm back-pressure prevents
+  echo stall, pane shortcuts route to the focused pane, "Checks
+  running" recoloured to disambiguate from agent-busy, port-range
+  field accepts free typing, accurate worktree counts for unselected
+  repos, "Send as feedback" routes to the on-screen tab, late PR
+  review comments and cubic-style summaries surface.
+
 **v0.9.0 — 2026-04-22**
 - **Ask Alfredo** — instant local search over Alfredo's feature docs,
   anchored to a new `?` button in the sidebar header. Folds in bug
