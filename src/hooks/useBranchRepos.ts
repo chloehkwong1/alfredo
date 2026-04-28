@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { getActiveBranch, getWorktreeDiffStats } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
-import type { RepoEntry } from "../types";
+import { usePrStore } from "../stores/prStore";
+import type { RepoEntry, Worktree } from "../types";
 
 export interface BranchRepoState {
   /** Stable ID derived from repo path */
@@ -64,9 +65,36 @@ export function useBranchRepos(
       // Sync branch & diff stats back to the workspace store so TerminalView
       // and ChangesPanel stay current when the user switches branches externally.
       const updateWorktree = useWorkspaceStore.getState().updateWorktree;
+      const removeWorktreeState = usePrStore.getState().removeWorktreeState;
+      const currentWorktrees = useWorkspaceStore.getState().worktrees;
       for (const r of results) {
-        if (r.branch != null) {
-          updateWorktree(r.id, { branch: r.branch, additions: r.additions, deletions: r.deletions });
+        if (r.branch == null) continue;
+        // Pinned-main synthetics can flip branches under us when the user
+        // checks out a different branch externally. PR data in workspaceStore
+        // and prStore is keyed by worktree id, not branch, so the stale
+        // payload from the prior branch hangs on (`applyPrUpdates` skips
+        // worktrees with no matching PR rather than clearing them). Reset
+        // PR-shaped fields on transition so the next github sync repopulates
+        // from scratch — or leaves the card empty if the new branch has no PR.
+        const existing = currentWorktrees.find((w) => w.id === r.id);
+        // Only treat this as a stale-PR-clearing transition when there's
+        // actually prior PR data to clear — avoids a no-op clear on first
+        // mount where the pinned-main fallback branch ("main") may not
+        // match the actual checked-out branch.
+        const branchChanged =
+          existing != null && existing.branch !== r.branch && existing.prStatus != null;
+        const patch: Partial<Worktree> = {
+          branch: r.branch,
+          additions: r.additions,
+          deletions: r.deletions,
+        };
+        if (branchChanged) {
+          patch.prStatus = null;
+          patch.column = "inProgress";
+        }
+        updateWorktree(r.id, patch);
+        if (branchChanged) {
+          removeWorktreeState(r.id);
         }
       }
     }
