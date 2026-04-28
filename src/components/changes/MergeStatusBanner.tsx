@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { ExternalLink } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { CheckRun, PrStatus, WorkflowRunLog } from "../../types";
 import { formatTimeAgo } from "./formatRelativeTime";
 import { rerunFailedChecks, fixFailingChecks, mergeAndFix } from "../../services/prActions";
 import { focusAgentTab } from "../../services/agentMessenger";
 import { getJobLog } from "../../api";
 import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
 
 export function MergeStatusBanner({
   worktreeId,
@@ -207,55 +210,72 @@ export function MergeStatusBanner({
         {/* Expanded failure list */}
         {checksExpanded && (
           <div className="border-t border-diff-removed/20">
-            {[...logsByCheck.entries()].map(([checkName, entries]) => (
-              <div key={checkName} className="px-2.5 py-1.5 border-b border-diff-removed/10 last:border-b-0">
-                {entries.map((entry, i) => {
-                  const logKey = `${checkName}-${i}`;
-                  const lines = entry.excerpt.split("\n");
-                  const collapsed = lines.length > 5 && !expandedLogs.has(logKey);
-                  const displayLines = collapsed ? lines.slice(0, 5) : lines;
+            <div className="max-h-[40vh] overflow-y-auto">
+              {[...logsByCheck.entries()].map(([checkName, entries]) => (
+                <div key={checkName} className="px-2.5 py-1.5 border-b border-diff-removed/10 last:border-b-0">
+                  {entries.map((entry, i) => {
+                    const logKey = `${checkName}-${i}`;
+                    const lines = entry.excerpt.split("\n");
+                    const collapsed = lines.length > 5 && !expandedLogs.has(logKey);
+                    const displayLines = collapsed ? lines.slice(0, 5) : lines;
 
-                  return (
-                    <div key={logKey}>
-                      <div className="font-semibold text-diff-removed mb-0.5">
-                        {entry.jobName}{entry.stepName ? ` / ${entry.stepName}` : ""}
+                    return (
+                      <div key={logKey}>
+                        <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
+                          <span className="font-semibold text-diff-removed truncate">
+                            {entry.jobName}{entry.stepName ? ` / ${entry.stepName}` : ""}
+                          </span>
+                          {entry.htmlUrl && (
+                            <IconButton
+                              size="sm"
+                              label="View on GitHub"
+                              className="h-auto w-auto p-0 text-diff-removed hover:text-diff-removed/80 shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openUrl(entry.htmlUrl);
+                              }}
+                            >
+                              <ExternalLink size={11} />
+                            </IconButton>
+                          )}
+                        </div>
+                        {entry.excerpt ? (
+                          <>
+                            <pre className="text-[10px] font-mono text-text-secondary bg-bg-primary/50 rounded px-1.5 py-1 overflow-x-auto whitespace-pre-wrap">
+                              {displayLines.join("\n")}
+                            </pre>
+                            {collapsed && (
+                              <button
+                                onClick={() => toggleLogExpand(logKey)}
+                                className="text-[10px] text-accent-primary hover:underline mt-0.5"
+                              >
+                                Show more ({lines.length - 5} more lines)
+                              </button>
+                            )}
+                            {!collapsed && lines.length > 5 && (
+                              <button
+                                onClick={() => toggleLogExpand(logKey)}
+                                className="text-[10px] text-accent-primary hover:underline mt-0.5"
+                              >
+                                Show less
+                              </button>
+                            )}
+                          </>
+                        ) : logsLoading ? (
+                          <div className="text-[10px] text-text-tertiary italic">
+                            Loading logs…
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-text-tertiary italic">
+                            No logs available — agent will check CI output
+                          </div>
+                        )}
                       </div>
-                      {entry.excerpt ? (
-                        <>
-                          <pre className="text-[10px] font-mono text-text-secondary bg-bg-primary/50 rounded px-1.5 py-1 overflow-x-auto whitespace-pre-wrap">
-                            {displayLines.join("\n")}
-                          </pre>
-                          {collapsed && (
-                            <button
-                              onClick={() => toggleLogExpand(logKey)}
-                              className="text-[10px] text-accent-primary hover:underline mt-0.5"
-                            >
-                              Show more ({lines.length - 5} more lines)
-                            </button>
-                          )}
-                          {!collapsed && lines.length > 5 && (
-                            <button
-                              onClick={() => toggleLogExpand(logKey)}
-                              className="text-[10px] text-accent-primary hover:underline mt-0.5"
-                            >
-                              Show less
-                            </button>
-                          )}
-                        </>
-                      ) : logsLoading ? (
-                        <div className="text-[10px] text-text-tertiary italic">
-                          Loading logs…
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-text-tertiary italic">
-                          No logs available — agent will check CI output
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
 
             {/* Bulk actions at bottom */}
             <div className="px-2.5 py-1.5 flex items-center justify-end gap-2 border-t border-diff-removed/20">
