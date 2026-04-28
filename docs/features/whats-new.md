@@ -7,6 +7,12 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.11.1 — 2026-04-28**
+- **Cancelled PRs auto-move to Done** — closing a PR on GitHub
+  without merging now shows a red **Cancelled** banner in the
+  Changes panel and the worktree moves to Done on the next sync,
+  instead of getting stuck in "in review" with stale check status.
+
 **v0.11.0 — 2026-04-28**
 - **Failed-check shortcuts** — each failing PR check now has an
   external-link icon to open the run on GitHub in one click; long
@@ -87,14 +93,5 @@ https://github.com/chloehkwong1/alfredo/releases.
 - Dock no longer bounces until focused — just the banner.
 - Various state-reconciler fixes so long-running tools don't trip
   false-idle transitions.
-
-**v0.8.0 — 2026-04-19**
-- **Port management.** Opt-in auto-assign of per-worktree ports;
-  `PORT` and `ALFREDO_PORT` injected into PTY sessions; port badge
-  in sidebar.
-- **Comment chips** for quick-insert review prompts in diffs.
-- **Beta updates toggle** under General → Updates.
-- Close others / close to the right in tab context menu.
-- Stale-status dot for unresponsive agent tabs.
 
 Check the releases page for older versions and full detail.

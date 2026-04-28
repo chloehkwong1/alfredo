@@ -111,11 +111,11 @@ export function MergeStatusBanner({
     );
   }
 
-  // ── Closed ──
+  // ── Cancelled (closed without merge) ──
   if (pr.state === "closed") {
     return (
       <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0">
-        Closed
+        Cancelled
       </div>
     );
   }

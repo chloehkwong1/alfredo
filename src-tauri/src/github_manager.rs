@@ -393,13 +393,12 @@ impl GithubManager {
             .await
             .map_err(|e| format_octocrab_error("failed to fetch closed PRs", &e))?;
 
-        let merged_prs = closed_page
-            .items
-            .into_iter()
-            .filter(|pr| pr.merged_at.is_some())
-            .map(pr_status_from_octocrab);
+        // Include both merged PRs and cancelled (closed-not-merged) PRs so a
+        // worktree whose PR was just closed can transition to Done instead of
+        // silently dropping out of the sync payload (which leaves stale state).
+        let closed_prs = closed_page.items.into_iter().map(pr_status_from_octocrab);
 
-        prs.extend(merged_prs);
+        prs.extend(closed_prs);
 
         Ok(prs)
     }
@@ -1008,6 +1007,7 @@ pub fn determine_column(pr: Option<&PrStatus>, github_username: Option<&str>) ->
     match pr {
         None => KanbanColumn::InProgress,
         Some(pr) if pr.merged => KanbanColumn::Done,
+        Some(pr) if pr.state == "closed" => KanbanColumn::Done,
         Some(pr) if pr.draft => KanbanColumn::DraftPr,
         Some(pr) => {
             let is_own_pr = match (pr.author.as_deref(), github_username) {
@@ -1148,6 +1148,27 @@ mod tests {
             url: String::new(),
             draft: false,
             merged: true,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("chloe".into()),
+            requested_reviewers: vec![],
+        };
+        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::Done);
+    }
+
+    #[test]
+    fn test_determine_column_cancelled() {
+        let pr = PrStatus {
+            number: 1,
+            state: "closed".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
             branch: "feat/test".into(),
             base_branch: None,
             merged_at: None,
