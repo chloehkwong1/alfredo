@@ -66,8 +66,10 @@ const FileRow = memo(function FileRow({
   worktreePath?: string;
 }) {
   const filename = file.path.split("/").pop() ?? file.path;
-  // Directory prefix (includes trailing slash), or empty string for root files.
-  const parentPath = file.path.slice(0, file.path.length - filename.length);
+  // Directory prefix without the trailing slash; the slash is rendered separately
+  // so `direction: rtl` on the dimmed dir doesn't flip it to the visual left and
+  // smush against the filename (e.g. "/designsros-2104...").
+  const parentPath = file.path.slice(0, file.path.length - filename.length).replace(/\/$/, "");
 
   return (
     <ContextMenu>
@@ -96,15 +98,18 @@ const FileRow = memo(function FileRow({
               both fight the rtl trick and bring back the mid-word clipping. */}
           <span className="flex-1 flex items-baseline min-w-0 overflow-hidden" title={file.path}>
             {parentPath && (
-              <span
-                className="text-text-tertiary overflow-hidden whitespace-nowrap min-w-0"
-                style={{
-                  direction: "rtl",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {parentPath}
-              </span>
+              <>
+                <span
+                  className="text-text-tertiary overflow-hidden whitespace-nowrap min-w-0"
+                  style={{
+                    direction: "rtl",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {parentPath}
+                </span>
+                <span className="shrink-0 text-text-tertiary">/</span>
+              </>
             )}
             <span className="shrink-0 font-medium">{filename}</span>
           </span>
