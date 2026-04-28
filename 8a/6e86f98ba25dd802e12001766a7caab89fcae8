@@ -1,0 +1,29 @@
+docs/features/whats-new.md
+  e3450b28b4559465 10-15
+src/components/changes/MergeStatusBanner.tsx
+  e3450b28b4559465 114,118
+src-tauri/src/github_manager.rs
+  e3450b28b4559465 396-399,401,1010,1163-1183
+docs/features/pull-requests.md
+  e3450b28b4559465 19-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "8a6e86f98ba25dd802e12001766a7caab89fcae8",
+  "prompts": {
+    "e3450b28b4559465": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7bb9f48e-3c91-4f1a-b64b-6de833cb07b4",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 1626,
+      "total_deletions": 20,
+      "accepted_lines": 41,
+      "overriden_lines": 0
+    }
+  }
+}
