@@ -1,0 +1,36 @@
+src/components/changes/MergeStatusBanner.tsx
+  068884fbabb4ed32 2-3,10,213-220,222-236,238-239,242-278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "de3cf543c60497f015a1ef4e79e22cb3a106a5b3",
+  "prompts": {
+    "068884fbabb4ed32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "274f6b55-bea3-4d8b-b008-58dd84a93e5b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    },
+    "7908457fd7101f87": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc81a6b1-5020-49ce-ab0d-b60beb0c35eb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 67,
+      "overriden_lines": 0
+    }
+  }
+}
