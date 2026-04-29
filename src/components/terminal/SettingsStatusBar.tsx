@@ -11,6 +11,8 @@ import { resolveSettings } from "../../services/claudeSettingsResolver";
 import { toggleRemoteControl } from "../../services/remoteControl";
 import { useRemoteControlStore } from "../../stores/remoteControlStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useTabStore } from "../../stores/tabStore";
+import { useLayoutStore } from "../../stores/layoutStore";
 import type { ClaudeOverrides } from "../../types";
 
 const CLAUDE_DEFAULTS = {
@@ -25,16 +27,28 @@ function displayLabel(options: { value: string; label: string }[], value: string
 }
 
 interface SettingsStatusBarProps {
-  branch: string;
-  worktreePath: string;
   worktreeId: string;
-  sessionKey?: string;
-  onRestartSession?: () => void;
-  showClaudeSettings?: boolean;
 }
 
-function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", onRestartSession, showClaudeSettings = true }: SettingsStatusBarProps) {
+function SettingsStatusBar({ worktreeId }: SettingsStatusBarProps) {
   const { activeRepo: repoPath } = useAppConfig();
+  const worktree = useWorkspaceStore((s) => s.worktrees.find((wt) => wt.id === worktreeId));
+  const branch = worktree?.branch ?? "";
+  const worktreePath = worktree?.path ?? "";
+
+  // Pick the Claude tab to target for Restart / Remote. Only mounted tabs
+  // can respond to a restart event (TerminalView only mounts for the pane's
+  // active tab) — so we look across panes for whichever has a Claude tab as
+  // its active tab. Chips themselves are worktree-level (saved to
+  // worktreeOverrides[branch]) but we still gate on a mounted target so the
+  // chip-edit + Restart flow stays coherent.
+  const tabs = useTabStore((s) => s.tabs[worktreeId] ?? []);
+  const allPanes = useLayoutStore((s) => s.panes[worktreeId]);
+  const claudeTargetTab = Object.values(allPanes ?? {})
+    .map((p) => tabs.find((t) => t.id === p.activeTabId))
+    .find((t) => t?.type === "claude");
+  const showClaudeSettings = !!claudeTargetTab;
+  const sessionKey = claudeTargetTab?.id ?? "";
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const outputOptions = useOutputStyles(repoPath);
@@ -108,9 +122,12 @@ function SettingsStatusBar({ branch, worktreePath, worktreeId, sessionKey = "", 
   }, []);
 
   const handleRestart = useCallback(() => {
+    if (!claudeTargetTab) return;
     setHasChanges(false);
-    onRestartSession?.();
-  }, [onRestartSession]);
+    window.dispatchEvent(
+      new CustomEvent("restart-session", { detail: { tabId: claudeTargetTab.id } }),
+    );
+  }, [claudeTargetTab]);
 
   const linearTicketUrl = useWorkspaceStore(
     useCallback((s) => s.worktrees.find((wt) => wt.id === worktreeId)?.linearTicketUrl, [worktreeId]),

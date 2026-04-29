@@ -13,7 +13,6 @@ import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessag
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { Button } from "../ui/Button";
 import { CatLogo } from "../ui/CatLogo";
-import { SettingsStatusBar } from "./SettingsStatusBar";
 import { TerminalSearchBar } from "./TerminalSearchBar";
 import { TerminalLoadingScreen } from "./TerminalLoadingScreen";
 import {
@@ -245,6 +244,21 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     return () => window.removeEventListener("focus-terminal", handler);
   }, [tabId, ptyTerminal]);
 
+  // Listen for Restart Session events fired by the worktree-level
+  // SettingsStatusBar — keyed strictly on tabId so cross-pane / cross-tab
+  // events don't trigger the wrong session.
+  useEffect(() => {
+    if (!tabId) return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.tabId === tabId) {
+        handleRestartSession();
+      }
+    };
+    window.addEventListener("restart-session", handler);
+    return () => window.removeEventListener("restart-session", handler);
+  }, [tabId, handleRestartSession]);
+
   // Cmd+F to toggle terminal search — scoped to this pane so it doesn't
   // fire for other panes / surfaces that are mounted in a split layout.
   useEffect(() => {
@@ -458,16 +472,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           </div>
         )}
       </div>
-      {worktree && (
-        <SettingsStatusBar
-          branch={worktree.branch ?? ""}
-          worktreePath={worktree.path ?? ""}
-          worktreeId={activeWorktreeId ?? ""}
-          sessionKey={sessionKey}
-          onRestartSession={handleRestartSession}
-          showClaudeSettings={mode === "claude"}
-        />
-      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { PaneView } from "./PaneView";
 import { SectionErrorBoundary } from "../shared/SectionErrorBoundary";
+import { SettingsStatusBar } from "../terminal/SettingsStatusBar";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { CatLogo } from "../ui/CatLogo";
 import type { LayoutNode } from "../../types";
@@ -120,16 +121,23 @@ function LayoutRenderer({
   }
 
   return (
-    <RenderNode
-      node={layout}
-      worktreeId={worktreeId}
-      onToggleServer={onToggleServer}
-      isServerRunning={isServerRunning}
-      runScriptName={runScriptName}
-      runScriptUrl={runScriptUrl}
-      assignedPort={assignedPort}
-      isFirstLeaf={true}
-    />
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 min-h-0">
+        <RenderNode
+          node={layout}
+          worktreeId={worktreeId}
+          onToggleServer={onToggleServer}
+          isServerRunning={isServerRunning}
+          runScriptName={runScriptName}
+          runScriptUrl={runScriptUrl}
+          assignedPort={assignedPort}
+          isFirstLeaf={true}
+        />
+      </div>
+      <SectionErrorBoundary name="SettingsStatusBar" variant="inline">
+        <SettingsStatusBar worktreeId={worktreeId} />
+      </SectionErrorBoundary>
+    </div>
   );
 }
 

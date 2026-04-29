@@ -1,7 +1,6 @@
 import { PaneTabBar, useCrossPaneDrag } from "./PaneTabBar";
 import { TerminalView } from "../terminal";
 import { ChangesView } from "../changes/ChangesView";
-import { SettingsStatusBar } from "../terminal/SettingsStatusBar";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -98,14 +97,6 @@ function PaneView({
           </div>
         )}
       </div>
-      {worktree && showChanges && (
-        <SettingsStatusBar
-          branch={worktree.branch ?? ""}
-          worktreePath={worktree.path ?? ""}
-          worktreeId={worktreeId}
-          showClaudeSettings={false}
-        />
-      )}
     </div>
   );
 }
