@@ -295,6 +295,28 @@ export function getUncommittedDiff(repoPath: string): Promise<DiffFile[]> {
   return invoke<DiffFile[]>("get_uncommitted_diff", { repoPath });
 }
 
+export function getFileContent(
+  repoPath: string,
+  filePath: string,
+  commitHash?: string,
+): Promise<string> {
+  return invoke<string>("get_file_content", { repoPath, filePath, commitHash });
+}
+
+export function toggleTaskListItem(
+  repoPath: string,
+  filePath: string,
+  lineNumber: number,
+  newChecked: boolean,
+): Promise<void> {
+  return invoke<void>("toggle_task_list_item", {
+    repoPath,
+    filePath,
+    lineNumber,
+    newChecked,
+  });
+}
+
 export function getCommits(repoPath: string, defaultBranch?: string): Promise<CommitInfo[]> {
   return invoke("get_commits", { repoPath, defaultBranch });
 }

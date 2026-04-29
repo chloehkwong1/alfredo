@@ -3,13 +3,19 @@ import { DiffFileHeader } from "./DiffFileHeader";
 import { useContextExpansion } from "./useContextExpansion";
 import { UnifiedDiffBody } from "./UnifiedDiffBody";
 import { SplitDiffBody } from "./SplitDiffBody";
+import { MarkdownView } from "./MarkdownView";
 import { AnnotationInput } from "./AnnotationInput";
 import type {
   DiffFile,
   DiffViewMode,
+  FileViewMode,
   Annotation,
   PrComment,
 } from "../../types";
+
+function isMarkdownPath(path: string): boolean {
+  return /\.(md|markdown|mdx)$/i.test(path);
+}
 
 interface DiffFileCardProps {
   file: DiffFile;
@@ -68,6 +74,14 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
     const [expandedCommentLines, setExpandedCommentLines] = useState<
       Set<number>
     >(() => new Set());
+
+    const isMarkdown = isMarkdownPath(file.path);
+    const supportsRendered = isMarkdown && file.status !== "deleted";
+    // New `.md` files default to rendered (the diff is just `+` on every line);
+    // modified files default to diff so reviewing changes still works out of the box.
+    const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() =>
+      supportsRendered && file.status === "added" ? "rendered" : "diff",
+    );
 
     // Auto-expand the PR comment thread when highlightCommentLine changes
     const highlightLineRef = useRef<HTMLDivElement | null>(null);
@@ -187,10 +201,21 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
           expanded={expanded}
           onToggleExpanded={onToggleExpanded}
           onDiscardFile={onDiscardFile}
+          fileViewMode={supportsRendered ? fileViewMode : undefined}
+          onChangeFileViewMode={supportsRendered ? setFileViewMode : undefined}
         />
 
-        {/* Diff body — deferred until card has been in/near viewport */}
-        {expanded && hasBeenVisible && (
+        {/* Body — deferred until card has been in/near viewport */}
+        {expanded && hasBeenVisible && supportsRendered && fileViewMode === "rendered" && (
+          <div className="bg-bg-primary">
+            <MarkdownView
+              repoPath={repoPath}
+              filePath={file.path}
+              commitHash={commitHash}
+            />
+          </div>
+        )}
+        {expanded && hasBeenVisible && (!supportsRendered || fileViewMode === "diff") && (
           <div className="bg-bg-primary overflow-x-auto">
             {viewMode !== "split" ? (
               <UnifiedDiffBody

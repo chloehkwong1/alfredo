@@ -302,6 +302,7 @@ export function findAgentTab(tabs: { type: TabType; id: string }[]): typeof tabs
 }
 
 export type DiffViewMode = "unified" | "split";
+export type FileViewMode = "diff" | "rendered";
 export type PrPanelState = "open" | "collapsed";
 
 // ── Layout (split panes) ────────────────────────────────────────

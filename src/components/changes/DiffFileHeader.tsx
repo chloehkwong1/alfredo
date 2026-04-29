@@ -1,5 +1,5 @@
 import { Check, ChevronDown, ChevronRight, Copy, Trash2 } from "lucide-react";
-import type { DiffFile } from "../../types";
+import type { DiffFile, FileViewMode } from "../../types";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 
 interface DiffFileHeaderProps {
@@ -7,6 +7,9 @@ interface DiffFileHeaderProps {
   expanded: boolean;
   onToggleExpanded: (path: string) => void;
   onDiscardFile?: (path: string, status: string) => void;
+  /** When set, renders a Diff/Rendered toggle (used for `.md` files). */
+  fileViewMode?: FileViewMode;
+  onChangeFileViewMode?: (mode: FileViewMode) => void;
 }
 
 const STATUS_LABEL: Record<DiffFile["status"], string> = {
@@ -23,7 +26,14 @@ const STATUS_COLOR: Record<DiffFile["status"], string> = {
   renamed: "text-text-secondary bg-bg-hover",
 };
 
-function DiffFileHeader({ file, expanded, onToggleExpanded, onDiscardFile }: DiffFileHeaderProps) {
+function DiffFileHeader({
+  file,
+  expanded,
+  onToggleExpanded,
+  onDiscardFile,
+  fileViewMode,
+  onChangeFileViewMode,
+}: DiffFileHeaderProps) {
   const statusLabel = STATUS_LABEL[file.status];
   const statusColor = STATUS_COLOR[file.status];
   const { copied, copy } = useCopyToClipboard();
@@ -65,6 +75,30 @@ function DiffFileHeader({ file, expanded, onToggleExpanded, onDiscardFile }: Dif
           {file.deletions > 0 && (
             <span className="text-diff-removed">-{file.deletions}</span>
           )}
+        </span>
+      )}
+      {expanded && fileViewMode && onChangeFileViewMode && (
+        <span
+          className="flex-shrink-0 ml-auto inline-flex items-center rounded border border-border-default overflow-hidden text-[10px] font-mono"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(["diff", "rendered"] as const).map((mode) => (
+            <button
+              key={mode}
+              className={[
+                "px-1.5 py-0.5 transition-colors",
+                fileViewMode === mode
+                  ? "bg-bg-hover text-text-primary"
+                  : "text-text-tertiary hover:text-text-primary",
+              ].join(" ")}
+              onClick={(e) => {
+                e.stopPropagation();
+                onChangeFileViewMode(mode);
+              }}
+            >
+              {mode === "diff" ? "Diff" : "Rendered"}
+            </button>
+          ))}
         </span>
       )}
       {onDiscardFile && (

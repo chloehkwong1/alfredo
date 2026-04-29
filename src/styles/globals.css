@@ -1,6 +1,42 @@
 @import "tailwindcss";
 @import "./theme.css";
 @import "./themes.css";
+@plugin "@tailwindcss/typography";
+
+/* GFM task lists (`- [ ] item`) — prose keeps the disc bullet by default,
+ * so each item renders bullet + checkbox side by side. Drop the bullet. */
+.prose li.task-list-item,
+.prose li:has(> input[type="checkbox"]:first-child) {
+  list-style: none;
+}
+.prose li.task-list-item > input[type="checkbox"]:first-child,
+.prose li > input[type="checkbox"]:first-child {
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
+/* Map Tailwind's prose color theme onto Alfredo's design tokens so prose
+ * automatically follows light/dark theme switches. */
+@utility prose-alfredo {
+  --tw-prose-body: var(--text-primary);
+  --tw-prose-headings: var(--text-primary);
+  --tw-prose-lead: var(--text-secondary);
+  --tw-prose-links: var(--accent-primary);
+  --tw-prose-bold: var(--text-primary);
+  --tw-prose-counters: var(--text-tertiary);
+  --tw-prose-bullets: var(--text-tertiary);
+  --tw-prose-hr: var(--border-default);
+  --tw-prose-quotes: var(--text-secondary);
+  --tw-prose-quote-borders: var(--border-default);
+  --tw-prose-captions: var(--text-tertiary);
+  --tw-prose-code: var(--text-primary);
+  --tw-prose-pre-code: var(--text-primary);
+  --tw-prose-pre-bg: var(--bg-primary);
+  --tw-prose-th-borders: var(--border-subtle);
+  --tw-prose-td-borders: var(--border-subtle);
+  --tw-prose-kbd: var(--text-primary);
+  --tw-prose-kbd-shadows: var(--border-default);
+}
 
 /* ── Bundled terminal fonts ────────────────────────
  * Ship non-system fonts so xterm.js's WebGL atlas always has a real bold face.
@@ -275,19 +311,6 @@ body {
 @keyframes thinking-dot {
   0%, 60%, 100% { opacity: 0.25; transform: scale(0.8); }
   30% { opacity: 1; transform: scale(1); }
-}
-
-/* ── Compact markdown (PR comment cards) ────── */
-.markdown-compact p {
-  margin-block: 2px;
-}
-.markdown-compact pre {
-  max-height: 120px;
-}
-.markdown-compact ul,
-.markdown-compact ol {
-  padding-left: 1.25rem;
-  margin-block: 2px;
 }
 
 /* Status dot glow — attention states only */

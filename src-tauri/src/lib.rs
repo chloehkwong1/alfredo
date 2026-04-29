@@ -247,6 +247,8 @@ pub fn run() {
             diff::get_default_branch,
             diff::get_diff_for_commit,
             diff::get_file_lines,
+            diff::get_file_content,
+            diff::toggle_task_list_item,
             diff::discard_file,
             diff::discard_all_uncommitted,
             // External Tools

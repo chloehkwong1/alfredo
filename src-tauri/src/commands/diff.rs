@@ -787,6 +787,134 @@ pub async fn get_file_lines(
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
 
+/// Toggle a `- [ ]` / `- [x]` task-list checkbox on a specific 1-based line.
+/// Re-reads the file from disk before writing so concurrent external edits
+/// (e.g. an editor open elsewhere) aren't clobbered — if the target line no
+/// longer parses as a task-list item, the write is rejected.
+#[tauri::command]
+pub async fn toggle_task_list_item(
+    repo_path: String,
+    file_path: String,
+    line_number: u32,
+    new_checked: bool,
+) -> Result<()> {
+    tokio::task::spawn_blocking(move || {
+        validate_path_within_repo(&repo_path, &file_path)?;
+
+        let full_path = std::path::Path::new(&repo_path).join(&file_path);
+        let content = std::fs::read_to_string(&full_path)
+            .map_err(|e| AppError::Git(format!("failed to read file: {e}")))?;
+
+        let crlf = content.contains("\r\n");
+        let sep = if crlf { "\r\n" } else { "\n" };
+
+        let mut lines: Vec<String> = content.split(sep).map(String::from).collect();
+        let idx = (line_number as usize)
+            .checked_sub(1)
+            .ok_or_else(|| AppError::Git("line_number must be >= 1".into()))?;
+        let line = lines
+            .get(idx)
+            .ok_or_else(|| AppError::Git(format!("line {line_number} out of range")))?;
+
+        let toggled = toggle_task_marker(line, new_checked).ok_or_else(|| {
+            AppError::Git(format!(
+                "line {line_number} is not a task-list item — file may have changed externally"
+            ))
+        })?;
+
+        lines[idx] = toggled;
+        std::fs::write(&full_path, lines.join(sep))
+            .map_err(|e| AppError::Git(format!("failed to write file: {e}")))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
+/// Replace the `[ ]`/`[x]` marker on a markdown task-list line.
+/// Returns `None` if the line isn't a task-list item.
+fn toggle_task_marker(line: &str, new_checked: bool) -> Option<String> {
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+
+    // List marker: `-`, `*`, `+`, or digits followed by `.` or `)`.
+    let marker_end = if i < bytes.len() && matches!(bytes[i], b'-' | b'*' | b'+') {
+        i + 1
+    } else {
+        let digits_start = i;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i == digits_start || i >= bytes.len() || !matches!(bytes[i], b'.' | b')') {
+            return None;
+        }
+        i + 1
+    };
+
+    // Need at least one space/tab after the marker.
+    let mut j = marker_end;
+    if j >= bytes.len() || !matches!(bytes[j], b' ' | b'\t') {
+        return None;
+    }
+    while j < bytes.len() && matches!(bytes[j], b' ' | b'\t') {
+        j += 1;
+    }
+
+    // Then `[<x|X| >]`.
+    if j + 2 >= bytes.len() || bytes[j] != b'[' || bytes[j + 2] != b']' {
+        return None;
+    }
+    if !matches!(bytes[j + 1], b' ' | b'x' | b'X') {
+        return None;
+    }
+
+    let mut out = String::with_capacity(line.len());
+    out.push_str(&line[..j + 1]);
+    out.push(if new_checked { 'x' } else { ' ' });
+    out.push_str(&line[j + 2..]);
+    Some(out)
+}
+
+/// Read full file content, either from the working tree or a specific commit.
+/// Used by the rendered markdown preview in the Changes panel.
+#[tauri::command]
+pub async fn get_file_content(
+    repo_path: String,
+    file_path: String,
+    commit_hash: Option<String>,
+) -> Result<String> {
+    tokio::task::spawn_blocking(move || {
+        if let Some(hash) = commit_hash {
+            let output = git_command_sync()
+                .args(["show", &format!("{hash}:{file_path}")])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| AppError::Git(format!("failed to run git show: {e}")))?;
+
+            if !output.status.success() {
+                let err = String::from_utf8_lossy(&output.stderr);
+                return Err(AppError::Git(format!("git show failed: {err}")));
+            }
+
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            // Defense in depth — Tauri commands are only invokable from the
+            // trusted webview, but a poisoned diff entry (e.g. a path coming
+            // from a git submodule or weird repo state) shouldn't be able to
+            // read outside the worktree.
+            validate_path_within_repo(&repo_path, &file_path)?;
+            let full_path = std::path::Path::new(&repo_path).join(&file_path);
+            std::fs::read_to_string(&full_path)
+                .map_err(|e| AppError::Git(format!("failed to read file: {e}")))
+        }
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
 // ── Discard Commands ──────────────────────────────────────────
 
 #[derive(Debug, Clone, Deserialize)]
@@ -973,6 +1101,66 @@ pub async fn discard_all_uncommitted(
 mod tests {
     use super::*;
     use git2::Repository;
+
+    // ── toggle_task_marker ─────────────────────────────
+    #[test]
+    fn toggle_task_marker_unchecked_to_checked() {
+        assert_eq!(
+            toggle_task_marker("- [ ] do thing", true).as_deref(),
+            Some("- [x] do thing"),
+        );
+    }
+    #[test]
+    fn toggle_task_marker_checked_to_unchecked() {
+        assert_eq!(
+            toggle_task_marker("- [x] done", false).as_deref(),
+            Some("- [ ] done"),
+        );
+    }
+    #[test]
+    fn toggle_task_marker_capital_x() {
+        assert_eq!(
+            toggle_task_marker("- [X] done", false).as_deref(),
+            Some("- [ ] done"),
+        );
+    }
+    #[test]
+    fn toggle_task_marker_indented() {
+        assert_eq!(
+            toggle_task_marker("    - [ ] nested", true).as_deref(),
+            Some("    - [x] nested"),
+        );
+    }
+    #[test]
+    fn toggle_task_marker_ordered_list() {
+        assert_eq!(
+            toggle_task_marker("1. [ ] first", true).as_deref(),
+            Some("1. [x] first"),
+        );
+    }
+    #[test]
+    fn toggle_task_marker_star_marker() {
+        assert_eq!(
+            toggle_task_marker("* [ ] thing", true).as_deref(),
+            Some("* [x] thing"),
+        );
+    }
+    #[test]
+    fn toggle_task_marker_rejects_plain_list_item() {
+        assert!(toggle_task_marker("- just a bullet", true).is_none());
+    }
+    #[test]
+    fn toggle_task_marker_rejects_inline_brackets() {
+        assert!(toggle_task_marker("see [link](url) for [x] info", true).is_none());
+    }
+    #[test]
+    fn toggle_task_marker_rejects_no_space_after_marker() {
+        assert!(toggle_task_marker("-[ ] missing space", true).is_none());
+    }
+    #[test]
+    fn toggle_task_marker_rejects_empty_line() {
+        assert!(toggle_task_marker("", true).is_none());
+    }
 
     fn create_test_repo() -> (tempfile::TempDir, Repository) {
         let dir = tempfile::tempdir().unwrap();
