@@ -115,12 +115,20 @@ function AppShell() {
   }, () => setAddRepoModalOpen(true), () => setCommandPaletteOpen(true));
 
 
-  // Sync layout when active worktree changes or tabs are added
+  // Inject default tabs only on worktree switch — not on every tabs change.
+  // Otherwise an explicit close of the last shell/agent tab would be undone
+  // by the auto-restore loop, making the close button feel broken.
   useEffect(() => {
     if (!activeWorktreeId) return;
     ensureDefaultTabs(activeWorktreeId);
+  }, [activeWorktreeId, ensureDefaultTabs]);
+
+  // Keep the layout in sync with tab additions/removals (orphan tabs into
+  // panes, prune stale ids). Runs on tab changes too.
+  useEffect(() => {
+    if (!activeWorktreeId) return;
     lifecycleManager.syncTabsToLayout(activeWorktreeId);
-  }, [activeWorktreeId, tabs, ensureDefaultTabs]);
+  }, [activeWorktreeId, tabs]);
 
   // Track whether we just transitioned from onboarding to animate sidebar
   const wasOnboarding = useRef(true);

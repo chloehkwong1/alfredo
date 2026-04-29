@@ -324,37 +324,9 @@ function PaneTabBar({
 
   const activeTabId = pane?.activeTabId;
 
-  const allAgentCount = tabs.filter((t) => isAgentTab(t)).length;
-  const allShellCount = tabs.filter((t) => t.type === "shell").length;
-  function canClose(tab: WorkspaceTab) {
-    if (isAgentTab(tab) && allAgentCount <= 1) return false;
-    if (tab.type === "shell" && allShellCount <= 1) return false;
-    return true;
-  }
-
   function handleCloseTab(e: React.MouseEvent | Event, tabId: string) {
     if ("stopPropagation" in e) e.stopPropagation();
     lifecycleManager.removeTab(worktreeId, tabId);
-  }
-
-  // Compute which tabIds in `candidates` are actually closable, preserving
-  // the invariant that at least one agent tab and one shell tab must remain
-  // in the worktree. Walks candidates in order and simulates removals.
-  function eligibleToClose(candidates: WorkspaceTab[]): string[] {
-    let remainingAgents = allAgentCount;
-    let remainingShells = allShellCount;
-    const result: string[] = [];
-    for (const t of candidates) {
-      if (isAgentTab(t)) {
-        if (remainingAgents <= 1) continue;
-        remainingAgents -= 1;
-      } else if (t.type === "shell") {
-        if (remainingShells <= 1) continue;
-        remainingShells -= 1;
-      }
-      result.push(t.id);
-    }
-    return result;
   }
 
   function removeTabs(ids: string[]) {
@@ -366,14 +338,13 @@ function PaneTabBar({
   }
 
   function handleCloseOthers(tabId: string) {
-    const others = paneTabs.filter((t) => t.id !== tabId);
-    removeTabs(eligibleToClose(others));
+    removeTabs(paneTabs.filter((t) => t.id !== tabId).map((t) => t.id));
   }
 
   function handleCloseToRight(tabId: string) {
     const idx = paneTabs.findIndex((t) => t.id === tabId);
     if (idx === -1) return;
-    removeTabs(eligibleToClose(paneTabs.slice(idx + 1)));
+    removeTabs(paneTabs.slice(idx + 1).map((t) => t.id));
   }
 
   function handleAddTab(type: TabType) {
@@ -508,21 +479,19 @@ function PaneTabBar({
             >
               {terminalTabs.map((tab, tabIdx) => {
                 const isActive = tab.id === activeTabId;
-                const others = terminalTabs.filter((t) => t.id !== tab.id);
-                const toRight = terminalTabs.slice(tabIdx + 1);
                 return (
                   <SortableTab
                     key={tab.id}
                     tab={tab}
                     isActive={isActive}
-                    canClose={canClose(tab)}
+                    canClose={true}
                     worktreeId={worktreeId}
                     paneId={paneId}
                     onClose={handleCloseTab}
                     onCloseOthers={handleCloseOthers}
                     onCloseToRight={handleCloseToRight}
-                    hasOthersToClose={eligibleToClose(others).length > 0}
-                    hasTabsToRightToClose={eligibleToClose(toRight).length > 0}
+                    hasOthersToClose={terminalTabs.length > 1}
+                    hasTabsToRightToClose={tabIdx < terminalTabs.length - 1}
                     onSplit={handleSplit}
                     onMoveToSibling={handleMoveToSibling}
                     isSplit={isSplit}
