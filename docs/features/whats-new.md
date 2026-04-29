@@ -7,6 +7,23 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.12.0 — 2026-04-29**
+- **Markdown rendered view in the Changes panel** — `.md`,
+  `.markdown`, and `.mdx` files now have a Diff/Rendered toggle.
+  Rendered mode shows the file as styled prose and lets you tick
+  GFM task-list checkboxes directly; flips write back to the
+  source file (re-reading first so concurrent edits aren't
+  clobbered). Newly-added markdown files default to Rendered.
+- **Sidebar diff badge now matches the Changes panel** — the +/-
+  counts include uncommitted tracked edits and untracked files,
+  so the sidebar no longer understates the scope of an in-flight
+  branch.
+- **Worktree status bar spans the full width in split layouts** —
+  the bottom Effort / Permissions / Output Style bar is no longer
+  fragmented across panes, since those settings are worktree-wide.
+- Closing the last shell or last agent tab is now allowed — fixes
+  a case where the only tab in a split pane couldn't be closed.
+
 **v0.11.1 — 2026-04-28**
 - **Cancelled PRs auto-move to Done** — closing a PR on GitHub
   without merging now shows a red **Cancelled** banner in the
@@ -83,15 +100,5 @@ https://github.com/chloehkwong1/alfredo/releases.
 - Various fixes: GitHub sync rate-limit handling, session-status
   flicker, config persistence, updater/Linear camelCase serialization,
   terminal font preload race that could blank the WebGL atlas.
-
-**v0.8.1 — 2026-04-21**
-- Notification sounds now play via a native Rust audio pipeline for
-  more reliable playback.
-- Linear search finds tickets in any state, including Backlog.
-- Sidebar delete/archive target the correct repo for non-primary
-  repo worktrees.
-- Dock no longer bounces until focused — just the banner.
-- Various state-reconciler fixes so long-running tools don't trip
-  false-idle transitions.
 
 Check the releases page for older versions and full detail.

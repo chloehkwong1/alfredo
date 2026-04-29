@@ -26,6 +26,11 @@ Other diff-view controls:
   including diffs scoped to a single commit. The shortcut is
   pane-scoped, so it won't fire if your focus is in a terminal pane
   alongside the diff.
+- **Markdown rendered mode** — `.md`, `.markdown`, and `.mdx`
+  files have a Diff/Rendered toggle in the file card header.
+  Rendered shows the file as styled prose; see
+  [markdown rendered view](markdown-rendered-view.md) for the
+  defaults and the interactive task-list behaviour.
 
 Syntax highlighting and file icons are per-extension. Binary files
 and images render as "binary diff" placeholders rather than line-by-line.
