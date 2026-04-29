@@ -1,0 +1,29 @@
+docs/features/terminal-select-to-copy.md
+  3832f317f319c3c5 1-23
+src/services/terminalFactory.ts
+  3832f317f319c3c5 110-126
+src/hooks/usePty.ts
+  3832f317f319c3c5 8,133
+docs/features/whats-new.md
+  3832f317f319c3c5 26-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "99feb04eccc334c3a795edcf51b7bfaf63b8a19d",
+  "prompts": {
+    "3832f317f319c3c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee2c7888-b4f7-49c0-b59b-fe977d17b688",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 55,
+      "total_deletions": 8,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}
