@@ -1,6 +1,6 @@
 [package]
 name = "alfredo"
-version = "0.11.1"
+version = "0.12.0"
 description = "AI Agent Management Desktop App"
 authors = ["Chloe"]
 edition = "2021"
