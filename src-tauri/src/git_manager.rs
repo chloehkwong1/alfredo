@@ -656,32 +656,68 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
         }
     }
 
-    let output = git_command_sync()
-        .args(["diff", "--shortstat", &format!("{diff_base}...HEAD")])
-        .current_dir(worktree_path)
-        .output();
+    // The badge represents "PR-sized scope": what would land if you opened a
+    // PR for this branch right now. Computed as a single diff against <base>
+    // (covers committed + tracked-uncommitted with no double-counting on
+    // overlapping edits), plus untracked files counted via git's own diff
+    // algorithm so the numbers match the Changes panel.
+    let mut additions = 0u32;
+    let mut deletions = 0u32;
 
-    if let Ok(output) = output {
+    if let Ok(output) = git_command_sync()
+        .args(["diff", "--shortstat", &diff_base])
+        .current_dir(worktree_path)
+        .output()
+    {
         if output.status.success() {
-            let stats = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
-            if stats != (0, 0) {
-                return Ok(stats);
+            let (a, d) = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
+            additions = additions.saturating_add(a);
+            deletions = deletions.saturating_add(d);
+        } else {
+            // Leaves a breadcrumb if a future "inflated badge" bug is caused
+            // by `resolve_diff_base` returning a ref that doesn't exist.
+            tracing::debug!(
+                "[get_diff_stats] git diff --shortstat {diff_base} failed in {worktree_path}: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+        }
+    }
+
+    if let Ok(output) = git_command_sync()
+        .args(["ls-files", "--others", "--exclude-standard"])
+        .current_dir(worktree_path)
+        .output()
+    {
+        if output.status.success() {
+            for rel in String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .filter(|l| !l.is_empty())
+            {
+                let abs = std::path::Path::new(worktree_path).join(rel);
+                // symlink_metadata so we never follow a symlink that escapes
+                // the worktree. 1MB cap keeps stray binaries (sqlite, log
+                // dumps) from stalling the badge refresh.
+                let Ok(meta) = std::fs::symlink_metadata(&abs) else { continue };
+                if !meta.file_type().is_file() || meta.len() > 1_000_000 {
+                    continue;
+                }
+                if let Ok(output) = git_command_sync()
+                    .args(["diff", "--no-index", "--shortstat", "--", "/dev/null", rel])
+                    .current_dir(worktree_path)
+                    .output()
+                {
+                    // `git diff --no-index` exits 1 when files differ, which
+                    // is the expected case here — accept any exit code and
+                    // parse whatever shortstat it printed.
+                    let (a, d) = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
+                    additions = additions.saturating_add(a);
+                    deletions = deletions.saturating_add(d);
+                }
             }
         }
     }
 
-    // Fallback: show uncommitted changes if no default branch found
-    let output = git_command_sync()
-        .args(["diff", "--shortstat", "HEAD"])
-        .current_dir(worktree_path)
-        .output()
-        .map_err(|e| AppError::Git(format!("failed to run git diff: {e}")))?;
-
-    if !output.status.success() {
-        return Ok((0, 0));
-    }
-
-    Ok(parse_shortstat(&String::from_utf8_lossy(&output.stdout)))
+    Ok((additions, deletions))
 }
 
 /// Parse the output of `git diff --shortstat`.
