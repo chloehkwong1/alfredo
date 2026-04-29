@@ -1,0 +1,33 @@
+docs/features/changes-panel.md
+  3c86cceb4f5e1b02 14-15
+docs/features/whats-new.md
+  3c86cceb4f5e1b02 10-26
+docs/features/diff-view.md
+  3c86cceb4f5e1b02 29-33
+docs/features/split-view.md
+  3c86cceb4f5e1b02 19-27
+docs/features/agent-settings.md
+  3c86cceb4f5e1b02 9
+docs/features/markdown-rendered-view.md
+  3c86cceb4f5e1b02 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "961c5d7fc37cbeab7a1c5dbb743587e312441c37",
+  "prompts": {
+    "3c86cceb4f5e1b02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c85dfee-d5b2-450d-ae36-221a5d193ea8",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 74,
+      "total_deletions": 15,
+      "accepted_lines": 74,
+      "overriden_lines": 0
+    }
+  }
+}
