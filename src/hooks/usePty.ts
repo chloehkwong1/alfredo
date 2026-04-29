@@ -5,6 +5,7 @@ import type { SearchAddon } from "@xterm/addon-search";
 import type { AgentState, SessionType } from "../types";
 import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
 import { sessionManager } from "../services/sessionManager";
+import { registerSelectToCopy } from "../services/terminalFactory";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import type { ManagedSession } from "../services/sessionManager";
 
@@ -129,6 +130,7 @@ export function usePty({
         term.refresh(0, term.rows - 1);
       } else {
         term.open(container);
+        registerSelectToCopy(term);
       }
 
       // Load WebGL renderer (needs terminal in DOM).

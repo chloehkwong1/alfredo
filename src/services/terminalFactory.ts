@@ -108,6 +108,25 @@ export function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon
 }
 
 /**
+ * Select-to-copy: copy the current selection to the clipboard on mouseup,
+ * matching iTerm2's "Copy on Select" behaviour. Fires once per drag (on
+ * release) instead of continuously during the drag, so clipboard-history
+ * tools don't see intermediate states. Keyboard-driven selections (Shift+
+ * arrow, Cmd+A) intentionally don't auto-copy — also matches iTerm2.
+ *
+ * Must be called after `terminal.open()` — `terminal.element` is undefined
+ * before then.
+ */
+export function registerSelectToCopy(terminal: Terminal): void {
+  const el = terminal.element;
+  if (!el) return;
+  el.addEventListener("mouseup", () => {
+    const sel = terminal.getSelection();
+    if (sel) navigator.clipboard.writeText(sel).catch(console.error);
+  });
+}
+
+/**
  * Register kitty keyboard protocol handlers on the terminal parser.
  * Must be called after the PTY session is spawned so we have a session ID
  * to send responses back to the PTY.

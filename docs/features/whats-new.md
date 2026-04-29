@@ -23,6 +23,9 @@ https://github.com/chloehkwong1/alfredo/releases.
   fragmented across panes, since those settings are worktree-wide.
 - Closing the last shell or last agent tab is now allowed — fixes
   a case where the only tab in a split pane couldn't be closed.
+- **Select-to-copy in terminal panes** — highlighting text in any
+  terminal copies it to the clipboard on mouse release, matching
+  iTerm2's "Copy on Select" behaviour.
 
 **v0.11.1 — 2026-04-28**
 - **Cancelled PRs auto-move to Done** — closing a PR on GitHub
