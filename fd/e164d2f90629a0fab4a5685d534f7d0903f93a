@@ -1,0 +1,37 @@
+src-tauri/src/git_manager.rs
+  f5a0e5284a6baeec 664-667,670-671,673-675,686-687,690-696,702-703,715-717,720
+  3d8d461d15d63c0f 659-663,668,676-682,697-701,704-714
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "fde164d2f90629a0fab4a5685d534f7d0903f93a",
+  "prompts": {
+    "3d8d461d15d63c0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1c2a98b-c23d-4b52-8920-3599d15f61d2",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 3172,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    },
+    "f5a0e5284a6baeec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4f8c07e-c341-4e2f-a839-386e9175b583",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 1833,
+      "total_deletions": 245,
+      "accepted_lines": 529,
+      "overriden_lines": 0
+    }
+  }
+}
