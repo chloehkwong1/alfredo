@@ -1664,6 +1664,65 @@ mod tests {
         }
     }
 
+    #[test]
+    fn get_commits_skips_merge_commit_when_head_is_merge() {
+        // Topology mirrors the Done-worktree case: main has been merged via a
+        // merge commit. range.head resolves to the merge commit, range.base to
+        // its first parent. The revwalk yields both the merge commit and the
+        // feature commit; the filter must drop the merge commit so the Commits
+        // panel shows only the feature work.
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("f.txt"), "v1").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("f.txt")).unwrap();
+        index.write().unwrap();
+        let fork_oid = create_commit(&repo, "fork point");
+
+        std::fs::write(dir.path().join("f.txt"), "v2").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("f.txt")).unwrap();
+        index.write().unwrap();
+        let feature_oid = create_commit(&repo, "feature commit");
+
+        let sig = repo.signature().unwrap();
+        let merge_tree = repo.find_commit(feature_oid).unwrap().tree().unwrap();
+        let merge_oid = repo
+            .commit(
+                None,
+                &sig,
+                &sig,
+                "Merge PR",
+                &merge_tree,
+                &[
+                    &repo.find_commit(fork_oid).unwrap(),
+                    &repo.find_commit(feature_oid).unwrap(),
+                ],
+            )
+            .unwrap();
+
+        // Mirror what get_commits does after resolve_diff_range returns
+        // (base = fork_oid, head = merge_oid) for a merged Done worktree.
+        let mut revwalk = repo.revwalk().unwrap();
+        revwalk.push(merge_oid).unwrap();
+        revwalk.hide(fork_oid).unwrap();
+        revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME).unwrap();
+
+        let mut kept = Vec::new();
+        for oid_result in revwalk {
+            let oid = oid_result.unwrap();
+            let commit = repo.find_commit(oid).unwrap();
+            if commit.parent_count() > 1 {
+                continue;
+            }
+            kept.push(oid);
+        }
+
+        assert_eq!(kept.len(), 1, "merge commit should be filtered out");
+        assert_eq!(kept[0], feature_oid, "only the feature commit should remain");
+        assert!(!kept.contains(&merge_oid), "merge commit must not appear");
+    }
+
     // ── get_diff_for_commit (exercises tree-to-tree diff for single commit) ─
 
     #[test]
