@@ -502,6 +502,8 @@ function Sidebar({
                   onDeleteAll={handleDeleteAllArchived}
                   onUnarchive={unarchiveWorktree}
                   deletingCount={deletingCount}
+                  archiveAfterDays={config?.archiveAfterDays ?? 2}
+                  deleteAfterDays={config?.deleteAfterDays ?? 0}
                 />
                 <button
                   type="button"

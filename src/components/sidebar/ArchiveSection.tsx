@@ -20,9 +20,13 @@ interface ArchiveSectionProps {
   onDeleteAll: () => void;
   onUnarchive: (id: string) => void;
   deletingCount?: { current: number; total: number } | null;
+  /** Auto-archive-after-N-days. 0 means "off". */
+  archiveAfterDays: number;
+  /** Auto-delete-after-N-days. 0 means "off". */
+  deleteAfterDays: number;
 }
 
-function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletingCount }: ArchiveSectionProps) {
+function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletingCount, archiveAfterDays, deleteAfterDays }: ArchiveSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Worktree | null>(null);
@@ -31,20 +35,40 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
 
   return (
     <div className="mb-2">
-      <button
-        onClick={() => setIsExpanded((prev) => !prev)}
-        className="flex w-full items-center gap-1.5 py-1 cursor-pointer select-none text-text-tertiary/60 hover:text-text-tertiary transition-colors"
-      >
-        <ChevronRight
+      <div className="flex w-full items-center gap-1.5 py-1 select-none text-text-tertiary/60 group/arc">
+        <button
+          type="button"
+          onClick={() => setIsExpanded((prev) => !prev)}
+          className="flex items-center gap-1.5 hover:text-text-tertiary transition-colors cursor-pointer"
+        >
+          <ChevronRight
+            className={[
+              "h-3 w-3 transition-transform duration-150",
+              isExpanded ? "rotate-90" : "rotate-0",
+            ].join(" ")}
+          />
+          <span className="text-[11px] uppercase tracking-[0.05em] font-semibold">Archived</span>
+          <span className="text-[10px] tabular-nums">{worktrees.length}</span>
+        </button>
+        <span className="text-[10px] text-text-tertiary/40">·</span>
+        <span
           className={[
-            "h-3 w-3 transition-transform duration-150",
-            isExpanded ? "rotate-90" : "rotate-0",
+            "text-[10px] cursor-default",
+            archiveAfterDays > 0 ? "text-accent-primary/80" : "text-text-tertiary/50",
           ].join(" ")}
-        />
-        <span className="text-[11px]">
-          {worktrees.length} archived
+        >
+          {archiveAfterDays > 0 ? `archive: ${archiveAfterDays}d` : "archive: off"}
         </span>
-      </button>
+        <span className="text-[10px] text-text-tertiary/40">·</span>
+        <span
+          className={[
+            "text-[10px] cursor-default",
+            deleteAfterDays > 0 ? "text-accent-primary/80" : "text-text-tertiary/50",
+          ].join(" ")}
+        >
+          {deleteAfterDays > 0 ? `delete: ${deleteAfterDays}d` : "delete: off"}
+        </span>
+      </div>
 
       <AnimatePresence initial={false}>
         {isExpanded && (
