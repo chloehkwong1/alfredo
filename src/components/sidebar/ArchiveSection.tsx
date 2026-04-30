@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArchiveRestore, ChevronRight, Trash2 } from "lucide-react";
 import { Tooltip } from "../ui";
@@ -20,13 +20,75 @@ interface ArchiveSectionProps {
   onDeleteAll: () => void;
   onUnarchive: (id: string) => void;
   deletingCount?: { current: number; total: number } | null;
-  /** Auto-archive-after-N-days. 0 means "off". */
   archiveAfterDays: number;
-  /** Auto-delete-after-N-days. 0 means "off". */
   deleteAfterDays: number;
+  /** Persists changes via updateConfig. */
+  onUpdateLifecycleRules: (patch: { archiveAfterDays?: number; deleteAfterDays?: number }) => void;
+  /** Lifted state — Sidebar owns it so the LifecycleNudge can also open the popover. */
+  rulesOpen: boolean;
+  onRulesOpenChange: (open: boolean) => void;
 }
 
-function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletingCount, archiveAfterDays, deleteAfterDays }: ArchiveSectionProps) {
+interface LifecycleRuleRowProps {
+  label: string;
+  value: number;
+  /** Days to use when toggling on with no prior value. */
+  fallback: number;
+  onChange: (v: number) => void;
+}
+
+function LifecycleRuleRow({ label, value, fallback, onChange }: LifecycleRuleRowProps) {
+  const [draft, setDraft] = useState<string>(value > 0 ? String(value) : String(fallback));
+  const isOn = value > 0;
+
+  // Keep draft synced when the value changes externally (e.g. via Settings dialog).
+  useEffect(() => {
+    if (value > 0) setDraft(String(value));
+  }, [value]);
+
+  function commit(raw: string) {
+    const n = Math.max(0, parseInt(raw, 10) || 0);
+    setDraft(String(n));
+    if (n !== value) onChange(n);
+  }
+
+  return (
+    <div className="flex items-center gap-2 my-1">
+      <span className="flex-1">{label}</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={draft}
+        disabled={!isOn}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+        className="w-10 h-5 rounded border border-border-default bg-bg-sidebar text-center font-mono text-[11px] text-text-primary disabled:opacity-50 focus:outline-none focus:border-accent-primary"
+      />
+      <span className="text-text-tertiary text-[10px]">d</span>
+      <button
+        type="button"
+        onClick={() => onChange(isOn ? 0 : (parseInt(draft, 10) || fallback))}
+        className={[
+          "relative w-7 h-4 rounded-full transition-colors",
+          isOn ? "bg-accent-primary" : "bg-bg-sidebar border border-border-default",
+        ].join(" ")}
+        aria-label={`Toggle ${label.toLowerCase()}`}
+      >
+        <span
+          className={[
+            "absolute top-0.5 w-3 h-3 rounded-full transition-transform",
+            isOn ? "right-0.5 bg-white" : "left-0.5 bg-text-tertiary",
+          ].join(" ")}
+        />
+      </button>
+    </div>
+  );
+}
+
+function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletingCount, archiveAfterDays, deleteAfterDays, onUpdateLifecycleRules, rulesOpen, onRulesOpenChange }: ArchiveSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Worktree | null>(null);
@@ -51,24 +113,64 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
           <span className="text-[10px] tabular-nums">{worktrees.length}</span>
         </button>
         <span className="text-[10px] text-text-tertiary/40">·</span>
-        <span
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRulesOpenChange(!rulesOpen);
+          }}
           className={[
-            "text-[10px] cursor-default",
-            archiveAfterDays > 0 ? "text-accent-primary/80" : "text-text-tertiary/50",
+            "text-[10px] cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-bg-hover transition-colors",
+            archiveAfterDays > 0 ? "text-accent-primary/80 hover:text-accent-primary" : "text-text-tertiary/50 hover:text-text-tertiary",
           ].join(" ")}
         >
           {archiveAfterDays > 0 ? `archive: ${archiveAfterDays}d` : "archive: off"}
-        </span>
+        </button>
         <span className="text-[10px] text-text-tertiary/40">·</span>
-        <span
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRulesOpenChange(!rulesOpen);
+          }}
           className={[
-            "text-[10px] cursor-default",
-            deleteAfterDays > 0 ? "text-accent-primary/80" : "text-text-tertiary/50",
+            "text-[10px] cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-bg-hover transition-colors",
+            deleteAfterDays > 0 ? "text-accent-primary/80 hover:text-accent-primary" : "text-text-tertiary/50 hover:text-text-tertiary",
           ].join(" ")}
         >
           {deleteAfterDays > 0 ? `delete: ${deleteAfterDays}d` : "delete: off"}
-        </span>
+        </button>
       </div>
+
+      <AnimatePresence initial={false}>
+        {rulesOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="my-2 ml-4 mr-1 rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-[11px] text-text-secondary">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.05em] text-text-tertiary mb-1.5">
+                Lifecycle rules
+              </div>
+              <LifecycleRuleRow
+                label="Auto-archive merged after"
+                value={archiveAfterDays}
+                fallback={7}
+                onChange={(v) => onUpdateLifecycleRules({ archiveAfterDays: v })}
+              />
+              <LifecycleRuleRow
+                label="Auto-delete archived after"
+                value={deleteAfterDays}
+                fallback={30}
+                onChange={(v) => onUpdateLifecycleRules({ deleteAfterDays: v })}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence initial={false}>
         {isExpanded && (

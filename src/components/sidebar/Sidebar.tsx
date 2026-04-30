@@ -261,6 +261,7 @@ function Sidebar({
   }, []);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
   const [deletingCount, setDeletingCount] = useState<{ current: number; total: number } | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   async function handleDeleteAllArchived() {
     const total = archivedWorktrees.length;
@@ -504,6 +505,9 @@ function Sidebar({
                   deletingCount={deletingCount}
                   archiveAfterDays={config?.archiveAfterDays ?? 2}
                   deleteAfterDays={config?.deleteAfterDays ?? 0}
+                  onUpdateLifecycleRules={(patch) => updateConfig(patch)}
+                  rulesOpen={rulesOpen}
+                  onRulesOpenChange={setRulesOpen}
                 />
                 <button
                   type="button"
