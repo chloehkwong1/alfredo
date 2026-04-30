@@ -51,8 +51,71 @@ pub fn resolve_diff_range(
         }
     }
 
-    // No usable hint — fall through to the next task's ancestry-path scan.
-    Ok(DiffRange { base: base_oid, head: head_oid })
+    // No usable hint — walk first-parent ancestry of base looking for the
+    // merge commit whose second parent contains HEAD. This handles
+    // manually-merged-then-dragged-to-Done cases where the PR metadata is
+    // missing or stale.
+    if let Some(found) = find_merge_commit_on_ancestry(repo, base_oid, head_oid)? {
+        if let Ok(commit) = repo.find_commit(found) {
+            if let Some(parent) = commit.parents().next() {
+                return Ok(DiffRange { base: parent.id(), head: found });
+            }
+        }
+    }
+
+    // Branch is contained in base but no merge commit found (e.g. squash with
+    // no PR metadata). Caller will see base==head and render an explicit
+    // "branch fully contained in base" empty state.
+    Ok(DiffRange { base: head_oid, head: head_oid })
+}
+
+/// Walk first-parent ancestry of `base` until the next commit's first parent
+/// would skip past `head`. Among those commits, return the merge commit (≥2
+/// parents) whose non-first parent has `head` as ancestor — that's the merge
+/// of HEAD into base.
+fn find_merge_commit_on_ancestry(
+    repo: &Repository,
+    base: Oid,
+    head: Oid,
+) -> Result<Option<Oid>, AppError> {
+    let mut cursor = base;
+    // Bound the walk — defensive cap for huge histories.
+    for _ in 0..2000 {
+        let commit = repo.find_commit(cursor)
+            .map_err(|e| AppError::Git(format!("find commit failed: {e}")))?;
+
+        // Stop once first-parent walk passes HEAD.
+        if cursor == head {
+            return Ok(None);
+        }
+        let first_parent = match commit.parents().next() {
+            Some(p) => p,
+            None => return Ok(None),
+        };
+
+        // If this commit is a merge AND its non-first parent contains HEAD
+        // as ancestor, this is the merge commit we want.
+        if commit.parent_count() >= 2 {
+            for parent in commit.parents().skip(1) {
+                let contains_head = parent.id() == head
+                    || repo.graph_descendant_of(parent.id(), head)
+                        .map_err(|e| AppError::Git(format!("ancestor check failed: {e}")))?;
+                if contains_head {
+                    return Ok(Some(commit.id()));
+                }
+            }
+        }
+
+        // If first-parent ancestry would skip past HEAD, stop.
+        let first_parent_descendant_of_head = first_parent.id() == head
+            || repo.graph_descendant_of(first_parent.id(), head)
+                .map_err(|e| AppError::Git(format!("ancestor check failed: {e}")))?;
+        if !first_parent_descendant_of_head {
+            return Ok(None);
+        }
+        cursor = first_parent.id();
+    }
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -132,5 +195,34 @@ mod tests {
         // Want: base = merge_commit^1 (the fork point on main), head = merge_commit (or branch_tip).
         assert_eq!(range.base, fork, "base should be merge_commit^1");
         assert_eq!(range.head, merge_commit, "head should be the merge commit");
+    }
+
+    #[test]
+    fn finds_merge_commit_via_ancestry_path_when_no_pr_hint() {
+        let (_dir, repo) = init_repo();
+        let fork = commit_file(&repo, "a", "0", "fork point");
+        let branch_tip = commit_file(&repo, "a", "1", "feature");
+        let sig = repo.signature().unwrap();
+        let merge_tree = repo.find_commit(branch_tip).unwrap().tree().unwrap();
+        let merge_commit = repo.commit(
+            None, &sig, &sig, "Merge PR",
+            &merge_tree,
+            &[
+                &repo.find_commit(fork).unwrap(),
+                &repo.find_commit(branch_tip).unwrap(),
+            ],
+        ).unwrap();
+        let post_merge_tree = repo.find_commit(merge_commit).unwrap().tree().unwrap();
+        let main_tip = repo.commit(
+            None, &sig, &sig, "after merge",
+            &post_merge_tree,
+            &[&repo.find_commit(merge_commit).unwrap()],
+        ).unwrap();
+
+        // No merge_commit_sha provided — must discover via ancestry-path walk.
+        let range = resolve_diff_range(&repo, main_tip, branch_tip, None).unwrap();
+
+        assert_eq!(range.base, fork);
+        assert_eq!(range.head, merge_commit);
     }
 }
