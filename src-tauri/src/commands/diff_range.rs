@@ -33,3 +33,46 @@ pub fn resolve_diff_range(
 ) -> Result<DiffRange, AppError> {
     Ok(DiffRange { base: base_oid, head: head_oid })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::Repository;
+    use tempfile::TempDir;
+
+    fn init_repo() -> (TempDir, Repository) {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+        let mut cfg = repo.config().unwrap();
+        cfg.set_str("user.name", "Test").unwrap();
+        cfg.set_str("user.email", "t@t").unwrap();
+        (dir, repo)
+    }
+
+    fn commit_file(repo: &Repository, name: &str, content: &str, msg: &str) -> Oid {
+        let dir = repo.workdir().unwrap();
+        std::fs::write(dir.join(name), content).unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new(name)).unwrap();
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let sig = repo.signature().unwrap();
+        let parents: Vec<git2::Commit> = repo.head().ok()
+            .and_then(|h| h.peel_to_commit().ok())
+            .map(|c| vec![c]).unwrap_or_default();
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+        repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parent_refs).unwrap()
+    }
+
+    #[test]
+    fn passes_through_when_head_is_ahead_of_base() {
+        let (_dir, repo) = init_repo();
+        let base = commit_file(&repo, "a", "1", "init");
+        let head = commit_file(&repo, "a", "2", "feature work");
+
+        let range = resolve_diff_range(&repo, base, head, None).unwrap();
+
+        assert_eq!(range.base, base);
+        assert_eq!(range.head, head);
+    }
+}
