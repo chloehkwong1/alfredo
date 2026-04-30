@@ -657,15 +657,22 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
     }
 
     // The badge represents "PR-sized scope": what would land if you opened a
-    // PR for this branch right now. Computed as a single diff against <base>
-    // (covers committed + tracked-uncommitted with no double-counting on
-    // overlapping edits), plus untracked files counted via git's own diff
-    // algorithm so the numbers match the Changes panel.
+    // PR for this branch right now. Summed from three additive sources to mirror
+    // what the Changes panel renders (committed cards + uncommitted card + new files):
+    //   1. `<base>...HEAD` — committed scope. The triple-dot form is the
+    //      merge-base diff, so a branch that is purely behind <base> reports
+    //      empty (the "X commits behind" indicator handles that state). A
+    //      single-ref `git diff <base>` would invert the incoming commits here.
+    //   2. `git diff HEAD` — uncommitted tracked edits.
+    //   3. Per-file walk over `ls-files --others` — untracked new files.
+    // The sum is intentionally churn-counted, not net-merged: a line that a
+    // commit adds and an uncommitted edit immediately removes counts as +1/-1,
+    // mirroring the two cards the Changes panel renders for it.
     let mut additions = 0u32;
     let mut deletions = 0u32;
 
     if let Ok(output) = git_command_sync()
-        .args(["diff", "--shortstat", &diff_base])
+        .args(["diff", "--shortstat", &format!("{diff_base}...HEAD")])
         .current_dir(worktree_path)
         .output()
     {
@@ -677,7 +684,24 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
             // Leaves a breadcrumb if a future "inflated badge" bug is caused
             // by `resolve_diff_base` returning a ref that doesn't exist.
             tracing::debug!(
-                "[get_diff_stats] git diff --shortstat {diff_base} failed in {worktree_path}: {}",
+                "[get_diff_stats] git diff --shortstat {diff_base}...HEAD failed in {worktree_path}: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+        }
+    }
+
+    if let Ok(output) = git_command_sync()
+        .args(["diff", "--shortstat", "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+    {
+        if output.status.success() {
+            let (a, d) = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
+            additions = additions.saturating_add(a);
+            deletions = deletions.saturating_add(d);
+        } else {
+            tracing::debug!(
+                "[get_diff_stats] git diff --shortstat HEAD failed in {worktree_path}: {}",
                 String::from_utf8_lossy(&output.stderr).trim()
             );
         }
@@ -968,6 +992,74 @@ mod tests {
     #[test]
     fn parse_shortstat_whitespace_only() {
         assert_eq!(parse_shortstat("  \n  "), (0, 0));
+    }
+
+    // ── get_diff_stats ──────────────────────────────────────────
+
+    /// A worktree whose HEAD is purely an ancestor of its base ref (i.e. behind by N commits,
+    /// no local work) should report (0, 0). The "X commits behind" indicator handles that
+    /// state separately; the badge is for PR-sized scope, which is empty here.
+    #[test]
+    fn get_diff_stats_returns_zero_when_behind_base() {
+        let dir = init_test_repo();
+        let path = dir.path();
+        let path_str = path.to_str().expect("temp dir path is valid UTF-8");
+
+        let git = |args: &[&str]| {
+            StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(path)
+                .output()
+                .expect("git command")
+        };
+
+        // Commit A on main, branch "feature" at A, then commit B on main so feature is 1 behind.
+        std::fs::write(path.join("a.txt"), "alpha\n").expect("write a.txt");
+        git(&["add", "."]);
+        git(&["commit", "-m", "A"]);
+        git(&["branch", "feature"]);
+        std::fs::write(path.join("b.txt"), "beta\n").expect("write b.txt");
+        git(&["add", "."]);
+        git(&["commit", "-m", "B"]);
+        git(&["checkout", "feature"]);
+
+        let stats = get_diff_stats(path_str, Some("main")).expect("get_diff_stats");
+        assert_eq!(stats, (0, 0));
+    }
+
+    /// Behind base + uncommitted tracked edit: badge should report only the uncommitted scope,
+    /// confirming the two diff sources don't interact and the "behind" portion stays zeroed
+    /// even when the worktree is dirty.
+    #[test]
+    fn get_diff_stats_counts_only_uncommitted_when_behind_base() {
+        let dir = init_test_repo();
+        let path = dir.path();
+        let path_str = path.to_str().expect("temp dir path is valid UTF-8");
+
+        let git = |args: &[&str]| {
+            StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(path)
+                .output()
+                .expect("git command")
+        };
+
+        std::fs::write(path.join("a.txt"), "alpha\n").expect("write a.txt");
+        git(&["add", "."]);
+        git(&["commit", "-m", "A"]);
+        git(&["branch", "feature"]);
+        std::fs::write(path.join("b.txt"), "beta\n").expect("write b.txt");
+        git(&["add", "."]);
+        git(&["commit", "-m", "B"]);
+        git(&["checkout", "feature"]);
+
+        // Tracked uncommitted edit on the behind branch.
+        std::fs::write(path.join("a.txt"), "alpha\nextra\n").expect("rewrite a.txt");
+
+        let stats = get_diff_stats(path_str, Some("main")).expect("get_diff_stats");
+        assert_eq!(stats, (1, 0));
     }
 
     // ── list_worktrees with linked worktree ─────────────────────
