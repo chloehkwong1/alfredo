@@ -22,15 +22,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuSubContent,
 } from "../ui/ContextMenu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "../ui/Dialog";
-import { Button } from "../ui";
+import { DeleteWorktreeConfirm } from "./DeleteWorktreeConfirm";
 import { ServerIndicator } from "./ServerIndicator";
 import { RelativeTime } from "../ui/RelativeTime";
 import { RepoTag } from "./RepoTag";
@@ -610,7 +602,6 @@ const AgentItem = memo(function AgentItem({
     if (trimmed === label) return;
     onRename(worktree.path, trimmed);
   };
-  const deleteConfirmRef = useRef<HTMLButtonElement>(null);
   const { prSummary, isServerRunning, serverPort, assignedPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
   const markUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
   const markRead = useWorkspaceStore((s) => s.markWorktreeRead);
@@ -847,41 +838,12 @@ const AgentItem = memo(function AgentItem({
         </ContextMenuContent>
       </ContextMenu>
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent
-          className="w-[420px]"
-          onOpenAutoFocus={(e) => {
-            e.preventDefault();
-            deleteConfirmRef.current?.focus();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>Delete worktree</DialogTitle>
-            <DialogDescription>
-              Delete worktree and local branch <code className="text-text-secondary font-mono text-xs">{worktree.branch}</code>? This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              ref={deleteConfirmRef}
-              variant="danger"
-              onClick={() => {
-                setDeleteDialogOpen(false);
-                // Defer so Radix's close animation finishes before the store
-                // removal unmounts this AgentItem (and this Dialog with it).
-                // Unmounting mid-animation leaves a pointer-capturing overlay
-                // behind, blocking all clicks until refresh.
-                setTimeout(() => onDelete?.(worktree.id), 200);
-              }}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteWorktreeConfirm
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        branch={worktree.branch}
+        onConfirm={() => onDelete?.(worktree.id)}
+      />
 
       <CreateWorktreeDialog
         open={createFromOpen}
