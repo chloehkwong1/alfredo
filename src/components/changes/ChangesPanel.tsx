@@ -115,6 +115,7 @@ function WorkspacePanel({
     dataViewMode,
     selectedCommitIndex,
     effectiveBaseBranch,
+    pr?.mergeCommitSha ?? undefined,
     isBranchModeDefault,
   );
 
@@ -387,7 +388,6 @@ function WorkspacePanelMinimized({
 }) {
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
-  const isBranchModeDefault = !!(worktree?.isBranchMode && !pr);
   const minimizedBaseBranch = pr?.baseBranch ?? undefined;
 
   const { uncommittedFiles, committedFiles } = useChangesData(
@@ -395,7 +395,7 @@ function WorkspacePanelMinimized({
     "changes",
     null,
     minimizedBaseBranch,
-    isBranchModeDefault,
+    pr?.mergeCommitSha ?? undefined,
   );
 
   const fileCount = uncommittedFiles.length + committedFiles.length;

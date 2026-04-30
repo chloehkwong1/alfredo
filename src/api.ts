@@ -287,8 +287,16 @@ export function runArchiveScript(repoPath: string, worktreePath: string): Promis
 
 // ── Diff ───────────────────────────────────────────────────────
 
-export function getDiff(repoPath: string, defaultBranch?: string): Promise<DiffFile[]> {
-  return invoke("get_diff", { repoPath, defaultBranch });
+export function getDiff(
+  repoPath: string,
+  defaultBranch?: string,
+  mergeCommitSha?: string,
+): Promise<DiffFile[]> {
+  return invoke<DiffFile[]>("get_diff", {
+    repoPath,
+    defaultBranch,
+    mergeCommitSha,
+  });
 }
 
 export function getUncommittedDiff(repoPath: string): Promise<DiffFile[]> {

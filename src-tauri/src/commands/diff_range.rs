@@ -1,6 +1,3 @@
-// Symbols are unused until Task 7 wires get_diff into the resolver; remove this allow then.
-#![allow(dead_code)]
-
 //! Resolves the (base, head) commit range for a worktree's diff.
 //!
 //! Most worktrees diff cleanly against `merge_base(base_branch, HEAD)`, but a

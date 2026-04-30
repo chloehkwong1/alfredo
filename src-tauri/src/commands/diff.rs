@@ -286,6 +286,7 @@ fn ignored_paths(repo_path: &str, paths: &[String]) -> HashSet<String> {
 pub async fn get_diff(
     repo_path: String,
     default_branch: Option<String>,
+    merge_commit_sha: Option<String>,
 ) -> Result<Vec<DiffFile>> {
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
@@ -298,16 +299,21 @@ pub async fn get_diff(
             .target()
             .ok_or_else(|| AppError::Git("HEAD has no target".into()))?;
 
-        let merge_base = repo
-            .merge_base(default_oid, head_oid)
-            .map_err(|e| AppError::Git(format!("failed to find merge base: {e}")))?;
+        let range = crate::commands::diff_range::resolve_diff_range(
+            &repo, default_oid, head_oid, merge_commit_sha.as_deref(),
+        )?;
+
+        // Empty-range short-circuit (branch fully contained, no merge found).
+        if range.base == range.head {
+            return Ok(Vec::new());
+        }
 
         let base_tree = repo
-            .find_commit(merge_base)
+            .find_commit(range.base)
             .and_then(|c| c.tree())
             .map_err(|e| AppError::Git(format!("failed to get base tree: {e}")))?;
         let head_tree = repo
-            .find_commit(head_oid)
+            .find_commit(range.head)
             .and_then(|c| c.tree())
             .map_err(|e| AppError::Git(format!("failed to get HEAD tree: {e}")))?;
 

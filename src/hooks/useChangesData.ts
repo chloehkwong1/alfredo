@@ -20,6 +20,7 @@ export function useChangesData(
   viewMode: ViewMode,
   selectedCommitIndex: number | null,
   baseBranch?: string,
+  mergeCommitSha?: string,
   skipCommitted?: boolean,
 ): UseChangesDataReturn {
   const [uncommittedFiles, setUncommittedFiles] = useState<DiffFile[]>([]);
@@ -59,7 +60,7 @@ export function useChangesData(
     // Always use local git for commits and file diffs — local state is the source of truth.
     // PR metadata (comments, reviews, checks) is fetched separately via usePrStore.
     const fetchLocal = () => {
-      getDiff(repoPath, baseBranch)
+      getDiff(repoPath, baseBranch, mergeCommitSha)
         .then((files) => { if (!cancelled) { setCommittedFiles(files); setError(null); } })
         .catch((err) => { if (!cancelled) setError(`Committed diff failed: ${err}`); });
       getCommits(repoPath, baseBranch)
@@ -86,7 +87,7 @@ export function useChangesData(
     fetchLocal();
     const interval = setInterval(fetchLocal, 10_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [repoPath, baseBranch, skipCommitted]);
+  }, [repoPath, baseBranch, mergeCommitSha, skipCommitted]);
 
   // Build combined commit list for index lookups
   const allCommits = useMemo(

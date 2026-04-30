@@ -93,6 +93,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
 
   const { commits, upstreamCommits, displayFiles, uncommittedFiles, committedFiles, refetchUncommitted } = useChangesData(
     repoPath, viewMode, selectedCommitIndex, pr?.baseBranch ?? worktree?.stackParent ?? undefined,
+    pr?.mergeCommitSha ?? undefined,
   );
 
   const gitUser = useGitUser(repoPath);
