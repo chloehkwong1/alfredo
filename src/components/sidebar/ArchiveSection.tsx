@@ -100,13 +100,21 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
           <DialogHeader>
             <DialogTitle>Delete all archived worktrees</DialogTitle>
             <DialogDescription>
-              This will delete {worktrees.length} worktree{worktrees.length === 1 ? "" : "s"} and their local branches. This cannot be undone.
+              This will permanently delete <strong className="text-text-primary font-medium">{worktrees.length} worktree{worktrees.length === 1 ? "" : "s"}</strong> and their local branches. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          <ul className="my-3 max-h-[160px] overflow-y-auto rounded-md border border-border-subtle bg-bg-sidebar px-3 py-2 font-mono text-xs text-text-secondary">
+            {worktrees.slice(0, 5).map((wt) => (
+              <li key={wt.id} className="py-0.5">{wt.branch}</li>
+            ))}
+            {worktrees.length > 5 && (
+              <li className="py-0.5 italic text-text-tertiary">+{worktrees.length - 5} more</li>
+            )}
+          </ul>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setDeleteAllDialogOpen(false)}>Cancel</Button>
             <Button variant="danger" onClick={() => { setDeleteAllDialogOpen(false); onDeleteAll(); }}>
-              Delete all
+              Delete {worktrees.length} worktree{worktrees.length === 1 ? "" : "s"}
             </Button>
           </DialogFooter>
         </DialogContent>
