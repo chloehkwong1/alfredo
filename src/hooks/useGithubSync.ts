@@ -26,7 +26,7 @@ export function useGithubSync() {
       for (const [wtId, patch] of patches) {
         if (patch.prStatus?.number) {
           const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === wtId);
-          if (wt && wt.column !== "done") {
+          if (wt) {
             getPrFiles(wt.repoPath, patch.prStatus.number)
               .then((files) => {
                 const additions = files.reduce((sum, f) => sum + f.additions, 0);

@@ -363,7 +363,6 @@ export function useSessionRestore(
           setSyncRepoPaths(syncRepos, branches).catch((e) => console.warn('[session-restore] Failed to set sync repo paths:', e));
 
           for (const wt of wts) {
-            if (wt.column === "done") continue;
             getWorktreeDiffStats(wt.path, wt.stackParent)
               .then(([additions, deletions]) => {
                 updateWorktree(wt.id, { additions, deletions });
