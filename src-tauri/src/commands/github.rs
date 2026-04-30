@@ -65,6 +65,7 @@ mod tests {
             base_branch: None,
             merged_at: None,
             head_sha: None,
+            merge_commit_sha: None,
             body: None,
             updated_at: Some(updated_at.into()),
             author: Some(author.into()),

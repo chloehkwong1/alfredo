@@ -137,6 +137,7 @@ export interface PrStatus {
   baseBranch?: string;
   mergedAt?: string;
   headSha?: string;
+  mergeCommitSha?: string;
   body?: string;
   author?: string;
   requestedReviewers?: string[];

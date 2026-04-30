@@ -202,6 +202,8 @@ pub struct PrStatus {
     #[serde(default)]
     pub head_sha: Option<String>,
     #[serde(default)]
+    pub merge_commit_sha: Option<String>,
+    #[serde(default)]
     pub body: Option<String>,
     /// ISO 8601 timestamp of the last update to this PR (from GitHub API).
     #[serde(default)]
