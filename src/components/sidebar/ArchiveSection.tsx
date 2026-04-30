@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from "../ui/Dialog";
 import type { Worktree } from "../../types";
+import { DeleteWorktreeConfirm } from "./DeleteWorktreeConfirm";
 
 interface ArchiveSectionProps {
   worktrees: Worktree[];
@@ -24,6 +25,7 @@ interface ArchiveSectionProps {
 function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletingCount }: ArchiveSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Worktree | null>(null);
 
   if (worktrees.length === 0) return null;
 
@@ -73,7 +75,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
                 <Tooltip content="Delete" side="top" delayDuration={0}>
                   <button
                     type="button"
-                    onClick={() => onDelete(wt.id)}
+                    onClick={() => setPendingDelete(wt)}
                     className="opacity-0 group-hover:opacity-100 text-text-tertiary/60 hover:text-red-400 transition-opacity p-0.5 cursor-pointer"
                   >
                     <Trash2 className="h-3 w-3" />
@@ -94,6 +96,16 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
           </motion.div>
         )}
       </AnimatePresence>
+
+      <DeleteWorktreeConfirm
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
+        branch={pendingDelete?.branch ?? ""}
+        onConfirm={() => {
+          if (pendingDelete) onDelete(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+      />
 
       <Dialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
         <DialogContent className="w-[420px]">
