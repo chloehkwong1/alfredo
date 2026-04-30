@@ -22,7 +22,7 @@
   <em>Screenshot coming soon</em>
 </p>
 
-## Why Alfredo?
+## Why Alfredo? 🍝
 
 Most AI coding tools either wrap agents in a chat UI or leave you juggling terminal tabs. Alfredo gives you the real CLI experience — full PTY terminals per agent — while adding the workspace management, diff review, and PR workflow you'd otherwise be switching between 4 apps to get.
 
