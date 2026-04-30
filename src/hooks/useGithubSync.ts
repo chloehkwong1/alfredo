@@ -41,22 +41,23 @@ export function useGithubSync() {
       // Auto-archive check: batch-archive Done worktrees that have been
       // idle long enough. Use mergedAt if available, fall back to lastActivityAt
       // so worktrees without a merged PR still get cleaned up.
+      // Gate on archiveAfterDays > 0 so 0 means "off" (parity with deleteAfterDays below).
       const state = useWorkspaceStore.getState();
-      const archiveAfterMs = state.archiveAfterDays * 24 * 60 * 60 * 1000;
       const now = Date.now();
-
-      const toArchive = state.worktrees
-        .filter((wt) => {
-          if (wt.column !== "done" || wt.archived) return false;
-          // Skip worktrees manually unarchived after the archive threshold —
-          // without this, unarchiving a merged worktree causes immediate re-archive.
-          if (wt.unarchivedAt && now - wt.unarchivedAt < archiveAfterMs) return false;
-          const refTime = wt.prStatus?.mergedAt
-            ? new Date(wt.prStatus.mergedAt).getTime()
-            : wt.lastActivityAt;
-          return refTime != null && now - refTime >= archiveAfterMs;
-        })
-        .map((wt) => wt.id);
+      const toArchive: string[] = [];
+      if (state.archiveAfterDays > 0) {
+        const archiveAfterMs = state.archiveAfterDays * 24 * 60 * 60 * 1000;
+        state.worktrees
+          .filter((wt) => {
+            if (wt.column !== "done" || wt.archived) return false;
+            if (wt.unarchivedAt && now - wt.unarchivedAt < archiveAfterMs) return false;
+            const refTime = wt.prStatus?.mergedAt
+              ? new Date(wt.prStatus.mergedAt).getTime()
+              : wt.lastActivityAt;
+            return refTime != null && now - refTime >= archiveAfterMs;
+          })
+          .forEach((wt) => toArchive.push(wt.id));
+      }
 
       if (toArchive.length > 0) {
         // Run archive scripts before marking as archived
