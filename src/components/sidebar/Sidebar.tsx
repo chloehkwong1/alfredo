@@ -18,6 +18,7 @@ import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { runArchiveScript, countWorktrees } from "../../api";
+import { LifecycleNudge } from "./LifecycleNudge";
 
 const COLUMNS: KanbanColumn[] = [
   "toDo",
@@ -173,6 +174,12 @@ function Sidebar({
   const activeWorktrees = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode);
   const archivedWorktrees = worktrees.filter((wt) => wt.archived);
   const grouped = groupByColumn(activeWorktrees);
+
+  const doneWorktrees = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode && wt.column === "done");
+  const showLifecycleNudge =
+    !config?.dismissedLifecycleNudge &&
+    doneWorktrees.length >= 3 &&
+    archivedWorktrees.length === 0;
 
   // Flat list of worktrees in display order (matches COLUMNS order)
   const flatWorktrees = COLUMNS.flatMap((col) => grouped[col]);
@@ -469,6 +476,15 @@ function Sidebar({
                 ))
               }
             </SidebarDragContext>
+          )}
+
+          {showLifecycleNudge && (
+            <LifecycleNudge
+              doneCount={doneWorktrees.length}
+              onArchiveAllDone={handleArchiveAllDone}
+              onOpenAutoArchive={() => setRulesOpen(true)}
+              onDismiss={() => updateConfig({ dismissedLifecycleNudge: true })}
+            />
           )}
 
           {/* Branch-mode repos — below kanban columns.
