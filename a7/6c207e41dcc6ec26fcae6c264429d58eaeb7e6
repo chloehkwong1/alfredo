@@ -1,0 +1,25 @@
+src/components/sidebar/LifecycleNudge.tsx
+  c73bb57d20e395f9 9,15,18,41,43
+src/components/sidebar/ArchiveSection.tsx
+  c73bb57d20e395f9 113-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a76c207e41dcc6ec26fcae6c264429d58eaeb7e6",
+  "prompts": {
+    "c73bb57d20e395f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "49efb438-eb25-48eb-808c-9d584a48fade",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 9,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    }
+  }
+}
