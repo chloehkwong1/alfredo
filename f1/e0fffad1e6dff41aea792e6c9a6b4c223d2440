@@ -1,0 +1,27 @@
+src-tauri/src/git_manager.rs
+  71eabcded0c86a31 798-801,815-818
+src/components/changes/ChangesPanel.tsx
+  71eabcded0c86a31 392,401
+src-tauri/src/commands/diff.rs
+  71eabcded0c86a31 614-619
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f1e0fffad1e6dff41aea792e6c9a6b4c223d2440",
+  "prompts": {
+    "71eabcded0c86a31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a3b94836-0e76-421d-a722-f5010aaac5cf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 1717,
+      "total_deletions": 0,
+      "accepted_lines": 446,
+      "overriden_lines": 0
+    }
+  }
+}
