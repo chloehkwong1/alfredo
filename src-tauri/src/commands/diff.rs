@@ -611,6 +611,12 @@ pub async fn get_commits(
             let commit = repo
                 .find_commit(oid)
                 .map_err(|e| AppError::Git(format!("find commit failed: {e}")))?;
+            // Skip merge commits — they appear in the walk when range.head is itself
+            // a merge commit (Done worktrees), but the panel wants the feature work,
+            // not the merge commit message.
+            if commit.parent_count() > 1 {
+                continue;
+            }
             let hash = oid.to_string();
             let short_hash = hash[..7.min(hash.len())].to_string();
             commits.push(CommitInfo {

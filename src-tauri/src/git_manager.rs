@@ -795,6 +795,10 @@ fn shortstat_for_range(
                 if output.status.success() {
                     return parse_shortstat(&String::from_utf8_lossy(&output.stdout));
                 }
+                tracing::debug!(
+                    "[shortstat_for_range] git diff --shortstat {b}..{h} failed in {worktree_path}: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                );
             }
             (0, 0)
         }
@@ -808,6 +812,10 @@ fn shortstat_for_range(
                 if output.status.success() {
                     return parse_shortstat(&String::from_utf8_lossy(&output.stdout));
                 }
+                tracing::debug!(
+                    "[shortstat_for_range] fallback git diff --shortstat {diff_base}...HEAD failed in {worktree_path}: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                );
             }
             (0, 0)
         }
