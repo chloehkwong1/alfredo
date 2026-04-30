@@ -671,24 +671,9 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
     let mut additions = 0u32;
     let mut deletions = 0u32;
 
-    if let Ok(output) = git_command_sync()
-        .args(["diff", "--shortstat", &format!("{diff_base}...HEAD")])
-        .current_dir(worktree_path)
-        .output()
-    {
-        if output.status.success() {
-            let (a, d) = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
-            additions = additions.saturating_add(a);
-            deletions = deletions.saturating_add(d);
-        } else {
-            // Leaves a breadcrumb if a future "inflated badge" bug is caused
-            // by `resolve_diff_base` returning a ref that doesn't exist.
-            tracing::debug!(
-                "[get_diff_stats] git diff --shortstat {diff_base}...HEAD failed in {worktree_path}: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            );
-        }
-    }
+    let (a, d) = shortstat_for_range(worktree_path, &diff_base, None);
+    additions = additions.saturating_add(a);
+    deletions = deletions.saturating_add(d);
 
     if let Ok(output) = git_command_sync()
         .args(["diff", "--shortstat", "HEAD"])
@@ -759,6 +744,74 @@ fn parse_shortstat(stdout: &str) -> (u32, u32) {
         }
     }
     (insertions, deletions)
+}
+
+/// Run `git diff --shortstat` between the resolved range. Falls back to the
+/// merge-base form when the resolver returns the pass-through range.
+fn shortstat_for_range(
+    worktree_path: &str,
+    diff_base: &str,
+    merge_commit_sha: Option<&str>,
+) -> (u32, u32) {
+    use git2::Repository;
+
+    // Try the resolver path. Failures fall through to the legacy CLI form.
+    let resolved: Option<(String, String)> = (|| {
+        let repo = Repository::open(worktree_path).ok()?;
+
+        let base_oid = git_command_sync()
+            .args(["rev-parse", "--verify", diff_base])
+            .current_dir(worktree_path)
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    git2::Oid::from_str(String::from_utf8_lossy(&o.stdout).trim()).ok()
+                } else {
+                    None
+                }
+            })?;
+        let head_oid = repo.head().ok()?.target()?;
+
+        let range = crate::commands::diff_range::resolve_diff_range(
+            &repo, base_oid, head_oid, merge_commit_sha,
+        )
+        .ok()?;
+
+        if range.base == range.head {
+            return Some((String::new(), String::new())); // signals "empty"
+        }
+        Some((range.base.to_string(), range.head.to_string()))
+    })();
+
+    match resolved {
+        Some((b, h)) if b.is_empty() && h.is_empty() => (0, 0),
+        Some((b, h)) => {
+            if let Ok(output) = git_command_sync()
+                .args(["diff", "--shortstat", &format!("{b}..{h}")])
+                .current_dir(worktree_path)
+                .output()
+            {
+                if output.status.success() {
+                    return parse_shortstat(&String::from_utf8_lossy(&output.stdout));
+                }
+            }
+            (0, 0)
+        }
+        None => {
+            // Resolver couldn't run — fall back to the original triple-dot form.
+            if let Ok(output) = git_command_sync()
+                .args(["diff", "--shortstat", &format!("{diff_base}...HEAD")])
+                .current_dir(worktree_path)
+                .output()
+            {
+                if output.status.success() {
+                    return parse_shortstat(&String::from_utf8_lossy(&output.stdout));
+                }
+            }
+            (0, 0)
+        }
+    }
 }
 
 /// List worktrees using git2 for reads.
