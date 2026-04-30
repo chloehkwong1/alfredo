@@ -110,7 +110,9 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
             ].join(" ")}
           />
           <span className="text-[11px] uppercase tracking-[0.05em] font-semibold">Archived</span>
-          <span className="text-[10px] tabular-nums">{worktrees.length}</span>
+          {worktrees.length > 0 && (
+            <span className="text-[10px] tabular-nums">{worktrees.length}</span>
+          )}
         </button>
         <span className="text-[10px] text-text-tertiary/40">·</span>
         <button

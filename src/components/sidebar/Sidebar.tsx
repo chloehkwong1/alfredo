@@ -480,7 +480,6 @@ function Sidebar({
 
           {showLifecycleNudge && (
             <LifecycleNudge
-              doneCount={doneWorktrees.length}
               onArchiveAllDone={handleArchiveAllDone}
               onOpenAutoArchive={() => setRulesOpen(true)}
               onDismiss={() => updateConfig({ dismissedLifecycleNudge: true })}
