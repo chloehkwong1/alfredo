@@ -81,13 +81,13 @@ fn find_merge_commit_on_ancestry(
     let mut cursor = base;
     // Bound the walk — defensive cap for huge histories.
     for _ in 0..2000 {
-        let commit = repo.find_commit(cursor)
-            .map_err(|e| AppError::Git(format!("find commit failed: {e}")))?;
-
-        // Stop once first-parent walk passes HEAD.
+        // HEAD itself is the branch tip, never the merge commit. Stop here.
         if cursor == head {
             return Ok(None);
         }
+        let commit = repo.find_commit(cursor)
+            .map_err(|e| AppError::Git(format!("find commit failed: {e}")))?;
+
         let first_parent = match commit.parents().next() {
             Some(p) => p,
             None => return Ok(None),
@@ -245,5 +245,6 @@ mod tests {
 
         // Caller sees base == head → renders empty state.
         assert_eq!(range.base, range.head);
+        assert_eq!(range.base, head, "empty range should collapse to head, not base");
     }
 }
