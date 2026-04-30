@@ -7,6 +7,7 @@ import type {
   PrStatusWithColumn,
   Worktree,
 } from "../types";
+import { releaseWorktreePort } from "../api";
 
 interface ColumnOverride {
   column: KanbanColumn;
@@ -222,6 +223,18 @@ export const usePrStore = create<PrState>((set, get) => ({
         column,
         lastActivityAt: candidates.length > 0 ? Math.max(...candidates) : undefined,
       });
+
+      // Mirror the backend's "release port on Done" contract for auto-column
+      // transitions (PR merged → autoColumn flips to "done"). set_worktree_column
+      // only fires on manual drag/menu actions, so without this the port stays
+      // pinned in app.json forever once a PR auto-completes. The non-done guard
+      // also prevents a double-fire after a manual drag-to-Done (frontend column
+      // is already "done" by the next sync tick).
+      if (wt.column !== "done" && column === "done") {
+        releaseWorktreePort(wt.repoPath, wt.name).catch((e) => {
+          console.warn("[pr-store] Failed to release port on auto-Done:", wt.name, e);
+        });
+      }
 
       // Sidebar summary data — preserve cached enrichment values when Phase 1
       // payload arrives without them (comments/checks are fetched in Phase 2)
