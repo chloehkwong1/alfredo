@@ -1,0 +1,25 @@
+src/components/changes/ChangesPanel.tsx
+  71eabcded0c86a31 113,311
+src/components/changes/FileSidebar.tsx
+  71eabcded0c86a31 29,195,473-489
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "703fed71256e835fc1ba5f3a6099073e424c9700",
+  "prompts": {
+    "71eabcded0c86a31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a3b94836-0e76-421d-a722-f5010aaac5cf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 6,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    }
+  }
+}
