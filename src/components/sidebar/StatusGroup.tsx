@@ -11,7 +11,6 @@ import {
   Eye,
   CheckCircle2,
   ChevronRight,
-  Archive,
   type LucideIcon,
 } from "lucide-react";
 import type { KanbanColumn, Worktree } from "../../types";
@@ -142,15 +141,12 @@ function StatusGroup({
       ].join(" ")}
     >
       {/* Group header */}
-      <button
-        onClick={() => onToggleCollapsed?.(column)}
-        className={[
-          "flex w-full items-center px-3.5 pt-3 pb-2",
-          "cursor-pointer select-none",
-          "text-text-secondary hover:text-text-primary transition-colors",
-        ].join(" ")}
-      >
-        <span className="flex items-center gap-2">
+      <div className="group/grp flex w-full items-center px-3.5 pt-3 pb-2 select-none">
+        <button
+          type="button"
+          onClick={() => onToggleCollapsed?.(column)}
+          className="flex items-center gap-2 cursor-pointer text-text-secondary hover:text-text-primary transition-colors"
+        >
           <Icon className="h-4 w-4" />
           <span className={[
             "text-xs font-bold uppercase tracking-[0.08em] text-text-primary",
@@ -158,9 +154,22 @@ function StatusGroup({
           ].join(" ")}>
             {label}
           </span>
-        </span>
+        </button>
         <span className="flex-1 h-[1.5px] bg-gradient-to-r from-white/20 to-transparent mx-3" />
-        <span className="flex items-center gap-2">
+        {column === "done" && worktrees.length > 0 && onArchiveAll && (
+          <button
+            type="button"
+            onClick={onArchiveAll}
+            className="opacity-0 group-hover/grp:opacity-100 transition-opacity text-2xs text-text-tertiary hover:text-text-secondary mr-2 cursor-pointer"
+          >
+            Archive all
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onToggleCollapsed?.(column)}
+          className="flex items-center gap-2 cursor-pointer text-text-secondary hover:text-text-primary transition-colors"
+        >
           <span className="text-2xs text-text-secondary tabular-nums font-semibold bg-bg-elevated rounded-full px-1.5 py-0.5">
             {hideUnpinned && visibleWorktrees.length !== worktrees.length
               ? `${visibleWorktrees.length} / ${worktrees.length}`
@@ -172,8 +181,8 @@ function StatusGroup({
               collapsed ? "rotate-0" : "rotate-90",
             ].join(" ")}
           />
-        </span>
-      </button>
+        </button>
+      </div>
 
       {/* Agent items */}
       <AnimatePresence initial={false}>
@@ -215,15 +224,6 @@ function StatusGroup({
             </SortableContext>
               );
             })()}
-            {column === "done" && worktrees.length > 0 && onArchiveAll && (
-              <button
-                onClick={onArchiveAll}
-                className="flex items-center gap-1.5 w-full px-3.5 py-2 mt-1 text-2xs text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-              >
-                <Archive className="h-3 w-3" />
-                <span>Archive all</span>
-              </button>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
