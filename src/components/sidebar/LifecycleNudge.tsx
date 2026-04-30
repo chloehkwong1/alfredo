@@ -38,7 +38,7 @@ function LifecycleNudge({ onArchiveAllDone, onOpenAutoArchive, onDismiss }: Life
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="text-text-tertiary hover:text-text-primary cursor-pointer p-1 -m-1 flex-shrink-0"
+        className="text-text-tertiary hover:text-text-primary cursor-pointer p-1.5 -m-1.5 flex-shrink-0"
       >
         <X className="h-3 w-3" />
       </button>
