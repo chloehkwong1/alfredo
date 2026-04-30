@@ -110,7 +110,7 @@ function WorkspacePanel({
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [activeFileIsUncommitted, setActiveFileIsUncommitted] = useState<boolean | undefined>(undefined);
 
-  const { uncommittedFiles, committedFiles, commits, upstreamCommits, refetchUncommitted } = useChangesData(
+  const { uncommittedFiles, committedFiles, commits, upstreamCommits, refetchUncommitted, error } = useChangesData(
     repoPath,
     dataViewMode,
     selectedCommitIndex,
@@ -308,6 +308,7 @@ function WorkspacePanel({
               onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
               onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
               worktreePath={worktree?.path}
+              error={error}
             />
           </div>
         </div>

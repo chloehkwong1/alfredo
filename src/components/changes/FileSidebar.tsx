@@ -26,6 +26,7 @@ interface FileSidebarProps {
   onDoubleClickFile?: (path: string) => void;
   onDoubleClickCommit?: (index: number) => void;
   worktreePath?: string;
+  error?: string | null;
 }
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
@@ -191,6 +192,7 @@ function FileSidebar({
   onDoubleClickFile,
   onDoubleClickCommit,
   worktreePath,
+  error,
 }: FileSidebarProps) {
   const [filter, setFilter] = useState("");
   const [upstreamExpanded, setUpstreamExpanded] = useState(false);
@@ -468,11 +470,23 @@ function FileSidebar({
         <>
           {filteredUncommitted.length === 0 && filteredCommitted.length === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 px-4 py-8 text-center">
-              <span className="text-lg text-text-tertiary/30 mb-2">✓</span>
-              <span className="text-[13px] text-text-tertiary">No changes on this branch</span>
-              <span className="text-[11px] text-text-tertiary/60 mt-1">
-                Edits you make will appear here
-              </span>
+              {error ? (
+                <>
+                  <span className="text-lg text-status-busy/40 mb-2">⚠</span>
+                  <span className="text-[13px] text-text-tertiary">Couldn't load changes</span>
+                  <span className="text-[11px] text-text-tertiary/60 mt-1 max-w-[220px]">
+                    {error}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-lg text-text-tertiary/30 mb-2">✓</span>
+                  <span className="text-[13px] text-text-tertiary">No changes on this branch</span>
+                  <span className="text-[11px] text-text-tertiary/60 mt-1">
+                    Edits you make will appear here
+                  </span>
+                </>
+              )}
             </div>
           ) : (
             <div>
