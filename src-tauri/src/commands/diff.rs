@@ -571,7 +571,11 @@ fn resolve_origin_head(repo: &git2::Repository) -> Result<Option<String>> {
 
 /// Get commits from HEAD back to the merge base with the default branch.
 #[tauri::command]
-pub async fn get_commits(repo_path: String, default_branch: Option<String>) -> Result<Vec<CommitInfo>> {
+pub async fn get_commits(
+    repo_path: String,
+    default_branch: Option<String>,
+    merge_commit_sha: Option<String>,
+) -> Result<Vec<CommitInfo>> {
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
 
@@ -583,17 +587,20 @@ pub async fn get_commits(repo_path: String, default_branch: Option<String>) -> R
             .target()
             .ok_or_else(|| AppError::Git("HEAD has no target".into()))?;
 
+        let range = crate::commands::diff_range::resolve_diff_range(
+            &repo, default_oid, head_oid, merge_commit_sha.as_deref(),
+        )?;
+
+        if range.base == range.head {
+            return Ok(Vec::new());
+        }
+
         let mut revwalk = repo
             .revwalk()
             .map_err(|e| AppError::Git(format!("revwalk failed: {e}")))?;
-        revwalk
-            .push(head_oid)
+        revwalk.push(range.head)
             .map_err(|e| AppError::Git(format!("revwalk push failed: {e}")))?;
-        // Exclude all commits reachable from the default branch (main..HEAD).
-        // Without this, merging main into the feature branch would include
-        // other people's commits in the list.
-        revwalk
-            .hide(default_oid)
+        revwalk.hide(range.base)
             .map_err(|e| AppError::Git(format!("revwalk hide failed: {e}")))?;
         revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
             .map_err(|e| AppError::Git(format!("revwalk sorting failed: {e}")))?;
@@ -615,7 +622,7 @@ pub async fn get_commits(repo_path: String, default_branch: Option<String>) -> R
             });
         }
 
-        commits.reverse(); // chronological order: oldest first
+        commits.reverse();
         Ok(commits)
     })
     .await

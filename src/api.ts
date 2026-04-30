@@ -325,8 +325,16 @@ export function toggleTaskListItem(
   });
 }
 
-export function getCommits(repoPath: string, defaultBranch?: string): Promise<CommitInfo[]> {
-  return invoke("get_commits", { repoPath, defaultBranch });
+export function getCommits(
+  repoPath: string,
+  defaultBranch?: string,
+  mergeCommitSha?: string,
+): Promise<CommitInfo[]> {
+  return invoke<CommitInfo[]>("get_commits", {
+    repoPath,
+    defaultBranch,
+    mergeCommitSha,
+  });
 }
 
 export function getFullCommits(repoPath: string, limit?: number): Promise<CommitInfo[]> {

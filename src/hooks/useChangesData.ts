@@ -63,7 +63,7 @@ export function useChangesData(
       getDiff(repoPath, baseBranch, mergeCommitSha)
         .then((files) => { if (!cancelled) { setCommittedFiles(files); setError(null); } })
         .catch((err) => { if (!cancelled) setError(`Committed diff failed: ${err}`); });
-      getCommits(repoPath, baseBranch)
+      getCommits(repoPath, baseBranch, mergeCommitSha)
         .then((branchList) => {
           if (cancelled) return;
           setCommits(branchList);
