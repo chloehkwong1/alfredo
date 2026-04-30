@@ -664,6 +664,7 @@ const AgentItem = memo(function AgentItem({
     : [
         "w-full text-left py-2 px-3.5 flex items-start gap-2",
         "transition-all duration-[var(--transition-fast)]",
+        "group",
         isEditingLabel ? "cursor-default" : "cursor-grab",
         getBorderClass(effectiveStatus, isUnread),
         isSelected
@@ -722,6 +723,24 @@ const AgentItem = memo(function AgentItem({
             className={rowClassName}
           >
             {rowContent}
+            {worktree.column === "done" && !worktree.archived && onArchive && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onArchive(worktree.id);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary cursor-pointer flex-shrink-0"
+                aria-label="Archive worktree"
+                title="Archive"
+              >
+                <Archive className="h-3.5 w-3.5" />
+              </button>
+            )}
           </button>
           )}
         </ContextMenuTrigger>
