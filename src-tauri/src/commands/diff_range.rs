@@ -26,11 +26,32 @@ pub struct DiffRange {
 /// `head_oid` is the worktree's current HEAD.
 /// `merge_commit_sha` is `pr.mergeCommitSha` if known, else None.
 pub fn resolve_diff_range(
-    _repo: &Repository,
+    repo: &Repository,
     base_oid: Oid,
     head_oid: Oid,
-    _merge_commit_sha: Option<&str>,
+    merge_commit_sha: Option<&str>,
 ) -> Result<DiffRange, AppError> {
+    // Cheap check: if HEAD isn't ancestor of base, the standard merge-base
+    // diff produces useful output. Skip the merge-commit dance.
+    let head_is_ancestor = repo
+        .graph_descendant_of(base_oid, head_oid)
+        .map_err(|e| AppError::Git(format!("ancestor check failed: {e}")))?;
+    if !head_is_ancestor {
+        return Ok(DiffRange { base: base_oid, head: head_oid });
+    }
+
+    // HEAD is contained in base. Try the PR-supplied merge commit first.
+    if let Some(sha) = merge_commit_sha {
+        if let Ok(oid) = Oid::from_str(sha) {
+            if let Ok(commit) = repo.find_commit(oid) {
+                if let Some(parent) = commit.parents().next() {
+                    return Ok(DiffRange { base: parent.id(), head: oid });
+                }
+            }
+        }
+    }
+
+    // No usable hint — fall through to the next task's ancestry-path scan.
     Ok(DiffRange { base: base_oid, head: head_oid })
 }
 
@@ -74,5 +95,42 @@ mod tests {
 
         assert_eq!(range.base, base);
         assert_eq!(range.head, head);
+    }
+
+    #[test]
+    fn uses_merge_commit_sha_when_head_is_ancestor() {
+        let (_dir, repo) = init_repo();
+        // Set up: branch_tip is a feature branch; main fast-forward-merges it,
+        // then advances. HEAD (branch_tip) becomes ancestor of main.
+        let fork = commit_file(&repo, "a", "0", "fork point");
+        let branch_tip = commit_file(&repo, "a", "1", "feature");
+        // Simulate a merge commit: parents = [fork, branch_tip]
+        let sig = repo.signature().unwrap();
+        let merge_tree = repo.find_commit(branch_tip).unwrap().tree().unwrap();
+        let merge_commit = repo.commit(
+            None, &sig, &sig, "Merge PR",
+            &merge_tree,
+            &[
+                &repo.find_commit(fork).unwrap(),
+                &repo.find_commit(branch_tip).unwrap(),
+            ],
+        ).unwrap();
+        // Advance "main" past the merge commit
+        let post_merge_tree = repo.find_commit(merge_commit).unwrap().tree().unwrap();
+        let main_tip = repo.commit(
+            None, &sig, &sig, "after merge",
+            &post_merge_tree,
+            &[&repo.find_commit(merge_commit).unwrap()],
+        ).unwrap();
+
+        // base_oid = main_tip; head_oid = branch_tip (ancestor of main_tip).
+        let range = resolve_diff_range(
+            &repo, main_tip, branch_tip,
+            Some(&merge_commit.to_string()),
+        ).unwrap();
+
+        // Want: base = merge_commit^1 (the fork point on main), head = merge_commit (or branch_tip).
+        assert_eq!(range.base, fork, "base should be merge_commit^1");
+        assert_eq!(range.head, merge_commit, "head should be the merge commit");
     }
 }
