@@ -497,6 +497,8 @@ pub struct GlobalAppConfig {
     #[serde(default)]
     pub delete_after_days: Option<u32>,
     #[serde(default)]
+    pub dismissed_lifecycle_nudge: bool,
+    #[serde(default)]
     pub debug_mode: Option<bool>,
     #[serde(default)]
     pub comment_chips: Vec<String>,

@@ -47,6 +47,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             delete_after_days: None,
             debug_mode: None,
             comment_chips: vec![],
+            dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
         });
     }
@@ -186,6 +187,7 @@ pub async fn migrate_if_needed(
         delete_after_days: None,
         debug_mode: None,
         comment_chips: vec![],
+        dismissed_lifecycle_nudge: false,
         receive_beta_updates: false,
     };
 
@@ -255,6 +257,7 @@ mod tests {
             delete_after_days: None,
             debug_mode: None,
             comment_chips: vec![],
+            dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
         };
         save(dir.path(), &config).await?;
@@ -303,6 +306,7 @@ mod tests {
             delete_after_days: None,
             debug_mode: None,
             comment_chips: vec![],
+            dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
@@ -348,6 +352,7 @@ mod tests {
             delete_after_days: None,
             debug_mode: None,
             comment_chips: vec![],
+            dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
         };
         remove_repo(&mut config, "/tmp/a");
