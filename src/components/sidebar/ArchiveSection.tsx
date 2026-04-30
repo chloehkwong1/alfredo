@@ -93,7 +93,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Worktree | null>(null);
 
-  if (worktrees.length === 0) return null;
+  if (worktrees.length === 0 && !rulesOpen) return null;
 
   return (
     <div className="mb-2">
@@ -209,16 +209,18 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
                 </Tooltip>
               </div>
             ))}
-            <button
-              type="button"
-              onClick={() => setDeleteAllDialogOpen(true)}
-              disabled={!!deletingCount}
-              className="text-[10px] text-text-tertiary/40 hover:text-red-400/70 transition-colors cursor-pointer mt-1 mb-1 pl-1"
-            >
-              {deletingCount
-                ? `Deleting ${deletingCount.current}/${deletingCount.total}...`
-                : "Delete all"}
-            </button>
+            {worktrees.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setDeleteAllDialogOpen(true)}
+                disabled={!!deletingCount}
+                className="text-[10px] text-text-tertiary/40 hover:text-red-400/70 transition-colors cursor-pointer mt-1 mb-1 pl-1"
+              >
+                {deletingCount
+                  ? `Deleting ${deletingCount.current}/${deletingCount.total}...`
+                  : "Delete all"}
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
