@@ -100,7 +100,9 @@ function WorkspacePanel({
 
   // Branch-mode repos on the default branch have no meaningful committed diff —
   // skip the fetch entirely so only uncommitted changes are shown.
-  const isBranchModeDefault = !!(worktree?.isBranchMode && !pr);
+  // Exception: the pinned main card opts back into the full Files/Commits UI
+  // so HEAD commits are scrollable without checking out a worktree (#36).
+  const isBranchModeDefault = !!(worktree?.isBranchMode && !worktree?.isPinnedMainCard && !pr);
   const effectiveBaseBranch = pr?.baseBranch ?? worktree?.stackParent ?? undefined;
 
   // Map panel tab to data-fetching view mode — force "changes" when tabs are hidden
@@ -328,8 +330,8 @@ function WorkspacePanel({
       )}
 
       {/* Rebase banner — hidden for real branch-mode browsing (already on main) and merge conflicts.
-          Pinned main cards still get it: they want "N commits behind origin/main" → Rebase = fast-forward pull. */}
-      {worktree && (!isBranchModeDefault || worktree.isPinnedMainCard) && mergeable !== false && <RebaseBanner repoPath={repoPath} worktreePath={worktree.path} stackParent={worktree.stackParent} />}
+          Pinned main cards keep it: "N commits behind origin/main" → Rebase = fast-forward pull. */}
+      {worktree && !isBranchModeDefault && mergeable !== false && <RebaseBanner repoPath={repoPath} worktreePath={worktree.path} stackParent={worktree.stackParent} />}
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>
@@ -389,7 +391,7 @@ function WorkspacePanelMinimized({
 }) {
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
-  const isBranchModeDefault = !!(worktree?.isBranchMode && !pr);
+  const isBranchModeDefault = !!(worktree?.isBranchMode && !worktree?.isPinnedMainCard && !pr);
   const minimizedBaseBranch = pr?.baseBranch ?? undefined;
 
   const { uncommittedFiles, committedFiles } = useChangesData(
