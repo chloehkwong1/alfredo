@@ -460,6 +460,8 @@ export interface GlobalAppConfig {
   commentChips?: string[];
   /** Opt in to pre-release builds from the beta update channel. */
   receiveBetaUpdates?: boolean;
+  /** First-time worktree-lifecycle nudge has been dismissed by the user. */
+  dismissedLifecycleNudge?: boolean;
 }
 
 // ── Inline annotation ────────────────────────────────────────────
