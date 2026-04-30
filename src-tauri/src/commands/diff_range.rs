@@ -225,4 +225,25 @@ mod tests {
         assert_eq!(range.base, fork);
         assert_eq!(range.head, merge_commit);
     }
+
+    #[test]
+    fn returns_empty_range_when_head_contained_but_no_merge_commit_found() {
+        let (_dir, repo) = init_repo();
+        let _fork = commit_file(&repo, "a", "0", "fork point");
+        let head = commit_file(&repo, "a", "1", "feature");
+        // Advance "main" linearly *past* head (e.g. squash merge with branch deleted
+        // and metadata gone). No merge commit on the ancestry path.
+        let sig = repo.signature().unwrap();
+        let post_tree = repo.find_commit(head).unwrap().tree().unwrap();
+        let main_tip = repo.commit(
+            None, &sig, &sig, "linear advance",
+            &post_tree,
+            &[&repo.find_commit(head).unwrap()],
+        ).unwrap();
+
+        let range = resolve_diff_range(&repo, main_tip, head, None).unwrap();
+
+        // Caller sees base == head → renders empty state.
+        assert_eq!(range.base, range.head);
+    }
 }
