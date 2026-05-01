@@ -37,7 +37,9 @@ pub fn resolve_diff_range(
         return Ok(DiffRange { base: base_oid, head: head_oid });
     }
 
-    // HEAD is contained in base. Try the PR-supplied merge commit first.
+    // HEAD is contained in base. PR metadata wins when present: a rebase-merged
+    // worktree's HEAD sits on base's first-parent trunk (the precheck below
+    // would collapse it to empty), so we must consult merge_commit_sha first.
     if let Some(sha) = merge_commit_sha {
         if let Ok(oid) = Oid::from_str(sha) {
             if let Ok(commit) = repo.find_commit(oid) {
@@ -46,6 +48,13 @@ pub fn resolve_diff_range(
                 }
             }
         }
+    }
+
+    // No PR hint. If HEAD sits on base's first-parent trunk it has no commits
+    // of its own — there is no merge commit to find, and any merge commit on
+    // the trunk above HEAD belongs to an unrelated branch. Collapse to empty.
+    if head_is_on_first_parent_ancestry(repo, base_oid, head_oid)? {
+        return Ok(DiffRange { base: head_oid, head: head_oid });
     }
 
     // No usable hint — walk first-parent ancestry of base looking for the
@@ -64,6 +73,38 @@ pub fn resolve_diff_range(
     // no PR metadata). Caller will see base==head and render an explicit
     // "branch fully contained in base" empty state.
     Ok(DiffRange { base: head_oid, head: head_oid })
+}
+
+/// True iff `head` is reachable from `base` by following first parents.
+/// When this holds, HEAD has zero commits unique to itself — it sits on the
+/// trunk leading up to base — so any merge commit between them belongs to an
+/// unrelated branch, not to HEAD.
+fn head_is_on_first_parent_ancestry(
+    repo: &Repository,
+    base: Oid,
+    head: Oid,
+) -> Result<bool, AppError> {
+    let mut cursor = base;
+    for _ in 0..2000 {
+        if cursor == head {
+            return Ok(true);
+        }
+        let commit = repo.find_commit(cursor)
+            .map_err(|e| AppError::Git(format!("find commit failed: {e}")))?;
+        let first_parent = match commit.parents().next() {
+            Some(p) => p,
+            None => return Ok(false),
+        };
+        // Once first-parent ancestry passes head's position, head isn't on the trunk.
+        let head_still_reachable = first_parent.id() == head
+            || repo.graph_descendant_of(first_parent.id(), head)
+                .map_err(|e| AppError::Git(format!("ancestor check failed: {e}")))?;
+        if !head_still_reachable {
+            return Ok(false);
+        }
+        cursor = first_parent.id();
+    }
+    Ok(false)
 }
 
 /// Walk first-parent ancestry of `base` until the next commit's first parent
@@ -243,5 +284,97 @@ mod tests {
         // Caller sees base == head → renders empty state.
         assert_eq!(range.base, range.head);
         assert_eq!(range.base, head, "empty range should collapse to head, not base");
+    }
+
+    #[test]
+    fn unrelated_merge_on_main_does_not_match_pure_behind_head() {
+        // Pure-behind worktree: HEAD sits on main's first-parent ancestry with
+        // zero commits unique to this branch. An unrelated PR has been merged
+        // into main since HEAD. The resolver must NOT treat that unrelated
+        // merge as if it merged HEAD's branch — it should collapse to empty.
+        let (_dir, repo) = init_repo();
+        let head = commit_file(&repo, "a", "0", "old main tip — also our HEAD");
+
+        // Unrelated feature branch off `head`, then merged into main.
+        let sig = repo.signature().unwrap();
+        let unrelated_tree = repo.find_commit(head).unwrap().tree().unwrap();
+        let unrelated_tip = repo
+            .commit(
+                None,
+                &sig,
+                &sig,
+                "unrelated feature commit",
+                &unrelated_tree,
+                &[&repo.find_commit(head).unwrap()],
+            )
+            .unwrap();
+        let merge_tree = repo.find_commit(unrelated_tip).unwrap().tree().unwrap();
+        let merge_commit = repo
+            .commit(
+                None,
+                &sig,
+                &sig,
+                "Merge unrelated PR",
+                &merge_tree,
+                &[
+                    &repo.find_commit(head).unwrap(),
+                    &repo.find_commit(unrelated_tip).unwrap(),
+                ],
+            )
+            .unwrap();
+        let post_merge_tree = repo.find_commit(merge_commit).unwrap().tree().unwrap();
+        let main_tip = repo
+            .commit(
+                None,
+                &sig,
+                &sig,
+                "after merge",
+                &post_merge_tree,
+                &[&repo.find_commit(merge_commit).unwrap()],
+            )
+            .unwrap();
+
+        let range = resolve_diff_range(&repo, main_tip, head, None).unwrap();
+
+        // HEAD has no commits of its own — the unrelated PR's merge must not
+        // be misattributed to it. Range collapses to (head, head).
+        assert_eq!(
+            range.base, range.head,
+            "pure-behind HEAD must collapse to empty; got base={} head={}",
+            range.base, range.head,
+        );
+        assert_eq!(range.base, head, "empty range should anchor on head");
+    }
+
+    #[test]
+    fn rebase_merged_head_on_trunk_uses_merge_commit_sha() {
+        // Rebase-merge: the PR's commits get replayed onto main's first-parent
+        // trunk, then the local branch's HEAD ends up pointing at one of those
+        // replayed commits. HEAD is now on base's trunk — the precheck would
+        // collapse to empty — but PR metadata names the merge SHA, so we must
+        // consult it first and surface the merged work.
+        let (_dir, repo) = init_repo();
+        let fork = commit_file(&repo, "a", "0", "fork point");
+        // Replayed PR commits become first-parent on main:
+        let merged = commit_file(&repo, "a", "1", "feature commit (rebased onto main)");
+        // Main advances past the merged commit:
+        let sig = repo.signature().unwrap();
+        let post_tree = repo.find_commit(merged).unwrap().tree().unwrap();
+        let main_tip = repo
+            .commit(
+                None,
+                &sig,
+                &sig,
+                "post-merge main commit",
+                &post_tree,
+                &[&repo.find_commit(merged).unwrap()],
+            )
+            .unwrap();
+
+        // Worktree HEAD = the rebased commit on main's first-parent trunk.
+        let range = resolve_diff_range(&repo, main_tip, merged, Some(&merged.to_string())).unwrap();
+
+        assert_eq!(range.base, fork, "base should be merge_commit^1 (fork point)");
+        assert_eq!(range.head, merged, "head should be the named merge commit");
     }
 }
