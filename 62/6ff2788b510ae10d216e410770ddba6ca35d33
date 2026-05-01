@@ -1,0 +1,27 @@
+src/components/sidebar/SidebarRail.tsx
+  712d4b504e3d6680 1,15,17,19-22,24-35,47,62,64-70,77-83,97
+src/components/sidebar/SidebarRail.test.ts
+  712d4b504e3d6680 1-51
+src/components/sidebar/Sidebar.tsx
+  712d4b504e3d6680 2,102,310-312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "626ff2788b510ae10d216e410770ddba6ca35d33",
+  "prompts": {
+    "712d4b504e3d6680": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01094bd8-3c24-4a03-b592-dae3050ea786",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 94,
+      "total_deletions": 24,
+      "accepted_lines": 2892,
+      "overriden_lines": 16
+    }
+  }
+}
