@@ -113,11 +113,25 @@ export function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon
  * Keyboard-driven selections (Shift+arrow, Cmd+A) intentionally don't
  * auto-copy — also matches iTerm2.
  *
- * Implementation: listen to xterm's `onSelectionChange`, which fires from
- * inside xterm's own document-level mouseup handler after the selection
- * model is finalised. A DOM mouseup listener on `terminal.element` runs
- * during bubble *before* xterm's document handler, so it reads a half-
- * finalised selection (typically a 1-char span at the drag start).
+ * Implementation: gate on a mousedown flag attached to `terminal.element`
+ * (xterm registers its own mousedown on the same element to start a
+ * selection). On mouseup at the same element, schedule a microtask to read
+ * the selection. The microtask drains *after* the current task completes,
+ * by which point xterm's document-level mouseup handler has finalised the
+ * selection model (xterm registers that via `_addMouseDownListeners` on
+ * selection start).
+ *
+ * Why not subscribe to `terminal.onSelectionChange`: the prior version did,
+ * gating on the same mousedown flag and self-clearing the flag inside the
+ * callback. That was fragile w.r.t. the order in which the flag was reset
+ * vs. the selection event firing, and produced empty / 1-char copies on
+ * some drags. Reading the selection synchronously from a deferred mouseup
+ * handler is more deterministic.
+ *
+ * Trade-off: if the user drags out of the terminal element and releases
+ * outside, this won't copy (only document-level mouseup catches that). We
+ * stay element-local so the listener auto-cleans when the terminal is
+ * disposed and its element removed from the DOM.
  *
  * Must be called after `terminal.open()` — `terminal.element` is undefined
  * before then.
@@ -126,21 +140,15 @@ export function registerSelectToCopy(terminal: Terminal): void {
   const el = terminal.element;
   if (!el) return;
 
-  let mouseDown = false;
-  el.addEventListener("mousedown", () => { mouseDown = true; });
-  // Clear the flag after the mouseup dispatch fully completes. A microtask runs
-  // between tasks, i.e. after xterm's document-bubble mouseup has fired
-  // onSelectionChange — so the consumer below still sees `mouseDown === true`.
-  // Element-level (not window) so the listener dies with `el` on dispose.
+  let mouseSelecting = false;
+  el.addEventListener("mousedown", () => { mouseSelecting = true; });
   el.addEventListener("mouseup", () => {
-    queueMicrotask(() => { mouseDown = false; });
-  });
-
-  terminal.onSelectionChange(() => {
-    if (!mouseDown) return;
-    mouseDown = false;
-    const sel = terminal.getSelection();
-    if (sel) navigator.clipboard.writeText(sel).catch(console.error);
+    if (!mouseSelecting) return;
+    mouseSelecting = false;
+    queueMicrotask(() => {
+      const sel = terminal.getSelection();
+      if (sel) navigator.clipboard.writeText(sel).catch(console.error);
+    });
   });
 }
 
