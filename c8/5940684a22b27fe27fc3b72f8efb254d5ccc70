@@ -1,0 +1,38 @@
+src/components/sidebar/PrStatsRow.tsx
+  38abccb83537a0dd 11,22,26-27,56,59-60,71-76
+src/stores/prStore.ts
+  38abccb83537a0dd 31,250,252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "c85940684a22b27fe27fc3b72f8efb254d5ccc70",
+  "prompts": {
+    "38abccb83537a0dd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0bb969f-50cf-4b8f-8a07-506a052a196a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    },
+    "6cb188739daccaec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "18f01dce-5bc1-49ab-bf69-657755b5d0dc",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    }
+  }
+}
