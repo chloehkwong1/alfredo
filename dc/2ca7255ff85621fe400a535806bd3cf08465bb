@@ -1,0 +1,38 @@
+src/components/sidebar/ArchiveSection.tsx
+  433f6eef6b868411 180-186
+src/components/settings/WorkspaceSettingsDialog.tsx
+  433f6eef6b868411 608-615
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "dc2ca7255ff85621fe400a535806bd3cf08465bb",
+  "prompts": {
+    "308480592986f607": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7464b010-1de8-48d6-838c-c41b945714c1",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 296,
+      "overriden_lines": 0
+    },
+    "433f6eef6b868411": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7bfff956-6602-4762-a3eb-b2c33790bec1",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 6,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    }
+  }
+}
