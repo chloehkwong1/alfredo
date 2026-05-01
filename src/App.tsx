@@ -5,6 +5,7 @@ import { Toaster } from "./components/ui/Toaster";
 import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
+import { applyPersistedZoom } from "./services/uiZoom";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -103,6 +104,9 @@ function AppInner() {
     const handler = () => setAskOpen((v) => !v);
     window.addEventListener("alfredo:toggle-ask", handler);
     return () => window.removeEventListener("alfredo:toggle-ask", handler);
+  }, []);
+  useEffect(() => {
+    void applyPersistedZoom();
   }, []);
   return (
     <TooltipProvider>

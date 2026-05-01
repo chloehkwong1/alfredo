@@ -4,7 +4,7 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { lifecycleManager } from "../services/lifecycleManager";
 import { sessionManager } from "../services/sessionManager";
-import { loadTerminalPreferences, saveTerminalPreferences, TERMINAL_DEFAULTS } from "../services/terminalPreferences";
+import { zoomIn, zoomOut, zoomReset } from "../services/uiZoom";
 import type { WorkspaceTab } from "../types";
 
 /**
@@ -21,9 +21,9 @@ import type { WorkspaceTab } from "../types";
  * - Cmd+Shift+T: switch to first terminal/claude tab in active pane
  * - Cmd+Option+Left/Right: previous/next tab in active pane (wraps)
  * - Cmd+K: clear active terminal
- * - Cmd+Plus: zoom in terminal font
- * - Cmd+Minus: zoom out terminal font
- * - Cmd+0: reset terminal font size
+ * - Cmd+Plus: zoom in (whole UI)
+ * - Cmd+Minus: zoom out (whole UI)
+ * - Cmd+0: reset zoom to 100%
  */
 export function useKeyboardShortcuts(
   activeWorktreeId: string | null,
@@ -185,31 +185,24 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // Cmd+Plus: zoom in terminal font
+      // Cmd+= / Cmd++: zoom in (whole UI)
       if (event.metaKey && !event.shiftKey && (event.key === "=" || event.key === "+")) {
         event.preventDefault();
-        const prefs = loadTerminalPreferences();
-        if (prefs.fontSize < 24) {
-          saveTerminalPreferences({ ...prefs, fontSize: prefs.fontSize + 1 });
-        }
+        void zoomIn();
         return;
       }
 
-      // Cmd+Minus: zoom out terminal font
+      // Cmd+-: zoom out (whole UI)
       if (event.metaKey && !event.shiftKey && event.key === "-") {
         event.preventDefault();
-        const prefs = loadTerminalPreferences();
-        if (prefs.fontSize > 8) {
-          saveTerminalPreferences({ ...prefs, fontSize: prefs.fontSize - 1 });
-        }
+        void zoomOut();
         return;
       }
 
-      // Cmd+0: reset terminal font size
+      // Cmd+0: reset zoom
       if (event.metaKey && !event.shiftKey && event.key === "0") {
         event.preventDefault();
-        const prefs = loadTerminalPreferences();
-        saveTerminalPreferences({ ...prefs, fontSize: TERMINAL_DEFAULTS.fontSize });
+        void zoomReset();
         return;
       }
 
