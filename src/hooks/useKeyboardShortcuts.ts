@@ -5,6 +5,7 @@ import { useTabStore } from "../stores/tabStore";
 import { lifecycleManager } from "../services/lifecycleManager";
 import { sessionManager } from "../services/sessionManager";
 import { zoomIn, zoomOut, zoomReset } from "../services/uiZoom";
+import { loadTerminalPreferences, saveTerminalPreferences, TERMINAL_DEFAULTS } from "../services/terminalPreferences";
 import type { WorkspaceTab } from "../types";
 
 /**
@@ -21,9 +22,8 @@ import type { WorkspaceTab } from "../types";
  * - Cmd+Shift+T: switch to first terminal/claude tab in active pane
  * - Cmd+Option+Left/Right: previous/next tab in active pane (wraps)
  * - Cmd+K: clear active terminal
- * - Cmd+Plus: zoom in (whole UI)
- * - Cmd+Minus: zoom out (whole UI)
- * - Cmd+0: reset zoom to 100%
+ * - Cmd+Plus / Cmd+Minus / Cmd+0: zoom — affects only the focused terminal's
+ *   font size when an xterm has focus, otherwise zooms the whole UI
  */
 export function useKeyboardShortcuts(
   activeWorktreeId: string | null,
@@ -185,24 +185,34 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // Cmd+= / Cmd++: zoom in (whole UI)
-      if (event.metaKey && !event.shiftKey && (event.key === "=" || event.key === "+")) {
+      // Cmd+= / Cmd++ / Cmd+- / Cmd+0: terminal-only when an xterm has focus,
+      // whole-UI zoom otherwise.
+      if (
+        event.metaKey &&
+        !event.shiftKey &&
+        (event.key === "=" || event.key === "+" || event.key === "-" || event.key === "0")
+      ) {
         event.preventDefault();
-        void zoomIn();
-        return;
-      }
-
-      // Cmd+-: zoom out (whole UI)
-      if (event.metaKey && !event.shiftKey && event.key === "-") {
-        event.preventDefault();
-        void zoomOut();
-        return;
-      }
-
-      // Cmd+0: reset zoom
-      if (event.metaKey && !event.shiftKey && event.key === "0") {
-        event.preventDefault();
-        void zoomReset();
+        const inTerminal = !!(document.activeElement as HTMLElement | null)
+          ?.closest?.('.xterm');
+        if (inTerminal) {
+          const prefs = loadTerminalPreferences();
+          if (event.key === "0") {
+            saveTerminalPreferences({ ...prefs, fontSize: TERMINAL_DEFAULTS.fontSize });
+          } else if (event.key === "-") {
+            if (prefs.fontSize > 8) {
+              saveTerminalPreferences({ ...prefs, fontSize: prefs.fontSize - 1 });
+            }
+          } else if (prefs.fontSize < 24) {
+            saveTerminalPreferences({ ...prefs, fontSize: prefs.fontSize + 1 });
+          }
+        } else if (event.key === "0") {
+          void zoomReset();
+        } else if (event.key === "-") {
+          void zoomOut();
+        } else {
+          void zoomIn();
+        }
         return;
       }
 
