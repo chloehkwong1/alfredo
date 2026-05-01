@@ -1,0 +1,23 @@
+src/services/terminalFactory.ts
+  6b3d3cd2e555f0cd 111-120,128-134,136-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "ad984612b394e7b7daf8cfb061e496c66ea85255",
+  "prompts": {
+    "6b3d3cd2e555f0cd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1491c838-5321-490c-aa7c-9cf910ad26e5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 30,
+      "total_deletions": 12,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}
