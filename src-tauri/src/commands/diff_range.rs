@@ -22,19 +22,31 @@ pub struct DiffRange {
 /// `base_oid` is the resolved default branch tip (origin/main or equivalent).
 /// `head_oid` is the worktree's current HEAD.
 /// `merge_commit_sha` is `pr.mergeCommitSha` if known, else None.
+///
+/// Returns the (base, head) pair to feed into a tree-to-tree diff or a
+/// `revwalk.push(head).hide(base)` walk. `base` is **never** the raw default
+/// branch tip in the non-ancestor arm — it's the merge-base, so callers don't
+/// need to anchor it themselves. Caller-side merge-base resolution is what
+/// regressed in `b56184f` (Changes panel showed upstream commits as deletions
+/// after origin/main advanced past the fork point); centralising it here
+/// keeps the three callers from drifting.
 pub fn resolve_diff_range(
     repo: &Repository,
     base_oid: Oid,
     head_oid: Oid,
     merge_commit_sha: Option<&str>,
 ) -> Result<DiffRange, AppError> {
-    // Cheap check: if HEAD isn't ancestor of base, the standard merge-base
-    // diff produces useful output. Skip the merge-commit dance.
+    // HEAD has commits unique to itself — return (merge_base, head). A raw
+    // base_oid here would make tree-to-tree diff misattribute upstream-only
+    // commits as deletions in the branch.
     let head_is_ancestor = repo
         .graph_descendant_of(base_oid, head_oid)
         .map_err(|e| AppError::Git(format!("ancestor check failed: {e}")))?;
     if !head_is_ancestor {
-        return Ok(DiffRange { base: base_oid, head: head_oid });
+        let mb = repo
+            .merge_base(base_oid, head_oid)
+            .map_err(|e| AppError::Git(format!("merge_base failed: {e}")))?;
+        return Ok(DiffRange { base: mb, head: head_oid });
     }
 
     // HEAD is contained in base. PR metadata wins when present: a rebase-merged
@@ -187,15 +199,66 @@ mod tests {
     }
 
     #[test]
-    fn passes_through_when_head_is_ahead_of_base() {
+    fn returns_merge_base_when_head_is_ahead_of_base() {
         let (_dir, repo) = init_repo();
         let base = commit_file(&repo, "a", "1", "init");
         let head = commit_file(&repo, "a", "2", "feature work");
 
         let range = resolve_diff_range(&repo, base, head, None).unwrap();
 
+        // base is itself the fork point here (head's parent), so merge_base == base.
         assert_eq!(range.base, base);
         assert_eq!(range.head, head);
+    }
+
+    #[test]
+    fn returns_fork_point_when_origin_main_advanced_past_branch() {
+        // Real-world scenario from ROS-2161: branch has 3 unique commits on top
+        // of an older main; origin/main has since advanced with unrelated work.
+        // Pre-fix the resolver returned (origin_main_tip, head) and the panel
+        // misattributed upstream commits as deletions in the branch.
+        let (_dir, repo) = init_repo();
+        let fork = commit_file(&repo, "shared", "0", "fork point");
+
+        // Branch: 3 unique commits off the fork.
+        let branch_c1 = commit_file(&repo, "branch", "1", "branch commit 1");
+        let _branch_c2 = commit_file(&repo, "branch", "2", "branch commit 2");
+        let head = commit_file(&repo, "branch", "3", "branch commit 3");
+
+        // Reset HEAD back to fork to lay down unrelated upstream commits.
+        let sig = repo.signature().unwrap();
+        let fork_commit = repo.find_commit(fork).unwrap();
+        repo.reset(fork_commit.as_object(), git2::ResetType::Hard, None).unwrap();
+
+        // Origin/main: 7 unrelated commits past the fork.
+        let mut upstream_tip = fork;
+        for i in 0..7 {
+            let path = format!("upstream-{i}");
+            std::fs::write(repo.workdir().unwrap().join(&path), format!("u{i}")).unwrap();
+            let mut idx = repo.index().unwrap();
+            idx.add_path(std::path::Path::new(&path)).unwrap();
+            idx.write().unwrap();
+            let tree = repo.find_tree(idx.write_tree().unwrap()).unwrap();
+            let parent = repo.find_commit(upstream_tip).unwrap();
+            upstream_tip = repo
+                .commit(Some("HEAD"), &sig, &sig, &format!("upstream {i}"), &tree, &[&parent])
+                .unwrap();
+        }
+
+        let range = resolve_diff_range(&repo, upstream_tip, head, None).unwrap();
+
+        assert_eq!(range.base, fork, "base must be the fork point, not origin/main tip");
+        assert_eq!(range.head, head);
+        assert_ne!(range.base, upstream_tip, "raw base tip would regress b56184f");
+        // Sanity-check we actually constructed a non-ancestor scenario.
+        assert!(!repo.graph_descendant_of(upstream_tip, head).unwrap());
+        // And that the unique-to-head set is exactly the 3 branch commits.
+        let mut walk = repo.revwalk().unwrap();
+        walk.push(head).unwrap();
+        walk.hide(range.base).unwrap();
+        let unique: Vec<_> = walk.map(|o| o.unwrap()).collect();
+        assert_eq!(unique.len(), 3, "branch should have exactly 3 unique commits");
+        assert!(unique.contains(&branch_c1));
     }
 
     #[test]
