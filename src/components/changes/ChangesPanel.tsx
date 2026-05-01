@@ -260,7 +260,19 @@ function WorkspacePanel({
                 : "text-text-tertiary hover:text-text-secondary",
             ].join(" ")}
           >
-            Files{fileCount > 0 ? ` (${fileCount})` : ""}
+            <span className="whitespace-nowrap">Files</span>
+            {fileCount > 0 && (
+              <span
+                className={[
+                  "ml-1.5 text-[9px] font-semibold px-1.5 py-px rounded-sm",
+                  panelTab === "changes"
+                    ? "bg-accent-primary/20 text-accent-primary"
+                    : "bg-white/5 text-text-tertiary",
+                ].join(" ")}
+              >
+                {fileCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => handleTabChange("commits")}
@@ -272,7 +284,19 @@ function WorkspacePanel({
                 : "text-text-tertiary hover:text-text-secondary",
             ].join(" ")}
           >
-            Commits{commits.length > 0 ? ` (${commits.length})` : ""}
+            <span className="whitespace-nowrap">Commits</span>
+            {commits.length > 0 && (
+              <span
+                className={[
+                  "ml-1.5 text-[9px] font-semibold px-1.5 py-px rounded-sm",
+                  panelTab === "commits"
+                    ? "bg-accent-primary/20 text-accent-primary"
+                    : "bg-white/5 text-text-tertiary",
+                ].join(" ")}
+              >
+                {commits.length}
+              </span>
+            )}
           </button>
           {hasPr && (
             <button
