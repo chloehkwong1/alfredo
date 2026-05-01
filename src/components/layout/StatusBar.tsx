@@ -24,10 +24,12 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
         <button
           type="button"
           onClick={() => copy(worktree.branch)}
-          title="Copy branch name"
+          title={worktree.branch}
           className="group flex items-center gap-1 font-medium text-text-secondary min-w-0 hover:text-text-primary transition-colors"
         >
-          <span className="truncate">{worktree.branch}</span>
+          <span className="truncate max-w-[360px]" style={{ direction: "rtl" }}>
+            <bdi dir="ltr">{worktree.branch}</bdi>
+          </span>
           {copied
             ? <Check size={11} className="shrink-0 text-diff-added" />
             : <Copy size={11} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
