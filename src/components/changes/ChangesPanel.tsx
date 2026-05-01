@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GitBranch, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
+import { RecentCommitsSection } from "./RecentCommitsSection";
 import { PrPanelContent, PrRailIcons, usePrBadgeCounts } from "./PrPanel";
 import { MergeStatusBanner } from "./MergeStatusBanner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/Dialog";
@@ -13,6 +14,7 @@ import { useChangesData } from "../../hooks/useChangesData";
 import { useGitUser } from "../../hooks/useGitUser";
 import { discardFile, discardAllUncommitted, getCommitsBehindMain, rebaseWorktree } from "../../api";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
+import { shouldShowSimplifiedMainView } from "../../lib/cardViewMode";
 import type { ViewMode } from "./FileSidebar";
 import type { PrComment } from "../../types";
 
@@ -97,12 +99,17 @@ function WorkspacePanel({
   const pr = worktree?.prStatus ?? null;
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments ?? EMPTY_COMMENTS);
   const { checkRuns, mergeable, reviewDecision } = usePrBadgeCounts(worktreeId);
+  const defaultBranch = useDefaultBranch(repoPath, worktree?.stackParent);
 
-  // Branch-mode repos on the default branch have no meaningful committed diff —
-  // skip the fetch entirely so only uncommitted changes are shown.
-  // Exception: the pinned main card opts back into the full Files/Commits UI
-  // so HEAD commits are scrollable without checking out a worktree (#36).
-  const isBranchModeDefault = !!(worktree?.isBranchMode && !worktree?.isPinnedMainCard && !pr);
+  // Simplified pinned-main-card view: hide Files/Commits tabs when parked on
+  // the default branch with no PR. Florence-style repos parked on main get
+  // the simpler view; branch-mode repos with a pinned main card keep the
+  // full UX so they can scroll HEAD commits (#36).
+  const isBranchModeDefault = shouldShowSimplifiedMainView({
+    worktree: worktree ?? { isPinnedMainCard: false, branch: "" },
+    defaultBranch,
+    hasPr: !!pr,
+  });
   const effectiveBaseBranch = pr?.baseBranch ?? worktree?.stackParent ?? undefined;
 
   // Map panel tab to data-fetching view mode — force "changes" when tabs are hidden
@@ -310,9 +317,18 @@ function WorkspacePanel({
               onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
               onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
               worktreePath={worktree?.path}
+              defaultBranchName={defaultBranch}
               error={error}
             />
           </div>
+          {isBranchModeDefault && (
+            <RecentCommitsSection
+              repoPath={repoPath}
+              worktreeId={worktreeId}
+              defaultBranchName={defaultBranch}
+              gitUser={gitUser}
+            />
+          )}
         </div>
       )}
 
@@ -329,9 +345,10 @@ function WorkspacePanel({
         />
       )}
 
-      {/* Rebase banner — hidden for real branch-mode browsing (already on main) and merge conflicts.
-          Pinned main cards keep it: "N commits behind origin/main" → Rebase = fast-forward pull. */}
-      {worktree && !isBranchModeDefault && mergeable !== false && <RebaseBanner repoPath={repoPath} worktreePath={worktree.path} stackParent={worktree.stackParent} />}
+      {/* Rebase banner — pinned main cards always show it ("N commits behind origin/main" → Rebase = fast-forward pull).
+          Lifted out of the simplified-view gate so it stays visible on Florence main when behind. The banner's
+          internal behindCount === 0 short-circuit handles the up-to-date case. Hidden during merge conflicts. */}
+      {worktree && worktree.isPinnedMainCard && mergeable !== false && <RebaseBanner repoPath={repoPath} worktreePath={worktree.path} stackParent={worktree.stackParent} />}
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>
@@ -391,7 +408,12 @@ function WorkspacePanelMinimized({
 }) {
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
-  const isBranchModeDefault = !!(worktree?.isBranchMode && !worktree?.isPinnedMainCard && !pr);
+  const defaultBranch = useDefaultBranch(repoPath, undefined);
+  const isBranchModeDefault = shouldShowSimplifiedMainView({
+    worktree: worktree ?? { isPinnedMainCard: false, branch: "" },
+    defaultBranch,
+    hasPr: !!pr,
+  });
   const minimizedBaseBranch = pr?.baseBranch ?? undefined;
 
   const { uncommittedFiles, committedFiles } = useChangesData(

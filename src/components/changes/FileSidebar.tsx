@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Copy, ExternalLink, MessageCircle, Undo2 } from "lucide-react";
 import type { DiffFile, CommitInfo, PrComment } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
+import { formatAuthor as formatAuthorShared } from "./formatAuthor";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from "../ui/ContextMenu";
 import { openPathInEditor } from "../../services/openExternal";
 
@@ -26,6 +27,7 @@ interface FileSidebarProps {
   onDoubleClickFile?: (path: string) => void;
   onDoubleClickCommit?: (index: number) => void;
   worktreePath?: string;
+  defaultBranchName?: string | null;
   error?: string | null;
 }
 
@@ -192,6 +194,7 @@ function FileSidebar({
   onDoubleClickFile,
   onDoubleClickCommit,
   worktreePath,
+  defaultBranchName,
   error,
 }: FileSidebarProps) {
   const [filter, setFilter] = useState("");
@@ -337,12 +340,7 @@ function FileSidebar({
   );
 
   const formatAuthor = useCallback(
-    (author: string) => {
-      if (gitUser && author.toLowerCase() === gitUser.toLowerCase()) {
-        return { text: "You", className: "text-text-tertiary" };
-      }
-      return { text: author, className: "text-accent-primary" };
-    },
+    (author: string) => formatAuthorShared(author, gitUser),
     [gitUser],
   );
 
@@ -408,6 +406,12 @@ function FileSidebar({
           {filteredCommits.length === 0 && upstreamCommits.length === 0 && (
             <div className="px-2.5 py-4 text-[13px] text-text-tertiary text-center">
               No commits
+            </div>
+          )}
+
+          {filteredCommits.length === 0 && upstreamCommits.length > 0 && (
+            <div className="px-2.5 py-4 text-[13px] text-text-tertiary text-center">
+              Up to date with <code className="font-mono text-[12px]">{defaultBranchName ?? "main"}</code>
             </div>
           )}
 
