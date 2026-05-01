@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronRight, Copy, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Eye, Trash2 } from "lucide-react";
 import type { DiffFile, FileViewMode } from "../../types";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 
@@ -78,28 +78,23 @@ function DiffFileHeader({
         </span>
       )}
       {expanded && fileViewMode && onChangeFileViewMode && (
-        <span
-          className="flex-shrink-0 ml-auto inline-flex items-center rounded border border-border-default overflow-hidden text-[10px] font-mono"
-          onClick={(e) => e.stopPropagation()}
+        <button
+          className={[
+            "flex-shrink-0 ml-auto p-0.5 rounded transition-all",
+            fileViewMode === "rendered"
+              ? "text-accent-primary"
+              : "opacity-0 group-hover/header:opacity-100 text-text-tertiary hover:text-text-primary",
+          ].join(" ")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onChangeFileViewMode(fileViewMode === "rendered" ? "diff" : "rendered");
+          }}
+          aria-pressed={fileViewMode === "rendered"}
+          aria-label="Toggle rendered preview"
+          title={fileViewMode === "rendered" ? "Show diff" : "Show rendered preview"}
         >
-          {(["diff", "rendered"] as const).map((mode) => (
-            <button
-              key={mode}
-              className={[
-                "px-1.5 py-0.5 transition-colors",
-                fileViewMode === mode
-                  ? "bg-bg-hover text-text-primary"
-                  : "text-text-tertiary hover:text-text-primary",
-              ].join(" ")}
-              onClick={(e) => {
-                e.stopPropagation();
-                onChangeFileViewMode(mode);
-              }}
-            >
-              {mode === "diff" ? "Diff" : "Rendered"}
-            </button>
-          ))}
-        </span>
+          <Eye size={13} />
+        </button>
       )}
       {onDiscardFile && (
         <button

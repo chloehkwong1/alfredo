@@ -77,11 +77,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
 
     const isMarkdown = isMarkdownPath(file.path);
     const supportsRendered = isMarkdown && file.status !== "deleted";
-    // New `.md` files default to rendered (the diff is just `+` on every line);
-    // modified files default to diff so reviewing changes still works out of the box.
-    const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() =>
-      supportsRendered && file.status === "added" ? "rendered" : "diff",
-    );
+    const [fileViewMode, setFileViewMode] = useState<FileViewMode>("diff");
 
     // Auto-expand the PR comment thread when highlightCommentLine changes
     const highlightLineRef = useRef<HTMLDivElement | null>(null);
