@@ -1,0 +1,23 @@
+src/hooks/useGithubSync.ts
+  c73bb57d20e395f9 44,47-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "db7b5d00269c7a58cd83a8e30d8cdb18de51e143",
+  "prompts": {
+    "c73bb57d20e395f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "49efb438-eb25-48eb-808c-9d584a48fade",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 14,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    }
+  }
+}

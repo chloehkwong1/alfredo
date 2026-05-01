@@ -1,0 +1,25 @@
+src-tauri/src/commands/diff_range.rs
+  71eabcded0c86a31 1-35
+src-tauri/src/commands/mod.rs
+  71eabcded0c86a31 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "66332cc5ff653f4cbf42280b76d8b47c4c5b14ca",
+  "prompts": {
+    "71eabcded0c86a31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a3b94836-0e76-421d-a722-f5010aaac5cf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 0,
+      "accepted_lines": 36,
+      "overriden_lines": 0
+    }
+  }
+}
