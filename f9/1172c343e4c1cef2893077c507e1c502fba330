@@ -1,0 +1,23 @@
+src/components/layout/StatusBar.tsx
+  712d4b504e3d6680 27,30-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f91172c343e4c1cef2893077c507e1c502fba330",
+  "prompts": {
+    "712d4b504e3d6680": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01094bd8-3c24-4a03-b592-dae3050ea786",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 824,
+      "total_deletions": 458,
+      "accepted_lines": 760,
+      "overriden_lines": 0
+    }
+  }
+}
