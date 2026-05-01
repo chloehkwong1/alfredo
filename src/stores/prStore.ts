@@ -28,6 +28,7 @@ interface PrState {
     mergeable?: boolean | null;
     requestedReviewers?: string[];
     merged: boolean;
+    closed: boolean;
   }>;
   prPanelState: Record<string, PrPanelState>;
   reviewedFiles: Record<string, Set<string>>;
@@ -246,8 +247,9 @@ export const usePrStore = create<PrState>((set, get) => ({
         reviewDecision: pr.reviewDecision ?? prev?.reviewDecision,
         mergeable: pr.mergeable ?? prev?.mergeable,
         requestedReviewers: pr.requestedReviewers ?? prev?.requestedReviewers,
-        // merged is always present on PrStatus — no Phase-1/2 fallback needed
+        // merged / closed always present on PrStatus — no Phase-1/2 fallback needed
         merged: pr.merged,
+        closed: pr.state === "closed" && !pr.merged,
       };
 
       // PR panel full data (only update if enrichment data is present)

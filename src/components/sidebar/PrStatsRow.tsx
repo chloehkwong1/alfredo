@@ -8,6 +8,7 @@ import {
   MessageCircle,
   AlertTriangle,
   GitMerge,
+  GitPullRequestClosed,
 } from "lucide-react";
 
 export type PrSummary = {
@@ -18,11 +19,12 @@ export type PrSummary = {
   mergeable?: boolean | null;
   requestedReviewers?: string[];
   merged: boolean;
+  closed: boolean;
 };
 
 export function hasPrStats(s: PrSummary): boolean {
-  const { failingCheckCount, unresolvedCommentCount, reviewDecision, mergeable, merged } = s;
-  if (merged) return true;
+  const { failingCheckCount, unresolvedCommentCount, reviewDecision, mergeable, merged, closed } = s;
+  if (merged || closed) return true;
   if (failingCheckCount != null) return true;
   if (
     reviewDecision === "approved" ||
@@ -51,16 +53,27 @@ export function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
     reviewDecision,
     mergeable,
     merged,
+    closed,
   } = prSummary;
 
-  // Merged is a terminal state — suppress precursor chips (Approved / Checks pass
-  // / etc.) so the card stops implying work-to-do.
+  // Merged / closed are terminal states — suppress precursor chips (Approved /
+  // Checks pass / etc.) so the card stops implying work-to-do.
   if (merged) {
     return (
       <div className="flex items-center gap-3 flex-wrap">
         <span className="flex items-center gap-1 text-xs text-accent-primary">
           <GitMerge size={12} />
           Merged
+        </span>
+      </div>
+    );
+  }
+  if (closed) {
+    return (
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="flex items-center gap-1 text-xs text-text-tertiary">
+          <GitPullRequestClosed size={12} />
+          Cancelled
         </span>
       </div>
     );
