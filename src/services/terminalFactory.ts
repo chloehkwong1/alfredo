@@ -108,11 +108,16 @@ export function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon
 }
 
 /**
- * Select-to-copy: copy the current selection to the clipboard on mouseup,
- * matching iTerm2's "Copy on Select" behaviour. Fires once per drag (on
- * release) instead of continuously during the drag, so clipboard-history
- * tools don't see intermediate states. Keyboard-driven selections (Shift+
- * arrow, Cmd+A) intentionally don't auto-copy — also matches iTerm2.
+ * Select-to-copy: copy the current selection to the clipboard once xterm
+ * finalises a mouse-driven selection, matching iTerm2's "Copy on Select".
+ * Keyboard-driven selections (Shift+arrow, Cmd+A) intentionally don't
+ * auto-copy — also matches iTerm2.
+ *
+ * Implementation: listen to xterm's `onSelectionChange`, which fires from
+ * inside xterm's own document-level mouseup handler after the selection
+ * model is finalised. A DOM mouseup listener on `terminal.element` runs
+ * during bubble *before* xterm's document handler, so it reads a half-
+ * finalised selection (typically a 1-char span at the drag start).
  *
  * Must be called after `terminal.open()` — `terminal.element` is undefined
  * before then.
@@ -120,7 +125,20 @@ export function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon
 export function registerSelectToCopy(terminal: Terminal): void {
   const el = terminal.element;
   if (!el) return;
+
+  let mouseDown = false;
+  el.addEventListener("mousedown", () => { mouseDown = true; });
+  // Clear the flag after the mouseup dispatch fully completes. A microtask runs
+  // between tasks, i.e. after xterm's document-bubble mouseup has fired
+  // onSelectionChange — so the consumer below still sees `mouseDown === true`.
+  // Element-level (not window) so the listener dies with `el` on dispose.
   el.addEventListener("mouseup", () => {
+    queueMicrotask(() => { mouseDown = false; });
+  });
+
+  terminal.onSelectionChange(() => {
+    if (!mouseDown) return;
+    mouseDown = false;
     const sel = terminal.getSelection();
     if (sel) navigator.clipboard.writeText(sel).catch(console.error);
   });
