@@ -4,5 +4,7 @@
 <dict>
     <key>CFBundleIconName</key>
     <string>Alfredo</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Alfredo needs microphone access so Claude Code's /voice command can transcribe audio.</string>
 </dict>
 </plist>
