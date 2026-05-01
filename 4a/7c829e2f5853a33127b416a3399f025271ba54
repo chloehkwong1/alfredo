@@ -1,0 +1,36 @@
+src/components/sidebar/ArchiveSection.tsx
+  9c83dfd09ec85338 3,98-125,132,145-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "4a7c829e2f5853a33127b416a3399f025271ba54",
+  "prompts": {
+    "6f1bf2d816750589": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "680f9ba4-1f9e-464b-8986-ce8a33b681c9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "9c83dfd09ec85338": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ebee484-2e00-48a9-8a3b-d7c67beb57f2",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 61,
+      "total_deletions": 38,
+      "accepted_lines": 53,
+      "overriden_lines": 0
+    }
+  }
+}
