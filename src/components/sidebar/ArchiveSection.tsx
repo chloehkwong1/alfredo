@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArchiveRestore, ChevronRight, Trash2 } from "lucide-react";
+import { ArchiveRestore, ChevronRight, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Tooltip } from "../ui";
 import { Button } from "../ui";
 import {
@@ -95,13 +95,41 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
 
   if (worktrees.length === 0 && !rulesOpen) return null;
 
+  const hasRules = archiveAfterDays > 0 || deleteAfterDays > 0;
+  const tooltipContent = hasRules ? (
+    <div className="flex flex-col gap-0.5">
+      {archiveAfterDays > 0 && (
+        <div className="flex items-baseline gap-3">
+          <span className="text-text-tertiary">Auto-archive merged</span>
+          <span className="ml-auto tabular-nums text-text-primary">{archiveAfterDays}d</span>
+        </div>
+      )}
+      {deleteAfterDays > 0 && (
+        <div className="flex items-baseline gap-3">
+          <span className="text-text-tertiary">Auto-delete archived</span>
+          <span className="ml-auto tabular-nums text-text-primary">{deleteAfterDays}d</span>
+        </div>
+      )}
+      {!rulesOpen && (
+        <span className="mt-1 text-[10px] text-text-tertiary">Click to edit</span>
+      )}
+    </div>
+  ) : (
+    <div className="flex flex-col gap-0.5">
+      <span>Lifecycle: off</span>
+      {!rulesOpen && (
+        <span className="text-[10px] text-text-tertiary">Click to configure</span>
+      )}
+    </div>
+  );
+
   return (
     <div className="mb-2">
       <div className="flex w-full items-center gap-1.5 py-1 select-none text-text-tertiary/60 group/arc">
         <button
           type="button"
           onClick={() => setIsExpanded((prev) => !prev)}
-          className="flex items-center gap-1.5 hover:text-text-tertiary transition-colors cursor-pointer"
+          className="flex flex-1 items-center gap-1.5 hover:text-text-tertiary transition-colors cursor-pointer"
         >
           <ChevronRight
             className={[
@@ -114,34 +142,29 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
             <span className="text-[10px] tabular-nums">{worktrees.length}</span>
           )}
         </button>
-        <span className="text-[10px] text-text-tertiary/40">·</span>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRulesOpenChange(!rulesOpen);
-          }}
-          className={[
-            "text-[10px] cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-bg-hover transition-colors",
-            archiveAfterDays > 0 ? "text-accent-primary/80 hover:text-accent-primary" : "text-text-tertiary/50 hover:text-text-tertiary",
-          ].join(" ")}
-        >
-          {archiveAfterDays > 0 ? `archive: ${archiveAfterDays}d` : "archive: off"}
-        </button>
-        <span className="text-[10px] text-text-tertiary/40">·</span>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRulesOpenChange(!rulesOpen);
-          }}
-          className={[
-            "text-[10px] cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-bg-hover transition-colors",
-            deleteAfterDays > 0 ? "text-accent-primary/80 hover:text-accent-primary" : "text-text-tertiary/50 hover:text-text-tertiary",
-          ].join(" ")}
-        >
-          {deleteAfterDays > 0 ? `delete: ${deleteAfterDays}d` : "delete: off"}
-        </button>
+        <Tooltip content={tooltipContent} side="bottom" delayDuration={150}>
+          <button
+            type="button"
+            onClick={() => onRulesOpenChange(!rulesOpen)}
+            aria-label="Lifecycle rules"
+            aria-expanded={rulesOpen}
+            className={[
+              "relative flex h-[22px] w-[22px] items-center justify-center rounded transition-opacity cursor-pointer",
+              "opacity-0 group-hover/arc:opacity-100 focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-accent-primary",
+              rulesOpen
+                ? "opacity-100 text-accent-primary bg-accent-muted"
+                : "text-text-tertiary/60 hover:text-text-secondary hover:bg-bg-hover",
+            ].join(" ")}
+          >
+            <SlidersHorizontal className="h-3 w-3" />
+            {hasRules && !rulesOpen && (
+              <span
+                aria-hidden
+                className="absolute top-0.5 right-0.5 h-1 w-1 rounded-full bg-accent-primary ring-2 ring-bg-sidebar"
+              />
+            )}
+          </button>
+        </Tooltip>
       </div>
 
       <AnimatePresence initial={false}>
