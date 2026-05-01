@@ -1,0 +1,23 @@
+src/hooks/useKeyboardShortcuts.ts
+  712d4b504e3d6680 8,25-26,188-194,196-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "d1e79e56697c5ecf0b3e9c6aba873bc0e5bb17c2",
+  "prompts": {
+    "712d4b504e3d6680": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01094bd8-3c24-4a03-b592-dae3050ea786",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 30,
+      "total_deletions": 20,
+      "accepted_lines": 2013,
+      "overriden_lines": 6
+    }
+  }
+}
