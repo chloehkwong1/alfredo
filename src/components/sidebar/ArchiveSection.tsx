@@ -177,8 +177,13 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
             className="overflow-hidden"
           >
             <div className="my-2 ml-4 mr-1 rounded-md border border-border-subtle bg-bg-elevated px-3 py-2.5 text-[11px] text-text-secondary">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.05em] text-text-tertiary mb-1.5">
-                Lifecycle rules
+              <div className="mb-1.5">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.05em] text-text-tertiary">
+                  Lifecycle rules
+                </div>
+                <div className="text-[10px] text-text-tertiary/70">
+                  Applies to all repositories
+                </div>
               </div>
               <LifecycleRuleRow
                 label="Auto-archive merged after"

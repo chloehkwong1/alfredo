@@ -605,9 +605,14 @@ function WorkspaceSettingsDialog({
                       })()}
                     </div>
 
-                    {/* Archive & Cleanup */}
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3 mt-6">
-                      Archive &amp; Cleanup
+                    {/* Archive & Cleanup — global, not per-repo */}
+                    <div className="mb-3 mt-6">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary">
+                        Archive &amp; Cleanup
+                      </div>
+                      <div className="text-xs text-text-tertiary/70">
+                        Applies to all repositories
+                      </div>
                     </div>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
