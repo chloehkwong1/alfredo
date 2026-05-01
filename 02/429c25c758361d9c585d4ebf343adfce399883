@@ -1,0 +1,29 @@
+src/App.tsx
+  712d4b504e3d6680 8,108-110
+src/services/uiZoom.test.ts
+  712d4b504e3d6680 1-58
+src/services/uiZoom.ts
+  712d4b504e3d6680 1-63
+src/hooks/useKeyboardShortcuts.ts
+  712d4b504e3d6680 7,24-26,188,191,195,198,202,205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "02429c25c758361d9c585d4ebf343adfce399883",
+  "prompts": {
+    "712d4b504e3d6680": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01094bd8-3c24-4a03-b592-dae3050ea786",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 1632,
+      "total_deletions": 17,
+      "accepted_lines": 1632,
+      "overriden_lines": 0
+    }
+  }
+}
