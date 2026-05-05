@@ -113,25 +113,27 @@ export function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon
  * Keyboard-driven selections (Shift+arrow, Cmd+A) intentionally don't
  * auto-copy — also matches iTerm2.
  *
- * Implementation: gate on a mousedown flag attached to `terminal.element`
- * (xterm registers its own mousedown on the same element to start a
- * selection). On mouseup at the same element, schedule a microtask to read
- * the selection. The microtask drains *after* the current task completes,
- * by which point xterm's document-level mouseup handler has finalised the
- * selection model (xterm registers that via `_addMouseDownListeners` on
- * selection start).
+ * Implementation: listen for mousedown on `terminal.element`, and on each
+ * one register a one-shot document-level mouseup listener. Listening on
+ * `document` (rather than the element) catches releases that happen
+ * outside the terminal — common when a drag auto-scrolls the viewport and
+ * the cursor ends up over the scrollbar, the next pane, or off the window
+ * edge. Gating registration on the element's mousedown keeps us scoped to
+ * mouse-initiated selections and avoids reacting to keyboard selections.
  *
- * Why not subscribe to `terminal.onSelectionChange`: the prior version did,
- * gating on the same mousedown flag and self-clearing the flag inside the
- * callback. That was fragile w.r.t. the order in which the flag was reset
- * vs. the selection event firing, and produced empty / 1-char copies on
- * some drags. Reading the selection synchronously from a deferred mouseup
- * handler is more deterministic.
+ * The mouseup callback queues a microtask before reading the selection;
+ * the microtask drains *after* the current task completes, by which point
+ * xterm's own document-level mouseup handler has finalised the selection
+ * model (xterm registers that via `_addMouseDownListeners` on selection
+ * start).
  *
- * Trade-off: if the user drags out of the terminal element and releases
- * outside, this won't copy (only document-level mouseup catches that). We
- * stay element-local so the listener auto-cleans when the terminal is
- * disposed and its element removed from the DOM.
+ * Cleanup: each document listener is `{ once: true }`, so it self-removes
+ * after firing. After `terminal.dispose()` the element's mousedown
+ * listener can no longer fire, so no further document listeners get
+ * attached. A listener already in flight from a mousedown that preceded
+ * dispose may still fire on the next document mouseup; the try/catch
+ * around `getSelection()` keeps that benign — xterm throws on most
+ * public methods after disposal.
  *
  * Must be called after `terminal.open()` — `terminal.element` is undefined
  * before then.
@@ -140,15 +142,22 @@ export function registerSelectToCopy(terminal: Terminal): void {
   const el = terminal.element;
   if (!el) return;
 
-  let mouseSelecting = false;
-  el.addEventListener("mousedown", () => { mouseSelecting = true; });
-  el.addEventListener("mouseup", () => {
-    if (!mouseSelecting) return;
-    mouseSelecting = false;
-    queueMicrotask(() => {
-      const sel = terminal.getSelection();
-      if (sel) navigator.clipboard.writeText(sel).catch(console.error);
-    });
+  el.addEventListener("mousedown", () => {
+    document.addEventListener(
+      "mouseup",
+      () => {
+        queueMicrotask(() => {
+          let sel: string;
+          try {
+            sel = terminal.getSelection();
+          } catch {
+            return;
+          }
+          if (sel) navigator.clipboard.writeText(sel).catch(console.error);
+        });
+      },
+      { once: true },
+    );
   });
 }
 

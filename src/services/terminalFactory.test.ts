@@ -5,7 +5,9 @@ import { registerSelectToCopy } from "./terminalFactory";
 interface FakeTerminal {
   element: HTMLElement;
   selection: string;
+  disposed: boolean;
   getSelection(): string;
+  dispose(): void;
 }
 
 function makeFakeTerminal(): FakeTerminal {
@@ -14,8 +16,14 @@ function makeFakeTerminal(): FakeTerminal {
   const t: FakeTerminal = {
     element,
     selection: "",
+    disposed: false,
     getSelection() {
+      // Mirror xterm: most public methods throw after dispose().
+      if (this.disposed) throw new Error("Terminal has been disposed");
       return this.selection;
+    },
+    dispose() {
+      this.disposed = true;
     },
   };
   return t;
@@ -106,5 +114,35 @@ describe("registerSelectToCopy", () => {
 
     await flushMicrotasks();
     expect(writeText).toHaveBeenCalledWith("finalised");
+  });
+
+  it("does not copy if the terminal is disposed mid-drag, before the mouseup fires", async () => {
+    const t = makeFakeTerminal();
+    registerSelectToCopy(t as unknown as Terminal);
+
+    t.element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    // Session closes mid-drag (e.g. user kills the agent while selecting).
+    t.dispose();
+    t.selection = "stale after dispose";
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+    await flushMicrotasks();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("copies even when the drag ends outside the terminal element (mouseup on document)", async () => {
+    const t = makeFakeTerminal();
+    registerSelectToCopy(t as unknown as Terminal);
+
+    t.element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    t.selection = "off-edge selection";
+    // Drag continues past the terminal's bounds; release happens on a
+    // sibling element (e.g. the Changes panel) rather than on `t.element`.
+    const outside = document.createElement("div");
+    document.body.appendChild(outside);
+    outside.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+    await flushMicrotasks();
+    expect(writeText).toHaveBeenCalledWith("off-edge selection");
   });
 });
