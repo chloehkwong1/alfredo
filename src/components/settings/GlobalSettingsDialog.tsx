@@ -401,6 +401,51 @@ function GlobalSettingsDialog({
                     </button>
                   </div>
                 </Field>
+
+                <SectionTitle>Archive &amp; Cleanup</SectionTitle>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="min-w-0 pr-4">
+                    <div className="text-[13px] font-medium text-text-primary">
+                      Auto-archive merged worktrees after
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="number"
+                      min={0}
+                      className={inputClass + " !w-16 text-center"}
+                      value={appConfig.archiveAfterDays ?? 2}
+                      onChange={(e) =>
+                        updateAppConfig({
+                          archiveAfterDays: Math.max(0, parseInt(e.target.value) || 0),
+                        })
+                      }
+                    />
+                    <span className="text-sm text-text-secondary w-10">days</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="min-w-0 pr-4">
+                    <div className="text-[13px] font-medium text-text-primary">
+                      Auto-delete archived worktrees after
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="number"
+                      min={0}
+                      className={inputClass + " !w-16 text-center"}
+                      value={appConfig.deleteAfterDays ?? 0}
+                      onChange={(e) =>
+                        updateAppConfig({
+                          deleteAfterDays: Math.max(0, parseInt(e.target.value) || 0),
+                        })
+                      }
+                    />
+                    <span className="text-sm text-text-secondary w-10">days</span>
+                  </div>
+                </div>
+                <p className="text-xs text-text-tertiary mt-[5px]">Set to 0 to disable.</p>
               </>
             )}
 

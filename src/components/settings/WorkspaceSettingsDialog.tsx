@@ -146,12 +146,6 @@ function WorkspaceSettingsDialog({
     setSaveError(null);
   }, []);
 
-  const updateGlobalConfig = useCallback((patch: Partial<GlobalAppConfig>) => {
-    setAppConfig((prev) => (prev ? { ...prev, ...patch } : prev));
-    setDirty(true);
-    setSaveError(null);
-  }, []);
-
   const handleRepoChange = useCallback(
     (newPath: string) => {
       if (newPath === currentRepoPath) return;
@@ -605,54 +599,6 @@ function WorkspaceSettingsDialog({
                       })()}
                     </div>
 
-                    {/* Archive & Cleanup — global, not per-repo */}
-                    <div className="mb-3 mt-6">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary">
-                        Archive &amp; Cleanup
-                      </div>
-                      <div className="text-xs text-text-tertiary/70">
-                        Applies to all repositories
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="text-[13px] text-text-primary">
-                          Auto-archive merged worktrees after
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={0}
-                            className={inputClass + " !w-16 text-center"}
-                            value={appConfig?.archiveAfterDays ?? 2}
-                            onChange={(e) =>
-                              updateGlobalConfig({ archiveAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
-                            }
-                          />
-                          <span className="text-sm text-text-secondary w-10">days</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="text-[13px] text-text-primary">
-                          Auto-delete archived worktrees after
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={0}
-                            className={inputClass + " !w-16 text-center"}
-                            value={appConfig?.deleteAfterDays ?? 0}
-                            onChange={(e) =>
-                              updateGlobalConfig({ deleteAfterDays: Math.max(0, parseInt(e.target.value) || 0) })
-                            }
-                          />
-                          <span className="text-sm text-text-secondary w-10">days</span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-text-tertiary">
-                        Set to 0 to disable.
-                      </p>
-                    </div>
                   </>
                 )}
               </div>
