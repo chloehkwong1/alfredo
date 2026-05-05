@@ -106,7 +106,7 @@ export function SplitSideContent({
     >
       <span
         className={[
-          "w-[36px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px] sticky left-0 z-10",
+          "w-[36px] text-right pr-1.5 text-text-tertiary select-none flex-shrink-0 text-[10px]",
           gutterBgClass,
         ].join(" ")}
       >
