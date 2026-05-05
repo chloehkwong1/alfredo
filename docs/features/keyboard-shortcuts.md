@@ -16,8 +16,11 @@ or down. **Pane-scoped shortcuts target whichever pane has focus** —
 clicking inside a terminal or the Changes panel makes that pane the
 target for ⌘T, ⌘W, ⌘K, ⌘\, and the tab-cycling shortcuts, so they
 don't leak across split panes. ⌘B toggles the sidebar and ⌘I (or ⌘⇧C)
-toggles the Changes panel. Inside a terminal, ⌘K clears the buffer
-and ⌘+ / ⌘− / ⌘0 control zoom. **⌘F is also pane-scoped**: in a
+toggles the Changes panel. Inside a terminal, ⌘K clears the buffer.
+**⌘+ / ⌘− / ⌘0 zoom** the whole webview by default, but switch to
+scoping just the terminal font when an xterm pane has focus — click
+into a terminal first and the same shortcuts adjust its font size
+without resizing anything else. **⌘F is also pane-scoped**: in a
 terminal it opens the buffer search; in the Changes panel it opens
 the diff search bar; outside both it does nothing. In the diff view,
 ] or n jumps to the next file, [ or p jumps back, and x collapses the

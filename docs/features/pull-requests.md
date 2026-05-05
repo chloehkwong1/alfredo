@@ -17,9 +17,10 @@ you can triage at a glance. Once the PR is merged, the stats row
 collapses to a single purple **Merged** chip — the precursor chips
 (Approved, Checks pass, etc.) are suppressed so a merged PR doesn't
 look like it still needs action. If you close a PR on GitHub without
-merging, the Changes panel shows a red **Cancelled** banner and the
-worktree auto-moves to Done on the next sync, so it doesn't sit in
-"in review" with stale check status. Right-clicking the worktree in
+merging, the sidebar row collapses to a single **Cancelled** chip
+(closed-PR icon) for the same reason, the Changes panel shows a red
+**Cancelled** banner, and the worktree auto-moves to Done on the next
+sync so it doesn't sit in "in review" with stale check status. Right-clicking the worktree in
 the sidebar gives you "View PR on GitHub" to jump to the full PR in
 your browser.
 Review comments can be sent straight into the agent session as context

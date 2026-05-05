@@ -7,6 +7,38 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.13.0 — 2026-05-05**
+- **Lifecycle rules now live in the sidebar** — hover a Done worktree
+  to archive it, hover the Done group header for **Archive all**, or
+  open the new gear popover to set auto-archive / auto-delete day
+  counts inline. Confirm dialogs list the branches that will be
+  removed, and a first-encounter nudge introduces auto-archive once
+  you have a Done worktree.
+- **Merged-branch diffs are stable again** — a new diff-range resolver
+  anchors the Changes panel using `merge_commit_sha` from PR metadata,
+  with merge-base and ancestry-path fallbacks. Pure-behind worktrees
+  show an empty range instead of a misleading reverse diff, merge
+  commits are filtered out of the commit list, and sidebar diff badges
+  refresh for Done worktrees on boot and after a merge.
+- **⌘+ / ⌘− / ⌘0 zoom** — these now zoom the whole webview by default,
+  but switch to scoping the terminal font when an xterm pane is
+  focused. The terminal refit is synchronous so cell geometry no
+  longer briefly overflows or wraps mid-word.
+- **Changes panel polish** — tab counts render as inline pill chips,
+  the pinned-main card grows Files/Commits tabs, view modes split
+  cleanly when the pinned main is ahead vs. behind, and the empty
+  state distinguishes "no changes" from "load failed". Markdown files
+  now default to Diff (the Rendered toggle moves to a hover-revealed
+  Eye icon).
+- **Sidebar status** — non-merged PRs that get closed on GitHub now
+  show a **Cancelled** state, and long branch labels in the status
+  bar middle-truncate with the full label in a tooltip.
+- Various fixes: terminal copy-on-select rewritten around a deferred
+  mouseup read so xterm's selection is finalised before copy; diff
+  scroll lag reduced by dropping sticky line-number gutters; dev-
+  server port released when a worktree auto-Dones; auto-archive
+  correctly disabled when `archiveAfterDays` is 0.
+
 **v0.12.0 — 2026-04-29**
 - **Markdown rendered view in the Changes panel** — `.md`,
   `.markdown`, and `.mdx` files now have a Diff/Rendered toggle.
@@ -82,26 +114,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   field accepts free typing, accurate worktree counts for unselected
   repos, "Send as feedback" routes to the on-screen tab, late PR
   review comments and cubic-style summaries surface.
-
-**v0.9.0 — 2026-04-22**
-- **Ask Alfredo** — instant local search over Alfredo's feature docs,
-  anchored to a new `?` button in the sidebar header. Folds in bug
-  report, keyboard shortcuts and Claude usage as quick actions.
-- **Quick-start tour** — first-launch walkthrough with pulse
-  highlights, reopenable any time from the Ask Alfredo popover.
-- **Smart agent tabs** — tabs now render a dynamic label from the
-  agent's OSC title / foreground process / cwd, and use monochrome
-  brand icons for Claude, Codex and Gemini.
-- **Custom output styles** — styles in `.claude/output-styles/` are
-  picked up automatically; project styles override user styles with
-  the same name.
-- **"Pinned only" filter** in the sidebar (appears once you have pins).
-- **Rolling file logger** in release builds for post-mortem debugging.
-- **Linear OAuth stability** — transient errors no longer wipe tokens.
-- **Tab cycling** — ⌘⌥← / ⌘⌥→ step through tabs in order.
-- **Native titlebar** on macOS now matches the selected theme.
-- Various fixes: GitHub sync rate-limit handling, session-status
-  flicker, config persistence, updater/Linear camelCase serialization,
-  terminal font preload race that could blank the WebGL atlas.
 
 Check the releases page for older versions and full detail.

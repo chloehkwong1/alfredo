@@ -20,3 +20,9 @@ Controls on this tab:
 
 Preferences save to local storage and take effect immediately on every
 terminal pane, no restart needed.
+
+**⌘+ / ⌘− / ⌘0 zoom** is also wired to terminal font size: click into
+a terminal pane to focus it, and those shortcuts adjust the **Font
+size** preference instead of zooming the webview. Without an xterm
+focused they zoom the whole window — see [keyboard
+shortcuts](keyboard-shortcuts.md).

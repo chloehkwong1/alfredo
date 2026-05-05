@@ -27,6 +27,13 @@ behaves like any other branch-mode card: live agent status, the rebase
 banner ("N commits behind origin/main"), the right-click menu, and the
 Changes panel all work the same way.
 
+The Changes panel on a pinned-main card now exposes both **Files**
+and **Commits** tabs (previously hidden in branch mode on the default
+branch). The view modes split cleanly when the local main is ahead vs.
+behind its upstream — ahead shows your unpushed commits and their
+diff, behind switches to the empty/empty state instead of producing a
+misleading reverse diff.
+
 The pinned-state list is persisted in your global app config under
 `showMainCardRepos`, so it survives restarts. **Branch-mode repos
 always show a main card** — they don't appear in the popover because

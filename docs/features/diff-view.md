@@ -34,3 +34,15 @@ Other diff-view controls:
 
 Syntax highlighting and file icons are per-extension. Binary files
 and images render as "binary diff" placeholders rather than line-by-line.
+
+### Merged-branch diffs
+
+Once a branch is merged, the Changes panel anchors the diff using the
+PR's `merge_commit_sha` so you still see the original change set
+rather than an empty or reverse diff. If PR metadata is missing,
+Alfredo walks the ancestry path to find a usable anchor; if main has
+fully absorbed the branch with nothing else to show, the panel
+collapses to an empty range. Merge commits are filtered out of the
+**Commits** tab so the list stays focused on the branch's own work,
+and the sidebar diff badge refreshes for Done worktrees on boot and
+right after a merge.

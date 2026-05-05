@@ -11,7 +11,9 @@ click-to-act buttons.
 Left side:
 
 - **Branch name** — click to copy to clipboard (shows a ✓ icon on
-  success).
+  success). Long branch names middle-truncate (`feature/long…name`)
+  so the diff stats and right-side badges stay visible; hover to see
+  the full name in a tooltip.
 - **+N / -N** — uncommitted-or-branch diff stats (additions /
   deletions). Hidden when there are no changes.
 
