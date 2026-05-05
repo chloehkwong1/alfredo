@@ -710,12 +710,21 @@ export class SessionManager implements SessionWriter {
     // its WebGL atlas against the fallback font and we get synthetic-bold blur
     // (GH#19) until the next reload.
     for (const session of this.sessions.values()) {
-      const { terminal } = session;
+      const { terminal, fitAddon } = session;
       terminal.options.fontSize = prefs.fontSize;
       terminal.options.lineHeight = prefs.lineHeight;
       terminal.options.letterSpacing = prefs.letterSpacing;
       terminal.options.cursorStyle = prefs.cursorStyle;
       terminal.options.cursorBlink = prefs.cursorBlink;
+      // Cell geometry changed — refit immediately so xterm's cols/rows track
+      // the new cell size. The async fit gated on FontFaceObserver can land
+      // hundreds of ms later, during which the canvas paints at the new cell
+      // size against the old grid (overflow + mid-word reflow on landing).
+      try {
+        fitAddon.fit();
+      } catch {
+        // Terminal may not be attached to DOM
+      }
     }
 
     const seq = ++this.prefsSeq;
