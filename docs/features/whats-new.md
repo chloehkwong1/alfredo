@@ -11,9 +11,11 @@ https://github.com/chloehkwong1/alfredo/releases.
 - **Lifecycle rules now live in the sidebar** — hover a Done worktree
   to archive it, hover the Done group header for **Archive all**, or
   open the new gear popover to set auto-archive / auto-delete day
-  counts inline. Confirm dialogs list the branches that will be
-  removed, and a first-encounter nudge introduces auto-archive once
-  you have a Done worktree.
+  counts inline. The same day-count fields now also live under
+  Settings → General → **Archive & Cleanup**, applied across all
+  repos. Confirm dialogs list the branches that will be removed, and
+  a first-encounter nudge introduces auto-archive once you have a
+  Done worktree.
 - **Merged-branch diffs are stable again** — a new diff-range resolver
   anchors the Changes panel using `merge_commit_sha` from PR metadata,
   with merge-base and ancestry-path fallbacks. Pure-behind worktrees
@@ -34,7 +36,9 @@ https://github.com/chloehkwong1/alfredo/releases.
   show a **Cancelled** state, and long branch labels in the status
   bar middle-truncate with the full label in a tooltip.
 - Various fixes: terminal copy-on-select rewritten around a deferred
-  mouseup read so xterm's selection is finalised before copy; diff
+  mouseup read so xterm's selection is finalised before copy, and
+  now catches drags that release outside the terminal (past the
+  viewport edge, onto the scrollbar, or over a sibling pane); diff
   scroll lag reduced by dropping sticky line-number gutters; dev-
   server port released when a worktree auto-Dones; auto-archive
   correctly disabled when `archiveAfterDays` is 0.

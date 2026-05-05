@@ -1,14 +1,16 @@
 ---
 title: Automatic archiving and deletion of worktrees
-keywords: [automatic, auto archive, auto delete, automatic deletion, cleanup, prune, housekeeping, archive after days, delete after days, lifecycle rules, gear popover]
-ui_path: Sidebar → Done group header → ⚙ gear → Lifecycle rules popover
+keywords: [automatic, auto archive, auto delete, automatic deletion, cleanup, prune, housekeeping, archive after days, delete after days, lifecycle rules, gear popover, archive cleanup settings]
+ui_path: Sidebar → Done group header → ⚙ gear → Lifecycle rules popover (also in Settings → General → Archive & Cleanup)
 ---
 
 Alfredo can clean up finished worktrees for you, and the rules now
 live in-flow next to the worktrees they affect: hover the **Done**
 group header in the sidebar and click the small **⚙ gear** to open
-the lifecycle rules popover. Both steps are opt-in and the rules
-apply to **all repositories**, not just the active one.
+the lifecycle rules popover. The same two day-count fields are also
+in **Settings → General → Archive & Cleanup** if you prefer to set
+them there. Both steps are opt-in and the rules apply to **all
+repositories**, not just the active one.
 
 Two day-count fields control the behaviour.
 
