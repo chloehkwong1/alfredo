@@ -1,0 +1,38 @@
+src/components/changes/SplitDiffLine.tsx
+  1d8790658691d480 109
+src/components/changes/SyntaxDiffLine.tsx
+  1d8790658691d480 103,111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "896dcd061fd9f9ab03a3ca5fd58cabeeb8ad187b",
+  "prompts": {
+    "1d8790658691d480": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5514292b-7675-4754-b11e-3a2583d9be14",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "b174ddc822c8d462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82b09cad-8d1a-48c0-b9e1-36f2e6524acf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
