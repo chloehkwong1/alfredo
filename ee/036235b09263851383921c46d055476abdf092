@@ -1,0 +1,27 @@
+docs/features/general-settings.md
+  199a79e010700bec 2-3,9,23-34
+docs/features/auto-cleanup.md
+  199a79e010700bec 3-4,10-13
+docs/features/whats-new.md
+  199a79e010700bec 14-18,39-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "ee036235b09263851383921c46d055476abdf092",
+  "prompts": {
+    "199a79e010700bec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22a4dc29-4f69-4cc0-930e-90d97d321529",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 11,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    }
+  }
+}
