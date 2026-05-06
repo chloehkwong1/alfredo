@@ -214,7 +214,40 @@ pub async fn load_effective_config(
     repo_path: &str,
 ) -> Result<crate::types::EffectiveConfig, AppError> {
     let mut personal = load_personal_config(app_data_dir, repo_path).await?;
-    let upstream = crate::repo_config::load_alfredo_json(Path::new(repo_path)).await?;
+    let mut upstream = crate::repo_config::load_alfredo_json(Path::new(repo_path)).await?;
+
+    // One-time migration: if there's no alfredo.json yet but the personal
+    // layer has non-default repo-shared values, lift them into alfredo.json
+    // and clear them from personal. After this, the user sees those values
+    // as `from alfredo.json` and gets a committable diff in their repo.
+    if upstream.is_none() {
+        let migrated = crate::types::RepoSharedConfig {
+            setup_scripts: personal.setup_scripts.clone(),
+            run_script: personal.run_script.clone(),
+            archive_script: personal.archive_script.clone(),
+            port_env_var: personal.port_env_var.clone(),
+            port_range_start: personal.port_range_start,
+            port_range_end: personal.port_range_end,
+        };
+        let any = migrated.setup_scripts.is_some()
+            || migrated.run_script.is_some()
+            || migrated.archive_script.is_some()
+            || migrated.port_env_var.is_some()
+            || migrated.port_range_start.is_some()
+            || migrated.port_range_end.is_some();
+        if any {
+            crate::repo_config::save_alfredo_json(Path::new(repo_path), &migrated).await?;
+            personal.setup_scripts = None;
+            personal.run_script = None;
+            personal.archive_script = None;
+            personal.port_env_var = None;
+            personal.port_range_start = None;
+            personal.port_range_end = None;
+            // Persist the cleared personal layer so the migration is durable.
+            write_personal_config_file(app_data_dir, repo_path, &personal).await?;
+            upstream = Some(migrated);
+        }
+    }
 
     let overrides = crate::types::RepoOverrideFlags {
         setup_scripts: personal.setup_scripts.is_some(),
@@ -253,19 +286,15 @@ pub async fn load_effective_config(
     })
 }
 
-/// Save the repo config to the app data directory.
-pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfig) -> Result<(), AppError> {
+/// Write the personal-config JSON to disk without touching the keychain.
+/// Called by `save_config` after keychain ops, and by the migration path in
+/// `load_effective_config` (which deliberately bypasses the keychain).
+async fn write_personal_config_file(
+    app_data_dir: &Path,
+    repo_path: &str,
+    config: &AppConfig,
+) -> Result<(), AppError> {
     let config_path = repo_config_path(app_data_dir, repo_path);
-
-    // Persist tokens to keychain rather than JSON.
-    match &config.github_token {
-        Some(token) if !token.is_empty() => crate::keychain::store("github_token", token)?,
-        _ => crate::keychain::delete("github_token")?,
-    }
-    match &config.linear_api_key {
-        Some(key) if !key.is_empty() => crate::keychain::store("linear_api_key", key)?,
-        _ => crate::keychain::delete("linear_api_key")?,
-    }
 
     let file = ConfigFile {
         setup_scripts: config.setup_scripts.clone(),
@@ -303,6 +332,21 @@ pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfi
         .map_err(|e| AppError::Config(format!("failed to write config: {e}")))?;
 
     Ok(())
+}
+
+/// Save the repo config to the app data directory.
+pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfig) -> Result<(), AppError> {
+    // Persist tokens to keychain rather than JSON.
+    match &config.github_token {
+        Some(token) if !token.is_empty() => crate::keychain::store("github_token", token)?,
+        _ => crate::keychain::delete("github_token")?,
+    }
+    match &config.linear_api_key {
+        Some(key) if !key.is_empty() => crate::keychain::store("linear_api_key", key)?,
+        _ => crate::keychain::delete("linear_api_key")?,
+    }
+
+    write_personal_config_file(app_data_dir, repo_path, config).await
 }
 
 /// Get the column override for a specific worktree, if any.
@@ -525,6 +569,60 @@ mod tests {
         assert!(config.port_env_var.is_none());
         assert!(config.port_range_start.is_none());
         assert!(config.port_range_end.is_none());
+    }
+
+    #[tokio::test]
+    async fn migration_writes_alfredo_json_and_clears_personal() -> Result<(), Box<dyn std::error::Error>> {
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        // Seed personal layer with a real value, no alfredo.json yet.
+        let personal_dir = repo_data_dir(app_data.path(), repo_path);
+        tokio::fs::create_dir_all(&personal_dir).await?;
+        let personal_json = serde_json::json!({
+            "portRangeStart": 3000,
+            "portRangeEnd": 3005,
+        });
+        tokio::fs::write(personal_dir.join("config.json"), personal_json.to_string()).await?;
+
+        let result = load_effective_config(app_data.path(), repo_path).await?;
+
+        // alfredo.json should now exist with the migrated values.
+        let alfredo_raw = tokio::fs::read_to_string(repo.path().join("alfredo.json")).await?;
+        assert!(alfredo_raw.contains("3000"));
+        assert!(alfredo_raw.contains("3005"));
+
+        // Effective values still reflect the migrated values.
+        assert_eq!(result.effective.port_range_start, Some(3000));
+        assert_eq!(result.effective.port_range_end, Some(3005));
+
+        // Override flags should be false now (inherited, not personal).
+        assert!(!result.overrides.port_range_start);
+        assert!(!result.overrides.port_range_end);
+
+        // Second call must be a no-op — alfredo.json exists, migration skipped.
+        let result2 = load_effective_config(app_data.path(), repo_path).await?;
+        assert_eq!(result2.effective.port_range_start, Some(3000));
+        assert!(!result2.overrides.port_range_start);
+        // Verify file not rewritten — content unchanged.
+        let alfredo_raw2 = tokio::fs::read_to_string(repo.path().join("alfredo.json")).await?;
+        assert_eq!(alfredo_raw, alfredo_raw2);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn migration_skipped_when_no_repo_shared_values() -> Result<(), Box<dyn std::error::Error>> {
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        let _ = load_effective_config(app_data.path(), repo_path).await?;
+        // Nothing should have been written.
+        let exists = tokio::fs::try_exists(repo.path().join("alfredo.json")).await.unwrap_or(false);
+        assert!(!exists);
+        Ok(())
     }
 
     #[tokio::test]
