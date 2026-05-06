@@ -8,6 +8,10 @@
     "core:webview:allow-set-webview-zoom",
     "core:window:allow-destroy",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "**" }]
+    },
     "dialog:default",
     "store:default",
     "notification:default",

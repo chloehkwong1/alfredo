@@ -1,10 +1,154 @@
-import { Terminal } from "@xterm/xterm";
+import { Terminal, ILinkProvider, ILink } from "@xterm/xterm";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl, openPath } from "@tauri-apps/plugin-opener";
+import { homeDir } from "@tauri-apps/api/path";
 import { writePty } from "../api";
 import { loadTerminalPreferences } from "./terminalPreferences";
+
+// Resolved lazily on first `~/...` click and cached. Avoids an IPC call at
+// module load (which fires in test environments where Tauri isn't running).
+let cachedHomeDir: string | null = null;
+function ensureHomeDir(): Promise<string> {
+  if (cachedHomeDir !== null) return Promise.resolve(cachedHomeDir);
+  return homeDir().then((h) => {
+    cachedHomeDir = h.replace(/\/$/, "");
+    return cachedHomeDir;
+  });
+}
+
+const TRAILING_PUNCT = /[.,;!?)\]}]$/;
+
+// ── Clickable-text matchers ────────────────────────────────────
+// Each pattern is run independently; overlapping matches are resolved by
+// preferring the earliest start, then the longest match.
+type LinkKind = "url" | "email" | "localhost" | "path";
+const LINK_PATTERNS: Array<{ kind: LinkKind; re: RegExp }> = [
+  { kind: "url",       re: /(?:https?|ssh|ftp|file|mailto):[^\s"'<>`{}|\\^[\]]+/g },
+  { kind: "email",     re: /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g },
+  { kind: "localhost", re: /\blocalhost(?::\d+)?(?:\/[^\s"'<>`{}|\\^[\]]*)?/g },
+  // Path: leading boundary so we don't match the `/` inside random words;
+  // trailing optional `:line[:col]` is handled by stripping in activate.
+  { kind: "path",      re: /(?<=^|[\s=(),'"])(?:~|\/)[^\s"'<>`{}|()[\]]+/g },
+];
+
+interface RawMatch { start: number; end: number; text: string; kind: LinkKind; }
+
+function findLinks(text: string): RawMatch[] {
+  const all: RawMatch[] = [];
+  for (const { kind, re } of LINK_PATTERNS) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      let matched = m[0];
+      const start = m.index;
+      while (matched.length > 0 && TRAILING_PUNCT.test(matched)) {
+        matched = matched.slice(0, -1);
+      }
+      if (matched.length === 0) continue;
+      all.push({ start, end: start + matched.length, text: matched, kind });
+    }
+  }
+  all.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  const dedup: RawMatch[] = [];
+  let lastEnd = -1;
+  for (const m of all) {
+    if (m.start >= lastEnd) {
+      dedup.push(m);
+      lastEnd = m.end;
+    }
+  }
+  return dedup;
+}
+
+async function activateLink(uri: string, kind: LinkKind): Promise<void> {
+  try {
+    if (kind === "url") {
+      await openUrl(uri);
+    } else if (kind === "email") {
+      await openUrl(`mailto:${uri}`);
+    } else if (kind === "localhost") {
+      await openUrl(/^https?:\/\//i.test(uri) ? uri : `http://${uri}`);
+    } else {
+      const cleaned = uri.replace(/:\d+(?::\d+)?$/, "");
+      let path = cleaned;
+      if (path.startsWith("~/")) {
+        const home = await ensureHomeDir();
+        path = home + cleaned.slice(1);
+      }
+      await openPath(path);
+    }
+  } catch (err) {
+    console.error("activateLink failed", { uri, kind }, err);
+  }
+}
+
+/**
+ * Concatenate a logical line across wrapped continuation rows so that links
+ * spanning multiple rows (long URLs, long paths) are matched as one unit.
+ * Reads each row with translateToString(false) and right-pads to terminal.cols
+ * so string-index ↔ (row, col) is plain arithmetic. Wide chars (emoji) shift
+ * the mapping by their width-vs-string-length delta — acceptable for v1
+ * since URLs / paths / emails are ASCII.
+ */
+function getLogicalLine(
+  terminal: Terminal,
+  hoveredRow0: number,
+): { topRow: number; text: string; cols: number } | null {
+  const buf = terminal.buffer.active;
+  let topRow = hoveredRow0;
+  while (topRow > 0) {
+    const line = buf.getLine(topRow);
+    if (!line || !line.isWrapped) break;
+    topRow--;
+  }
+  const startLine = buf.getLine(topRow);
+  if (!startLine) return null;
+  const cols = terminal.cols;
+  const pad = (s: string) => (s.length >= cols ? s.slice(0, cols) : s.padEnd(cols, " "));
+  let text = pad(startLine.translateToString(false));
+  let row = topRow + 1;
+  while (true) {
+    const line = buf.getLine(row);
+    if (!line || !line.isWrapped) break;
+    text += pad(line.translateToString(false));
+    row++;
+  }
+  return { topRow, text, cols };
+}
+
+function createTerminalLinkProvider(terminal: Terminal): ILinkProvider {
+  return {
+    provideLinks(bufferLineNumber: number, callback: (links: ILink[] | undefined) => void) {
+      const hoveredRow0 = bufferLineNumber - 1;
+      const logical = getLogicalLine(terminal, hoveredRow0);
+      if (!logical) { callback(undefined); return; }
+      const { topRow, text, cols } = logical;
+      const matches = findLinks(text);
+      if (matches.length === 0) { callback(undefined); return; }
+
+      const links: ILink[] = [];
+      for (const m of matches) {
+        const startRow = topRow + Math.floor(m.start / cols);
+        const lastIdx = m.end - 1;
+        const endRow = topRow + Math.floor(lastIdx / cols);
+        if (hoveredRow0 < startRow || hoveredRow0 > endRow) continue;
+        const startCol = m.start % cols;
+        const endCol = lastIdx % cols;
+        const captured = m;
+        links.push({
+          range: {
+            start: { x: startCol + 1, y: startRow + 1 },
+            end:   { x: endCol + 1,   y: endRow + 1 },
+          },
+          text: captured.text,
+          activate: (_event, t) => { void activateLink(t, captured.kind); },
+        });
+      }
+      callback(links.length > 0 ? links : undefined);
+    },
+  };
+}
 
 /**
  * Strip ESC[3J (clear scrollback buffer) sequences from PTY output.
@@ -40,7 +184,9 @@ export function stripClearScrollback(bytes: Uint8Array): Uint8Array {
 /**
  * Create a Terminal instance with:
  * - Kitty keyboard protocol support (Shift+Enter for newline in Claude Code)
- * - Clickable links via WebLinksAddon (Cmd+Click to open URLs and file paths)
+ * - Cmd+Click activation for URLs, emails, localhost, and absolute / `~/`
+ *   file paths via a custom link provider that joins wrapped continuation
+ *   rows so long links spanning multiple rows resolve as one match.
  *
  * Kitty protocol: xterm.js doesn't natively support the kitty keyboard
  * protocol. Claude Code queries for support via `CSI ? u` — we intercept
@@ -77,10 +223,7 @@ export function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon
   terminal.unicode.activeVersion = "11";
 
   // ── Clickable links ────────────────────────────────────────────
-  const webLinksAddon = new WebLinksAddon((_event, uri) => {
-    openUrl(uri).catch(console.error);
-  });
-  terminal.loadAddon(webLinksAddon);
+  terminal.registerLinkProvider(createTerminalLinkProvider(terminal));
 
   // ── Search ─────────────────────────────────────────────────────
   const searchAddon = new SearchAddon();
