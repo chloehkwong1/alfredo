@@ -546,6 +546,16 @@ export function playSound(id: string): Promise<void> {
   return invoke("play_sound", { id });
 }
 
+// ── Badge ────────────────────────────────
+
+/**
+ * Set the OS dock/taskbar badge count. 0 clears the badge.
+ * macOS + Linux only — no-op on other platforms (handled by Rust).
+ */
+export function setDockBadge(count: number): Promise<void> {
+  return invoke("set_dock_badge", { count: Math.max(0, Math.floor(count)) });
+}
+
 // ── App Detection ─────────────────────────────────────────────
 
 export interface InstalledApp {
