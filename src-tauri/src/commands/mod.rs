@@ -3,6 +3,7 @@ pub mod app_config;
 pub mod debug_log;
 pub mod ask_alfredo;
 pub mod audio;
+pub mod dock_badge;
 pub mod external_tools;
 pub mod branch;
 pub mod checks;
