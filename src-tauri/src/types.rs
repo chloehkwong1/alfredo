@@ -277,7 +277,7 @@ pub struct PrDetailedStatus {
 
 // ── Config ──────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupScript {
     pub name: String,
@@ -285,7 +285,7 @@ pub struct SetupScript {
     pub run_on: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RunScript {
     pub name: String,
@@ -340,6 +340,26 @@ pub struct ClaudeOverrides {
     pub permission_mode: Option<String>,
     #[serde(default)]
     pub output_style: Option<String>,
+}
+
+/// Repo-wide config that lives in `<repo>/alfredo.json` (committed). Every
+/// field is optional. `None` means "not specified by the repo" — fall through
+/// to the personal-overrides layer or the code default.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoSharedConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup_scripts: Option<Vec<SetupScript>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_script: Option<RunScript>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archive_script: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port_env_var: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port_range_start: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port_range_end: Option<u16>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

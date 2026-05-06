@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RepoSharedConfig",
+  "description": "Repo-wide config that lives in `<repo>/alfredo.json` (committed). Every field is optional. `None` means \"not specified by the repo\" — fall through to the personal-overrides layer or the code default.",
+  "type": "object",
+  "properties": {
+    "archiveScript": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "portEnvVar": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "portRangeEnd": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint16",
+      "minimum": 0.0
+    },
+    "portRangeStart": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint16",
+      "minimum": 0.0
+    },
+    "runScript": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/RunScript"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "setupScripts": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/SetupScript"
+      }
+    }
+  },
+  "definitions": {
+    "RunScript": {
+      "type": "object",
+      "required": [
+        "command",
+        "name"
+      ],
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "SetupScript": {
+      "type": "object",
+      "required": [
+        "command",
+        "name",
+        "runOn"
+      ],
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "runOn": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -19,7 +19,7 @@ mod pty_manager;
 mod sleep_inhibitor;
 mod stack_manager;
 mod state_server;
-mod types;
+pub mod types;
 
 use tauri::{Manager, RunEvent};
 
