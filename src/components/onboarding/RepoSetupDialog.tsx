@@ -41,6 +41,15 @@ interface RepoSetupDialogProps {
   onConfigured: (result: { mode: RepoMode; selectedWorktreeIds?: string[] }) => void;
 }
 
+/**
+ * Collapse all whitespace runs (including newlines) into a single space, then
+ * trim. Pasted commands often contain word-wrap newlines that the shell would
+ * treat as statement terminators, breaking `&&` chains.
+ */
+function normalizeCommand(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
 /** Derive parent directory from a path */
 function parentDir(path: string): string {
   const segments = path.replace(/\/+$/, "").split("/");
@@ -774,7 +783,7 @@ function RepoSetupDialog({
                 className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-caption font-mono text-text-primary placeholder:text-text-quaternary resize-y min-h-[60px] focus:outline-none focus:ring-1 focus:ring-accent-primary/50"
                 placeholder="npm install"
                 value={setupScript}
-                onChange={(e) => setSetupScript(e.target.value)}
+                onChange={(e) => setSetupScript(normalizeCommand(e.target.value))}
                 rows={2}
               />
             </div>
@@ -789,7 +798,7 @@ function RepoSetupDialog({
                 className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-caption font-mono text-text-primary placeholder:text-text-quaternary resize-y min-h-[60px] focus:outline-none focus:ring-1 focus:ring-accent-primary/50"
                 placeholder="npm run dev"
                 value={runScript}
-                onChange={(e) => setRunScript(e.target.value)}
+                onChange={(e) => setRunScript(normalizeCommand(e.target.value))}
                 rows={2}
               />
             </div>
@@ -804,7 +813,7 @@ function RepoSetupDialog({
                 className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-caption font-mono text-text-primary placeholder:text-text-quaternary resize-y min-h-[60px] focus:outline-none focus:ring-1 focus:ring-accent-primary/50"
                 placeholder="docker compose down"
                 value={archiveScript}
-                onChange={(e) => setArchiveScript(e.target.value)}
+                onChange={(e) => setArchiveScript(normalizeCommand(e.target.value))}
                 rows={2}
               />
             </div>

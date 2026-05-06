@@ -44,6 +44,11 @@ const TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "scripts", label: "Scripts" },
 ];
 
+// Collapse all whitespace runs (including newlines) into a single space, then
+// trim. Pasted commands often contain word-wrap newlines that the shell would
+// treat as statement terminators, breaking `&&` chains.
+const normalizeCommand = (s: string) => s.replace(/\s+/g, " ").trim();
+
 const inputClass = [
   "h-8 w-full px-3 text-sm",
   "bg-bg-primary text-text-primary",
@@ -722,9 +727,10 @@ function WorkspaceSettingsDialog({
                         value={config.setupScripts?.[0]?.command ?? ""}
                         onChange={(e) => {
                           markForked("setupScripts");
+                          const cmd = normalizeCommand(e.target.value);
                           updateConfig({
-                            setupScripts: e.target.value.trim()
-                              ? [{ name: "Setup", command: e.target.value, runOn: "create" }]
+                            setupScripts: cmd
+                              ? [{ name: "Setup", command: cmd, runOn: "create" }]
                               : [],
                           });
                         }}
@@ -759,10 +765,9 @@ function WorkspaceSettingsDialog({
                     value={config.runScript?.command ?? ""}
                     onChange={(e) => {
                       markForked("runScript");
+                      const cmd = normalizeCommand(e.target.value);
                       updateConfig({
-                        runScript: e.target.value.trim()
-                          ? { name: "Run", command: e.target.value }
-                          : null,
+                        runScript: cmd ? { name: "Run", command: cmd } : null,
                       });
                     }}
                   />
@@ -796,8 +801,9 @@ function WorkspaceSettingsDialog({
                         value={config.archiveScript ?? ""}
                         onChange={(e) => {
                           markForked("archiveScript");
+                          const cmd = normalizeCommand(e.target.value);
                           updateConfig({
-                            archiveScript: e.target.value.trim() ? e.target.value : null,
+                            archiveScript: cmd || null,
                           });
                         }}
                       />
