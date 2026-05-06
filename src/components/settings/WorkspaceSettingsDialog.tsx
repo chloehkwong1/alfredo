@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, FolderOpen } from "lucide-react";
-import type { AppConfig, GlobalAppConfig, RepoEntry, RepoMode } from "../../types";
+import type { AppConfig, GlobalAppConfig, RepoEntry, RepoMode, RepoOverrideFlags } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig, setRepoMode, listWorktrees } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
+import { useRepoConfig } from "../../hooks/useRepoConfig";
+import { openPathInEditor } from "../../services/openExternal";
 import { Button } from "../ui/Button";
 import {
   Dialog,
@@ -18,6 +20,24 @@ import {
 } from "../sidebar/RepoSelector";
 
 type WorkspaceTab = "repository" | "scripts";
+
+function FieldBadge({ overridden, hasUpstream }: { overridden: boolean; hasUpstream: boolean }) {
+  if (overridden) {
+    return (
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 font-medium">
+        personal override
+      </span>
+    );
+  }
+  if (hasUpstream) {
+    return (
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-tertiary text-text-tertiary font-medium">
+        from alfredo.json
+      </span>
+    );
+  }
+  return null;
+}
 
 const TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "repository", label: "Repository" },
@@ -103,6 +123,13 @@ function WorkspaceSettingsDialog({
   const modeSavedTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const prevOpenRef = useRef(false);
 
+  // Layered config — used only for badges, CTA, and reset. The editable local
+  // state (config / dirty) still comes from getConfig which returns merged values.
+  const { overrides, upstream, loading: layersLoading, resetAll, createAlfredoJson } = useRepoConfig(open ? currentRepoPath : null);
+
+  // Tracks fields that have been edited while inheriting from alfredo.json.
+  const [forkedThisSession, setForkedThisSession] = useState<Set<keyof RepoOverrideFlags>>(new Set());
+
   // Reset state when dialog opens/closes
   useEffect(() => {
     if (open && !prevOpenRef.current) {
@@ -111,10 +138,12 @@ function WorkspaceSettingsDialog({
       setDisplayNameDraft(repoDisplayNames[initPath] ?? "");
       setShortLabelDraft(repoShortLabels?.[initPath] ?? "");
       setSaveError(null);
+      setForkedThisSession(new Set());
     }
     if (!open && modeSavedTimerRef.current) {
       clearTimeout(modeSavedTimerRef.current);
       setModeSaved(false);
+      setForkedThisSession(new Set());
     }
     prevOpenRef.current = open;
   }, [open, defaultRepoPath, repoPath, repoDisplayNames, repoShortLabels]);
@@ -122,6 +151,7 @@ function WorkspaceSettingsDialog({
   // Load config when dialog opens or currentRepoPath changes
   useEffect(() => {
     if (!open) return;
+    setForkedThisSession(new Set());
     getConfig(currentRepoPath)
       .then((c) => {
         setConfig(c);
@@ -145,6 +175,18 @@ function WorkspaceSettingsDialog({
     setDirty(true);
     setSaveError(null);
   }, []);
+
+  // Marks a field as forked when the user edits a value inherited from alfredo.json.
+  const markForked = useCallback((field: keyof RepoOverrideFlags) => {
+    if (overrides && !overrides[field] && upstream && upstream[field] !== undefined) {
+      setForkedThisSession((prev) => {
+        if (prev.has(field)) return prev;
+        const next = new Set(prev);
+        next.add(field);
+        return next;
+      });
+    }
+  }, [overrides, upstream]);
 
   const handleRepoChange = useCallback(
     (newPath: string) => {
@@ -289,6 +331,37 @@ function WorkspaceSettingsDialog({
             value={currentRepoPath}
             onChange={handleRepoChange}
           />
+          {upstream !== null ? (
+            <button
+              type="button"
+              onClick={() => { void openPathInEditor(`${currentRepoPath}/alfredo.json`); }}
+              className="text-xs text-accent-primary hover:underline mt-2 flex items-center gap-1"
+            >
+              View alfredo.json →
+            </button>
+          ) : !layersLoading ? (
+            <div className="rounded-[var(--radius-md)] border border-dashed border-border-default p-3 mt-3 bg-bg-primary">
+              <p className="text-xs text-text-secondary">
+                No <code>alfredo.json</code> in this repo. Create one to commit these settings alongside your code.
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  void createAlfredoJson().then(async () => {
+                    const fresh = await getConfig(currentRepoPath);
+                    setConfig(fresh);
+                    setDirty(false);
+                    setForkedThisSession(new Set());
+                  });
+                }}
+              >
+                Create alfredo.json
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex h-[380px]">
@@ -535,8 +608,12 @@ function WorkspaceSettingsDialog({
                         return (
                           <div className="mt-4 space-y-4">
                             <div>
-                              <label className="text-[13px] text-text-secondary block mb-1">
+                              <label className="text-[13px] text-text-secondary block mb-1 flex items-center gap-2">
                                 Port range
+                                <FieldBadge
+                                  overridden={!!(overrides?.portRangeStart || overrides?.portRangeEnd)}
+                                  hasUpstream={upstream?.portRangeStart !== undefined || upstream?.portRangeEnd !== undefined}
+                                />
                               </label>
                               <div className="flex items-center gap-2">
                                 <input
@@ -550,9 +627,10 @@ function WorkspaceSettingsDialog({
                                     rangeInvalid || rangeUnset ? "!border-status-error" : "",
                                   ].join(" ")}
                                   value={rangeStart ?? ""}
-                                  onChange={(e) =>
-                                    updateConfig({ portRangeStart: parseRangeInput(e.target.value) })
-                                  }
+                                  onChange={(e) => {
+                                    markForked("portRangeStart");
+                                    updateConfig({ portRangeStart: parseRangeInput(e.target.value) });
+                                  }}
                                 />
                                 <span className="text-text-tertiary">–</span>
                                 <input
@@ -566,9 +644,10 @@ function WorkspaceSettingsDialog({
                                     rangeInvalid || rangeUnset ? "!border-status-error" : "",
                                   ].join(" ")}
                                   value={rangeEnd ?? ""}
-                                  onChange={(e) =>
-                                    updateConfig({ portRangeEnd: parseRangeInput(e.target.value) })
-                                  }
+                                  onChange={(e) => {
+                                    markForked("portRangeEnd");
+                                    updateConfig({ portRangeEnd: parseRangeInput(e.target.value) });
+                                  }}
                                 />
                                 <span className={`text-xs ml-2 ${helperTone}`}>
                                   {helperText}
@@ -577,22 +656,37 @@ function WorkspaceSettingsDialog({
                               <p className="text-xs text-text-tertiary mt-[5px]">
                                 The first dev server to run in a worktree claims the next free port and keeps it until the worktree is marked Done.
                               </p>
+                              {(forkedThisSession.has("portRangeStart") || forkedThisSession.has("portRangeEnd")) && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                  This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
+                                </p>
+                              )}
                             </div>
                             <div>
-                              <label className="text-[13px] text-text-secondary block mb-1">
+                              <label className="text-[13px] text-text-secondary block mb-1 flex items-center gap-2">
                                 Port environment variable
+                                <FieldBadge
+                                  overridden={!!overrides?.portEnvVar}
+                                  hasUpstream={upstream?.portEnvVar !== undefined}
+                                />
                               </label>
                               <input
                                 className={inputClass + " !w-40"}
                                 placeholder="PORT"
                                 value={config.portEnvVar ?? ""}
-                                onChange={(e) =>
-                                  updateConfig({ portEnvVar: e.target.value || null })
-                                }
+                                onChange={(e) => {
+                                  markForked("portEnvVar");
+                                  updateConfig({ portEnvVar: e.target.value || null });
+                                }}
                               />
                               <p className="text-xs text-text-tertiary mt-[3px]">
                                 The env var injected into each session. Defaults to PORT.
                               </p>
+                              {forkedThisSession.has("portEnvVar") && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                  This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
+                                </p>
+                              )}
                             </div>
                           </div>
                         );
@@ -609,8 +703,12 @@ function WorkspaceSettingsDialog({
                 {currentMode === "worktree" && (
                   <>
                     {/* Setup Scripts */}
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 flex items-center gap-2">
                       Setup Scripts
+                      <FieldBadge
+                        overridden={!!overrides?.setupScripts}
+                        hasUpstream={upstream?.setupScripts !== undefined}
+                      />
                     </div>
                     <p className="text-xs text-text-tertiary -mt-2 mb-3">
                       Run automatically when a new worktree is created.
@@ -622,22 +720,32 @@ function WorkspaceSettingsDialog({
                         style={{ fieldSizing: "content" } as React.CSSProperties}
                         placeholder="Command (e.g. npm install)"
                         value={config.setupScripts?.[0]?.command ?? ""}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          markForked("setupScripts");
                           updateConfig({
                             setupScripts: e.target.value.trim()
                               ? [{ name: "Setup", command: e.target.value, runOn: "create" }]
                               : [],
-                          })
-                        }
+                          });
+                        }}
                       />
                       <CopyButton value={config.setupScripts?.[0]?.command ?? ""} />
                     </div>
+                    {forkedThisSession.has("setupScripts") && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
+                      </p>
+                    )}
                   </>
                 )}
 
                 {/* Run Script */}
-                <div className={`text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 ${currentMode === "worktree" ? "mt-8" : ""}`}>
+                <div className={`text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 flex items-center gap-2 ${currentMode === "worktree" ? "mt-8" : ""}`}>
                   Run Script
+                  <FieldBadge
+                    overridden={!!overrides?.runScript}
+                    hasUpstream={upstream?.runScript !== undefined}
+                  />
                 </div>
                 <p className="text-xs text-text-tertiary -mt-2 mb-3">
                   Started from any {currentMode === "worktree" ? "worktree" : "branch"} via the play button in the tab bar.
@@ -649,22 +757,32 @@ function WorkspaceSettingsDialog({
                     style={{ fieldSizing: "content" } as React.CSSProperties}
                     placeholder="Command (e.g. npm run dev)"
                     value={config.runScript?.command ?? ""}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      markForked("runScript");
                       updateConfig({
                         runScript: e.target.value.trim()
                           ? { name: "Run", command: e.target.value }
                           : null,
-                      })
-                    }
+                      });
+                    }}
                   />
                   <CopyButton value={config.runScript?.command ?? ""} />
                 </div>
+                {forkedThisSession.has("runScript") && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
+                  </p>
+                )}
 
                 {currentMode === "worktree" && (
                   <>
                     {/* Archive Script */}
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8 flex items-center gap-2">
                       Archive Script
+                      <FieldBadge
+                        overridden={!!overrides?.archiveScript}
+                        hasUpstream={upstream?.archiveScript !== undefined}
+                      />
                     </div>
                     <p className="text-xs text-text-tertiary -mt-2 mb-3">
                       Runs when a worktree is archived.
@@ -676,14 +794,20 @@ function WorkspaceSettingsDialog({
                         style={{ fieldSizing: "content" } as React.CSSProperties}
                         placeholder="Command (e.g. docker compose down)"
                         value={config.archiveScript ?? ""}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          markForked("archiveScript");
                           updateConfig({
                             archiveScript: e.target.value.trim() ? e.target.value : null,
-                          })
-                        }
+                          });
+                        }}
                       />
                       <CopyButton value={config.archiveScript ?? ""} />
                     </div>
+                    {forkedThisSession.has("archiveScript") && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
+                      </p>
+                    )}
                   </>
                 )}
               </div>
@@ -692,8 +816,26 @@ function WorkspaceSettingsDialog({
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-border-default">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={!upstream || !overrides || !Object.values(overrides).some(Boolean)}
+            onClick={() => {
+              if (!window.confirm("Discard all personal overrides and use alfredo.json values?")) return;
+              void resetAll().then(async () => {
+                const fresh = await getConfig(currentRepoPath);
+                setConfig(fresh);
+                setDirty(false);
+                setForkedThisSession(new Set());
+              });
+            }}
+            className="mr-auto"
+          >
+            Reset all to alfredo.json
+          </Button>
           {saveError && (
-            <span className="text-xs text-status-error mr-auto truncate" title={saveError}>
+            <span className="text-xs text-status-error truncate flex-1 min-w-0 text-right" title={saveError}>
               {saveError}
             </span>
           )}
