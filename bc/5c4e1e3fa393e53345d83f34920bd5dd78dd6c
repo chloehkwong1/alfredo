@@ -1,0 +1,30 @@
+src/services/sessionManager.ts
+  s_a7dd2bd993f9a7::t_60fd0d8feec18c 192,327,472
+src/hooks/useKeyboardShortcuts.ts
+  s_a7dd2bd993f9a7::t_a003ade7db2e7e 188-211
+src/test/status-scenarios.test.ts
+  s_a7dd2bd993f9a7::t_9868ade179b6e9 135
+src/hooks/usePty.ts
+  s_a7dd2bd993f9a7::t_25adbd616fec3c 146,156
+src/components/settings/ShortcutsOverlay.tsx
+  s_a7dd2bd993f9a7::t_9cc7f16640c8cc 43
+src/services/sessionTypes.ts
+  s_a7dd2bd993f9a7::t_f5fc41080137c2 4
+  s_a7dd2bd993f9a7::t_7ade4e778c2b8e 17-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "bc5c4e1e3fa393e53345d83f34920bd5dd78dd6c",
+  "prompts": {},
+  "sessions": {
+    "s_a7dd2bd993f9a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fc1814c-88a0-46f4-b370-c1e15dc10c78",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
