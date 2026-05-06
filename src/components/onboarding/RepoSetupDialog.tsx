@@ -180,7 +180,7 @@ function RepoSetupDialog({
             })
             .catch((e) => console.warn("[repo-setup] Failed to check GitHub auth status:", e));
         }
-        if (config.setupScripts?.length > 0) {
+        if (config.setupScripts && config.setupScripts.length > 0) {
           setSetupScript(config.setupScripts[0].command);
         }
         if (config.runScript) {

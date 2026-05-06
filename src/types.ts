@@ -207,7 +207,7 @@ export interface ClaudeOverrides {
 
 export interface AppConfig {
   repoPath: string;
-  setupScripts: SetupScript[];
+  setupScripts?: SetupScript[] | null;
   runScript?: RunScript | null;
   githubToken: string | null;
   linearApiKey: string | null;
@@ -230,6 +230,30 @@ export interface AppConfig {
    *  as "not configured" on the backend. */
   portRangeStart?: number | null;
   portRangeEnd?: number | null;
+}
+
+export interface RepoSharedConfig {
+  setupScripts?: SetupScript[];
+  runScript?: RunScript;
+  archiveScript?: string;
+  portEnvVar?: string;
+  portRangeStart?: number;
+  portRangeEnd?: number;
+}
+
+export interface RepoOverrideFlags {
+  setupScripts: boolean;
+  runScript: boolean;
+  archiveScript: boolean;
+  portEnvVar: boolean;
+  portRangeStart: boolean;
+  portRangeEnd: boolean;
+}
+
+export interface EffectiveConfig {
+  effective: AppConfig;
+  overrides: RepoOverrideFlags;
+  upstream: RepoSharedConfig | null;
 }
 
 // ── Linear ──────────────────────────────────────────────────────

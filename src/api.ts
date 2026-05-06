@@ -4,6 +4,7 @@ import type {
   AppConfig,
   CommitInfo,
   DiffFile,
+  EffectiveConfig,
   FileLine,
   GlobalAppConfig,
   KanbanColumn,
@@ -13,6 +14,7 @@ import type {
   PrStatus,
   PtyEvent,
   RepoMode,
+  RepoSharedConfig,
   Session,
   SessionType,
   Worktree,
@@ -245,6 +247,22 @@ export function setRepoMode(
   mode: RepoMode,
 ): Promise<void> {
   return invoke("set_repo_mode", { repoPath, mode });
+}
+
+export function getRepoConfigLayers(repoPath: string): Promise<EffectiveConfig> {
+  return invoke("get_repo_config_layers", { repoPath });
+}
+
+export function readAlfredoJson(repoPath: string): Promise<RepoSharedConfig | null> {
+  return invoke("read_alfredo_json", { repoPath });
+}
+
+export function writeAlfredoJson(repoPath: string, config: RepoSharedConfig): Promise<void> {
+  return invoke("write_alfredo_json", { repoPath, config });
+}
+
+export function resetRepoOverrides(repoPath: string): Promise<void> {
+  return invoke("reset_repo_overrides", { repoPath });
 }
 
 // ── Linear ──────────────────────────────────────────────────────

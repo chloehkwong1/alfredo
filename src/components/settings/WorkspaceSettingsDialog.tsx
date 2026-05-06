@@ -621,7 +621,7 @@ function WorkspaceSettingsDialog({
                         rows={2}
                         style={{ fieldSizing: "content" } as React.CSSProperties}
                         placeholder="Command (e.g. npm install)"
-                        value={config.setupScripts[0]?.command ?? ""}
+                        value={config.setupScripts?.[0]?.command ?? ""}
                         onChange={(e) =>
                           updateConfig({
                             setupScripts: e.target.value.trim()
@@ -630,7 +630,7 @@ function WorkspaceSettingsDialog({
                           })
                         }
                       />
-                      <CopyButton value={config.setupScripts[0]?.command ?? ""} />
+                      <CopyButton value={config.setupScripts?.[0]?.command ?? ""} />
                     </div>
                   </>
                 )}
