@@ -136,7 +136,7 @@ function InlineLabelInput({
   );
 }
 
-const NEEDS_YOU_STATES = new Set(["waitingForInput", "done", "error", "ready"]);
+export const NEEDS_YOU_STATES = new Set(["waitingForInput", "done", "error", "ready"]);
 
 function needsAttention(status: string): boolean {
   return NEEDS_YOU_STATES.has(status);
