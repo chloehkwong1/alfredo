@@ -362,6 +362,30 @@ pub struct RepoSharedConfig {
     pub port_range_end: Option<u16>,
 }
 
+/// Per-field flag indicating whether the personal layer overrides the
+/// upstream `alfredo.json` value. `true` = personal-override; `false` =
+/// inheriting from upstream (or default if upstream also absent).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoOverrideFlags {
+    pub setup_scripts: bool,
+    pub run_script: bool,
+    pub archive_script: bool,
+    pub port_env_var: bool,
+    pub port_range_start: bool,
+    pub port_range_end: bool,
+}
+
+/// Bundle returned by `load_effective_config` so the frontend can render the
+/// merged config alongside per-field override badges.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EffectiveConfig {
+    pub effective: AppConfig,
+    pub overrides: RepoOverrideFlags,
+    pub upstream: Option<RepoSharedConfig>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {

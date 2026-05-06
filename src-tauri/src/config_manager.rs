@@ -205,6 +205,54 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
     Ok(config)
 }
 
+/// Load the effective config = personal-overrides layered on top of
+/// `<repo>/alfredo.json`. Use this everywhere the app needs to *read* config
+/// values (vs. write them, which still goes through `save_config`).
+#[allow(dead_code)] // wired up to callers in a later task
+pub async fn load_effective_config(
+    app_data_dir: &Path,
+    repo_path: &str,
+) -> Result<crate::types::EffectiveConfig, AppError> {
+    let mut personal = load_personal_config(app_data_dir, repo_path).await?;
+    let upstream = crate::repo_config::load_alfredo_json(Path::new(repo_path)).await?;
+
+    let overrides = crate::types::RepoOverrideFlags {
+        setup_scripts: personal.setup_scripts.is_some(),
+        run_script: personal.run_script.is_some(),
+        archive_script: personal.archive_script.is_some(),
+        port_env_var: personal.port_env_var.is_some(),
+        port_range_start: personal.port_range_start.is_some(),
+        port_range_end: personal.port_range_end.is_some(),
+    };
+
+    if let Some(up) = &upstream {
+        if personal.setup_scripts.is_none() {
+            personal.setup_scripts = up.setup_scripts.clone();
+        }
+        if personal.run_script.is_none() {
+            personal.run_script = up.run_script.clone();
+        }
+        if personal.archive_script.is_none() {
+            personal.archive_script = up.archive_script.clone();
+        }
+        if personal.port_env_var.is_none() {
+            personal.port_env_var = up.port_env_var.clone();
+        }
+        if personal.port_range_start.is_none() {
+            personal.port_range_start = up.port_range_start;
+        }
+        if personal.port_range_end.is_none() {
+            personal.port_range_end = up.port_range_end;
+        }
+    }
+
+    Ok(crate::types::EffectiveConfig {
+        effective: personal,
+        overrides,
+        upstream,
+    })
+}
+
 /// Save the repo config to the app data directory.
 pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfig) -> Result<(), AppError> {
     let config_path = repo_config_path(app_data_dir, repo_path);
@@ -477,5 +525,37 @@ mod tests {
         assert!(config.port_env_var.is_none());
         assert!(config.port_range_start.is_none());
         assert!(config.port_range_end.is_none());
+    }
+
+    #[tokio::test]
+    async fn merges_layers_personal_wins() -> Result<(), Box<dyn std::error::Error>> {
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        // upstream defines port range; personal overrides only setupScripts.
+        tokio::fs::write(
+            repo.path().join("alfredo.json"),
+            r#"{"portRangeStart":3000,"portRangeEnd":3005,"runScript":{"name":"up","command":"./bin/up"}}"#,
+        )
+        .await?;
+
+        // Seed personal layer with an override of setup_scripts.
+        let personal_dir = repo_data_dir(app_data.path(), repo_path);
+        tokio::fs::create_dir_all(&personal_dir).await?;
+        let personal_json = serde_json::json!({
+            "setupScripts": [{"name":"install","command":"yarn install","runOn":"create"}],
+        });
+        tokio::fs::write(personal_dir.join("config.json"), personal_json.to_string()).await?;
+
+        let result = load_effective_config(app_data.path(), repo_path).await?;
+        assert_eq!(result.effective.setup_scripts.as_ref().map(|v| v.len()), Some(1));
+        assert_eq!(result.effective.run_script.as_ref().map(|r| r.command.as_str()), Some("./bin/up"));
+        assert_eq!(result.effective.port_range_start, Some(3000));
+        assert!(result.overrides.setup_scripts);
+        assert!(!result.overrides.run_script);
+        assert!(!result.overrides.port_range_start);
+        assert!(result.upstream.is_some());
+        Ok(())
     }
 }
