@@ -366,7 +366,8 @@ pub struct RepoSharedConfig {
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub repo_path: String,
-    pub setup_scripts: Vec<SetupScript>,
+    #[serde(default)]
+    pub setup_scripts: Option<Vec<SetupScript>>,
     #[serde(default)]
     pub run_script: Option<RunScript>,
     pub github_token: Option<String>,

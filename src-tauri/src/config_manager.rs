@@ -39,7 +39,7 @@ fn repo_config_path(app_data_dir: &Path, repo_path: &str) -> PathBuf {
 #[serde(rename_all = "camelCase")]
 struct ConfigFile {
     #[serde(default)]
-    pub setup_scripts: Vec<SetupScript>,
+    pub setup_scripts: Option<Vec<SetupScript>>,
     #[serde(default)]
     pub github_token: Option<String>,
     #[serde(default)]
@@ -95,7 +95,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
         let linear_api_key = crate::keychain::retrieve("linear_api_key")?;
         return Ok(AppConfig {
             repo_path: repo_path.to_string(),
-            setup_scripts: vec![],
+            setup_scripts: None,
             github_token,
             linear_api_key,
             branch_mode: false,
@@ -331,7 +331,7 @@ mod tests {
         let app_data = tempfile::TempDir::new()?;
         let repo = tempfile::TempDir::new()?;
         let config = load_config(app_data.path(), repo.path().to_str().unwrap_or_default()).await?;
-        assert!(config.setup_scripts.is_empty());
+        assert!(config.setup_scripts.as_deref().unwrap_or(&[]).is_empty());
         assert!(!config.branch_mode);
         Ok(())
     }
@@ -348,11 +348,11 @@ mod tests {
 
         let mut config = AppConfig {
             repo_path: path.to_string(),
-            setup_scripts: vec![SetupScript {
+            setup_scripts: Some(vec![SetupScript {
                 name: "install".into(),
                 command: "npm install".into(),
                 run_on: "create".into(),
-            }],
+            }]),
             github_token: Some("ghp_test".into()),
             linear_api_key: Some("lin_test".into()),
             branch_mode: true,

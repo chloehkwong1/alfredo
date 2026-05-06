@@ -50,6 +50,8 @@ pub async fn run_setup_scripts(
     let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
     let create_scripts: Vec<_> = config
         .setup_scripts
+        .as_deref()
+        .unwrap_or(&[])
         .iter()
         .filter(|s| s.run_on == "create")
         .cloned()

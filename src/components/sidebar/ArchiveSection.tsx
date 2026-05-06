@@ -93,8 +93,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Worktree | null>(null);
 
-  if (worktrees.length === 0 && !rulesOpen) return null;
-
+  const isEmpty = worktrees.length === 0;
   const hasRules = archiveAfterDays > 0 || deleteAfterDays > 0;
   const tooltipContent = hasRules ? (
     <div className="flex flex-col gap-0.5">
@@ -128,17 +127,22 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
       <div className="flex w-full items-center gap-1.5 py-1 select-none text-text-tertiary/60 group/arc">
         <button
           type="button"
-          onClick={() => setIsExpanded((prev) => !prev)}
-          className="flex flex-1 items-center gap-1.5 hover:text-text-tertiary transition-colors cursor-pointer"
+          onClick={() => !isEmpty && setIsExpanded((prev) => !prev)}
+          disabled={isEmpty}
+          className={[
+            "flex flex-1 items-center gap-1.5 transition-colors",
+            isEmpty ? "cursor-default" : "hover:text-text-tertiary cursor-pointer",
+          ].join(" ")}
         >
           <ChevronRight
             className={[
-              "h-3 w-3 transition-transform duration-150",
+              "h-3 w-3 transition-all duration-150",
               isExpanded ? "rotate-90" : "rotate-0",
-            ].join(" ")}
+              isEmpty && "opacity-0",
+            ].filter(Boolean).join(" ")}
           />
           <span className="text-[11px] uppercase tracking-[0.05em] font-semibold">Archived</span>
-          {worktrees.length > 0 && (
+          {!isEmpty && (
             <span className="text-[10px] tabular-nums">{worktrees.length}</span>
           )}
         </button>

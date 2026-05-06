@@ -90,6 +90,8 @@ pub async fn create_worktree(
 
     let create_scripts: Vec<_> = config
         .setup_scripts
+        .as_deref()
+        .unwrap_or(&[])
         .iter()
         .filter(|s| s.run_on == "create")
         .cloned()
