@@ -73,6 +73,12 @@ pub async fn create_worktree(
     base_branch: String,
 ) -> Result<Worktree> {
     let app_data_dir = resolve_app_data_dir(&app)?;
+    // Setup scripts are repo-shared (live in alfredo.json after migration), so
+    // read them via the effective config. The mutation+save below operates on
+    // the personal layer to avoid persisting inherited values back as overrides.
+    let effective = config_manager::load_effective_config(&app_data_dir, &repo_path)
+        .await?
+        .effective;
     let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.as_deref();
 
@@ -88,7 +94,7 @@ pub async fn create_worktree(
     // Seed the new worktree with default slash commands. Non-fatal on failure.
     write_default_slash_commands(&path_str).await;
 
-    let create_scripts: Vec<_> = config
+    let create_scripts: Vec<_> = effective
         .setup_scripts
         .as_deref()
         .unwrap_or(&[])
