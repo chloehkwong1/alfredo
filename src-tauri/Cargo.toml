@@ -5,6 +5,7 @@ description = "AI Agent Management Desktop App"
 authors = ["Chloe"]
 edition = "2021"
 publish = false
+default-run = "alfredo"
 
 [lib]
 name = "alfredo_lib"
