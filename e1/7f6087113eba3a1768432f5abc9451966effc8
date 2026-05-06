@@ -1,0 +1,19 @@
+src-tauri/Cargo.toml
+  s_bede8251e25359::t_ba96f626b173fd 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "e17f6087113eba3a1768432f5abc9451966effc8",
+  "prompts": {},
+  "sessions": {
+    "s_bede8251e25359": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d48d2cc6-0af9-4e2c-8464-b71afb944129",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
