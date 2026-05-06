@@ -1,0 +1,24 @@
+src/hooks/useRepoConfig.ts
+  s_5d57dbba566051::t_8b494f3769be3d 117
+  s_5d57dbba566051::t_f14c74f6be195d 76-81,84
+  s_5d57dbba566051::t_812ee0facb2635 9-19
+  s_5d57dbba566051::t_3fefafdd070b4a 1-8,20-75,82-83,85-90,97-98,100-116,118-124,126-142
+  s_5d57dbba566051::t_4637abed710f50 91-96,99
+  s_5d57dbba566051::t_a52f1eed5206fe 125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "17b76cc5590340020dcf1b1633e57dde0e4f14d8",
+  "prompts": {},
+  "sessions": {
+    "s_5d57dbba566051": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d8d1f9a-ea31-4e3c-a9af-b278b4e14b58",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": null
+    }
+  }
+}
