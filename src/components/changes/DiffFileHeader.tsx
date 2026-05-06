@@ -83,7 +83,7 @@ function DiffFileHeader({
             "flex-shrink-0 ml-auto p-0.5 rounded transition-all",
             fileViewMode === "rendered"
               ? "text-accent-primary"
-              : "opacity-0 group-hover/header:opacity-100 text-text-tertiary hover:text-text-primary",
+              : "opacity-50 group-hover/header:opacity-100 text-text-tertiary hover:text-text-primary",
           ].join(" ")}
           onClick={(e) => {
             e.stopPropagation();
