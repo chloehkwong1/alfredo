@@ -1,0 +1,32 @@
+src-tauri/src/lib.rs
+  s_5d57dbba566051::t_1544d855cb44d4 22
+src-tauri/src/bin/gen_schema.rs
+  s_5d57dbba566051::t_40d5f1c94f1c69 1-2,4-10,12-33
+  s_5d57dbba566051::t_a8e086f0f3a046 3,11
+src-tauri/src/types.rs
+  s_5d57dbba566051::t_c41617016c5639 288
+  s_5d57dbba566051::t_831ed071861e00 345-364
+  s_5d57dbba566051::t_4d294fde09bdcf 280
+schemas/alfredo.schema.json
+  s_5d57dbba566051::t_7d6177499c896b 1-3,5-97
+  s_5d57dbba566051::t_ad507bdfe2b08d 4,98
+src-tauri/Cargo.toml
+  s_5d57dbba566051::t_018b730bc2ae9e 48
+  s_5d57dbba566051::t_4a758922c20bd1 69-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "b1c0a19a95eb99a0d4cba91dfc1159b5cceed77f",
+  "prompts": {},
+  "sessions": {
+    "s_5d57dbba566051": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d8d1f9a-ea31-4e3c-a9af-b278b4e14b58",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": null
+    }
+  }
+}
