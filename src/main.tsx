@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
 import { startStatusMirror } from "./services/statusMirror";
+import { startDockBadgeMirror } from "./services/dockBadge";
 import { preloadTerminalFonts } from "./services/fontPreload";
 import "./styles/globals.css";
 
@@ -19,6 +20,9 @@ getCurrentWindow()
 // Start the single writer for worktree.agentStatus. Must run before any
 // session channel fires its first status event.
 startStatusMirror();
+
+// Mirror "needs attention" count to the OS dock/taskbar badge.
+startDockBadgeMirror();
 
 // Block React mount on bundled terminal fonts so xterm WebGL atlases never
 // bake against the fallback font (GH#19).
