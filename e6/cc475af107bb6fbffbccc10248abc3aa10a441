@@ -1,0 +1,33 @@
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_5d57dbba566051::t_363e5d25901424 342,364
+  s_5d57dbba566051::t_362f1bd6abc571 611,613-616,630-633,647-650,659-663,666,668-671,677-680,685-689
+  s_5d57dbba566051::t_2c2bb6e29d7cea 706,708-711,723-724,729-730,734-738
+  s_5d57dbba566051::t_059611cc0f957b 780,782-785,797-798,801-802,806-810
+  s_5d57dbba566051::t_a09f220904658a 819-836
+  s_5d57dbba566051::t_a56e2f18c56dd4 141,146
+  s_5d57dbba566051::t_bc6e53d67c558f 24-41
+  s_5d57dbba566051::t_095b875aee5be8 3,7-8
+  s_5d57dbba566051::t_80e162cf9bac8c 128
+  s_5d57dbba566051::t_2189b27b1ea4d2 743,745-748,760-761,766-767,771-775
+  s_5d57dbba566051::t_14b5d93e38aff4 126-127,129-132
+  s_5d57dbba566051::t_083476a5b16b28 154
+  s_5d57dbba566051::t_2c1814a2411646 838
+  s_5d57dbba566051::t_9a780ee0c3e922 179-190
+  s_5d57dbba566051::t_ecee8daf039bd6 334-341,343-363
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "e6cc475af107bb6fbffbccc10248abc3aa10a441",
+  "prompts": {},
+  "sessions": {
+    "s_5d57dbba566051": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d8d1f9a-ea31-4e3c-a9af-b278b4e14b58",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": null
+    }
+  }
+}
