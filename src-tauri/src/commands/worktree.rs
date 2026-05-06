@@ -73,7 +73,7 @@ pub async fn create_worktree(
     base_branch: String,
 ) -> Result<Worktree> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.as_deref();
 
     let worktree_path =
@@ -170,7 +170,7 @@ pub async fn delete_worktree(
     force: bool,
 ) -> Result<()> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.clone();
     // Drop any persisted Linear ticket reference regardless of whether the git
     // deletion succeeds. Leaving a stale entry behind risks it rehydrating onto
@@ -186,7 +186,7 @@ pub async fn delete_worktree(
 #[tauri::command]
 pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Worktree>> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.clone().unwrap_or_else(|| {
         std::path::Path::new(&repo_path)
             .parent()
@@ -259,7 +259,7 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
 #[tauri::command]
 pub async fn count_worktrees(app: AppHandle, repo_path: String) -> Result<usize> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     let base_path = config.worktree_base_path.clone().unwrap_or_else(|| {
         std::path::Path::new(&repo_path)
             .parent()
@@ -294,7 +294,7 @@ pub async fn get_worktree_status(
     worktree_name: String,
 ) -> Result<Worktree> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
 
     // Resolve worktree path using configured base or repo parent
     let worktree_path = config
@@ -387,7 +387,7 @@ pub async fn set_stack_parent(
     parent_branch: Option<String>,
 ) -> Result<()> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     match parent_branch {
         Some(parent) => config_manager::set_stack_parent(&mut config, &worktree_name, &parent),
         None => config_manager::clear_stack_parent(&mut config, &worktree_name),
@@ -408,7 +408,7 @@ pub async fn set_worktree_column(
     // Released-on-Done path touches port_assignments; serialize with claims.
     let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     // Releasing the port here keeps the "sticky until Done" contract in the
     // backend itself — the frontend can't forget to release by moving a
     // worktree through a different code path (drag, kanban, keyboard shortcut).
@@ -433,7 +433,7 @@ pub async fn claim_worktree_port(
 ) -> Result<PortClaimResult> {
     let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
 
     if !config.auto_assign_ports {
         return Ok(PortClaimResult::Disabled);
@@ -488,7 +488,7 @@ pub async fn get_assigned_worktree_port(
 ) -> Result<Option<u16>> {
     let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     if !config.auto_assign_ports {
         return Ok(None);
     }
@@ -506,7 +506,7 @@ pub async fn release_worktree_port(
 ) -> Result<()> {
     let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     config_manager::release_port(&mut config, &worktree_name);
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
@@ -531,7 +531,7 @@ pub async fn take_worktree_port(
 ) -> Result<TakePortResult> {
     let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
 
     if !config.auto_assign_ports {
         return Ok(TakePortResult::Disabled);
@@ -606,7 +606,7 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
     // successful save the in-memory fields still light up the StatusBar for
     // the current session.
     if let Ok(app_data_dir) = resolve_app_data_dir(app) {
-        if let Ok(mut config) = config_manager::load_config(&app_data_dir, &repo_path).await {
+        if let Ok(mut config) = config_manager::load_personal_config(&app_data_dir, &repo_path).await {
             config_manager::set_linear_ticket(
                 &mut config,
                 &worktree.name,
@@ -645,7 +645,7 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
 async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: u64) -> Result<Worktree> {
     // 1. Get GitHub token (gh CLI or config)
     let app_data_dir = resolve_app_data_dir(app)?;
-    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await?;
 
     // 2. Resolve owner/repo from git remote

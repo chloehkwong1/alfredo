@@ -38,7 +38,7 @@ fn repo_config_path(app_data_dir: &Path, repo_path: &str) -> PathBuf {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ConfigFile {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub setup_scripts: Option<Vec<SetupScript>>,
     #[serde(default)]
     pub github_token: Option<String>,
@@ -78,9 +78,36 @@ struct ConfigFile {
     pub port_range_end: Option<u16>,
 }
 
+/// Coerce values that match the type default to `None` so they cleanly
+/// inherit from `alfredo.json`. This runs on every load — the on-disk shape
+/// pre-`alfredo.json` may have stored type-default values like `[]` or `0`
+/// for the six repo-shared fields. We treat those as "user never set this".
+fn coerce_repo_shared_defaults(config: &mut AppConfig) {
+    if matches!(&config.setup_scripts, Some(v) if v.is_empty()) {
+        config.setup_scripts = None;
+    }
+    if matches!(&config.archive_script, Some(s) if s.is_empty()) {
+        config.archive_script = None;
+    }
+    if matches!(&config.port_env_var, Some(s) if s.is_empty()) {
+        config.port_env_var = None;
+    }
+    if config.port_range_start == Some(0) {
+        config.port_range_start = None;
+    }
+    if config.port_range_end == Some(0) {
+        config.port_range_end = None;
+    }
+    if let Some(rs) = &config.run_script {
+        if rs.command.trim().is_empty() {
+            config.run_script = None;
+        }
+    }
+}
+
 /// Load the repo config from the app data directory.
 /// Auto-migrates from the legacy `<repo_path>/.alfredo.json` if needed.
-pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConfig, AppError> {
+pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConfig, AppError> {
     let new_path = repo_config_path(app_data_dir, repo_path);
     let old_path = Path::new(repo_path).join(CONFIG_FILE);
 
@@ -93,7 +120,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
         // No config anywhere — return defaults.
         let github_token = crate::keychain::retrieve("github_token")?;
         let linear_api_key = crate::keychain::retrieve("linear_api_key")?;
-        return Ok(AppConfig {
+        let mut config = AppConfig {
             repo_path: repo_path.to_string(),
             setup_scripts: None,
             github_token,
@@ -114,7 +141,9 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
             port_env_var: None,
             port_range_start: None,
             port_range_end: None,
-        });
+        };
+        coerce_repo_shared_defaults(&mut config);
+        return Ok(config);
     };
 
     let contents = tokio::fs::read_to_string(&source_path)
@@ -140,7 +169,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
     let github_token = crate::keychain::retrieve("github_token")?;
     let linear_api_key = crate::keychain::retrieve("linear_api_key")?;
 
-    let config = AppConfig {
+    let mut config = AppConfig {
         repo_path: repo_path.to_string(),
         setup_scripts: file.setup_scripts,
         github_token,
@@ -162,6 +191,7 @@ pub async fn load_config(app_data_dir: &Path, repo_path: &str) -> Result<AppConf
         port_range_start: file.port_range_start,
         port_range_end: file.port_range_end,
     };
+    coerce_repo_shared_defaults(&mut config);
 
     if is_migration || needs_resave {
         // Write to new location.
@@ -330,7 +360,7 @@ mod tests {
     async fn test_load_missing_config_returns_defaults() -> Result<(), Box<dyn std::error::Error>> {
         let app_data = tempfile::TempDir::new()?;
         let repo = tempfile::TempDir::new()?;
-        let config = load_config(app_data.path(), repo.path().to_str().unwrap_or_default()).await?;
+        let config = load_personal_config(app_data.path(), repo.path().to_str().unwrap_or_default()).await?;
         assert!(config.setup_scripts.as_deref().unwrap_or(&[]).is_empty());
         assert!(!config.branch_mode);
         Ok(())
@@ -411,5 +441,41 @@ mod tests {
         let result = run_setup_scripts(dir.path().to_str().unwrap_or_default(), &scripts).await;
         assert!(result.is_ok());
         Ok(())
+    }
+
+    #[test]
+    fn coerce_zeros_empties_and_empty_vecs_to_none() {
+        let mut config = AppConfig {
+            repo_path: "/tmp/x".into(),
+            setup_scripts: Some(vec![]),
+            run_script: Some(crate::types::RunScript {
+                command: "".into(),
+                ..Default::default()
+            }),
+            github_token: None,
+            linear_api_key: None,
+            branch_mode: false,
+            column_overrides: HashMap::new(),
+            theme: None,
+            notifications: None,
+            worktree_base_path: None,
+            claude_defaults: None,
+            worktree_overrides: None,
+            stack_parent_overrides: HashMap::new(),
+            archive_script: Some("".into()),
+            linear_tickets: HashMap::new(),
+            port_assignments: HashMap::new(),
+            auto_assign_ports: false,
+            port_env_var: Some("".into()),
+            port_range_start: Some(0),
+            port_range_end: Some(0),
+        };
+        coerce_repo_shared_defaults(&mut config);
+        assert!(config.setup_scripts.is_none());
+        assert!(config.run_script.is_none());
+        assert!(config.archive_script.is_none());
+        assert!(config.port_env_var.is_none());
+        assert!(config.port_range_start.is_none());
+        assert!(config.port_range_end.is_none());
     }
 }

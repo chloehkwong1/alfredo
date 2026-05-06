@@ -31,7 +31,7 @@ pub async fn resolve_token(
         return Ok(tokens.access_token);
     }
 
-    let config = crate::config_manager::load_config(app_data_dir, repo_path).await?;
+    let config = crate::config_manager::load_personal_config(app_data_dir, repo_path).await?;
     config
         .linear_api_key
         .filter(|k| !k.is_empty())

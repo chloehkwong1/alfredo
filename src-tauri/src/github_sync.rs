@@ -356,7 +356,7 @@ async fn fetch_rate_limit_reset(
     app_data_dir: &std::path::Path,
     repo_path: &str,
 ) -> Option<u64> {
-    let config = config_manager::load_config(app_data_dir, repo_path).await.ok()?;
+    let config = config_manager::load_personal_config(app_data_dir, repo_path).await.ok()?;
     let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await.ok()?;
     let manager = GithubManager::new(&token).ok()?;
     manager.rate_limit_reset().await.ok()
@@ -368,7 +368,7 @@ async fn poll_repo(
     repo_path: &str,
     active_branches: &std::collections::HashSet<String>,
 ) -> Result<Vec<PrStatusWithColumn>, String> {
-    let config = config_manager::load_config(app_data_dir, repo_path)
+    let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| format!("{e}"))?;
 
@@ -464,7 +464,7 @@ async fn enrich_repo_with_comments(
     repo_path: &str,
     active_branches: &std::collections::HashSet<String>,
 ) {
-    let Ok(config) = config_manager::load_config(app_data_dir, repo_path).await else { return; };
+    let Ok(config) = config_manager::load_personal_config(app_data_dir, repo_path).await else { return; };
     let Ok(token) = crate::github_manager::resolve_token(config.github_token.as_deref()).await else { return; };
     let Ok(manager) = GithubManager::new(&token) else { return; };
     let Ok((owner, repo)) = crate::github_manager::resolve_owner_repo(repo_path).await else { return; };
@@ -525,7 +525,7 @@ async fn sync_pr_base_branches(
     all_prs: &[PrStatusWithColumn],
 ) {
     for repo_path in repo_paths {
-        let Ok(config) = config_manager::load_config(app_data_dir, repo_path).await else {
+        let Ok(config) = config_manager::load_personal_config(app_data_dir, repo_path).await else {
             continue;
         };
 

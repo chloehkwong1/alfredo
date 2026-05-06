@@ -146,7 +146,7 @@ pub async fn migrate_if_needed(
     };
 
     // Try to load existing .alfredo.json for migration data
-    let repo_config = crate::config_manager::load_config(app_data_dir, &repo_path).await.ok();
+    let repo_config = crate::config_manager::load_personal_config(app_data_dir, &repo_path).await.ok();
 
     let mode = match repo_config.as_ref() {
         Some(c) if c.branch_mode => RepoMode::Branch,

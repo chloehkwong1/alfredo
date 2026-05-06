@@ -44,10 +44,10 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
             eprintln!("[stack_manager] detect_stale_parents failed for {repo_path}: {e}");
         }
 
-        let config = match config_manager::load_config(app_data_dir, repo_path).await {
+        let config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("[stack_manager] load_config failed for {repo_path}: {e}");
+                eprintln!("[stack_manager] load_personal_config failed for {repo_path}: {e}");
                 continue;
             }
         };
@@ -119,10 +119,10 @@ pub async fn check_merged_parents(
     prs: &[crate::github_sync::PrStatusWithColumn],
 ) {
     for repo_path in repo_paths {
-        let mut config = match config_manager::load_config(app_data_dir, repo_path).await {
+        let mut config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("[stack_manager] load_config failed for {repo_path}: {e}");
+                eprintln!("[stack_manager] load_personal_config failed for {repo_path}: {e}");
                 continue;
             }
         };
@@ -216,7 +216,7 @@ pub async fn check_merged_parents(
 /// and emits `stack:status-update` events.
 pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path, repo_paths: &[String]) {
     for repo_path in repo_paths {
-        let config = match config_manager::load_config(app_data_dir, repo_path).await {
+        let config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(_) => continue,
         };
@@ -261,7 +261,7 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
 /// Detects stack parents that have been merged into the default branch via manual rebase/merge
 /// (not caught by the PR-merge path). Clears them from config.
 pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Result<(), String> {
-    let mut config = config_manager::load_config(app_data_dir, repo_path)
+    let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -371,10 +371,10 @@ async fn rebase_child(
     let worktree_path = if let Some(base) = worktree_base_path {
         std::path::Path::new(base).join(worktree_name).to_string_lossy().to_string()
     } else {
-        let config = match config_manager::load_config(app_data_dir, repo_path).await {
+        let config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("[stack_manager] load_config for rebase_child: {e}");
+                eprintln!("[stack_manager] load_personal_config for rebase_child: {e}");
                 return;
             }
         };

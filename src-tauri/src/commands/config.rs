@@ -22,7 +22,7 @@ fn is_repo_root(worktree_path: &str, repo_path: &str) -> bool {
 pub async fn get_config(app: tauri::AppHandle, repo_path: String) -> Result<AppConfig> {
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
-    config_manager::load_config(&app_data_dir, &repo_path).await
+    config_manager::load_personal_config(&app_data_dir, &repo_path).await
 }
 
 /// Save the app configuration for a repository.
@@ -47,7 +47,7 @@ pub async fn run_setup_scripts(
 
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
-    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     let create_scripts: Vec<_> = config
         .setup_scripts
         .as_deref()
@@ -71,7 +71,7 @@ pub async fn set_repo_mode(app: tauri::AppHandle, repo_path: String, mode: RepoM
     let app_data_dir = app.path()
         .app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
-    let mut local_config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let mut local_config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     let mut global = crate::app_config_manager::load(&app_data_dir).await?;
 
     let entry = global.repos.iter_mut().find(|r| r.path == repo_path)
@@ -102,7 +102,7 @@ pub async fn run_archive_script(
 
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
-    let config = config_manager::load_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
 
     let Some(ref script_command) = config.archive_script else {
         return Ok(());

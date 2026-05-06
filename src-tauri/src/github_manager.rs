@@ -946,7 +946,7 @@ async fn cached_token(app_data_dir: &std::path::Path, repo_path: &str) -> Result
 
     let result = TOKEN_CACHE
         .get_or_init(|| async {
-            let config = crate::config_manager::load_config(app_data_dir, repo_path).await
+            let config = crate::config_manager::load_personal_config(app_data_dir, repo_path).await
                 .map_err(|e| format!("{e}"))?;
             resolve_token(config.github_token.as_deref()).await
                 .map_err(|e| format!("{e}"))
