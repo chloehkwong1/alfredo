@@ -1,7 +1,7 @@
 use tauri::Manager;
 
 use crate::config_manager;
-use crate::types::{AppConfig, AppError, RepoMode};
+use crate::types::{AppConfig, AppError, EffectiveConfig, RepoMode, RepoSharedConfig};
 
 type Result<T> = std::result::Result<T, AppError>;
 
@@ -22,7 +22,8 @@ fn is_repo_root(worktree_path: &str, repo_path: &str) -> bool {
 pub async fn get_config(app: tauri::AppHandle, repo_path: String) -> Result<AppConfig> {
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
-    config_manager::load_personal_config(&app_data_dir, &repo_path).await
+    let result = config_manager::load_effective_config(&app_data_dir, &repo_path).await?;
+    Ok(result.effective)
 }
 
 /// Save the app configuration for a repository.
@@ -47,7 +48,7 @@ pub async fn run_setup_scripts(
 
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
-    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_effective_config(&app_data_dir, &repo_path).await?.effective;
     let create_scripts: Vec<_> = config
         .setup_scripts
         .as_deref()
@@ -102,7 +103,7 @@ pub async fn run_archive_script(
 
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
-    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_effective_config(&app_data_dir, &repo_path).await?.effective;
 
     let Some(ref script_command) = config.archive_script else {
         return Ok(());
@@ -119,4 +120,44 @@ pub async fn run_archive_script(
     };
 
     config_manager::run_setup_scripts(&worktree_path, &[script]).await
+}
+
+/// Load the effective config layers for a repository (upstream + personal overrides + merged result).
+#[tauri::command]
+pub async fn get_repo_config_layers(
+    app: tauri::AppHandle,
+    repo_path: String,
+) -> Result<EffectiveConfig> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    config_manager::load_effective_config(&app_data_dir, &repo_path).await
+}
+
+/// Read the shared `alfredo.json` from the repo root.
+#[tauri::command]
+pub async fn read_alfredo_json(repo_path: String) -> Result<Option<RepoSharedConfig>> {
+    crate::repo_config::load_alfredo_json(std::path::Path::new(&repo_path)).await
+}
+
+/// Write the shared `alfredo.json` to the repo root.
+#[tauri::command]
+pub async fn write_alfredo_json(repo_path: String, config: RepoSharedConfig) -> Result<()> {
+    crate::repo_config::save_alfredo_json(std::path::Path::new(&repo_path), &config).await
+}
+
+/// Clear all personal overrides for the repo-shared fields, so that values
+/// fall back to `alfredo.json` (or the type defaults if that file is absent).
+#[tauri::command]
+pub async fn reset_repo_overrides(app: tauri::AppHandle, repo_path: String) -> Result<()> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let mut personal = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    personal.setup_scripts = None;
+    personal.run_script = None;
+    personal.archive_script = None;
+    personal.port_env_var = None;
+    personal.port_range_start = None;
+    personal.port_range_end = None;
+    config_manager::save_config(&app_data_dir, &repo_path, &personal).await?;
+    Ok(())
 }

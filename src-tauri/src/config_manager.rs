@@ -208,7 +208,6 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
 /// Load the effective config = personal-overrides layered on top of
 /// `<repo>/alfredo.json`. Use this everywhere the app needs to *read* config
 /// values (vs. write them, which still goes through `save_config`).
-#[allow(dead_code)] // wired up to callers in a later task
 pub async fn load_effective_config(
     app_data_dir: &Path,
     repo_path: &str,

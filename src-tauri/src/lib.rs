@@ -225,6 +225,10 @@ pub fn run() {
             config::run_setup_scripts,
             config::run_archive_script,
             config::set_repo_mode,
+            config::get_repo_config_layers,
+            config::read_alfredo_json,
+            config::write_alfredo_json,
+            config::reset_repo_overrides,
             // Repo
             repo::validate_git_repo,
             // Branch mode
