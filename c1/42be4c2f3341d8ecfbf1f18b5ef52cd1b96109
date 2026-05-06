@@ -1,0 +1,41 @@
+src-tauri/src/config_manager.rs
+  s_5d57dbba566051::t_830bbd40d251ce 123,144-146
+  s_5d57dbba566051::t_163b3083d953b9 363
+  s_5d57dbba566051::t_d41e2e8dbb3ff7 445-480
+  s_5d57dbba566051::t_22188b3d710218 81-107,110
+  s_5d57dbba566051::t_4ccb1d91f9911d 41
+  s_5d57dbba566051::t_fc49af2ef935d4 172,194
+src-tauri/src/commands/github_auth.rs
+  s_5d57dbba566051::t_d8d09f8f467bc0 95
+src-tauri/src/commands/worktree.rs
+  s_5d57dbba566051::t_d8d09f8f467bc0 76,173,189,262,297,390,411,436,491,509,534,609,648
+src-tauri/src/app_config_manager.rs
+  s_5d57dbba566051::t_d8d09f8f467bc0 149
+src-tauri/src/github_sync.rs
+  s_5d57dbba566051::t_d8d09f8f467bc0 359,371,467,528
+src-tauri/src/commands/config.rs
+  s_5d57dbba566051::t_d8d09f8f467bc0 25,50,74,105
+src-tauri/src/stack_manager.rs
+  s_5d57dbba566051::t_d8d09f8f467bc0 47,122,219,264,374
+  s_5d57dbba566051::t_c43db9d869900d 50,125,377
+src-tauri/src/linear_manager.rs
+  s_5d57dbba566051::t_d8d09f8f467bc0 34
+src-tauri/src/github_manager.rs
+  s_5d57dbba566051::t_d8d09f8f467bc0 949
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "c142be4c2f3341d8ecfbf1f18b5ef52cd1b96109",
+  "prompts": {},
+  "sessions": {
+    "s_5d57dbba566051": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d8d1f9a-ea31-4e3c-a9af-b278b4e14b58",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": null
+    }
+  }
+}
