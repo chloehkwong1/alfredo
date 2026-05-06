@@ -1,0 +1,25 @@
+src-tauri/src/lib.rs
+  s_5d57dbba566051::t_b37fc08bd38dbb 228-231
+src-tauri/src/commands/config.rs
+  s_5d57dbba566051::t_31c3226aa4b7bc 4
+  s_5d57dbba566051::t_3c04dcbcaa8605 25-26
+  s_5d57dbba566051::t_74c8c8e687b156 106
+  s_5d57dbba566051::t_bc054f197b3fc6 124-163
+  s_5d57dbba566051::t_0c7983da84bd70 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "00d71d02c847b02837d89d7ef5b89229dd6c0191",
+  "prompts": {},
+  "sessions": {
+    "s_5d57dbba566051": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d8d1f9a-ea31-4e3c-a9af-b278b4e14b58",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": null
+    }
+  }
+}
