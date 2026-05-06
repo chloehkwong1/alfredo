@@ -143,6 +143,7 @@ export function usePty({
             const wasAtBottom = term.buffer.active.viewportY >= term.buffer.active.baseY;
             webgl.dispose();
             session.webglLoaded = false; // reload on next attach
+            session.webglAddon = null;
             // Restore scroll position after fallback to canvas renderer —
             // without this the viewport can jump to earlier scrollback content.
             if (wasAtBottom) {
@@ -152,6 +153,7 @@ export function usePty({
             }
           });
           term.loadAddon(webgl);
+          session.webglAddon = webgl;
         } catch {
           // WebGL unavailable — canvas renderer is fine
         }

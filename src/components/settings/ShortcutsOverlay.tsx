@@ -40,6 +40,7 @@ const SHORTCUT_GROUPS = [
     label: "Terminal",
     shortcuts: [
       { keys: "⌘ K", description: "Clear terminal" },
+      { keys: "⌘ ⇧ K", description: "Rebuild glyph atlas (fix garbled rendering)" },
       { keys: "⌘ +", description: "Zoom in" },
       { keys: "⌘ −", description: "Zoom out" },
       { keys: "⌘ 0", description: "Reset zoom" },

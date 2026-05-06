@@ -185,6 +185,30 @@ export function useKeyboardShortcuts(
         return;
       }
 
+      // Cmd+Shift+K: rebuild WebGL glyph atlas for the active terminal.
+      // Recovery path for rare xterm WebGL atlas/cell-buffer desyncs that
+      // produce floating chars and missing letters and that survive scroll
+      // and refresh — only an atlas rebuild fixes them.
+      if (event.metaKey && event.shiftKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const layoutState = useLayoutStore.getState();
+          const activePaneId = layoutState.activePaneId[activeWorktreeId];
+          const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
+          const tabId = pane?.activeTabId;
+          const sessionKey = tabId ?? activeWorktreeId;
+          const session = sessionManager.getSession(sessionKey);
+          if (session) {
+            if (session.webglAddon) {
+              session.webglAddon.clearTextureAtlas();
+            } else {
+              session.terminal.refresh(0, session.terminal.rows - 1);
+            }
+          }
+        }
+        return;
+      }
+
       // Cmd+= / Cmd++ / Cmd+- / Cmd+0: terminal-only when an xterm has focus,
       // whole-UI zoom otherwise.
       if (

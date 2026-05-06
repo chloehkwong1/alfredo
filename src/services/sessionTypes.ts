@@ -1,6 +1,7 @@
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import type { SearchAddon } from "@xterm/addon-search";
+import type { WebglAddon } from "@xterm/addon-webgl";
 import type { AgentState } from "../types";
 
 /** Maximum bytes retained in the circular output buffer for replay on re-attach. */
@@ -13,6 +14,11 @@ export interface ManagedSession {
   searchAddon: SearchAddon;
   /** True once the WebGL renderer has been loaded (or failed). */
   webglLoaded: boolean;
+  /** Reference to the active WebGL addon, if loaded. Null when WebGL is
+   *  unavailable or after onContextLoss has disposed it. Retained so user
+   *  recovery actions (⌘⇧K) can call clearTextureAtlas() to recover from
+   *  rare atlas/cell-buffer desyncs that survive scroll + refresh. */
+  webglAddon: WebglAddon | null;
   agentState: AgentState;
   /** True once at least one hook event has been received. When true,
    *  ALL detector-sourced state updates are ignored — hooks are the

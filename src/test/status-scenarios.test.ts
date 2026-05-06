@@ -132,6 +132,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     fitAddon: {} as any,
     searchAddon: {} as any,
     webglLoaded: false,
+    webglAddon: null,
     agentState: "idle",
     hooksActive: true,
     outputBuffer: new Uint8Array(0),
