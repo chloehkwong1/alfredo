@@ -418,8 +418,12 @@ pub async fn run_setup_scripts(
 ) -> Result<(), AppError> {
     let shell = crate::platform::login_shell();
     for script in scripts {
+        // `-l` (login) sources the user's shell profile so PATH and env vars
+        // match a normal terminal. `-i` is intentionally omitted: with no TTY
+        // attached, interactive init can fail noisily on options like `zle`,
+        // and that stderr surfaces in the user-facing error below.
         let output = Command::new(&shell)
-            .args(["-li", "-c", &script.command])
+            .args(["-l", "-c", &script.command])
             .current_dir(worktree_path)
             .stdin(std::process::Stdio::null())
             .output()
