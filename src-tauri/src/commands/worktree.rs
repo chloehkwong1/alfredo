@@ -433,19 +433,25 @@ pub async fn claim_worktree_port(
 ) -> Result<PortClaimResult> {
     let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
 
-    if !config.auto_assign_ports {
+    // Read port range from effective config so alfredo.json values are visible.
+    let effective = config_manager::load_effective_config(&app_data_dir, &repo_path).await?.effective;
+
+    if !effective.auto_assign_ports {
         return Ok(PortClaimResult::Disabled);
     }
 
     // A missing or inverted range means the repo hasn't been configured yet —
     // treat as disabled. The settings UI prompts the user to fill in a range
     // when they flip the toggle on.
-    let (range_start, range_end) = match (config.port_range_start, config.port_range_end) {
+    let (range_start, range_end) = match (effective.port_range_start, effective.port_range_end) {
         (Some(s), Some(e)) if s <= e => (s, e),
         _ => return Ok(PortClaimResult::Disabled),
     };
+
+    // Mutate personal config for port_assignments so save_config writes only
+    // the personal layer (not inherited alfredo.json values).
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
 
     if let Some(port) = config_manager::get_assigned_port(&config, &worktree_name) {
         return Ok(PortClaimResult::Assigned { port });
@@ -531,16 +537,22 @@ pub async fn take_worktree_port(
 ) -> Result<TakePortResult> {
     let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
 
-    if !config.auto_assign_ports {
+    // Read port range from effective config so alfredo.json values are visible.
+    let effective = config_manager::load_effective_config(&app_data_dir, &repo_path).await?.effective;
+
+    if !effective.auto_assign_ports {
         return Ok(TakePortResult::Disabled);
     }
 
-    let (range_start, range_end) = match (config.port_range_start, config.port_range_end) {
+    let (range_start, range_end) = match (effective.port_range_start, effective.port_range_end) {
         (Some(s), Some(e)) if s <= e => (s, e),
         _ => return Ok(TakePortResult::Disabled),
     };
+
+    // Mutate personal config for port_assignments so save_config writes only
+    // the personal layer (not inherited alfredo.json values).
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
 
     if port < range_start || port > range_end {
         return Err(AppError::Config(format!(
