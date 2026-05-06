@@ -16,6 +16,7 @@ mod linear_oauth;
 mod logging;
 mod patch_parser;
 mod pty_manager;
+pub mod repo_config;
 mod sleep_inhibitor;
 mod stack_manager;
 mod state_server;
