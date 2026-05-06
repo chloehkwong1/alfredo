@@ -1,0 +1,23 @@
+src/hooks/useServer.ts
+  s_f8f049feacba19::t_078e828ff49192 337
+src-tauri/src/config_manager.rs
+  s_f8f049feacba19::t_0d2ec27ffc8b34 414-421,429,435
+  s_f8f049feacba19::t_f81997e819315b 551-563,567-569,571-574,577-579
+  s_f8f049feacba19::t_c84a13bb030a64 564-566,570,575-576
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "1e9db4fae6f7864ab0f5767dfacbde84f1f6070b",
+  "prompts": {},
+  "sessions": {
+    "s_f8f049feacba19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "93fabe00-f4f8-4bbf-8996-3207b9784115",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
