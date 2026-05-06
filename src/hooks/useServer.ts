@@ -334,7 +334,7 @@ export function useServer(activeWorktreeId: string | null) {
         // Without this, the shell stays alive after the server exits and
         // heartbeats keep flowing — the stale-server cleanup never triggers.
         useTabStore.getState().updateTab(activeWorktreeId, tabId, {
-          command: `exec sh -c ${shellQuote(runScript.command)}`,
+          command: `exec sh -c ${shellQuote(runScript.command.replace(/\s+/g, " ").trim())}`,
         });
       }
 

@@ -411,6 +411,14 @@ pub fn release_port(config: &mut AppConfig, worktree_name: &str) {
     config.port_assignments.remove(worktree_name);
 }
 
+/// Collapse runs of whitespace (including embedded newlines) into a single
+/// space and trim. Multi-line commands saved before the frontend
+/// `normalizeCommand` fix — or written by older Alfredo builds, hand edits,
+/// or restored backups — would otherwise be split on `\n` by the shell.
+fn normalize_command(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// Run setup scripts sequentially in the given worktree directory.
 pub async fn run_setup_scripts(
     worktree_path: &str,
@@ -418,12 +426,13 @@ pub async fn run_setup_scripts(
 ) -> Result<(), AppError> {
     let shell = crate::platform::login_shell();
     for script in scripts {
+        let command = normalize_command(&script.command);
         // `-l` (login) sources the user's shell profile so PATH and env vars
         // match a normal terminal. `-i` is intentionally omitted: with no TTY
         // attached, interactive init can fail noisily on options like `zle`,
         // and that stderr surfaces in the user-facing error below.
         let output = Command::new(&shell)
-            .args(["-l", "-c", &script.command])
+            .args(["-l", "-c", &command])
             .current_dir(worktree_path)
             .stdin(std::process::Stdio::null())
             .output()
@@ -535,6 +544,36 @@ mod tests {
         }];
         let result = run_setup_scripts(dir.path().to_str().unwrap_or_default(), &scripts).await;
         assert!(result.is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn normalize_command_collapses_embedded_newlines_and_runs() {
+        // Mirrors the failure mode where a saved alfredo.json contains a
+        // literal `\n` mid-chain — zsh would otherwise split on the newline
+        // and execute line 2 as a separate command.
+        let raw = "  ln -sf a b && ln -sfn                \n  c d && true";
+        assert_eq!(
+            normalize_command(raw),
+            "ln -sf a b && ln -sfn c d && true"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_setup_scripts_handles_multiline_command() -> Result<(), Box<dyn std::error::Error>> {
+        // The && chain must run as a single statement. Without normalisation,
+        // the shell sees `touch marker` on line 1 and `&& touch other` as a
+        // syntax error on line 2, so `other` would never be created.
+        let dir = tempfile::TempDir::new()?;
+        let scripts = vec![SetupScript {
+            name: "multiline".into(),
+            command: "touch marker\n&& touch other".into(),
+            run_on: "create".into(),
+        }];
+        let result = run_setup_scripts(dir.path().to_str().unwrap_or_default(), &scripts).await;
+        assert!(result.is_ok(), "multiline command should run as single statement: {result:?}");
+        assert!(dir.path().join("marker").exists(), "first half of && chain should run");
+        assert!(dir.path().join("other").exists(), "second half of && chain should run");
         Ok(())
     }
 
