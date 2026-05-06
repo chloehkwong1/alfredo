@@ -1,0 +1,25 @@
+src-tauri/capabilities/default.json
+  s_77a7560ac49970::t_1cfbd72c99f8df 11-14
+src/services/terminalFactory.ts
+  s_77a7560ac49970::t_9eda037bcc0bee 9-10,19-20
+  s_77a7560ac49970::t_7bb71fe16bc15e 45
+  s_77a7560ac49970::t_68a45f2f64f169 1,4-5,11-18,21-44,46-151
+  s_77a7560ac49970::t_8942f600e9b4ff 187-189
+  s_77a7560ac49970::t_329307b68860c6 226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "a3fdf872ecf6c8e01758ef979927374987ff4e6d",
+  "prompts": {},
+  "sessions": {
+    "s_77a7560ac49970": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d52ade8a-5ed2-4b7e-bcc4-3b2b8cd57fc3",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
