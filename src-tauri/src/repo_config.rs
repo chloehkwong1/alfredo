@@ -21,9 +21,35 @@ pub async fn load_alfredo_json(repo_path: &Path) -> Result<Option<RepoSharedConf
     }
 }
 
+/// Write `<repo>/alfredo.json`. The `$schema` pointer is added on top so
+/// editors that support JSON schema (VS Code, JetBrains) get autocomplete
+/// when the user hand-edits the file.
+const SCHEMA_URL: &str =
+    "https://raw.githubusercontent.com/chloehkwong1/alfredo/main/schemas/alfredo.schema.json";
+
+pub async fn save_alfredo_json(
+    repo_path: &Path,
+    config: &RepoSharedConfig,
+) -> Result<(), AppError> {
+    let mut value = serde_json::to_value(config)
+        .map_err(|e| AppError::Config(format!("failed to serialize alfredo.json: {e}")))?;
+    if let serde_json::Value::Object(ref mut map) = value {
+        map.insert("$schema".to_string(), serde_json::Value::String(SCHEMA_URL.to_string()));
+    }
+
+    let json = serde_json::to_string_pretty(&value)
+        .map_err(|e| AppError::Config(format!("failed to serialize alfredo.json: {e}")))?;
+    let path = repo_path.join(FILENAME);
+    tokio::fs::write(&path, format!("{json}\n"))
+        .await
+        .map_err(|e| AppError::Config(format!("failed to write alfredo.json: {e}")))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::SetupScript;
 
     #[tokio::test]
     async fn returns_none_when_file_missing() -> Result<(), Box<dyn std::error::Error>> {
@@ -53,6 +79,45 @@ mod tests {
         tokio::fs::write(dir.path().join("alfredo.json"), "{ not json").await?;
         let result = load_alfredo_json(dir.path()).await;
         assert!(result.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn saves_round_trips() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let config = RepoSharedConfig {
+            setup_scripts: Some(vec![SetupScript {
+                name: "install".into(),
+                command: "yarn install".into(),
+                run_on: "create".into(),
+            }]),
+            port_range_start: Some(3000),
+            port_range_end: Some(3005),
+            ..Default::default()
+        };
+        save_alfredo_json(dir.path(), &config).await?;
+        let loaded = load_alfredo_json(dir.path()).await?.expect("present");
+        assert_eq!(loaded.port_range_start, Some(3000));
+        assert_eq!(loaded.port_range_end, Some(3005));
+        assert_eq!(loaded.setup_scripts.as_ref().map(|v| v.len()), Some(1));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn save_omits_none_fields_from_json() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let config = RepoSharedConfig {
+            run_script: Some(crate::types::RunScript {
+                command: "./bin/serve".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        save_alfredo_json(dir.path(), &config).await?;
+        let raw = tokio::fs::read_to_string(dir.path().join("alfredo.json")).await?;
+        assert!(raw.contains("runScript"));
+        assert!(!raw.contains("setupScripts"));
+        assert!(!raw.contains("portRangeStart"));
         Ok(())
     }
 }

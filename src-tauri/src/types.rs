@@ -277,7 +277,7 @@ pub struct PrDetailedStatus {
 
 // ── Config ──────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupScript {
     pub name: String,
@@ -285,7 +285,7 @@ pub struct SetupScript {
     pub run_on: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RunScript {
     pub name: String,
