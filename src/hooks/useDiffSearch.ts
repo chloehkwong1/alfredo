@@ -14,7 +14,6 @@ export function useDiffSearch(
   displayFiles: DiffFile[],
   setCollapsedFiles: React.Dispatch<React.SetStateAction<Set<string>>>,
   setActiveFilePath: (path: string | null) => void,
-  containerRef: React.RefObject<HTMLElement | null>,
   worktreeId: string,
   paneId: string,
 ) {
@@ -84,68 +83,52 @@ export function useDiffSearch(
     [matches, currentMatchIndex, setCollapsedFiles, setActiveFilePath],
   );
 
-  // Keyboard: "/" to open search, Escape to close, Enter/Shift+Enter to navigate.
-  // Scoped to the owning ChangesView subtree so Cmd+F pressed in a terminal
-  // (or any other pane) doesn't steal focus into the diff search here.
+  // Keyboard: "/" to open search, Cmd/Ctrl+F to open search, Escape to close,
+  // Enter/Shift+Enter to navigate. Listens on window and gates by activePaneId
+  // so Cmd+F works regardless of where focus lives in the DOM (diff content
+  // isn't focusable, so focus often sits on <body>) — but a non-active pane
+  // in a split layout won't claim the event.
   useEffect(() => {
-    const root = containerRef.current;
-    if (!root) return;
-
     function handleSearchKeys(e: KeyboardEvent) {
-      const inScope =
-        root!.contains(document.activeElement) || searchOpen;
-      if (!inScope) return;
+      const isCmdF = (e.metaKey || e.ctrlKey) && e.key === "f";
+      const isSlash = e.key === "/";
+      const isEscape = e.key === "Escape";
+      const isEnter = e.key === "Enter";
 
       const tag = (e.target as HTMLElement)?.tagName;
       const isInput = tag === "INPUT" || tag === "TEXTAREA";
 
-      // "/" to open search (when not in an input), or Cmd/Ctrl+F within scope
-      if (
-        (e.key === "/" && !isInput) ||
-        ((e.metaKey || e.ctrlKey) && e.key === "f")
-      ) {
+      // Only the active pane in this worktree should claim Cmd+F / "/".
+      const activePaneId = useLayoutStore.getState().activePaneId[worktreeId];
+      const isActivePane = activePaneId === paneId;
+
+      if ((isCmdF && isActivePane) || (isSlash && !isInput && isActivePane)) {
         e.preventDefault();
+        e.stopPropagation();
         setSearchOpen(true);
         requestAnimationFrame(() => searchInputRef.current?.focus());
         return;
       }
 
-      // Escape to close search
-      if (e.key === "Escape" && searchOpen) {
+      // Escape closes search when it's open (for the active pane).
+      if (isEscape && searchOpen && isActivePane) {
         setSearchOpen(false);
         setSearchQuery("");
         return;
       }
 
       // Enter / Shift+Enter to navigate matches (when search input is focused)
-      if (
-        e.key === "Enter" &&
-        document.activeElement === searchInputRef.current
-      ) {
+      if (isEnter && document.activeElement === searchInputRef.current) {
         e.preventDefault();
         navigateMatch(e.shiftKey ? "prev" : "next");
       }
     }
 
-    // Companion to FileSidebar's Cmd+F handler: when the user is viewing a
-    // commit, FileSidebar dispatches alfredo:open-diff-search instead of
-    // bailing silently (the keydown listener above can't reach FileSidebar
-    // since it's a sibling subtree). Only the ChangesView in the currently
-    // active pane should claim the event so split layouts don't double-open.
-    function handleOpenDiffSearch() {
-      const activePaneId = useLayoutStore.getState().activePaneId[worktreeId];
-      if (activePaneId !== paneId) return;
-      setSearchOpen(true);
-      requestAnimationFrame(() => searchInputRef.current?.focus());
-    }
-
-    root.addEventListener("keydown", handleSearchKeys);
-    window.addEventListener("alfredo:open-diff-search", handleOpenDiffSearch);
+    window.addEventListener("keydown", handleSearchKeys);
     return () => {
-      root.removeEventListener("keydown", handleSearchKeys);
-      window.removeEventListener("alfredo:open-diff-search", handleOpenDiffSearch);
+      window.removeEventListener("keydown", handleSearchKeys);
     };
-  }, [searchOpen, navigateMatch, containerRef, worktreeId, paneId]);
+  }, [searchOpen, navigateMatch, worktreeId, paneId]);
 
   // Compute active search match for highlighting
   const activeSearchMatch = useMemo(() => {

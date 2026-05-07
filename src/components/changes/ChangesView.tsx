@@ -149,7 +149,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
     currentMatchIndex,
     navigateMatch,
     activeSearchMatch,
-  } = useDiffSearch(displayFiles, setCollapsedFiles, setActiveFilePath, rootRef, worktreeId, paneId);
+  } = useDiffSearch(displayFiles, setCollapsedFiles, setActiveFilePath, worktreeId, paneId);
 
   const handleSendPrComment = useCallback(
     (comment: PrComment) => {

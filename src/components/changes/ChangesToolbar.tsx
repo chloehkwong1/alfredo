@@ -158,7 +158,7 @@ function SearchControl({
     >
       <Search size={11} />
       Search
-      <span className="ml-0.5 font-mono text-[9px] px-1 h-[14px] inline-grid place-items-center border border-border-default rounded-[3px] text-text-tertiary">/</span>
+      <span className="ml-0.5 font-mono text-[9px] px-1 h-[14px] inline-grid place-items-center border border-border-default rounded-[3px] text-text-tertiary">⌘F</span>
     </button>
   );
 }

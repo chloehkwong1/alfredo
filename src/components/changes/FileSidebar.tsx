@@ -228,23 +228,17 @@ function FileSidebar({
   const firstCommitRef = useRef<HTMLButtonElement>(null);
   const pendingCommitFocusRef = useRef(false);
 
-  // Cmd+F focuses the filter input — scoped to this sidebar so it doesn't
-  // steal Cmd+F from terminal panes or other surfaces in a split layout.
+  // Cmd+F focuses the filter input — scoped to this sidebar so it only fires
+  // when the sidebar tree itself has focus. The commit-viewing case is handled
+  // by useDiffSearch's window-level listener (gated by activePaneId).
   useEffect(() => {
     const root = sidebarRef.current;
     if (!root) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!(e.metaKey && e.key === "f")) return;
-      // When viewing a commit, hand off to the diff search. FileSidebar lives
-      // outside ChangesView's subtree, so a passive bail-out wouldn't reach it.
-      if (selectedCommitIndex !== null) {
-        e.preventDefault();
-        e.stopPropagation();
-        window.dispatchEvent(new CustomEvent("alfredo:open-diff-search"));
-        return;
-      }
-      // If filter input is hidden (totalItems <= 5 or commits view), skip
+      // If filter input is hidden (totalItems <= 5 or commits view), let the
+      // event bubble so the diff-search window listener can claim it.
       if (!filterInputRef.current) return;
 
       e.preventDefault();
@@ -259,7 +253,7 @@ function FileSidebar({
 
     root.addEventListener("keydown", handleKeyDown);
     return () => root.removeEventListener("keydown", handleKeyDown);
-  }, [selectedCommitIndex]);
+  }, []);
 
   // Clear filter when view mode changes (e.g., switching between files and commits)
   useEffect(() => {

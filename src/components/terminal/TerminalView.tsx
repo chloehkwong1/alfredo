@@ -7,6 +7,7 @@ import "@xterm/xterm/css/xterm.css";
 import { usePty } from "../../hooks/usePty";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
+import { useLayoutStore } from "../../stores/layoutStore";
 import { sessionManager } from "../../services/sessionManager";
 import { writePty, getConfig, getAppConfig, findClaudeSession, debugLog } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
@@ -263,23 +264,26 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     return () => window.removeEventListener("restart-session", handler);
   }, [tabId, handleRestartSession]);
 
-  // Cmd+F to toggle terminal search — scoped to this pane so it doesn't
-  // fire for other panes / surfaces that are mounted in a split layout.
+  // Cmd+F to toggle terminal search — gated by activePaneId so it only fires
+  // for the currently active pane (split layouts) and works regardless of
+  // where focus actually sits in the DOM.
   useEffect(() => {
-    const root = dropZoneRef.current;
-    if (!root) return;
+    if (!activeWorktreeId || !tabId) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!((e.metaKey || e.ctrlKey) && e.key === "f")) return;
-      // Only when focus is actually inside this pane, or the search bar is already open.
-      if (!root.contains(document.activeElement) && !showSearch) return;
+      const layout = useLayoutStore.getState();
+      const activePaneId = layout.activePaneId[activeWorktreeId];
+      const myPaneId = layout.findPaneForTab(activeWorktreeId, tabId);
+      if (!myPaneId || activePaneId !== myPaneId) return;
       e.preventDefault();
+      e.stopPropagation();
       setShowSearch((s) => !s);
     };
 
-    root.addEventListener("keydown", handleKeyDown);
-    return () => root.removeEventListener("keydown", handleKeyDown);
-  }, [showSearch]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeWorktreeId, tabId]);
 
   // Track whether the terminal is scrolled away from the bottom.
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
