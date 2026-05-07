@@ -1,0 +1,35 @@
+src/components/kanban/create-worktree/BranchesTab.tsx
+  s_3c5bceffce138b::t_4489725d7c3771 6
+  s_3c5bceffce138b::t_0e6ade5aa8dc4f 50-68
+src-tauri/src/commands/worktree.rs
+  s_3c5bceffce138b::t_696e9b1da1ec01 38,44-47
+src/components/kanban/create-worktree/NewBranchTab.tsx
+  s_3c5bceffce138b::t_57381bb05d5a54 3,17-21,33,35,49-53
+src-tauri/src/git_manager.rs
+  s_3c5bceffce138b::t_4a4168d0c15505 90-157
+  s_3c5bceffce138b::t_421fc70b8be4df 1052-1098
+src/lib/validateBranchName.ts
+  s_3c5bceffce138b::t_cf93e3f4e23c26 1-50
+src/components/kanban/CreateWorktreeDialog.tsx
+  s_3c5bceffce138b::t_7dcdbe4010fc0a 20
+  s_3c5bceffce138b::t_78b7c22856063f 138-143
+src/lib/validateBranchName.test.ts
+  s_3c5bceffce138b::t_7b4ace5971dd65 1-65,67,71-72
+  s_3c5bceffce138b::t_b1e02205c9f9ba 66,68-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "efa05345bb9f1a34d8c0b1eef3f51d2b95b9f35e",
+  "prompts": {},
+  "sessions": {
+    "s_3c5bceffce138b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "39e11abb-4847-4e86-9258-7f4f981be641",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
