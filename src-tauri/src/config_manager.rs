@@ -345,7 +345,31 @@ pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfi
         _ => crate::keychain::delete("linear_api_key")?,
     }
 
-    write_personal_config_file(app_data_dir, repo_path, config).await
+    // Strip values that match upstream so personal stays sparse — future edits
+    // to alfredo.json then propagate instead of showing as a frozen override.
+    let mut to_write = config.clone();
+    if let Some(upstream) = crate::repo_config::load_alfredo_json(Path::new(repo_path)).await? {
+        if to_write.setup_scripts == upstream.setup_scripts {
+            to_write.setup_scripts = None;
+        }
+        if to_write.run_script == upstream.run_script {
+            to_write.run_script = None;
+        }
+        if to_write.archive_script == upstream.archive_script {
+            to_write.archive_script = None;
+        }
+        if to_write.port_env_var == upstream.port_env_var {
+            to_write.port_env_var = None;
+        }
+        if to_write.port_range_start == upstream.port_range_start {
+            to_write.port_range_start = None;
+        }
+        if to_write.port_range_end == upstream.port_range_end {
+            to_write.port_range_end = None;
+        }
+    }
+
+    write_personal_config_file(app_data_dir, repo_path, &to_write).await
 }
 
 /// Get the column override for a specific worktree, if any.
@@ -696,6 +720,97 @@ mod tests {
         // Nothing should have been written.
         let exists = tokio::fs::try_exists(repo.path().join("alfredo.json")).await.unwrap_or(false);
         assert!(!exists);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn save_strips_values_equal_to_upstream() -> Result<(), Box<dyn std::error::Error>> {
+        // Regression: previously, saving an effective config that contained
+        // values inherited from alfredo.json would copy those values into the
+        // personal layer. Subsequent edits to alfredo.json then surfaced as
+        // false "Edited locally" tags. Save must keep personal sparse.
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        // Upstream alfredo.json defines run_script + port range.
+        tokio::fs::write(
+            repo.path().join("alfredo.json"),
+            r#"{"runScript":{"name":"Run","command":"alfie"},"portRangeStart":3000,"portRangeEnd":3005}"#,
+        )
+        .await?;
+
+        // Caller passes the merged effective config (e.g. dialog round-trip).
+        let mut effective = AppConfig {
+            repo_path: repo_path.to_string(),
+            setup_scripts: None,
+            github_token: None,
+            linear_api_key: None,
+            branch_mode: false,
+            column_overrides: HashMap::new(),
+            theme: None,
+            notifications: None,
+            worktree_base_path: Some("/tmp/wt".into()), // genuine personal field
+            claude_defaults: None,
+            worktree_overrides: None,
+            run_script: Some(crate::types::RunScript {
+                name: "Run".into(),
+                command: "alfie".into(),
+                ..Default::default()
+            }),
+            stack_parent_overrides: HashMap::new(),
+            archive_script: None,
+            linear_tickets: HashMap::new(),
+            port_assignments: HashMap::new(),
+            auto_assign_ports: false,
+            port_env_var: None,
+            port_range_start: Some(3000),
+            port_range_end: Some(3005),
+        };
+
+        // save_config may fail on keychain in test env; we only care about JSON.
+        let _ = save_config(app_data.path(), repo_path, &effective).await;
+
+        let json_path = repo_config_path(app_data.path(), repo_path);
+        let raw = tokio::fs::read_to_string(&json_path).await?;
+        let value: serde_json::Value = serde_json::from_str(&raw)?;
+
+        // Inherited values should be null in personal — not duplicated.
+        assert!(value["runScript"].is_null(), "run_script equal to upstream must be stripped");
+        assert!(value["portRangeStart"].is_null(), "port_range_start equal to upstream must be stripped");
+        assert!(value["portRangeEnd"].is_null(), "port_range_end equal to upstream must be stripped");
+        // Genuine personal field stays.
+        assert_eq!(value["worktreeBasePath"], "/tmp/wt");
+
+        // End-to-end: after the strip, simulate the user editing alfredo.json
+        // and reload via load_effective_config. The new upstream value should
+        // become the effective value with no override flag set — i.e. exactly
+        // the bug Chloe hit ("changed alfredo.json, dialog said diverged").
+        tokio::fs::write(
+            repo.path().join("alfredo.json"),
+            r#"{"runScript":{"name":"Run","command":"alfie-v2"},"portRangeStart":4000,"portRangeEnd":4005}"#,
+        )
+        .await?;
+        let reloaded = load_effective_config(app_data.path(), repo_path).await?;
+        assert_eq!(
+            reloaded.effective.run_script.as_ref().map(|r| r.command.as_str()),
+            Some("alfie-v2"),
+            "post-strip alfredo.json edit must propagate to effective",
+        );
+        assert!(!reloaded.overrides.run_script, "no false divergence after upstream edit");
+        assert!(!reloaded.overrides.port_range_start);
+
+        // Now genuinely diverge run_script and confirm it's persisted.
+        effective.run_script = Some(crate::types::RunScript {
+            name: "Run".into(),
+            command: "different".into(),
+            ..Default::default()
+        });
+        let _ = save_config(app_data.path(), repo_path, &effective).await;
+        let raw2 = tokio::fs::read_to_string(&json_path).await?;
+        let value2: serde_json::Value = serde_json::from_str(&raw2)?;
+        assert_eq!(value2["runScript"]["command"], "different");
+
         Ok(())
     }
 
