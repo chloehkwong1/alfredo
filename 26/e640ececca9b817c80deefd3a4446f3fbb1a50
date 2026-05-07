@@ -1,0 +1,23 @@
+package.json
+  s_d8414c6a21e274::t_b353474e3a8936 4
+src-tauri/tauri.conf.json
+  s_d8414c6a21e274::t_2db7688dba0f7b 4
+src-tauri/Cargo.toml
+  s_d8414c6a21e274::t_13e450e1c00a82 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "26e640ececca9b817c80deefd3a4446f3fbb1a50",
+  "prompts": {},
+  "sessions": {
+    "s_d8414c6a21e274": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80093093-ed0c-4676-b12f-7834832d4c32",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
