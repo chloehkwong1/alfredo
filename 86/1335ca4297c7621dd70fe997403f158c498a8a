@@ -1,0 +1,21 @@
+src-tauri/Entitlements.plist
+  s_76adc1fd046704::t_938080af677e96 1-8
+src-tauri/tauri.conf.json
+  s_76adc1fd046704::t_7edf647a9863be 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "861335ca4297c7621dd70fe997403f158c498a8a",
+  "prompts": {},
+  "sessions": {
+    "s_76adc1fd046704": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c38309e3-5c93-464f-9fbd-0a92edcddbbe",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
