@@ -163,162 +163,179 @@ export function useSessionRestore(
       listWorktrees(repo).then(async (wts) => {
         if (cancelled) return;
         if (wts.length > 0) {
-          if (!restoredRepos.current.has(repo)) {
+          // First-restore tracking: tabs, layouts, annotations, pins,
+          // scrollback and prStore overrides live in independent stores
+          // that survive mode-switches in memory — re-applying them would
+          // clobber live state (pin toggles off, annotations duplicate,
+          // user-changed layout reverts). They run once per app lifetime.
+          //
+          // wt-object state (column, archived, archivedAt, unarchivedAt)
+          // lives on the Worktree objects themselves, which listWorktrees
+          // returns fresh each call. Mode-switch to branch mode replaces
+          // these objects with a synthetic, so on switch-back they come
+          // back without the auto-archive flag or PR-auto-column. We
+          // re-apply that state from disk on every load — that's why the
+          // wt-object writes below sit *outside* the isFirstRestore guard.
+          const isFirstRestore = !restoredRepos.current.has(repo);
+          if (isFirstRestore) {
             restoredRepos.current.add(repo);
+          }
 
-            // ── Phase 1: Restore all session state BEFORE making worktrees
-            // visible in the store. This is critical: setWorktreesForRepo
-            // triggers useStatePersistence → setActiveWorktree → AppShell's
-            // ensureDefaultTabs effect. If tabs aren't already in place,
-            // ensureDefaultTabs creates fresh tabs without resumeSessionId,
-            // TerminalView mounts, and Claude spawns without --resume.
-            // Loading sessions first eliminates this race entirely.
-            for (const wt of wts) {
-              const session = await loadSession(repo, wt.id);
-              if (!session) continue;
+          // ── Phase 1: Restore all session state BEFORE making worktrees
+          // visible in the store. This is critical: setWorktreesForRepo
+          // triggers useStatePersistence → setActiveWorktree → AppShell's
+          // ensureDefaultTabs effect. If tabs aren't already in place,
+          // ensureDefaultTabs creates fresh tabs without resumeSessionId,
+          // TerminalView mounts, and Claude spawns without --resume.
+          // Loading sessions first eliminates this race entirely.
+          for (const wt of wts) {
+            const session = await loadSession(repo, wt.id);
+            if (!session) continue;
 
-              // Apply persisted worktree state directly to the object so
-              // it's set atomically when setWorktreesForRepo stores them.
-              if (session.column) {
-                wt.column = session.column;
-              }
-              if (session.archived) {
-                wt.archived = true;
-                wt.archivedAt = session.archivedAt;
-              }
-              if (session.unarchivedAt) {
-                wt.unarchivedAt = session.unarchivedAt;
-              }
+            // Apply persisted worktree state directly to the object so
+            // it's set atomically when setWorktreesForRepo stores them.
+            // Always-run (see comment above isFirstRestore).
+            if (session.column) {
+              wt.column = session.column;
+            }
+            if (session.archived) {
+              wt.archived = true;
+              wt.archivedAt = session.archivedAt;
+            }
+            if (session.unarchivedAt) {
+              wt.unarchivedAt = session.unarchivedAt;
+            }
 
-              restoreTabs(wt.id, session.tabs, session.activeTabId);
+            if (!isFirstRestore) continue;
 
-              // Pre-load terminal scrollback so it's visible before PTY spawns
-              if (session.terminals) {
-                for (const [tabId, termData] of Object.entries(session.terminals)) {
-                  if (termData.scrollback) {
-                    sessionManager.loadScrollbackOnly(tabId, termData.scrollback);
-                  }
+            restoreTabs(wt.id, session.tabs, session.activeTabId);
+
+            // Pre-load terminal scrollback so it's visible before PTY spawns
+            if (session.terminals) {
+              for (const [tabId, termData] of Object.entries(session.terminals)) {
+                if (termData.scrollback) {
+                  sessionManager.loadScrollbackOnly(tabId, termData.scrollback);
                 }
               }
+            }
 
-              // Restore per-worktree UI state
-              if (session.diffViewMode) {
-                useWorkspaceStore.getState().setDiffViewMode(wt.id, session.diffViewMode);
+            // Restore per-worktree UI state
+            if (session.diffViewMode) {
+              useWorkspaceStore.getState().setDiffViewMode(wt.id, session.diffViewMode);
+            }
+            if (session.changesViewMode) {
+              useWorkspaceStore.getState().setChangesViewMode(wt.id, session.changesViewMode);
+            }
+            if (session.changesPanelCollapsed != null) {
+              useWorkspaceStore.getState().setChangesPanelCollapsed(wt.id, session.changesPanelCollapsed);
+            }
+            if (session.seenWorktree) {
+              markWorktreeSeen(wt.id);
+            }
+            if (session.unreadWorktree) {
+              useWorkspaceStore.getState().markWorktreeUnread(wt.id);
+            }
+            if (session.pinnedWorktree) {
+              useWorkspaceStore.getState().togglePinWorktree(wt.id);
+            }
+
+            // Restore inline annotations
+            if (session.annotations?.length) {
+              const store = useWorkspaceStore.getState();
+              for (const annotation of session.annotations) {
+                store.addAnnotation(annotation);
               }
-              if (session.changesViewMode) {
-                useWorkspaceStore.getState().setChangesViewMode(wt.id, session.changesViewMode);
+            }
+
+            // Restore column override — persists until autoColumn changes
+            if (session.columnOverride) {
+              const override = session.columnOverride;
+              if (typeof override === "object" && "autoColumnWhenSet" in override) {
+                usePrStore.setState((s) => ({
+                  columnOverrides: {
+                    ...s.columnOverrides,
+                    [wt.id]: { column: override.column, autoColumnWhenSet: override.autoColumnWhenSet },
+                  },
+                  lastAutoColumn: { ...s.lastAutoColumn, [wt.id]: override.autoColumnWhenSet },
+                }));
+              } else {
+                const col = typeof override === "string" ? override : override.column;
+                usePrStore.setState((s) => ({
+                  columnOverrides: {
+                    ...s.columnOverrides,
+                    [wt.id]: { column: col, autoColumnWhenSet: col, needsMigration: true },
+                  },
+                }));
               }
-              if (session.changesPanelCollapsed != null) {
-                useWorkspaceStore.getState().setChangesPanelCollapsed(wt.id, session.changesPanelCollapsed);
+            }
+
+            // Restore PR panel state
+            if (session.prPanelState) {
+              usePrStore.getState().setPrPanelState(wt.id, session.prPanelState);
+            }
+
+            const sessionLayout = session.layout;
+            const sessionPanes = session.panes;
+            const sessionActivePaneId = session.activePaneId;
+            if (sessionLayout && sessionPanes) {
+              useLayoutStore.getState().restoreLayout(
+                wt.id, sessionLayout, sessionPanes, sessionActivePaneId ?? Object.keys(sessionPanes)[0],
+              );
+            } else {
+              const tabIds = session.tabs.map((t) => t.id);
+              useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
+            }
+
+            // Restore per-tab Claude session IDs.
+            // Always check the filesystem for the most recent session so we
+            // don't resume a stale conversation when the user's real session
+            // changed mid-use (e.g. /clear created a new session).
+            const agentTabs = session.tabs.filter(isAgentTab);
+            const tabsWithSession = agentTabs.filter((t) => t.resumeSessionId);
+            const tabsWithoutSession = agentTabs.filter((t) => !t.resumeSessionId);
+
+            let latestSessionId: string | null = null;
+            try {
+              latestSessionId = await findClaudeSession(wt.path) ?? null;
+            } catch (e) {
+              console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);
+            }
+
+            if (agentTabs.length === 1) {
+              // Single agent tab: always use the most recent session from
+              // the filesystem — the saved resumeSessionId may be stale.
+              const sessionId = latestSessionId ?? tabsWithSession[0]?.resumeSessionId ?? session.claudeSessionId ?? null;
+              if (sessionId) {
+                wt.claudeSessionId = sessionId;
+                updateTab(wt.id, agentTabs[0].id, { resumeSessionId: sessionId });
               }
-              if (session.seenWorktree) {
+            } else {
+              // Multiple agent tabs: preserve per-tab sessions (each tab
+              // resumes its own conversation). Only discover for tabs
+              // that don't have a saved session ID.
+              //
+              // Assign the fallback UUID to *only* the first tab without a
+              // saved session — assigning it to all of them would collapse
+              // them onto the same Claude identity, the same shape as the
+              // discover() contamination bug. Remaining tabs stay at
+              // resumeSessionId=undefined and get adopted independently by
+              // discover() once each owns its own JSONL on disk.
+              if (tabsWithoutSession.length > 0) {
+                const fallbackSessionId = latestSessionId ?? session.claudeSessionId ?? null;
+                if (fallbackSessionId) {
+                  updateTab(wt.id, tabsWithoutSession[0].id, { resumeSessionId: fallbackSessionId });
+                }
+              }
+              if (tabsWithSession.length > 0) {
+                wt.claudeSessionId = tabsWithSession[0].resumeSessionId;
+              } else if (latestSessionId) {
+                wt.claudeSessionId = latestSessionId;
+              }
+            }
+
+            for (const tab of session.tabs) {
+              if (isAgentTab(tab)) {
                 markWorktreeSeen(wt.id);
-              }
-              if (session.unreadWorktree) {
-                useWorkspaceStore.getState().markWorktreeUnread(wt.id);
-              }
-              if (session.pinnedWorktree) {
-                useWorkspaceStore.getState().togglePinWorktree(wt.id);
-              }
-
-              // Restore inline annotations
-              if (session.annotations?.length) {
-                const store = useWorkspaceStore.getState();
-                for (const annotation of session.annotations) {
-                  store.addAnnotation(annotation);
-                }
-              }
-
-              // Restore column override — persists until autoColumn changes
-              if (session.columnOverride) {
-                const override = session.columnOverride;
-                if (typeof override === "object" && "autoColumnWhenSet" in override) {
-                  usePrStore.setState((s) => ({
-                    columnOverrides: {
-                      ...s.columnOverrides,
-                      [wt.id]: { column: override.column, autoColumnWhenSet: override.autoColumnWhenSet },
-                    },
-                    lastAutoColumn: { ...s.lastAutoColumn, [wt.id]: override.autoColumnWhenSet },
-                  }));
-                } else {
-                  const col = typeof override === "string" ? override : override.column;
-                  usePrStore.setState((s) => ({
-                    columnOverrides: {
-                      ...s.columnOverrides,
-                      [wt.id]: { column: col, autoColumnWhenSet: col, needsMigration: true },
-                    },
-                  }));
-                }
-              }
-
-              // Restore PR panel state
-              if (session.prPanelState) {
-                usePrStore.getState().setPrPanelState(wt.id, session.prPanelState);
-              }
-
-              const sessionLayout = session.layout;
-              const sessionPanes = session.panes;
-              const sessionActivePaneId = session.activePaneId;
-              if (sessionLayout && sessionPanes) {
-                useLayoutStore.getState().restoreLayout(
-                  wt.id, sessionLayout, sessionPanes, sessionActivePaneId ?? Object.keys(sessionPanes)[0],
-                );
-              } else {
-                const tabIds = session.tabs.map((t) => t.id);
-                useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
-              }
-
-              // Restore per-tab Claude session IDs.
-              // Always check the filesystem for the most recent session so we
-              // don't resume a stale conversation when the user's real session
-              // changed mid-use (e.g. /clear created a new session).
-              const agentTabs = session.tabs.filter(isAgentTab);
-              const tabsWithSession = agentTabs.filter((t) => t.resumeSessionId);
-              const tabsWithoutSession = agentTabs.filter((t) => !t.resumeSessionId);
-
-              let latestSessionId: string | null = null;
-              try {
-                latestSessionId = await findClaudeSession(wt.path) ?? null;
-              } catch (e) {
-                console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);
-              }
-
-              if (agentTabs.length === 1) {
-                // Single agent tab: always use the most recent session from
-                // the filesystem — the saved resumeSessionId may be stale.
-                const sessionId = latestSessionId ?? tabsWithSession[0]?.resumeSessionId ?? session.claudeSessionId ?? null;
-                if (sessionId) {
-                  wt.claudeSessionId = sessionId;
-                  updateTab(wt.id, agentTabs[0].id, { resumeSessionId: sessionId });
-                }
-              } else {
-                // Multiple agent tabs: preserve per-tab sessions (each tab
-                // resumes its own conversation). Only discover for tabs
-                // that don't have a saved session ID.
-                //
-                // Assign the fallback UUID to *only* the first tab without a
-                // saved session — assigning it to all of them would collapse
-                // them onto the same Claude identity, the same shape as the
-                // discover() contamination bug. Remaining tabs stay at
-                // resumeSessionId=undefined and get adopted independently by
-                // discover() once each owns its own JSONL on disk.
-                if (tabsWithoutSession.length > 0) {
-                  const fallbackSessionId = latestSessionId ?? session.claudeSessionId ?? null;
-                  if (fallbackSessionId) {
-                    updateTab(wt.id, tabsWithoutSession[0].id, { resumeSessionId: fallbackSessionId });
-                  }
-                }
-                if (tabsWithSession.length > 0) {
-                  wt.claudeSessionId = tabsWithSession[0].resumeSessionId;
-                } else if (latestSessionId) {
-                  wt.claudeSessionId = latestSessionId;
-                }
-              }
-
-              for (const tab of session.tabs) {
-                if (isAgentTab(tab)) {
-                  markWorktreeSeen(wt.id);
-                }
               }
             }
           }
