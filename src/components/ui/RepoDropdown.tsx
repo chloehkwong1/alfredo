@@ -20,6 +20,8 @@ interface RepoDropdownProps {
   repoDisplayNames?: Record<string, string>;
   value: string;
   onChange: (repoPath: string) => void;
+  /** Compact pill variant: 28px tall, auto-width, used inline in dialog headers. */
+  compact?: boolean;
 }
 
 function getColorForRepo(
@@ -40,28 +42,30 @@ function RepoDropdown({
   repoDisplayNames,
   value,
   onChange,
+  compact = false,
 }: RepoDropdownProps) {
   const activeColor = getColorForRepo(value, repos, repoColors);
 
+  const triggerClass = compact
+    ? "inline-flex items-center gap-2 h-7 px-2.5 rounded-lg border border-border-default bg-bg-elevated cursor-pointer text-[13px] text-text-primary transition-colors duration-[var(--transition-fast)] hover:border-border-hover data-[state=open]:border-border-hover"
+    : "flex items-center gap-3 w-full h-9 px-3 rounded-[var(--radius-md)] border border-border-default bg-bg-elevated cursor-pointer text-[13px] font-medium text-text-primary transition-all duration-[var(--transition-fast)] hover:border-border-hover data-[state=open]:border-accent-primary/50 data-[state=open]:shadow-[0_0_0_1px_rgba(147,51,234,0.25)]";
+
   return (
-    <div>
+    <div className={compact ? "inline-block" : undefined}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="flex items-center gap-3 w-full h-9 px-3 rounded-[var(--radius-md)] border border-border-default bg-bg-elevated cursor-pointer text-[13px] font-medium text-text-primary transition-all duration-[var(--transition-fast)] hover:border-border-hover data-[state=open]:border-accent-primary/50 data-[state=open]:shadow-[0_0_0_1px_rgba(147,51,234,0.25)]"
-          >
+          <button type="button" className={triggerClass}>
             <span
-              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              className={compact ? "w-2 h-2 rounded-full flex-shrink-0" : "w-2.5 h-2.5 rounded-full flex-shrink-0"}
               style={{
                 background: activeColor.bg,
-                boxShadow: `0 0 6px 1px color-mix(in srgb, ${activeColor.bg} 20%, transparent)`,
+                boxShadow: compact ? undefined : `0 0 6px 1px color-mix(in srgb, ${activeColor.bg} 20%, transparent)`,
               }}
             />
-            <span className="flex-1 text-left truncate">
+            <span className={compact ? "truncate" : "flex-1 text-left truncate"}>
               {repoDisplayName(value, repoDisplayNames)}
             </span>
-            <ChevronDown className="h-3.5 w-3.5 text-text-tertiary" />
+            <ChevronDown className={compact ? "h-3 w-3 text-text-tertiary" : "h-3.5 w-3.5 text-text-tertiary"} />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">

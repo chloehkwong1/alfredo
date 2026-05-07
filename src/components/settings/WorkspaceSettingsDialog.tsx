@@ -1,17 +1,46 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, FolderOpen } from "lucide-react";
-import type { AppConfig, GlobalAppConfig, RepoEntry, RepoMode, RepoOverrideFlags } from "../../types";
-import { getConfig, saveConfig, getAppConfig, saveAppConfig, setRepoMode, listWorktrees } from "../../api";
+import {
+  Archive as ArchiveIcon,
+  Check,
+  Copy,
+  Edit2,
+  ExternalLink,
+  FileText,
+  FolderOpen,
+  MoreVertical,
+  Play,
+  PlayCircle,
+  RotateCcw,
+} from "lucide-react";
+import type {
+  AppConfig,
+  GlobalAppConfig,
+  RepoEntry,
+  RepoMode,
+  RepoOverrideFlags,
+} from "../../types";
+import {
+  getConfig,
+  saveConfig,
+  getAppConfig,
+  saveAppConfig,
+  setRepoMode,
+  listWorktrees,
+} from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { useRepoConfig } from "../../hooks/useRepoConfig";
 import { openPathInEditor } from "../../services/openExternal";
 import { Button } from "../ui/Button";
-import {
-  Dialog,
-  DialogContent,
-} from "../ui/Dialog";
+import { Dialog, DialogContent } from "../ui/Dialog";
 import { RepoDropdown } from "../ui/RepoDropdown";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "../ui/DropdownMenu";
 import {
   REPO_COLOR_PALETTE,
   resolveColorId,
@@ -19,29 +48,21 @@ import {
   repoInitials,
 } from "../sidebar/RepoSelector";
 
-type WorkspaceTab = "repository" | "scripts";
+type WorkspaceTab = "general" | "scripts" | "ports";
+type ScriptKind = "setup" | "run" | "archive";
 
-function FieldBadge({ overridden, hasUpstream }: { overridden: boolean; hasUpstream: boolean }) {
-  if (overridden) {
-    return (
-      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 font-medium">
-        personal override
-      </span>
-    );
-  }
-  if (hasUpstream) {
-    return (
-      <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-tertiary text-text-tertiary font-medium">
-        from alfredo.json
-      </span>
-    );
-  }
-  return null;
-}
+// Mirrors the Rust constant in src-tauri/src/repo_config.rs — the URL injected
+// as `$schema` in every alfredo.json so editors pick up autocompletion.
+const SCHEMA_URL =
+  "https://raw.githubusercontent.com/chloehkwong1/alfredo/main/schemas/alfredo.schema.json";
 
-const TABS: { id: WorkspaceTab; label: string }[] = [
-  { id: "repository", label: "Repository" },
-  { id: "scripts", label: "Scripts" },
+const FLAG_FIELDS: Array<keyof RepoOverrideFlags> = [
+  "setupScripts",
+  "runScript",
+  "archiveScript",
+  "portEnvVar",
+  "portRangeStart",
+  "portRangeEnd",
 ];
 
 // Collapse all whitespace runs (including newlines) into a single space, then
@@ -59,31 +80,233 @@ const inputClass = [
   "transition-all duration-[var(--transition-fast)]",
 ].join(" ");
 
-const textareaClass = [
-  "w-full px-3 py-2 text-sm font-mono",
-  "bg-bg-secondary text-text-primary",
-  "border border-border-default rounded-[var(--radius-md)]",
-  "placeholder:text-text-tertiary",
-  "hover:border-border-hover",
-  "focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50",
-  "transition-all duration-[var(--transition-fast)]",
-  "resize-none",
-].join(" ");
+// ── Small inline components ──────────────────────────────────────────
 
-function CopyButton({ value }: { value: string }) {
-  const { copied, copy } = useCopyToClipboard();
-  if (!value) return null;
+function OverrideTag() {
+  return (
+    <span
+      className="inline-flex items-center gap-[5px] h-5 px-2 rounded-full text-[11px] font-semibold tracking-[0.01em] text-status-busy"
+      style={{ background: "rgba(251,191,36,0.14)" }}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full bg-status-busy"
+        style={{ boxShadow: "0 0 0 3px rgba(251,191,36,0.25)" }}
+      />
+      Edited locally
+    </span>
+  );
+}
+
+function ResetButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      className="absolute top-2 right-2 p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
-      title="Copy to clipboard"
-      onClick={() => copy(value)}
+      onClick={onClick}
+      title="Discard local edits and use alfredo.json"
+      className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-medium cursor-pointer transition-colors duration-[var(--transition-fast)] bg-transparent border border-status-busy/35 text-status-busy hover:bg-status-busy/10 hover:border-status-busy/60"
     >
-      {copied ? <Check size={14} className="text-diff-added" /> : <Copy size={14} />}
+      <RotateCcw className="w-[11px] h-[11px]" /> Reset
     </button>
   );
 }
+
+function IconBtnSmBare({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="inline-flex items-center justify-center w-[26px] h-[26px] rounded-md bg-transparent border-0 text-text-tertiary hover:bg-bg-hover hover:text-text-primary cursor-pointer transition-colors duration-[var(--transition-fast)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+interface SourceChipProps {
+  upstreamPresent: boolean;
+  onOpen: () => void;
+  onCreate: () => void;
+  loading: boolean;
+}
+
+function SourceChip({ upstreamPresent, onOpen, onCreate, loading }: SourceChipProps) {
+  if (loading) return null;
+  if (upstreamPresent) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        title="Open alfredo.json in editor"
+        className="ml-auto inline-flex items-center gap-2 h-7 px-2.5 rounded-full text-xs text-text-secondary border border-border-default bg-bg-primary hover:border-border-hover hover:text-text-primary transition-colors duration-[var(--transition-fast)] cursor-pointer"
+      >
+        <FileText className="w-3 h-3 text-text-tertiary" />
+        Tracking
+        <code className="font-mono text-[11px] text-text-primary">alfredo.json</code>
+        <ExternalLink className="w-3 h-3 text-text-tertiary" />
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onCreate}
+      title="Create alfredo.json in this repo"
+      className="ml-auto inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs text-text-tertiary border border-dashed border-border-default bg-bg-primary hover:border-border-hover transition-colors duration-[var(--transition-fast)] cursor-pointer"
+    >
+      Local only
+      <span className="text-accent-primary">·</span>
+      <span className="text-accent-primary">Create alfredo.json</span>
+    </button>
+  );
+}
+
+interface ScriptCardProps {
+  kind: ScriptKind;
+  title: string;
+  subtitle: string;
+  value: string;
+  onChange: (value: string) => void;
+  overridden: boolean;
+  onReset?: () => void;
+  isEditing: boolean;
+  onStartEditing: () => void;
+  upstreamExists: boolean;
+  onOpenAlfredoJson: () => void;
+}
+
+function ScriptCard({
+  kind,
+  title,
+  subtitle,
+  value,
+  onChange,
+  overridden,
+  onReset,
+  isEditing,
+  onStartEditing,
+  upstreamExists,
+  onOpenAlfredoJson,
+}: ScriptCardProps) {
+  const Icon = kind === "setup" ? Play : kind === "run" ? PlayCircle : ArchiveIcon;
+  const showEmpty = !value && !isEditing;
+  const { copied, copy } = useCopyToClipboard();
+
+  return (
+    <div className="bg-bg-primary border border-border-default rounded-[var(--radius-md)] overflow-hidden mb-3.5">
+      <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border-default">
+        <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-white/[0.04]">
+          <Icon className="w-3.5 h-3.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-[13px] font-semibold text-text-primary leading-none flex items-center gap-2">
+            {title}
+            {overridden && <OverrideTag />}
+          </h3>
+          <div className="text-[11.5px] text-text-tertiary mt-1">{subtitle}</div>
+        </div>
+        <div className="ml-auto inline-flex items-center gap-1.5 flex-shrink-0">
+          {overridden && onReset && <ResetButton onClick={onReset} />}
+          {value && (
+            <IconBtnSmBare
+              title={copied ? "Copied!" : "Copy"}
+              onClick={() => copy(value)}
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-diff-added" /> : <Copy className="w-3.5 h-3.5" />}
+            </IconBtnSmBare>
+          )}
+          {upstreamExists && (
+            <IconBtnSmBare title="Open alfredo.json" onClick={onOpenAlfredoJson}>
+              <Edit2 className="w-3.5 h-3.5" />
+            </IconBtnSmBare>
+          )}
+        </div>
+      </div>
+      {showEmpty ? (
+        <div className="px-3.5 py-3 text-xs text-text-tertiary bg-white/[0.015]">
+          Not configured.{" "}
+          <button
+            type="button"
+            onClick={onStartEditing}
+            className="text-accent-primary underline cursor-pointer bg-transparent border-0 p-0 text-xs font-[inherit]"
+          >
+            Add a command
+          </button>
+        </div>
+      ) : (
+        <textarea
+          className="block w-full bg-transparent border-0 px-3.5 py-3 text-[12px] leading-[1.55] font-mono text-text-primary whitespace-pre overflow-x-auto resize-none min-h-[44px] max-h-[160px] focus:outline-none [scrollbar-width:thin]"
+          spellCheck={false}
+          value={value}
+          onChange={(e) => onChange(normalizeCommand(e.target.value))}
+          autoFocus={isEditing && !value}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Tab list helper ──────────────────────────────────────────────────
+
+interface TabSpec {
+  id: WorkspaceTab;
+  label: string;
+  count?: number;
+  tourId?: string;
+}
+
+function HorizontalTabs({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: TabSpec[];
+  active: WorkspaceTab;
+  onChange: (id: WorkspaceTab) => void;
+}) {
+  return (
+    <div className="flex gap-0.5 px-5 border-b border-border-default">
+      {tabs.map((t) => {
+        const isActive = active === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            data-tour-id={t.tourId}
+            onClick={() => onChange(t.id)}
+            className={[
+              "relative px-3.5 pt-2.5 pb-3 text-[13px] bg-transparent border-0 cursor-pointer font-[inherit]",
+              "transition-colors duration-[var(--transition-fast)]",
+              isActive
+                ? "text-text-primary font-medium"
+                : "text-text-tertiary hover:text-text-secondary",
+            ].join(" ")}
+          >
+            {t.label}
+            {t.count !== undefined && t.count > 0 && (
+              <span className="ml-1.5 text-[11px] text-text-tertiary tabular-nums">
+                {t.count}
+              </span>
+            )}
+            {isActive && (
+              <span className="absolute left-2.5 right-2.5 -bottom-px h-0.5 rounded bg-accent-primary" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Main dialog ──────────────────────────────────────────────────────
 
 interface WorkspaceSettingsDialogProps {
   open: boolean;
@@ -112,7 +335,7 @@ function WorkspaceSettingsDialog({
   onSetRepoColor,
   defaultRepoPath,
 }: WorkspaceSettingsDialogProps) {
-  const [tab, setTab] = useState<WorkspaceTab>("repository");
+  const [tab, setTab] = useState<WorkspaceTab>("general");
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [appConfig, setAppConfig] = useState<GlobalAppConfig | null>(null);
   const [saving, setSaving] = useState(false);
@@ -127,13 +350,16 @@ function WorkspaceSettingsDialog({
   const [modeSaved, setModeSaved] = useState(false);
   const modeSavedTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const prevOpenRef = useRef(false);
+  const [editingScripts, setEditingScripts] = useState<Set<ScriptKind>>(
+    new Set(),
+  );
+  const [schemaCopied, setSchemaCopied] = useState(false);
 
-  // Layered config — used only for badges, CTA, and reset. The editable local
-  // state (config / dirty) still comes from getConfig which returns merged values.
-  const { overrides, upstream, loading: layersLoading, resetAll, createAlfredoJson } = useRepoConfig(open ? currentRepoPath : null);
+  const { upstream, loading: layersLoading, createAlfredoJson } = useRepoConfig(
+    open ? currentRepoPath : null,
+  );
 
-  // Tracks fields that have been edited while inheriting from alfredo.json.
-  const [forkedThisSession, setForkedThisSession] = useState<Set<keyof RepoOverrideFlags>>(new Set());
+  const upstreamPresent = upstream !== null;
 
   // Reset state when dialog opens/closes
   useEffect(() => {
@@ -143,12 +369,12 @@ function WorkspaceSettingsDialog({
       setDisplayNameDraft(repoDisplayNames[initPath] ?? "");
       setShortLabelDraft(repoShortLabels?.[initPath] ?? "");
       setSaveError(null);
-      setForkedThisSession(new Set());
+      setEditingScripts(new Set());
     }
     if (!open && modeSavedTimerRef.current) {
       clearTimeout(modeSavedTimerRef.current);
       setModeSaved(false);
-      setForkedThisSession(new Set());
+      setEditingScripts(new Set());
     }
     prevOpenRef.current = open;
   }, [open, defaultRepoPath, repoPath, repoDisplayNames, repoShortLabels]);
@@ -156,7 +382,7 @@ function WorkspaceSettingsDialog({
   // Load config when dialog opens or currentRepoPath changes
   useEffect(() => {
     if (!open) return;
-    setForkedThisSession(new Set());
+    setEditingScripts(new Set());
     getConfig(currentRepoPath)
       .then((c) => {
         setConfig(c);
@@ -175,23 +401,75 @@ function WorkspaceSettingsDialog({
     getAppConfig().then(setAppConfig).catch((e) => console.error("Failed to load app config:", e));
   }, [open, currentRepoPath]);
 
+  // Re-pull effective config on focus / config-changed so out-of-band edits to
+  // alfredo.json don't leave our snapshot stale (which would surface as a false
+  // "Edited locally" tag, since `useRepoConfig` does refresh upstream on focus).
+  // `dirtyRef` keeps the listener stable for the dialog's lifetime — without it,
+  // every keystroke would tear down and re-attach the handlers.
+  const dirtyRef = useRef(false);
+  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
+  useEffect(() => {
+    if (!open) return;
+    const refresh = () => {
+      if (dirtyRef.current) return;
+      getConfig(currentRepoPath)
+        .then((c) => setConfig(c))
+        .catch(() => {});
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("config-changed", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("config-changed", refresh);
+    };
+  }, [open, currentRepoPath]);
+
   const updateConfig = useCallback((patch: Partial<AppConfig>) => {
     setConfig((prev) => (prev ? { ...prev, ...patch } : prev));
     setDirty(true);
     setSaveError(null);
   }, []);
 
-  // Marks a field as forked when the user edits a value inherited from alfredo.json.
-  const markForked = useCallback((field: keyof RepoOverrideFlags) => {
-    if (overrides && !overrides[field] && upstream && upstream[field] !== undefined) {
-      setForkedThisSession((prev) => {
-        if (prev.has(field)) return prev;
-        const next = new Set(prev);
-        next.add(field);
-        return next;
-      });
-    }
-  }, [overrides, upstream]);
+  // Derive override state from local config vs upstream so UI updates the
+  // moment a Reset click writes the upstream value into local state — without
+  // waiting for a Save round-trip.
+  const isLocallyOverridden = useCallback(
+    (field: keyof RepoOverrideFlags): boolean => {
+      if (!upstream || !config) return false;
+      const upstreamVal = upstream[field];
+      if (upstreamVal === undefined) return false;
+      const localVal = (config as unknown as Record<string, unknown>)[field];
+      return JSON.stringify(localVal) !== JSON.stringify(upstreamVal);
+    },
+    [upstream, config],
+  );
+
+  const overriddenFieldCount = useMemo(
+    () => FLAG_FIELDS.filter((f) => isLocallyOverridden(f)).length,
+    [isLocallyOverridden],
+  );
+
+  const resetField = useCallback(
+    (field: keyof RepoOverrideFlags) => {
+      if (!upstream) return;
+      const val = upstream[field];
+      if (val === undefined) return;
+      updateConfig({ [field]: val } as Partial<AppConfig>);
+    },
+    [upstream, updateConfig],
+  );
+
+  const resetAllToUpstream = useCallback(() => {
+    if (!upstream) return;
+    const patch: Partial<AppConfig> = {};
+    if (upstream.setupScripts !== undefined) patch.setupScripts = upstream.setupScripts;
+    if (upstream.runScript !== undefined) patch.runScript = upstream.runScript;
+    if (upstream.archiveScript !== undefined) patch.archiveScript = upstream.archiveScript;
+    if (upstream.portEnvVar !== undefined) patch.portEnvVar = upstream.portEnvVar;
+    if (upstream.portRangeStart !== undefined) patch.portRangeStart = upstream.portRangeStart;
+    if (upstream.portRangeEnd !== undefined) patch.portRangeEnd = upstream.portRangeEnd;
+    updateConfig(patch);
+  }, [upstream, updateConfig]);
 
   const handleRepoChange = useCallback(
     (newPath: string) => {
@@ -223,9 +501,6 @@ function WorkspaceSettingsDialog({
     setSaveError(null);
     try {
       await setRepoMode(currentRepoPath, newMode);
-      // Re-fetch both configs so local snapshots reflect the saved mode.
-      // Without this, handleSave would clobber the mode change with stale data
-      // (appConfig.repos[].mode and config.branchMode would both be old values).
       const [fresh, freshConfig] = await Promise.all([
         getAppConfig(),
         getConfig(currentRepoPath),
@@ -268,17 +543,12 @@ function WorkspaceSettingsDialog({
         await onSetRepoShortLabel?.(currentRepoPath, newLabel);
       }
       setDirty(false);
-      // Refresh worktrees for this repo so assignedPort hydration in
-      // list_worktrees picks up any persisted claims immediately. Without
-      // this, toggling auto-assign on wouldn't surface existing sticky
-      // ports in the sidebar until the next repo switch / app restart.
       try {
         const fresh = await listWorktrees(currentRepoPath);
         useWorkspaceStore.getState().setWorktreesForRepo(currentRepoPath, fresh);
       } catch (e) {
         console.warn("Failed to refresh worktrees after settings save:", e);
       }
-      // config-changed triggers useAppConfig to re-fetch and sync to workspace store
       window.dispatchEvent(new Event("config-changed"));
       onOpenChange(false);
     } catch (e) {
@@ -289,7 +559,6 @@ function WorkspaceSettingsDialog({
     }
   }, [config, appConfig, currentRepoPath, displayNameDraft, shortLabelDraft, repoDisplayNames, repoShortLabels, onSetRepoDisplayName, onSetRepoShortLabel, onOpenChange]);
 
-  // Current + preview state for the Badge controls
   const currentColorId = resolveColorId(repoColors[currentRepoPath]);
   const previewColor = (currentColorId ? REPO_COLOR_PALETTE.find((c) => c.id === currentColorId) : undefined) ?? REPO_COLOR_PALETTE[0];
   const previewLabel = useMemo(() => {
@@ -301,8 +570,6 @@ function WorkspaceSettingsDialog({
     });
   }, [shortLabelDraft, displayNameDraft, currentRepoPath, repoDisplayNames]);
 
-  // Placeholder mirrors the auto-generated initials for the currently selected
-  // repo so users see the fallback label they'd get if they leave the field blank.
   const labelPlaceholder = useMemo(() => {
     return repoInitials(currentRepoPath, {
       ...repoDisplayNames,
@@ -320,87 +587,91 @@ function WorkspaceSettingsDialog({
     }
   }, [currentRepoPath, onSetRepoColor]);
 
+  const startEditingScript = useCallback((kind: ScriptKind) => {
+    setEditingScripts((prev) => {
+      if (prev.has(kind)) return prev;
+      const next = new Set(prev);
+      next.add(kind);
+      return next;
+    });
+  }, []);
+
+  const openAlfredoJson = useCallback(() => {
+    void openPathInEditor(`${currentRepoPath}/alfredo.json`);
+  }, [currentRepoPath]);
+
+  const copySchemaUrl = useCallback(() => {
+    void navigator.clipboard.writeText(SCHEMA_URL).then(() => {
+      setSchemaCopied(true);
+      setTimeout(() => setSchemaCopied(false), 1500);
+    });
+  }, []);
+
+  const createAlfredoJsonHandler = useCallback(() => {
+    void createAlfredoJson().then(async () => {
+      const fresh = await getConfig(currentRepoPath);
+      setConfig(fresh);
+      setDirty(false);
+    });
+  }, [createAlfredoJson, currentRepoPath]);
+
   if (!config) return null;
+
+  // Configured-script count for the Scripts tab badge. In branch mode only the
+  // run script is editable, so the count can be 0 or 1.
+  const setupConfigured = (config.setupScripts?.[0]?.command ?? "").length > 0;
+  const runConfigured = (config.runScript?.command ?? "").length > 0;
+  const archiveConfigured = (config.archiveScript ?? "").length > 0;
+  const scriptsCount =
+    currentMode === "worktree"
+      ? Number(setupConfigured) + Number(runConfigured) + Number(archiveConfigured)
+      : Number(runConfigured);
+
+  const tabs: TabSpec[] = [
+    { id: "general", label: "General" },
+    { id: "scripts", label: "Scripts", count: scriptsCount, tourId: "setup-script-tab" },
+  ];
+  if (currentMode === "worktree") {
+    tabs.push({ id: "ports", label: "Ports" });
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[680px] p-0 overflow-hidden">
+      <DialogContent className="w-[760px] p-0 overflow-hidden">
         <form onSubmit={(e) => { e.preventDefault(); if (dirty && !saving) handleSave(); }}>
-        {/* Header with repo selector */}
-        <div className="px-6 pt-6 pb-4 border-b border-border-default">
-          <h2 className="text-base font-semibold text-text-primary mb-3.5">Repository Settings</h2>
-          <RepoDropdown
-            repos={repos}
-            repoColors={repoColors}
-            repoDisplayNames={repoDisplayNames}
-            value={currentRepoPath}
-            onChange={handleRepoChange}
-          />
-          {upstream !== null ? (
-            <button
-              type="button"
-              onClick={() => { void openPathInEditor(`${currentRepoPath}/alfredo.json`); }}
-              className="text-xs text-accent-primary hover:underline mt-2 flex items-center gap-1"
-            >
-              View alfredo.json →
-            </button>
-          ) : !layersLoading ? (
-            <div className="rounded-[var(--radius-md)] border border-dashed border-border-default p-3 mt-3 bg-bg-primary">
-              <p className="text-xs text-text-secondary">
-                No <code>alfredo.json</code> in this repo. Create one to commit these settings alongside your code.
-              </p>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="mt-2"
-                onClick={() => {
-                  void createAlfredoJson().then(async () => {
-                    const fresh = await getConfig(currentRepoPath);
-                    setConfig(fresh);
-                    setDirty(false);
-                    setForkedThisSession(new Set());
-                  });
-                }}
-              >
-                Create alfredo.json
-              </Button>
+          {/* ── Header: title · repo pill · source-of-truth chip ── */}
+          <div className="flex items-center gap-4 px-5 pt-[18px] pb-[14px]">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-sm font-semibold tracking-[-0.01em] text-text-primary whitespace-nowrap">
+                Repository settings
+              </span>
+              <span className="text-text-tertiary/70 text-xs">·</span>
+              <RepoDropdown
+                compact
+                repos={repos}
+                repoColors={repoColors}
+                repoDisplayNames={repoDisplayNames}
+                value={currentRepoPath}
+                onChange={handleRepoChange}
+              />
             </div>
-          ) : null}
-        </div>
+            <SourceChip
+              upstreamPresent={upstreamPresent}
+              loading={layersLoading}
+              onOpen={openAlfredoJson}
+              onCreate={createAlfredoJsonHandler}
+            />
+          </div>
 
-        <div className="flex h-[380px]">
-          {/* Rail */}
-          <nav className="flex flex-col gap-0.5 w-40 flex-shrink-0 py-5 px-3 border-r border-border-default bg-bg-primary">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                data-tour-id={t.id === "scripts" ? "setup-script-tab" : undefined}
-                onClick={() => setTab(t.id)}
-                className={[
-                  "px-3 py-2 text-[13px] rounded-[var(--radius-md)] text-left",
-                  "transition-colors duration-[var(--transition-fast)]",
-                  "cursor-pointer",
-                  tab === t.id
-                    ? "bg-accent-muted text-text-primary font-medium"
-                    : "text-text-tertiary hover:text-text-secondary hover:bg-bg-hover",
-                ].join(" ")}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
+          <HorizontalTabs tabs={tabs} active={tab} onChange={setTab} />
 
-          {/* Content */}
-          <div className="flex-1 min-w-0 min-h-0 p-6 overflow-y-auto">
-            {tab === "repository" && (
+          {/* ── Body ── */}
+          <div className="px-5 pt-[18px] pb-5 h-[460px] overflow-y-auto">
+            {tab === "general" && (
               <div>
                 {/* Mode toggle */}
-                <div className="mb-4">
-                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
-                    Mode
-                  </div>
+                <div className="mb-[18px]">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">Mode</div>
                   <div className="flex bg-bg-primary border border-border-default rounded-lg p-0.5">
                     <button
                       type="button"
@@ -437,10 +708,8 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {/* Repo Path (read-only) */}
-                <div className="mb-4">
-                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
-                    Repository Path
-                  </div>
+                <div className="mb-[18px]">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">Repository Path</div>
                   <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-bg-primary px-3 h-8 text-sm text-text-secondary">
                     <FolderOpen className="h-4 w-4 flex-shrink-0 text-text-tertiary" />
                     <span className="truncate">
@@ -450,10 +719,8 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {/* Display Name */}
-                <div className="mb-4">
-                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
-                    Display Name
-                  </div>
+                <div className="mb-[18px]">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">Display Name</div>
                   <input
                     type="text"
                     className={inputClass}
@@ -471,10 +738,8 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {/* Badge Label */}
-                <div className="mb-4">
-                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
-                    Badge Label
-                  </div>
+                <div className="mb-[18px]">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">Badge Label</div>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -483,15 +748,12 @@ function WorkspaceSettingsDialog({
                       placeholder={labelPlaceholder}
                       value={shortLabelDraft}
                       onChange={(e) => {
-                        // Strip non-alphanumeric live; backend also sanitises on save.
                         const cleaned = e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 4);
                         setShortLabelDraft(cleaned);
                         setDirty(true);
                         setSaveError(null);
                       }}
-                      onBlur={(e) => {
-                        setShortLabelDraft(e.target.value.toUpperCase());
-                      }}
+                      onBlur={(e) => setShortLabelDraft(e.target.value.toUpperCase())}
                     />
                     <span
                       className="text-[11px] font-semibold px-1.5 py-0.5 rounded-[4px] tracking-wide"
@@ -507,10 +769,8 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {/* Badge Colour */}
-                <div className="mb-4">
-                  <div className="text-[13px] font-medium text-text-primary mb-1.5">
-                    Badge Colour
-                  </div>
+                <div className="mb-[18px]">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">Badge Colour</div>
                   <div className="flex items-center gap-2">
                     {REPO_COLOR_PALETTE.map((c) => {
                       const isActive = (currentColorId ?? REPO_COLOR_PALETTE[0].id) === c.id;
@@ -525,13 +785,10 @@ function WorkspaceSettingsDialog({
                           className={[
                             "h-6 w-6 rounded-full transition-all cursor-pointer",
                             "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/60",
-                            isActive
-                              ? "ring-2 ring-offset-2 ring-offset-bg-secondary"
-                              : "hover:scale-110",
+                            isActive ? "ring-2 ring-offset-2 ring-offset-bg-secondary" : "hover:scale-110",
                           ].join(" ")}
                           style={{
                             background: c.bg,
-                            // Ring colour matches the swatch so the active state reads cleanly.
                             ...(isActive ? { ["--tw-ring-color" as string]: c.border } : {}),
                           }}
                         />
@@ -541,164 +798,19 @@ function WorkspaceSettingsDialog({
                 </div>
 
                 {currentMode === "worktree" && (
-                  <>
-                    {/* Worktree Base Path */}
-                    <div className="mb-4">
-                      <div className="text-[13px] font-medium text-text-primary mb-1.5">
-                        Worktree Directory
-                      </div>
-                      <input
-                        type="text"
-                        className={inputClass}
-                        placeholder="e.g. /Users/you/worktrees"
-                        value={config.worktreeBasePath ?? ""}
-                        onChange={(e) =>
-                          updateConfig({ worktreeBasePath: e.target.value || null })
-                        }
-                      />
-                      <p className="text-xs text-text-tertiary mt-[5px]">
-                        Where new worktrees are created. Defaults to the repository parent.
-                      </p>
-                    </div>
-
-                    {/* Port Management */}
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-[13px] font-medium text-text-primary">
-                            Auto-assign dev server ports
-                          </div>
-                          <p className="text-xs text-text-tertiary mt-[3px]">
-                            Claim a unique port for each worktree when its first dev server starts, so multiple can run at once.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={config.autoAssignPorts ?? false}
-                          onClick={() => updateConfig({ autoAssignPorts: !config.autoAssignPorts })}
-                          className={[
-                            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 cursor-pointer",
-                            config.autoAssignPorts ? "bg-accent-primary" : "bg-bg-tertiary",
-                          ].join(" ")}
-                        >
-                          <span
-                            className={[
-                              "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
-                              config.autoAssignPorts ? "translate-x-[18px]" : "translate-x-[3px]",
-                            ].join(" ")}
-                          />
-                        </button>
-                      </div>
-                      {config.autoAssignPorts && (() => {
-                        const rangeStart = config.portRangeStart ?? null;
-                        const rangeEnd = config.portRangeEnd ?? null;
-                        const rangeUnset = rangeStart == null || rangeEnd == null;
-                        const rangeInvalid = !rangeUnset && rangeStart! > rangeEnd!;
-                        const slotCount =
-                          rangeUnset || rangeInvalid ? 0 : rangeEnd! - rangeStart! + 1;
-                        const helperText = rangeUnset
-                          ? "Set a start and end port to enable auto-assign"
-                          : rangeInvalid
-                            ? "Start must be ≤ end"
-                            : `${slotCount} port${slotCount === 1 ? "" : "s"}`;
-                        const helperTone =
-                          rangeUnset || rangeInvalid ? "text-status-error" : "text-text-tertiary";
-                        const parseRangeInput = (raw: string): number | null => {
-                          if (raw === "") return null;
-                          const v = parseInt(raw, 10);
-                          if (!Number.isFinite(v)) return null;
-                          return v;
-                        };
-                        return (
-                          <div className="mt-4 space-y-4">
-                            <div>
-                              <label className="text-[13px] text-text-secondary block mb-1 flex items-center gap-2">
-                                Port range
-                                <FieldBadge
-                                  overridden={!!(overrides?.portRangeStart || overrides?.portRangeEnd)}
-                                  hasUpstream={upstream?.portRangeStart !== undefined || upstream?.portRangeEnd !== undefined}
-                                />
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min={1024}
-                                  max={65535}
-                                  placeholder="3000"
-                                  className={[
-                                    inputClass,
-                                    "!w-24 text-center",
-                                    rangeInvalid || rangeUnset ? "!border-status-error" : "",
-                                  ].join(" ")}
-                                  value={rangeStart ?? ""}
-                                  onChange={(e) => {
-                                    markForked("portRangeStart");
-                                    updateConfig({ portRangeStart: parseRangeInput(e.target.value) });
-                                  }}
-                                />
-                                <span className="text-text-tertiary">–</span>
-                                <input
-                                  type="number"
-                                  min={1024}
-                                  max={65535}
-                                  placeholder="3099"
-                                  className={[
-                                    inputClass,
-                                    "!w-24 text-center",
-                                    rangeInvalid || rangeUnset ? "!border-status-error" : "",
-                                  ].join(" ")}
-                                  value={rangeEnd ?? ""}
-                                  onChange={(e) => {
-                                    markForked("portRangeEnd");
-                                    updateConfig({ portRangeEnd: parseRangeInput(e.target.value) });
-                                  }}
-                                />
-                                <span className={`text-xs ml-2 ${helperTone}`}>
-                                  {helperText}
-                                </span>
-                              </div>
-                              <p className="text-xs text-text-tertiary mt-[5px]">
-                                The first dev server to run in a worktree claims the next free port and keeps it until the worktree is marked Done.
-                              </p>
-                              {(forkedThisSession.has("portRangeStart") || forkedThisSession.has("portRangeEnd")) && (
-                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                                  This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
-                                </p>
-                              )}
-                            </div>
-                            <div>
-                              <label className="text-[13px] text-text-secondary block mb-1 flex items-center gap-2">
-                                Port environment variable
-                                <FieldBadge
-                                  overridden={!!overrides?.portEnvVar}
-                                  hasUpstream={upstream?.portEnvVar !== undefined}
-                                />
-                              </label>
-                              <input
-                                className={inputClass + " !w-40"}
-                                placeholder="PORT"
-                                value={config.portEnvVar ?? ""}
-                                onChange={(e) => {
-                                  markForked("portEnvVar");
-                                  updateConfig({ portEnvVar: e.target.value || null });
-                                }}
-                              />
-                              <p className="text-xs text-text-tertiary mt-[3px]">
-                                The env var injected into each session. Defaults to PORT.
-                              </p>
-                              {forkedThisSession.has("portEnvVar") && (
-                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                                  This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                  </>
+                  <div className="mb-[18px]">
+                    <div className="text-[13px] font-medium text-text-primary mb-1.5">Worktree Directory</div>
+                    <input
+                      type="text"
+                      className={inputClass}
+                      placeholder="e.g. /Users/you/worktrees"
+                      value={config.worktreeBasePath ?? ""}
+                      onChange={(e) => updateConfig({ worktreeBasePath: e.target.value || null })}
+                    />
+                    <p className="text-xs text-text-tertiary mt-[5px]">
+                      Where new worktrees are created. Defaults to the repository parent.
+                    </p>
+                  </div>
                 )}
               </div>
             )}
@@ -706,152 +818,262 @@ function WorkspaceSettingsDialog({
             {tab === "scripts" && (
               <div>
                 {currentMode === "worktree" && (
-                  <>
-                    {/* Setup Scripts */}
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 flex items-center gap-2">
-                      Setup Scripts
-                      <FieldBadge
-                        overridden={!!overrides?.setupScripts}
-                        hasUpstream={upstream?.setupScripts !== undefined}
-                      />
-                    </div>
-                    <p className="text-xs text-text-tertiary -mt-2 mb-3">
-                      Run automatically when a new worktree is created.
-                    </p>
-                    <div className="relative">
-                      <textarea
-                        className={textareaClass}
-                        rows={2}
-                        style={{ fieldSizing: "content" } as React.CSSProperties}
-                        placeholder="Command (e.g. npm install)"
-                        value={config.setupScripts?.[0]?.command ?? ""}
-                        onChange={(e) => {
-                          markForked("setupScripts");
-                          const cmd = normalizeCommand(e.target.value);
-                          updateConfig({
-                            setupScripts: cmd
-                              ? [{ name: "Setup", command: cmd, runOn: "create" }]
-                              : [],
-                          });
-                        }}
-                      />
-                      <CopyButton value={config.setupScripts?.[0]?.command ?? ""} />
-                    </div>
-                    {forkedThisSession.has("setupScripts") && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                        This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
-                      </p>
-                    )}
-                  </>
-                )}
-
-                {/* Run Script */}
-                <div className={`text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 flex items-center gap-2 ${currentMode === "worktree" ? "mt-8" : ""}`}>
-                  Run Script
-                  <FieldBadge
-                    overridden={!!overrides?.runScript}
-                    hasUpstream={upstream?.runScript !== undefined}
-                  />
-                </div>
-                <p className="text-xs text-text-tertiary -mt-2 mb-3">
-                  Started from any {currentMode === "worktree" ? "worktree" : "branch"} via the play button in the tab bar.
-                </p>
-                <div className="relative">
-                  <textarea
-                    className={textareaClass}
-                    rows={2}
-                    style={{ fieldSizing: "content" } as React.CSSProperties}
-                    placeholder="Command (e.g. npm run dev)"
-                    value={config.runScript?.command ?? ""}
-                    onChange={(e) => {
-                      markForked("runScript");
-                      const cmd = normalizeCommand(e.target.value);
+                  <ScriptCard
+                    kind="setup"
+                    title="Setup"
+                    subtitle="Runs once when a worktree is created."
+                    value={config.setupScripts?.[0]?.command ?? ""}
+                    onChange={(cmd) =>
                       updateConfig({
-                        runScript: cmd ? { name: "Run", command: cmd } : null,
-                      });
-                    }}
+                        setupScripts: cmd
+                          ? [{ name: "Setup", command: cmd, runOn: "create" }]
+                          : [],
+                      })
+                    }
+                    overridden={isLocallyOverridden("setupScripts")}
+                    onReset={() => resetField("setupScripts")}
+                    isEditing={editingScripts.has("setup")}
+                    onStartEditing={() => startEditingScript("setup")}
+                    upstreamExists={upstreamPresent}
+                    onOpenAlfredoJson={openAlfredoJson}
                   />
-                  <CopyButton value={config.runScript?.command ?? ""} />
-                </div>
-                {forkedThisSession.has("runScript") && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                    This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
-                  </p>
                 )}
-
+                <ScriptCard
+                  kind="run"
+                  title="Run"
+                  subtitle={`Started from any ${currentMode === "worktree" ? "worktree" : "branch"} via the play button in the tab bar.`}
+                  value={config.runScript?.command ?? ""}
+                  onChange={(cmd) =>
+                    updateConfig({
+                      runScript: cmd ? { name: "Run", command: cmd } : null,
+                    })
+                  }
+                  overridden={isLocallyOverridden("runScript")}
+                  onReset={() => resetField("runScript")}
+                  isEditing={editingScripts.has("run")}
+                  onStartEditing={() => startEditingScript("run")}
+                  upstreamExists={upstreamPresent}
+                  onOpenAlfredoJson={openAlfredoJson}
+                />
                 {currentMode === "worktree" && (
-                  <>
-                    {/* Archive Script */}
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8 flex items-center gap-2">
-                      Archive Script
-                      <FieldBadge
-                        overridden={!!overrides?.archiveScript}
-                        hasUpstream={upstream?.archiveScript !== undefined}
-                      />
-                    </div>
-                    <p className="text-xs text-text-tertiary -mt-2 mb-3">
-                      Runs when a worktree is archived.
-                    </p>
-                    <div className="relative">
-                      <textarea
-                        className={textareaClass}
-                        rows={2}
-                        style={{ fieldSizing: "content" } as React.CSSProperties}
-                        placeholder="Command (e.g. docker compose down)"
-                        value={config.archiveScript ?? ""}
-                        onChange={(e) => {
-                          markForked("archiveScript");
-                          const cmd = normalizeCommand(e.target.value);
-                          updateConfig({
-                            archiveScript: cmd || null,
-                          });
-                        }}
-                      />
-                      <CopyButton value={config.archiveScript ?? ""} />
-                    </div>
-                    {forkedThisSession.has("archiveScript") && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                        This setting no longer tracks <code>alfredo.json</code>. Use "Reset all" below to re-sync.
-                      </p>
-                    )}
-                  </>
+                  <ScriptCard
+                    kind="archive"
+                    title="Archive"
+                    subtitle="Runs when a worktree is archived."
+                    value={config.archiveScript ?? ""}
+                    onChange={(cmd) => updateConfig({ archiveScript: cmd || null })}
+                    overridden={isLocallyOverridden("archiveScript")}
+                    onReset={() => resetField("archiveScript")}
+                    isEditing={editingScripts.has("archive")}
+                    onStartEditing={() => startEditingScript("archive")}
+                    upstreamExists={upstreamPresent}
+                    onOpenAlfredoJson={openAlfredoJson}
+                  />
                 )}
               </div>
             )}
-          </div>
-        </div>
 
-        <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-border-default">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={!upstream || !overrides || !Object.values(overrides).some(Boolean)}
-            onClick={() => {
-              if (!window.confirm("Discard all personal overrides and use alfredo.json values?")) return;
-              void resetAll().then(async () => {
-                const fresh = await getConfig(currentRepoPath);
-                setConfig(fresh);
-                setDirty(false);
-                setForkedThisSession(new Set());
-              });
-            }}
-            className="mr-auto"
-          >
-            Reset all to alfredo.json
-          </Button>
-          {saveError && (
-            <span className="text-xs text-status-error truncate flex-1 min-w-0 text-right" title={saveError}>
-              {saveError}
-            </span>
-          )}
-          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" size="sm" disabled={!dirty || saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </div>
+            {tab === "ports" && currentMode === "worktree" && (
+              <div>
+                {/* Auto-assign toggle */}
+                <div className="mb-[18px]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[13px] font-medium text-text-primary">Auto-assign dev server ports</div>
+                      <p className="text-xs text-text-tertiary mt-[3px]">
+                        Claim a unique port for each worktree when its first dev server starts, so multiple can run at once.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={config.autoAssignPorts ?? false}
+                      onClick={() => updateConfig({ autoAssignPorts: !config.autoAssignPorts })}
+                      className={[
+                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 cursor-pointer",
+                        config.autoAssignPorts ? "bg-accent-primary" : "bg-bg-tertiary",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
+                          config.autoAssignPorts ? "translate-x-[18px]" : "translate-x-[3px]",
+                        ].join(" ")}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {config.autoAssignPorts && (() => {
+                  const rangeStart = config.portRangeStart ?? null;
+                  const rangeEnd = config.portRangeEnd ?? null;
+                  const rangeUnset = rangeStart == null || rangeEnd == null;
+                  const rangeInvalid = !rangeUnset && rangeStart! > rangeEnd!;
+                  const slotCount =
+                    rangeUnset || rangeInvalid ? 0 : rangeEnd! - rangeStart! + 1;
+                  const helperText = rangeUnset
+                    ? "Set a start and end port to enable auto-assign"
+                    : rangeInvalid
+                      ? "Start must be ≤ end"
+                      : `${slotCount} port${slotCount === 1 ? "" : "s"}`;
+                  const helperTone =
+                    rangeUnset || rangeInvalid ? "text-status-error" : "text-text-tertiary";
+                  const parseRangeInput = (raw: string): number | null => {
+                    if (raw === "") return null;
+                    const v = parseInt(raw, 10);
+                    if (!Number.isFinite(v)) return null;
+                    return v;
+                  };
+                  const portRangeOverridden =
+                    isLocallyOverridden("portRangeStart") || isLocallyOverridden("portRangeEnd");
+                  const portEnvOverridden = isLocallyOverridden("portEnvVar");
+                  return (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[13px] text-text-secondary mb-1 flex items-center gap-2 flex-wrap">
+                          Port range
+                          {portRangeOverridden && <OverrideTag />}
+                          {portRangeOverridden && (
+                            <ResetButton
+                              onClick={() => {
+                                resetField("portRangeStart");
+                                resetField("portRangeEnd");
+                              }}
+                            />
+                          )}
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={1024}
+                            max={65535}
+                            placeholder="3000"
+                            className={[
+                              inputClass,
+                              "!w-24 text-center",
+                              rangeInvalid || rangeUnset ? "!border-status-error" : "",
+                            ].join(" ")}
+                            value={rangeStart ?? ""}
+                            onChange={(e) =>
+                              updateConfig({ portRangeStart: parseRangeInput(e.target.value) })
+                            }
+                          />
+                          <span className="text-text-tertiary">–</span>
+                          <input
+                            type="number"
+                            min={1024}
+                            max={65535}
+                            placeholder="3099"
+                            className={[
+                              inputClass,
+                              "!w-24 text-center",
+                              rangeInvalid || rangeUnset ? "!border-status-error" : "",
+                            ].join(" ")}
+                            value={rangeEnd ?? ""}
+                            onChange={(e) =>
+                              updateConfig({ portRangeEnd: parseRangeInput(e.target.value) })
+                            }
+                          />
+                          <span className={`text-xs ml-2 ${helperTone}`}>{helperText}</span>
+                        </div>
+                        <p className="text-xs text-text-tertiary mt-[5px]">
+                          The first dev server to run in a worktree claims the next free port and keeps it until the worktree is marked Done.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-[13px] text-text-secondary mb-1 flex items-center gap-2 flex-wrap">
+                          Port environment variable
+                          {portEnvOverridden && <OverrideTag />}
+                          {portEnvOverridden && (
+                            <ResetButton onClick={() => resetField("portEnvVar")} />
+                          )}
+                        </label>
+                        <input
+                          className={inputClass + " !w-40"}
+                          placeholder="PORT"
+                          value={config.portEnvVar ?? ""}
+                          onChange={(e) =>
+                            updateConfig({ portEnvVar: e.target.value || null })
+                          }
+                        />
+                        <p className="text-xs text-text-tertiary mt-[3px]">
+                          The env var injected into each session. Defaults to PORT.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          {/* ── Footer: kebab · errors · cancel/save ── */}
+          <div className="flex items-center gap-2 px-4 py-3 border-t border-border-default bg-bg-primary">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  title="More options"
+                  aria-label="More options"
+                  className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-transparent border-0 text-text-tertiary hover:bg-bg-hover hover:text-text-primary cursor-pointer transition-colors duration-[var(--transition-fast)] mr-auto"
+                >
+                  <MoreVertical className="w-3.5 h-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-60">
+                <DropdownMenuItem
+                  disabled={overriddenFieldCount === 0}
+                  onSelect={() => {
+                    if (overriddenFieldCount === 0) return;
+                    if (!window.confirm("Discard all personal overrides and use alfredo.json values?")) return;
+                    resetAllToUpstream();
+                  }}
+                  className={overriddenFieldCount === 0 ? "opacity-50 pointer-events-none" : ""}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="flex-1">Reset all overrides</span>
+                  {overriddenFieldCount > 0 && (
+                    <span className="text-[11px] text-text-tertiary tabular-nums">
+                      {overriddenFieldCount} field{overriddenFieldCount === 1 ? "" : "s"}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!upstreamPresent}
+                  onSelect={() => upstreamPresent && openAlfredoJson()}
+                  className={!upstreamPresent ? "opacity-50 pointer-events-none" : ""}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>
+                    Open <code className="font-mono text-[12px]">alfredo.json</code>
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={copySchemaUrl}>
+                  {schemaCopied ? (
+                    <Check className="w-3.5 h-3.5 text-diff-added" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                  <span>{schemaCopied ? "Copied!" : "Copy schema URL"}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {saveError && (
+              <span
+                className="text-xs text-status-error truncate flex-1 min-w-0 text-right"
+                title={saveError}
+              >
+                {saveError}
+              </span>
+            )}
+            <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={!dirty || saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

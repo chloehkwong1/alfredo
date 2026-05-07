@@ -1,7 +1,17 @@
 import { useState, useCallback, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { FolderOpen, Check, Github, Loader2, ChevronLeft, Palette } from "lucide-react";
+import {
+  FolderOpen,
+  Check,
+  Github,
+  Loader2,
+  ChevronLeft,
+  Palette,
+  Play,
+  PlayCircle,
+  Archive as ArchiveIcon,
+} from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
@@ -398,7 +408,7 @@ function RepoSetupDialog({
   // ── Render ────────────────────────────────────────────────────
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[600px] h-[640px] overflow-y-auto">
         <form onSubmit={(e) => {
           e.preventDefault();
           if (step === 1) {
@@ -774,47 +784,62 @@ function RepoSetupDialog({
             </div>
 
             {/* Setup script */}
-            <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-caption font-medium text-text-primary">Setup</div>
-                <span className="text-micro text-text-quaternary">Runs when creating a worktree</span>
+            <div className="bg-bg-primary border border-border-default rounded-[var(--radius-md)] overflow-hidden">
+              <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border-default">
+                <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-white/[0.04]">
+                  <Play className="w-3.5 h-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[13px] font-semibold text-text-primary leading-none">Setup</h3>
+                  <div className="text-[11.5px] text-text-tertiary mt-1">Runs when creating a worktree</div>
+                </div>
               </div>
               <textarea
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-caption font-mono text-text-primary placeholder:text-text-quaternary resize-y min-h-[60px] focus:outline-none focus:ring-1 focus:ring-accent-primary/50"
+                className="block w-full bg-transparent border-0 px-3.5 py-3 text-[12px] leading-[1.55] font-mono text-text-primary placeholder:text-text-quaternary whitespace-pre overflow-x-auto resize-none min-h-[44px] max-h-[160px] focus:outline-none [scrollbar-width:thin]"
+                spellCheck={false}
                 placeholder="npm install"
                 value={setupScript}
                 onChange={(e) => setSetupScript(normalizeCommand(e.target.value))}
-                rows={2}
               />
             </div>
 
             {/* Run script */}
-            <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-caption font-medium text-text-primary">Run</div>
-                <span className="text-micro text-text-quaternary">Dev server or background process</span>
+            <div className="bg-bg-primary border border-border-default rounded-[var(--radius-md)] overflow-hidden">
+              <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border-default">
+                <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-white/[0.04]">
+                  <PlayCircle className="w-3.5 h-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[13px] font-semibold text-text-primary leading-none">Run</h3>
+                  <div className="text-[11.5px] text-text-tertiary mt-1">Dev server or background process</div>
+                </div>
               </div>
               <textarea
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-caption font-mono text-text-primary placeholder:text-text-quaternary resize-y min-h-[60px] focus:outline-none focus:ring-1 focus:ring-accent-primary/50"
+                className="block w-full bg-transparent border-0 px-3.5 py-3 text-[12px] leading-[1.55] font-mono text-text-primary placeholder:text-text-quaternary whitespace-pre overflow-x-auto resize-none min-h-[44px] max-h-[160px] focus:outline-none [scrollbar-width:thin]"
+                spellCheck={false}
                 placeholder="npm run dev"
                 value={runScript}
                 onChange={(e) => setRunScript(normalizeCommand(e.target.value))}
-                rows={2}
               />
             </div>
 
             {/* Archive script */}
-            <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-caption font-medium text-text-primary">Archive</div>
-                <span className="text-micro text-text-quaternary">Runs when archiving a worktree</span>
+            <div className="bg-bg-primary border border-border-default rounded-[var(--radius-md)] overflow-hidden">
+              <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border-default">
+                <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-white/[0.04]">
+                  <ArchiveIcon className="w-3.5 h-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[13px] font-semibold text-text-primary leading-none">Archive</h3>
+                  <div className="text-[11.5px] text-text-tertiary mt-1">Runs when archiving a worktree</div>
+                </div>
               </div>
               <textarea
-                className="w-full bg-bg-primary border border-border-default rounded-md px-3 py-2 text-caption font-mono text-text-primary placeholder:text-text-quaternary resize-y min-h-[60px] focus:outline-none focus:ring-1 focus:ring-accent-primary/50"
+                className="block w-full bg-transparent border-0 px-3.5 py-3 text-[12px] leading-[1.55] font-mono text-text-primary placeholder:text-text-quaternary whitespace-pre overflow-x-auto resize-none min-h-[44px] max-h-[160px] focus:outline-none [scrollbar-width:thin]"
+                spellCheck={false}
                 placeholder="docker compose down"
                 value={archiveScript}
                 onChange={(e) => setArchiveScript(normalizeCommand(e.target.value))}
-                rows={2}
               />
             </div>
 
