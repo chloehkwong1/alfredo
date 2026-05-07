@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/chloehkwong1/alfredo/main/schemas/alfredo.schema.json",
+  "runScript": {
+    "command": "kill $(lsof -t -i:1420)\nnpm run tauri dev",
+    "name": "Run",
+    "url": null
+  },
+  "setupScripts": [
+    {
+      "command": "npm install\ncd src-tauri && cargo fetch",
+      "name": "Setup",
+      "runOn": "create"
+    }
+  ]
+}
