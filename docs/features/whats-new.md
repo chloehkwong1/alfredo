@@ -7,6 +7,13 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.14.1 — 2026-05-07**
+- New-worktree dialog now validates branch names inline against
+  git's `check-ref-format` rules — invalid characters (spaces, `~`,
+  `^`, `:`, `?`, etc.) show an inline error and keep the Create
+  button disabled instead of failing with a toast after the
+  worktree creation kicks off.
+
 **v0.14.0 — 2026-05-07**
 - **Repo-shared `alfredo.json`** — repos can now ship a committed
   `alfredo.json` that teammates inherit (setup scripts, run script,
@@ -101,20 +108,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   without merging now shows a red **Cancelled** banner in the
   Changes panel and the worktree moves to Done on the next sync,
   instead of getting stuck in "in review" with stale check status.
-
-**v0.11.0 — 2026-04-28**
-- **Failed-check shortcuts** — each failing PR check now has an
-  external-link icon to open the run on GitHub in one click; long
-  failure lists scroll inside their own container so the rerun /
-  fix / merge-and-fix actions stay reachable below.
-- **Pinned-main fixes** — setup and archive scripts are skipped when
-  they would run against the repo root (most setups would clobber
-  real files), and stale PR badges clear when the pinned card swaps
-  branches.
-- **Cmd+F polish** — Cmd+F in the changes file sidebar now hands
-  focus to the commit-diff search instead of dead-ending; the
-  path/filename separator stays visible in the file list.
-- Fewer false-busy flickers — the session detector mutes itself when
-  hooks have already proved an agent is busy mid-turn.
 
 Check the releases page for older versions and full detail.
