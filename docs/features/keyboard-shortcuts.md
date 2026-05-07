@@ -16,7 +16,8 @@ or down. **Pane-scoped shortcuts target whichever pane has focus** —
 clicking inside a terminal or the Changes panel makes that pane the
 target for ⌘T, ⌘W, ⌘K, ⌘\, and the tab-cycling shortcuts, so they
 don't leak across split panes. ⌘B toggles the sidebar and ⌘I (or ⌘⇧C)
-toggles the Changes panel. Inside a terminal, ⌘K clears the buffer.
+toggles the Changes panel. Inside a terminal, ⌘K clears the buffer; **⌘⇧K** rebuilds the WebGL
+glyph atlas if rendering corrupts (rare — safe to use any time).
 **⌘+ / ⌘− / ⌘0 zoom** the whole webview by default, but switch to
 scoping just the terminal font when an xterm pane has focus — click
 into a terminal first and the same shortcuts adjust its font size

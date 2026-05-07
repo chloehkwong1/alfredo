@@ -24,3 +24,10 @@ Alfredo alerts you about background agent activity.
 
 macOS quirk: OS banners only fire from the installed
 `/Applications/Alfredo.app`, not from `npm run tauri dev`.
+
+**Dock badge:** on macOS, the Alfredo dock icon shows the live count
+of worktrees that need your attention (waiting for input, finished,
+failed checks). The number updates as you work and clears when no
+worktrees are flagged. The dock badge is independent of the banner
+toggles — it tracks status, not events. See
+[Dock badge](dock-badge.md).

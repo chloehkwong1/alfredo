@@ -7,6 +7,39 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.14.0 — 2026-05-07**
+- **Repo-shared `alfredo.json`** — repos can now ship a committed
+  `alfredo.json` that teammates inherit (setup scripts, run script,
+  archive script, port range, port env var, default agent). Personal
+  settings layer on top, with badges showing inheritance and a
+  **Reset to repo default** action per field. The Workspace Settings
+  dialog has been split into **General / Scripts / Ports** tabs, and
+  a chip in the header shows whether `alfredo.json` is tracked in
+  git. On first load, any personal repo-shared values are migrated
+  silently into `alfredo.json` so existing setups don't drift.
+- **Dock badge for needs-attention worktrees** — the macOS dock icon
+  now mirrors the live count of worktrees waiting on you (input
+  needed, finished, failed checks).
+- **Clickable terminal links** — URLs, `localhost[:PORT]`, absolute
+  file paths (with optional `:line:col`), and email addresses are
+  now highlighted and clickable in any xterm pane. Lines that wrap
+  across rows are stitched back together so long links still match
+  as a single unit.
+- **`$ALFREDO_ROOT_PATH` and `$ALFREDO_WORKTREE_PATH`** are now
+  exposed to setup/run/archive scripts and to interactive PTY
+  shells, mirroring Conductor's env. Useful for `cp
+  $ALFREDO_ROOT_PATH/.env .env`-style scaffolding.
+- Various fixes: malformed `alfredo.json` no longer wedges the
+  loading screen; over-escaped script commands healed on personal-
+  config load; setup scripts run cleanly without a TTY (login shell
+  drops `-i`); whitespace collapsed in pasted and executed script
+  commands; **⌘⇧K** rebuilds the terminal's WebGL glyph atlas if it
+  corrupts; closed-not-merged PRs stop hitting GitHub for enrichment
+  after 24h; column / archive layout preserved across branch ↔
+  worktree mode switches; setup scripts and port range now read the
+  effective (merged) config when creating a worktree; rendered-view
+  toggle in the Changes panel starts at 50% opacity until hovered.
+
 **v0.13.0 — 2026-05-05**
 - **Lifecycle rules now live in the sidebar** — hover a Done worktree
   to archive it, hover the Done group header for **Archive all**, or
@@ -83,40 +116,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   path/filename separator stays visible in the file list.
 - Fewer false-busy flickers — the session detector mutes itself when
   hooks have already proved an agent is busy mid-turn.
-
-**v0.10.0 — 2026-04-28**
-- **Pinned main-branch card** — worktree-mode repos can pin a synthetic
-  main card at the top of the sidebar for quick access without leaving
-  worktree mode.
-- **Repo badges** — assign a colour and 1–4 character label per repo
-  from Repository Settings, with a new off-axis 6-slot palette to keep
-  multi-repo sidebars scannable.
-- **Default slash commands in new worktrees** — Alfredo seeds 3
-  starter `.claude/commands/*.md` files when you create a worktree.
-- **Port picker dropdown** — when the auto-assign range is full, pick
-  a slot to take over instead of being blocked by an exhaustion
-  dialog. Sticky port claims now happen lazily on **Start server**.
-- **Smarter sidebar cards** — branch cards show live agent status,
-  the running server port, and a **Merged** chip on shipped PRs.
-  Right-click any sidebar surface to open repo settings, or convert a
-  branch-mode repo to worktree mode in one click.
-- **Liquid Glass app icon** on macOS 26+, plus a DEV-badged dock icon
-  in debug builds.
-- Effort and permission modes pull from the remote model manifest in
-  Settings.
-- First-run setup surfaces repo identity so multi-repo setups are
-  unambiguous from the start.
-- Diff toolbar and pane tab bar icons cleaned up; FileSidebar
-  redesigned with path-first rows and an in-header **Discard all**.
-- Cmd+F is now scoped per pane (sidebar, changes, commit-diff,
-  terminal) — no more cross-pane interception.
-- Various fixes: multi-Claude-tab worktrees no longer collapse onto
-  one session, notifications dedupe per-worktree, nested `claude -p`
-  hooks suppressed at the shell layer, xterm back-pressure prevents
-  echo stall, pane shortcuts route to the focused pane, "Checks
-  running" recoloured to disambiguate from agent-busy, port-range
-  field accepts free typing, accurate worktree counts for unselected
-  repos, "Send as feedback" routes to the on-screen tab, late PR
-  review comments and cubic-style summaries surface.
 
 Check the releases page for older versions and full detail.
