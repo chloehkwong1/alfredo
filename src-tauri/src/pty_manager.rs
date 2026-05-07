@@ -1409,9 +1409,28 @@ fn tilde_abbrev(path: &str) -> String {
     path.to_string()
 }
 
-/// True if `pid` looks like an alfredo PTY session's shell child. Used to
-/// gate sidecar-based protection so a recycled OS pid (now owned by some
-/// unrelated process) can't permanently shield a stale settings file.
+/// True if `comm` (the basename or path returned by `ps -o comm=`) looks
+/// like a process alfredo would spawn as a PTY child. portable-pty execs
+/// the configured command directly (no shell wrapper), so the child's
+/// comm is either a shell (terminal tabs) or the agent binary itself
+/// (`claude`, `codex`, `gemini`). Anything else is treated as a recycled
+/// pid for the purposes of sidecar-based hook protection.
+fn is_alfredo_session_comm(comm: &str) -> bool {
+    if comm.is_empty() {
+        return false;
+    }
+    if is_shell_process(comm) {
+        return true;
+    }
+    let basename = std::path::Path::new(comm.trim_start_matches('-'))
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(comm);
+    matches!(basename, "claude" | "codex" | "gemini")
+}
+
+/// True if `pid` is alive and looks like an alfredo PTY session's child.
+/// Defends against PID reuse — see `is_alfredo_session_comm`.
 fn is_alfredo_session_pid(pid: i32) -> bool {
     let Ok(out) = std::process::Command::new("ps")
         .args(["-o", "comm=", "-p", &pid.to_string()])
@@ -1423,7 +1442,7 @@ fn is_alfredo_session_pid(pid: i32) -> bool {
         return false;
     }
     let comm = std::str::from_utf8(&out.stdout).unwrap_or("").trim();
-    !comm.is_empty() && is_shell_process(comm)
+    is_alfredo_session_comm(comm)
 }
 
 /// True if the given `ps -o comm=` result is a shell itself (so we should
@@ -1784,6 +1803,24 @@ mod tests {
         assert!(!is_shell_process("npm"));
         assert!(!is_shell_process("vim"));
         assert!(!is_shell_process("cargo"));
+    }
+
+    #[test]
+    fn alfredo_session_comm_recognises_shells_and_agents() {
+        // portable-pty execs the configured command directly, so child comm
+        // is the shell for terminal tabs or the agent binary for agent tabs.
+        assert!(is_alfredo_session_comm("zsh"));
+        assert!(is_alfredo_session_comm("/bin/bash"));
+        assert!(is_alfredo_session_comm("claude"));
+        assert!(is_alfredo_session_comm("codex"));
+        assert!(is_alfredo_session_comm("gemini"));
+        assert!(is_alfredo_session_comm("/usr/local/bin/claude"));
+
+        // Recycled-pid candidates: anything else.
+        assert!(!is_alfredo_session_comm(""));
+        assert!(!is_alfredo_session_comm("vim"));
+        assert!(!is_alfredo_session_comm("Code Helper"));
+        assert!(!is_alfredo_session_comm("node"));
     }
 
     /// Boot cleanup must skip stripping alfredo hooks from a settings file
