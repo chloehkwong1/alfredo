@@ -35,12 +35,16 @@ pub async fn create_worktree_from(
 ) -> Result<Worktree> {
     match source {
         WorktreeSource::NewBranch { name, base } => {
+            git_manager::validate_branch_name(&name)?;
             create_worktree(app, repo_path, name, base).await
         }
         WorktreeSource::ExistingBranch { name, new_name } => {
             match new_name {
                 // Custom name: create a new branch from the existing one
-                Some(new) => create_worktree(app, repo_path, new, name).await,
+                Some(new) => {
+                    git_manager::validate_branch_name(&new)?;
+                    create_worktree(app, repo_path, new, name).await
+                }
                 // No custom name: check out the existing branch as-is
                 None => create_worktree(app, repo_path, name.clone(), name).await,
             }

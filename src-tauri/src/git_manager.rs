@@ -87,6 +87,74 @@ pub async fn fetch_all_for_branch_list(repo_path: &str) {
     let _ = tokio::time::timeout(std::time::Duration::from_secs(3), fetch).await;
 }
 
+/// Validate a branch name against the same rules as `git check-ref-format --branch`.
+/// Returns `Ok(())` when valid or `Err(AppError::Git(message))` describing the
+/// first violation. Mirrors `src/lib/validateBranchName.ts` so the frontend
+/// disables the submit button for the same set of inputs the backend rejects.
+pub fn validate_branch_name(name: &str) -> Result<(), AppError> {
+    let err = |msg: &str| Err(AppError::Git(format!("Invalid branch name: {msg}")));
+
+    if name.is_empty() {
+        return err("branch name is required");
+    }
+    if name == "@" {
+        return err("branch name cannot be '@'");
+    }
+    if name.starts_with('-') {
+        return err("branch name cannot start with '-'");
+    }
+    if name.starts_with('/') {
+        return err("branch name cannot start with '/'");
+    }
+    if name.ends_with('/') {
+        return err("branch name cannot end with '/'");
+    }
+    if name.ends_with('.') {
+        return err("branch name cannot end with '.'");
+    }
+    if name.ends_with(".lock") {
+        return err("branch name cannot end with '.lock'");
+    }
+    if name.contains("..") {
+        return err("branch name cannot contain '..'");
+    }
+    if name.contains("//") {
+        return err("branch name cannot contain consecutive slashes");
+    }
+    if name.contains("@{") {
+        return err("branch name cannot contain '@{'");
+    }
+
+    for ch in name.chars() {
+        let code = ch as u32;
+        if code < 0x20 || code == 0x7f {
+            return err("branch name cannot contain control characters");
+        }
+        match ch {
+            ' ' => return err("branch name cannot contain spaces"),
+            '~' => return err("branch name cannot contain '~'"),
+            '^' => return err("branch name cannot contain '^'"),
+            ':' => return err("branch name cannot contain ':'"),
+            '?' => return err("branch name cannot contain '?'"),
+            '*' => return err("branch name cannot contain '*'"),
+            '[' => return err("branch name cannot contain '['"),
+            '\\' => return err("branch name cannot contain '\\'"),
+            _ => {}
+        }
+    }
+
+    for segment in name.split('/') {
+        if segment.starts_with('.') {
+            return err("branch name segments cannot start with '.'");
+        }
+        if segment.ends_with(".lock") {
+            return err("branch name segments cannot end with '.lock'");
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn create_worktree(
     repo_path: &str,
     branch_name: &str,
@@ -978,6 +1046,54 @@ mod tests {
             .output()
             .expect("git initial commit");
         dir
+    }
+
+    #[test]
+    fn validate_branch_name_accepts_valid() {
+        for name in [
+            "feat/my-feature",
+            "fix/issue-40",
+            "release/1.2.3",
+            "_internal",
+            "v1.0",
+            "feature",
+        ] {
+            assert!(validate_branch_name(name).is_ok(), "should accept {name:?}");
+        }
+    }
+
+    #[test]
+    fn validate_branch_name_rejects_spaces_issue_40() {
+        let err = validate_branch_name("karo diagnostics").unwrap_err();
+        assert!(err.to_string().contains("spaces"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_branch_name_rejects_each_forbidden_char() {
+        for bad in ["foo~bar", "foo^bar", "foo:bar", "foo?bar", "foo*bar", "foo[bar", "foo\\bar"] {
+            assert!(validate_branch_name(bad).is_err(), "should reject {bad:?}");
+        }
+    }
+
+    #[test]
+    fn validate_branch_name_rejects_structural_violations() {
+        for bad in [
+            "",
+            "@",
+            "-foo",
+            "/foo",
+            "foo/",
+            "foo.",
+            "foo.lock",
+            "foo..bar",
+            "foo//bar",
+            "foo@{1}",
+            ".foo",
+            "foo/.bar",
+            "foo/bar.lock",
+        ] {
+            assert!(validate_branch_name(bad).is_err(), "should reject {bad:?}");
+        }
     }
 
     #[test]

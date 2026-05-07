@@ -3,6 +3,7 @@ import { GitBranch } from "lucide-react";
 import { Input } from "../../ui/Input";
 import { SelectableList, SelectableItem } from "./SelectableList";
 import { listBranches } from "../../../api";
+import { validateBranchName } from "../../../lib/validateBranchName";
 import type { Worktree } from "../../../types";
 
 interface BranchesTabProps {
@@ -46,19 +47,25 @@ function BranchesTab({ repoPath, open, selectedBranch, onSelectBranch, newBranch
         onChange={(e) => setFilter(e.target.value)}
         autoFocus={!selectedBranch}
       />
-      {selectedBranch && (
-        <div>
-          <label className="block text-sm font-medium text-text-secondary mb-2">
-            New branch name <span className="text-text-tertiary font-normal">(optional)</span>
-          </label>
-          <Input
-            placeholder={selectedBranch}
-            value={newBranchName}
-            onChange={(e) => onNewBranchNameChange(e.target.value)}
-            autoFocus
-          />
-        </div>
-      )}
+      {selectedBranch && (() => {
+        const trimmed = newBranchName.trim();
+        const renameError = trimmed.length > 0 ? validateBranchName(trimmed) : null;
+        return (
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              New branch name <span className="text-text-tertiary font-normal">(optional)</span>
+            </label>
+            <Input
+              placeholder={selectedBranch}
+              value={newBranchName}
+              onChange={(e) => onNewBranchNameChange(e.target.value)}
+              autoFocus
+              aria-invalid={renameError ? true : undefined}
+            />
+            {renameError && <p className="text-xs text-red-400 mt-1.5">{renameError}</p>}
+          </div>
+        );
+      })()}
       <SelectableList
         loading={loading}
         error={error}

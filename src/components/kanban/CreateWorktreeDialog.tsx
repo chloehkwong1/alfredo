@@ -17,6 +17,7 @@ import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import type { RepoEntry, Worktree, WorktreeSource } from "../../types";
 import { NewBranchTab, getNewBranchSource } from "./create-worktree/NewBranchTab";
 import { BranchesTab } from "./create-worktree/BranchesTab";
+import { validateBranchName } from "../../lib/validateBranchName";
 import { PullRequestsTab } from "./create-worktree/PullRequestsTab";
 import { LinearIssuesTab } from "./create-worktree/LinearIssuesTab";
 
@@ -134,10 +135,12 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
     switch (activeTab) {
       case "newBranch":
         return getNewBranchSource(branchName, baseBranch);
-      case "branches":
-        return selectedBranch
-          ? { kind: "existingBranch", name: selectedBranch, newName: existingBranchNewName.trim() || undefined }
-          : null;
+      case "branches": {
+        if (!selectedBranch) return null;
+        const trimmed = existingBranchNewName.trim();
+        if (trimmed && validateBranchName(trimmed) !== null) return null;
+        return { kind: "existingBranch", name: selectedBranch, newName: trimmed || undefined };
+      }
       case "pullRequests":
         return selectedPrNumber ? { kind: "pullRequest", number: selectedPrNumber } : null;
       case "linearIssues":
