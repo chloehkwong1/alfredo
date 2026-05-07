@@ -36,6 +36,7 @@
       "icons/icon.ico"
     ],
     "macOS": {
+      "entitlements": "Entitlements.plist",
       "files": {
         "Resources/Assets.car": "icons/Assets.car"
       }
