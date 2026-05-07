@@ -51,7 +51,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
 
         seen.insert(name.clone());
         worktrees.push(Worktree {
-            id: format!("branch-{name}"),
+            id: format!("{repo_path}::branch-{name}"),
             name: name.clone(),
             path: repo_path.to_string(),
             branch: name,
@@ -127,7 +127,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
             .unwrap_or((None, None));
 
         worktrees.push(Worktree {
-            id: format!("branch-{short}"),
+            id: format!("{repo_path}::branch-{short}"),
             name: short.clone(),
             path: repo_path.to_string(),
             branch: short,
@@ -198,7 +198,7 @@ pub async fn create_branch(
     }
 
     Ok(Worktree {
-        id: format!("branch-{branch_name}"),
+        id: format!("{repo_path}::branch-{branch_name}"),
         name: branch_name.to_string(),
         path: repo_path.to_string(),
         branch: branch_name.to_string(),

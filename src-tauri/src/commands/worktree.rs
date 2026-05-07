@@ -143,7 +143,7 @@ pub async fn create_worktree(
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
 
     Ok(Worktree {
-        id: dir_name.clone(),
+        id: format!("{repo_path}::{branch_name}"),
         name: dir_name,
         path: path_str,
         branch: branch_name,
@@ -339,8 +339,9 @@ pub async fn get_worktree_status(
     let column = config_manager::get_column_override(&config, &wt_name)
         .unwrap_or(KanbanColumn::InProgress);
 
+    let id = format!("{repo_path}::{}", status.branch);
     let mut wt = Worktree {
-        id: wt_name.clone(),
+        id,
         name: wt_name.clone(),
         path: path_str,
         branch: status.branch,

@@ -109,14 +109,32 @@ pub async fn load_session_file(app: tauri::AppHandle, repo_path: String, worktre
     match tokio::fs::read_to_string(&new_path).await {
         Ok(content) => Ok(Some(content)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            // Migrate from legacy location: <repo>/.alfredo/sessions/<id>.json
+            // Pre-composite-id format: filename was just the sanitized branch (dir_name).
+            // worktree_id is now "{repo_path}::{branch}". Strip the known repo prefix
+            // rather than rsplit on "::" — branch names may legitimately contain "::".
+            let pre_composite_path = worktree_id
+                .strip_prefix(&repo_path)
+                .and_then(|rest| rest.strip_prefix("::"))
+                .map(|branch| {
+                    sessions_dir(&app_data_dir, &repo_path)
+                        .join(format!("{}.json", branch.replace('/', "-")))
+                });
+            if let Some(path) = pre_composite_path.as_ref() {
+                if let Ok(content) = tokio::fs::read_to_string(path).await {
+                    ensure_sessions_dir(&app_data_dir, &repo_path).await?;
+                    if tokio::fs::write(&new_path, &content).await.is_ok() {
+                        let _ = tokio::fs::remove_file(path).await;
+                    }
+                    return Ok(Some(content));
+                }
+            }
+
+            // Older legacy location: <repo>/.alfredo/sessions/<id>.json
             let legacy_path = std::path::Path::new(&repo_path)
                 .join(".alfredo/sessions")
                 .join(format!("{safe_id}.json"));
             match tokio::fs::read_to_string(&legacy_path).await {
                 Ok(content) => {
-                    // Write to new location so future loads find it there.
-                    // Only delete legacy file if write succeeds to avoid data loss.
                     ensure_sessions_dir(&app_data_dir, &repo_path).await?;
                     if tokio::fs::write(&new_path, &content).await.is_ok() {
                         let _ = tokio::fs::remove_file(&legacy_path).await;

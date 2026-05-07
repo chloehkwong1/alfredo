@@ -188,11 +188,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   replaceWorktree: (tempId, realWorktree) =>
     set((state) => ({
       worktrees: state.worktrees
-        // Remove any entry with the real ID that snuck in via a concurrent listWorktrees refresh,
-        // but keep the placeholder we're about to replace (tempId may equal realWorktree.id for branches).
-        .filter((wt) => wt.id !== realWorktree.id || wt.id === tempId)
+        // Drop entries with the real id that snuck in via a concurrent listWorktrees refresh.
+        // Keep the placeholder we're about to replace; identify it by `creating` flag because
+        // tempId may equal realWorktree.id when the new branch's composite id matches.
+        .filter((wt) => wt.id !== realWorktree.id || (wt.id === tempId && wt.creating))
         .map((wt) =>
-          wt.id === tempId
+          wt.id === tempId && wt.creating
             ? { ...realWorktree, creating: undefined, createError: undefined, justCreated: true }
             : wt,
         ),
@@ -200,8 +201,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   failWorktree: (tempId, error) =>
     set((state) => ({
+      // Same `creating` guard as replaceWorktree: a concurrent listWorktrees refresh
+      // can insert a real worktree with the same id; we must only taint the placeholder.
       worktrees: state.worktrees.map((wt) =>
-        wt.id === tempId
+        wt.id === tempId && wt.creating
           ? { ...wt, creating: undefined, createError: error }
           : wt,
       ),

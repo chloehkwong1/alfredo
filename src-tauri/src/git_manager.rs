@@ -931,7 +931,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
         let last_commit_epoch = get_last_commit_epoch(&wt_path);
 
         worktrees.push(Worktree {
-            id: name.to_string(),
+            id: format!("{repo_path}::{branch}"),
             name: name.to_string(),
             path: wt_path.to_string_lossy().to_string(),
             branch,

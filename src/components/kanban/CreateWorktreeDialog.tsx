@@ -37,32 +37,32 @@ interface CreateWorktreeDialogProps {
 /** Derive a placeholder worktree ID and display name from the creation source. */
 function placeholderFromSource(
   source: WorktreeSource,
-  _repoPath: string,
+  repoPath: string,
 ): { id: string; name: string; branch: string } {
   switch (source.kind) {
     case "newBranch":
       return {
-        id: source.name.replace(/\//g, "-"),
+        id: `${repoPath}::${source.name}`,
         name: source.name,
         branch: source.name,
       };
     case "existingBranch": {
       const displayName = source.newName || source.name;
       return {
-        id: displayName.replace(/\//g, "-"),
+        id: `${repoPath}::${displayName}`,
         name: displayName,
         branch: displayName,
       };
     }
     case "pullRequest":
       return {
-        id: `creating-pr-${source.number}`,
+        id: `${repoPath}::creating-pr-${source.number}`,
         name: `PR #${source.number}`,
         branch: "",
       };
     case "linearTicket":
       return {
-        id: `creating-${source.id}`,
+        id: `${repoPath}::creating-${source.id}`,
         name: source.id,
         branch: "",
       };
