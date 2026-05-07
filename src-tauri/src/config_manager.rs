@@ -336,10 +336,14 @@ pub async fn load_effective_config(
         }
     }
 
+    let upstream_in_git = upstream.is_some()
+        && crate::repo_config::alfredo_json_in_git(Path::new(repo_path));
+
     Ok(crate::types::EffectiveConfig {
         effective: personal,
         overrides,
         upstream,
+        upstream_in_git,
     })
 }
 

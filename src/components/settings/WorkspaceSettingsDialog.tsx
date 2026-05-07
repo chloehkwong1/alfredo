@@ -133,14 +133,34 @@ function IconBtnSmBare({
 
 interface SourceChipProps {
   upstreamPresent: boolean;
+  upstreamInGit: boolean;
   onOpen: () => void;
   onCreate: () => void;
   loading: boolean;
 }
 
-function SourceChip({ upstreamPresent, onOpen, onCreate, loading }: SourceChipProps) {
+function SourceChip({ upstreamPresent, upstreamInGit, onOpen, onCreate, loading }: SourceChipProps) {
   if (loading) return null;
   if (upstreamPresent) {
+    // Untracked alfredo.json is almost always a migration artifact: Alfredo
+    // wrote it from the personal layer and the user never committed it. The
+    // value won't be shared with teammates, so distinguish it from a real
+    // committed alfredo.json. A plain "Tracking" chip in this state is a lie.
+    if (!upstreamInGit) {
+      return (
+        <button
+          type="button"
+          onClick={onOpen}
+          title="alfredo.json exists locally but isn't in git — commit it to share with teammates"
+          className="ml-auto inline-flex items-center gap-2 h-7 px-2.5 rounded-full text-xs text-status-busy border border-status-busy/40 bg-status-busy/10 hover:bg-status-busy/15 transition-colors duration-[var(--transition-fast)] cursor-pointer"
+        >
+          <FileText className="w-3 h-3" />
+          <code className="font-mono text-[11px]">alfredo.json</code>
+          <span>not in git</span>
+          <ExternalLink className="w-3 h-3" />
+        </button>
+      );
+    }
     return (
       <button
         type="button"
@@ -355,7 +375,7 @@ function WorkspaceSettingsDialog({
   );
   const [schemaCopied, setSchemaCopied] = useState(false);
 
-  const { upstream, loading: layersLoading, createAlfredoJson } = useRepoConfig(
+  const { upstream, upstreamInGit, loading: layersLoading, createAlfredoJson } = useRepoConfig(
     open ? currentRepoPath : null,
   );
 
@@ -657,6 +677,7 @@ function WorkspaceSettingsDialog({
             </div>
             <SourceChip
               upstreamPresent={upstreamPresent}
+              upstreamInGit={upstreamInGit}
               loading={layersLoading}
               onOpen={openAlfredoJson}
               onCreate={createAlfredoJsonHandler}

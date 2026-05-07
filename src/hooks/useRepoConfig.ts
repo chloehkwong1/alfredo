@@ -21,6 +21,7 @@ export function useRepoConfig(repoPath: string | null | undefined): {
   config: AppConfig | null;
   overrides: RepoOverrideFlags | null;
   upstream: RepoSharedConfig | null;
+  upstreamInGit: boolean;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -31,6 +32,7 @@ export function useRepoConfig(repoPath: string | null | undefined): {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [overrides, setOverrides] = useState<RepoOverrideFlags | null>(null);
   const [upstream, setUpstream] = useState<RepoSharedConfig | null>(null);
+  const [upstreamInGit, setUpstreamInGit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +44,7 @@ export function useRepoConfig(repoPath: string | null | undefined): {
         setConfig(null);
         setOverrides(null);
         setUpstream(null);
+        setUpstreamInGit(false);
         setLoading(false);
         return;
       }
@@ -53,6 +56,7 @@ export function useRepoConfig(repoPath: string | null | undefined): {
         setConfig(result.effective);
         setOverrides(result.overrides);
         setUpstream(result.upstream);
+        setUpstreamInGit(result.upstreamInGit);
         setLoading(false);
       } catch (e) {
         if (cancelled.value) return;
@@ -132,6 +136,7 @@ export function useRepoConfig(repoPath: string | null | undefined): {
     config,
     overrides,
     upstream,
+    upstreamInGit,
     loading,
     error,
     refetch,

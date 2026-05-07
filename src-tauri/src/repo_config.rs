@@ -6,6 +6,19 @@ use crate::types::{AppError, RepoSharedConfig};
 
 const FILENAME: &str = "alfredo.json";
 
+/// True when `<repo>/alfredo.json` is in the git index — i.e. staged or
+/// committed, and not a local-only artifact (e.g. one written silently by
+/// the personal→upstream migration before the user committed anything).
+///
+/// Returns false for non-git directories, when libgit2 errors, or when the
+/// file isn't tracked. The chip uses this to warn that "Tracking alfredo.json"
+/// is reading a file no teammate will ever see.
+pub fn alfredo_json_in_git(repo_path: &Path) -> bool {
+    let Ok(repo) = git2::Repository::open(repo_path) else { return false; };
+    let Ok(index) = repo.index() else { return false; };
+    index.get_path(Path::new(FILENAME), 0).is_some()
+}
+
 /// Load `<repo>/alfredo.json`. Returns `Ok(None)` if the file does not exist,
 /// `Err(AppError::Config(...))` if the file exists but cannot be parsed.
 pub async fn load_alfredo_json(repo_path: &Path) -> Result<Option<RepoSharedConfig>, AppError> {
@@ -50,6 +63,35 @@ pub async fn save_alfredo_json(
 mod tests {
     use super::*;
     use crate::types::SetupScript;
+
+    #[tokio::test]
+    async fn in_git_false_when_not_a_repo() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        tokio::fs::write(dir.path().join("alfredo.json"), "{}").await?;
+        assert!(!alfredo_json_in_git(dir.path()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn in_git_false_when_untracked() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        git2::Repository::init(dir.path())?;
+        tokio::fs::write(dir.path().join("alfredo.json"), "{}").await?;
+        assert!(!alfredo_json_in_git(dir.path()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn in_git_true_when_staged() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let repo = git2::Repository::init(dir.path())?;
+        tokio::fs::write(dir.path().join("alfredo.json"), "{}").await?;
+        let mut index = repo.index()?;
+        index.add_path(Path::new("alfredo.json"))?;
+        index.write()?;
+        assert!(alfredo_json_in_git(dir.path()));
+        Ok(())
+    }
 
     #[tokio::test]
     async fn returns_none_when_file_missing() -> Result<(), Box<dyn std::error::Error>> {

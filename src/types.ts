@@ -254,6 +254,10 @@ export interface EffectiveConfig {
   effective: AppConfig;
   overrides: RepoOverrideFlags;
   upstream: RepoSharedConfig | null;
+  /** True when alfredo.json exists *and* is in the git index. False when it
+   *  exists but is untracked (e.g. a migration artifact teammates won't see),
+   *  or when there's no alfredo.json at all. */
+  upstreamInGit: boolean;
 }
 
 // ── Linear ──────────────────────────────────────────────────────

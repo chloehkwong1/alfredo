@@ -384,6 +384,12 @@ pub struct EffectiveConfig {
     pub effective: AppConfig,
     pub overrides: RepoOverrideFlags,
     pub upstream: Option<RepoSharedConfig>,
+    /// True when `<repo>/alfredo.json` is in the git index. False when it's
+    /// untracked, in a non-git directory, or absent. Lets the UI distinguish
+    /// "Tracking alfredo.json" (in git, teammates see it) from "alfredo.json
+    /// exists but is untracked" (silent migration artifact, won't be shared).
+    #[serde(default)]
+    pub upstream_in_git: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
