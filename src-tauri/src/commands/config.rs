@@ -62,7 +62,7 @@ pub async fn run_setup_scripts(
         return Ok(());
     }
 
-    config_manager::run_setup_scripts(&worktree_path, &create_scripts).await
+    config_manager::run_setup_scripts(&repo_path, &worktree_path, &create_scripts).await
 }
 
 /// Update the repo mode (branch ↔ worktree) in both .alfredo.json and the global app config.
@@ -119,7 +119,7 @@ pub async fn run_archive_script(
         run_on: "archive".to_string(),
     };
 
-    config_manager::run_setup_scripts(&worktree_path, &[script]).await
+    config_manager::run_setup_scripts(&repo_path, &worktree_path, &[script]).await
 }
 
 /// Load the effective config layers for a repository (upstream + personal overrides + merged result).

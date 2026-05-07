@@ -209,6 +209,10 @@ struct PtySession {
 pub struct SpawnConfig {
     pub worktree_id: String,
     pub worktree_path: String,
+    /// Absolute path of the main repo checkout. Exposed to PTY children as
+    /// `$ALFREDO_ROOT_PATH` so the configured run-script (which executes in
+    /// a shell PTY) can reach files in the main checkout. `None` in tests.
+    pub repo_path: Option<String>,
     pub command: String,
     pub args: Vec<String>,
     pub agent_type: AgentType,
@@ -257,6 +261,7 @@ impl PtyManager {
         let SpawnConfig {
             worktree_id,
             worktree_path,
+            repo_path,
             command,
             args,
             agent_type,
@@ -291,6 +296,15 @@ impl PtyManager {
         // fall back to basic colors. Set them explicitly for xterm.js.
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
+
+        // Mirror Conductor's `$CONDUCTOR_ROOT_PATH`: scripts running in the
+        // PTY (notably the configured run-script, which spawns through a
+        // shell PTY) need a reliable pointer back to the main checkout for
+        // multi-repo setups that copy or symlink files from there.
+        cmd.env("ALFREDO_WORKTREE_PATH", &worktree_path);
+        if let Some(ref rp) = repo_path {
+            cmd.env("ALFREDO_ROOT_PATH", rp);
+        }
 
         // Inject assigned port so dev servers pick up the right port
         if let Some(port) = assigned_port {
@@ -1391,6 +1405,7 @@ mod tests {
                 SpawnConfig {
                     worktree_id: "test-worktree".to_string(),
                     worktree_path: "/tmp".to_string(),
+                    repo_path: None,
                     command: "echo".to_string(),
                     args: vec!["hello".to_string()],
                     agent_type: AgentType::Unknown,
@@ -1467,6 +1482,7 @@ mod tests {
                     SpawnConfig {
                         worktree_id: format!("worktree-{i}"),
                         worktree_path: "/tmp".to_string(),
+                        repo_path: None,
                         command: "cat".to_string(),
                         args: vec![],
                         agent_type: AgentType::Unknown,

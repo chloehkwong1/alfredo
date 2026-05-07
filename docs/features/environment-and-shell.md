@@ -24,6 +24,13 @@ Env vars Alfredo sets on every agent PTY:
 - **`ALFREDO_SESSION_ID`**, **`ALFREDO_WORKTREE_ID`**,
   **`ALFREDO_STATE_URL`** — used by hook callbacks to report agent
   state back to Alfredo.
+- **`ALFREDO_ROOT_PATH`** — absolute path of the main repo
+  checkout. Useful in setup or run scripts that need to copy or
+  symlink files from main (e.g. `cp $ALFREDO_ROOT_PATH/.env .env`).
+  Mirrors Conductor's `$CONDUCTOR_ROOT_PATH`.
+- **`ALFREDO_WORKTREE_PATH`** — absolute path of the current
+  worktree. Same value as `pwd` at script start, but stable if a
+  script later `cd`s elsewhere.
 - **`PORT`** and **`ALFREDO_PORT`** — only when auto-assign ports
   is enabled. The `PORT` name is configurable per repo.
 

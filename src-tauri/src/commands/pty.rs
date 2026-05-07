@@ -22,6 +22,7 @@ pub async fn spawn_pty(
     sleep_inhibitor: State<'_, std::sync::Arc<crate::sleep_inhibitor::SleepInhibitor>>,
     worktree_id: String,
     worktree_path: String,
+    repo_path: Option<String>,
     mode: String,
     args: Vec<String>,
     on_data: Channel<PtyEvent>,
@@ -48,6 +49,7 @@ pub async fn spawn_pty(
     let config = SpawnConfig {
         worktree_id: worktree_id.clone(),
         worktree_path,
+        repo_path,
         command,
         args,
         agent_type: agent_type.unwrap_or(AgentType::Unknown),

@@ -109,7 +109,7 @@ pub async fn create_worktree(
     let setup_script_error = if create_scripts.is_empty() {
         None
     } else {
-        match config_manager::run_setup_scripts(&path_str, &create_scripts).await {
+        match config_manager::run_setup_scripts(&repo_path, &path_str, &create_scripts).await {
             Ok(()) => None,
             Err(e) => Some(e.to_string()),
         }

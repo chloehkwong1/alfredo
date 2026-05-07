@@ -420,7 +420,12 @@ fn normalize_command(s: &str) -> String {
 }
 
 /// Run setup scripts sequentially in the given worktree directory.
+///
+/// `repo_path` is the absolute path of the main repo checkout — exposed to
+/// scripts as `$ALFREDO_ROOT_PATH` so multi-repo workflows (copying or
+/// symlinking files from main) don't have to reverse-engineer the location.
 pub async fn run_setup_scripts(
+    repo_path: &str,
     worktree_path: &str,
     scripts: &[SetupScript],
 ) -> Result<(), AppError> {
@@ -434,6 +439,8 @@ pub async fn run_setup_scripts(
         let output = Command::new(&shell)
             .args(["-l", "-c", &command])
             .current_dir(worktree_path)
+            .env("ALFREDO_ROOT_PATH", repo_path)
+            .env("ALFREDO_WORKTREE_PATH", worktree_path)
             .stdin(std::process::Stdio::null())
             .output()
             .await
@@ -542,7 +549,8 @@ mod tests {
             command: "echo hello".into(),
             run_on: "create".into(),
         }];
-        let result = run_setup_scripts(dir.path().to_str().unwrap_or_default(), &scripts).await;
+        let path = dir.path().to_str().unwrap_or_default();
+        let result = run_setup_scripts(path, path, &scripts).await;
         assert!(result.is_ok());
         Ok(())
     }
@@ -570,10 +578,34 @@ mod tests {
             command: "touch marker\n&& touch other".into(),
             run_on: "create".into(),
         }];
-        let result = run_setup_scripts(dir.path().to_str().unwrap_or_default(), &scripts).await;
+        let path = dir.path().to_str().unwrap_or_default();
+        let result = run_setup_scripts(path, path, &scripts).await;
         assert!(result.is_ok(), "multiline command should run as single statement: {result:?}");
         assert!(dir.path().join("marker").exists(), "first half of && chain should run");
         assert!(dir.path().join("other").exists(), "second half of && chain should run");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_setup_scripts_exposes_root_and_worktree_paths() -> Result<(), Box<dyn std::error::Error>> {
+        // Multi-repo setup scripts need a stable way to find the main checkout
+        // (e.g. `cp $ALFREDO_ROOT_PATH/.env .env`). Without these env vars they
+        // fall back to fragile `git worktree list` parsing.
+        let repo = tempfile::TempDir::new()?;
+        let worktree = tempfile::TempDir::new()?;
+        let scripts = vec![SetupScript {
+            name: "echo-paths".into(),
+            command: r#"printf '%s\n%s' "$ALFREDO_ROOT_PATH" "$ALFREDO_WORKTREE_PATH" > out.txt"#.into(),
+            run_on: "create".into(),
+        }];
+        let repo_path = repo.path().to_str().unwrap_or_default();
+        let worktree_path = worktree.path().to_str().unwrap_or_default();
+        run_setup_scripts(repo_path, worktree_path, &scripts).await?;
+
+        let out = tokio::fs::read_to_string(worktree.path().join("out.txt")).await?;
+        let mut lines = out.lines();
+        assert_eq!(lines.next(), Some(repo_path));
+        assert_eq!(lines.next(), Some(worktree_path));
         Ok(())
     }
 

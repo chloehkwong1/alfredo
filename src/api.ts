@@ -34,8 +34,9 @@ export function spawnPty(
   sessionType?: SessionType,
   assignedPort?: number,
   portEnvVar?: string,
+  repoPath?: string,
 ): Promise<string> {
-  return invoke("spawn_pty", { worktreeId, worktreePath, mode, args, onData, agentType, sessionType, assignedPort, portEnvVar });
+  return invoke("spawn_pty", { worktreeId, worktreePath, repoPath, mode, args, onData, agentType, sessionType, assignedPort, portEnvVar });
 }
 
 export function writePty(sessionId: string, data: number[]): Promise<void> {
