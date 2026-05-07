@@ -1,0 +1,42 @@
+src-tauri/src/pty_manager.rs
+  s_cf5d808d9adb96::t_390ca2c39ef096 316-319
+  s_cf5d808d9adb96::t_08e94ff460b090 1024-1032
+  s_cf5d808d9adb96::t_9e1a088daa40f6 1412-1428
+  s_b97a3fdfd0f956::t_76113869c34f50 1788-1807,1809-1818,1822-1823,1832-1837,1839-1849,1854-1857,1859-1861,1863-1865
+  s_cf5d808d9adb96::t_ebf07be65b2c43 1866-1917
+  s_cf5d808d9adb96::t_2b37b6e216330b 549
+  s_cf5d808d9adb96::t_79eee7bf2bdf9b 1819-1821,1827,1829-1831,1838,1850-1853
+  s_b97a3fdfd0f956::t_6d54432268ac2d 520-523
+  s_b97a3fdfd0f956::t_198a5f998f006e 853-857,859,866-869,871-876,878-889
+  s_b97a3fdfd0f956::t_92572ab419133f 1858,1862
+  s_b97a3fdfd0f956::t_d0de7e1d6b06bb 541-544,563-564
+  s_b97a3fdfd0f956::t_b2841bbb1d423a 1016-1021
+  s_b97a3fdfd0f956::t_6ccfe30744574f 947-1015,1022-1023,1033-1045
+  s_b97a3fdfd0f956::t_7c02b581c9a1f6 1808
+  s_cf5d808d9adb96::t_140c65cacc8389 545-548,550-562
+  s_cf5d808d9adb96::t_6160b9a8f1631d 1824-1826,1828
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "5904bef6af4377be059c14dfd220ead394849cd2",
+  "prompts": {},
+  "sessions": {
+    "s_b97a3fdfd0f956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d7ed4676-c90c-4ced-afc3-6b92c2811680",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_cf5d808d9adb96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "76e6caad-ebad-49f4-8e0a-1de665ece2e3",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
