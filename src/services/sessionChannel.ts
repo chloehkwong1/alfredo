@@ -259,6 +259,9 @@ export function createSessionChannel(
         // check so reconciler debug logs show the last *accepted* hook.
         session.lastHookAt = Date.now();
         session.hooksActive = true;
+        // Hook channel is alive again — clear any stale-hook notification dedupe
+        // so a future channel death triggers a fresh notification.
+        session.staleHookNotifiedAt = 0;
         // Invariant: depth is updated BEFORE any suppression `break` — depth
         // reflects hook reality, not display reality. This is only safe while
         // every depth-mutating phase is != "none": bare busy(none) is depth-

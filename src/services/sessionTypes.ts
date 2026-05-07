@@ -94,4 +94,9 @@ export interface ManagedSession {
   /** Diagnostic: timestamp of the last [paste-diag] log line, used for rate
    *  limiting so a sustained stall logs at most once per second per session. */
   pasteDiagLastLogAt: number;
+  /** Timestamp at which the reconciler last surfaced a "hook channel silent"
+   *  notification for this session. Reset to 0 when a fresh hook arrives.
+   *  Used to dedupe the debug notification — the reconciler runs every 500ms
+   *  and the stale-hook condition stays true for the entire duration. */
+  staleHookNotifiedAt: number;
 }

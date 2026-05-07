@@ -90,25 +90,33 @@ export class SessionManager implements SessionWriter {
         continue;
       }
 
-      // Force idle when hooks have been silent long enough, even if output
-      // is still flowing. Claude Code's TUI produces output bytes while idle
-      // (status bar redraws, cursor repositioning), which keeps lastOutputAt
-      // fresh and prevents the check above from ever triggering.
+      // Hook channel silent past force threshold while output is still flowing.
+      // We can't tell whether work is genuinely done (TUI status-bar redraws
+      // keep lastOutputAt fresh after idle) or whether claude is busy with a
+      // broken hook channel (e.g. settings.local.json hooks stripped out).
+      // Both possibilities mean "we don't know" — surface that as staleBusy
+      // so the sidebar renders "stale" instead of confidently lying with
+      // "idle". A real idle state will arrive via a fresh hook or via the
+      // soft path once output also goes silent.
       if (
         session.agentState === "busy"
         && session.workDepth === 0
         && session.lastHookAt > 0
         && now - session.lastHookAt > STALE_HOOK_FORCE_MS
       ) {
-        const silentSec = Math.round((now - session.lastHookAt) / 1000);
-        const wt = store.worktrees.find((w) => w.id === worktreeId);
-        const branch = wt?.branch ?? worktreeId;
-        const forceMsg = `[reconcile:${worktreeId}] busy → idle (FORCE: hooks silent ${now - session.lastHookAt}ms, output still flowing, depth=${session.workDepth}, last hook: ${session.lastHookDesc || "?"}, sessionKey=${sessionKey}, sessionId=${session.sessionId})`;
-        console.warn(forceMsg);
-        debugLog(forceMsg).catch(() => {});
-        fireDebugNotification(`${branch}: stuck busy rescued (last hook: ${session.lastHookDesc || "?"}, ${silentSec}s ago)`);
-        session.agentState = "idle";
-        useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
+        const current = store.worktrees.find((w) => w.id === worktreeId);
+        if (current && !current.staleBusy) {
+          useWorkspaceStore.getState().updateWorktree(worktreeId, { staleBusy: true });
+        }
+        if (session.staleHookNotifiedAt === 0) {
+          const silentSec = Math.round((now - session.lastHookAt) / 1000);
+          const branch = current?.branch ?? worktreeId;
+          const forceMsg = `[reconcile:${worktreeId}] busy marked stale (hooks silent ${now - session.lastHookAt}ms, output still flowing, depth=${session.workDepth}, last hook: ${session.lastHookDesc || "?"}, sessionKey=${sessionKey}, sessionId=${session.sessionId})`;
+          console.warn(forceMsg);
+          debugLog(forceMsg).catch(() => {});
+          fireDebugNotification(`${branch}: hook channel silent (last hook: ${session.lastHookDesc || "?"}, ${silentSec}s ago) — status may be stale`);
+          session.staleHookNotifiedAt = now;
+        }
         continue;
       }
 
@@ -212,6 +220,7 @@ export class SessionManager implements SessionWriter {
       workDepth: 0,
       pasteDiagDrainChain: 0,
       pasteDiagLastLogAt: 0,
+      staleHookNotifiedAt: 0,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -356,6 +365,7 @@ export class SessionManager implements SessionWriter {
       workDepth: 0,
       pasteDiagDrainChain: 0,
       pasteDiagLastLogAt: 0,
+      staleHookNotifiedAt: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -507,6 +517,7 @@ export class SessionManager implements SessionWriter {
       workDepth: 0,
       pasteDiagDrainChain: 0,
       pasteDiagLastLogAt: 0,
+      staleHookNotifiedAt: 0,
     };
 
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);

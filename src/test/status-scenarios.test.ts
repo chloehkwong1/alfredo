@@ -155,6 +155,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     workDepth: 0,
     pasteDiagDrainChain: 0,
     pasteDiagLastLogAt: 0,
+    staleHookNotifiedAt: 0,
     ...overrides,
   };
 }
@@ -269,10 +270,12 @@ describe("SessionManager.reconcileAll", () => {
     expect(session.agentState).toBe("busy");
   });
 
-  it("DOES force idle on workDepth == 0 when hooks silent past force threshold (genuinely stuck)", () => {
-    // Hook channel died after a clean turnEnd: workDepth=0, no further
-    // hooks arrive, but TUI output keeps lastOutputAt fresh. The force
-    // path must still rescue — this is the legit "stuck busy" case.
+  it("marks busy as stale (does NOT force idle) when hooks silent past force threshold but output still flowing", () => {
+    // Hook channel may be dead (e.g. settings.local.json hooks stripped) while
+    // Claude is genuinely busy producing output. We can't distinguish "work
+    // done, hooks broken" from "work in flight, hooks broken" — so we keep
+    // agentState=busy and surface the uncertainty via staleBusy. The sidebar
+    // renders this as "stale" rather than the confident lie of "idle".
     const mgr = new SessionManager();
     const session = makeFakeSession({
       agentState: "busy",
@@ -287,7 +290,8 @@ describe("SessionManager.reconcileAll", () => {
 
     (mgr as any).reconcileAll();
 
-    expect(session.agentState).toBe("idle");
+    expect(session.agentState).toBe("busy");
+    expect(useWorkspaceStore.getState().worktrees[0].staleBusy).toBe(true);
   });
 
   it("does NOT flip busy → idle while hooks are still arriving (e.g. during tool use)", () => {
