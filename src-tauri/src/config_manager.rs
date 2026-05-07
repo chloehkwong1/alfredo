@@ -78,6 +78,61 @@ struct ConfigFile {
     pub port_range_end: Option<u16>,
 }
 
+/// Signature of a JSON-double-encoded command: every `"` is preceded by `\`
+/// and there's at least one quote. Mechanical over-encoding hits *every*
+/// quote uniformly, so a single un-escaped `"` rules it out — this avoids
+/// false-positives on legit commands like `bash -c "echo \"hi\""` where
+/// only the inner quotes are escaped.
+fn is_overescaped_command(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    let mut quote_count = 0u32;
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == b'"' {
+            quote_count += 1;
+            if i == 0 || bytes[i - 1] != b'\\' {
+                return false;
+            }
+        }
+    }
+    quote_count > 0
+}
+
+/// Detect script commands corrupted with a stray `\` before every `"` —
+/// historical bug or hand-edit that JSON-escaped quotes a second time. A
+/// command typed into the textarea cannot reach the personal config with
+/// these sequences, so finding any means the personal layer is broken.
+///
+/// Null out the affected field rather than guessing which `\` characters
+/// were intentional; on the next load the value falls back to upstream
+/// `alfredo.json`. Returns true if anything was healed (caller persists).
+fn heal_overescaped_scripts(config: &mut AppConfig, repo_path: &str) -> bool {
+    let mut healed = false;
+
+    if let Some(scripts) = &config.setup_scripts {
+        if scripts.iter().any(|s| is_overescaped_command(&s.command)) {
+            eprintln!("[config_manager] healed over-escaped setup_scripts for {repo_path}");
+            config.setup_scripts = None;
+            healed = true;
+        }
+    }
+    if let Some(rs) = &config.run_script {
+        if is_overescaped_command(&rs.command) {
+            eprintln!("[config_manager] healed over-escaped run_script for {repo_path}");
+            config.run_script = None;
+            healed = true;
+        }
+    }
+    if let Some(s) = &config.archive_script {
+        if is_overescaped_command(s) {
+            eprintln!("[config_manager] healed over-escaped archive_script for {repo_path}");
+            config.archive_script = None;
+            healed = true;
+        }
+    }
+
+    healed
+}
+
 /// Coerce values that match the type default to `None` so they cleanly
 /// inherit from `alfredo.json`. This runs on every load — the on-disk shape
 /// pre-`alfredo.json` may have stored type-default values like `[]` or `0`
@@ -192,6 +247,9 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
         port_range_end: file.port_range_end,
     };
     coerce_repo_shared_defaults(&mut config);
+    if heal_overescaped_scripts(&mut config, repo_path) {
+        needs_resave = true;
+    }
 
     if is_migration || needs_resave {
         // Write to new location.
@@ -667,6 +725,101 @@ mod tests {
         assert!(config.port_env_var.is_none());
         assert!(config.port_range_start.is_none());
         assert!(config.port_range_end.is_none());
+    }
+
+    #[tokio::test]
+    async fn load_heals_overescaped_personal_scripts() -> Result<(), Box<dyn std::error::Error>> {
+        // A historical bug or hand-edit can leave the personal config with
+        // `\"` sequences in script commands, which the shell then passes
+        // verbatim (e.g. `cp "/path/.env" .env` with literal quotes around
+        // the filename). Once present, the broken value silently shadows
+        // upstream `alfredo.json` because precedence checks `is_none()`,
+        // not validity. Loading must null out any such field and persist
+        // the cleaned state.
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        let personal_dir = repo_data_dir(app_data.path(), repo_path);
+        tokio::fs::create_dir_all(&personal_dir).await?;
+        let raw = r#"{
+            "setupScripts": [{
+              "name": "Setup",
+              "command": "cp \\\"$ALFREDO_ROOT_PATH/.env\\\" .env",
+              "runOn": "create"
+            }],
+            "runScript": { "name": "Run", "command": "echo \\\"hi\\\"" },
+            "archiveScript": "rm \\\"./build\\\"",
+            "branchMode": false
+        }"#;
+        tokio::fs::write(personal_dir.join("config.json"), raw).await?;
+
+        let loaded = load_personal_config(app_data.path(), repo_path).await?;
+        assert!(loaded.setup_scripts.is_none(), "broken setup_scripts should be nulled");
+        assert!(loaded.run_script.is_none(), "broken run_script should be nulled");
+        assert!(loaded.archive_script.is_none(), "broken archive_script should be nulled");
+
+        // Persistence: a second load must not re-detect the corruption,
+        // proving the cleaned state was actually written to disk.
+        let reloaded = load_personal_config(app_data.path(), repo_path).await?;
+        assert!(reloaded.setup_scripts.is_none());
+        assert!(reloaded.run_script.is_none());
+        assert!(reloaded.archive_script.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_preserves_legitimate_escaped_inner_quotes() -> Result<(), Box<dyn std::error::Error>> {
+        // `bash -c "echo \"hi\""` is a legit shell idiom: outer quotes
+        // are bare `"`, inner quotes are `\"`. Heuristic must not trigger
+        // since not *every* quote is escaped.
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        let personal_dir = repo_data_dir(app_data.path(), repo_path);
+        tokio::fs::create_dir_all(&personal_dir).await?;
+        let raw = r#"{
+            "setupScripts": [{
+              "name": "Setup",
+              "command": "bash -c \"echo \\\"hi\\\"\"",
+              "runOn": "create"
+            }],
+            "branchMode": false
+        }"#;
+        tokio::fs::write(personal_dir.join("config.json"), raw).await?;
+
+        let loaded = load_personal_config(app_data.path(), repo_path).await?;
+        let cmd = &loaded.setup_scripts.as_ref().expect("present")[0].command;
+        assert_eq!(cmd, r#"bash -c "echo \"hi\"""#);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_preserves_legitimate_quoted_scripts() -> Result<(), Box<dyn std::error::Error>> {
+        // The textarea writes raw user keystrokes; serde_json adds the JSON
+        // escape so the on-disk form is `\"` (one backslash + quote). After
+        // parsing it's just `"`. Healing must NOT trigger on these.
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        let personal_dir = repo_data_dir(app_data.path(), repo_path);
+        tokio::fs::create_dir_all(&personal_dir).await?;
+        let raw = r#"{
+            "setupScripts": [{
+              "name": "Setup",
+              "command": "cp \"$ALFREDO_ROOT_PATH/.env\" .env",
+              "runOn": "create"
+            }],
+            "branchMode": false
+        }"#;
+        tokio::fs::write(personal_dir.join("config.json"), raw).await?;
+
+        let loaded = load_personal_config(app_data.path(), repo_path).await?;
+        let cmd = &loaded.setup_scripts.as_ref().expect("present")[0].command;
+        assert_eq!(cmd, r#"cp "$ALFREDO_ROOT_PATH/.env" .env"#);
+        Ok(())
     }
 
     #[tokio::test]
