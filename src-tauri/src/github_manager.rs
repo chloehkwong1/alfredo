@@ -1000,11 +1000,42 @@ pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), App
     Ok(parsed)
 }
 
+/// Whether `user` has a still-active approving review on this PR.
+///
+/// Looks at the user's most recent *decisive* review — one of "approved",
+/// "changes_requested", or "dismissed". "commented" and "pending" entries
+/// are ignored because GitHub does not treat them as superseding a prior
+/// approval (e.g. leaving a "ship it!" comment after approving keeps the
+/// approval valid).
+///
+/// Pass the raw, un-deduplicated review list so the most-recent-decisive
+/// review can be identified even when a later non-decisive review exists.
+fn user_has_active_approval(reviews: &[PrReview], user: &str) -> bool {
+    reviews
+        .iter()
+        .filter(|r| r.reviewer.eq_ignore_ascii_case(user))
+        .filter(|r| matches!(r.state.as_str(), "approved" | "changes_requested" | "dismissed"))
+        .max_by(|a, b| a.submitted_at.cmp(&b.submitted_at))
+        .is_some_and(|r| r.state == "approved")
+}
+
 /// Determine the kanban column for a worktree based on its PR status.
 ///
 /// When `github_username` is provided, open (non-draft) PRs are split into
 /// "In Review" (user is the author) vs "Needs Review" (someone else's PR).
-pub fn determine_column(pr: Option<&PrStatus>, github_username: Option<&str>) -> KanbanColumn {
+/// Others' PRs where the user has an active approving review (per
+/// [`user_has_active_approval`]) and has not been re-requested resolve to
+/// "Done".
+///
+/// `reviews` should be the raw review list (not pre-deduplicated) so the
+/// most-recent-decisive review can be identified. When called before reviews
+/// have loaded, pass `&[]` — the column is then recomputed once review data
+/// is available.
+pub fn determine_column(
+    pr: Option<&PrStatus>,
+    github_username: Option<&str>,
+    reviews: &[PrReview],
+) -> KanbanColumn {
     match pr {
         None => KanbanColumn::InProgress,
         Some(pr) if pr.merged => KanbanColumn::Done,
@@ -1016,10 +1047,18 @@ pub fn determine_column(pr: Option<&PrStatus>, github_username: Option<&str>) ->
                 _ => true, // default to "own PR" if we can't tell
             };
             if is_own_pr {
-                KanbanColumn::OpenPr
-            } else {
-                KanbanColumn::NeedsReview
+                return KanbanColumn::OpenPr;
             }
+            if let Some(user) = github_username {
+                let re_requested = pr
+                    .requested_reviewers
+                    .iter()
+                    .any(|r| r.eq_ignore_ascii_case(user));
+                if user_has_active_approval(reviews, user) && !re_requested {
+                    return KanbanColumn::Done;
+                }
+            }
+            KanbanColumn::NeedsReview
         }
     }
 }
@@ -1053,7 +1092,7 @@ mod tests {
 
     #[test]
     fn test_determine_column_no_pr() {
-        assert_eq!(determine_column(None, None), KanbanColumn::InProgress);
+        assert_eq!(determine_column(None, None, &[]), KanbanColumn::InProgress);
     }
 
     #[test]
@@ -1075,7 +1114,7 @@ mod tests {
             author: Some("chloe".into()),
             requested_reviewers: vec![],
         };
-        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::DraftPr);
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::DraftPr);
     }
 
     #[test]
@@ -1097,7 +1136,7 @@ mod tests {
             author: Some("chloe".into()),
             requested_reviewers: vec![],
         };
-        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::OpenPr);
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::OpenPr);
     }
 
     #[test]
@@ -1119,7 +1158,7 @@ mod tests {
             author: Some("teammate".into()),
             requested_reviewers: vec![],
         };
-        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::NeedsReview);
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::NeedsReview);
     }
 
     #[test]
@@ -1141,7 +1180,7 @@ mod tests {
             author: Some("anyone".into()),
             requested_reviewers: vec![],
         };
-        assert_eq!(determine_column(Some(&pr), None), KanbanColumn::OpenPr);
+        assert_eq!(determine_column(Some(&pr), None, &[]), KanbanColumn::OpenPr);
     }
 
     #[test]
@@ -1163,7 +1202,7 @@ mod tests {
             author: Some("chloe".into()),
             requested_reviewers: vec![],
         };
-        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::Done);
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::Done);
     }
 
     #[test]
@@ -1185,7 +1224,227 @@ mod tests {
             author: Some("chloe".into()),
             requested_reviewers: vec![],
         };
-        assert_eq!(determine_column(Some(&pr), Some("chloe")), KanbanColumn::Done);
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::Done);
+    }
+
+    #[test]
+    fn test_determine_column_others_pr_i_approved() {
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec![], // GitHub auto-removes me after I review
+        };
+        let reviews = vec![PrReview {
+            reviewer: "chloe".into(),
+            state: "approved".into(),
+            submitted_at: Some("2026-05-07T10:00:00Z".into()),
+            body: None,
+        }];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
+    }
+
+    #[test]
+    fn test_determine_column_others_pr_i_approved_then_re_requested() {
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec!["chloe".into()],
+        };
+        let reviews = vec![PrReview {
+            reviewer: "chloe".into(),
+            state: "approved".into(),
+            submitted_at: Some("2026-05-07T10:00:00Z".into()),
+            body: None,
+        }];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
+    }
+
+    #[test]
+    fn test_determine_column_others_pr_i_requested_changes() {
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec![],
+        };
+        let reviews = vec![PrReview {
+            reviewer: "chloe".into(),
+            state: "changes_requested".into(),
+            submitted_at: Some("2026-05-07T10:00:00Z".into()),
+            body: None,
+        }];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
+    }
+
+    #[test]
+    fn test_determine_column_others_pr_approved_then_commented() {
+        // Common UX case: user approves, then leaves a follow-up "ship it!"
+        // comment-only review. GitHub still considers the approval valid, so
+        // the PR should stay in Done.
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec![],
+        };
+        let reviews = vec![
+            PrReview {
+                reviewer: "chloe".into(),
+                state: "approved".into(),
+                submitted_at: Some("2026-05-07T10:00:00Z".into()),
+                body: None,
+            },
+            PrReview {
+                reviewer: "chloe".into(),
+                state: "commented".into(),
+                submitted_at: Some("2026-05-07T11:00:00Z".into()),
+                body: None,
+            },
+        ];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
+    }
+
+    #[test]
+    fn test_determine_column_others_pr_approved_then_dismissed() {
+        // If the user's approval is later dismissed, the PR should fall back
+        // to Needs Review.
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec![],
+        };
+        let reviews = vec![
+            PrReview {
+                reviewer: "chloe".into(),
+                state: "approved".into(),
+                submitted_at: Some("2026-05-07T10:00:00Z".into()),
+                body: None,
+            },
+            PrReview {
+                reviewer: "chloe".into(),
+                state: "dismissed".into(),
+                submitted_at: Some("2026-05-07T12:00:00Z".into()),
+                body: None,
+            },
+        ];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
+    }
+
+    #[test]
+    fn test_determine_column_own_pr_with_self_approval() {
+        // Author + approver short-circuit: own PRs always resolve to OpenPr,
+        // never Done, even if the user somehow has an approving review on
+        // their own PR (locks in the branch ordering in determine_column).
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("chloe".into()),
+            requested_reviewers: vec![],
+        };
+        let reviews = vec![PrReview {
+            reviewer: "chloe".into(),
+            state: "approved".into(),
+            submitted_at: Some("2026-05-07T10:00:00Z".into()),
+            body: None,
+        }];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::OpenPr);
+    }
+
+    #[test]
+    fn test_determine_column_others_pr_someone_else_approved() {
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec![],
+        };
+        let reviews = vec![PrReview {
+            reviewer: "alice".into(),
+            state: "approved".into(),
+            submitted_at: Some("2026-05-07T10:00:00Z".into()),
+            body: None,
+        }];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
     }
 
     // --- dedup_reviews tests ---

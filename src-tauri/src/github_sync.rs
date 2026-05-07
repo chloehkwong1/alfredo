@@ -6,7 +6,7 @@ use tokio::time;
 use crate::config_manager;
 use crate::github_manager::{dedup_reviews, derive_review_decision, determine_column, GithubManager};
 use crate::platform::gh_command;
-use crate::types::{PrStatus, CheckRun, PrReview, PrComment};
+use crate::types::{PrStatus, CheckRun, PrReview, PrComment, KanbanColumn};
 
 /// Window during which a just-merged PR is still worth enriching (reviews, checks,
 /// comments). Covers the common case of a cubic/human reviewer leaving a comment
@@ -103,9 +103,25 @@ pub struct PrStatusWithColumn {
     pub base_branch: Option<String>,
 }
 
+/// Serialize a `KanbanColumn` to its camelCase string form (e.g. "needsReview").
+/// Falls back to "inProgress" if serialization somehow fails — this matches the
+/// pre-existing default and is unreachable in practice for a unit enum.
+fn column_to_string(column: &KanbanColumn) -> String {
+    serde_json::to_value(column)
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "inProgress".to_string())
+}
+
 impl PrStatusWithColumn {
     fn from_pr(pr: &PrStatus, repo_path: &str, github_username: Option<&str>) -> Self {
-        let column = determine_column(Some(pr), github_username);
+        // Initial column is computed without review data — recomputed in
+        // poll_repo only for PRs that pass `should_enrich` AND have an active
+        // worktree. PRs the user has approved will start as "Needs Review"
+        // and flip to "Done" after the reviews fetch; PRs without an active
+        // worktree never get the recompute (acceptable today since those
+        // never surface as cards, but worth knowing if that ever changes).
+        let column = determine_column(Some(pr), github_username, &[]);
         Self {
             number: pr.number,
             state: pr.state.clone(),
@@ -114,10 +130,7 @@ impl PrStatusWithColumn {
             draft: pr.draft,
             merged: pr.merged,
             branch: pr.branch.clone(),
-            auto_column: serde_json::to_value(&column)
-                .ok()
-                .and_then(|v| v.as_str().map(String::from))
-                .unwrap_or_else(|| "inProgress".to_string()),
+            auto_column: column_to_string(&column),
             merged_at: pr.merged_at.clone(),
             head_sha: pr.head_sha.clone(),
             body: pr.body.clone(),
@@ -430,7 +443,7 @@ async fn poll_repo(
     // Only enrich PRs that have active worktrees — no point fetching details
     // for PRs the user isn't looking at. This keeps API usage proportional to
     // the number of worktrees (typically 2-5), not the total open PRs (can be 80+).
-    for pr_with_col in payload_prs.iter_mut() {
+    for (pr, pr_with_col) in prs.iter().zip(payload_prs.iter_mut()) {
         if !should_enrich(pr_with_col) {
             continue;
         }
@@ -457,6 +470,13 @@ async fn poll_repo(
         }
 
         if let Ok(reviews) = reviews_result {
+            // Recompute auto_column with the raw review list — others' PRs
+            // the user has approved (and isn't re-requested on) flip to Done.
+            // determine_column needs raw (un-deduped) reviews so it can find
+            // the most-recent-decisive review by the user even when a later
+            // non-decisive review (e.g. "commented") exists.
+            let updated = determine_column(Some(pr), github_username.as_deref(), &reviews);
+            pr_with_col.auto_column = column_to_string(&updated);
             let deduped = dedup_reviews(reviews);
             pr_with_col.review_decision = derive_review_decision(&deduped, &pr_with_col.requested_reviewers);
             pr_with_col.reviews = deduped;
