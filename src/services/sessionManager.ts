@@ -229,13 +229,21 @@ export class SessionManager implements SessionWriter {
     let assignedPort: number | undefined;
     let portEnvVar: string | undefined;
     if (worktree?.repoPath) {
-      const repoConfig = await getConfig(worktree.repoPath);
-      if (repoConfig.autoAssignPorts) {
-        const persisted = await getAssignedWorktreePort(worktree.repoPath, worktreeId);
-        if (persisted) {
-          assignedPort = persisted;
-          portEnvVar = repoConfig.portEnvVar ?? undefined;
+      // Port-assignment is non-essential. A malformed alfredo.json or any
+      // other config-read failure must not block the PTY spawn — the user
+      // still needs a working terminal. The error surfaces separately in
+      // Repository Settings, which calls getConfig directly.
+      try {
+        const repoConfig = await getConfig(worktree.repoPath);
+        if (repoConfig.autoAssignPorts) {
+          const persisted = await getAssignedWorktreePort(worktree.repoPath, worktreeId);
+          if (persisted) {
+            assignedPort = persisted;
+            portEnvVar = repoConfig.portEnvVar ?? undefined;
+          }
         }
+      } catch (err) {
+        console.error(`[sessionManager] port lookup failed for ${worktree.repoPath} — spawning without auto-assigned port:`, err);
       }
     }
 
@@ -251,6 +259,7 @@ export class SessionManager implements SessionWriter {
         sessionType,
         assignedPort,
         portEnvVar,
+        worktree?.repoPath,
       );
     } catch (err) {
       // Spawn failed — remove session from map to prevent zombie
@@ -381,13 +390,18 @@ export class SessionManager implements SessionWriter {
     let assignedPort: number | undefined;
     let portEnvVar: string | undefined;
     if (wt?.repoPath) {
-      const repoConfig = await getConfig(wt.repoPath);
-      if (repoConfig.autoAssignPorts) {
-        const persisted = await getAssignedWorktreePort(wt.repoPath, worktreeId);
-        if (persisted) {
-          assignedPort = persisted;
-          portEnvVar = repoConfig.portEnvVar ?? undefined;
+      // See getOrSpawn — port lookup is non-essential, must not block spawn.
+      try {
+        const repoConfig = await getConfig(wt.repoPath);
+        if (repoConfig.autoAssignPorts) {
+          const persisted = await getAssignedWorktreePort(wt.repoPath, worktreeId);
+          if (persisted) {
+            assignedPort = persisted;
+            portEnvVar = repoConfig.portEnvVar ?? undefined;
+          }
         }
+      } catch (err) {
+        console.error(`[sessionManager] port lookup failed for ${wt.repoPath} — spawning without auto-assigned port:`, err);
       }
     }
 
@@ -403,6 +417,7 @@ export class SessionManager implements SessionWriter {
         sessionType,
         assignedPort,
         portEnvVar,
+        wt?.repoPath,
       );
     } catch (e) {
       // Spawn failed — remove session so it doesn't get stuck as scrollback-only

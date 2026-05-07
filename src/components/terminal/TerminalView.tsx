@@ -105,14 +105,18 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         config.worktreeOverrides?.[branch],
       );
       const args = buildClaudeArgs(resolved);
-      // Append --resume for the initial spawn if we have a saved session ID
       if (!hasSpawnedRef.current && claudeSessionId) {
         args.push("--resume", claudeSessionId);
       }
       hasSpawnedRef.current = true;
       setResolvedArgs(args);
-    }).catch(() => {
+    }).catch((err) => {
       if (aborted) return;
+      // Don't block the spawn on settings resolution: fall through with no
+      // CLI flags so the user can still get a working terminal — the most
+      // common cause is a malformed alfredo.json, which surfaces separately
+      // when the user opens Repository Settings.
+      console.error(`[TerminalView] settings resolution failed for ${repoPath}:`, err);
       hasSpawnedRef.current = true;
       setResolvedArgs([]);
     });
@@ -445,7 +449,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         {isAgentTab && (
           <TerminalLoadingScreen
             tabType={tabType}
-            visible={!hasOutput}
+            visible={!hasOutput && channelAlive}
             typedPreview={pendingInput}
           />
         )}
