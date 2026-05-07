@@ -1,0 +1,19 @@
+docs/features/whats-new.md
+  s_3c5bceffce138b::t_d21eb003134bf9 10-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "7115f5ecd3489d8ae9122a2aab63a55d4dfff130",
+  "prompts": {},
+  "sessions": {
+    "s_3c5bceffce138b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "39e11abb-4847-4e86-9258-7f4f981be641",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
