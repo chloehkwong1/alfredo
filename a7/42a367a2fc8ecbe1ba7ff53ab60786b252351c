@@ -1,0 +1,27 @@
+src/services/sessionTypes.ts
+  s_b97a3fdfd0f956::t_deec67bba81eb8 97-101
+src/services/sessionChannel.ts
+  s_b97a3fdfd0f956::t_e1598233106c0f 262-264
+src/test/status-scenarios.test.ts
+  s_b97a3fdfd0f956::t_e98b7e17d46cb8 158
+  s_b97a3fdfd0f956::t_f48b77796bc429 273-278,293-294
+src/services/sessionManager.ts
+  s_b97a3fdfd0f956::t_68d5c927cdbdca 223,368,520
+  s_b97a3fdfd0f956::t_c96ae325aa8773 93-100,107-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "a742a367a2fc8ecbe1ba7ff53ab60786b252351c",
+  "prompts": {},
+  "sessions": {
+    "s_b97a3fdfd0f956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d7ed4676-c90c-4ced-afc3-6b92c2811680",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
