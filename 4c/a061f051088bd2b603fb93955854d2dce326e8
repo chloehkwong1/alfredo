@@ -1,0 +1,39 @@
+src-tauri/src/config_manager.rs
+  s_b7566671d8d9fb::t_da4a22b484d7e7 552
+  s_b7566671d8d9fb::t_f6c407a789908c 581-582,589-607
+  s_b7566671d8d9fb::t_7d42490c40f83c 423-426,428,442
+src/api.ts
+  s_b7566671d8d9fb::t_90e4fca3f67706 37,39
+src-tauri/src/commands/worktree.rs
+  s_b7566671d8d9fb::t_7fb24f6085a4ab 112
+src-tauri/src/commands/config.rs
+  s_b7566671d8d9fb::t_10964f8a6743d0 65
+  s_b7566671d8d9fb::t_069450328f7264 122
+src-tauri/src/pty_manager.rs
+  s_b7566671d8d9fb::t_6d91a2ec461d6f 264
+  s_b7566671d8d9fb::t_6d46f93e98710e 1485
+  s_b7566671d8d9fb::t_8f239873d9af10 212-215
+  s_b7566671d8d9fb::t_060e43bc84c529 1408
+  s_b7566671d8d9fb::t_82bb379f8f41bb 300-308
+src-tauri/src/commands/pty.rs
+  s_b7566671d8d9fb::t_0b949706c017e8 52
+  s_b7566671d8d9fb::t_873321fb0bbcbf 25
+docs/features/environment-and-shell.md
+  s_b7566671d8d9fb::t_4e4eed11b441df 27-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "4ca061f051088bd2b603fb93955854d2dce326e8",
+  "prompts": {},
+  "sessions": {
+    "s_b7566671d8d9fb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d92ef026-5447-4656-8ce6-6d6d27db9a70",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
