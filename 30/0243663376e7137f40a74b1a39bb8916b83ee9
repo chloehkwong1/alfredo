@@ -1,0 +1,35 @@
+src-tauri/src/github_sync.rs
+  s_9fc6c5d9f0b080::t_8a50307549858a 106-115,124
+  s_9fc6c5d9f0b080::t_969aafbf8d9535 446
+  s_9fc6c5d9f0b080::t_6630da71943c62 133
+  s_9fc6c5d9f0b080::t_b50a7b09e9018c 118-123
+  s_9fc6c5d9f0b080::t_4442429d01f808 473-479
+  s_9fc6c5d9f0b080::t_d8d683bd6ee86e 9
+src-tauri/src/github_manager.rs
+  s_9fc6c5d9f0b080::t_b6a93d021e0db7 1117
+  s_9fc6c5d9f0b080::t_4534d1092426d2 1161
+  s_9fc6c5d9f0b080::t_249ddb840371f2 1095
+  s_9fc6c5d9f0b080::t_9522a432e962f8 1205
+  s_9fc6c5d9f0b080::t_15346bad23d177 1029,1034-1038,1050,1052-1056,1058-1061
+  s_9fc6c5d9f0b080::t_6457afe969e714 1315-1422
+  s_9fc6c5d9f0b080::t_740763f5563dca 1227-1314,1423-1447
+  s_9fc6c5d9f0b080::t_a65a030ed891aa 1183
+  s_9fc6c5d9f0b080::t_49e70a6d0c105d 1139
+  s_9fc6c5d9f0b080::t_e5565070137814 1003-1021,1026-1028,1030-1033,1057
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "300243663376e7137f40a74b1a39bb8916b83ee9",
+  "prompts": {},
+  "sessions": {
+    "s_9fc6c5d9f0b080": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc77ad4c-9297-4e24-9080-e85a24921d39",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
