@@ -13,13 +13,41 @@ use crate::types::{PrStatus, CheckRun, PrReview, PrComment};
 /// moments before or after merge without burning API budget on stale merged PRs.
 const RECENTLY_MERGED_WINDOW_HOURS: i64 = 24;
 
+/// Window during which a closed-not-merged PR is still worth enriching.
+/// PrStatus has no `closed_at`, so we use `updated_at` as a proxy: closing a
+/// PR bumps `updated_at` on GitHub's side. Subsequent comments would also
+/// bump `updated_at`, so this window is "time since last activity, not
+/// necessarily time since close" — slightly generous, intentionally so.
+const RECENTLY_CLOSED_WINDOW_HOURS: i64 = 24;
+
+fn is_within_window(timestamp: Option<&str>, window_hours: i64) -> bool {
+    let Some(raw) = timestamp else { return false; };
+    let Ok(ts) = chrono::DateTime::parse_from_rfc3339(raw) else { return false; };
+    let age = chrono::Utc::now().signed_duration_since(ts.with_timezone(&chrono::Utc));
+    age.num_hours() < window_hours
+}
+
 /// Whether a PR was merged within the recent-enrichment window.
 /// Treats unparseable timestamps as "not recent" (safer — we stop polling).
 fn is_recently_merged(merged_at: Option<&str>) -> bool {
-    let Some(raw) = merged_at else { return false; };
-    let Ok(ts) = chrono::DateTime::parse_from_rfc3339(raw) else { return false; };
-    let age = chrono::Utc::now().signed_duration_since(ts.with_timezone(&chrono::Utc));
-    age.num_hours() < RECENTLY_MERGED_WINDOW_HOURS
+    is_within_window(merged_at, RECENTLY_MERGED_WINDOW_HOURS)
+}
+
+/// Whether enrichment (mergeable/reviews/checks/comments) should still run
+/// for this PR. Open PRs always qualify; merged and closed-not-merged PRs
+/// only qualify within their respective recency windows. Worktrees still
+/// reference closed/merged PRs until the user archives them, so without
+/// this gate every active worktree fans out 6+ REST calls per minute even
+/// for PRs that haven't moved in months.
+fn should_enrich(pr: &PrStatusWithColumn) -> bool {
+    if pr.state != "closed" {
+        return true;
+    }
+    if pr.merged {
+        is_recently_merged(pr.merged_at.as_deref())
+    } else {
+        is_within_window(pr.updated_at.as_deref(), RECENTLY_CLOSED_WINDOW_HOURS)
+    }
 }
 
 /// Payload emitted on the `github:pr-update` Tauri event.
@@ -403,7 +431,7 @@ async fn poll_repo(
     // for PRs the user isn't looking at. This keeps API usage proportional to
     // the number of worktrees (typically 2-5), not the total open PRs (can be 80+).
     for pr_with_col in payload_prs.iter_mut() {
-        if pr_with_col.merged && !is_recently_merged(pr_with_col.merged_at.as_deref()) {
+        if !should_enrich(pr_with_col) {
             continue;
         }
         if !active_branches.contains(&pr_with_col.branch) {
@@ -475,7 +503,7 @@ async fn enrich_repo_with_comments(
         .enumerate()
         .filter(|(_, pr)| {
             pr.repo_path == repo_path
-                && (!pr.merged || is_recently_merged(pr.merged_at.as_deref()))
+                && should_enrich(pr)
                 && active_branches.contains(&pr.branch)
         })
         .map(|(i, pr)| (i, pr.number))
