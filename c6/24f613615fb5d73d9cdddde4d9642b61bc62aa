@@ -1,0 +1,45 @@
+src/components/onboarding/RepoSetupDialog.tsx
+  s_ba289b09bb4815::t_d4e73c11ccbcce 4-14
+  s_ba289b09bb4815::t_a348b85ad5f2d9 787-795,798-799,807-815,818-819,827-835,838-839
+  s_ba289b09bb4815::t_25c05bd50c102d 411
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_60db043f64848e::t_aa625e862fd407 2-29,35,37-43,51-52,54-57,59-65,83,85-157,161-163,165-167,172-310,338,353-356,358-360,362,372,377,385,433-472,590-617,620-637,640,642-656,658-664,666-668,670,673-674,711-712,722-723,741-742,756,772-773,788,801-813,821-826,828-838,841-857,859-885,887-901,903-1002,1004-1005,1010-1076
+  s_977c74ef2c4bf3::t_0329a602d34acb 404-410,414,425
+  s_977c74ef2c4bf3::t_8742b65cd84a3a 411-413,415-424,426
+  s_ba289b09bb4815::t_4b0488d84e7235 669
+src/components/ui/RepoDropdown.tsx
+  s_60db043f64848e::t_03a39b1099caa1 23-24
+  s_60db043f64848e::t_9a4216dd834701 45,49-52,54,57,59,62,65,68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "c624f613615fb5d73d9cdddde4d9642b61bc62aa",
+  "prompts": {},
+  "sessions": {
+    "s_60db043f64848e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a1e90ae6-9c26-41a4-9624-02325aba4907",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_977c74ef2c4bf3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1c42a90-a5c5-4dc9-a07e-3e818c5df273",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_ba289b09bb4815": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c0372a2-1902-4a99-bca8-62cd41fe9412",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
