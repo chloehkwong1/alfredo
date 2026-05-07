@@ -313,6 +313,10 @@ impl PtyManager {
             cmd.env("ALFREDO_PORT", port.to_string());
         }
 
+        // Capture before agent_type is moved into the reader thread closure
+        // — used post-spawn to gate the protective sidecar write.
+        let is_claude = matches!(agent_type, AgentType::ClaudeCode);
+
         // Set env vars for hook callbacks and write hooks config
         if let Some(port) = state_server_port {
             let base_url = format!("http://127.0.0.1:{port}");
@@ -513,6 +517,10 @@ impl PtyManager {
             // Remove the session's pid file (best-effort; stale files are harmless
             // because the pid they reference is gone from the host process table).
             let _ = std::fs::remove_file(format!("/tmp/alfredo-claude-{reader_session_id}.pid"));
+            // Sidecar containing the canonical settings.local.json path —
+            // consulted by cleanup_stale_hooks_in_paths / cleanup_all_hooks
+            // to skip stripping hooks against this file while we're alive.
+            let _ = std::fs::remove_file(format!("/tmp/alfredo-claude-{reader_session_id}.worktree"));
         });
 
         // Capture shell PID before `child` gets moved into PtySession — only
@@ -529,6 +537,30 @@ impl PtyManager {
             let pid_path = format!("/tmp/alfredo-claude-{session_id}.pid");
             if let Err(e) = std::fs::write(&pid_path, pid.to_string()) {
                 eprintln!("[pty] failed to write pid file {pid_path}: {e}");
+            }
+            // Sidecar: canonical path of this session's claude settings file.
+            // Read at boot/exit cleanup to avoid stripping hooks from a file
+            // a still-live alfredo session is using (multi-instance + symlinked
+            // settings.local.json case — see cleanup_stale_hooks_in_paths).
+            // Only meaningful for sessions that wrote Claude hooks — gating by
+            // agent_type+state_server_port mirrors the write_hooks_config call
+            // above so we don't write protective sidecars for files we never
+            // touched.
+            if is_claude && state_server_port.is_some() {
+                // Canonicalize the parent dir and append the filename rather
+                // than canonicalizing the full path. write_hooks_config runs
+                // synchronously before spawn so the file should exist, but if
+                // its disk write was deferred or transiently failed, parent-dir
+                // resolution still produces a usable canonical path. The dir
+                // itself is created by write_hooks_config via create_dir_all.
+                let claude_dir = std::path::Path::new(&worktree_path).join(".claude");
+                if let Ok(canonical_dir) = std::fs::canonicalize(&claude_dir) {
+                    let canonical = canonical_dir.join("settings.local.json");
+                    let sidecar_path = format!("/tmp/alfredo-claude-{session_id}.worktree");
+                    if let Err(e) = std::fs::write(&sidecar_path, canonical.to_string_lossy().as_ref()) {
+                        eprintln!("[pty] failed to write worktree sidecar {sidecar_path}: {e}");
+                    }
+                }
             }
         }
 
@@ -818,34 +850,43 @@ impl PtyManager {
 
         drop(sessions);
 
+        // Other alfredo instances may also have live sessions against
+        // settings files we share via symlink. Skip stripping those even
+        // on exit — our shutdown shouldn't break their hook channel.
+        let protected = paths_with_active_alfredo_sessions_excluding(&self.own_session_ids());
+
         for path in paths {
-            if let Err(e) = remove_hooks_config(&path) {
-                eprintln!("[alfredo] failed to clean claude hooks for {path}: {e}");
-            }
-            if let Err(e) = remove_gemini_hooks_config(&path) {
-                eprintln!("[alfredo] failed to clean gemini hooks for {path}: {e}");
-            }
-            if let Err(e) = remove_codex_hooks_config(&path) {
-                eprintln!("[alfredo] failed to clean codex hooks for {path}: {e}");
-            }
+            cleanup_hooks_for_path(&path, &protected, "exit");
         }
     }
 
     /// Remove stale Alfredo hooks left behind by a previous run that didn't
     /// shut down cleanly. Walks the given worktree paths and strips any
     /// Alfredo-written hook entries. User-defined hooks are left intact.
+    /// Settings files whose pidfile sidecar resolves to an alive session
+    /// (this manager's or any sibling alfredo instance's) are skipped —
+    /// otherwise multi-instance + symlinked-settings setups silently
+    /// lobotomise live hook channels at boot.
     pub fn cleanup_stale_hooks_in_paths(&self, paths: &[String]) {
-        eprintln!("[hooks] startup cleanup: {} path(s)", paths.len());
+        let protected = paths_with_active_alfredo_sessions_excluding(&self.own_session_ids());
+        eprintln!(
+            "[hooks] startup cleanup: {} path(s), {} protected",
+            paths.len(),
+            protected.len(),
+        );
         for path in paths {
-            if let Err(e) = remove_hooks_config(path) {
-                eprintln!("[alfredo] startup-cleanup claude hooks failed for {path}: {e}");
-            }
-            if let Err(e) = remove_gemini_hooks_config(path) {
-                eprintln!("[alfredo] startup-cleanup gemini hooks failed for {path}: {e}");
-            }
-            if let Err(e) = remove_codex_hooks_config(path) {
-                eprintln!("[alfredo] startup-cleanup codex hooks failed for {path}: {e}");
-            }
+            cleanup_hooks_for_path(path, &protected, "startup-cleanup");
+        }
+    }
+
+    /// Returns the session ids currently tracked by this manager. Used to
+    /// exclude our own pidfiles from the "alive sibling" protected set —
+    /// at exit cleanup we want our own files stripped, only neighbour
+    /// alfredo instances' live hooks should be preserved.
+    fn own_session_ids(&self) -> std::collections::HashSet<String> {
+        match self.sessions.read() {
+            Ok(s) => s.keys().cloned().collect(),
+            Err(_) => std::collections::HashSet::new(),
         }
     }
 
@@ -902,6 +943,105 @@ impl PtyManager {
 /// Marker substring embedded in Alfredo hook URLs so we can identify and
 /// replace our own hooks without disturbing user-defined ones.
 const ALFREDO_HOOK_MARKER: &str = "/agent-state/";
+
+/// Strip alfredo hooks from a worktree's claude/gemini/codex settings,
+/// honouring the `protected` set: any hook file whose canonical path is
+/// in the set is skipped because another alfredo session (this manager's
+/// or a sibling instance's) is still live against it. `phase` is logged
+/// so boot vs exit cleanup are distinguishable in alfredo.log.
+fn cleanup_hooks_for_path(
+    path: &str,
+    protected: &std::collections::HashSet<std::path::PathBuf>,
+    phase: &str,
+) {
+    let claude_settings = std::path::Path::new(path).join(".claude/settings.local.json");
+    let claude_canonical = std::fs::canonicalize(&claude_settings).ok();
+    let claude_protected = claude_canonical
+        .as_ref()
+        .is_some_and(|c| protected.contains(c));
+
+    if claude_protected {
+        eprintln!(
+            "[hooks] {phase} skip claude hooks ← {} (alive alfredo session against this settings file)",
+            claude_settings.display(),
+        );
+    } else if let Err(e) = remove_hooks_config(path) {
+        eprintln!("[alfredo] {phase} claude hooks failed for {path}: {e}");
+    }
+    // Gemini and codex pidfile sidecars aren't tracked separately yet — the
+    // observed bug is claude-only. Strip these unconditionally for now.
+    if let Err(e) = remove_gemini_hooks_config(path) {
+        eprintln!("[alfredo] {phase} gemini hooks failed for {path}: {e}");
+    }
+    if let Err(e) = remove_codex_hooks_config(path) {
+        eprintln!("[alfredo] {phase} codex hooks failed for {path}: {e}");
+    }
+}
+
+/// Scan `/tmp/alfredo-claude-*.pid` files. For each pid that is still alive,
+/// read the matching `.worktree` sidecar containing the canonical path of
+/// `.claude/settings.local.json` for that session, and return the set of
+/// settings paths that should NOT be stripped. Sessions in `exclude_ids` are
+/// skipped — used by `cleanup_all_hooks` so this manager's own sessions
+/// (which are about to die anyway) don't protect themselves at exit.
+fn paths_with_active_alfredo_sessions_excluding(
+    exclude_ids: &std::collections::HashSet<String>,
+) -> std::collections::HashSet<std::path::PathBuf> {
+    let mut protected = std::collections::HashSet::new();
+    let entries = match std::fs::read_dir("/tmp") {
+        Ok(e) => e,
+        Err(_) => return protected,
+    };
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        let Some(name) = entry_path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let Some(session_id) = name
+            .strip_prefix("alfredo-claude-")
+            .and_then(|s| s.strip_suffix(".pid"))
+        else {
+            continue;
+        };
+        if exclude_ids.contains(session_id) {
+            continue;
+        }
+        let Ok(pid_str) = std::fs::read_to_string(&entry_path) else {
+            continue;
+        };
+        let Ok(pid) = pid_str.trim().parse::<i32>() else {
+            continue;
+        };
+        // kill(pid, 0) returns 0 iff the process exists and we may signal it.
+        // The cross-user EPERM case (alive process, signal denied) is rare in
+        // the personal-tool deployment and not worth dragging in errno
+        // handling for — false-dead just means we strip a still-live session's
+        // hooks, which is the pre-fix behaviour we're improving on, not new
+        // breakage.
+        if unsafe { libc::kill(pid, 0) } != 0 {
+            continue;
+        }
+        // PID-reuse defense: PTY sessions always exec a shell as the child
+        // (zsh/bash/fish via portable-pty), so a live pid that no longer
+        // names a shell is almost certainly a recycled OS pid now owned by
+        // some unrelated long-lived process. Without this check, a crashed
+        // session whose pid is later reused by e.g. vscode or a daemon would
+        // permanently over-protect its old settings file.
+        if !is_alfredo_session_pid(pid) {
+            continue;
+        }
+        let sidecar = format!("/tmp/alfredo-claude-{session_id}.worktree");
+        let Ok(sidecar_contents) = std::fs::read_to_string(&sidecar) else {
+            continue;
+        };
+        let trimmed = sidecar_contents.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        protected.insert(std::path::PathBuf::from(trimmed));
+    }
+    protected
+}
 
 /// Write Alfredo's hooks into `.claude/settings.local.json` in the worktree
 /// directory. Merges with any existing content so user settings are preserved.
@@ -1269,6 +1409,23 @@ fn tilde_abbrev(path: &str) -> String {
     path.to_string()
 }
 
+/// True if `pid` looks like an alfredo PTY session's shell child. Used to
+/// gate sidecar-based protection so a recycled OS pid (now owned by some
+/// unrelated process) can't permanently shield a stale settings file.
+fn is_alfredo_session_pid(pid: i32) -> bool {
+    let Ok(out) = std::process::Command::new("ps")
+        .args(["-o", "comm=", "-p", &pid.to_string()])
+        .output()
+    else {
+        return false;
+    };
+    if !out.status.success() {
+        return false;
+    }
+    let comm = std::str::from_utf8(&out.stdout).unwrap_or("").trim();
+    !comm.is_empty() && is_shell_process(comm)
+}
+
 /// True if the given `ps -o comm=` result is a shell itself (so we should
 /// treat it as "no foreground process"). Handles login-shell prefix `-`
 /// and absolute paths like `/bin/zsh`.
@@ -1627,5 +1784,135 @@ mod tests {
         assert!(!is_shell_process("npm"));
         assert!(!is_shell_process("vim"));
         assert!(!is_shell_process("cargo"));
+    }
+
+    /// Boot cleanup must skip stripping alfredo hooks from a settings file
+    /// whose PID-file sidecar shows another alfredo session (this instance
+    /// or a sibling instance) is still alive. Otherwise multi-instance and
+    /// symlinked-settings setups have their live sessions silently lobotomised.
+    #[test]
+    fn cleanup_stale_hooks_skips_paths_with_alive_alfredo_session() {
+        use std::path::PathBuf;
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let worktree_a = tmp.path().join("worktree-a");
+        let worktree_b = tmp.path().join("worktree-b");
+        std::fs::create_dir_all(worktree_a.join(".claude")).unwrap();
+        std::fs::create_dir_all(worktree_b.join(".claude")).unwrap();
+
+        let hook_json = serde_json::json!({
+            "hooks": {
+                "Stop": [{
+                    "matcher": "*",
+                    "hooks": [{
+                        "type": "command",
+                        "command": "curl -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/idle\""
+                    }]
+                }]
+            }
+        });
+        let serialized = serde_json::to_string_pretty(&hook_json).unwrap();
+        let settings_a = worktree_a.join(".claude/settings.local.json");
+        let settings_b = worktree_b.join(".claude/settings.local.json");
+        std::fs::write(&settings_a, &serialized).unwrap();
+        std::fs::write(&settings_b, &serialized).unwrap();
+
+        // Spawn a real shell child so the PID-reuse defense (which checks
+        // `ps -o comm=` for a shell name) treats this pid as an alfredo
+        // session. The test runner's own pid wouldn't pass that check.
+        // Suffix session ids with a unique fragment so concurrent test runs
+        // don't collide on the shared /tmp namespace.
+        // Two statements (`;`) defeat sh's single-command exec optimization,
+        // which would otherwise replace the shell with `sleep` in-place and
+        // make `ps -o comm=` report the pid as `sleep` rather than `sh`.
+        let mut shell_child = std::process::Command::new("sh")
+            .args(["-c", "sleep 30; :"])
+            .spawn()
+            .expect("spawn sleep shell");
+        let shell_pid = shell_child.id();
+        let test_uniq = format!("test-{}-{}", std::process::id(), std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
+        let session_id = format!("alive-{test_uniq}");
+        let pid_path = format!("/tmp/alfredo-claude-{session_id}.pid");
+        let sidecar_path = format!("/tmp/alfredo-claude-{session_id}.worktree");
+        let canonical_a: PathBuf = settings_a.canonicalize().unwrap();
+        std::fs::write(&pid_path, shell_pid.to_string()).unwrap();
+        std::fs::write(&sidecar_path, canonical_a.to_string_lossy().as_ref()).unwrap();
+
+        let manager = PtyManager::new();
+        manager.cleanup_stale_hooks_in_paths(&[
+            worktree_a.to_string_lossy().to_string(),
+            worktree_b.to_string_lossy().to_string(),
+        ]);
+
+        let after_a = std::fs::read_to_string(&settings_a).unwrap();
+        let after_b = std::fs::read_to_string(&settings_b).unwrap();
+
+        // Cleanup before assertions so a panic still drops the temp files
+        // and the spawned shell.
+        let _ = shell_child.kill();
+        let _ = shell_child.wait();
+        let _ = std::fs::remove_file(&pid_path);
+        let _ = std::fs::remove_file(&sidecar_path);
+
+        assert!(
+            after_a.contains("$ALFREDO_STATE_URL"),
+            "A's hooks must be preserved while an alfredo session is alive against the same settings file:\n{after_a}",
+        );
+        assert!(
+            !after_b.contains("$ALFREDO_STATE_URL"),
+            "B's hooks must still be stripped (no alive session protecting it):\n{after_b}",
+        );
+    }
+
+    /// PID reuse: a stale sidecar referencing a pid that's been recycled by
+    /// some non-shell process (e.g. the test runner itself, or an editor)
+    /// must NOT protect the settings file. Otherwise a session that crashed
+    /// long ago could permanently shield its old worktree's hooks.
+    #[test]
+    fn cleanup_stale_hooks_strips_when_pid_reused_by_non_shell() {
+        use std::path::PathBuf;
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let worktree = tmp.path().join("worktree");
+        std::fs::create_dir_all(worktree.join(".claude")).unwrap();
+
+        let hook_json = serde_json::json!({
+            "hooks": {
+                "Stop": [{
+                    "matcher": "*",
+                    "hooks": [{
+                        "type": "command",
+                        "command": "curl -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/idle\""
+                    }]
+                }]
+            }
+        });
+        let serialized = serde_json::to_string_pretty(&hook_json).unwrap();
+        let settings = worktree.join(".claude/settings.local.json");
+        std::fs::write(&settings, &serialized).unwrap();
+
+        // Use the test runner's own pid — alive but `ps -o comm=` won't
+        // report it as a shell, so the defense should treat the sidecar as
+        // stale and strip the hooks.
+        let test_uniq = format!("test-{}-{}", std::process::id(), std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
+        let session_id = format!("reused-{test_uniq}");
+        let pid_path = format!("/tmp/alfredo-claude-{session_id}.pid");
+        let sidecar_path = format!("/tmp/alfredo-claude-{session_id}.worktree");
+        let canonical: PathBuf = settings.canonicalize().unwrap();
+        std::fs::write(&pid_path, std::process::id().to_string()).unwrap();
+        std::fs::write(&sidecar_path, canonical.to_string_lossy().as_ref()).unwrap();
+
+        let manager = PtyManager::new();
+        manager.cleanup_stale_hooks_in_paths(&[worktree.to_string_lossy().to_string()]);
+
+        let after = std::fs::read_to_string(&settings).unwrap();
+
+        let _ = std::fs::remove_file(&pid_path);
+        let _ = std::fs::remove_file(&sidecar_path);
+
+        assert!(
+            !after.contains("$ALFREDO_STATE_URL"),
+            "hooks must be stripped when sidecar pid is alive but isn't a shell (pid reuse):\n{after}",
+        );
     }
 }
