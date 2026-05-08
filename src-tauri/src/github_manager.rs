@@ -1000,32 +1000,39 @@ pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), App
     Ok(parsed)
 }
 
-/// Whether `user` has a still-active approving review on this PR.
-///
-/// Looks at the user's most recent *decisive* review — one of "approved",
-/// "changes_requested", or "dismissed". "commented" and "pending" entries
-/// are ignored because GitHub does not treat them as superseding a prior
-/// approval (e.g. leaving a "ship it!" comment after approving keeps the
-/// approval valid).
+/// Reduce each reviewer's reviews to their most recent *decisive* state —
+/// one of "approved", "changes_requested", or "dismissed". "commented" and
+/// "pending" entries are ignored because GitHub does not treat them as
+/// superseding a prior decisive review (e.g. leaving a "ship it!" comment
+/// after approving keeps the approval valid).
 ///
 /// Pass the raw, un-deduplicated review list so the most-recent-decisive
 /// review can be identified even when a later non-decisive review exists.
-fn user_has_active_approval(reviews: &[PrReview], user: &str) -> bool {
-    reviews
-        .iter()
-        .filter(|r| r.reviewer.eq_ignore_ascii_case(user))
-        .filter(|r| matches!(r.state.as_str(), "approved" | "changes_requested" | "dismissed"))
-        .max_by(|a, b| a.submitted_at.cmp(&b.submitted_at))
-        .is_some_and(|r| r.state == "approved")
+fn latest_decisive_states(reviews: &[PrReview]) -> Vec<&str> {
+    let mut latest: std::collections::HashMap<String, &PrReview> = std::collections::HashMap::new();
+    for r in reviews {
+        if !matches!(r.state.as_str(), "approved" | "changes_requested" | "dismissed") {
+            continue;
+        }
+        let key = r.reviewer.to_lowercase();
+        match latest.get(&key) {
+            Some(existing) if existing.submitted_at >= r.submitted_at => {}
+            _ => {
+                latest.insert(key, r);
+            }
+        }
+    }
+    latest.into_values().map(|r| r.state.as_str()).collect()
 }
 
 /// Determine the kanban column for a worktree based on its PR status.
 ///
 /// When `github_username` is provided, open (non-draft) PRs are split into
 /// "In Review" (user is the author) vs "Needs Review" (someone else's PR).
-/// Others' PRs where the user has an active approving review (per
-/// [`user_has_active_approval`]) and has not been re-requested resolve to
-/// "Done".
+/// Others' PRs resolve to "Done" when any reviewer has an active approving
+/// review and no reviewer has an outstanding `changes_requested`. A dismissed
+/// approval flips back to "Needs Review" since the latest-decisive state for
+/// that reviewer is no longer "approved".
 ///
 /// `reviews` should be the raw review list (not pre-deduplicated) so the
 /// most-recent-decisive review can be identified. When called before reviews
@@ -1049,14 +1056,12 @@ pub fn determine_column(
             if is_own_pr {
                 return KanbanColumn::OpenPr;
             }
-            if let Some(user) = github_username {
-                let re_requested = pr
-                    .requested_reviewers
-                    .iter()
-                    .any(|r| r.eq_ignore_ascii_case(user));
-                if user_has_active_approval(reviews, user) && !re_requested {
-                    return KanbanColumn::Done;
-                }
+            let states = latest_decisive_states(reviews);
+            if states.contains(&"changes_requested") {
+                return KanbanColumn::NeedsReview;
+            }
+            if states.contains(&"approved") {
+                return KanbanColumn::Done;
             }
             KanbanColumn::NeedsReview
         }
@@ -1256,7 +1261,12 @@ mod tests {
     }
 
     #[test]
-    fn test_determine_column_others_pr_i_approved_then_re_requested() {
+    fn test_determine_column_others_pr_approved_with_pending_individual_request() {
+        // Edge case: user approved on behalf of a team but their individual
+        // review request remains in `requested_reviewers`. Under the current
+        // rule (any active approval → Done), a stray pending request does not
+        // override an existing approval. Re-requests flip back only via
+        // dismissal of the prior approval.
         let pr = PrStatus {
             number: 1,
             state: "open".into(),
@@ -1280,6 +1290,74 @@ mod tests {
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
         }];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
+    }
+
+    #[test]
+    fn test_determine_column_others_pr_approved_by_someone_else() {
+        // Any approving review moves the PR to Done, not just the current
+        // user's. This matches GitHub's overall reviewDecision semantics.
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec!["chloe".into()],
+        };
+        let reviews = vec![PrReview {
+            reviewer: "another-reviewer".into(),
+            state: "approved".into(),
+            submitted_at: Some("2026-05-07T10:00:00Z".into()),
+            body: None,
+        }];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
+    }
+
+    #[test]
+    fn test_determine_column_others_pr_approved_but_someone_else_requested_changes() {
+        // An outstanding changes_requested from any reviewer overrides another
+        // reviewer's approval — matches GitHub's CHANGES_REQUESTED state.
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec![],
+        };
+        let reviews = vec![
+            PrReview {
+                reviewer: "approver".into(),
+                state: "approved".into(),
+                submitted_at: Some("2026-05-07T10:00:00Z".into()),
+                body: None,
+            },
+            PrReview {
+                reviewer: "blocker".into(),
+                state: "changes_requested".into(),
+                submitted_at: Some("2026-05-07T11:00:00Z".into()),
+                body: None,
+            },
+        ];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
     }
 
@@ -1421,6 +1499,8 @@ mod tests {
 
     #[test]
     fn test_determine_column_others_pr_someone_else_approved() {
+        // Any active approval — including from a different reviewer — moves
+        // the PR to Done.
         let pr = PrStatus {
             number: 1,
             state: "open".into(),
@@ -1444,7 +1524,7 @@ mod tests {
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
         }];
-        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
     }
 
     // --- dedup_reviews tests ---

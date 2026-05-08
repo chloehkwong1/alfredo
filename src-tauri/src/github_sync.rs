@@ -471,10 +471,10 @@ async fn poll_repo(
 
         if let Ok(reviews) = reviews_result {
             // Recompute auto_column with the raw review list — others' PRs
-            // the user has approved (and isn't re-requested on) flip to Done.
-            // determine_column needs raw (un-deduped) reviews so it can find
-            // the most-recent-decisive review by the user even when a later
-            // non-decisive review (e.g. "commented") exists.
+            // with any active approval (and no outstanding changes_requested)
+            // flip to Done. determine_column needs raw (un-deduped) reviews
+            // so it can find the most-recent-decisive review per reviewer
+            // even when a later non-decisive review (e.g. "commented") exists.
             let updated = determine_column(Some(pr), github_username.as_deref(), &reviews);
             pr_with_col.auto_column = column_to_string(&updated);
             let deduped = dedup_reviews(reviews);
