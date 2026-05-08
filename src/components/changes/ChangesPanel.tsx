@@ -112,6 +112,11 @@ function WorkspacePanel({
   });
   const effectiveBaseBranch = pr?.baseBranch ?? worktree?.stackParent ?? undefined;
 
+  // Show the rebase banner whenever the worktree isn't a branch-mode synthetic,
+  // OR it's a pinned main card, OR it has a PR. Hidden during merge conflicts.
+  // The banner's internal behindCount === 0 short-circuit handles up-to-date.
+  const showRebaseBanner = !!worktree && (!worktree.isBranchMode || !!worktree.isPinnedMainCard || !!pr) && mergeable !== false;
+
   // Map panel tab to data-fetching view mode — force "changes" when tabs are hidden
   const dataViewMode: ViewMode = isBranchModeDefault ? "changes" : (panelTab === "commits" ? "commits" : "changes");
 
@@ -369,10 +374,7 @@ function WorkspacePanel({
         />
       )}
 
-      {/* Rebase banner — pinned main cards always show it ("N commits behind origin/main" → Rebase = fast-forward pull).
-          Lifted out of the simplified-view gate so it stays visible on Florence main when behind. The banner's
-          internal behindCount === 0 short-circuit handles the up-to-date case. Hidden during merge conflicts. */}
-      {worktree && worktree.isPinnedMainCard && mergeable !== false && <RebaseBanner repoPath={repoPath} worktreePath={worktree.path} stackParent={worktree.stackParent} />}
+      {showRebaseBanner && <RebaseBanner repoPath={repoPath} worktreePath={worktree!.path} stackParent={worktree!.stackParent} />}
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>
