@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Settings, Plus, HelpCircle, Pin } from "lucide-react";
+import { Settings, Plus, HelpCircle, Pin, PinOff } from "lucide-react";
 import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -118,6 +118,7 @@ function Sidebar({
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
   const unarchiveWorktree = useWorkspaceStore((s) => s.unarchiveWorktree);
   const pinnedWorktrees = useWorkspaceStore((s) => s.pinnedWorktrees);
+  const clearAllPins = useWorkspaceStore((s) => s.clearAllPins);
   const repoPath = activeRepo;
 
   const handleArchiveWorktree = useCallback(async (id: string) => {
@@ -429,7 +430,17 @@ function Sidebar({
         {/* Scrollable agent list */}
         <div className="flex-1 overflow-y-auto pb-3">
           {hasWorktreeRepos && (pinnedWorktrees.size > 0 || hideUnpinned) && (
-            <div className="sticky top-0 z-10 flex justify-end px-3.5 pb-1 bg-gradient-to-b from-[var(--bg-sidebar)] via-[var(--bg-sidebar)] to-transparent">
+            <div className="sticky top-0 z-10 flex justify-end gap-1 px-3.5 pb-1 bg-gradient-to-b from-[var(--bg-sidebar)] via-[var(--bg-sidebar)] to-transparent">
+              {pinnedWorktrees.size > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAllPins}
+                  className="inline-flex items-center gap-1.5 h-[22px] px-2 rounded-md text-[11px] font-medium text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors cursor-pointer"
+                >
+                  <PinOff className="h-2.5 w-2.5" />
+                  Unpin all
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleToggleHideUnpinned}

@@ -56,6 +56,7 @@ interface WorkspaceState {
   markWorktreeUnread: (id: string) => void;
   markWorktreeRead: (id: string) => void;
   togglePinWorktree: (id: string) => void;
+  clearAllPins: () => void;
   addAnnotation: (annotation: Annotation) => void;
   editAnnotation: (worktreeId: string, annotationId: string, newText: string) => void;
   removeAnnotation: (worktreeId: string, annotationId: string) => void;
@@ -269,11 +270,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     }),
 
   setManualColumn: (id, column) =>
-    set((state) => ({
-      worktrees: state.worktrees.map((wt) =>
-        wt.id === id ? { ...wt, column } : wt,
-      ),
-    })),
+    set((state) => {
+      const prev = state.worktrees.find((wt) => wt.id === id);
+      // Unpin on transition into "done" so completed work doesn't keep
+      // hogging a slot at the top of the column.
+      let pinnedWorktrees = state.pinnedWorktrees;
+      if (column === "done" && prev?.column !== "done" && pinnedWorktrees.has(id)) {
+        pinnedWorktrees = new Set(pinnedWorktrees);
+        pinnedWorktrees.delete(id);
+      }
+      return {
+        worktrees: state.worktrees.map((wt) =>
+          wt.id === id ? { ...wt, column } : wt,
+        ),
+        pinnedWorktrees,
+      };
+    }),
 
   moveWorktreeToFront: (id) =>
     set((state) => {
@@ -311,12 +323,30 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     })),
 
   applyWorktreePatches: (patches) =>
-    set((state) => ({
-      worktrees: state.worktrees.map((wt) => {
+    set((state) => {
+      // Mirror setManualColumn: auto-Done transitions (PR merged) should
+      // also unpin the worktree.
+      let pinnedWorktrees = state.pinnedWorktrees;
+      let pinnedDirty = false;
+      for (const wt of state.worktrees) {
         const patch = patches.get(wt.id);
-        return patch ? { ...wt, ...patch } : wt;
-      }),
-    })),
+        if (!patch) continue;
+        if (patch.column === "done" && wt.column !== "done" && pinnedWorktrees.has(wt.id)) {
+          if (!pinnedDirty) {
+            pinnedWorktrees = new Set(pinnedWorktrees);
+            pinnedDirty = true;
+          }
+          pinnedWorktrees.delete(wt.id);
+        }
+      }
+      return {
+        worktrees: state.worktrees.map((wt) => {
+          const patch = patches.get(wt.id);
+          return patch ? { ...wt, ...patch } : wt;
+        }),
+        pinnedWorktrees,
+      };
+    }),
 
   markWorktreeSeen: (id) =>
     set((state) => ({
@@ -345,6 +375,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       }
       return { pinnedWorktrees: next };
     }),
+
+  clearAllPins: () => set({ pinnedWorktrees: new Set<string>() }),
 
   addAnnotation: (annotation) =>
     set((state) => ({
