@@ -177,7 +177,7 @@ export class SessionManager implements SessionWriter {
     }
 
     // Create xterm instance (headless — not attached to DOM yet)
-    const { terminal, searchAddon } = createTerminal();
+    const { terminal, searchAddon } = createTerminal({ cwd: worktreePath });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
@@ -302,11 +302,12 @@ export class SessionManager implements SessionWriter {
   loadScrollbackOnly(
     sessionKey: string,
     initialScrollback?: string,
+    worktreePath?: string,
   ): ManagedSession {
     const existing = this.sessions.get(sessionKey);
     if (existing) return existing;
 
-    const { terminal, searchAddon } = createTerminal();
+    const { terminal, searchAddon } = createTerminal({ cwd: worktreePath });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
@@ -481,7 +482,8 @@ export class SessionManager implements SessionWriter {
     const existing = this.sessions.get(sessionKey);
     if (existing && existing.sessionId === sessionId) return existing;
 
-    const { terminal, searchAddon } = createTerminal();
+    const cwd = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId)?.path;
+    const { terminal, searchAddon } = createTerminal({ cwd });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 

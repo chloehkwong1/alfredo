@@ -214,7 +214,7 @@ export function useSessionRestore(
             if (session.terminals) {
               for (const [tabId, termData] of Object.entries(session.terminals)) {
                 if (termData.scrollback) {
-                  sessionManager.loadScrollbackOnly(tabId, termData.scrollback);
+                  sessionManager.loadScrollbackOnly(tabId, termData.scrollback, wt.path);
                 }
               }
             }

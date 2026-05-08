@@ -22,7 +22,7 @@ const TRAILING_PUNCT = /[.,;!?)\]}]$/;
 // ── Clickable-text matchers ────────────────────────────────────
 // Each pattern is run independently; overlapping matches are resolved by
 // preferring the earliest start, then the longest match.
-type LinkKind = "url" | "email" | "localhost" | "path";
+type LinkKind = "url" | "email" | "localhost" | "path" | "relpath";
 const LINK_PATTERNS: Array<{ kind: LinkKind; re: RegExp }> = [
   { kind: "url",       re: /(?:https?|ssh|ftp|file|mailto):[^\s"'<>`{}|\\^[\]]+/g },
   { kind: "email",     re: /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g },
@@ -30,13 +30,18 @@ const LINK_PATTERNS: Array<{ kind: LinkKind; re: RegExp }> = [
   // Path: leading boundary so we don't match the `/` inside random words;
   // trailing optional `:line[:col]` is handled by stripping in activate.
   { kind: "path",      re: /(?<=^|[\s=(),'"])(?:~|\/)[^\s"'<>`{}|()[\]]+/g },
+  // Relative path: at least one `/` and a final `.ext`, so bare words and
+  // bare dirs don't match. Requires a session cwd to resolve against; gated
+  // in findLinks below.
+  { kind: "relpath",   re: /(?<=^|[\s=(),'"])(?:\.{1,2}\/)?(?:[\w.-]+\/)+[\w.-]+\.\w+/g },
 ];
 
 interface RawMatch { start: number; end: number; text: string; kind: LinkKind; }
 
-function findLinks(text: string): RawMatch[] {
+function findLinks(text: string, hasCwd: boolean): RawMatch[] {
   const all: RawMatch[] = [];
   for (const { kind, re } of LINK_PATTERNS) {
+    if (kind === "relpath" && !hasCwd) continue;
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(text)) !== null) {
@@ -61,7 +66,7 @@ function findLinks(text: string): RawMatch[] {
   return dedup;
 }
 
-async function activateLink(uri: string, kind: LinkKind): Promise<void> {
+async function activateLink(uri: string, kind: LinkKind, cwd?: string): Promise<void> {
   try {
     if (kind === "url") {
       await openUrl(uri);
@@ -69,6 +74,10 @@ async function activateLink(uri: string, kind: LinkKind): Promise<void> {
       await openUrl(`mailto:${uri}`);
     } else if (kind === "localhost") {
       await openUrl(/^https?:\/\//i.test(uri) ? uri : `http://${uri}`);
+    } else if (kind === "relpath") {
+      if (!cwd) return;
+      const cleaned = uri.replace(/:\d+(?::\d+)?$/, "");
+      await openPath(`${cwd.replace(/\/$/, "")}/${cleaned}`);
     } else {
       const cleaned = uri.replace(/:\d+(?::\d+)?$/, "");
       let path = cleaned;
@@ -117,14 +126,15 @@ function getLogicalLine(
   return { topRow, text, cols };
 }
 
-function createTerminalLinkProvider(terminal: Terminal): ILinkProvider {
+function createTerminalLinkProvider(terminal: Terminal, cwd?: string): ILinkProvider {
+  const hasCwd = !!cwd;
   return {
     provideLinks(bufferLineNumber: number, callback: (links: ILink[] | undefined) => void) {
       const hoveredRow0 = bufferLineNumber - 1;
       const logical = getLogicalLine(terminal, hoveredRow0);
       if (!logical) { callback(undefined); return; }
       const { topRow, text, cols } = logical;
-      const matches = findLinks(text);
+      const matches = findLinks(text, hasCwd);
       if (matches.length === 0) { callback(undefined); return; }
 
       const links: ILink[] = [];
@@ -142,7 +152,7 @@ function createTerminalLinkProvider(terminal: Terminal): ILinkProvider {
             end:   { x: endCol + 1,   y: endRow + 1 },
           },
           text: captured.text,
-          activate: (_event, t) => { void activateLink(t, captured.kind); },
+          activate: (_event, t) => { void activateLink(t, captured.kind, cwd); },
         });
       }
       callback(links.length > 0 ? links : undefined);
@@ -184,8 +194,9 @@ export function stripClearScrollback(bytes: Uint8Array): Uint8Array {
 /**
  * Create a Terminal instance with:
  * - Kitty keyboard protocol support (Shift+Enter for newline in Claude Code)
- * - Cmd+Click activation for URLs, emails, localhost, and absolute / `~/`
- *   file paths via a custom link provider that joins wrapped continuation
+ * - Cmd+Click activation for URLs, emails, localhost, absolute / `~/` file
+ *   paths, and (when `cwd` is supplied) relative paths resolved against the
+ *   session's worktree path. The link provider joins wrapped continuation
  *   rows so long links spanning multiple rows resolve as one match.
  *
  * Kitty protocol: xterm.js doesn't natively support the kitty keyboard
@@ -194,7 +205,7 @@ export function stripClearScrollback(bytes: Uint8Array): Uint8Array {
  * protocol. Then our custom key handler sends `CSI 13;2 u` for Shift+Enter,
  * which Claude Code interprets as "insert newline".
  */
-export function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon } {
+export function createTerminal(opts: { cwd?: string } = {}): { terminal: Terminal; searchAddon: SearchAddon } {
   const prefs = loadTerminalPreferences();
   const terminal = new Terminal({
     allowProposedApi: true,
@@ -223,7 +234,7 @@ export function createTerminal(): { terminal: Terminal; searchAddon: SearchAddon
   terminal.unicode.activeVersion = "11";
 
   // ── Clickable links ────────────────────────────────────────────
-  terminal.registerLinkProvider(createTerminalLinkProvider(terminal));
+  terminal.registerLinkProvider(createTerminalLinkProvider(terminal, opts.cwd));
 
   // ── Search ─────────────────────────────────────────────────────
   const searchAddon = new SearchAddon();
