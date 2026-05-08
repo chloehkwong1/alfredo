@@ -28,6 +28,11 @@ export class SectionErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error(`[${this.props.name}] error boundary caught:`, error, info.componentStack);
     this.setState({ componentStack: info.componentStack ?? null });
+    import("../../api").then(({ debugLog }) =>
+      debugLog(
+        `[react-error] section=${this.props.name} ${error.name}: ${error.message}\n${error.stack ?? ""}\nComponent stack:${info.componentStack ?? ""}`,
+      ).catch(() => {}),
+    );
   }
 
   private getReportText() {

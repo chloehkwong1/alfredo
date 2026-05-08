@@ -6,6 +6,7 @@ import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
 import { applyPersistedZoom } from "./services/uiZoom";
+import { debugLog } from "./api";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -23,6 +24,9 @@ class ErrorBoundary extends Component<
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("React error boundary caught:", error, info.componentStack);
     this.setState({ componentStack: info.componentStack ?? null });
+    debugLog(
+      `[react-error] section=root ${error.name}: ${error.message}\n${error.stack ?? ""}\nComponent stack:${info.componentStack ?? ""}`,
+    ).catch(() => {});
   }
 
   private handleReset = () => {
@@ -107,6 +111,27 @@ function AppInner() {
   }, []);
   useEffect(() => {
     void applyPersistedZoom();
+  }, []);
+  useEffect(() => {
+    const onError = (e: ErrorEvent) => {
+      const stack = e.error instanceof Error ? e.error.stack : undefined;
+      debugLog(
+        `[window-error] ${e.message} at ${e.filename}:${e.lineno}:${e.colno}\n${stack ?? ""}`,
+      ).catch(() => {});
+    };
+    const onRejection = (e: PromiseRejectionEvent) => {
+      const reason =
+        e.reason instanceof Error
+          ? `${e.reason.name}: ${e.reason.message}\n${e.reason.stack ?? ""}`
+          : String(e.reason);
+      debugLog(`[unhandled-rejection] ${reason}`).catch(() => {});
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
   }, []);
   return (
     <TooltipProvider>
