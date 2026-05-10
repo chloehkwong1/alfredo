@@ -1,0 +1,24 @@
+docs/features/pull-requests.md
+  s_805d8e30b3c634::t_1259cd6521bb1a 26-28
+  s_805d8e30b3c634::t_cdf52d787ef988 29-43
+docs/features/pinning-worktree.md
+  s_805d8e30b3c634::t_3e4e94876e6bd9 36-51
+docs/features/copy-and-external-links.md
+  s_805d8e30b3c634::t_02939bd22eaf7b 32-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "2ac3f1e96c77836b9725d70103823864ec8538a2",
+  "prompts": {},
+  "sessions": {
+    "s_805d8e30b3c634": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c350025-08f8-435e-82ef-cdda07947e0b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
