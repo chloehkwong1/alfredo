@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -37,6 +36,8 @@ interface StatusGroupProps {
   repoIndexMap?: Record<string, number>;
   isCollapsed?: boolean;
   onToggleCollapsed?: (column: KanbanColumn) => void;
+  /** Drag-driven override: render expanded even when persistently collapsed. */
+  isTempExpanded?: boolean;
 }
 
 const columnIcon: Record<KanbanColumn, LucideIcon> = {
@@ -92,25 +93,12 @@ function StatusGroup({
   repoIndexMap,
   isCollapsed,
   onToggleCollapsed,
+  isTempExpanded,
 }: StatusGroupProps) {
-  const collapsed = isCollapsed ?? false;
+  const persistedCollapsed = isCollapsed ?? false;
+  const tempExpanded = isTempExpanded ?? false;
+  const collapsed = persistedCollapsed && !tempExpanded;
   const { isOver, setNodeRef } = useDroppable({ id: column });
-  const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Auto-expand collapsed section after 500ms hover during drag
-  useEffect(() => {
-    if (collapsed && isOver && dragActiveId != null) {
-      expandTimerRef.current = setTimeout(() => {
-        onToggleCollapsed?.(column);
-      }, 500);
-    }
-    return () => {
-      if (expandTimerRef.current) {
-        clearTimeout(expandTimerRef.current);
-        expandTimerRef.current = null;
-      }
-    };
-  }, [collapsed, isOver, dragActiveId, column, onToggleCollapsed]);
 
   const pinned = pinnedWorktrees ?? new Set<string>();
   const visibleWorktrees = hideUnpinned

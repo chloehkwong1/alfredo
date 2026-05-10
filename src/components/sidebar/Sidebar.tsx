@@ -148,6 +148,49 @@ function Sidebar({
     });
   }, [updateConfig]);
 
+  // Sections that are expanded only because the user is dragging over them.
+  // Reverts to the persisted collapsed state on drag-leave / drag-end, except
+  // for the actual drop column which gets persisted via handleToggleCollapsed.
+  const [dragTempExpanded, setDragTempExpanded] = useState<Set<KanbanColumn>>(() => new Set());
+  const handleSetTempExpanded = useCallback((column: KanbanColumn, expanded: boolean) => {
+    setDragTempExpanded((prev) => {
+      const has = prev.has(column);
+      if (expanded === has) return prev;
+      const next = new Set(prev);
+      if (expanded) next.add(column); else next.delete(column);
+      return next;
+    });
+  }, []);
+  const handleClearTempExpanded = useCallback((except?: KanbanColumn) => {
+    setDragTempExpanded((prev) => {
+      if (prev.size === 0) return prev;
+      if (except !== undefined && prev.has(except)) {
+        if (prev.size === 1) return prev;
+        return new Set([except]);
+      }
+      return new Set();
+    });
+  }, []);
+  // Once the drop column has been persisted-expanded (removed from
+  // collapsedKanbanColumns), drop it from the temp set too — otherwise the
+  // override is harmless but stale.
+  const collapsedKey = collapsedColumns.join(",");
+  useEffect(() => {
+    setDragTempExpanded((prev) => {
+      if (prev.size === 0) return prev;
+      let changed = false;
+      const next = new Set(prev);
+      for (const col of prev) {
+        if (!collapsedColumns.includes(col)) {
+          next.delete(col);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapsedKey]);
+
   const handleToggleHideUnpinned = useCallback(() => {
     updateConfig((prev) => ({ hideUnpinnedWorktrees: !(prev.hideUnpinnedWorktrees ?? false) }));
   }, [updateConfig]);
@@ -458,7 +501,13 @@ function Sidebar({
             </div>
           )}
           {hasWorktreeRepos && (
-            <SidebarDragContext collapsedColumns={collapsedColumns} onExpandColumn={handleToggleCollapsed} worktreeLabels={worktreeLabels}>
+            <SidebarDragContext
+              collapsedColumns={collapsedColumns}
+              onExpandColumn={handleToggleCollapsed}
+              onSetTempExpanded={handleSetTempExpanded}
+              onClearTempExpanded={handleClearTempExpanded}
+              worktreeLabels={worktreeLabels}
+            >
               {(isDragging, dragActiveId) =>
                 COLUMNS.map((col) => (
                   <StatusGroup
@@ -483,6 +532,7 @@ function Sidebar({
                     repoIndexMap={repoIndexMap}
                     isCollapsed={collapsedColumns.includes(col)}
                     onToggleCollapsed={handleToggleCollapsed}
+                    isTempExpanded={dragTempExpanded.has(col)}
                   />
                 ))
               }

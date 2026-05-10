@@ -39,6 +39,11 @@ interface SidebarDragContextProps {
   children: (isDragging: boolean, activeId: string | null) => ReactNode;
   collapsedColumns?: string[];
   onExpandColumn?: (column: KanbanColumn) => void;
+  onSetTempExpanded?: (column: KanbanColumn, expanded: boolean) => void;
+  /** Clear all temp-expanded sections except (optionally) one to keep —
+   *  used at drag-end so the persisted-expand on the drop column doesn't
+   *  flicker between drag-end and the async config write landing. */
+  onClearTempExpanded?: (except?: KanbanColumn) => void;
   worktreeLabels?: Record<string, string>;
 }
 
@@ -53,7 +58,14 @@ const measuring = {
   droppable: { strategy: MeasuringStrategy.Always as const },
 };
 
-function SidebarDragContext({ children, collapsedColumns, onExpandColumn, worktreeLabels }: SidebarDragContextProps) {
+function SidebarDragContext({
+  children,
+  collapsedColumns,
+  onExpandColumn,
+  onSetTempExpanded,
+  onClearTempExpanded,
+  worktreeLabels,
+}: SidebarDragContextProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const reorderWorktrees = useWorkspaceStore((s) => s.reorderWorktrees);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -65,6 +77,11 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn, worktr
   const originColumnRef = useRef<KanbanColumn | null>(null);
   // Last overId to reduce flicker
   const lastOverIdRef = useRef<string | null>(null);
+  // Last column the pointer was over, for driving temp-expand transitions.
+  // dnd-kit's per-droppable `isOver` flickers as collision resolution prefers
+  // items inside a column over the column itself; column-level transitions
+  // here are stable.
+  const prevOverColumnRef = useRef<KanbanColumn | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -146,14 +163,30 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn, worktr
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
       const { active, over } = event;
+
+      const currentWorktrees = useWorkspaceStore.getState().worktrees;
+      const newOverCol = over ? findColumnForId(over.id as string, currentWorktrees) : null;
+
+      // Drive temp-expand on column transitions. Reverting `prev` here (instead
+      // of inside StatusGroup) sidesteps `isOver` flicker when collision
+      // resolution drills into items.
+      if (prevOverColumnRef.current !== newOverCol) {
+        if (prevOverColumnRef.current) {
+          onSetTempExpanded?.(prevOverColumnRef.current, false);
+        }
+        if (newOverCol && collapsedColumns?.includes(newOverCol)) {
+          onSetTempExpanded?.(newOverCol, true);
+        }
+        prevOverColumnRef.current = newOverCol;
+      }
+
       if (!over) return;
 
       const activeWtId = active.id as string;
       const overId = over.id as string;
 
-      const currentWorktrees = useWorkspaceStore.getState().worktrees;
       const activeColumn = findColumnForId(activeWtId, currentWorktrees);
-      const overColumn = findColumnForId(overId, currentWorktrees);
+      const overColumn = newOverCol;
 
       if (!activeColumn || !overColumn) return;
       if (activeColumn === overColumn) return; // same-column reorder handled in onDragEnd
@@ -185,13 +218,8 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn, worktr
       }
 
       reorderWorktrees(updated);
-
-      // Expand target section if collapsed
-      if (collapsedColumns?.includes(overColumn)) {
-        onExpandColumn?.(overColumn);
-      }
     },
-    [reorderWorktrees, collapsedColumns, onExpandColumn],
+    [reorderWorktrees, collapsedColumns, onSetTempExpanded],
   );
 
   const handleDragEnd = useCallback(
@@ -207,6 +235,8 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn, worktr
         }
         snapshotRef.current = null;
         originColumnRef.current = null;
+        prevOverColumnRef.current = null;
+        onClearTempExpanded?.();
         return;
       }
 
@@ -237,10 +267,28 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn, worktr
         });
       }
 
+      // If the dragged item ended up in a different, persistently-collapsed
+      // column, expand that column permanently so the dropped item stays
+      // visible. We skip drag-and-release inside the same column so picking up
+      // and putting a card back doesn't leak its column open. Other
+      // temp-expanded sections collapse back via onClearTempExpanded; the drop
+      // column stays in the temp set until the config write lands (the prune
+      // effect in Sidebar removes it then) so it doesn't flicker closed.
+      const dropCol = worktree?.column ?? null;
+      const persistDropCol =
+        dropCol != null
+        && dropCol !== originColumnRef.current
+        && (collapsedColumns?.includes(dropCol) ?? false);
+      if (persistDropCol && dropCol) {
+        onExpandColumn?.(dropCol);
+      }
+      onClearTempExpanded?.(persistDropCol && dropCol ? dropCol : undefined);
+
       snapshotRef.current = null;
       originColumnRef.current = null;
+      prevOverColumnRef.current = null;
     },
-    [reorderWorktrees],
+    [reorderWorktrees, collapsedColumns, onExpandColumn, onClearTempExpanded],
   );
 
   const handleDragCancel = useCallback(() => {
@@ -251,7 +299,9 @@ function SidebarDragContext({ children, collapsedColumns, onExpandColumn, worktr
     }
     snapshotRef.current = null;
     originColumnRef.current = null;
-  }, [reorderWorktrees]);
+    prevOverColumnRef.current = null;
+    onClearTempExpanded?.();
+  }, [reorderWorktrees, onClearTempExpanded]);
 
   const activeWorktree = activeId
     ? worktrees.find((wt) => wt.id === activeId)
