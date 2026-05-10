@@ -33,3 +33,19 @@ it to hide every unpinned worktree across all status groups so only
 your pins remain. Click it again to bring the rest back. Like the pin
 state itself, the toggle is session-only — it resets to off on
 restart.
+
+## Unpin all
+
+Alongside the "Pinned only" chip, a small **"Unpin all"** chip appears
+whenever at least one worktree is pinned. Click it to clear every pin
+in one shot — handy when you've finished a focused session and want to
+go back to the full sidebar without right-clicking each row.
+
+## Auto-unpin on Done
+
+Worktrees automatically unpin when they move into the **Done** column,
+whether you drag them there manually or they land there via a merged PR
+or completed run. Pin is a focus tool for active work; once something is
+done it shouldn't keep hogging a slot at the top of its group. If you
+want a finished worktree to stay pinned, re-pin it from the right-click
+menu.

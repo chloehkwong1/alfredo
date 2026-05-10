@@ -29,9 +29,13 @@ active worktree has a PR.
 - **`localhost`** and **`127.0.0.1`** with an optional `:PORT` —
   click to open in your default browser. Works for any port,
   including the one your run-script is currently using.
-- **File paths** — absolute paths and `~/`-prefixed paths are
-  highlighted. Optional `:line` or `:line:column` suffixes are
-  honoured. Click to open the path with your OS's default handler.
+- **File paths** — absolute paths, `~/`-prefixed paths, and
+  worktree-relative paths (e.g. `src/components/Bar.tsx`,
+  `designs/foo.html`) are highlighted. Relative paths must contain at
+  least one `/` and end in a file extension, and they resolve against
+  the worktree the terminal is running in. Optional `:line` or
+  `:line:column` suffixes are honoured. Click to open the path with
+  your OS's default handler.
 - **Email addresses** — click to compose in your default mail
   client.
 

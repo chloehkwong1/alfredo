@@ -23,6 +23,24 @@ merging, the sidebar row collapses to a single **Cancelled** chip
 sync so it doesn't sit in "in review" with stale check status. Right-clicking the worktree in
 the sidebar gives you "View PR on GitHub" to jump to the full PR in
 your browser.
+
+## Auto-move to Done on approval
+
+When a PR has an active approving review from any reviewer, Alfredo
+moves its worktree to **Done** automatically on the next sync — for
+both PRs you authored and PRs from others that you're tracking. An
+approval is usually the signal you've been waiting on, so the worktree
+shouldn't keep sitting in "In review" demanding attention.
+
+The auto-move flips back to **Needs review** when the approval becomes
+inactive — typically because a reviewer leaves a `changes_requested`
+review, or a previous approval is dismissed (for example by GitHub's
+"Dismiss stale reviews on new commits" rule firing on a new push).
+Simply re-requesting review without dismissing the existing approval
+does **not** flip the PR back; the active approval still wins.
+
+Manual drag-and-drop placements you make after the auto-move are
+respected and won't be overwritten on the next sync.
 Review comments can be sent straight into the agent session as context
 via the inline actions on each comment card, so you can ask Claude or
 Codex to address feedback without copy-pasting.
