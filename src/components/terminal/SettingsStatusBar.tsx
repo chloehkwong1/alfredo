@@ -62,8 +62,11 @@ function SettingsStatusBar({ worktreeId }: SettingsStatusBarProps) {
     outputStyle?: string;
   }>({});
 
-  // Load resolved settings on mount and branch change
-  useEffect(() => {
+  // Load resolved settings on mount, branch change, and any global/repo
+  // config save. Without the config-changed subscription, changing a global
+  // default (e.g. permissionMode) via Global Settings leaves the chip stuck
+  // on whatever was resolved at mount.
+  const loadResolved = useCallback(() => {
     if (!repoPath || !showClaudeSettings) return;
     Promise.all([getAppConfig(), getConfig(repoPath)]).then(([appCfg, config]) => {
       const merged = resolveSettings(
@@ -77,7 +80,15 @@ function SettingsStatusBar({ worktreeId }: SettingsStatusBarProps) {
         outputStyle: merged.outputStyle,
       });
     }).catch((err) => { console.error("Failed to load settings:", err); });
-  }, [repoPath, branch]);
+  }, [repoPath, branch, showClaudeSettings]);
+
+  useEffect(() => { loadResolved(); }, [loadResolved]);
+
+  useEffect(() => {
+    function onConfigChanged() { loadResolved(); }
+    window.addEventListener("config-changed", onConfigChanged);
+    return () => window.removeEventListener("config-changed", onConfigChanged);
+  }, [loadResolved]);
 
   const handleChange = useCallback(async (field: keyof ClaudeOverrides, value: string) => {
     if (!repoPath) return;
