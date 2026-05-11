@@ -1,0 +1,30 @@
+docs/features/minimising-panels.md
+  s_f3607fb22ff228::t_a6352fa43102ff 22-25
+src/components/layout/AppShell.tsx
+  s_5d7932c4c0b5d4::t_dd6406d22493f2 2
+  s_5d7932c4c0b5d4::t_75e3f652a0d9a3 450
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "79d43ac137af53b75f08c79b8ac04506a722e5e3",
+  "prompts": {},
+  "sessions": {
+    "s_5d7932c4c0b5d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be726ed5-f2e5-4e8c-a4f8-bd47cff5bcfe",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_f3607fb22ff228": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bdd6e8d-11cf-4c1b-979f-71a106f55d80",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
