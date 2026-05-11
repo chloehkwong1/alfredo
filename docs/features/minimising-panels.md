@@ -1,7 +1,7 @@
 ---
 title: Minimising the side panels
 keywords: [collapse, minimise, minimize, hide sidebar, hide changes panel, hide panels, full width, zen mode]
-ui_path: ⌘B (sidebar) · ⌘I or ⌘⇧C (Changes panel) · Changes header → collapse icon
+ui_path: ⌘B (sidebar) · sidebar header → « chevron · ⌘I or ⌘⇧C (Changes panel) · Changes header → collapse icon
 ---
 
 Alfredo has two side panels flanking the main view: the worktree
@@ -17,7 +17,10 @@ count and PR indicators — click the rail to expand it again. The state
 is per-worktree, so you can keep Changes open on one worktree and
 hidden on another.
 
-The sidebar toggle lives on ⌘B and in the command palette ("Toggle
-sidebar"); its collapsed state is persisted to `app.json` across
-restarts. There is no in-UI button for it today — keyboard or palette
-only.
+The sidebar can be hidden three ways: press ⌘B, run "Toggle sidebar"
+from the command palette, or click the `«` chevron at the right end of
+the sidebar header row. Once hidden, the leftmost edge of the screen
+becomes a thin invisible hit area — hover the left edge and a `»`
+chevron fades in; click it (or press ⌘B again) to bring the sidebar
+back. Collapsed state is persisted to `app.json` so it survives
+restarts.
