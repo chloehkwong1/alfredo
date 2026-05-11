@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ChevronsRight } from "lucide-react";
+import { PanelLeftOpen } from "lucide-react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
@@ -440,15 +440,14 @@ function AppShell() {
 
   if (sidebarCollapsed) {
     return (
-      <div className="relative flex h-screen">
+      <div className="flex h-screen">
         <button
           type="button"
           onClick={toggleSidebar}
           aria-label="Show sidebar (⌘B)"
-          title="Show sidebar (⌘B)"
-          className="group absolute left-0 top-0 bottom-0 w-1 hover:w-5 bg-transparent hover:bg-bg-hover hover:border-r hover:border-border-subtle transition-all duration-150 flex items-center justify-center z-20 cursor-pointer"
+          className="flex flex-col items-center w-8 h-full bg-bg-primary border-r border-border-default hover:bg-bg-hover transition-colors py-3 flex-shrink-0 cursor-pointer"
         >
-          <ChevronsRight className="h-3.5 w-3.5 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none" />
+          <PanelLeftOpen size={14} className="text-text-tertiary flex-shrink-0" />
         </button>
         {mainContent}
         {dialogs}

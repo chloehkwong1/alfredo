@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GitBranch, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { GitBranch, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
 import { RecentCommitsSection } from "./RecentCommitsSection";
@@ -249,7 +249,7 @@ function WorkspacePanel({
           className="h-auto w-auto p-0.5"
           onClick={onCollapse}
         >
-          <PanelLeftClose size={14} />
+          <PanelRightClose size={14} />
         </IconButton>
       </div>
 
@@ -457,10 +457,10 @@ function WorkspacePanelMinimized({
   return (
     <button
       onClick={onExpand}
-      className="flex flex-col items-center gap-2 w-8 h-full bg-bg-primary border-l border-border-default hover:bg-bg-hover transition-colors py-3 flex-shrink-0"
-      title="Expand panel"
+      aria-label="Expand panel"
+      className="flex flex-col items-center gap-2 w-8 h-full bg-bg-primary border-l border-border-default hover:bg-bg-hover transition-colors py-3 flex-shrink-0 cursor-pointer"
     >
-      <PanelLeftOpen size={14} className="text-text-tertiary flex-shrink-0" />
+      <PanelRightOpen size={14} className="text-text-tertiary flex-shrink-0" />
       <span
         className="text-[10px] text-text-tertiary"
         style={{ writingMode: "vertical-lr" }}
