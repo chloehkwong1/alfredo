@@ -19,8 +19,7 @@ hidden on another.
 
 The sidebar can be hidden three ways: press ⌘B, run "Toggle sidebar"
 from the command palette, or click the `«` chevron at the right end of
-the sidebar header row. Once hidden, the leftmost edge of the screen
-becomes a thin invisible hit area — hover the left edge and a `»`
-chevron fades in; click it (or press ⌘B again) to bring the sidebar
-back. Collapsed state is persisted to `app.json` so it survives
-restarts.
+the sidebar header row. Once hidden, a slim 32px rail takes its place
+on the left with a `»` chevron — click the rail (or press ⌘B again) to
+bring the sidebar back. Collapsed state is persisted to `app.json` so
+it survives restarts.
