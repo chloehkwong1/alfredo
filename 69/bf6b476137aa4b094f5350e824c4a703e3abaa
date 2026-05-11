@@ -1,0 +1,25 @@
+docs/features/minimising-panels.md
+  s_805d8e30b3c634::t_7d37279619e1ce 4,20-26
+package.json
+  s_805d8e30b3c634::t_690a9490a474d6 4
+src-tauri/tauri.conf.json
+  s_805d8e30b3c634::t_7ab52db0e67f40 4
+src-tauri/Cargo.toml
+  s_805d8e30b3c634::t_977ad0758d5895 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "69bf6b476137aa4b094f5350e824c4a703e3abaa",
+  "prompts": {},
+  "sessions": {
+    "s_805d8e30b3c634": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c350025-08f8-435e-82ef-cdda07947e0b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
