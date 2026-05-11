@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { ChevronsRight } from "lucide-react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
@@ -149,6 +150,8 @@ function AppShell() {
 
   const changesPanelCollapsed = useWorkspaceStore((s) => s.changesPanelCollapsed[activeWorktreeId ?? ""] ?? false);
   const setChangesPanelCollapsed = useWorkspaceStore((s) => s.setChangesPanelCollapsed);
+  const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
 
   // Cmd+I (Mac) / Ctrl+I (Windows/Linux) to toggle changes panel
   useEffect(() => {
@@ -246,13 +249,8 @@ function AppShell() {
   }
 
   // Normal state — worktrees exist, show sidebar
-  return (
-    <Group
-      orientation="horizontal"
-      defaultLayout={sidebarLayout.defaultLayout}
-      onLayoutChanged={sidebarLayout.onLayoutChanged}
-      className="h-screen"
-    >
+  const sidebarPanel = (
+    <>
       <Panel defaultSize="320px" minSize="180px" maxSize="480px">
         <div
           className={`h-full overflow-hidden ${shouldAnimateSidebar.current ? "animate-slide-in-left" : ""}`}
@@ -285,7 +283,10 @@ function AppShell() {
         </div>
       </Panel>
       <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
-      <Panel minSize="50%">
+    </>
+  );
+
+  const mainContent = (
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <SectionErrorBoundary name="UpdateBanner" variant="inline">
           <UpdateBanner updater={updater} />
@@ -351,8 +352,10 @@ function AppShell() {
           )}
         </main>
       </div>
-      </Panel>
+  );
 
+  const dialogs = (
+    <>
       {/* Multi-repo dialogs */}
       <SectionErrorBoundary
         name="AddRepoModal"
@@ -432,6 +435,37 @@ function AppShell() {
         />
       </SectionErrorBoundary>
       <QuickStartPanel />
+    </>
+  );
+
+  if (sidebarCollapsed) {
+    return (
+      <div className="relative flex h-screen">
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label="Show sidebar (⌘B)"
+          title="Show sidebar (⌘B)"
+          className="group absolute left-0 top-0 bottom-0 w-1 hover:w-5 bg-transparent hover:bg-bg-hover hover:border-r hover:border-border-subtle transition-all duration-150 flex items-center justify-center z-20 cursor-pointer"
+        >
+          <ChevronsRight className="h-3.5 w-3.5 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none" />
+        </button>
+        {mainContent}
+        {dialogs}
+      </div>
+    );
+  }
+
+  return (
+    <Group
+      orientation="horizontal"
+      defaultLayout={sidebarLayout.defaultLayout}
+      onLayoutChanged={sidebarLayout.onLayoutChanged}
+      className="h-screen"
+    >
+      {sidebarPanel}
+      <Panel minSize="50%">{mainContent}</Panel>
+      {dialogs}
     </Group>
   );
 }

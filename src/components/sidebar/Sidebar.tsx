@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Settings, Plus, HelpCircle, Pin, PinOff } from "lucide-react";
+import { Settings, Plus, HelpCircle, Pin, PinOff, ChevronsLeft } from "lucide-react";
 import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -119,6 +119,7 @@ function Sidebar({
   const unarchiveWorktree = useWorkspaceStore((s) => s.unarchiveWorktree);
   const pinnedWorktrees = useWorkspaceStore((s) => s.pinnedWorktrees);
   const clearAllPins = useWorkspaceStore((s) => s.clearAllPins);
+  const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
   const repoPath = activeRepo;
 
   const handleArchiveWorktree = useCallback(async (id: string) => {
@@ -439,6 +440,9 @@ function Sidebar({
           </IconButton>
           <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
             <Settings />
+          </IconButton>
+          <IconButton size="sm" label="Hide sidebar (⌘B)" className="rounded-[6px]" onClick={toggleSidebar}>
+            <ChevronsLeft />
           </IconButton>
         </div>
       </div>
