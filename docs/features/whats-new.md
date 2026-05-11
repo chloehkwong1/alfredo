@@ -7,6 +7,38 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.15.0 — 2026-05-11**
+- **Collapse the sidebar with ⌘B** — press ⌘B, run "Toggle sidebar"
+  from the command palette, or click the `«` chevron in the sidebar
+  header to hide the worktree list. A slim 32px rail with a `»`
+  chevron stays visible on the left edge; click it (or press ⌘B
+  again) to bring the sidebar back. State persists across restarts.
+- **PRs auto-move to Done on approval** — when a PR you opened or
+  one you authored gets approved, Alfredo moves the worktree to
+  Done automatically. If reviewers re-request changes the worktree
+  moves back to Review on its own, so the kanban stays in sync with
+  GitHub state without manual dragging.
+- **Done worktrees auto-unpin** — pinned worktrees lose their pin
+  when they reach Done, and a new **Unpin all** button on the Done
+  column header clears every pin at once.
+- **Clickable relative paths in the terminal** — relative paths like
+  `src/foo.tsx` or `./bin/script:42` are now linkified in PTY output
+  alongside absolute paths, URLs, and `localhost` links. ⌘-click
+  opens them in your editor.
+- Various fixes: macOS voice mode works again (audio-input
+  entitlement was missing from the bundle); live `claude` / `codex`
+  / `gemini` pids are recognised as Alfredo sessions instead of
+  being treated as recycled OS pids; symlinked
+  `.claude/settings.local.json` hooks survive across PTY restarts;
+  cross-repo worktrees with the same branch name no longer
+  overwrite each other's state; the rebase banner returns on
+  non-pinned worktrees; the settings chip refreshes when an
+  `alfredo.json` field changes; React errors and unhandled
+  rejections are piped to `alfredo.log` for postmortems; sidebar
+  busy state is marked stale (rather than forced idle) when the
+  hook channel goes silent; sidebar column-expand state only
+  persists on drop, not mid-drag.
+
 **v0.14.1 — 2026-05-07**
 - New-worktree dialog now validates branch names inline against
   git's `check-ref-format` rules — invalid characters (spaces, `~`,
