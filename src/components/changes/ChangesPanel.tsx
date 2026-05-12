@@ -326,30 +326,28 @@ function WorkspacePanel({
           onJumpToComment={handleJumpToComment}
         />
       ) : (
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-hidden">
-            <FileSidebar
-              viewMode={dataViewMode}
-              uncommittedFiles={uncommittedFiles}
-              committedFiles={committedFiles}
-              commits={commits}
-              upstreamCommits={upstreamCommits}
-              gitUser={gitUser}
-              selectedCommitIndex={selectedCommitIndex}
-              onSelectCommit={handleSelectCommit}
-              activeFilePath={activeFilePath}
-              activeFileIsUncommitted={activeFileIsUncommitted}
-              onSelectFile={handleSelectFile}
-              onDiscardFile={handleDiscardFile}
-              onDiscardAllUncommitted={uncommittedFiles.length > 0 ? () => setShowDiscardAllDialog(true) : undefined}
-              prComments={prComments}
-              onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
-              onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
-              worktreePath={worktree?.path}
-              defaultBranchName={defaultBranch}
-              error={error}
-            />
-          </div>
+        <div className="flex-1 min-h-0 flex flex-col">
+          <FileSidebar
+            viewMode={dataViewMode}
+            uncommittedFiles={uncommittedFiles}
+            committedFiles={committedFiles}
+            commits={commits}
+            upstreamCommits={upstreamCommits}
+            gitUser={gitUser}
+            selectedCommitIndex={selectedCommitIndex}
+            onSelectCommit={handleSelectCommit}
+            activeFilePath={activeFilePath}
+            activeFileIsUncommitted={activeFileIsUncommitted}
+            onSelectFile={handleSelectFile}
+            onDiscardFile={handleDiscardFile}
+            onDiscardAllUncommitted={uncommittedFiles.length > 0 ? () => setShowDiscardAllDialog(true) : undefined}
+            prComments={prComments}
+            onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
+            onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
+            worktreePath={worktree?.path}
+            defaultBranchName={defaultBranch}
+            error={error}
+          />
           {isBranchModeDefault && (
             <RecentCommitsSection
               repoPath={repoPath}

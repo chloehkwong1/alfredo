@@ -339,7 +339,7 @@ function FileSidebar({
   );
 
   return (
-    <div ref={sidebarRef} className="w-full bg-bg-primary border-r border-border-default flex flex-col overflow-y-auto">
+    <div ref={sidebarRef} className="w-full flex-1 min-h-0 bg-bg-primary border-r border-border-default flex flex-col overflow-y-auto">
       {totalItems > 5 && (
         <div className="px-2.5 pb-1.5">
           <input
