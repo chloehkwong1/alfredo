@@ -388,7 +388,7 @@ async fn write_personal_config_file(
             .map_err(|e| AppError::Config(format!("failed to create config dir: {e}")))?;
     }
 
-    tokio::fs::write(&config_path, json)
+    crate::atomic_write::write_json_atomic(&config_path, &json)
         .await
         .map_err(|e| AppError::Config(format!("failed to write config: {e}")))?;
 

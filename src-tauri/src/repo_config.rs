@@ -53,7 +53,7 @@ pub async fn save_alfredo_json(
     let json = serde_json::to_string_pretty(&value)
         .map_err(|e| AppError::Config(format!("failed to serialize alfredo.json: {e}")))?;
     let path = repo_path.join(FILENAME);
-    tokio::fs::write(&path, format!("{json}\n"))
+    crate::atomic_write::write_json_atomic(&path, &format!("{json}\n"))
         .await
         .map_err(|e| AppError::Config(format!("failed to write alfredo.json: {e}")))?;
     Ok(())

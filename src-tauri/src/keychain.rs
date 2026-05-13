@@ -122,7 +122,7 @@ fn save_secrets(secrets: &std::collections::HashMap<String, String>) -> Result<(
     }
     let json = serde_json::to_string_pretty(secrets)
         .map_err(|e| AppError::Config(format!("failed to serialize secrets: {e}")))?;
-    std::fs::write(&path, &json)
+    crate::atomic_write::write_json_atomic_sync(&path, json.as_bytes())
         .map_err(|e| AppError::Config(format!("failed to write secrets file: {e}")))?;
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
         .map_err(|e| AppError::Config(format!("failed to set secrets file permissions: {e}")))?;

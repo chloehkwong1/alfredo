@@ -86,7 +86,7 @@ pub async fn save(
     let json = serde_json::to_string_pretty(config)
         .map_err(|e| AppError::Config(format!("failed to serialize app config: {e}")))?;
 
-    tokio::fs::write(&path, json)
+    crate::atomic_write::write_json_atomic(&path, &json)
         .await
         .map_err(|e| AppError::Config(format!("failed to write app.json: {e}")))
 }
