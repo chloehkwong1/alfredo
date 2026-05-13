@@ -5,6 +5,7 @@ import { UnifiedDiffBody } from "./UnifiedDiffBody";
 import { SplitDiffBody } from "./SplitDiffBody";
 import { MarkdownView } from "./MarkdownView";
 import { AnnotationInput } from "./AnnotationInput";
+import { useFileViewModeStore } from "../../stores/fileViewModeStore";
 import type {
   DiffFile,
   DiffViewMode,
@@ -77,7 +78,12 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
 
     const isMarkdown = isMarkdownPath(file.path);
     const supportsRendered = isMarkdown && file.status !== "deleted";
-    const [fileViewMode, setFileViewMode] = useState<FileViewMode>("diff");
+    const fileViewMode = useFileViewModeStore((s) => s.modes[file.path] ?? "diff");
+    const setModeForPath = useFileViewModeStore((s) => s.setMode);
+    const setFileViewMode = useCallback(
+      (mode: FileViewMode) => setModeForPath(file.path, mode),
+      [setModeForPath, file.path],
+    );
 
     // Auto-expand the PR comment thread when highlightCommentLine changes
     const highlightLineRef = useRef<HTMLDivElement | null>(null);
