@@ -28,6 +28,7 @@ import {
   listWorktrees,
 } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useAppConfigStore } from "../../stores/appConfigStore";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { useRepoConfig } from "../../hooks/useRepoConfig";
 import { openPathInEditor } from "../../services/openExternal";
@@ -421,11 +422,17 @@ function WorkspaceSettingsDialog({
     getAppConfig().then(setAppConfig).catch((e) => console.error("Failed to load app config:", e));
   }, [open, currentRepoPath]);
 
-  // Re-pull effective config on focus / config-changed so out-of-band edits to
-  // alfredo.json don't leave our snapshot stale (which would surface as a false
-  // "Edited locally" tag, since `useRepoConfig` does refresh upstream on focus).
-  // `dirtyRef` keeps the listener stable for the dialog's lifetime — without it,
-  // every keystroke would tear down and re-attach the handlers.
+  // Re-pull effective config on focus / appConfig-store-publish so out-of-band
+  // edits to alfredo.json don't leave our snapshot stale (which would surface as
+  // a false "Edited locally" tag, since `useRepoConfig` does refresh upstream
+  // on focus). `dirtyRef` keeps the listener stable for the dialog's lifetime —
+  // without it, every keystroke would tear down and re-attach the handlers.
+  //
+  // We previously subscribed to the `config-changed` window event directly,
+  // but the App-root listener already triggers `appConfigStore.refetch()` on
+  // every dispatch — so subscribing to the store gives us identical coverage
+  // (any save anywhere republishes the store) without registering an extra
+  // fan-out listener for app-config.
   const dirtyRef = useRef(false);
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
   useEffect(() => {
@@ -437,10 +444,12 @@ function WorkspaceSettingsDialog({
         .catch(() => {});
     };
     window.addEventListener("focus", refresh);
-    window.addEventListener("config-changed", refresh);
+    const unsubscribe = useAppConfigStore.subscribe((s, prev) => {
+      if (s.config !== prev.config) refresh();
+    });
     return () => {
       window.removeEventListener("focus", refresh);
-      window.removeEventListener("config-changed", refresh);
+      unsubscribe();
     };
   }, [open, currentRepoPath]);
 

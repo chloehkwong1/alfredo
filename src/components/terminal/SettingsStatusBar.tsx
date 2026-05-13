@@ -5,6 +5,7 @@ import { SettingsChip } from "./SettingsChip";
 import { getConfig, saveConfig, getAppConfig } from "../../api";
 import { OpenInDropdown } from "../ui/OpenInDropdown";
 import { useAppConfig } from "../../hooks/useAppConfig";
+import { useAppConfigStore } from "../../stores/appConfigStore";
 import { useOutputStyles } from "../../hooks/useOutputStyles";
 import { useEffortOptions, usePermissionModes } from "../../services/modelCatalog";
 import { resolveSettings } from "../../services/claudeSettingsResolver";
@@ -84,10 +85,15 @@ function SettingsStatusBar({ worktreeId }: SettingsStatusBarProps) {
 
   useEffect(() => { loadResolved(); }, [loadResolved]);
 
+  // Refresh resolved chips whenever the shared app config publishes a new
+  // snapshot (covers global default changes from the Global Settings dialog).
+  // Replaces a per-component `config-changed` listener that re-fetched the
+  // app config independently.
   useEffect(() => {
-    function onConfigChanged() { loadResolved(); }
-    window.addEventListener("config-changed", onConfigChanged);
-    return () => window.removeEventListener("config-changed", onConfigChanged);
+    const unsubscribe = useAppConfigStore.subscribe((s, prev) => {
+      if (s.config !== prev.config) loadResolved();
+    });
+    return unsubscribe;
   }, [loadResolved]);
 
   const handleChange = useCallback(async (field: keyof ClaudeOverrides, value: string) => {

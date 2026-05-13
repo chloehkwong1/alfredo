@@ -7,6 +7,7 @@ import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
 import { applyPersistedZoom } from "./services/uiZoom";
 import { debugLog } from "./api";
+import { useAppConfigStore } from "./stores/appConfigStore";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -111,6 +112,35 @@ function AppInner() {
   }, []);
   useEffect(() => {
     void applyPersistedZoom();
+  }, []);
+  // Single global listener for the `config-changed` window event. Replaces
+  // the per-hook listeners that used to fan out 6 concurrent getAppConfig
+  // IPCs per save. Living inside a React effect (not at module scope) keeps
+  // it HMR-safe — the cleanup tears down the old listener before the new
+  // module attaches a fresh one.
+  useEffect(() => {
+    const handler = () => {
+      void useAppConfigStore.getState().refetch();
+    };
+    window.addEventListener("config-changed", handler);
+    if (import.meta.env.DEV) {
+      const g = globalThis as { __alfredoConfigChangedListenerCount?: number };
+      g.__alfredoConfigChangedListenerCount =
+        (g.__alfredoConfigChangedListenerCount ?? 0) + 1;
+      if (g.__alfredoConfigChangedListenerCount !== 1) {
+        console.warn(
+          `[appConfigStore] expected exactly one config-changed listener, found ${g.__alfredoConfigChangedListenerCount}`,
+        );
+      }
+    }
+    return () => {
+      window.removeEventListener("config-changed", handler);
+      if (import.meta.env.DEV) {
+        const g = globalThis as { __alfredoConfigChangedListenerCount?: number };
+        g.__alfredoConfigChangedListenerCount =
+          (g.__alfredoConfigChangedListenerCount ?? 1) - 1;
+      }
+    };
   }, []);
   useEffect(() => {
     const onError = (e: ErrorEvent) => {

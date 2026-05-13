@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useAppConfigStore } from "../stores/appConfigStore";
 import { useTabStore } from "../stores/tabStore";
 
 /**
@@ -256,12 +257,18 @@ export function useServer(activeWorktreeId: string | null) {
     s.worktrees.find((wt) => wt.id === activeWorktreeId)?.repoPath ?? null,
   );
 
-  // Load run script config (and refresh when settings are saved)
+  // Load run script config (and refresh when settings are saved).
+  // We subscribe to the shared app-config store rather than the legacy
+  // `config-changed` window event: when any save dispatches the event, the
+  // App-root listener calls `refetch()` and the store publishes a new
+  // snapshot — every store subscriber wakes up exactly once. This avoids
+  // each useServer instance making its own redundant config IPC.
   const [configVersion, setConfigVersion] = useState(0);
   useEffect(() => {
-    const handler = () => setConfigVersion((v) => v + 1);
-    window.addEventListener("config-changed", handler);
-    return () => window.removeEventListener("config-changed", handler);
+    const unsubscribe = useAppConfigStore.subscribe((s, prev) => {
+      if (s.config !== prev.config) setConfigVersion((v) => v + 1);
+    });
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
