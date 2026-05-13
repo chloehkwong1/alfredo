@@ -766,29 +766,43 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
         .output()
     {
         if output.status.success() {
-            for rel in String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .filter(|l| !l.is_empty())
-            {
-                let abs = std::path::Path::new(worktree_path).join(rel);
-                // symlink_metadata so we never follow a symlink that escapes
-                // the worktree. 1MB cap keeps stray binaries (sqlite, log
-                // dumps) from stalling the badge refresh.
-                let Ok(meta) = std::fs::symlink_metadata(&abs) else { continue };
-                if !meta.file_type().is_file() || meta.len() > 1_000_000 {
-                    continue;
-                }
-                if let Ok(output) = git_command_sync()
-                    .args(["diff", "--no-index", "--shortstat", "--", "/dev/null", rel])
-                    .current_dir(worktree_path)
-                    .output()
-                {
-                    // `git diff --no-index` exits 1 when files differ, which
-                    // is the expected case here — accept any exit code and
-                    // parse whatever shortstat it printed.
-                    let (a, d) = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
-                    additions = additions.saturating_add(a);
-                    deletions = deletions.saturating_add(d);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let untracked: Vec<&str> = stdout.lines().filter(|l| !l.is_empty()).collect();
+
+            // Guard against runaway forking. A misconfigured `.gitignore`
+            // (e.g. a parent repo with our worktrees dir untracked) can leave
+            // tens of thousands of files here; the per-file `git diff
+            // --no-index` loop below would spawn a subprocess for each one
+            // and freeze the UI. Bail with the partial stats we already have.
+            if untracked.len() > UNTRACKED_FILE_LIMIT {
+                tracing::warn!(
+                    "[get_diff_stats] {} untracked files in {worktree_path} exceeds limit of {}; \
+                     skipping per-file line count",
+                    untracked.len(),
+                    UNTRACKED_FILE_LIMIT,
+                );
+            } else {
+                for rel in untracked {
+                    let abs = std::path::Path::new(worktree_path).join(rel);
+                    // symlink_metadata so we never follow a symlink that escapes
+                    // the worktree. 1MB cap keeps stray binaries (sqlite, log
+                    // dumps) from stalling the badge refresh.
+                    let Ok(meta) = std::fs::symlink_metadata(&abs) else { continue };
+                    if !meta.file_type().is_file() || meta.len() > 1_000_000 {
+                        continue;
+                    }
+                    if let Ok(output) = git_command_sync()
+                        .args(["diff", "--no-index", "--shortstat", "--", "/dev/null", rel])
+                        .current_dir(worktree_path)
+                        .output()
+                    {
+                        // `git diff --no-index` exits 1 when files differ, which
+                        // is the expected case here — accept any exit code and
+                        // parse whatever shortstat it printed.
+                        let (a, d) = parse_shortstat(&String::from_utf8_lossy(&output.stdout));
+                        additions = additions.saturating_add(a);
+                        deletions = deletions.saturating_add(d);
+                    }
                 }
             }
         }
@@ -796,6 +810,13 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
 
     Ok((additions, deletions))
 }
+
+/// Upper bound on untracked files we will line-count in `get_diff_stats`.
+/// Past this, each file would mean another `git diff --no-index` subprocess,
+/// and at 40k+ untracked files (the Florence-with-nested-worktrees case) the
+/// fork avalanche hangs the UI for minutes. The badge gracefully shows just
+/// the committed+uncommitted scope when this trips.
+const UNTRACKED_FILE_LIMIT: usize = 500;
 
 /// Parse the output of `git diff --shortstat`.
 fn parse_shortstat(stdout: &str) -> (u32, u32) {
@@ -1237,6 +1258,50 @@ mod tests {
 
         let stats = get_diff_stats(path_str, Some("main")).expect("get_diff_stats");
         assert_eq!(stats, (1, 0));
+    }
+
+    /// Untracked file count past `UNTRACKED_FILE_LIMIT` must not be line-counted.
+    /// Reproduces the Florence-with-nested-worktrees hang where ~40k untracked
+    /// files caused one `git diff --no-index` subprocess per file. Tracked
+    /// additions still report; untracked content is dropped from the badge.
+    #[test]
+    fn get_diff_stats_skips_untracked_walk_past_limit() {
+        let dir = init_test_repo();
+        let path = dir.path();
+        let path_str = path.to_str().expect("temp dir path is valid UTF-8");
+
+        let git = |args: &[&str]| {
+            StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(path)
+                .output()
+                .expect("git command")
+        };
+
+        // Baseline commit on main, then a branch with one tracked-uncommitted
+        // edit so additions != 0 from sources other than untracked files.
+        std::fs::write(path.join("seed.txt"), "seed\n").expect("write seed.txt");
+        git(&["add", "."]);
+        git(&["commit", "-m", "seed"]);
+        git(&["checkout", "-b", "feature"]);
+        std::fs::write(path.join("seed.txt"), "seed\nextra\n").expect("rewrite seed.txt");
+
+        // Drop UNTRACKED_FILE_LIMIT + 1 untracked one-line files into the
+        // worktree. If the loop ran, each would contribute one addition.
+        let overflow = UNTRACKED_FILE_LIMIT + 1;
+        for i in 0..overflow {
+            std::fs::write(path.join(format!("u_{i}.txt")), "x\n")
+                .expect("write untracked file");
+        }
+
+        let (additions, deletions) =
+            get_diff_stats(path_str, Some("main")).expect("get_diff_stats");
+
+        // Only the 1 tracked-uncommitted addition should land — untracked
+        // files past the cap must be skipped entirely, not partially counted.
+        assert_eq!(additions, 1, "additions should reflect only the tracked edit");
+        assert_eq!(deletions, 0);
     }
 
     // ── list_worktrees with linked worktree ─────────────────────
