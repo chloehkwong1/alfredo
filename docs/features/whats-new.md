@@ -7,6 +7,19 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.15.1 — 2026-05-13**
+- **No more "Too many open files" crashes** — heavy users with many
+  worktrees and open GitHub PRs were hitting the macOS file-descriptor
+  limit because every poll cycle built a fresh HTTP client with its own
+  unbounded connection pool. We now share one bounded pool across the
+  app, so socket usage stays flat regardless of how many repos or PRs
+  you have open.
+- **Token changes take effect without restart** — disconnecting GitHub
+  or rotating your token used to require quitting Alfredo. The token
+  cache now refreshes on every config save.
+- **File list in the Changes panel scrolls** when it overflows the
+  panel height (regression from v0.15.0).
+
 **v0.15.0 — 2026-05-11**
 - **Collapse the sidebar with ⌘B** — press ⌘B, run "Toggle sidebar"
   from the command palette, or click the `«` chevron in the sidebar
