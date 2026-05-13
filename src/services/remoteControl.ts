@@ -4,33 +4,30 @@ import { sessionManager } from "./sessionManager";
 
 const SESSION_URL_RE = /https:\/\/claude\.ai\/code\/[^\s\x1b]+/;
 
-/** Active polling intervals per worktreeId — cleared on re-toggle or disable. */
+/** Active polling intervals per sessionKey — cleared on re-toggle or disable. */
 const activePolls = new Map<string, ReturnType<typeof setInterval>>();
 
-function clearPoll(worktreeId: string) {
-  const existing = activePolls.get(worktreeId);
+function clearPoll(sessionKey: string) {
+  const existing = activePolls.get(sessionKey);
   if (existing) {
     clearInterval(existing);
-    activePolls.delete(worktreeId);
+    activePolls.delete(sessionKey);
   }
 }
 
-async function toggleRemoteControl(
-  worktreeId: string,
-  sessionKey: string,
-): Promise<void> {
+async function toggleRemoteControl(sessionKey: string): Promise<void> {
   const store = useRemoteControlStore.getState();
   const session = sessionManager.getSession(sessionKey);
   if (!session || !session.sessionId) return;
 
-  if (store.isActive(worktreeId)) {
-    clearPoll(worktreeId);
-    store.disable(worktreeId);
+  if (store.isActive(sessionKey)) {
+    clearPoll(sessionKey);
+    store.disable(sessionKey);
     return;
   }
 
   // Clear any stale poll from a previous attempt
-  clearPoll(worktreeId);
+  clearPoll(sessionKey);
 
   const bytes = Array.from(new TextEncoder().encode("/remote-control\r"));
   await writePty(session.sessionId, bytes);
@@ -39,7 +36,7 @@ async function toggleRemoteControl(
   const pollInterval = setInterval(() => {
     const current = sessionManager.getSession(sessionKey);
     if (!current) {
-      clearPoll(worktreeId);
+      clearPoll(sessionKey);
       return;
     }
 
@@ -60,18 +57,18 @@ async function toggleRemoteControl(
     const recentText = new TextDecoder().decode(recentBytes);
     const match = recentText.match(SESSION_URL_RE);
     if (match) {
-      store.enable(worktreeId, match[0]);
-      clearPoll(worktreeId);
+      store.enable(sessionKey, match[0]);
+      clearPoll(sessionKey);
       return;
     }
 
     if (Date.now() - startTime > 10_000) {
-      clearPoll(worktreeId);
+      clearPoll(sessionKey);
       console.warn("[RemoteControl] Timed out waiting for session URL");
     }
   }, 500);
 
-  activePolls.set(worktreeId, pollInterval);
+  activePolls.set(sessionKey, pollInterval);
 }
 
 export { toggleRemoteControl };

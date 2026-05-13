@@ -151,12 +151,13 @@ function SettingsStatusBar({ worktreeId }: SettingsStatusBarProps) {
   );
 
   const isRcActive = useRemoteControlStore(
-    useCallback((s) => worktreeId in s.sessions, [worktreeId]),
+    useCallback((s) => sessionKey in s.sessions, [sessionKey]),
   );
 
   const handleToggleRemote = useCallback(() => {
-    toggleRemoteControl(worktreeId, sessionKey);
-  }, [worktreeId, sessionKey]);
+    if (!sessionKey) return;
+    toggleRemoteControl(sessionKey);
+  }, [sessionKey]);
 
   return (
     <div className="flex items-center justify-between px-2 py-1 border-t border-border-default flex-shrink-0">

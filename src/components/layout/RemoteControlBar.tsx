@@ -2,6 +2,8 @@ import { Copy, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useRemoteControlStore } from "../../stores/remoteControlStore";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
+import { useTabStore } from "../../stores/tabStore";
+import { useLayoutStore } from "../../stores/layoutStore";
 import { Button, Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from "../ui";
 
 interface RemoteControlBarProps {
@@ -9,14 +11,22 @@ interface RemoteControlBarProps {
 }
 
 function RemoteControlBar({ worktreeId }: RemoteControlBarProps) {
-  const session = useRemoteControlStore((s) => s.sessions[worktreeId]);
+  // Match SettingsStatusBar: bar reflects the active Claude tab's RC session.
+  const tabs = useTabStore((s) => s.tabs[worktreeId] ?? []);
+  const allPanes = useLayoutStore((s) => s.panes[worktreeId]);
+  const claudeTargetTab = Object.values(allPanes ?? {})
+    .map((p) => tabs.find((t) => t.id === p.activeTabId))
+    .find((t) => t?.type === "claude");
+  const sessionKey = claudeTargetTab?.id ?? "";
+
+  const session = useRemoteControlStore((s) => (sessionKey ? s.sessions[sessionKey] : undefined));
   const disable = useRemoteControlStore((s) => s.disable);
   const { copied, copy } = useCopyToClipboard();
 
   if (!session) return null;
 
   const handleDisconnect = () => {
-    disable(worktreeId);
+    disable(sessionKey);
   };
 
   return (

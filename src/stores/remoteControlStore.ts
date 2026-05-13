@@ -7,28 +7,28 @@ interface RemoteControlSession {
 }
 
 interface RemoteControlState {
-  /** Map of worktreeId → active remote-control session. */
+  /** Map of sessionKey (Claude tab id) → active remote-control session. */
   sessions: Record<string, RemoteControlSession>;
-  /** Set a worktree as RC-active with the parsed session URL. */
-  enable: (worktreeId: string, sessionUrl: string) => void;
-  /** Remove RC state for a worktree. */
-  disable: (worktreeId: string) => void;
-  /** Check if a worktree has RC enabled. */
-  isActive: (worktreeId: string) => boolean;
+  /** Set a session as RC-active with the parsed session URL. */
+  enable: (sessionKey: string, sessionUrl: string) => void;
+  /** Remove RC state for a session. */
+  disable: (sessionKey: string) => void;
+  /** Check if a session has RC enabled. */
+  isActive: (sessionKey: string) => boolean;
 }
 
 const useRemoteControlStore = create<RemoteControlState>((set, get) => ({
   sessions: {},
-  enable: (worktreeId, sessionUrl) =>
+  enable: (sessionKey, sessionUrl) =>
     set((s) => ({
-      sessions: { ...s.sessions, [worktreeId]: { sessionUrl, connected: false } },
+      sessions: { ...s.sessions, [sessionKey]: { sessionUrl, connected: false } },
     })),
-  disable: (worktreeId) =>
+  disable: (sessionKey) =>
     set((s) => {
-      const { [worktreeId]: _, ...rest } = s.sessions;
+      const { [sessionKey]: _, ...rest } = s.sessions;
       return { sessions: rest };
     }),
-  isActive: (worktreeId) => worktreeId in get().sessions,
+  isActive: (sessionKey) => sessionKey in get().sessions,
 }));
 
 export { useRemoteControlStore };

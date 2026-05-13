@@ -550,9 +550,8 @@ export class SessionManager implements SessionWriter {
     const session = this.sessions.get(sessionKey);
     if (!session) return;
 
-    // Clean up remote-control state for this worktree
-    const worktreeId = sessionKey.split(":")[0];
-    useRemoteControlStore.getState().disable(worktreeId);
+    // Clean up remote-control state for this session
+    useRemoteControlStore.getState().disable(sessionKey);
 
     try {
       await closePty(session.sessionId);
@@ -589,9 +588,8 @@ export class SessionManager implements SessionWriter {
       session.pendingIdleTimer = null;
     }
 
-    // Clean up remote-control state for this worktree
-    const worktreeId = sessionKey.split(":")[0];
-    useRemoteControlStore.getState().disable(worktreeId);
+    // Clean up remote-control state for this session
+    useRemoteControlStore.getState().disable(sessionKey);
 
     // Clearing the session status causes the status mirror to project
     // "notRunning" onto the worktree, so the subsequent session spawn's
