@@ -1,0 +1,28 @@
+src/services/remoteControl.ts
+  s_cce30370aab7f8::t_7a2d8ea553efc0 7,10-11,14,18,23-25,30,39,60-61,66,71
+src/stores/remoteControlStore.ts
+  s_cce30370aab7f8::t_1f7df958cdb851 10,12-17,22,24,26,28,31
+src/components/terminal/SettingsStatusBar.tsx
+  s_cce30370aab7f8::t_22c0e9ab16fa28 154,158-160
+src/components/layout/RemoteControlBar.tsx
+  s_cce30370aab7f8::t_44e0b1b35e6231 5-6,14-22,29
+src/services/sessionManager.ts
+  s_cce30370aab7f8::t_52eacec4168412 553-554
+  s_cce30370aab7f8::t_9667e829d1de07 591-592
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "ae6898035aa733b39af5e55cbb0dc079729f0431",
+  "prompts": {},
+  "sessions": {
+    "s_cce30370aab7f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e27de48-00bb-4781-ade4-214fb811e27a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
