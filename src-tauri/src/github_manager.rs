@@ -2,6 +2,7 @@ use octocrab::Octocrab;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use crate::bounded_lru::BoundedLru;
 use crate::platform::gh_command;
 use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
@@ -9,6 +10,12 @@ use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus
 // call, always acquire `token_cache` first and release it before acquiring
 // `manager_cache`. `GithubManager::shared` only touches `manager_cache`, so
 // no path takes them in reverse. Preserving this prevents future deadlocks.
+//
+// Both caches are wrapped in `BoundedLru` (cap = `CACHE_CAP`) so a user with
+// many GitHub accounts can't grow them without bound. At cap 8 the LRU op
+// cost is trivial and avoids the eviction-oscillation a "drop arbitrary
+// entry" scheme would suffer under a hot working set above the cap.
+const CACHE_CAP: usize = 8;
 
 /// Safety limit for paginated GitHub API calls.
 const MAX_PAGES: u32 = 50;
@@ -358,9 +365,9 @@ fn shared_http_client() -> &'static reqwest::Client {
 /// Entries are evicted via `invalidate_for_repo` (called from
 /// `config_manager::save_config`) when the token changes, so the cache stays
 /// in lockstep with `token_cache`.
-fn manager_cache() -> &'static Mutex<HashMap<String, Arc<GithubManager>>> {
-    static CACHE: OnceLock<Mutex<HashMap<String, Arc<GithubManager>>>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+fn manager_cache() -> &'static Mutex<BoundedLru<String, Arc<GithubManager>>> {
+    static CACHE: OnceLock<Mutex<BoundedLru<String, Arc<GithubManager>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(BoundedLru::new(CACHE_CAP)))
 }
 
 /// Force the shared HTTP client to initialize now, so a TLS-init failure
@@ -392,11 +399,12 @@ impl GithubManager {
     /// HTTP clients or their connection pools.
     pub fn shared(token: &str) -> Result<Arc<Self>, AppError> {
         let mut guard = manager_cache().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(existing) = guard.get(token) {
+        let key = token.to_string();
+        if let Some(existing) = guard.get(&key) {
             return Ok(existing.clone());
         }
         let manager = Arc::new(Self::new(token)?);
-        guard.insert(token.to_string(), manager.clone());
+        guard.insert(key, manager.clone());
         Ok(manager)
     }
 
@@ -1010,9 +1018,9 @@ pub async fn github_context(app_data_dir: &std::path::Path, repo_path: &str) -> 
 /// forever, which had two pathologies: (1) changing the token required an app
 /// restart, and (2) the first repo's token was reused as the cached answer for
 /// every subsequent repo regardless of its actual config.
-fn token_cache() -> &'static tokio::sync::RwLock<HashMap<String, String>> {
-    static CACHE: OnceLock<tokio::sync::RwLock<HashMap<String, String>>> = OnceLock::new();
-    CACHE.get_or_init(|| tokio::sync::RwLock::new(HashMap::new()))
+fn token_cache() -> &'static tokio::sync::RwLock<BoundedLru<String, String>> {
+    static CACHE: OnceLock<tokio::sync::RwLock<BoundedLru<String, String>>> = OnceLock::new();
+    CACHE.get_or_init(|| tokio::sync::RwLock::new(BoundedLru::new(CACHE_CAP)))
 }
 
 /// Normalize a repo path to a stable cache key — trailing slashes, symlinked
@@ -1034,7 +1042,9 @@ fn canonical_key(repo_path: &str) -> String {
 
 async fn cached_token(app_data_dir: &std::path::Path, repo_path: &str) -> Result<String, AppError> {
     let key = canonical_key(repo_path);
-    if let Some(token) = token_cache().read().await.get(&key).cloned() {
+    // BoundedLru::get touches MRU on hit, so we need the write lock unconditionally.
+    // The cache is tiny (cap = CACHE_CAP) so write-contention is negligible.
+    if let Some(token) = token_cache().write().await.get(&key).cloned() {
         return Ok(token);
     }
     let config = crate::config_manager::load_personal_config(app_data_dir, repo_path).await?;

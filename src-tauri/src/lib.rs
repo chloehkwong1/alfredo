@@ -5,6 +5,7 @@ mod platform;
 mod app_config_manager;
 mod ask_alfredo;
 mod atomic_write;
+mod bounded_lru;
 mod branch_manager;
 mod commands;
 mod config_manager;

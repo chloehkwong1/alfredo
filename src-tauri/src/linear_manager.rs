@@ -1,25 +1,52 @@
+use std::sync::OnceLock;
+
 use crate::types::{AppError, LinearTeam, LinearTicket};
 
 const GRAPHQL_ENDPOINT: &str = "https://api.linear.app/graphql";
 
-/// Build an authenticated reqwest client for the Linear API.
-fn client(api_key: &str) -> Result<reqwest::Client, AppError> {
-    let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        reqwest::header::AUTHORIZATION,
-        reqwest::header::HeaderValue::from_str(api_key)
-            .map_err(|e| AppError::Linear(format!("invalid API key header: {e}")))?,
-    );
-    headers.insert(
-        reqwest::header::CONTENT_TYPE,
-        reqwest::header::HeaderValue::from_static("application/json"),
-    );
+/// Process-wide shared reqwest client for Linear API calls.
+///
+/// Why: `client(api_key)` used to build a fresh `reqwest::Client` per call,
+/// and each fresh client owns its own connection pool with default 90 s idle
+/// timeout and no idle cap. Ticket-picker autocompletes and viewer-validation
+/// fire many short-lived requests, so FDs to `api.linear.app` accumulated and
+/// reproduced the same FD-exhaustion class of bug fixed for GitHub in commit
+/// `eee98e5` (which surfaced as "Too many open files" because libgit2 then
+/// can't fork). One shared pool fixes it.
+///
+/// Bearer tokens vary per Linear account (Chloe may have multiple), so we
+/// attach the `Authorization` header per-request rather than baking it into
+/// the client's default headers — that way we don't need a per-key cache to
+/// bound.
+///
+/// Panics if the bounded client fails to build — the only realistic failure
+/// is TLS init, which is unrecoverable at startup. Falling back to a default
+/// client would silently re-introduce the unbounded pool this exists to
+/// eliminate, which is the worse failure mode (FD leak shows up weeks later).
+#[allow(clippy::expect_used)]
+fn shared_http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .pool_max_idle_per_host(4)
+            .pool_idle_timeout(std::time::Duration::from_secs(15))
+            .build()
+            .expect("failed to build shared Linear HTTP client")
+    })
+}
 
-    reqwest::Client::builder()
-        .default_headers(headers)
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| AppError::Linear(format!("failed to build HTTP client: {e}")))
+/// Build an authenticated POST request to the Linear GraphQL endpoint.
+/// All call sites in this module go through here so the connection pool is
+/// shared across every Linear API call regardless of which account's API key
+/// is in play.
+fn client(api_key: &str) -> Result<reqwest::RequestBuilder, AppError> {
+    let auth = reqwest::header::HeaderValue::from_str(api_key)
+        .map_err(|e| AppError::Linear(format!("invalid API key header: {e}")))?;
+    Ok(shared_http_client()
+        .post(GRAPHQL_ENDPOINT)
+        .header(reqwest::header::AUTHORIZATION, auth)
+        .header(reqwest::header::CONTENT_TYPE, "application/json"))
 }
 
 /// Resolve a Linear API token: OAuth first (with auto-refresh), then per-repo key.
@@ -121,7 +148,6 @@ pub async fn search_issues(
     let body = serde_json::json!({ "query": graphql_query, "variables": variables });
 
     let resp = client(api_key)?
-        .post(GRAPHQL_ENDPOINT)
         .json(&body)
         .send()
         .await
@@ -181,7 +207,6 @@ async fn lookup_by_identifier(
     });
 
     let resp = client(api_key)?
-        .post(GRAPHQL_ENDPOINT)
         .json(&body)
         .send()
         .await
@@ -239,7 +264,6 @@ pub async fn list_assigned_issues(
     let body = serde_json::json!({ "query": graphql_query });
 
     let resp = client(api_key)?
-        .post(GRAPHQL_ENDPOINT)
         .json(&body)
         .send()
         .await
@@ -298,7 +322,6 @@ pub async fn get_issue(
     });
 
     let resp = client(api_key)?
-        .post(GRAPHQL_ENDPOINT)
         .json(&body)
         .send()
         .await
@@ -343,7 +366,6 @@ pub async fn list_teams(api_key: &str) -> Result<Vec<LinearTeam>, AppError> {
     let body = serde_json::json!({ "query": graphql_query });
 
     let resp = client(api_key)?
-        .post(GRAPHQL_ENDPOINT)
         .json(&body)
         .send()
         .await
@@ -405,12 +427,12 @@ pub async fn get_viewer_name(api_key: &str) -> ViewerResult {
     let graphql_query = r#"{ viewer { id name } }"#;
     let body = serde_json::json!({ "query": graphql_query });
 
-    let client = match client(api_key) {
+    let req = match client(api_key) {
         Ok(c) => c,
         Err(e) => return ViewerResult::Transient { reason: format!("client build failed: {e}") },
     };
 
-    let resp = match client.post(GRAPHQL_ENDPOINT).json(&body).send().await {
+    let resp = match req.json(&body).send().await {
         Ok(r) => r,
         Err(e) => return ViewerResult::Transient { reason: format!("viewer request failed: {e}") },
     };
