@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { PrUpdatePayload, StackRebaseStatus } from "../types";
@@ -14,6 +14,13 @@ import { lifecycleManager } from "../services/lifecycleManager";
  * `archiveAfterDays` ago.
  */
 export function useGithubSync() {
+  // Dedupe getPrFiles IPCs across pr-update emits: skip when headSha is unchanged
+  // for a given PR number. Cleared/updated only on a successful fetch.
+  const lastSeenHeadShaRef = useRef<Map<number, string>>(new Map());
+  // Leading-edge throttle for focus-driven re-sync. First focus after idle
+  // fires immediately; repeat alt-tabs within the window are coalesced away.
+  const lastFocusPollAtRef = useRef<number>(0);
+
   useEffect(() => {
     const unlisten = listen<PrUpdatePayload>("github:pr-update", async (event) => {
       const patches = usePrStore.getState().applyPrUpdates(
@@ -22,16 +29,23 @@ export function useGithubSync() {
       );
       useWorkspaceStore.getState().applyWorktreePatches(patches);
 
-      // Update diff stats for worktrees that have PRs — use GitHub API for accuracy
+      // Update diff stats for worktrees that have PRs — use GitHub API for accuracy.
+      // Skip the IPC when the PR's headSha matches the last successful fetch:
+      // files haven't changed, so additions/deletions can't have either.
       for (const [wtId, patch] of patches) {
         if (patch.prStatus?.number) {
+          const prNumber = patch.prStatus.number;
+          const headSha = patch.prStatus.headSha;
+          const lastSha = lastSeenHeadShaRef.current.get(prNumber);
+          if (headSha && lastSha === headSha) continue;
           const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === wtId);
           if (wt) {
-            getPrFiles(wt.repoPath, patch.prStatus.number)
+            getPrFiles(wt.repoPath, prNumber)
               .then((files) => {
                 const additions = files.reduce((sum, f) => sum + f.additions, 0);
                 const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
                 useWorkspaceStore.getState().updateWorktree(wtId, { additions, deletions });
+                if (headSha) lastSeenHeadShaRef.current.set(prNumber, headSha);
               })
               .catch((e) => console.warn("[github-sync] Failed to fetch PR files for", wtId, e));
           }
@@ -177,13 +191,20 @@ export function useGithubSync() {
   }, []);
 
   // Re-sync when the window regains focus so PR data catches up after
-  // macOS App Nap or long background periods.
+  // macOS App Nap or long background periods. Leading-edge throttle: the
+  // defining workflow is alt-tabbing from GitHub back to Alfredo to confirm
+  // a change just shipped — the first focus after idle MUST fire immediately.
+  // Repeat focus flickers within 30 s coalesce into nothing.
   useEffect(() => {
+    const FOCUS_THROTTLE_MS = 30_000;
     const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
       if (!focused) return;
+      const now = Date.now();
+      if (now - lastFocusPollAtRef.current < FOCUS_THROTTLE_MS) return;
       const worktrees = useWorkspaceStore.getState().worktrees;
       const repos = [...new Set(worktrees.map((wt) => wt.repoPath))];
       if (repos.length === 0) return;
+      lastFocusPollAtRef.current = now;
       const branches = worktrees.filter((wt) => !wt.archived).map((wt) => wt.branch);
       setSyncRepoPaths(repos, branches).catch((e) => console.warn('[github-sync] Failed to re-sync on focus:', e));
     });
