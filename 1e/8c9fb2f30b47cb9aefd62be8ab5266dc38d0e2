@@ -1,0 +1,19 @@
+.github/CODEOWNERS
+  s_270c3ebc92e915::t_a8aba0b23c770b 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "1e8c9fb2f30b47cb9aefd62be8ab5266dc38d0e2",
+  "prompts": {},
+  "sessions": {
+    "s_270c3ebc92e915": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a851728-9059-4e9a-aafa-c6736439141a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
