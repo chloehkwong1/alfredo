@@ -1,0 +1,22 @@
+src/components/changes/DiffFileCard.tsx
+  s_cce30370aab7f8::t_c2176da18ee3c8 81-86
+  s_cce30370aab7f8::t_b4176e5746c482 8
+src/stores/fileViewModeStore.ts
+  s_cce30370aab7f8::t_2f4695323f8621 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "e1134cc0801cd6a0c537e5439f297e745ec153bb",
+  "prompts": {},
+  "sessions": {
+    "s_cce30370aab7f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e27de48-00bb-4781-ade4-214fb811e27a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
