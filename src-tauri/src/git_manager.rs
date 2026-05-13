@@ -766,9 +766,14 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
         .output()
     {
         if output.status.success() {
+            // Cap at 500 files: a repo with thousands of untracked files (e.g.
+            // because a tool like openclaw created worktrees inside a
+            // non-gitignored directory such as .claude/worktrees/) would
+            // otherwise spawn one subprocess per file and hang or crash.
             for rel in String::from_utf8_lossy(&output.stdout)
                 .lines()
                 .filter(|l| !l.is_empty())
+                .take(500)
             {
                 let abs = std::path::Path::new(worktree_path).join(rel);
                 // symlink_metadata so we never follow a symlink that escapes

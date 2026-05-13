@@ -32,6 +32,7 @@ src-tauri/gen/
 
 # Git worktrees
 .worktrees/
+.claude/worktrees/
 
 # Claude Code local settings
 .claude/settings.local.json
