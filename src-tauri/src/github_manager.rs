@@ -1,9 +1,14 @@
 use octocrab::Octocrab;
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::platform::gh_command;
 use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
+
+// LOCK ORDER: when both module-level caches need to be touched in the same
+// call, always acquire `token_cache` first and release it before acquiring
+// `manager_cache`. `GithubManager::shared` only touches `manager_cache`, so
+// no path takes them in reverse. Preserving this prevents future deadlocks.
 
 /// Safety limit for paginated GitHub API calls.
 const MAX_PAGES: u32 = 50;
@@ -318,8 +323,58 @@ pub struct GithubManager {
     token: String,
 }
 
+/// Process-wide shared reqwest client. We share one pool across every
+/// `GithubManager` so we don't accumulate idle TCP sockets — see the cache
+/// docs below.
+///
+/// Panics if the bounded client fails to build — the only realistic failure
+/// is TLS init, which is unrecoverable at startup. Falling back to a default
+/// client would silently re-introduce the unbounded pool this exists to
+/// eliminate, which is the worse failure mode (FD leak shows up weeks later).
+#[allow(clippy::expect_used)]
+fn shared_http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .pool_max_idle_per_host(4)
+            .pool_idle_timeout(std::time::Duration::from_secs(15))
+            .build()
+            .expect("failed to build shared HTTP client")
+    })
+}
+
+/// Process-wide cache of `GithubManager`s keyed by token.
+///
+/// Why: every `GithubManager::new` used to construct a fresh octocrab and
+/// reqwest client. Each fresh `reqwest::Client` owns its own connection pool
+/// with default `pool_idle_timeout` of 90 s and no idle-cap, so TCP sockets
+/// to `api.github.com` accumulated as FDs across the periodic poll loop and
+/// every per-PR detail fetch. On users with many worktrees + repos this
+/// exhausted the macOS 256-FD limit and surfaced as
+/// `Git error: failed to spawn git: Too many open files` (because `git2`
+/// needs an FD to fork). Reusing one manager per token reuses one pool.
+///
+/// Entries are evicted via `invalidate_for_repo` (called from
+/// `config_manager::save_config`) when the token changes, so the cache stays
+/// in lockstep with `token_cache`.
+fn manager_cache() -> &'static Mutex<HashMap<String, Arc<GithubManager>>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Arc<GithubManager>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Force the shared HTTP client to initialize now, so a TLS-init failure
+/// crashes loudly at app startup instead of on the first GitHub interaction
+/// — by which time the user has typed into the UI and would lose state.
+/// Call from `lib.rs` setup; idempotent.
+pub(crate) fn init_shared_clients() {
+    let _ = shared_http_client();
+}
+
 impl GithubManager {
-    /// Create a new GithubManager with a GitHub token (PAT, OAuth, or gh CLI token).
+    /// Construct a `GithubManager` for the given token without touching the
+    /// shared cache. Prefer `shared` — this is kept for callers that need a
+    /// one-off manager (e.g. tests).
     pub fn new(token: &str) -> Result<Self, AppError> {
         let client = Octocrab::builder()
             .personal_token(token.to_string())
@@ -327,11 +382,22 @@ impl GithubManager {
             .set_read_timeout(Some(std::time::Duration::from_secs(30)))
             .build()
             .map_err(|e| AppError::Github(format!("failed to build octocrab client: {e}")))?;
-        let http_client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .map_err(|e| AppError::Github(format!("failed to build HTTP client: {e}")))?;
+        let http_client = shared_http_client().clone();
         Ok(Self { client, http_client, token: token.to_string() })
+    }
+
+    /// Get a shared `GithubManager` for the given token, building one on
+    /// first use and reusing it on every subsequent call. The returned
+    /// `Arc` lets callers hold a handle without copying the underlying
+    /// HTTP clients or their connection pools.
+    pub fn shared(token: &str) -> Result<Arc<Self>, AppError> {
+        let mut guard = manager_cache().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(existing) = guard.get(token) {
+            return Ok(existing.clone());
+        }
+        let manager = Arc::new(Self::new(token)?);
+        guard.insert(token.to_string(), manager.clone());
+        Ok(manager)
     }
 
     fn token(&self) -> &str {
@@ -925,37 +991,76 @@ pub fn parse_github_owner_repo(url: &str) -> Option<(String, String)> {
     Some((owner, repo))
 }
 
-/// Resolve owner/repo from a repo path by reading the git remote URL.
-/// Resolve a GithubManager + owner/repo from a repo path in one call.
+/// Resolve a `GithubManager` + owner/repo from a repo path in one call.
 /// Loads the per-repo config, resolves the token, and parses the remote URL.
-/// The GitHub token is cached for the process lifetime to avoid shelling out
-/// to `gh auth token` on every IPC call.
-pub async fn github_context(app_data_dir: &std::path::Path, repo_path: &str) -> Result<(GithubManager, String, String), AppError> {
+/// The token is cached per repo and invalidated by `save_config`, so it survives
+/// across IPC calls but takes effect immediately when the user updates it.
+pub async fn github_context(app_data_dir: &std::path::Path, repo_path: &str) -> Result<(Arc<GithubManager>, String, String), AppError> {
     let token = cached_token(app_data_dir, repo_path).await?;
-    let manager = GithubManager::new(&token)?;
+    let manager = GithubManager::shared(&token)?;
     let (owner, repo) = resolve_owner_repo(repo_path).await?;
     Ok((manager, owner, repo))
 }
 
-/// Cache the resolved GitHub token to avoid repeated `gh auth token` subprocess
-/// spawns. The token is resolved once and reused for all subsequent calls.
+/// Per-repo cache of resolved GitHub tokens. Avoids reshelling `gh auth token`
+/// on every IPC call while still allowing invalidation when the user updates
+/// or disconnects the token via `save_config`/`github_auth_disconnect`.
+///
+/// Previously this was a process-wide `OnceCell` that resolved once and froze
+/// forever, which had two pathologies: (1) changing the token required an app
+/// restart, and (2) the first repo's token was reused as the cached answer for
+/// every subsequent repo regardless of its actual config.
+fn token_cache() -> &'static tokio::sync::RwLock<HashMap<String, String>> {
+    static CACHE: OnceLock<tokio::sync::RwLock<HashMap<String, String>>> = OnceLock::new();
+    CACHE.get_or_init(|| tokio::sync::RwLock::new(HashMap::new()))
+}
+
+/// Normalize a repo path to a stable cache key — trailing slashes, symlinked
+/// variants, and relative paths all collapse to the same canonical form.
+/// Matches the strategy `resolve_owner_repo` already uses for its cache, so a
+/// `save_config` invalidation hits the same key that `cached_token` inserted.
+///
+/// Contract: callers must pass post-expansion absolute paths (no `~`). If
+/// `canonicalize` fails (e.g. the path no longer exists) we fall back to the
+/// raw string — that's only symmetric across cache boundaries when the input
+/// itself is consistent, so don't mix expanded and unexpanded forms.
+fn canonical_key(repo_path: &str) -> String {
+    std::path::Path::new(repo_path)
+        .canonicalize()
+        .ok()
+        .and_then(|p| p.to_str().map(ToString::to_string))
+        .unwrap_or_else(|| repo_path.to_string())
+}
+
 async fn cached_token(app_data_dir: &std::path::Path, repo_path: &str) -> Result<String, AppError> {
-    use tokio::sync::OnceCell;
+    let key = canonical_key(repo_path);
+    if let Some(token) = token_cache().read().await.get(&key).cloned() {
+        return Ok(token);
+    }
+    let config = crate::config_manager::load_personal_config(app_data_dir, repo_path).await?;
+    let token = resolve_token(config.github_token.as_deref()).await?;
+    token_cache().write().await.insert(key, token.clone());
+    Ok(token)
+}
 
-    static TOKEN_CACHE: OnceCell<Result<String, String>> = OnceCell::const_new();
-
-    let result = TOKEN_CACHE
-        .get_or_init(|| async {
-            let config = crate::config_manager::load_personal_config(app_data_dir, repo_path).await
-                .map_err(|e| format!("{e}"))?;
-            resolve_token(config.github_token.as_deref()).await
-                .map_err(|e| format!("{e}"))
-        })
-        .await;
-
-    match result {
-        Ok(token) => Ok(token.clone()),
-        Err(e) => Err(AppError::Github(e.clone())),
+/// Drop cached GitHub state for a repo. Called from `config_manager::save_config`
+/// so that updates to `github_token` (or sign-out via `github_auth_disconnect`)
+/// take effect immediately — the next `github_context` call re-reads the
+/// keychain and rebuilds the `GithubManager` for the new token.
+///
+/// We only evict the cached `GithubManager` if no other repo is still using
+/// the same token (multiple repos commonly share a global `gh` CLI token).
+pub(crate) async fn invalidate_for_repo(repo_path: &str) {
+    let key = canonical_key(repo_path);
+    // Hold the write lock across remove + "still in use" check so another
+    // caller can't reinsert the same token between the two steps.
+    let mut tok_guard = token_cache().write().await;
+    let Some(old_token) = tok_guard.remove(&key) else { return };
+    let still_used = tok_guard.values().any(|t| t == &old_token);
+    drop(tok_guard);
+    if !still_used {
+        let mut mgr_guard = manager_cache().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        mgr_guard.remove(&old_token);
     }
 }
 
@@ -1927,5 +2032,77 @@ mod tests {
         assert_eq!(info.message, "feat: add feature");
         assert_eq!(info.author, "Chloe");
         assert_eq!(info.timestamp, 1774792800);
+    }
+
+    // --- Shared cache invariants ---
+    //
+    // The static caches are process-wide, so tests use unique tokens / paths
+    // (a per-test prefix) to avoid cross-test interference when run in
+    // parallel. We assert behaviour, not absolute cache size. All tests run
+    // on a tokio runtime because Octocrab's builder needs one.
+
+    fn mgr_cache_contains(token: &str) -> bool {
+        manager_cache()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains_key(token)
+    }
+
+    #[tokio::test]
+    async fn shared_returns_same_arc_for_same_token() {
+        let token = "test-fd-fix-aaa-same-token";
+        let a = GithubManager::shared(token).unwrap();
+        let b = GithubManager::shared(token).unwrap();
+        assert!(Arc::ptr_eq(&a, &b), "same token must return the same Arc");
+    }
+
+    #[tokio::test]
+    async fn shared_returns_distinct_arcs_for_distinct_tokens() {
+        let a = GithubManager::shared("test-fd-fix-aaa-distinct-1").unwrap();
+        let b = GithubManager::shared("test-fd-fix-aaa-distinct-2").unwrap();
+        assert!(!Arc::ptr_eq(&a, &b), "distinct tokens must return distinct Arcs");
+    }
+
+    #[tokio::test]
+    async fn invalidate_evicts_manager_when_token_unused_elsewhere() {
+        let token = "test-fd-fix-bbb-sole-user";
+        let repo = "/tmp/alfredo-test-bbb-sole-user-repo";
+        token_cache().write().await.insert(repo.into(), token.into());
+        let _mgr = GithubManager::shared(token).unwrap();
+        assert!(mgr_cache_contains(token));
+
+        invalidate_for_repo(repo).await;
+
+        assert!(!token_cache().read().await.contains_key(repo));
+        assert!(!mgr_cache_contains(token));
+    }
+
+    #[tokio::test]
+    async fn invalidate_keeps_manager_when_another_repo_shares_token() {
+        let token = "test-fd-fix-ccc-shared";
+        let repo_a = "/tmp/alfredo-test-ccc-shared-repo-a";
+        let repo_b = "/tmp/alfredo-test-ccc-shared-repo-b";
+        {
+            let mut g = token_cache().write().await;
+            g.insert(repo_a.into(), token.into());
+            g.insert(repo_b.into(), token.into());
+        }
+        let _mgr = GithubManager::shared(token).unwrap();
+
+        invalidate_for_repo(repo_a).await;
+
+        assert!(!token_cache().read().await.contains_key(repo_a));
+        assert!(token_cache().read().await.contains_key(repo_b));
+        assert!(
+            mgr_cache_contains(token),
+            "manager must survive while another repo still references the token"
+        );
+
+        // Cleanup so we don't pollute other tests.
+        token_cache().write().await.remove(repo_b);
+        manager_cache()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(token);
     }
 }

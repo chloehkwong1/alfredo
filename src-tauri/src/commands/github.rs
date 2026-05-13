@@ -114,6 +114,6 @@ pub async fn get_pr_for_branch(
 ) -> Result<Option<PrStatus>> {
     let token = std::env::var("GITHUB_TOKEN")
         .map_err(|_| AppError::Github("no GitHub token available".into()))?;
-    let manager = GithubManager::new(&token)?;
+    let manager = GithubManager::shared(&token)?;
     manager.get_pr_for_branch(&owner, &repo, &branch).await
 }

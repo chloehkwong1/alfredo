@@ -85,6 +85,9 @@ pub fn run() {
         .manage(commands::worktree::PortConfigLock::default())
         .setup(|app| {
             crate::logging::init();
+            // Warm the shared HTTP client so any TLS-init failure surfaces
+            // at startup rather than on the first GitHub interaction.
+            crate::github_manager::init_shared_clients();
             // Replace the default macOS menu with one that omits the "Help"
             // submenu. macOS binds ⌘⇧? to the Help menu's search field at the
             // OS level, which swallows our keyboard-shortcuts overlay binding

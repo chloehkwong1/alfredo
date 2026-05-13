@@ -675,7 +675,7 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
     let (owner, repo) = github_manager::resolve_owner_repo(&repo_path).await?;
 
     // 3. Fetch the PR to get the head branch name
-    let manager = GithubManager::new(&token)?;
+    let manager = GithubManager::shared(&token)?;
     let prs = manager.sync_prs(&owner, &repo).await?;
     let pr = prs
         .iter()

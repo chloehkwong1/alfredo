@@ -399,7 +399,7 @@ async fn fetch_rate_limit_reset(
 ) -> Option<u64> {
     let config = config_manager::load_personal_config(app_data_dir, repo_path).await.ok()?;
     let token = crate::github_manager::resolve_token(config.github_token.as_deref()).await.ok()?;
-    let manager = GithubManager::new(&token).ok()?;
+    let manager = GithubManager::shared(&token).ok()?;
     manager.rate_limit_reset().await.ok()
 }
 
@@ -421,7 +421,7 @@ async fn poll_repo(
         }
     };
 
-    let manager = GithubManager::new(&token).map_err(|e| format!("{e}"))?;
+    let manager = GithubManager::shared(&token).map_err(|e| format!("{e}"))?;
 
     let (owner, repo) = crate::github_manager::resolve_owner_repo(repo_path)
         .await
@@ -514,7 +514,7 @@ async fn enrich_repo_with_comments(
 ) {
     let Ok(config) = config_manager::load_personal_config(app_data_dir, repo_path).await else { return; };
     let Ok(token) = crate::github_manager::resolve_token(config.github_token.as_deref()).await else { return; };
-    let Ok(manager) = GithubManager::new(&token) else { return; };
+    let Ok(manager) = GithubManager::shared(&token) else { return; };
     let Ok((owner, repo)) = crate::github_manager::resolve_owner_repo(repo_path).await else { return; };
 
     // Collect indices + PR numbers for active, unmerged PRs

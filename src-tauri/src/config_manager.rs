@@ -431,7 +431,13 @@ pub async fn save_config(app_data_dir: &Path, repo_path: &str, config: &AppConfi
         }
     }
 
-    write_personal_config_file(app_data_dir, repo_path, &to_write).await
+    write_personal_config_file(app_data_dir, repo_path, &to_write).await?;
+
+    // Drop cached GitHub clients for this repo so a refreshed/cleared token
+    // takes effect on the next call without an app restart.
+    crate::github_manager::invalidate_for_repo(repo_path).await;
+
+    Ok(())
 }
 
 /// Get the column override for a specific worktree, if any.
