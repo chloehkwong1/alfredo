@@ -1,0 +1,21 @@
+src/components/changes/ChangesPanel.tsx
+  s_29673d0daf7119::t_d74149026ff418 28-29,61-68,78-81,84-88,90-96,98-101,103-113,115-121,123-125
+  s_29673d0daf7119::t_9badc5e1b73b2b 2
+  s_29673d0daf7119::t_ef421b82616fbf 72-74,82,89,97,102,114,122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "880c47b9be278e36caafa2967f0f3c8dc841160d",
+  "prompts": {},
+  "sessions": {
+    "s_29673d0daf7119": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3cb3f5f-83c1-4260-a753-526e0de4958a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
