@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GitBranch, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Check, Copy, GitBranch, PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
 import { RecentCommitsSection } from "./RecentCommitsSection";
@@ -25,6 +25,8 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
   const [behindCount, setBehindCount] = useState<number | null>(null);
   const baseBranchName = useDefaultBranch(repoPath, stackParent);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,8 +43,6 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
     return () => { cancelled = true; clearInterval(id); };
   }, [worktreePath, stackParent]);
 
-  const [error, setError] = useState<string | null>(null);
-
   const handleRebase = async () => {
     setLoading(true);
     setError(null);
@@ -58,27 +58,71 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
     }
   };
 
+  const handleCopyError = async () => {
+    if (!error) return;
+    try {
+      await navigator.clipboard.writeText(error);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      console.error("Failed to copy rebase error:", e);
+    }
+  };
+
+  // When behindCount hits 0 the banner unmounts and the error row goes with it.
+  // Intentional: if the rebase isn't needed any more (resolved out-of-band, branch
+  // deleted, poll caught up), surfacing a stale error is noise.
   if (behindCount == null || behindCount === 0 || baseBranchName == null) return null;
 
   return (
-    <div className="px-2.5 py-1.5 bg-accent-primary/15 border-t border-accent-primary/30 border-l-2 border-l-accent-primary text-xs font-semibold shrink-0 flex items-center gap-2 text-text-secondary">
-      <GitBranch size={13} className="shrink-0" />
-      <span className="flex-1 text-[11px]">
-        <span className="text-accent-primary">{behindCount} commit{behindCount !== 1 ? "s" : ""}</span> behind {baseBranchName ?? "base"}
-      </span>
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={handleRebase}
-        disabled={loading}
-        className="text-[10px] px-2 py-0.5 h-auto bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 disabled:opacity-50 font-medium"
-      >
-        {loading ? "Rebasing…" : "Rebase"}
-      </Button>
-      {error && (
-        <span className="text-red-400 text-[10px] truncate max-w-[200px]" title={error}>
-          Failed: {error}
+    <div className="bg-accent-primary/15 border-t border-accent-primary/30 border-l-2 border-l-accent-primary shrink-0">
+      <div className="px-2.5 py-1.5 text-xs font-semibold flex items-center gap-2 text-text-secondary">
+        <GitBranch size={13} className="shrink-0" />
+        <span className="flex-1 min-w-0 text-[11px] truncate">
+          <span className="text-accent-primary">{behindCount} commit{behindCount !== 1 ? "s" : ""}</span> behind {baseBranchName}
         </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleRebase}
+          disabled={loading}
+          className="text-2xs px-2 py-0.5 h-auto bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 disabled:opacity-50 font-medium shrink-0"
+        >
+          {loading ? "Rebasing…" : "Rebase"}
+        </Button>
+      </div>
+      {error && (
+        <div className="px-2.5 pb-1.5 border-t border-red-400/20">
+          <div className="flex items-center justify-between gap-2 pt-1.5">
+            <span className="text-red-400 text-2xs font-semibold">Rebase failed</span>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={handleCopyError}
+                className={`text-2xs px-1.5 py-0.5 rounded border inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                  copied
+                    ? "text-status-idle border-status-idle/30"
+                    : "text-text-secondary border-border-subtle hover:bg-white/5 hover:text-text-primary hover:border-border-hover"
+                }`}
+              >
+                {copied ? <Check size={9} /> : <Copy size={9} />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                aria-label="Dismiss rebase error"
+                className="text-text-tertiary hover:text-text-secondary cursor-pointer p-0.5"
+                title="Dismiss"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          </div>
+          <pre className="mt-1 text-2xs text-red-400/90 whitespace-pre-wrap break-words font-mono max-h-40 overflow-auto">
+            {error}
+          </pre>
+        </div>
       )}
     </div>
   );
