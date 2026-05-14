@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { RotateCcw, Smartphone } from "lucide-react";
 import { Button } from "../ui/Button";
 import { SettingsChip } from "./SettingsChip";
-import { getConfig, saveConfig, getAppConfig } from "../../api";
+import { getConfig, saveConfig } from "../../api";
 import { OpenInDropdown } from "../ui/OpenInDropdown";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useAppConfigStore } from "../../stores/appConfigStore";
@@ -69,7 +69,9 @@ function SettingsStatusBar({ worktreeId }: SettingsStatusBarProps) {
   // on whatever was resolved at mount.
   const loadResolved = useCallback(() => {
     if (!repoPath || !showClaudeSettings) return;
-    Promise.all([getAppConfig(), getConfig(repoPath)]).then(([appCfg, config]) => {
+    const appCfg = useAppConfigStore.getState().config;
+    if (!appCfg) return; // store hasn't fetched yet; the subscription below re-fires once it has
+    getConfig(repoPath).then((config) => {
       const merged = resolveSettings(
         appCfg,
         config.claudeDefaults,
