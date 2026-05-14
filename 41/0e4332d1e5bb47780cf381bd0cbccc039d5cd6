@@ -1,0 +1,20 @@
+src/components/terminal/SettingsStatusBar.tsx
+  s_e4f319e5e2bdc9::t_d32472dd8a75b2 72-74
+  s_e4f319e5e2bdc9::t_cb4d3b565c7d4a 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "410e4332d1e5bb47780cf381bd0cbccc039d5cd6",
+  "prompts": {},
+  "sessions": {
+    "s_e4f319e5e2bdc9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb8bbb96-6be4-45d7-954f-f253a4eae828",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
