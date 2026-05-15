@@ -1,0 +1,19 @@
+src/components/changes/AnnotationBubble.tsx
+  s_3c1ca1728d4425::t_9b1893ad9adcb8 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7ac91e827dd2d9760bd56d062a70db03df486eeb",
+  "prompts": {},
+  "sessions": {
+    "s_3c1ca1728d4425": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2430ad-1fba-4cdc-9284-1f0740a32aa5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
