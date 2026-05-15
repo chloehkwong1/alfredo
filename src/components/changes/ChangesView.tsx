@@ -58,7 +58,7 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
             type="button"
             onClick={nav.onPrev}
             disabled={!nav.hasPrev}
-            title="Previous commit (k)"
+            title="Previous commit (j)"
             className="p-1 rounded hover:bg-bg-hover hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-tertiary transition-colors"
           >
             <ChevronLeft size={13} />
@@ -67,7 +67,7 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
             type="button"
             onClick={nav.onNext}
             disabled={!nav.hasNext}
-            title="Next commit (j)"
+            title="Next commit (k)"
             className="p-1 rounded hover:bg-bg-hover hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-tertiary transition-colors"
           >
             <ChevronRight size={13} />
@@ -279,12 +279,12 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "j" && selectedCommitIndex! < commits.length - 1) {
-        e.preventDefault();
-        handleSelectCommit(selectedCommitIndex! + 1);
-      } else if (e.key === "k" && selectedCommitIndex! > 0) {
+      if (e.key === "j" && selectedCommitIndex! > 0) {
         e.preventDefault();
         handleSelectCommit(selectedCommitIndex! - 1);
+      } else if (e.key === "k" && selectedCommitIndex! < commits.length - 1) {
+        e.preventDefault();
+        handleSelectCommit(selectedCommitIndex! + 1);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
