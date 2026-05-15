@@ -1,0 +1,24 @@
+src-tauri/src/macos_notifications.rs
+  s_ad8d86939e3324::t_4c07a563638831 56-64
+  s_ad8d86939e3324::t_aa11bb0bf14851 97-99
+  s_ad8d86939e3324::t_709a961b32afce 117-119
+  s_ad8d86939e3324::t_0d95c1e241d7c2 70-72
+  s_ad8d86939e3324::t_34b0042e9c5444 24
+  s_ad8d86939e3324::t_d0f651d0c30bbb 211-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f306b8ab5dd23f303c4595f1279d055bc9f61e94",
+  "prompts": {},
+  "sessions": {
+    "s_ad8d86939e3324": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a5be416-257f-4a39-8ed9-51ed45eb3449",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
