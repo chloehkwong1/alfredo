@@ -13,7 +13,7 @@ import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { ensureAgentSession, writeToSession, focusAgentTab } from "../../services/agentMessenger";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
-import { Trash2, Check, Copy } from "lucide-react";
+import { Trash2, Check, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
 import { useAnnotationActions } from "./useAnnotationActions";
 import { ChangesToolbar } from "./ChangesToolbar";
@@ -32,7 +32,16 @@ interface ChangesViewProps {
   diffTarget?: DiffTarget;
 }
 
-function CommitHeader({ commit, gitUser }: { commit: CommitInfo; gitUser: string | null }) {
+interface CommitNav {
+  position: number;
+  total: number;
+  hasPrev: boolean;
+  hasNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+}
+
+function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: string | null; nav: CommitNav | null }) {
   const firstNewline = commit.message.indexOf("\n");
   const subject = firstNewline === -1 ? commit.message : commit.message.slice(0, firstNewline);
   const body = firstNewline === -1 ? "" : commit.message.slice(firstNewline + 1).trim();
@@ -42,6 +51,29 @@ function CommitHeader({ commit, gitUser }: { commit: CommitInfo; gitUser: string
 
   return (
     <div className="px-4 py-3 border-b border-border-default bg-bg-secondary">
+      {nav && nav.total > 1 && (
+        <div className="flex items-center justify-end gap-1 mb-1.5 text-[11px] text-text-tertiary">
+          <span className="font-mono mr-1">{nav.position} of {nav.total}</span>
+          <button
+            type="button"
+            onClick={nav.onPrev}
+            disabled={!nav.hasPrev}
+            title="Previous commit (k)"
+            className="p-1 rounded hover:bg-bg-hover hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-tertiary transition-colors"
+          >
+            <ChevronLeft size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={nav.onNext}
+            disabled={!nav.hasNext}
+            title="Next commit (j)"
+            className="p-1 rounded hover:bg-bg-hover hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-tertiary transition-colors"
+          >
+            <ChevronRight size={13} />
+          </button>
+        </div>
+      )}
       <div className="text-sm font-semibold text-text-primary leading-snug">
         {subject}
       </div>
@@ -239,6 +271,26 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
     }
   }, [diffTarget, handleSelectFile, handleSelectCommit, fileRefs]);
 
+  // j/k navigate prev/next commit within the branch's commits-vs-base list.
+  useEffect(() => {
+    if (viewMode !== "commits" || selectedCommitIndex === null) return;
+    if (selectedCommitIndex >= commits.length) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "j" && selectedCommitIndex! < commits.length - 1) {
+        e.preventDefault();
+        handleSelectCommit(selectedCommitIndex! + 1);
+      } else if (e.key === "k" && selectedCommitIndex! > 0) {
+        e.preventDefault();
+        handleSelectCommit(selectedCommitIndex! - 1);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [viewMode, selectedCommitIndex, commits.length, handleSelectCommit]);
+
   // Recovery: when a commit diffTarget is set but allCommits was empty at mount time
   // (session restore, or refocusing a tab before the first fetch resolves), re-apply
   // once commits load. Guard on selectedCommitIndex === null so we don't interfere
@@ -361,7 +413,22 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
           )}
           <div className="flex-1 overflow-y-auto min-w-0">
             {viewMode === "commits" && selectedCommitIndex !== null && allCommits[selectedCommitIndex] && (
-              <CommitHeader commit={allCommits[selectedCommitIndex]} gitUser={gitUser} />
+              <CommitHeader
+                commit={allCommits[selectedCommitIndex]}
+                gitUser={gitUser}
+                nav={
+                  selectedCommitIndex < commits.length
+                    ? {
+                        position: selectedCommitIndex + 1,
+                        total: commits.length,
+                        hasPrev: selectedCommitIndex > 0,
+                        hasNext: selectedCommitIndex < commits.length - 1,
+                        onPrev: () => handleSelectCommit(selectedCommitIndex - 1),
+                        onNext: () => handleSelectCommit(selectedCommitIndex + 1),
+                      }
+                    : null
+                }
+              />
             )}
             {/* Uncommitted section header with Discard All */}
             {!focusedFilePath && viewMode === "changes" && uncommittedFiles.length > 0 && (
