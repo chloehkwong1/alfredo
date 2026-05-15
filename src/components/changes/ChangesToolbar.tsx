@@ -49,6 +49,8 @@ interface ChangesToolbarProps {
   showPrComments: boolean;
   setShowPrComments: (worktreeId: string, v: boolean) => void;
   appConfig: GlobalAppConfig | null;
+  spikeFlagOn?: boolean;
+  onOpenSpike?: () => void;
 }
 
 function ViewModeToggle({
@@ -190,6 +192,8 @@ function ChangesToolbar({
   showPrComments,
   setShowPrComments,
   appConfig,
+  spikeFlagOn,
+  onOpenSpike,
 }: ChangesToolbarProps) {
   return (
     <div className="flex items-center gap-2 px-3 py-1 bg-bg-secondary border-b border-border-default flex-shrink-0">
@@ -321,6 +325,19 @@ function ChangesToolbar({
                     setDiffViewMode={setDiffViewMode}
                     worktreeId={worktreeId}
                   />
+                  {spikeFlagOn && onOpenSpike && (
+                    <>
+                      <span className="text-text-tertiary/50 mx-1">|</span>
+                      <button
+                        type="button"
+                        onClick={onOpenSpike}
+                        className="inline-flex items-center gap-1 h-[22px] px-2 rounded text-[11px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+                        title="Open Monaco DiffEditor spike"
+                      >
+                        Monaco
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>

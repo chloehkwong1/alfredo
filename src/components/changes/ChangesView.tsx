@@ -18,6 +18,7 @@ import type { CommitInfo, DiffTarget, PrComment } from "../../types";
 import { useAnnotationActions } from "./useAnnotationActions";
 import { ChangesToolbar } from "./ChangesToolbar";
 import { CommitJumpBar } from "./CommitJumpBar";
+import { MonacoSpike } from "./spike/MonacoSpike";
 import { DiscardDialog } from "./DiscardDialog";
 import { AnnotationBar } from "./AnnotationBar";
 
@@ -160,6 +161,11 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
     collapseAll,
     handleSelectFile,
   } = useFileNavigation(displayFiles, viewMode);
+
+  const [spikeOpen, setSpikeOpen] = useState(false);
+  const spikeFlagOn =
+    typeof window !== "undefined" &&
+    window.localStorage.getItem("alfredo:monaco-spike") === "1";
 
   const [expandFullFile, setExpandFullFile] = useState(false);
   const { copied: copiedPath, copy: copyPath } = useCopyToClipboard();
@@ -376,6 +382,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
 
   return (
     <div ref={rootRef} className="flex flex-col h-full relative">
+      {spikeOpen && <MonacoSpike onClose={() => setSpikeOpen(false)} />}
         <div className="flex-1 flex flex-col min-w-0 h-full">
           <ChangesToolbar
             focusedFilePath={focusedFilePath}
@@ -404,6 +411,8 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
             showPrComments={showPrComments}
             setShowPrComments={setShowPrComments}
             appConfig={appCfg}
+            spikeFlagOn={spikeFlagOn}
+            onOpenSpike={() => setSpikeOpen(true)}
           />
           {/* Jump bar for commit diffs with multiple files — outside scroll container so it's always visible */}
           {viewMode === "commits" && selectedCommitIndex !== null && displayFiles.length > 1 && (
