@@ -1,0 +1,19 @@
+src/components/changes/spike/sampleDiff.ts
+  s_ad8d86939e3324::t_88693490f399b5 1-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "bf803ee4de1a3449d19003102a4ccc094f916197",
+  "prompts": {},
+  "sessions": {
+    "s_ad8d86939e3324": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a5be416-257f-4a39-8ed9-51ed45eb3449",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
