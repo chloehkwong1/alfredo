@@ -1,0 +1,64 @@
+src/hooks/notificationUtils.ts
+  s_accdd71d187a75::t_6209b8aaf426bb 2-6,31,38-42,51,53
+  s_6f857407ba4749::t_ac3f682f8f08e4 9-11,14-16
+  s_accdd71d187a75::t_76c6d811a04c98 55
+src-tauri/Cargo.toml
+  s_accdd71d187a75::t_fdbe01b1c76959 54-58
+src/api.ts
+  s_accdd71d187a75::t_42489e6fa45c4a 550-563
+CLAUDE.md
+  s_accdd71d187a75::t_faab047a33c191 58-59
+scripts/render-sounds.mjs
+  s_6f857407ba4749::t_aeb25991def9ca 4-6,9
+src-tauri/src/commands/notification.rs
+  s_accdd71d187a75::t_32c9123bee102a 1-65
+src-tauri/src/app_config_manager.rs
+  s_6f857407ba4749::t_abe7e1f7493919 69-75,80-81
+  s_6f857407ba4749::t_662f0ea1846e62 76-79
+src/services/sessionChannel.ts
+  s_accdd71d187a75::t_2f8c8b0a75a6fd 2
+  s_accdd71d187a75::t_9d3def827e6377 96
+  s_accdd71d187a75::t_55eed37af8ef54 109
+CREDITS.md
+  s_6f857407ba4749::t_84beb6dab1e5c5 1-22
+src/components/settings/NotificationSettings.tsx
+  s_accdd71d187a75::t_57f26be0570946 60-61,63
+  s_accdd71d187a75::t_54a0f89a5df2c7 76-78,80-81,85
+  s_accdd71d187a75::t_9df5c00d2a4183 4-7
+  s_accdd71d187a75::t_b28cd99fac5b4f 31-33,35-44
+src-tauri/src/macos_notifications.rs
+  s_accdd71d187a75::t_9131097ca09090 1-203
+src-tauri/src/types.rs
+  s_6f857407ba4749::t_80ed51fa53882b 312
+src-tauri/src/commands/mod.rs
+  s_accdd71d187a75::t_affc2eab3a763f 26
+src-tauri/src/lib.rs
+  s_accdd71d187a75::t_225bc200c4e25f 288-291
+  s_accdd71d187a75::t_36e8d7971b93fe 65
+  s_accdd71d187a75::t_7ca82d4cad4e07 19-20
+  s_accdd71d187a75::t_206591bd51c44a 302-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a0837162845a053bf230d552e49ac7668710bad8",
+  "prompts": {},
+  "sessions": {
+    "s_6f857407ba4749": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "975e728a-0bef-4d62-80d7-d1d5da9b578d",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_accdd71d187a75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8eb402f4-e237-406b-b18f-101609bc86c8",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
