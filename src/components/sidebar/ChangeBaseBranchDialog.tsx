@@ -113,15 +113,19 @@ function ChangeBaseBranchDialog({ open, onOpenChange, worktree }: ChangeBaseBran
       onOpenChange(false);
 
       // Populate the "· N behind" indicator now instead of waiting on the
-      // next poll. Best-effort: swallow errors, the poll will fill it in.
-      if (nextParent) {
+      // next poll. Best-effort: log on failure, the poll will fill it in.
+      if (nextParent && nextParent !== prevParent) {
         getCommitsBehindMain(worktree.path, nextParent)
           .then((count) => {
+            // Guard against an older response landing after the parent has
+            // been changed again — only write if our nextParent is still current.
+            const current = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktree.id);
+            if (current?.stackParent !== nextParent) return;
             useWorkspaceStore.getState().updateWorktree(worktree.id, {
               stackRebaseStatus: count === 0 ? { kind: "upToDate" } : { kind: "behind", count },
             });
           })
-          .catch(() => { /* poll will retry */ });
+          .catch((e) => console.warn("[change-base] commits-behind probe failed:", e));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
