@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Input } from "../../ui/Input";
 import { SelectableList, SelectableItem } from "./SelectableList";
 import { syncPrStatus } from "../../../api";
+import { useWorkspaceStore } from "../../../stores/workspaceStore";
 import type { PrStatus } from "../../../types";
 
 interface PullRequestsTabProps {
@@ -9,9 +10,10 @@ interface PullRequestsTabProps {
   open: boolean;
   selectedPrNumber: number | null;
   onSelectPr: (prNumber: number | null) => void;
+  onFocusExisting: (worktreeId: string, wasArchived: boolean) => void;
 }
 
-function PullRequestsTab({ repoPath, open, selectedPrNumber, onSelectPr }: PullRequestsTabProps) {
+function PullRequestsTab({ repoPath, open, selectedPrNumber, onSelectPr, onFocusExisting }: PullRequestsTabProps) {
   const [prs, setPrs] = useState<PrStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,17 @@ function PullRequestsTab({ repoPath, open, selectedPrNumber, onSelectPr }: PullR
     (pr) => !filter.trim() || pr.title.toLowerCase().includes(filter.toLowerCase()) || `#${pr.number}`.includes(filter),
   );
 
+  const worktrees = useWorkspaceStore((s) => s.worktrees);
+  const existingByBranch = useMemo(() => {
+    const map = new Map<string, { id: string; archived: boolean }>();
+    for (const wt of worktrees) {
+      if (wt.repoPath === repoPath && wt.branch) {
+        map.set(wt.branch, { id: wt.id, archived: !!wt.archived });
+      }
+    }
+    return map;
+  }, [worktrees, repoPath]);
+
   return (
     <div className="flex flex-col gap-3">
       <Input
@@ -54,32 +67,51 @@ function PullRequestsTab({ repoPath, open, selectedPrNumber, onSelectPr }: PullR
         emptyMessage="No pull requests found."
         isEmpty={filtered.length === 0}
       >
-        {filtered.map((pr) => (
-          <SelectableItem
-            key={pr.number}
-            selected={pr.number === selectedPrNumber}
-            onClick={() => onSelectPr(pr.number === selectedPrNumber ? null : pr.number)}
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="text-xs font-mono text-text-tertiary flex-shrink-0">
-                #{pr.number}
-              </span>
-              <span className="text-[13px] font-medium text-text-primary truncate">
-                {pr.title}
-              </span>
-              {pr.draft && (
-                <span className="text-2xs text-text-tertiary bg-bg-hover px-1.5 py-0.5 rounded flex-shrink-0">
-                  Draft
+        {filtered.map((pr) => {
+          const existing = existingByBranch.get(pr.branch);
+          return (
+            <SelectableItem
+              key={pr.number}
+              selected={!existing && pr.number === selectedPrNumber}
+              onClick={() => {
+                if (existing) {
+                  onFocusExisting(existing.id, existing.archived);
+                } else {
+                  onSelectPr(pr.number === selectedPrNumber ? null : pr.number);
+                }
+              }}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-xs font-mono text-text-tertiary flex-shrink-0">
+                  #{pr.number}
                 </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-1 ml-[30px]">
-              <span className="text-xs text-text-tertiary truncate">
-                {pr.branch}
-              </span>
-            </div>
-          </SelectableItem>
-        ))}
+                <span className="text-[13px] font-medium text-text-primary truncate">
+                  {pr.title}
+                </span>
+                {pr.draft && (
+                  <span className="text-2xs text-text-tertiary bg-bg-hover px-1.5 py-0.5 rounded flex-shrink-0">
+                    Draft
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-1 ml-[30px]">
+                <span className="text-xs text-text-tertiary truncate">
+                  {pr.branch}
+                </span>
+                {existing && !existing.archived && (
+                  <span className="text-2xs text-text-tertiary bg-bg-hover px-1.5 py-0.5 rounded flex-shrink-0">
+                    Imported
+                  </span>
+                )}
+                {existing && existing.archived && (
+                  <span className="text-2xs text-text-tertiary bg-bg-hover px-1.5 py-0.5 rounded flex-shrink-0">
+                    Archived
+                  </span>
+                )}
+              </div>
+            </SelectableItem>
+          );
+        })}
       </SelectableList>
     </div>
   );

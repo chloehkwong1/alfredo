@@ -81,6 +81,8 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
   const addWorktree = useWorkspaceStore((s) => s.addWorktree);
   const replaceWorktree = useWorkspaceStore((s) => s.replaceWorktree);
   const failWorktree = useWorkspaceStore((s) => s.failWorktree);
+  const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
+  const unarchiveWorktree = useWorkspaceStore((s) => s.unarchiveWorktree);
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
 
   const [currentRepoPath, setCurrentRepoPath] = useState<string | undefined>(
@@ -290,6 +292,11 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
                   open={open}
                   selectedPrNumber={selectedPrNumber}
                   onSelectPr={setSelectedPrNumber}
+                  onFocusExisting={(worktreeId, wasArchived) => {
+                    if (wasArchived) unarchiveWorktree(worktreeId);
+                    setActiveWorktree(worktreeId);
+                    onOpenChange(false);
+                  }}
                 />
               )}
 
