@@ -50,39 +50,41 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
   const isYou = gitUser != null && commit.author.toLowerCase() === gitUser.toLowerCase();
 
   return (
-    <div className="px-4 py-3 border-b border-border-default bg-bg-secondary">
-      {nav && nav.total > 1 && (
-        <div className="flex items-center justify-end gap-1 mb-1.5 text-[11px] text-text-tertiary">
-          <span className="font-mono mr-1">{nav.position} of {nav.total}</span>
-          <button
-            type="button"
-            onClick={nav.onPrev}
-            disabled={!nav.hasPrev}
-            title="Previous commit (j)"
-            className="p-1 rounded hover:bg-bg-hover hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-tertiary transition-colors"
-          >
-            <ChevronLeft size={13} />
-          </button>
-          <button
-            type="button"
-            onClick={nav.onNext}
-            disabled={!nav.hasNext}
-            title="Next commit (k)"
-            className="p-1 rounded hover:bg-bg-hover hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-tertiary transition-colors"
-          >
-            <ChevronRight size={13} />
-          </button>
+    <div className="sticky top-0 z-10 px-4 py-2 border-b border-border-default bg-bg-secondary">
+      <div className="flex items-start gap-3">
+        <div className="text-sm font-semibold text-text-primary leading-snug flex-1 min-w-0">
+          {subject}
         </div>
-      )}
-      <div className="text-sm font-semibold text-text-primary leading-snug">
-        {subject}
+        {nav && nav.total > 1 && (
+          <div className="flex items-center gap-1 text-[11px] text-text-tertiary shrink-0">
+            <span className="font-mono mr-1">{nav.position} of {nav.total}</span>
+            <button
+              type="button"
+              onClick={nav.onPrev}
+              disabled={!nav.hasPrev}
+              title="Previous commit (j)"
+              className="p-1 rounded hover:bg-bg-hover hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-tertiary transition-colors"
+            >
+              <ChevronLeft size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={nav.onNext}
+              disabled={!nav.hasNext}
+              title="Next commit (k)"
+              className="p-1 rounded hover:bg-bg-hover hover:text-text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-tertiary transition-colors"
+            >
+              <ChevronRight size={13} />
+            </button>
+          </div>
+        )}
       </div>
       {body && (
-        <div className="text-xs text-text-secondary mt-1.5 whitespace-pre-wrap leading-relaxed">
+        <div className="text-xs text-text-secondary mt-1 whitespace-pre-wrap leading-relaxed">
           {body}
         </div>
       )}
-      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-text-tertiary">
+      <div className="flex items-center gap-2 mt-1 text-[10px] text-text-tertiary">
         <button
           onClick={() => handleCopy(commit.hash)}
           className="flex items-center gap-1 font-mono hover:text-text-primary transition-colors group"
