@@ -1,0 +1,25 @@
+src/stores/workspaceStore.ts
+  s_39520b8d143bdc::t_955942a641b465 44-49
+  s_39520b8d143bdc::t_10aca7b5412758 213-214,218-227
+src/components/kanban/CreateWorktreeDialog.tsx
+  s_39520b8d143bdc::t_f26011aef2f5fa 15
+  s_39520b8d143bdc::t_d12e373d39db11 194-203,207-216
+src/components/sidebar/AgentItem.tsx
+  s_39520b8d143bdc::t_06215ff5aa8c78 486-498,516-536
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "400dd31d4de3bab997598d164535abd2b9de3ede",
+  "prompts": {},
+  "sessions": {
+    "s_39520b8d143bdc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43720858-d660-43fb-9ab3-645ebb13fd2f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
