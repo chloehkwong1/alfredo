@@ -12,6 +12,7 @@ import { Button } from "../ui/Button";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
+import { useToastStore } from "../../stores/toastStore";
 import { createWorktreeFrom, setSelectedRepos as setSelectedReposApi } from "../../api";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import type { RepoEntry, Worktree, WorktreeSource } from "../../types";
@@ -190,11 +191,29 @@ function CreateWorktreeDialog({ open, onOpenChange, repoPath, repos, repoColors,
     createWorktreeFrom(currentRepoPath, source)
       .then((realWorktree) => {
         replaceWorktree(tempId, realWorktree);
-        ensureDefaultTabs(realWorktree.id);
+        try {
+          ensureDefaultTabs(realWorktree.id);
+        } catch (e) {
+          // Don't let post-create tab setup re-route into the .catch below —
+          // the worktree itself created successfully. Surface and move on.
+          console.error("[create-worktree] ensureDefaultTabs failed:", e);
+          useToastStore.getState().show({
+            message: `Worktree created but tab setup failed: ${e instanceof Error ? e.message : String(e)}`,
+          });
+        }
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
-        failWorktree(tempId, message);
+        const marked = failWorktree(tempId, message);
+        if (!marked) {
+          // Placeholder was already swapped or wiped (concurrent refresh, or
+          // the failure happened post-swap). Surface the error directly so it
+          // doesn't disappear silently.
+          console.error("[create-worktree] Failed after placeholder gone:", message);
+          useToastStore.getState().show({
+            message: `Worktree creation failed: ${message}`,
+          });
+        }
       });
   }
 

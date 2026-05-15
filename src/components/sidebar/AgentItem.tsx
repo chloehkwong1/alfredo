@@ -483,6 +483,19 @@ function CreatingItem({ worktree }: { worktree: Worktree }) {
 
 function CreateErrorItem({ worktree }: { worktree: Worktree }) {
   const removeWorktree = useWorkspaceStore((s) => s.removeWorktree);
+  const [copied, setCopied] = useState(false);
+
+  const error = worktree.createError ?? "";
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(error);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      console.error("Failed to copy create error:", e);
+    }
+  };
 
   return (
     <div className="w-full text-left py-2 px-3.5 flex items-start gap-2 border-l-[3px] border-l-status-error">
@@ -500,11 +513,27 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
             <X size={12} />
           </button>
         </div>
-        <div className="text-xs text-status-error mt-1">Setup failed</div>
-        {worktree.createError && (
-          <div className="text-2xs text-text-tertiary mt-0.5 line-clamp-3 break-all" title={worktree.createError}>
-            {worktree.createError}
-          </div>
+        <div className="text-xs text-status-error mt-1 font-medium">Setup failed</div>
+        {error && (
+          <>
+            <div className="text-2xs text-text-tertiary mt-0.5 line-clamp-3 break-all font-mono" title={error}>
+              {error}
+            </div>
+            <div className="flex gap-1.5 mt-1.5">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className={`text-2xs px-2 py-0.5 rounded border inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                  copied
+                    ? "text-status-idle border-status-idle/30"
+                    : "text-text-secondary border-border-subtle hover:bg-white/5 hover:text-text-primary hover:border-border-hover"
+                }`}
+              >
+                {copied ? <Check size={10} /> : <Copy size={10} />}
+                {copied ? "Copied" : "Copy full error"}
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>

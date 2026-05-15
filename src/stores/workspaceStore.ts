@@ -41,7 +41,12 @@ interface WorkspaceState {
 
   addWorktree: (worktree: Worktree) => void;
   replaceWorktree: (tempId: string, realWorktree: Worktree) => void;
-  failWorktree: (tempId: string, error: string) => void;
+  /** Marks the still-creating placeholder with `createError`. Returns `true`
+   *  if a placeholder was found and marked, `false` if nothing matched (e.g.
+   *  the placeholder was already swapped or wiped by a concurrent refresh).
+   *  Callers should surface the error themselves when this returns `false`,
+   *  otherwise the failure is silent. */
+  failWorktree: (tempId: string, error: string) => boolean;
   removeWorktree: (id: string) => void;
   archiveWorktree: (id: string) => void;
   unarchiveWorktree: (id: string) => void;
@@ -205,16 +210,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
         ),
     })),
 
-  failWorktree: (tempId, error) =>
+  failWorktree: (tempId, error) => {
+    let matched = false;
     set((state) => ({
       // Same `creating` guard as replaceWorktree: a concurrent listWorktrees refresh
       // can insert a real worktree with the same id; we must only taint the placeholder.
-      worktrees: state.worktrees.map((wt) =>
-        wt.id === tempId && wt.creating
-          ? { ...wt, creating: undefined, createError: error }
-          : wt,
-      ),
-    })),
+      worktrees: state.worktrees.map((wt) => {
+        if (wt.id === tempId && wt.creating) {
+          matched = true;
+          return { ...wt, creating: undefined, createError: error };
+        }
+        return wt;
+      }),
+    }));
+    return matched;
+  },
 
   removeWorktree: (id) =>
     set((state) => {
