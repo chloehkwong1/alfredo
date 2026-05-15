@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef, memo } from "react";
-import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw, ArrowRightLeft, Settings } from "lucide-react";
+import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw, ArrowRightLeft, ArrowUpRight, Settings } from "lucide-react";
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -28,6 +28,7 @@ import { RelativeTime } from "../ui/RelativeTime";
 import { RepoTag } from "./RepoTag";
 import { PrSummary, hasPrStats, formatDiffStat, PrStatsRow } from "./PrStatsRow";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
+import { ChangeBaseBranchDialog } from "./ChangeBaseBranchDialog";
 import { columnIcon, columnLabel, COLUMN_ORDER } from "./StatusGroup";
 
 const THINKING_VERBS = [
@@ -287,6 +288,7 @@ interface AgentItemContentProps {
   onCancelEdit: () => void;
   repoIndex?: number;
   showRepoTag?: boolean;
+  hasParentWorktree?: boolean;
 }
 
 function getDotColor(status: AgentState | string): string {
@@ -296,7 +298,7 @@ function getDotColor(status: AgentState | string): string {
 function AgentItemContent({
   worktree, effectiveStatus, isSelected, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
-  repoIndex = 0, showRepoTag = false,
+  repoIndex = 0, showRepoTag = false, hasParentWorktree = false,
 }: AgentItemContentProps) {
   return (
     <>
@@ -408,31 +410,41 @@ function AgentItemContent({
         </div>
         {/* Stack indicator */}
         {worktree.stackParent && (
-          <div className="flex items-center gap-1 mt-1 text-[10px] text-text-tertiary">
-            <span>on</span>
-            <button
-              type="button"
-              className="hover:text-text-secondary transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                const parent = useWorkspaceStore.getState().worktrees.find(
-                  (wt) => wt.branch === worktree.stackParent
-                );
-                if (parent) {
-                  useWorkspaceStore.getState().setActiveWorktree(parent.id);
-                }
-              }}
-            >
+          <div className="flex items-center gap-1 mt-1 text-[10px] text-text-tertiary min-w-0">
+            <span className="flex-shrink-0">on</span>
+            <span className="truncate" title={worktree.stackParent}>
               {worktree.stackParent}
-            </button>
+            </span>
+            {hasParentWorktree && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const parent = useWorkspaceStore.getState().worktrees.find(
+                    (wt) => wt.branch === worktree.stackParent
+                  );
+                  if (parent) {
+                    useWorkspaceStore.getState().setActiveWorktree(parent.id);
+                  }
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="flex-shrink-0 p-0.5 -m-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-white/5 transition-colors cursor-pointer"
+                aria-label={`Go to parent branch ${worktree.stackParent}`}
+                title={`Go to parent branch ${worktree.stackParent}`}
+              >
+                <ArrowUpRight className="h-3 w-3" />
+              </button>
+            )}
             {worktree.stackRebaseStatus?.kind === "behind" && (
-              <span>· {worktree.stackRebaseStatus.count} behind</span>
+              <span className="flex-shrink-0">· {worktree.stackRebaseStatus.count} behind</span>
             )}
             {worktree.stackRebaseStatus?.kind === "rebasing" && (
-              <span className="animate-pulse">· rebasing...</span>
+              <span className="flex-shrink-0 animate-pulse">· rebasing...</span>
             )}
             {worktree.stackRebaseStatus?.kind === "conflict" && (
-              <span className="text-status-error">· conflict</span>
+              <span className="flex-shrink-0 text-status-error">· conflict</span>
             )}
           </div>
         )}
@@ -586,6 +598,7 @@ const AgentItem = memo(function AgentItem({
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFromOpen, setCreateFromOpen] = useState(false);
+  const [changeBaseOpen, setChangeBaseOpen] = useState(false);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const displayLabel = label ?? worktree.branch ?? worktree.name;
   const handleStartEdit = () => setIsEditingLabel(true);
@@ -610,6 +623,17 @@ const AgentItem = memo(function AgentItem({
     id: worktree.id,
   });
   const defaultBranch = useDefaultBranch(worktree.repoPath, worktree.stackParent);
+  const parentWorktreeId = useWorkspaceStore((s) =>
+    worktree.stackParent
+      ? s.worktrees.find((wt) => wt.branch === worktree.stackParent)?.id
+      : undefined,
+  );
+  const hasParentWorktree = !!parentWorktreeId;
+  const goToParent = () => {
+    if (parentWorktreeId) {
+      useWorkspaceStore.getState().setActiveWorktree(parentWorktreeId);
+    }
+  };
 
   const installedApps = useInstalledApps();
 
@@ -699,6 +723,7 @@ const AgentItem = memo(function AgentItem({
       onCancelEdit={handleCancelEdit}
       repoIndex={repoIndex}
       showRepoTag={showRepoTag}
+      hasParentWorktree={hasParentWorktree}
     />
   );
 
@@ -803,6 +828,12 @@ const AgentItem = memo(function AgentItem({
             </ContextMenuSubContent>
           </ContextMenuSub>
           <ContextMenuSeparator />
+          {hasParentWorktree && (
+            <ContextMenuItem onSelect={goToParent}>
+              <ArrowUpRight className="h-4 w-4" />
+              Go to parent branch
+            </ContextMenuItem>
+          )}
           {worktree.linearTicketUrl && (
             <ContextMenuItem onSelect={() => openUrl(worktree.linearTicketUrl!)}>
               <ExternalLink className="h-4 w-4" />
@@ -815,7 +846,7 @@ const AgentItem = memo(function AgentItem({
               View PR on GitHub
             </ContextMenuItem>
           )}
-          {(worktree.linearTicketUrl || worktree.prStatus) && <ContextMenuSeparator />}
+          {(hasParentWorktree || worktree.linearTicketUrl || worktree.prStatus) && <ContextMenuSeparator />}
           <ContextMenuItem onSelect={handleRebase}>
             <GitBranch className="h-4 w-4" />
             {worktree.stackParent
@@ -825,6 +856,10 @@ const AgentItem = memo(function AgentItem({
           <ContextMenuItem onSelect={() => setCreateFromOpen(true)}>
             <GitBranch className="h-4 w-4" />
             Create branch from this
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => setChangeBaseOpen(true)}>
+            <ArrowRightLeft className="h-4 w-4" />
+            Change base branch...
           </ContextMenuItem>
           {worktree.stackParent && (
             <ContextMenuItem onSelect={handleDetachFromStack}>
@@ -869,6 +904,12 @@ const AgentItem = memo(function AgentItem({
         onOpenChange={setCreateFromOpen}
         repoPath={repoPath ?? worktree.repoPath}
         lockedBaseBranch={worktree.branch}
+      />
+
+      <ChangeBaseBranchDialog
+        open={changeBaseOpen}
+        onOpenChange={setChangeBaseOpen}
+        worktree={worktree}
       />
     </>
   );
