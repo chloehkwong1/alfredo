@@ -138,7 +138,7 @@ function SplitDiffBody({
                     <div className="min-w-max">
                     {pairedRows.map((row, rowIndex) => {
                       const side: DiffSide = "new";
-                      const lineNumber = row.right?.lineNumber ?? row.left?.lineNumber ?? null;
+                      const lineNumber = row.right?.lineNumber ?? null;
                       const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
                       const lineAnnotations = annotationKey !== null ? (annotationsByLine.get(annotationKey) ?? []) : [];
                       const lineComments = lineNumber !== null ? (prCommentsByLine.get(lineNumber) ?? []) : [];
