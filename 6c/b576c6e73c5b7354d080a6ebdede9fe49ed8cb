@@ -1,0 +1,19 @@
+src/components/changes/SplitDiffBody.tsx
+  s_d097873fb989f8::t_4fc8fca1841869 141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "6cb576c6e73c5b7354d080a6ebdede9fe49ed8cb",
+  "prompts": {},
+  "sessions": {
+    "s_d097873fb989f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c24e33b-e8b3-4fbf-b7e5-23a4646c55b9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
