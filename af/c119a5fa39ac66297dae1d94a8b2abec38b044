@@ -1,0 +1,19 @@
+src/stores/prStore.ts
+  s_24219cc2bf4033::t_d4d4d09536dcf7 160-163,166-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "afc119a5fa39ac66297dae1d94a8b2abec38b044",
+  "prompts": {},
+  "sessions": {
+    "s_24219cc2bf4033": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "061615a2-f37f-4dd2-acf4-2ec384a35e5a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
