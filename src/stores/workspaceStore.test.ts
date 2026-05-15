@@ -44,6 +44,8 @@ describe("setWorktrees / mergeWorktreeState", () => {
           linearTicketUrl: "https://linear.app/t/1",
           linearTicketIdentifier: "ROS-42",
           justCreated: true,
+          additions: 917,
+          deletions: 90,
         }),
       ],
     });
@@ -69,6 +71,8 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.linearTicketUrl).toBe("https://linear.app/t/1");
     expect(wt.linearTicketIdentifier).toBe("ROS-42");
     expect(wt.justCreated).toBe(true);
+    expect(wt.additions).toBe(917);
+    expect(wt.deletions).toBe(90);
   });
 
   it("uses fresh stackParent/stackChildren/stackRebaseStatus when defined", () => {

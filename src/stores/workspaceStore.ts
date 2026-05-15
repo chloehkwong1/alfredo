@@ -134,6 +134,11 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         linearTicketUrl: old.linearTicketUrl,
         linearTicketIdentifier: old.linearTicketIdentifier,
         justCreated: old.justCreated,
+        // Filled by useSessionRestore / useGithubSync / usePty — listWorktrees
+        // always returns null here, so preserve old values across refreshes
+        // (otherwise the sidebar diff badge blanks on every focus/port event).
+        additions: wt.additions ?? old.additions,
+        deletions: wt.deletions ?? old.deletions,
         stackParent: wt.stackParent !== undefined ? wt.stackParent : old.stackParent,
         stackChildren: wt.stackChildren !== undefined ? wt.stackChildren : old.stackChildren,
         stackRebaseStatus: wt.stackRebaseStatus !== undefined ? wt.stackRebaseStatus : old.stackRebaseStatus,
