@@ -1,0 +1,25 @@
+src/components/changes/AnnotationBubble.tsx
+  s_033b070b6f5b31::t_7316c3c048e0ac 29
+src/components/changes/SplitDiffBody.tsx
+  s_033b070b6f5b31::t_268d5db5ce5106 108
+  s_033b070b6f5b31::t_41b9ecb99e32d9 179
+  s_033b070b6f5b31::t_572d3e3bbb0145 134,138
+  s_033b070b6f5b31::t_b2f4e686684c25 191-201,205-215
+  s_033b070b6f5b31::t_6ef8101ba0b4f9 70-80,84-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "0a1d2b3c785759d2f0f379478f1ac670b2a4510f",
+  "prompts": {},
+  "sessions": {
+    "s_033b070b6f5b31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9d19db74-a0ea-47b1-96aa-f528b8185d97",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
