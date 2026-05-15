@@ -732,6 +732,36 @@ export class SessionManager implements SessionWriter {
     session.outputBufferTotal += len;
   }
 
+  /** Rebuild the WebGL glyph atlas for every live session.
+   *
+   *  xterm's WebGL renderer can leave the atlas desynced from the cell buffer
+   *  after events that invalidate GPU texture state (display sleep/wake, DPI
+   *  change, monitor swap). The buffer is correct — only the rendered glyphs
+   *  are stale, and `term.refresh()` redraws against the same broken atlas.
+   *  Match VS Code's `forceRedraw` (called on OS resume) and Tabby's
+   *  display-metrics handler by calling `clearTextureAtlas()` on the known-bad
+   *  triggers. Sessions without WebGL (canvas-renderer fallback after a
+   *  context-loss) are skipped — the canvas renderer doesn't have the atlas
+   *  bug, so a refresh would just be a free repaint. */
+  rebuildAtlases(reason: string): void {
+    if (this.sessions.size === 0) return;
+    let rebuilt = 0;
+    for (const session of this.sessions.values()) {
+      if (!session.webglAddon) continue;
+      try {
+        session.webglAddon.clearTextureAtlas();
+        rebuilt++;
+      } catch {
+        // Renderer may have lost context between the trigger and now;
+        // its context-loss handler will reload the addon on next attach.
+      }
+    }
+    if (rebuilt > 0) {
+      // eslint-disable-next-line no-console
+      console.debug(`[atlas] rebuilt ${rebuilt} session(s): ${reason}`);
+    }
+  }
+
   /** Apply terminal preferences to all existing sessions. */
   applyPreferences(prefs: TerminalPreferences): void {
     // Apply non-font options synchronously so UI feels responsive; defer the
@@ -846,18 +876,62 @@ window.addEventListener("terminal-preferences-changed", ((e: CustomEvent<Termina
 
 // On system wake (laptop lid open / display unsleep), refresh lastHeartbeat
 // for all live sessions so stale-server checks don't false-positive before
-// Rust's heartbeat thread resumes (~2 s after wake).
+// Rust's heartbeat thread resumes (~2 s after wake). Also rebuild WebGL
+// glyph atlases — GPU texture state can be invalidated across sleep/wake,
+// producing the bold-glyph desync that resize otherwise has to fix.
 // Guard against HMR double-registration: module re-evaluates on each hot reload
 // but document listeners are never removed, so without the guard each reload
 // would add another listener.
 const WAKE_LISTENER_KEY = "__alfredo_wakeListener";
 if (!(window as any)[WAKE_LISTENER_KEY]) {
   (window as any)[WAKE_LISTENER_KEY] = true;
+  // Only rebuild the atlas after a meaningful hidden window — alt-tab and
+  // brief focus changes don't invalidate GPU texture state, but lid-close /
+  // display-sleep / "left the laptop overnight" do, and those manifest as
+  // long hidden gaps. The 30 s floor keeps us aligned with VS Code's
+  // resume-only intent without needing the Rust NSWorkspace observer.
+  const VISIBILITY_REBUILD_FLOOR_MS = 30_000;
+  let hiddenAt = 0;
   document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      hiddenAt = Date.now();
+      return;
+    }
     if (document.visibilityState === "visible") {
       sessionManager.refreshHeartbeats();
+      if (hiddenAt > 0 && Date.now() - hiddenAt >= VISIBILITY_REBUILD_FLOOR_MS) {
+        sessionManager.rebuildAtlases("visibility-visible");
+      }
+      hiddenAt = 0;
     }
   });
+}
+
+// DPI / display change (external monitor plugged in, scale factor change,
+// monitor swap). xterm.js handles font-metric recompute internally, but the
+// WebGL texture upload can race the metric change and leave glyphs at the
+// wrong slot. Match Tabby's `displayMetricsChanged$` handler.
+const DPR_LISTENER_KEY = "__alfredo_dprListener";
+if (!(window as any)[DPR_LISTENER_KEY] && typeof window.matchMedia === "function") {
+  (window as any)[DPR_LISTENER_KEY] = true;
+  const armDprWatch = () => {
+    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    mq.addEventListener(
+      "change",
+      () => {
+        // Re-arm BEFORE rebuilding so a synchronously-delivered follow-up
+        // event (e.g. macOS coalescing a multi-monitor scale-factor drag
+        // through several ratios) still has a live MediaQueryList to fire
+        // against. matchMedia's resolution query is pinned to the value at
+        // construction time, so without the re-arm we'd drop subsequent
+        // changes once devicePixelRatio drifts past the original.
+        armDprWatch();
+        sessionManager.rebuildAtlases("dpr-change");
+      },
+      { once: true },
+    );
+  };
+  armDprWatch();
 }
 
 if (import.meta.hot) {
