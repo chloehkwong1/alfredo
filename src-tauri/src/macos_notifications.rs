@@ -21,7 +21,7 @@ use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2::runtime::{Bool, ProtocolObject};
 use objc2::{MainThreadOnly, define_class, msg_send};
-use objc2_foundation::{MainThreadMarker, NSError, NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{MainThreadMarker, NSBundle, NSError, NSObject, NSObjectProtocol, NSString};
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNAuthorizationStatus, UNMutableNotificationContent, UNNotification,
     UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationSettings,
@@ -53,11 +53,23 @@ impl PermissionStatus {
 /// `npm run tauri dev`). We bound the wait to keep the UI responsive.
 const COMPLETION_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// True only when the running binary has a bundle identifier — i.e. it was
+/// launched from a properly-built `.app`. Under `npm run tauri dev` the bare
+/// debug binary has no `Info.plist`, and `UNUserNotificationCenter` calls
+/// assert on unbundled processes (`abort()` at launch). All public entry
+/// points short-circuit when this returns `false`.
+fn is_bundled() -> bool {
+    NSBundle::mainBundle().bundleIdentifier().is_some()
+}
+
 /// Returns the user's current notification authorization status. Blocks the
 /// calling thread on a background completion handler — do not call from the
 /// main thread if you can avoid it (UI work uses `request_authorization` from
 /// startup, where blocking briefly is fine).
 pub fn authorization_status() -> PermissionStatus {
+    if !is_bundled() {
+        return PermissionStatus::Default;
+    }
     let center = UNUserNotificationCenter::currentNotificationCenter();
     let (tx, rx) = sync_channel::<UNAuthorizationStatus>(1);
     let block = RcBlock::new(move |settings: std::ptr::NonNull<UNNotificationSettings>| {
@@ -82,6 +94,9 @@ pub fn authorization_status() -> PermissionStatus {
 /// Prompts the user for `.alert | .sound` authorization if not yet decided.
 /// Returns `true` on grant (or already-granted), `false` otherwise.
 pub fn request_authorization() -> bool {
+    if !is_bundled() {
+        return false;
+    }
     let center = UNUserNotificationCenter::currentNotificationCenter();
     let (tx, rx) = sync_channel::<bool>(1);
     let block = RcBlock::new(move |granted: Bool, _err: *mut NSError| {
@@ -99,6 +114,9 @@ pub fn request_authorization() -> bool {
 /// (rodio in-process) so we don't depend on `usernoted` finding bundle audio
 /// in ad-hoc-signed builds.
 pub fn send(title: &str, body: &str) -> Result<(), String> {
+    if !is_bundled() {
+        return Err("notifications unavailable: process is not running as a bundled app".to_string());
+    }
     let content = UNMutableNotificationContent::new();
     let title_ns = NSString::from_str(title);
     let body_ns = NSString::from_str(body);
@@ -190,6 +208,10 @@ pub fn install_presentation_delegate() {
         tracing::warn!("install_presentation_delegate called off main thread; skipping");
         return;
     };
+    if !is_bundled() {
+        tracing::warn!("install_presentation_delegate skipped: unbundled binary (npm run tauri dev)");
+        return;
+    }
     DELEGATE.get_or_init(|| {
         let delegate = ForegroundPresenter::new(mtm);
         let center = UNUserNotificationCenter::currentNotificationCenter();
