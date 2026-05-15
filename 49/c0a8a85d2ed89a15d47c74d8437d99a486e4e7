@@ -1,0 +1,19 @@
+src/components/sidebar/ChangeBaseBranchDialog.tsx
+  s_dfc9d783d55649::t_2ac2152efbf76e 116-117,120-123,128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "49c0a8a85d2ed89a15d47c74d8437d99a486e4e7",
+  "prompts": {},
+  "sessions": {
+    "s_dfc9d783d55649": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a94401d-6404-4c82-9088-2679404097cd",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
