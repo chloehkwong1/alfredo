@@ -157,10 +157,25 @@ export const usePrStore = create<PrState>((set, get) => ({
   applyPrUpdates: (prs, worktrees) => {
     const state = get();
 
-    // Index PRs by repoPath+branch for multi-repo disambiguation
+    // Index PRs by repoPath+branch for multi-repo disambiguation.
+    // Open beats closed/merged on the same key — sync_prs returns closed PRs
+    // last, so a fresh open PR on a reused branch would otherwise be overwritten
+    // by an older closed PR and inherit `merged: true`.
     const prByKey = new Map<string, PrStatusWithColumn>();
     for (const pr of prs) {
-      prByKey.set(`${pr.repoPath}::${pr.branch}`, pr);
+      const key = `${pr.repoPath}::${pr.branch}`;
+      const existing = prByKey.get(key);
+      if (!existing) {
+        prByKey.set(key, pr);
+        continue;
+      }
+      const existingIsLive = existing.state === "open" && !existing.merged;
+      const incomingIsLive = pr.state === "open" && !pr.merged;
+      if (incomingIsLive && !existingIsLive) {
+        prByKey.set(key, pr);
+      } else if (incomingIsLive && existingIsLive && pr.number > existing.number) {
+        prByKey.set(key, pr);
+      }
     }
 
     const newOverrides = { ...state.columnOverrides };
