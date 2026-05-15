@@ -687,7 +687,31 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
     let default_short = default_branch.strip_prefix("origin/").unwrap_or(&default_branch).to_string();
     let base = pr.base_branch.clone().unwrap_or(default_short);
 
-    // 4. Fetch the branch from remote so it's available locally
+    // 4. Defensive check: bail if a worktree already tracks this branch.
+    // Frontend normally intercepts via the picker, but a direct caller hitting
+    // this path would otherwise fail later with a confusing libgit2 error.
+    let base_path = config.worktree_base_path.clone().unwrap_or_else(|| {
+        std::path::Path::new(&repo_path)
+            .parent()
+            .unwrap_or(std::path::Path::new(&repo_path))
+            .to_string_lossy()
+            .to_string()
+    });
+    let repo_path_clone = repo_path.clone();
+    let base_path_clone = base_path.clone();
+    let existing = tokio::task::spawn_blocking(move || {
+        git_manager::list_worktrees(&repo_path_clone, Some(&base_path_clone))
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))??;
+    if existing.iter().any(|wt| wt.branch == branch_name) {
+        return Err(AppError::Git(format!(
+            "branch '{branch_name}' already has a worktree — open it from the sidebar, \
+             or delete it first to re-import this PR"
+        )));
+    }
+
+    // 5. Fetch the branch from remote so it's available locally
     let fetch_output = git_command()
         .args(["fetch", "origin", &format!("{branch_name}:{branch_name}")])
         .current_dir(&repo_path)
@@ -695,10 +719,22 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
         .await
         .map_err(|e| AppError::Git(format!("failed to fetch PR branch: {e}")))?;
 
-    // Ignore fetch errors if branch already exists locally
-    let _ = fetch_output;
+    if !fetch_output.status.success() {
+        let stderr = String::from_utf8_lossy(&fetch_output.stderr);
+        let lower = stderr.to_lowercase();
+        if lower.contains("[rejected]") && lower.contains("non-fast-forward") {
+            return Err(AppError::Git(format!(
+                "branch '{branch_name}' diverged from origin — delete the existing \
+                 worktree first to re-import this PR"
+            )));
+        }
+        return Err(AppError::Git(format!(
+            "failed to fetch PR branch: {}",
+            stderr.trim()
+        )));
+    }
 
-    // 5. Create the worktree from the PR's head branch, using the PR's base for stack detection
+    // 6. Create the worktree from the PR's head branch, using the PR's base for stack detection
     create_worktree(app.clone(), repo_path, branch_name, base).await
 }
 
