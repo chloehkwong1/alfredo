@@ -67,27 +67,31 @@ function SplitDiffBody({
             {topExpandedLines.length > 0 && (
               <div className="flex">
                 <div className="flex-1 min-w-0 overflow-x-auto split-left-col" onScroll={syncSplitScroll}>
-                  {topExpandedLines.map((line, li) => (
-                    <SplitSideContent
-                      key={li}
-                      side={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
-                      filePath={file.path}
-                      align="left"
-                      searchQuery={searchQuery}
-                    />
-                  ))}
+                  <div className="min-w-max">
+                    {topExpandedLines.map((line, li) => (
+                      <SplitSideContent
+                        key={li}
+                        side={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
+                        filePath={file.path}
+                        align="left"
+                        searchQuery={searchQuery}
+                      />
+                    ))}
+                  </div>
                 </div>
                 <div className="w-px bg-border-default flex-shrink-0" />
                 <div className="flex-1 min-w-0 overflow-x-auto split-right-col" onScroll={syncSplitScroll}>
-                  {topExpandedLines.map((line, li) => (
-                    <SplitSideContent
-                      key={li}
-                      side={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
-                      filePath={file.path}
-                      align="right"
-                      searchQuery={searchQuery}
-                    />
-                  ))}
+                  <div className="min-w-max">
+                    {topExpandedLines.map((line, li) => (
+                      <SplitSideContent
+                        key={li}
+                        side={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
+                        filePath={file.path}
+                        align="right"
+                        searchQuery={searchQuery}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -101,6 +105,7 @@ function SplitDiffBody({
               return (
                 <div className="flex">
                   <div className="flex-1 min-w-0 overflow-x-auto split-left-col" onScroll={syncSplitScroll}>
+                    <div className="min-w-max">
                     {pairedRows.map((row, rowIndex) => {
                       const side: DiffSide = "old";
                       const lineNumber = row.left?.lineNumber ?? null;
@@ -126,9 +131,11 @@ function SplitDiffBody({
                         </div>
                       );
                     })}
+                    </div>
                   </div>
                   <div className="w-px bg-border-default flex-shrink-0" />
                   <div className="flex-1 min-w-0 overflow-x-auto split-right-col" onScroll={syncSplitScroll}>
+                    <div className="min-w-max">
                     {pairedRows.map((row, rowIndex) => {
                       const side: DiffSide = "new";
                       const lineNumber = row.right?.lineNumber ?? row.left?.lineNumber ?? null;
@@ -169,6 +176,7 @@ function SplitDiffBody({
                         </div>
                       );
                     })}
+                    </div>
                   </div>
                 </div>
               );
@@ -180,27 +188,31 @@ function SplitDiffBody({
       {(expandedGaps.get("bottom") ?? []).length > 0 && (
         <div className="flex">
           <div className="flex-1 min-w-0 overflow-x-auto split-left-col" onScroll={syncSplitScroll}>
-            {(expandedGaps.get("bottom") ?? []).map((line, li) => (
-              <SplitSideContent
-                key={li}
-                side={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
-                filePath={file.path}
-                align="left"
-                searchQuery={searchQuery}
-              />
-            ))}
+            <div className="min-w-max">
+              {(expandedGaps.get("bottom") ?? []).map((line, li) => (
+                <SplitSideContent
+                  key={li}
+                  side={{ lineNumber: line.oldLineNumber, content: line.content, lineType: "context" }}
+                  filePath={file.path}
+                  align="left"
+                  searchQuery={searchQuery}
+                />
+              ))}
+            </div>
           </div>
           <div className="w-px bg-border-default flex-shrink-0" />
           <div className="flex-1 min-w-0 overflow-x-auto split-right-col" onScroll={syncSplitScroll}>
-            {(expandedGaps.get("bottom") ?? []).map((line, li) => (
-              <SplitSideContent
-                key={li}
-                side={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
-                filePath={file.path}
-                align="right"
-                searchQuery={searchQuery}
-              />
-            ))}
+            <div className="min-w-max">
+              {(expandedGaps.get("bottom") ?? []).map((line, li) => (
+                <SplitSideContent
+                  key={li}
+                  side={{ lineNumber: line.newLineNumber, content: line.content, lineType: "context" }}
+                  filePath={file.path}
+                  align="right"
+                  searchQuery={searchQuery}
+                />
+              ))}
+            </div>
           </div>
         </div>
       )}
