@@ -71,7 +71,8 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
     const VALID_SOUNDS: &[&str] = &[
         "none", "coin", "alfie", "bigben", "mail", "pacman",
         "oof", "honk", "ahooga", "boing", "microwave",
-        "shutter", "seatbelt",
+        "shutter", "seatbelt", "powerup", "blip", "levelup",
+        "doorbell", "fwump",
     ];
     if let Some(ref mut notif) = config.notifications {
         if !VALID_SOUNDS.contains(&notif.sound.as_str()) {
