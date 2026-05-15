@@ -66,6 +66,19 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
         }
     }
 
+    // Migration: rewrite removed/invalid sound ids to "coin". Keep in sync with
+    // SOUND_IDS in src/hooks/notificationUtils.ts.
+    const VALID_SOUNDS: &[&str] = &[
+        "none", "coin", "alfie", "bigben", "mail", "pacman",
+        "oof", "honk", "ahooga", "boing", "microwave",
+        "shutter", "seatbelt",
+    ];
+    if let Some(ref mut notif) = config.notifications {
+        if !VALID_SOUNDS.contains(&notif.sound.as_str()) {
+            notif.sound = "coin".to_string();
+        }
+    }
+
     Ok(config)
 }
 

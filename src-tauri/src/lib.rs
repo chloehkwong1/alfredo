@@ -16,6 +16,8 @@ mod keychain;
 mod linear_manager;
 mod linear_oauth;
 mod logging;
+#[cfg(target_os = "macos")]
+mod macos_notifications;
 mod patch_parser;
 mod pty_manager;
 pub mod repo_config;
@@ -60,7 +62,7 @@ fn updater_endpoint_urls(receive_beta: bool) -> Vec<url::Url> {
         .collect()
 }
 
-use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -73,7 +75,6 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(PtyManager::new())
@@ -284,6 +285,10 @@ pub fn run() {
             // Updater
             updater_cmds::check_for_update_filtered,
             updater_cmds::install_pending_update,
+            // Notifications
+            notification::send_app_notification,
+            notification::notification_permission_status,
+            notification::request_notification_permission,
         ])
         .build(tauri::generate_context!())
         .unwrap_or_else(|e| {
@@ -294,6 +299,21 @@ pub fn run() {
             RunEvent::Ready => {
                 #[cfg(all(debug_assertions, target_os = "macos"))]
                 apply_dev_dock_icon();
+                #[cfg(target_os = "macos")]
+                {
+                    crate::macos_notifications::install_presentation_delegate();
+                    // Always prompt at startup if the user hasn't decided yet.
+                    // Gating on the config-enabled flag turned out to be a footgun
+                    // for fresh installs where app.json hasn't been written yet.
+                    if matches!(
+                        crate::macos_notifications::authorization_status(),
+                        crate::macos_notifications::PermissionStatus::Default,
+                    ) {
+                        std::thread::spawn(|| {
+                            let _ = crate::macos_notifications::request_authorization();
+                        });
+                    }
+                }
             }
             RunEvent::Exit => {
                 // Remove Alfredo hooks from all worktrees so standalone

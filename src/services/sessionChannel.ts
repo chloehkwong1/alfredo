@@ -1,5 +1,5 @@
 import type { NotifyReason } from "../types";
-import { sendNotification, playSoundById } from "../hooks/notificationUtils";
+import { sendNotification } from "../hooks/notificationUtils";
 import { createPtyChannel, getAppConfig } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
@@ -93,8 +93,7 @@ export async function fireHookNotification(
     notify === "error"    ? `${branch} stopped (error)${dbg}` :
                             `${branch} needs your input${dbg}`;
 
-  sendNotification(message);
-  playSoundById(config.sound);
+  sendNotification(message, config.sound);
 }
 
 /**
@@ -107,7 +106,7 @@ export async function fireDebugNotification(message: string) {
     if (!appConfig?.debugMode) return;
     const config = appConfig.notifications;
     if (!config?.enabled) return;
-    sendNotification(`[debug] ${message}`);
+    sendNotification(`[debug] ${message}`, config.sound);
   } catch {
     // Best-effort — don't break the reconciler if config is unavailable
   }

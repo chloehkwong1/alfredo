@@ -20,7 +20,6 @@ tauri-plugin-opener = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-store = "2"
-tauri-plugin-notification = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 portable-pty = "0.9"
@@ -52,6 +51,11 @@ schemars = "0.8"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSImage"] }
 objc2-foundation = { version = "0.3", features = ["NSData", "NSProcessInfo", "NSString"] }
+objc2-user-notifications = "0.3"
+block2 = "0.6"
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+notify-rust = "4"
 
 [lints.clippy]
 unwrap_used = "warn"

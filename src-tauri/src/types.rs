@@ -309,7 +309,7 @@ pub struct NotificationConfig {
     pub notify_on_error: bool,
 }
 
-fn default_sound() -> String { "chime".to_string() }
+fn default_sound() -> String { "coin".to_string() }
 fn default_true() -> bool { true }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

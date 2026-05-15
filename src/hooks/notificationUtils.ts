@@ -1,21 +1,19 @@
 import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification as tauriNotify,
-} from "@tauri-apps/plugin-notification";
-import { playSound } from "../api";
+  notificationPermissionStatus,
+  playSound,
+  requestNotificationPermission,
+  sendAppNotification,
+} from "../api";
 
 // Canonical list of sound ids. Source of truth for the settings dropdown.
-// When adding a new sound:
-//   1. Add its definition to scripts/render-sounds.mjs
-//   2. Run `npm run render-sounds`
-//   3. Add the id here
+// Most ids map to a static recording at `src-tauri/sounds/{id}.wav`.
+// `coin` is the only synthesized sound — re-render it with `npm run render-sounds`
+// after editing `scripts/render-sounds.mjs`.
 export const SOUND_IDS = [
   "none",
-  "coin", "zelda", "levelup", "pinball",
-  "r2d2", "quack", "submarine",
-  "train", "seatbelt", "shipbell",
-  "cashregister", "typewriter", "sparkle",
+  "coin", "alfie", "bigben", "mail", "pacman",
+  "oof", "honk", "ahooga", "boing", "microwave",
+  "shutter", "seatbelt",
 ] as const;
 
 export type SoundId = typeof SOUND_IDS[number];
@@ -30,17 +28,18 @@ export async function playSoundById(soundId: string): Promise<void> {
   }
 }
 
-// ── Native notification helper (Tauri plugin) ──────────────────
+// ── Native notification helper (UNUserNotificationCenter on macOS) ──────────
 
 let permissionChecked = false;
 let permitted = false;
 
 async function ensurePermission(): Promise<boolean> {
   if (permissionChecked) return permitted;
-  permitted = await isPermissionGranted();
-  if (!permitted) {
-    const result = await requestPermission();
-    permitted = result === "granted";
+  const status = await notificationPermissionStatus();
+  if (status === "granted") {
+    permitted = true;
+  } else {
+    permitted = await requestNotificationPermission();
   }
   // Only cache when granted. If denied/unresolved (e.g. window wasn't focused
   // when the dialog would have appeared), leave permissionChecked=false so the
@@ -49,8 +48,8 @@ async function ensurePermission(): Promise<boolean> {
   return permitted;
 }
 
-export async function sendNotification(message: string) {
+export async function sendNotification(message: string, soundId?: string) {
   if (await ensurePermission()) {
-    tauriNotify({ title: "Alfredo", body: message });
+    void sendAppNotification("Alfredo", message, soundId);
   }
 }

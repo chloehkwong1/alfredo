@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Play } from "lucide-react";
 import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
+  notificationPermissionStatus,
+  requestNotificationPermission,
+  sendAppNotification,
+} from "../../api";
 import { Button } from "../ui/Button";
 import { Toggle } from "../ui/Toggle";
 import type { NotificationConfig } from "../../types";
@@ -28,11 +28,20 @@ function NotificationSettings({ config, onChange, debugMode, onDebugModeChange }
     "granted" | "denied" | "default" | "unsupported"
   >("default");
 
-  // Check Tauri notification permission on mount
+  // Check Tauri notification permission on mount, and re-check whenever the
+  // window regains focus — covers the case where the user flips
+  // System Settings → Notifications → Alfredo and returns.
   useEffect(() => {
-    isPermissionGranted().then((granted) => {
-      setPermissionState(granted ? "granted" : "default");
-    });
+    const refresh = () => {
+      notificationPermissionStatus().then(setPermissionState);
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
 
   const update = useCallback(
@@ -48,10 +57,10 @@ function NotificationSettings({ config, onChange, debugMode, onDebugModeChange }
   const handleEnableToggle = useCallback(() => {
     const next = !config.enabled;
     if (next) {
-      isPermissionGranted().then(async (granted) => {
+      notificationPermissionStatus().then(async (status) => {
+        let granted = status === "granted";
         if (!granted) {
-          const result = await requestPermission();
-          granted = result === "granted";
+          granted = await requestNotificationPermission();
           setPermissionState(granted ? "granted" : "denied");
         }
         if (granted) {
@@ -64,19 +73,16 @@ function NotificationSettings({ config, onChange, debugMode, onDebugModeChange }
   }, [config.enabled, update]);
 
   const handleTestNotification = useCallback(async () => {
-    playSoundById(config.sound).catch((e) => {
-      console.warn('[notifications] Test sound failed:', e);
-    });
-    let granted = await isPermissionGranted();
-    console.log('[notifications] Test: permission granted =', granted);
+    const status = await notificationPermissionStatus();
+    let granted = status === "granted";
+    console.log('[notifications] Test: permission status =', status);
     if (!granted) {
-      const result = await requestPermission();
-      granted = result === "granted";
-      console.log('[notifications] Test: re-requested permission, result =', result);
+      granted = await requestNotificationPermission();
+      console.log('[notifications] Test: re-requested permission, granted =', granted);
       setPermissionState(granted ? "granted" : "denied");
     }
     if (granted) {
-      sendNotification({ title: "Alfredo", body: "This is a test notification" });
+      void sendAppNotification("Alfredo", "This is a test notification", config.sound);
       console.log('[notifications] Test: notification sent');
     } else {
       console.warn('[notifications] Test: notification skipped — permission not granted');

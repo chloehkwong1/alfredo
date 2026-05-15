@@ -547,6 +547,20 @@ export function playSound(id: string): Promise<void> {
   return invoke("play_sound", { id });
 }
 
+// ── Notifications ───────────────────────────────────────────────
+
+export function sendAppNotification(title: string, body: string, sound?: string): Promise<void> {
+  return invoke<void>("send_app_notification", { title, body, sound });
+}
+
+export function notificationPermissionStatus(): Promise<"granted" | "denied" | "default"> {
+  return invoke<"granted" | "denied" | "default">("notification_permission_status");
+}
+
+export function requestNotificationPermission(): Promise<boolean> {
+  return invoke<boolean>("request_notification_permission");
+}
+
 // ── Badge ────────────────────────────────
 
 /**

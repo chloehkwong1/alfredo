@@ -23,3 +23,4 @@ pub mod git_ops;
 pub mod app_detection;
 pub mod output_styles;
 pub mod updater;
+pub mod notification;
