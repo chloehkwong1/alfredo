@@ -50,7 +50,7 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
   const isYou = gitUser != null && commit.author.toLowerCase() === gitUser.toLowerCase();
 
   return (
-    <div className="sticky top-0 z-10 px-4 py-2 border-b border-border-default bg-bg-secondary">
+    <div className="px-4 py-2 border-b border-border-default bg-bg-secondary flex-shrink-0">
       <div className="flex items-start gap-3">
         <div className="text-sm font-semibold text-text-primary leading-snug flex-1 min-w-0">
           {subject}
@@ -413,25 +413,25 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
               fileRefs={fileRefs}
             />
           )}
+          {viewMode === "commits" && selectedCommitIndex !== null && allCommits[selectedCommitIndex] && (
+            <CommitHeader
+              commit={allCommits[selectedCommitIndex]}
+              gitUser={gitUser}
+              nav={
+                selectedCommitIndex < commits.length
+                  ? {
+                      position: selectedCommitIndex + 1,
+                      total: commits.length,
+                      hasPrev: selectedCommitIndex > 0,
+                      hasNext: selectedCommitIndex < commits.length - 1,
+                      onPrev: () => handleSelectCommit(selectedCommitIndex - 1),
+                      onNext: () => handleSelectCommit(selectedCommitIndex + 1),
+                    }
+                  : null
+              }
+            />
+          )}
           <div className="flex-1 overflow-y-auto min-w-0">
-            {viewMode === "commits" && selectedCommitIndex !== null && allCommits[selectedCommitIndex] && (
-              <CommitHeader
-                commit={allCommits[selectedCommitIndex]}
-                gitUser={gitUser}
-                nav={
-                  selectedCommitIndex < commits.length
-                    ? {
-                        position: selectedCommitIndex + 1,
-                        total: commits.length,
-                        hasPrev: selectedCommitIndex > 0,
-                        hasNext: selectedCommitIndex < commits.length - 1,
-                        onPrev: () => handleSelectCommit(selectedCommitIndex - 1),
-                        onNext: () => handleSelectCommit(selectedCommitIndex + 1),
-                      }
-                    : null
-                }
-              />
-            )}
             {/* Uncommitted section header with Discard All */}
             {!focusedFilePath && viewMode === "changes" && uncommittedFiles.length > 0 && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default">
