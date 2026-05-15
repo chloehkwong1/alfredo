@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronsRight } from "lucide-react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { Sidebar } from "../sidebar/Sidebar";
@@ -14,6 +14,10 @@ import { RepoSetupDialog } from "../onboarding/RepoSetupDialog";
 import { QuickStartPanel } from "../onboarding/QuickStartPanel";
 import { RemoveRepoDialog } from "../sidebar/RemoveRepoDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
+import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
+import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
+import { ShortcutsOverlay } from "../settings/ShortcutsOverlay";
+import { OPEN_WORKSPACE_SETTINGS_EVENT } from "../settings/openWorkspaceSettings";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { useAppConfig } from "../../hooks/useAppConfig";
@@ -99,6 +103,46 @@ function AppShell() {
     handleRemoveRepo,
   } = useRepoDialogs({ repos, repoColors, addRepo, removeRepo, updateRepoMode, switchRepo });
 
+  const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
+  const [settingsInitialSection, setSettingsInitialSection] = useState<
+    "general" | "terminal" | "agent" | "notifications" | "integrations" | "comment-chips" | null
+  >(null);
+  const [settingsInitialFocusIndex, setSettingsInitialFocusIndex] = useState<number | null>(null);
+  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
+  const [workspaceSettingsRepoOverride, setWorkspaceSettingsRepoOverride] = useState<string | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  useEffect(() => {
+    const openGlobal = () => setGlobalSettingsOpen(true);
+    const deepLink = (e: Event) => {
+      const ce = e as CustomEvent<{ section?: string; focusIndex?: number }>;
+      const section = ce.detail?.section;
+      if (section === "comment-chips") {
+        setSettingsInitialSection("comment-chips");
+        setSettingsInitialFocusIndex(
+          typeof ce.detail?.focusIndex === "number" ? ce.detail.focusIndex : null,
+        );
+        setGlobalSettingsOpen(true);
+      }
+    };
+    const openWorkspace = (e: Event) => {
+      const ce = e as CustomEvent<{ repoPath?: string }>;
+      if (ce.detail?.repoPath) setWorkspaceSettingsRepoOverride(ce.detail.repoPath);
+      setWorkspaceSettingsOpen(true);
+    };
+    const openShortcuts = () => setShortcutsOpen(true);
+    window.addEventListener("alfredo:settings-open", openGlobal);
+    window.addEventListener("open-global-settings", deepLink);
+    window.addEventListener(OPEN_WORKSPACE_SETTINGS_EVENT, openWorkspace);
+    window.addEventListener("alfredo:shortcuts-overlay", openShortcuts);
+    return () => {
+      window.removeEventListener("alfredo:settings-open", openGlobal);
+      window.removeEventListener("open-global-settings", deepLink);
+      window.removeEventListener(OPEN_WORKSPACE_SETTINGS_EVENT, openWorkspace);
+      window.removeEventListener("alfredo:shortcuts-overlay", openShortcuts);
+    };
+  }, []);
+
   const hasWorktrees = worktrees.length > 0;
   useSessionAutoSave(repoPath, hasWorktrees);
 
@@ -176,6 +220,12 @@ function AppShell() {
   const hasWorktreeRepos = repos.some(
     (r) => effectiveSelectedRepos.includes(r.path) && r.mode === "worktree",
   );
+
+  const defaultRepoPath =
+    worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
+    ?? effectiveSelectedRepos[0]
+    ?? repoPath
+    ?? undefined;
 
   // For branch-mode repos, extract the repo path from the ID ("branch::/path/to/repo")
   const activeRepoPath = worktree?.path
@@ -271,13 +321,7 @@ function AppShell() {
               repoDisplayNames={repoDisplayNames ?? {}}
               repoShortLabels={repoShortLabels ?? {}}
               worktreeLabels={worktreeLabels ?? {}}
-              onSetRepoDisplayName={setRepoDisplayName}
-              onSetRepoShortLabel={setRepoShortLabel}
-              onSetRepoColor={setRepoColor}
               onSetWorktreeLabel={setWorktreeLabel}
-              onCheckForUpdates={updater.checkNow}
-              checkingForUpdates={updater.checking}
-              upToDate={updater.upToDate}
             />
           </SectionErrorBoundary>
         </div>
@@ -416,14 +460,46 @@ function AppShell() {
           repos={repos}
           repoColors={repoColors ?? {}}
           selectedRepos={effectiveSelectedRepos}
-          defaultRepoPath={
-            worktrees.find((w) => w.id === activeWorktreeId)?.repoPath
-            ?? (selectedRepos.length > 0 ? selectedRepos[0] : undefined)
-            ?? repoPath
-            ?? undefined
-          }
+          defaultRepoPath={defaultRepoPath}
         />
       </SectionErrorBoundary>
+      <GlobalSettingsDialog
+        open={globalSettingsOpen}
+        onOpenChange={(open) => {
+          setGlobalSettingsOpen(open);
+          if (!open) {
+            setSettingsInitialSection(null);
+            setSettingsInitialFocusIndex(null);
+          }
+        }}
+        onCheckForUpdates={updater.checkNow}
+        checkingForUpdates={updater.checking}
+        upToDate={updater.upToDate}
+        initialSection={settingsInitialSection}
+        initialFocusIndex={settingsInitialFocusIndex}
+        onDeepLinkConsumed={() => {
+          // Keep focusIndex around until CommentChipsSettings consumes it
+          // but clear section so re-opening manually doesn't re-trigger.
+          setSettingsInitialSection(null);
+        }}
+      />
+      <ShortcutsOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <WorkspaceSettingsDialog
+        open={workspaceSettingsOpen}
+        onOpenChange={(open) => {
+          setWorkspaceSettingsOpen(open);
+          if (!open) setWorkspaceSettingsRepoOverride(null);
+        }}
+        repoPath={workspaceSettingsRepoOverride || repoPath || "."}
+        repos={repos}
+        repoColors={repoColors ?? {}}
+        repoDisplayNames={repoDisplayNames ?? {}}
+        repoShortLabels={repoShortLabels ?? {}}
+        onSetRepoDisplayName={setRepoDisplayName}
+        onSetRepoShortLabel={setRepoShortLabel}
+        onSetRepoColor={setRepoColor}
+        defaultRepoPath={workspaceSettingsRepoOverride ?? defaultRepoPath}
+      />
       <SectionErrorBoundary
         name="CommandPalette"
         variant="inline"

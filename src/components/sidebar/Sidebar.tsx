@@ -9,10 +9,7 @@ import { ArchiveSection } from "./ArchiveSection";
 import { RepoSelector } from "./RepoSelector";
 import { BranchSection } from "./BranchSection";
 import { useBranchRepos } from "../../hooks/useBranchRepos";
-import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
-import { ShortcutsOverlay } from "../settings/ShortcutsOverlay";
-import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
-import { OPEN_WORKSPACE_SETTINGS_EVENT } from "../settings/openWorkspaceSettings";
+import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
@@ -83,13 +80,7 @@ interface SidebarProps {
   repoDisplayNames?: Record<string, string>;
   repoShortLabels?: Record<string, string>;
   worktreeLabels?: Record<string, string>;
-  onSetRepoDisplayName?: (repoPath: string, name: string | null) => void;
-  onSetRepoShortLabel?: (repoPath: string, label: string | null) => void;
-  onSetRepoColor?: (repoPath: string, color: string) => void;
   onSetWorktreeLabel?: (worktreePath: string, label: string | null) => void;
-  onCheckForUpdates?: () => Promise<void>;
-  checkingForUpdates?: boolean;
-  upToDate?: boolean;
 }
 
 function Sidebar({
@@ -104,13 +95,7 @@ function Sidebar({
   repoDisplayNames,
   repoShortLabels,
   worktreeLabels,
-  onSetRepoDisplayName,
-  onSetRepoShortLabel,
-  onSetRepoColor,
   onSetWorktreeLabel,
-  onCheckForUpdates,
-  checkingForUpdates,
-  upToDate,
 }: SidebarProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const activeWorktreeId = useWorkspaceStore((s) => s.activeWorktreeId);
@@ -254,40 +239,6 @@ function Sidebar({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [flatWorktrees, activeWorktreeId, setActiveWorktree]);
 
-  useEffect(() => {
-    const handler = () => setShortcutsOpen(true);
-    window.addEventListener("alfredo:shortcuts-overlay", handler);
-    return () => window.removeEventListener("alfredo:shortcuts-overlay", handler);
-  }, []);
-
-  useEffect(() => {
-    const handler = () => setGlobalSettingsOpen(true);
-    window.addEventListener("alfredo:settings-open", handler);
-    return () => window.removeEventListener("alfredo:settings-open", handler);
-  }, []);
-
-  const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
-  const [settingsInitialSection, setSettingsInitialSection] = useState<
-    "general" | "terminal" | "agent" | "notifications" | "integrations" | "comment-chips" | null
-  >(null);
-  const [settingsInitialFocusIndex, setSettingsInitialFocusIndex] = useState<number | null>(null);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ section?: string; focusIndex?: number }>;
-      const section = ce.detail?.section;
-      if (section === "comment-chips") {
-        setSettingsInitialSection("comment-chips");
-        setSettingsInitialFocusIndex(
-          typeof ce.detail?.focusIndex === "number" ? ce.detail.focusIndex : null,
-        );
-        setGlobalSettingsOpen(true);
-      }
-    };
-    window.addEventListener("open-global-settings", handler);
-    return () => window.removeEventListener("open-global-settings", handler);
-  }, []);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   useEffect(() => {
     const toggle = () => setAskOpen((v) => !v);
@@ -298,18 +249,6 @@ function Sidebar({
       window.removeEventListener("alfredo:toggle-ask", toggle);
       window.removeEventListener("alfredo:close-ask", close);
     };
-  }, []);
-  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
-  const [workspaceSettingsRepoOverride, setWorkspaceSettingsRepoOverride] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ repoPath?: string }>;
-      if (ce.detail?.repoPath) setWorkspaceSettingsRepoOverride(ce.detail.repoPath);
-      setWorkspaceSettingsOpen(true);
-    };
-    window.addEventListener(OPEN_WORKSPACE_SETTINGS_EVENT, handler);
-    return () => window.removeEventListener(OPEN_WORKSPACE_SETTINGS_EVENT, handler);
   }, []);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
   const [deletingCount, setDeletingCount] = useState<{ current: number; total: number } | null>(null);
@@ -438,7 +377,7 @@ function Sidebar({
           >
             <HelpCircle />
           </IconButton>
-          <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => setGlobalSettingsOpen(true)}>
+          <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => window.dispatchEvent(new Event("alfredo:settings-open"))}>
             <Settings />
           </IconButton>
           <IconButton size="sm" label="Hide sidebar (⌘B)" className="rounded-[6px]" onClick={toggleSidebar}>
@@ -605,7 +544,7 @@ function Sidebar({
                 type="button"
                 data-tour-id="setup-script"
                 className="text-xs text-text-tertiary hover:text-text-secondary hover:underline cursor-pointer transition-colors"
-                onClick={() => setWorkspaceSettingsOpen(true)}
+                onClick={() => openWorkspaceSettings()}
               >
                 Repository Settings
               </button>
@@ -619,43 +558,6 @@ function Sidebar({
       </>
 
       {/* Dialogs */}
-      <GlobalSettingsDialog
-        open={globalSettingsOpen}
-        onOpenChange={(open) => {
-          setGlobalSettingsOpen(open);
-          if (!open) {
-            setSettingsInitialSection(null);
-            setSettingsInitialFocusIndex(null);
-          }
-        }}
-        onCheckForUpdates={onCheckForUpdates}
-        checkingForUpdates={checkingForUpdates}
-        upToDate={upToDate}
-        initialSection={settingsInitialSection}
-        initialFocusIndex={settingsInitialFocusIndex}
-        onDeepLinkConsumed={() => {
-          // Keep focusIndex around until CommentChipsSettings consumes it
-          // but clear section so re-opening manually doesn't re-trigger.
-          setSettingsInitialSection(null);
-        }}
-      />
-      <ShortcutsOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-      <WorkspaceSettingsDialog
-        open={workspaceSettingsOpen}
-        onOpenChange={(open) => {
-          setWorkspaceSettingsOpen(open);
-          if (!open) setWorkspaceSettingsRepoOverride(null);
-        }}
-        repoPath={workspaceSettingsRepoOverride || repoPath || "."}
-        repos={repos}
-        repoColors={effectiveRepoColors}
-        repoDisplayNames={repoDisplayNames ?? {}}
-        repoShortLabels={repoShortLabels ?? {}}
-        onSetRepoDisplayName={onSetRepoDisplayName}
-        onSetRepoShortLabel={onSetRepoShortLabel}
-        onSetRepoColor={onSetRepoColor}
-        defaultRepoPath={workspaceSettingsRepoOverride ?? defaultRepoPath}
-      />
       {hasRepo && (
         <CreateWorktreeDialog
           open={createWorktreeOpen}
