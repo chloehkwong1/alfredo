@@ -2,55 +2,45 @@ import { describe, it, expect } from "vitest";
 import { diffToTexts } from "./decorations";
 import type { DiffFile } from "../../types";
 
-const file = (hunks: DiffFile["hunks"]): DiffFile => ({
+const file = (overrides: Partial<DiffFile>): DiffFile => ({
   path: "x.ts",
   status: "modified",
   additions: 0,
   deletions: 0,
-  hunks,
+  hunks: [],
+  ...overrides,
 });
 
 describe("diffToTexts", () => {
-  it("returns empty strings for an empty diff", () => {
-    expect(diffToTexts(file([]))).toEqual({ original: "", modified: "" });
+  it("returns empty strings when content is absent", () => {
+    expect(diffToTexts(file({}))).toEqual({ original: "", modified: "" });
   });
 
-  it("reconstructs context lines into both sides", () => {
-    const result = diffToTexts(file([{
-      header: "@@ -1,2 +1,2 @@",
-      oldStart: 1, newStart: 1,
-      lines: [
-        { lineType: "context", content: "a", oldLineNumber: 1, newLineNumber: 1 },
-        { lineType: "context", content: "b", oldLineNumber: 2, newLineNumber: 2 },
-      ],
-    }]));
-    expect(result.original).toBe("a\nb");
-    expect(result.modified).toBe("a\nb");
+  it("passes through both sides when present", () => {
+    const result = diffToTexts(
+      file({ originalContent: "a\nb", modifiedContent: "a\nc" }),
+    );
+    expect(result).toEqual({ original: "a\nb", modified: "a\nc" });
   });
 
-  it("splits additions/deletions to their respective sides", () => {
-    const result = diffToTexts(file([{
-      header: "@@ -1,2 +1,2 @@",
-      oldStart: 1, newStart: 1,
-      lines: [
-        { lineType: "deletion", content: "old", oldLineNumber: 1, newLineNumber: null },
-        { lineType: "addition", content: "new", oldLineNumber: null, newLineNumber: 1 },
-        { lineType: "context", content: "shared", oldLineNumber: 2, newLineNumber: 2 },
-      ],
-    }]));
-    expect(result.original).toBe("old\nshared");
-    expect(result.modified).toBe("new\nshared");
+  it("treats added files as empty original", () => {
+    const result = diffToTexts(
+      file({ status: "added", originalContent: null, modifiedContent: "hello\n" }),
+    );
+    expect(result).toEqual({ original: "", modified: "hello\n" });
   });
 
-  it("pads with blank lines so line numbers align with the real file", () => {
-    const result = diffToTexts(file([{
-      header: "@@ -5,1 +5,1 @@",
-      oldStart: 5, newStart: 5,
-      lines: [
-        { lineType: "context", content: "x", oldLineNumber: 5, newLineNumber: 5 },
-      ],
-    }]));
-    expect(result.original.split("\n")).toEqual(["", "", "", "", "x"]);
-    expect(result.modified.split("\n")).toEqual(["", "", "", "", "x"]);
+  it("treats deleted files as empty modified", () => {
+    const result = diffToTexts(
+      file({ status: "deleted", originalContent: "bye\n", modifiedContent: null }),
+    );
+    expect(result).toEqual({ original: "bye\n", modified: "" });
+  });
+
+  it("returns empty strings on both sides for binary/oversized", () => {
+    const result = diffToTexts(
+      file({ originalContent: null, modifiedContent: null }),
+    );
+    expect(result).toEqual({ original: "", modified: "" });
   });
 });

@@ -12,12 +12,22 @@ export interface MonacoDiffBodyProps {
   viewMode: MonacoDiffMode;
 }
 
+function hasRenderableContent(file: DiffFile): boolean {
+  // Added → originalContent legitimately null; deleted → modifiedContent null.
+  // Only fall back when the side we'd actually show is missing.
+  if (file.status === "added") return file.modifiedContent != null;
+  if (file.status === "deleted") return file.originalContent != null;
+  return file.originalContent != null || file.modifiedContent != null;
+}
+
 export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
+  const renderable = hasRenderableContent(file);
 
   // Mount the editor exactly once.
   useEffect(() => {
+    if (!renderable) return;
     let disposed = false;
     const disposables: { dispose(): void }[] = [];
     loadMonaco().then((monaco) => {
@@ -32,6 +42,20 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
         readOnly: true,
         originalEditable: false,
         renderSideBySide: viewMode === "side-by-side",
+        renderIndicators: false,
+        renderMarginRevertIcon: false,
+        diffAlgorithm: "advanced",
+        diffWordWrap: "inherit",
+        lineNumbers: "on",
+        glyphMargin: false,
+        folding: true,
+        lineDecorationsWidth: 12,
+        renderLineHighlight: "none",
+        bracketPairColorization: { enabled: true },
+        guides: { bracketPairs: false, indentation: true },
+        wordWrap: "on",
+        fontSize: 13,
+        lineHeight: 20,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         automaticLayout: true,
@@ -74,7 +98,7 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
       inst.dispose();
       editorRef.current = null;
     };
-  }, [file.path]);
+  }, [file.path, renderable]);
 
   // Re-render when file content changes (e.g. after a new commit).
   useEffect(() => {
@@ -89,6 +113,14 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
   useEffect(() => {
     editorRef.current?.updateOptions({ renderSideBySide: viewMode === "side-by-side" });
   }, [viewMode]);
+
+  if (!renderable) {
+    return (
+      <div className="px-4 py-3 text-sm text-text-secondary">
+        Content not available — file is binary or exceeds 1 MB.
+      </div>
+    );
+  }
 
   return <div ref={hostRef} className="w-full" />;
 }
