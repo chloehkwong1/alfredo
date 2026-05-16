@@ -1,0 +1,19 @@
+src/vite-env.d.ts
+  s_ce37ad2e51e677::t_620b4c816038f9 4-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "a90ed306ccf25382270597feca065801b2f0cb4b",
+  "prompts": {},
+  "sessions": {
+    "s_ce37ad2e51e677": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e99b0be5-79db-4d3e-8dce-04b0697efb72",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
