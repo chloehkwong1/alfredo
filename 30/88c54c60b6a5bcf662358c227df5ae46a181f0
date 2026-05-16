@@ -1,0 +1,19 @@
+src/components/changes/MonacoDiffBody.tsx
+  s_ce37ad2e51e677::t_f8c49c60b4abd9 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3088c54c60b6a5bcf662358c227df5ae46a181f0",
+  "prompts": {},
+  "sessions": {
+    "s_ce37ad2e51e677": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e99b0be5-79db-4d3e-8dce-04b0697efb72",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
