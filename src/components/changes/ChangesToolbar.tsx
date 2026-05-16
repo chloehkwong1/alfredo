@@ -66,21 +66,21 @@ function ViewModeToggle({
     <div className="flex border border-border-default rounded overflow-hidden">
       <button
         className={`px-2 py-0.5 text-[10px] transition-colors ${
-          diffViewMode === "unified"
+          diffViewMode === "inline"
             ? "bg-accent-primary/15 text-accent-primary font-medium"
             : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
         }`}
-        onClick={() => setDiffViewMode(worktreeId, "unified")}
+        onClick={() => setDiffViewMode(worktreeId, "inline")}
       >
         Unified
       </button>
       <button
         className={`px-2 py-0.5 text-[10px] border-l border-border-default transition-colors ${
-          diffViewMode === "split"
+          diffViewMode === "side-by-side"
             ? "bg-accent-primary/15 text-accent-primary font-medium"
             : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
         }`}
-        onClick={() => setDiffViewMode(worktreeId, "split")}
+        onClick={() => setDiffViewMode(worktreeId, "side-by-side")}
       >
         Split
       </button>

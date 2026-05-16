@@ -1,15 +1,11 @@
 import { useEffect, useRef } from "react";
 import type { editor } from "monaco-editor";
-import type { DiffFile } from "../../types";
+import type { DiffFile, DiffViewMode } from "../../types";
 import { loadMonaco } from "../../services/monaco/loader";
 import { diffToTexts } from "../../services/monaco/decorations";
 import { pathToLanguageId } from "../../services/monaco/languages";
 
-// NOTE: After Phase 2 migrates DiffViewMode to "inline" | "side-by-side" | "file",
-// this can be tightened to `Extract<DiffViewMode, "inline" | "side-by-side">`.
-// Until then, the current store union is `"unified" | "split"` so a local literal
-// keeps Phase 1 self-contained and tsc-clean.
-export type MonacoDiffMode = "inline" | "side-by-side";
+export type MonacoDiffMode = Extract<DiffViewMode, "inline" | "side-by-side">;
 
 export interface MonacoDiffBodyProps {
   file: DiffFile;

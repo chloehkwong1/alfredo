@@ -228,9 +228,9 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
             {isMonacoFlagOn() ? (
               <MonacoDiffBody
                 file={file}
-                viewMode={viewMode === "split" ? "side-by-side" : "inline"}
+                viewMode={viewMode === "side-by-side" ? "side-by-side" : "inline"}
               />
-            ) : viewMode !== "split" ? (
+            ) : viewMode !== "side-by-side" ? (
               <UnifiedDiffBody
                 file={file}
                 gapInfo={gapInfo}

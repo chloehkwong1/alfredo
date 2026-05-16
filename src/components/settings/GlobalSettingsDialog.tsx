@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AppConfig, GlobalAppConfig, TabType } from "../../types";
+import { normalizeDiffViewMode } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig } from "../../api";
 import { Button } from "../ui/Button";
 import { Dialog, DialogContent } from "../ui/Dialog";
@@ -380,22 +381,22 @@ function GlobalSettingsDialog({
                     <button
                       type="button"
                       className={`px-3 py-1.5 text-[13px] transition-colors ${
-                        (appConfig.defaultDiffViewMode ?? "unified") === "unified"
+                        normalizeDiffViewMode(appConfig.defaultDiffViewMode) === "inline"
                           ? "bg-accent-primary/15 text-accent-primary font-medium"
                           : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
                       }`}
-                      onClick={() => updateAppConfig({ defaultDiffViewMode: "unified" })}
+                      onClick={() => updateAppConfig({ defaultDiffViewMode: "inline" })}
                     >
                       Unified
                     </button>
                     <button
                       type="button"
                       className={`px-3 py-1.5 text-[13px] border-l border-border-default transition-colors ${
-                        appConfig.defaultDiffViewMode === "split"
+                        normalizeDiffViewMode(appConfig.defaultDiffViewMode) === "side-by-side"
                           ? "bg-accent-primary/15 text-accent-primary font-medium"
                           : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
                       }`}
-                      onClick={() => updateAppConfig({ defaultDiffViewMode: "split" })}
+                      onClick={() => updateAppConfig({ defaultDiffViewMode: "side-by-side" })}
                     >
                       Split
                     </button>

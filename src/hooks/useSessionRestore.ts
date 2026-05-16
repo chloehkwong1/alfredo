@@ -7,7 +7,7 @@ import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
 import { repoId } from "./useBranchRepos";
-import { isAgentTab } from "../types";
+import { isAgentTab, normalizeDiffViewMode } from "../types";
 import type { RepoEntry, Worktree } from "../types";
 
 /**
@@ -221,7 +221,7 @@ export function useSessionRestore(
 
             // Restore per-worktree UI state
             if (session.diffViewMode) {
-              useWorkspaceStore.getState().setDiffViewMode(wt.id, session.diffViewMode);
+              useWorkspaceStore.getState().setDiffViewMode(wt.id, normalizeDiffViewMode(session.diffViewMode));
             }
             if (session.changesViewMode) {
               useWorkspaceStore.getState().setChangesViewMode(wt.id, session.changesViewMode);

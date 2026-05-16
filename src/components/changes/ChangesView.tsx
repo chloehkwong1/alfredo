@@ -15,6 +15,7 @@ import { ensureAgentSession, writeToSession, focusAgentTab } from "../../service
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { Trash2, Check, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
+import { normalizeDiffViewMode } from "../../types";
 import { useAnnotationActions } from "./useAnnotationActions";
 import { ChangesToolbar } from "./ChangesToolbar";
 import { CommitJumpBar } from "./CommitJumpBar";
@@ -115,7 +116,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
   const viewMode = panelTab === "commits" ? "commits" : "changes";
   const [selectedCommitIndex, setSelectedCommitIndex] = useState<number | null>(null);
   const { config: appCfg } = useAppConfig();
-  const defaultDiffView = appCfg?.defaultDiffViewMode ?? "unified";
+  const defaultDiffView = normalizeDiffViewMode(appCfg?.defaultDiffViewMode);
   const diffViewMode = useWorkspaceStore((s) => s.diffViewMode[worktreeId]) ?? defaultDiffView;
   const setDiffViewMode = useWorkspaceStore((s) => s.setDiffViewMode);
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments ?? EMPTY_COMMENTS);
