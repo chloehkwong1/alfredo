@@ -53,6 +53,102 @@ interface DiffFileCardProps {
 }
 
 
+/**
+ * Wraps the legacy Unified/Split renderers and owns the useContextExpansion
+ * hook so its line-fetch state machine never runs in the Monaco code path.
+ */
+interface LegacyDiffBodyProps {
+  file: DiffFile;
+  viewMode: DiffViewMode;
+  repoPath: string;
+  commitHash?: string;
+  autoExpandAll?: boolean;
+  annotationsByLine: Map<string, Annotation[]>;
+  prCommentsByLine: Map<number, PrComment[]>;
+  expandedCommentLines: Set<number>;
+  toggleCommentLine: (lineNumber: number) => void;
+  highlightCommentLine?: number | null;
+  highlightLineRef: React.MutableRefObject<HTMLDivElement | null>;
+  searchQuery?: string;
+  activeSearchMatch?: { hunkIndex: number; lineIndex: number } | null;
+  syncSplitScroll: (e: React.UIEvent<HTMLDivElement>) => void;
+  onAddAnnotation: (filePath: string, lineNumber: number, side: import("../../types").DiffSide) => void;
+  onDeleteAnnotation: (annotationId: string) => void;
+  onEditAnnotation: (annotationId: string, newText: string) => void;
+  onSendToClaude?: (comment: PrComment) => void;
+}
+
+function LegacyDiffBody({
+  file,
+  viewMode,
+  repoPath,
+  commitHash,
+  autoExpandAll,
+  annotationsByLine,
+  prCommentsByLine,
+  expandedCommentLines,
+  toggleCommentLine,
+  highlightCommentLine,
+  highlightLineRef,
+  searchQuery,
+  activeSearchMatch,
+  syncSplitScroll,
+  onAddAnnotation,
+  onDeleteAnnotation,
+  onEditAnnotation,
+  onSendToClaude,
+}: LegacyDiffBodyProps) {
+  const { gapInfo, expandedGaps, loadingGaps, handleExpandContext } = useContextExpansion(
+    file, repoPath, commitHash, autoExpandAll,
+  );
+
+  if (viewMode !== "side-by-side") {
+    return (
+      <UnifiedDiffBody
+        file={file}
+        gapInfo={gapInfo}
+        expandedGaps={expandedGaps}
+        loadingGaps={loadingGaps}
+        handleExpandContext={handleExpandContext}
+        annotationsByLine={annotationsByLine}
+        prCommentsByLine={prCommentsByLine}
+        expandedCommentLines={expandedCommentLines}
+        toggleCommentLine={toggleCommentLine}
+        highlightCommentLine={highlightCommentLine}
+        highlightLineRef={highlightLineRef}
+        searchQuery={searchQuery}
+        activeSearchMatch={activeSearchMatch}
+        onAddAnnotation={onAddAnnotation}
+        onDeleteAnnotation={onDeleteAnnotation}
+        onEditAnnotation={onEditAnnotation}
+        onSendToClaude={onSendToClaude}
+      />
+    );
+  }
+
+  return (
+    <SplitDiffBody
+      file={file}
+      gapInfo={gapInfo}
+      expandedGaps={expandedGaps}
+      loadingGaps={loadingGaps}
+      handleExpandContext={handleExpandContext}
+      annotationsByLine={annotationsByLine}
+      prCommentsByLine={prCommentsByLine}
+      expandedCommentLines={expandedCommentLines}
+      toggleCommentLine={toggleCommentLine}
+      highlightCommentLine={highlightCommentLine}
+      highlightLineRef={highlightLineRef}
+      searchQuery={searchQuery}
+      syncSplitScroll={syncSplitScroll}
+      onAddAnnotation={onAddAnnotation}
+      onDeleteAnnotation={onDeleteAnnotation}
+      onEditAnnotation={onEditAnnotation}
+      onSendToClaude={onSendToClaude}
+    />
+  );
+}
+
 const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   function DiffFileCard(
     {
@@ -193,10 +289,6 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       });
     }
 
-    const { gapInfo, expandedGaps, loadingGaps, handleExpandContext } = useContextExpansion(
-      file, repoPath, commitHash, autoExpandAll,
-    );
-
     return (
       <div ref={(node) => {
         // Merge forwarded ref + local cardRef
@@ -230,13 +322,13 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 file={file}
                 viewMode={viewMode === "side-by-side" ? "side-by-side" : "inline"}
               />
-            ) : viewMode !== "side-by-side" ? (
-              <UnifiedDiffBody
+            ) : (
+              <LegacyDiffBody
                 file={file}
-                gapInfo={gapInfo}
-                expandedGaps={expandedGaps}
-                loadingGaps={loadingGaps}
-                handleExpandContext={handleExpandContext}
+                viewMode={viewMode}
+                repoPath={repoPath}
+                commitHash={commitHash}
+                autoExpandAll={autoExpandAll}
                 annotationsByLine={annotationsByLine}
                 prCommentsByLine={prCommentsByLine}
                 expandedCommentLines={expandedCommentLines}
@@ -245,25 +337,6 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 highlightLineRef={highlightLineRef}
                 searchQuery={searchQuery}
                 activeSearchMatch={activeSearchMatch}
-                onAddAnnotation={onAddAnnotation}
-                onDeleteAnnotation={onDeleteAnnotation}
-                onEditAnnotation={onEditAnnotation}
-                onSendToClaude={onSendToClaude}
-              />
-            ) : (
-              <SplitDiffBody
-                file={file}
-                gapInfo={gapInfo}
-                expandedGaps={expandedGaps}
-                loadingGaps={loadingGaps}
-                handleExpandContext={handleExpandContext}
-                annotationsByLine={annotationsByLine}
-                prCommentsByLine={prCommentsByLine}
-                expandedCommentLines={expandedCommentLines}
-                toggleCommentLine={toggleCommentLine}
-                highlightCommentLine={highlightCommentLine}
-                highlightLineRef={highlightLineRef}
-                searchQuery={searchQuery}
                 syncSplitScroll={syncSplitScroll}
                 onAddAnnotation={onAddAnnotation}
                 onDeleteAnnotation={onDeleteAnnotation}
