@@ -1,0 +1,21 @@
+src/components/changes/MonacoTheme.ts
+  s_ce37ad2e51e677::t_19b3223fa15b1b 1-17
+src/services/monaco/loader.ts
+  s_ce37ad2e51e677::t_2c82d62474e1be 1-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "08d39583fbc3b7eb57116b41d3d71729190f448d",
+  "prompts": {},
+  "sessions": {
+    "s_ce37ad2e51e677": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e99b0be5-79db-4d3e-8dce-04b0697efb72",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
