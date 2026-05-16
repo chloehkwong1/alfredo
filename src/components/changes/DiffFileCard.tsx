@@ -3,6 +3,7 @@ import { DiffFileHeader } from "./DiffFileHeader";
 import { useContextExpansion } from "./useContextExpansion";
 import { UnifiedDiffBody } from "./UnifiedDiffBody";
 import { SplitDiffBody } from "./SplitDiffBody";
+import { MonacoDiffBody } from "./MonacoDiffBody";
 import { MarkdownView } from "./MarkdownView";
 import { AnnotationInput } from "./AnnotationInput";
 import { useFileViewModeStore } from "../../stores/fileViewModeStore";
@@ -13,6 +14,11 @@ import type {
   Annotation,
   PrComment,
 } from "../../types";
+
+function isMonacoFlagOn(): boolean {
+  return typeof window !== "undefined"
+    && window.localStorage.getItem("alfredo:monaco") === "1";
+}
 
 function isMarkdownPath(path: string): boolean {
   return /\.(md|markdown|mdx)$/i.test(path);
@@ -219,7 +225,12 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
         )}
         {expanded && hasBeenVisible && (!supportsRendered || fileViewMode === "diff") && (
           <div className="bg-bg-primary overflow-x-auto">
-            {viewMode !== "split" ? (
+            {isMonacoFlagOn() ? (
+              <MonacoDiffBody
+                file={file}
+                viewMode={viewMode === "split" ? "side-by-side" : "inline"}
+              />
+            ) : viewMode !== "split" ? (
               <UnifiedDiffBody
                 file={file}
                 gapInfo={gapInfo}
