@@ -1,0 +1,36 @@
+src/components/changes/MonacoDiffBody.tsx
+  s_72320c92240adc::t_904d4cb6a4a8cc 30
+  s_72320c92240adc::t_f30ad9eb37dce5 15-22,26
+  s_5e4e54ce624f59::t_965c47c1ea9cae 45,52,56-58
+  s_72320c92240adc::t_4ffe754b3b8ee1 101
+  s_5e4e54ce624f59::t_2e42baaa03c529 46-51,53-55
+  s_72320c92240adc::t_35ba80de8b20e6 117-124
+src/services/monaco/decorations.ts
+  s_72320c92240adc::t_f0e7ddbaac2be3 4,6-9,13-14
+src/services/monaco/decorations.test.ts
+  s_72320c92240adc::t_8339ade4861860 5,10-11,15-16,19-23,26-30,33-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "41b1e69a701c2896b423169f9cf3315e943efa9c",
+  "prompts": {},
+  "sessions": {
+    "s_5e4e54ce624f59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1554c554-8926-4364-8577-763b50a494ef",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_72320c92240adc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f9842949-a164-4180-a667-d4e7b04c02aa",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
