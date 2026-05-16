@@ -23,20 +23,30 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
   // Mount the editor exactly once.
   useEffect(() => {
     let disposed = false;
+    const disposables: { dispose(): void }[] = [];
     loadMonaco().then((monaco) => {
       if (disposed || !hostRef.current) return;
+      const host = hostRef.current;
       const { original, modified } = diffToTexts(file);
       const language = pathToLanguageId(file.path);
       const originalModel = monaco.editor.createModel(original, language);
       const modifiedModel = monaco.editor.createModel(modified, language);
 
-      const instance = monaco.editor.createDiffEditor(hostRef.current, {
+      const instance = monaco.editor.createDiffEditor(host, {
         readOnly: true,
         originalEditable: false,
         renderSideBySide: viewMode === "side-by-side",
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         automaticLayout: true,
+        // Disable Monaco's internal vertical scroll so the host page handles it.
+        // Host height is sized to content below, so there is nothing to scroll
+        // inside the editor — but Monaco still captures wheel events by default.
+        scrollbar: {
+          vertical: "hidden",
+          alwaysConsumeMouseWheel: false,
+          handleMouseWheel: false,
+        },
         hideUnchangedRegions: {
           enabled: true,
           minimumLineCount: 3,
@@ -47,10 +57,20 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
       });
       instance.setModel({ original: originalModel, modified: modifiedModel });
       editorRef.current = instance;
+
+      const updateHeight = () => {
+        const oh = instance.getOriginalEditor().getContentHeight();
+        const mh = instance.getModifiedEditor().getContentHeight();
+        host.style.height = `${Math.max(oh, mh)}px`;
+      };
+      disposables.push(instance.getOriginalEditor().onDidContentSizeChange(updateHeight));
+      disposables.push(instance.getModifiedEditor().onDidContentSizeChange(updateHeight));
+      updateHeight();
     });
 
     return () => {
       disposed = true;
+      disposables.forEach((d) => d.dispose());
       const inst = editorRef.current;
       if (!inst) return;
       inst.getModel()?.original.dispose();
@@ -74,5 +94,5 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
     editorRef.current?.updateOptions({ renderSideBySide: viewMode === "side-by-side" });
   }, [viewMode]);
 
-  return <div ref={hostRef} className="w-full h-[600px]" />;
+  return <div ref={hostRef} className="w-full" />;
 }
