@@ -284,6 +284,10 @@ export interface DiffFile {
   deletions: number;
   hunks: DiffHunk[];
   truncated?: boolean;
+  /** Full text of the file before the change. Null for added files, binary, or oversized blobs. */
+  originalContent?: string | null;
+  /** Full text of the file after the change. Null for deleted files, binary, or oversized blobs. */
+  modifiedContent?: string | null;
 }
 
 export interface DiffHunk {

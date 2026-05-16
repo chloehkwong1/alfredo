@@ -266,6 +266,10 @@ fn map_github_file(file: GithubPrFile) -> crate::commands::diff::DiffFile {
         deletions: file.deletions,
         hunks,
         truncated,
+        // GitHub PR diffs only expose patch text, not full file content.
+        // The Monaco renderer falls back to a placeholder when both are None.
+        original_content: None,
+        modified_content: None,
     }
 }
 

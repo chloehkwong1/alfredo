@@ -21,7 +21,17 @@ pub struct DiffFile {
     pub hunks: Vec<DiffHunk>,
     #[serde(default)]
     pub truncated: bool,
+    /// Full text of the file before the change. `None` for added files,
+    /// binary blobs, or blobs exceeding `MAX_FULL_FILE_BYTES`.
+    pub original_content: Option<String>,
+    /// Full text of the file after the change. `None` for deleted files,
+    /// binary blobs, or blobs exceeding `MAX_FULL_FILE_BYTES`.
+    pub modified_content: Option<String>,
 }
+
+/// Cap on per-side file content shipped to the renderer. Anything larger
+/// is left as `None` and the frontend shows a fallback placeholder.
+const MAX_FULL_FILE_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -163,6 +173,8 @@ fn diff_to_files(diff: &git2::Diff<'_>) -> Result<Vec<DiffFile>> {
                 deletions: 0,
                 hunks: Vec::new(),
                 truncated: false,
+                original_content: None,
+                modified_content: None,
             });
         }
 
@@ -279,6 +291,85 @@ fn ignored_paths(repo_path: &str, paths: &[String]) -> HashSet<String> {
     }
 }
 
+// ── Full-file content helpers ──────────────────────────────────
+
+/// Read a blob from `tree` at `path` as a UTF-8 (lossy) string.
+///
+/// Returns `None` for missing entries, non-blobs (submodules), binary blobs,
+/// and blobs exceeding `MAX_FULL_FILE_BYTES`. The renderer falls back to a
+/// placeholder when this returns `None`.
+fn read_tree_blob(repo: &Repository, tree: &git2::Tree<'_>, path: &str) -> Option<String> {
+    let entry = tree.get_path(std::path::Path::new(path)).ok()?;
+    let object = entry.to_object(repo).ok()?;
+    let blob = object.as_blob()?;
+    if blob.is_binary() || blob.size() > MAX_FULL_FILE_BYTES {
+        return None;
+    }
+    Some(String::from_utf8_lossy(blob.content()).to_string())
+}
+
+/// Read a file from the working tree as a UTF-8 (lossy) string.
+///
+/// Returns `None` for missing files, files exceeding `MAX_FULL_FILE_BYTES`,
+/// or files that look binary (NUL byte in the first 8 KB).
+fn read_workdir_blob(repo_path: &str, file_path: &str) -> Option<String> {
+    let full = std::path::Path::new(repo_path).join(file_path);
+    let bytes = std::fs::read(&full).ok()?;
+    if bytes.len() > MAX_FULL_FILE_BYTES {
+        return None;
+    }
+    let sample_len = bytes.len().min(8192);
+    if bytes[..sample_len].contains(&0u8) {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&bytes).to_string())
+}
+
+/// Populate `original_content` / `modified_content` on each file from a
+/// tree-to-tree diff (used by `get_diff` and `get_diff_for_commit`).
+fn populate_tree_content(
+    repo: &Repository,
+    files: &mut [DiffFile],
+    base_tree: Option<&git2::Tree<'_>>,
+    head_tree: Option<&git2::Tree<'_>>,
+) {
+    for file in files {
+        if file.status != "added" {
+            if let Some(tree) = base_tree {
+                let original_path = file.old_path.as_deref().unwrap_or(&file.path);
+                file.original_content = read_tree_blob(repo, tree, original_path);
+            }
+        }
+        if file.status != "deleted" {
+            if let Some(tree) = head_tree {
+                file.modified_content = read_tree_blob(repo, tree, &file.path);
+            }
+        }
+    }
+}
+
+/// Populate content for the working-tree diff path: original from HEAD tree,
+/// modified from disk. Only touches files whose fields are still `None`,
+/// so the untracked-files path can pre-populate `modified_content`.
+fn populate_workdir_content(
+    repo: &Repository,
+    repo_path: &str,
+    files: &mut [DiffFile],
+    head_tree: Option<&git2::Tree<'_>>,
+) {
+    for file in files {
+        if file.original_content.is_none() && file.status != "added" {
+            if let Some(tree) = head_tree {
+                let original_path = file.old_path.as_deref().unwrap_or(&file.path);
+                file.original_content = read_tree_blob(repo, tree, original_path);
+            }
+        }
+        if file.modified_content.is_none() && file.status != "deleted" {
+            file.modified_content = read_workdir_blob(repo_path, &file.path);
+        }
+    }
+}
+
 // ── Commands ───────────────────────────────────────────────────
 
 /// Get the diff between HEAD and the merge base with the default branch.
@@ -322,7 +413,9 @@ pub async fn get_diff(
             .diff_tree_to_tree(Some(&base_tree), Some(&head_tree), Some(&mut opts))
             .map_err(|e| AppError::Git(format!("diff failed: {e}")))?;
 
-        diff_to_files(&diff)
+        let mut files = diff_to_files(&diff)?;
+        populate_tree_content(&repo, &mut files, Some(&base_tree), Some(&head_tree));
+        Ok(files)
     })
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
@@ -388,6 +481,12 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
                     })
                     .collect();
 
+                let modified_content = if content.len() <= MAX_FULL_FILE_BYTES {
+                    Some(content.clone())
+                } else {
+                    None
+                };
+
                 files.push(DiffFile {
                     path: rel_path.to_string(),
                     old_path: None,
@@ -401,6 +500,8 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
                         lines,
                     }],
                     truncated: false,
+                    original_content: None,
+                    modified_content,
                 });
             }
         }
@@ -425,6 +526,13 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
         if !ignored.is_empty() {
             files.retain(|f| !ignored.contains(&f.path));
         }
+
+        // 4. Populate full file content (HEAD tree → original, workdir → modified).
+        //    The untracked path above already set modified_content for new files;
+        //    populate_workdir_content only fills fields that are still None.
+        let repo = open_repo(&repo_path)?;
+        let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+        populate_workdir_content(&repo, &repo_path, &mut files, head_tree.as_ref());
 
         Ok(files)
     })
@@ -738,7 +846,9 @@ pub async fn get_diff_for_commit(
             )
             .map_err(|e| AppError::Git(format!("diff failed: {e}")))?;
 
-        diff_to_files(&diff)
+        let mut files = diff_to_files(&diff)?;
+        populate_tree_content(&repo, &mut files, parent_tree.as_ref(), Some(&commit_tree));
+        Ok(files)
     })
     .await
     .map_err(|e| AppError::Git(format!("task join error: {e}")))?
@@ -1769,5 +1879,172 @@ mod tests {
         let initial_files = diff_to_files(&diff_initial).unwrap();
         assert_eq!(initial_files.len(), 1);
         assert_eq!(initial_files[0].status, "added");
+    }
+
+    // ── populate_tree_content (B.1: full-file content for the renderer) ──
+
+    /// Build a tree-to-tree diff between two commits and run it through
+    /// `diff_to_files` + `populate_tree_content`, mirroring `get_diff`.
+    fn diff_with_content(
+        repo: &Repository,
+        old_oid: git2::Oid,
+        new_oid: git2::Oid,
+    ) -> Vec<DiffFile> {
+        let old_tree = repo.find_commit(old_oid).unwrap().tree().unwrap();
+        let new_tree = repo.find_commit(new_oid).unwrap().tree().unwrap();
+        let mut opts = DiffOptions::new();
+        opts.include_typechange(true);
+        let diff = repo
+            .diff_tree_to_tree(Some(&old_tree), Some(&new_tree), Some(&mut opts))
+            .unwrap();
+        let mut files = diff_to_files(&diff).unwrap();
+        populate_tree_content(repo, &mut files, Some(&old_tree), Some(&new_tree));
+        files
+    }
+
+    #[test]
+    fn populate_tree_content_modified_file() {
+        let (dir, repo) = create_test_repo();
+
+        let file_path = dir.path().join("greeting.txt");
+        std::fs::write(&file_path, "hello\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("greeting.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        std::fs::write(&file_path, "hello\nworld\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("greeting.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "add line");
+
+        let files = diff_with_content(&repo, oid1, oid2);
+        assert_eq!(files.len(), 1);
+        let f = &files[0];
+        assert_eq!(f.status, "modified");
+        assert_eq!(f.original_content.as_deref(), Some("hello\n"));
+        assert_eq!(f.modified_content.as_deref(), Some("hello\nworld\n"));
+    }
+
+    #[test]
+    fn populate_tree_content_added_file() {
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("seed.txt"), "x").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("seed.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        std::fs::write(dir.path().join("fresh.txt"), "brand new\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("fresh.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "add fresh");
+
+        let files = diff_with_content(&repo, oid1, oid2);
+        let added = files.iter().find(|f| f.path == "fresh.txt").unwrap();
+        assert_eq!(added.status, "added");
+        assert!(added.original_content.is_none(), "added files have no original");
+        assert_eq!(added.modified_content.as_deref(), Some("brand new\n"));
+    }
+
+    #[test]
+    fn populate_tree_content_deleted_file() {
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join("keep.txt"), "stay").unwrap();
+        std::fs::write(dir.path().join("doomed.txt"), "goodbye\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("keep.txt")).unwrap();
+        index.add_path(std::path::Path::new("doomed.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        let mut index = repo.index().unwrap();
+        index.remove_path(std::path::Path::new("doomed.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "delete doomed");
+
+        let files = diff_with_content(&repo, oid1, oid2);
+        let deleted = files.iter().find(|f| f.path == "doomed.txt").unwrap();
+        assert_eq!(deleted.status, "deleted");
+        assert_eq!(deleted.original_content.as_deref(), Some("goodbye\n"));
+        assert!(deleted.modified_content.is_none(), "deleted files have no modified");
+    }
+
+    #[test]
+    fn populate_tree_content_renamed_file() {
+        let (dir, repo) = create_test_repo();
+
+        let body = "alpha\nbeta\ngamma\ndelta\nepsilon\n";
+        std::fs::write(dir.path().join("old_name.txt"), body).unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("old_name.txt")).unwrap();
+        index.write().unwrap();
+        let oid1 = create_commit(&repo, "initial");
+
+        std::fs::remove_file(dir.path().join("old_name.txt")).unwrap();
+        std::fs::write(dir.path().join("new_name.txt"), body).unwrap();
+        let mut index = repo.index().unwrap();
+        index.remove_path(std::path::Path::new("old_name.txt")).unwrap();
+        index.add_path(std::path::Path::new("new_name.txt")).unwrap();
+        index.write().unwrap();
+        let oid2 = create_commit(&repo, "rename file");
+
+        // Rename detection has to be opted-in on the diff itself.
+        let tree1 = repo.find_commit(oid1).unwrap().tree().unwrap();
+        let tree2 = repo.find_commit(oid2).unwrap().tree().unwrap();
+        let mut opts = DiffOptions::new();
+        let mut diff = repo
+            .diff_tree_to_tree(Some(&tree1), Some(&tree2), Some(&mut opts))
+            .unwrap();
+        let mut find_opts = git2::DiffFindOptions::new();
+        find_opts.renames(true);
+        diff.find_similar(Some(&mut find_opts)).unwrap();
+
+        let mut files = diff_to_files(&diff).unwrap();
+        populate_tree_content(&repo, &mut files, Some(&tree1), Some(&tree2));
+
+        let renamed = files.iter().find(|f| f.path == "new_name.txt").unwrap();
+        assert_eq!(renamed.status, "renamed");
+        assert_eq!(renamed.old_path.as_deref(), Some("old_name.txt"));
+        assert_eq!(renamed.original_content.as_deref(), Some(body));
+        assert_eq!(renamed.modified_content.as_deref(), Some(body));
+    }
+
+    #[test]
+    fn read_tree_blob_skips_binary() {
+        let (dir, repo) = create_test_repo();
+
+        // Bytes with embedded NUL trip libgit2's binary detection.
+        let bytes: Vec<u8> = vec![0xFF, 0xD8, 0xFF, 0x00, 0x01, 0x02, 0x03, 0x04];
+        std::fs::write(dir.path().join("blob.bin"), &bytes).unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("blob.bin")).unwrap();
+        index.write().unwrap();
+        let oid = create_commit(&repo, "add binary");
+
+        let tree = repo.find_commit(oid).unwrap().tree().unwrap();
+        assert!(read_tree_blob(&repo, &tree, "blob.bin").is_none());
+    }
+
+    #[test]
+    fn read_workdir_blob_skips_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("photo.bin");
+        std::fs::write(&path, [0xFFu8, 0x00, 0x01, 0x02]).unwrap();
+        assert!(read_workdir_blob(dir.path().to_str().unwrap(), "photo.bin").is_none());
+    }
+
+    #[test]
+    fn read_workdir_blob_reads_text() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("notes.md"), "# hi\n").unwrap();
+        assert_eq!(
+            read_workdir_blob(dir.path().to_str().unwrap(), "notes.md").as_deref(),
+            Some("# hi\n"),
+        );
     }
 }
