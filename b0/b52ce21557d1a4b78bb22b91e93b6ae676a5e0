@@ -1,0 +1,21 @@
+src/services/monaco/decorations.ts
+  s_ce37ad2e51e677::t_be2abf894a540f 1-54
+src/services/monaco/decorations.test.ts
+  s_ce37ad2e51e677::t_4b4ba07d242d02 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b0b52ce21557d1a4b78bb22b91e93b6ae676a5e0",
+  "prompts": {},
+  "sessions": {
+    "s_ce37ad2e51e677": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e99b0be5-79db-4d3e-8dce-04b0697efb72",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
