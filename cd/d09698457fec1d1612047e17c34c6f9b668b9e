@@ -1,0 +1,34 @@
+src/components/changes/ChangesView.tsx
+  s_3886209c5279b6::t_7cdd1b9fb25870 119
+  s_3886209c5279b6::t_9b4f6fa9d35bc2 18
+src/types.ts
+  s_3886209c5279b6::t_9de44dba96f276 333-343
+src/components/settings/GlobalSettingsDialog.tsx
+  s_3886209c5279b6::t_d87cb35061d353 4
+  s_3886209c5279b6::t_c89f36758c63c2 384,388,395,399
+src/components/changes/DiffFileCard.tsx
+  s_3886209c5279b6::t_1eb9db426a8a37 231,233
+src/components/changes/ChangesToolbar.tsx
+  s_3886209c5279b6::t_0b538447387372 69,73,79,83
+src/hooks/useSessionRestore.ts
+  s_3886209c5279b6::t_f9d9a3a97a5a74 10
+  s_3886209c5279b6::t_09c06fbb850970 224
+src/components/changes/MonacoDiffBody.tsx
+  s_3886209c5279b6::t_1cb07e9382e4ae 3,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "cdd09698457fec1d1612047e17c34c6f9b668b9e",
+  "prompts": {},
+  "sessions": {
+    "s_3886209c5279b6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a0703ef-b080-4c4c-9a65-8e45dc0a99ac",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
