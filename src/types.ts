@@ -334,14 +334,15 @@ export function findAgentTab(tabs: { type: TabType; id: string }[]): typeof tabs
   return tabs.find((t) => AGENT_TAB_TYPES.has(t.type));
 }
 
-export type DiffViewMode = "inline" | "side-by-side" | "file";
+export type DiffViewMode = "inline" | "side-by-side";
 
 /**
  * Map any persisted DiffViewMode-like value to the current union. Old persisted
- * values (`"unified"` / `"split"`) come from app.json + saved sessions on disk.
+ * values (`"unified"` / `"split"` / `"file"`) come from app.json + saved
+ * sessions on disk.
  */
 export function normalizeDiffViewMode(v: unknown): DiffViewMode {
-  if (v === "inline" || v === "side-by-side" || v === "file") return v;
+  if (v === "inline" || v === "side-by-side") return v;
   if (v === "split") return "side-by-side";
   return "inline";
 }

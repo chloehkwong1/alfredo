@@ -20,10 +20,6 @@ const EDITOR_LABELS: Record<string, string> = {
   custom: "editor",
 };
 
-function isMonacoFlagOn(): boolean {
-  return typeof window !== "undefined"
-    && window.localStorage.getItem("alfredo:monaco") === "1";
-}
 import type { DiffFile, DiffViewMode, PrStatus, GlobalAppConfig } from "../../types";
 import type { SearchMatch } from "../../hooks/useDiffSearch";
 
@@ -67,7 +63,6 @@ function ViewModeToggle({
   setDiffViewMode: (worktreeId: string, mode: DiffViewMode) => void;
   worktreeId: string;
 }) {
-  const monacoOn = isMonacoFlagOn();
   return (
     <div className="flex border border-border-default rounded overflow-hidden">
       <button
@@ -90,18 +85,6 @@ function ViewModeToggle({
       >
         Split
       </button>
-      {monacoOn && (
-        <button
-          className={`px-2 py-0.5 text-[10px] border-l border-border-default transition-colors ${
-            diffViewMode === "file"
-              ? "bg-accent-primary/15 text-accent-primary font-medium"
-              : "text-text-tertiary hover:text-text-primary hover:bg-bg-hover"
-          }`}
-          onClick={() => setDiffViewMode(worktreeId, "file")}
-        >
-          File
-        </button>
-      )}
     </div>
   );
 }
