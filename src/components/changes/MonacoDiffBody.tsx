@@ -71,13 +71,14 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         automaticLayout: true,
-        // Disable Monaco's internal vertical scroll so the host page handles it.
-        // Host height is sized to content below, so there is nothing to scroll
-        // inside the editor — but Monaco still captures wheel events by default.
+        // Always allow internal scroll for tall files (we cap host at 80vh).
+        // alwaysConsumeMouseWheel: false lets wheel events bubble to the page
+        // at scroll boundaries, so small files (content fits in host, nothing
+        // to scroll internally) still feel like page-level scrolling.
         scrollbar: {
-          vertical: "hidden",
+          vertical: "auto",
+          handleMouseWheel: true,
           alwaysConsumeMouseWheel: false,
-          handleMouseWheel: false,
         },
         hideUnchangedRegions: {
           enabled: true,
@@ -90,25 +91,12 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
       instance.setModel({ original: originalModel, modified: modifiedModel });
       editorRef.current = instance;
 
-      let lastCapped: boolean | null = null;
       const updateHeight = () => {
         const oh = instance.getOriginalEditor().getContentHeight();
         const mh = instance.getModifiedEditor().getContentHeight();
         const desired = Math.max(oh, mh);
         const cap = Math.floor(window.innerHeight * VIEWPORT_HEIGHT_CAP_RATIO);
-        const capped = desired > cap;
-        host.style.height = `${capped ? cap : desired}px`;
-
-        // Only flip scrollbar/wheel options on transitions to avoid
-        // re-laying-out the editor on every onDidContentSizeChange tick.
-        if (capped !== lastCapped) {
-          lastCapped = capped;
-          const scrollbar = capped
-            ? { vertical: "auto" as const, handleMouseWheel: true, alwaysConsumeMouseWheel: false }
-            : { vertical: "hidden" as const, handleMouseWheel: false, alwaysConsumeMouseWheel: false };
-          instance.getOriginalEditor().updateOptions({ scrollbar });
-          instance.getModifiedEditor().updateOptions({ scrollbar });
-        }
+        host.style.height = `${Math.min(desired, cap)}px`;
       };
       disposables.push(instance.getOriginalEditor().onDidContentSizeChange(updateHeight));
       disposables.push(instance.getModifiedEditor().onDidContentSizeChange(updateHeight));
