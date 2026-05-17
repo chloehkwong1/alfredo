@@ -20,6 +20,45 @@ function hasRenderableContent(file: DiffFile): boolean {
   return file.originalContent != null || file.modifiedContent != null;
 }
 
+function debugEnabled(): boolean {
+  return typeof window !== "undefined"
+    && window.localStorage.getItem("alfredo:monaco-debug") === "1";
+}
+
+/**
+ * Per-editor instrumentation: logs content size, visible ranges, line count,
+ * and view-zone count whenever they change. Enable with
+ * `localStorage.setItem("alfredo:monaco-debug","1")` and reload.
+ */
+function attachProbe(
+  path: string,
+  side: "original" | "modified",
+  ed: editor.ICodeEditor,
+): { dispose(): void }[] {
+  const tag = `[monaco:${path}:${side}]`;
+  const t0 = performance.now();
+  const stamp = () => `${(performance.now() - t0).toFixed(0)}ms`;
+  const snapshot = (event: string) => {
+    const model = ed.getModel();
+    const lineCount = model ? model.getLineCount() : 0;
+    const contentHeight = ed.getContentHeight();
+    const layoutHeight = ed.getLayoutInfo().height;
+    const visible = ed.getVisibleRanges().map((r) => `${r.startLineNumber}-${r.endLineNumber}`).join(",");
+    // eslint-disable-next-line no-console
+    console.log(
+      `${tag} ${stamp()} ${event} lines=${lineCount} contentH=${contentHeight} layoutH=${layoutHeight} visible=[${visible}]`,
+    );
+  };
+  snapshot("mount");
+  const disposables = [
+    ed.onDidContentSizeChange((e) => snapshot(`contentSizeChange (Δh=${e.contentHeightChanged ? "y" : "n"})`)),
+    ed.onDidLayoutChange(() => snapshot("layoutChange")),
+    ed.onDidScrollChange((e) => snapshot(`scrollChange top=${e.scrollTop}`)),
+    ed.onDidChangeHiddenAreas?.(() => snapshot("hiddenAreasChange")) ?? { dispose() {} },
+  ];
+  return disposables;
+}
+
 export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
@@ -89,6 +128,13 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
       disposables.push(instance.getOriginalEditor().onDidContentSizeChange(updateHeight));
       disposables.push(instance.getModifiedEditor().onDidContentSizeChange(updateHeight));
       updateHeight();
+
+      if (debugEnabled()) {
+        disposables.push(...attachProbe(file.path, "original", instance.getOriginalEditor()));
+        disposables.push(...attachProbe(file.path, "modified", instance.getModifiedEditor()));
+        // eslint-disable-next-line no-console
+        console.log(`[monaco:${file.path}] ready — viewMode=${viewMode}`);
+      }
     });
 
     return () => {
