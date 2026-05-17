@@ -84,6 +84,14 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
         renderIndicators: false,
         renderMarginRevertIcon: false,
         diffAlgorithm: "advanced",
+        // Without these, Monaco silently bails on large diffs (default
+        // maxComputationTime is 5s, maxFileSize is 50MB) and falls back to
+        // "no diff" — which leaves hideUnchangedRegions with nothing to
+        // collapse, so a 16k-line file with 18 changes renders in full.
+        // 0 disables each limit. Trade-off: a pathological diff can block
+        // the renderer thread; acceptable for now.
+        maxComputationTime: 0,
+        maxFileSize: 0,
         // Wrapping breaks hideUnchangedRegions in side-by-side (wrapped lines
         // mis-align across panes, so Monaco can't safely collapse runs of
         // unchanged code). Wrap only when rendering inline.
