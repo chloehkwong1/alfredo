@@ -20,6 +20,15 @@ function hasRenderableContent(file: DiffFile): boolean {
   return file.originalContent != null || file.modifiedContent != null;
 }
 
+/**
+ * Cap the editor host at this fraction of the viewport. Beyond it we hand
+ * scrolling back to Monaco — `getContentHeight()` reports the pre-collapse
+ * document height, so a 10k-line file with `hideUnchangedRegions` on still
+ * reports ~200k px and would leave a huge void below the diff if we sized
+ * to it directly.
+ */
+const VIEWPORT_HEIGHT_CAP_RATIO = 0.8;
+
 export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
@@ -78,13 +87,31 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
       instance.setModel({ original: originalModel, modified: modifiedModel });
       editorRef.current = instance;
 
+      let lastCapped: boolean | null = null;
       const updateHeight = () => {
         const oh = instance.getOriginalEditor().getContentHeight();
         const mh = instance.getModifiedEditor().getContentHeight();
-        host.style.height = `${Math.max(oh, mh)}px`;
+        const desired = Math.max(oh, mh);
+        const cap = Math.floor(window.innerHeight * VIEWPORT_HEIGHT_CAP_RATIO);
+        const capped = desired > cap;
+        host.style.height = `${capped ? cap : desired}px`;
+
+        // Only flip scrollbar/wheel options on transitions to avoid
+        // re-laying-out the editor on every onDidContentSizeChange tick.
+        if (capped !== lastCapped) {
+          lastCapped = capped;
+          const scrollbar = capped
+            ? { vertical: "auto" as const, handleMouseWheel: true, alwaysConsumeMouseWheel: false }
+            : { vertical: "hidden" as const, handleMouseWheel: false, alwaysConsumeMouseWheel: false };
+          instance.getOriginalEditor().updateOptions({ scrollbar });
+          instance.getModifiedEditor().updateOptions({ scrollbar });
+        }
       };
       disposables.push(instance.getOriginalEditor().onDidContentSizeChange(updateHeight));
       disposables.push(instance.getModifiedEditor().onDidContentSizeChange(updateHeight));
+      const onResize = () => updateHeight();
+      window.addEventListener("resize", onResize);
+      disposables.push({ dispose: () => window.removeEventListener("resize", onResize) });
       updateHeight();
     });
 
