@@ -54,7 +54,10 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
         renderIndicators: false,
         renderMarginRevertIcon: false,
         diffAlgorithm: "advanced",
-        diffWordWrap: "inherit",
+        // Wrapping breaks hideUnchangedRegions in side-by-side (wrapped lines
+        // mis-align across panes, so Monaco can't safely collapse runs of
+        // unchanged code). Wrap only when rendering inline.
+        diffWordWrap: viewMode === "side-by-side" ? "off" : "inherit",
         lineNumbers: "on",
         glyphMargin: false,
         folding: true,
@@ -136,9 +139,13 @@ export function MonacoDiffBody({ file, viewMode }: MonacoDiffBodyProps) {
     inst.getModel()?.modified.setValue(modified);
   }, [file]);
 
-  // Toggle view mode without remounting.
+  // Toggle view mode without remounting. diffWordWrap flips with it for the
+  // same alignment reason as the initial mount config.
   useEffect(() => {
-    editorRef.current?.updateOptions({ renderSideBySide: viewMode === "side-by-side" });
+    editorRef.current?.updateOptions({
+      renderSideBySide: viewMode === "side-by-side",
+      diffWordWrap: viewMode === "side-by-side" ? "off" : "inherit",
+    });
   }, [viewMode]);
 
   if (!renderable) {
