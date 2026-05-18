@@ -2,12 +2,13 @@
 
 ## Notification sounds
 
-Most of Alfredo's notification sounds are sourced from [freesound.org](https://freesound.org/) and used under the licenses listed below. The `coin` sound is a chiptune synthesized in-house. The `alfie` sound is a personal recording.
+Most of Alfredo's notification sounds are sourced from [freesound.org](https://freesound.org/) and used under the licenses listed below. The `coin` and `quack` sounds are synthesized in-house. The `alfie` and `bear` sounds are personal recordings.
 
 | Sound | Source | Author | License |
 |---|---|---|---|
 | ahooga | [freesound.org/people/craigsmith/sounds/480002/](https://freesound.org/people/craigsmith/sounds/480002/) | craigsmith | CC0 |
 | alfie | personal recording | Chloe Wong | — |
+| bear | personal recording | Chloe Wong | — |
 | bigben | [freesound.org/people/craigsmith/sounds/438221/](https://freesound.org/people/craigsmith/sounds/438221/) | craigsmith | CC0 |
 | blip | [freesound.org/people/Breviceps/sounds/452998/](https://freesound.org/people/Breviceps/sounds/452998/) | Breviceps | CC0 |
 | boing | [freesound.org/people/juskiddink/sounds/140867/](https://freesound.org/people/juskiddink/sounds/140867/) | juskiddink | CC BY 4.0 |
@@ -21,6 +22,7 @@ Most of Alfredo's notification sounds are sourced from [freesound.org](https://f
 | oof | [freesound.org/people/unfa/sounds/719053/](https://freesound.org/people/unfa/sounds/719053/) | unfa | CC0 |
 | pacman | [freesound.org/people/Fupicat/sounds/475347/](https://freesound.org/people/Fupicat/sounds/475347/) | Fupicat | CC0 |
 | powerup | [freesound.org/people/Cloud-10/sounds/647977/](https://freesound.org/people/Cloud-10/sounds/647977/) | Cloud-10 | CC0 |
+| quack | original synth | Alfredo | — |
 | seatbelt | [freesound.org/people/Kinoton/sounds/670297/](https://freesound.org/people/Kinoton/sounds/670297/) | Kinoton | CC0 |
 | shutter | [freesound.org/people/JoMungus/sounds/718021/](https://freesound.org/people/JoMungus/sounds/718021/) | JoMungus | CC0 |
 
