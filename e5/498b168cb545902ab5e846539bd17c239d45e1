@@ -1,0 +1,21 @@
+src/hooks/notificationUtils.ts
+  s_e7eaf6797f6404::t_7bbef4d0e1d011 17
+src-tauri/src/app_config_manager.rs
+  s_e7eaf6797f6404::t_fc954eb90b3323 75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e5498b168cb545902ab5e846539bd17c239d45e1",
+  "prompts": {},
+  "sessions": {
+    "s_e7eaf6797f6404": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3149a86c-5cad-456d-9f81-7717d993c00c",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
