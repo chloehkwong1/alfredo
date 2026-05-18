@@ -14,7 +14,7 @@ export const SOUND_IDS = [
   "coin", "alfie", "bigben", "mail", "pacman",
   "oof", "honk", "ahooga", "boing", "microwave",
   "shutter", "seatbelt", "powerup", "blip", "levelup",
-  "doorbell", "fwump", "quack",
+  "doorbell", "fwump", "quack", "bear",
 ] as const;
 
 export type SoundId = typeof SOUND_IDS[number];
