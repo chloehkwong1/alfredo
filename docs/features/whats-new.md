@@ -7,6 +7,50 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.16.0 — 2026-05-18**
+- **Change a worktree's base branch** — a new dialog in the sidebar
+  context menu lets you re-point a worktree at a different base (e.g.
+  switch from `main` to a feature branch you're stacking on). Each
+  agent row also surfaces a clickable parent-branch link.
+- **Terminal rebuilds its glyph cache on wake** — the WebGL atlas
+  used to corrupt after macOS sleep or a display DPR change, leaving
+  terminals showing garbled text until restart. It now rebuilds
+  automatically on wake and DPR change.
+- **Refreshed notification sound lineup** — adds alfie, bigben,
+  pacman, ahooga, honk, boing, microwave, shutter, seatbelt,
+  powerup, blip, doorbell, fwump, levelup, and quack. Native macOS
+  banners now go through `UNUserNotificationCenter`; sound playback
+  stays in-process so custom sounds remain reliable regardless of
+  bundle signing. macOS Focus / DND suppresses the banner but not
+  the sound — toggle Alfredo's notifications off to silence
+  everything.
+- **Sticky commit header with inline prev/next nav** — in the
+  Commits tab, the selected-commit header sticks to the top of the
+  diff column with prev/next arrows (and `j` / `k` keyboard nav) so
+  you can walk through a branch's commits without losing your place.
+- **Smarter "existing PR" handling on worktree create** — clicking
+  a PR row that already has a worktree skips the create flow and
+  jumps straight to the existing worktree. Errors when importing a
+  PR on a reused branch are now explicit instead of cryptic.
+- **Atomic config writes** — `app.json`, `personal.json`,
+  `alfredo.json`, and keychain JSON now write via temp-file +
+  rename, so a crash mid-write can no longer leave a half-written
+  file that refuses to load.
+- Various fixes: settings dialogs no longer open inside the
+  collapsed sidebar rail; split-diff row backgrounds align to the
+  widest content; split-diff right-side line lookup is scoped to the
+  right pane (was matching left-pane lines); `j` / `k` commit-nav
+  direction corrected; rebase errors show the full git output and
+  long branch names no longer break the layout; worktree-create
+  failures surface as errors instead of being silently swallowed;
+  sidebar diff stats persist across worktree refreshes; remote-
+  control sessions are keyed by Claude tab so multiple tabs in one
+  worktree don't collide; open PRs win over closed/merged ones on
+  the same branch; markdown view-mode choice persists per file
+  across remounts; annotation bubble no longer caps at 720px;
+  Linear and GitHub share a bounded HTTP pool to prevent socket
+  exhaustion.
+
 **v0.15.1 — 2026-05-13**
 - **No more "Too many open files" crashes** — heavy users with many
   worktrees and open GitHub PRs were hitting the macOS file-descriptor
@@ -91,67 +135,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   worktree mode switches; setup scripts and port range now read the
   effective (merged) config when creating a worktree; rendered-view
   toggle in the Changes panel starts at 50% opacity until hovered.
-
-**v0.13.0 — 2026-05-05**
-- **Lifecycle rules now live in the sidebar** — hover a Done worktree
-  to archive it, hover the Done group header for **Archive all**, or
-  open the new gear popover to set auto-archive / auto-delete day
-  counts inline. The same day-count fields now also live under
-  Settings → General → **Archive & Cleanup**, applied across all
-  repos. Confirm dialogs list the branches that will be removed, and
-  a first-encounter nudge introduces auto-archive once you have a
-  Done worktree.
-- **Merged-branch diffs are stable again** — a new diff-range resolver
-  anchors the Changes panel using `merge_commit_sha` from PR metadata,
-  with merge-base and ancestry-path fallbacks. Pure-behind worktrees
-  show an empty range instead of a misleading reverse diff, merge
-  commits are filtered out of the commit list, and sidebar diff badges
-  refresh for Done worktrees on boot and after a merge.
-- **⌘+ / ⌘− / ⌘0 zoom** — these now zoom the whole webview by default,
-  but switch to scoping the terminal font when an xterm pane is
-  focused. The terminal refit is synchronous so cell geometry no
-  longer briefly overflows or wraps mid-word.
-- **Changes panel polish** — tab counts render as inline pill chips,
-  the pinned-main card grows Files/Commits tabs, view modes split
-  cleanly when the pinned main is ahead vs. behind, and the empty
-  state distinguishes "no changes" from "load failed". Markdown files
-  now default to Diff (the Rendered toggle moves to a hover-revealed
-  Eye icon).
-- **Sidebar status** — non-merged PRs that get closed on GitHub now
-  show a **Cancelled** state, and long branch labels in the status
-  bar middle-truncate with the full label in a tooltip.
-- Various fixes: terminal copy-on-select rewritten around a deferred
-  mouseup read so xterm's selection is finalised before copy, and
-  now catches drags that release outside the terminal (past the
-  viewport edge, onto the scrollbar, or over a sibling pane); diff
-  scroll lag reduced by dropping sticky line-number gutters; dev-
-  server port released when a worktree auto-Dones; auto-archive
-  correctly disabled when `archiveAfterDays` is 0.
-
-**v0.12.0 — 2026-04-29**
-- **Markdown rendered view in the Changes panel** — `.md`,
-  `.markdown`, and `.mdx` files now have a Diff/Rendered toggle.
-  Rendered mode shows the file as styled prose and lets you tick
-  GFM task-list checkboxes directly; flips write back to the
-  source file (re-reading first so concurrent edits aren't
-  clobbered). Newly-added markdown files default to Rendered.
-- **Sidebar diff badge now matches the Changes panel** — the +/-
-  counts include uncommitted tracked edits and untracked files,
-  so the sidebar no longer understates the scope of an in-flight
-  branch.
-- **Worktree status bar spans the full width in split layouts** —
-  the bottom Effort / Permissions / Output Style bar is no longer
-  fragmented across panes, since those settings are worktree-wide.
-- Closing the last shell or last agent tab is now allowed — fixes
-  a case where the only tab in a split pane couldn't be closed.
-- **Select-to-copy in terminal panes** — highlighting text in any
-  terminal copies it to the clipboard on mouse release, matching
-  iTerm2's "Copy on Select" behaviour.
-
-**v0.11.1 — 2026-04-28**
-- **Cancelled PRs auto-move to Done** — closing a PR on GitHub
-  without merging now shows a red **Cancelled** banner in the
-  Changes panel and the worktree moves to Done on the next sync,
-  instead of getting stuck in "in review" with stale check status.
 
 Check the releases page for older versions and full detail.

@@ -17,7 +17,9 @@ bar. It has up to three tabs:
 - **Commits** — the list of commits on this branch vs. the base
   branch. Click a commit to filter the diff view to just that commit;
   click again to go back to the full branch diff. The count chip
-  matches the Files tab.
+  matches the Files tab. With a commit selected, a **sticky header**
+  pins to the top of the diff column with inline **prev/next**
+  arrows; `j` / `k` walk through commits from the keyboard.
 - **PR** — only appears once Alfredo detects a pull request for the
   branch. Shows PR title, description, merge status, reviews, and
   inline comment threads (see pr-checks doc for the checks section).

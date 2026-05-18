@@ -14,16 +14,23 @@ Alfredo alerts you about background agent activity.
   agent pauses on a prompt.
 - **Notify when → Agent finished work** — toggle. Alerts when an agent
   goes idle.
-- **Sound** — grid of named sounds. Click any sound to select it; the
-  preview play button lets you hear it first. Pick "None" to keep
-  notifications silent.
+- **Sound** — grid of named sounds (coin, alfie, bigben, mail,
+  pacman, oof, honk, ahooga, boing, microwave, shutter, seatbelt,
+  powerup, blip, levelup, doorbell, fwump, quack). Click any sound
+  to select it; the preview play button lets you hear it first.
+  Pick "None" to keep notifications silent.
 - **Test notification** — button that fires a real banner using your
   current settings so you can check it all works end-to-end.
 - **Debug mode** (on the General tab, bottom) — adds diagnostic
   info to notification payloads.
 
-macOS quirk: OS banners only fire from the installed
-`/Applications/Alfredo.app`, not from `npm run tauri dev`.
+macOS quirks:
+
+- Banners only fire from the installed `/Applications/Alfredo.app`,
+  not from `npm run tauri dev`.
+- Focus / Do Not Disturb suppresses the banner but **not** the
+  sound — sound playback runs in-process. Toggle Alfredo's
+  notifications off in this tab to silence everything.
 
 **Dock badge:** on macOS, the Alfredo dock icon shows the live count
 of worktrees that need your attention (waiting for input, finished,
