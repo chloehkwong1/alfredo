@@ -1,0 +1,21 @@
+CREDITS.md
+  s_38ffdbbb84aee7::t_9e6cbd08adc8a5 25
+  s_38ffdbbb84aee7::t_59e84a80a64652 5
+  s_38ffdbbb84aee7::t_47ca9f1c65f5b6 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "52e2ad11132ff7dd79f127738b5b5eb93dc70177",
+  "prompts": {},
+  "sessions": {
+    "s_38ffdbbb84aee7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac49ea0d-b2ef-42e0-8eea-fde908d9ae0d",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
