@@ -545,8 +545,23 @@ pub async fn run_setup_scripts(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let code = output
+                .status
+                .code()
+                .map_or_else(|| "?".to_string(), |c| c.to_string());
+            // Many setup-script failures (npm/bundle network flakes, version-manager
+            // shell-init exits) leave stderr empty and useful detail on stdout — or
+            // produce no output at all. Surface both streams plus the exit code so
+            // the user has something to triage from.
+            let detail = match (stderr.trim().is_empty(), stdout.trim().is_empty()) {
+                (false, true) => format!("stderr: {stderr}"),
+                (false, false) => format!("stderr: {stderr}\nstdout: {stdout}"),
+                (true, false) => format!("(stderr empty) stdout: {stdout}"),
+                (true, true) => "(no output captured on stderr or stdout)".into(),
+            };
             return Err(AppError::Config(format!(
-                "setup script '{}' failed: {stderr}",
+                "setup script '{}' failed (exit {code}): {detail}",
                 script.name
             )));
         }
@@ -675,6 +690,47 @@ mod tests {
         assert!(result.is_ok(), "multiline command should run as single statement: {result:?}");
         assert!(dir.path().join("marker").exists(), "first half of && chain should run");
         assert!(dir.path().join("other").exists(), "second half of && chain should run");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_setup_scripts_failure_includes_exit_code_and_stdout() -> Result<(), Box<dyn std::error::Error>> {
+        // Regression guard: previously the error swallowed stdout and the exit
+        // code, leaving silent-stderr failures (npm flakes, shell-init exits)
+        // undiagnosable. The error must surface enough context to triage.
+        let dir = tempfile::TempDir::new()?;
+        let scripts = vec![SetupScript {
+            name: "noisy-fail".into(),
+            command: "echo hello-from-stdout && exit 7".into(),
+            run_on: "create".into(),
+        }];
+        let path = dir.path().to_str().unwrap_or_default();
+        let err = run_setup_scripts(path, path, &scripts).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("exit 7"), "should include exit code: {msg}");
+        assert!(msg.contains("hello-from-stdout"), "should include stdout: {msg}");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_setup_scripts_failure_with_no_output_is_labelled() -> Result<(), Box<dyn std::error::Error>> {
+        // The mystery case from the field: shell exits non-zero with empty
+        // stdout and stderr. The message must say so explicitly rather than
+        // rendering as a bare "failed:" with nothing after the colon.
+        let dir = tempfile::TempDir::new()?;
+        let scripts = vec![SetupScript {
+            name: "silent-fail".into(),
+            command: "exit 3".into(),
+            run_on: "create".into(),
+        }];
+        let path = dir.path().to_str().unwrap_or_default();
+        let err = run_setup_scripts(path, path, &scripts).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("exit 3"), "should include exit code: {msg}");
+        assert!(
+            msg.contains("no output captured"),
+            "should label empty-output case: {msg}"
+        );
         Ok(())
     }
 
