@@ -279,6 +279,7 @@ pub fn run() {
             session::load_session_file,
             session::delete_session_file,
             session::find_claude_session,
+            session::dump_pty_buffer,
             // Git ops
             git_ops::git_merge,
             git_ops::git_push_force_with_lease,

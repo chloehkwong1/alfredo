@@ -6,7 +6,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// Resolve `~/Library/Logs/Alfredo` on macOS, `~/.local/state/alfredo`
 /// on Linux. Falls back to a temp dir if neither is available.
-fn log_dir() -> PathBuf {
+pub fn log_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         if let Some(home) = dirs::home_dir() {

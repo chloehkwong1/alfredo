@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, MessageSquare, Send, Trash2 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { SerializeAddon } from "@xterm/addon-serialize";
 import "@xterm/xterm/css/xterm.css";
 
 import { usePty } from "../../hooks/usePty";
@@ -9,7 +10,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { sessionManager } from "../../services/sessionManager";
-import { writePty, getConfig, getAppConfig, findClaudeSession, debugLog } from "../../api";
+import { writePty, getConfig, getAppConfig, findClaudeSession, debugLog, dumpPtyBuffer } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { Button } from "../ui/Button";
@@ -284,6 +285,57 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeWorktreeId, tabId]);
+
+  // Cmd+Shift+D — dump the active pane's PTY replay buffer to disk for
+  // offline xterm-corruption diagnosis. Gated to the active pane like Cmd+F.
+  useEffect(() => {
+    if (!activeWorktreeId || !tabId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "d")) return;
+      const layout = useLayoutStore.getState();
+      const activePaneId = layout.activePaneId[activeWorktreeId];
+      const myPaneId = layout.findPaneForTab(activeWorktreeId, tabId);
+      if (!myPaneId || activePaneId !== myPaneId) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const session = sessionManager.getSession(sessionKey);
+      const sessionId = session?.sessionId || sessionKey;
+      const bytes = sessionManager.getBufferedOutput(sessionKey);
+      if (bytes.length === 0) {
+        console.warn(`[pty-dump] session ${sessionKey} has no buffered output`);
+        return;
+      }
+      // Snapshot xterm's own view of the visible buffer for offline comparison
+      // with what replaying the raw bytes produces.
+      let serialized: string | null = null;
+      if (ptyTerminal) {
+        const addon = new SerializeAddon();
+        try {
+          ptyTerminal.loadAddon(addon);
+          serialized = addon.serialize();
+        } catch (err) {
+          console.warn(`[pty-dump] serialize failed:`, err);
+        } finally {
+          addon.dispose();
+        }
+      }
+      dumpPtyBuffer(sessionId, bytes, serialized)
+        .then((paths) => {
+          console.log(
+            `[pty-dump] saved ${bytes.length}B raw → ${paths.raw}` +
+              (paths.serialized ? `\n[pty-dump] saved serialized → ${paths.serialized}` : ""),
+          );
+        })
+        .catch((err) => {
+          console.error(`[pty-dump] failed:`, err);
+        });
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeWorktreeId, tabId, sessionKey, ptyTerminal]);
 
   // Track whether the terminal is scrolled away from the bottom.
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);

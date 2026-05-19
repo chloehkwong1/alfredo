@@ -467,6 +467,25 @@ export function deleteSessionFile(
   return invoke("delete_session_file", { repoPath, worktreeId });
 }
 
+export interface PtyDumpPaths {
+  raw: string;
+  serialized: string | null;
+}
+
+export function dumpPtyBuffer(
+  sessionId: string,
+  bytes: Uint8Array,
+  serialized: string | null,
+): Promise<PtyDumpPaths> {
+  // JSON-array IPC encoding is fine for the ~50KB ring buffer this is wired
+  // to today; switch to Tauri raw IPC if this ever becomes an auto-dump path.
+  return invoke("dump_pty_buffer", {
+    sessionId,
+    bytes: Array.from(bytes),
+    serialized,
+  });
+}
+
 // ── App Config ──────────────────────────────────────────────────
 
 export function getAppConfig(): Promise<GlobalAppConfig> {

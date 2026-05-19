@@ -148,6 +148,82 @@ pub async fn load_session_file(app: tauri::AppHandle, repo_path: String, worktre
     }
 }
 
+/// Strict path-component sanitiser for frontend-supplied identifiers used in
+/// filenames. Keeps alnum / `-` / `_`; everything else becomes `_`. Stricter
+/// than `sanitise_id` (which only strips `/`) because `dump_pty_buffer`
+/// accepts arbitrary IPC input rather than controlled branch names.
+fn sanitise_filename_component(s: &str) -> String {
+    let cleaned: String = s
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    // Strip leading dots so we never produce hidden files.
+    cleaned.trim_start_matches('.').to_string()
+}
+
+#[derive(serde::Serialize)]
+pub struct PtyDumpPaths {
+    raw: String,
+    serialized: Option<String>,
+}
+
+/// Diagnostic: write a snapshot of an xterm session for offline replay.
+///
+/// - `raw` (always): the replay-buffer bytes, written to
+///   `~/Library/Logs/Alfredo/pty-dump-<UTC>-<safe-id>.bin`. Replay via
+///   `cat <path> > /dev/tty` in a clean terminal.
+/// - `serialized` (when provided): xterm's own view of its visible buffer,
+///   produced by `@xterm/addon-serialize`, written to a sibling
+///   `pty-dump-<UTC>-<safe-id>.serialized.txt`. Comparing both halves tells
+///   us whether corruption is "deterministic from the byte stream" (parser
+///   bug) or "diverged from the byte stream" (renderer-state bug).
+#[tauri::command]
+pub async fn dump_pty_buffer(
+    session_id: String,
+    bytes: Vec<u8>,
+    serialized: Option<String>,
+) -> Result<PtyDumpPaths> {
+    // Bounded by today's 50KB ring buffer; cap defends against future buffer
+    // size changes or direct devtools invocation with a huge array.
+    const MAX_DUMP_BYTES: usize = 4 * 1024 * 1024;
+    if bytes.len() > MAX_DUMP_BYTES {
+        return Err(AppError::Config(format!(
+            "dump_pty_buffer: {} bytes exceeds cap of {}",
+            bytes.len(),
+            MAX_DUMP_BYTES,
+        )));
+    }
+    if let Some(s) = &serialized {
+        if s.len() > MAX_DUMP_BYTES {
+            return Err(AppError::Config(format!(
+                "dump_pty_buffer: serialized {} bytes exceeds cap of {}",
+                s.len(),
+                MAX_DUMP_BYTES,
+            )));
+        }
+    }
+
+    let dir = crate::logging::log_dir();
+    tokio::fs::create_dir_all(&dir).await?;
+    let safe_id = sanitise_filename_component(&session_id);
+    let stamp = chrono::Utc::now().format("%Y-%m-%dT%H-%M-%SZ").to_string();
+    let raw_path = dir.join(format!("pty-dump-{stamp}-{safe_id}.bin"));
+    tokio::fs::write(&raw_path, &bytes).await?;
+
+    let serialized_path = if let Some(s) = serialized {
+        let p = dir.join(format!("pty-dump-{stamp}-{safe_id}.serialized.txt"));
+        tokio::fs::write(&p, s.as_bytes()).await?;
+        Some(p.to_string_lossy().into_owned())
+    } else {
+        None
+    };
+
+    Ok(PtyDumpPaths {
+        raw: raw_path.to_string_lossy().into_owned(),
+        serialized: serialized_path,
+    })
+}
+
 #[tauri::command]
 pub async fn delete_session_file(app: tauri::AppHandle, repo_path: String, worktree_id: String) -> Result<()> {
     let app_data_dir = app.path().app_data_dir()
