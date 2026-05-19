@@ -1,20 +1,17 @@
-import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { Markdown } from "tiptap-markdown";
-import { useEffect } from "react";
 import { NotesToolbar } from "./NotesToolbar";
 
 interface NotesEditorProps {
   initialMarkdown: string;
   /** Called with markdown source on each user-driven change. NOT called for programmatic setContent. */
   onMarkdownChange: (markdown: string) => void;
-  /** Called once with the editor instance so the container can flush on blur/unmount. */
-  onEditorReady?: (editor: Editor) => void;
 }
 
-export function NotesEditor({ initialMarkdown, onMarkdownChange, onEditorReady }: NotesEditorProps) {
+export function NotesEditor({ initialMarkdown, onMarkdownChange }: NotesEditorProps) {
   const editor = useEditor({
     extensions: [
       // StarterKit v3 already bundles Underline, bold/italic/strike, and lists.
@@ -36,12 +33,6 @@ export function NotesEditor({ initialMarkdown, onMarkdownChange, onEditorReady }
       onMarkdownChange(md);
     },
   });
-
-  useEffect(() => {
-    if (editor && onEditorReady) {
-      onEditorReady(editor);
-    }
-  }, [editor, onEditorReady]);
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-bg-primary">
