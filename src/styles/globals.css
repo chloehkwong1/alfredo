@@ -27,9 +27,15 @@
   align-items: flex-start;
   gap: 0.5rem;
 }
+/* Give the checkbox a line-box the height of one text line and center the box
+ * inside it, so it aligns to the first line's center at any font size (rather
+ * than a guessed margin that drifts when line-height changes). */
 .tiptap-notes ul[data-type="taskList"] li > label {
   flex: 0 0 auto;
-  margin-top: 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  height: 1.75em;
+  margin: 0;
   cursor: pointer;
 }
 .tiptap-notes ul[data-type="taskList"] li > div {
