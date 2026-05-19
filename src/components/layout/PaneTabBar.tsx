@@ -10,6 +10,7 @@ import {
   PanelBottom,
   Radio,
   Combine,
+  StickyNote,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -99,6 +100,7 @@ const TAB_ICONS: Record<TabType, ComponentType<{ size?: number; className?: stri
   shell: Terminal,
   server: Radio,
   diff: GitCompareArrows,
+  notes: StickyNote,
 };
 
 interface PaneTabBarProps {

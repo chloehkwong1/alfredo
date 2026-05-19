@@ -319,7 +319,7 @@ export interface CommitInfo {
 
 // ── Workspace tabs ──────────────────────────────────────────────
 
-export type TabType = "claude" | "codex" | "gemini" | "shell" | "server" | "diff";
+export type TabType = "claude" | "codex" | "gemini" | "shell" | "server" | "diff" | "notes";
 
 /** Tab types that represent an AI agent session. */
 export const AGENT_TAB_TYPES: ReadonlySet<TabType> = new Set(["claude", "codex", "gemini"]);

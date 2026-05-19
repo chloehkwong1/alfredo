@@ -101,7 +101,7 @@ export const useTabStore = create<TabState>((set, get) => ({
         : t,
     );
 
-    const validTypes = new Set(["claude", "codex", "gemini", "shell", "server", "diff"]);
+    const validTypes = new Set(["claude", "codex", "gemini", "shell", "server", "diff", "notes"]);
     const cleaned = migrated.filter((t) => validTypes.has(t.type));
     const hadStale = cleaned.length !== migrated.length;
 
@@ -158,6 +158,7 @@ export const useTabStore = create<TabState>((set, get) => ({
         shell: "Terminal",
         diff: "Diff",
         server: "Server",
+        notes: "Notes",
       };
       const base = labelMap[type] ?? type;
       const label = count > 0 ? `${base} ${count + 1}` : base;
