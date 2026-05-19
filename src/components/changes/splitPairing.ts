@@ -25,8 +25,8 @@ export function pairLinesForSplit(lines: DiffLine[]): SplitRow[] {
 
     if (line.lineType === "context") {
       rows.push({
-        left: { lineNumber: line.oldLineNumber, content: line.content, lineType: "context" },
-        right: { lineNumber: line.newLineNumber, content: line.content, lineType: "context" },
+        left: { lineNumber: line.oldLineNumber, content: line.content, lineType: "context", originalLineIndex: i },
+        right: { lineNumber: line.newLineNumber, content: line.content, lineType: "context", originalLineIndex: i },
       });
       i++;
       continue;
@@ -34,16 +34,16 @@ export function pairLinesForSplit(lines: DiffLine[]): SplitRow[] {
 
     if (line.lineType === "deletion") {
       // Collect consecutive deletions
-      const deletions: DiffLine[] = [];
+      const deletions: { line: DiffLine; index: number }[] = [];
       while (i < lines.length && lines[i].lineType === "deletion") {
-        deletions.push(lines[i]);
+        deletions.push({ line: lines[i], index: i });
         i++;
       }
 
       // Collect consecutive additions immediately after
-      const additions: DiffLine[] = [];
+      const additions: { line: DiffLine; index: number }[] = [];
       while (i < lines.length && lines[i].lineType === "addition") {
-        additions.push(lines[i]);
+        additions.push({ line: lines[i], index: i });
         i++;
       }
 
@@ -54,10 +54,10 @@ export function pairLinesForSplit(lines: DiffLine[]): SplitRow[] {
         const add = additions[j] ?? null;
         rows.push({
           left: del
-            ? { lineNumber: del.oldLineNumber, content: del.content, lineType: "deletion" }
+            ? { lineNumber: del.line.oldLineNumber, content: del.line.content, lineType: "deletion", originalLineIndex: del.index }
             : null,
           right: add
-            ? { lineNumber: add.newLineNumber, content: add.content, lineType: "addition" }
+            ? { lineNumber: add.line.newLineNumber, content: add.line.content, lineType: "addition", originalLineIndex: add.index }
             : null,
         });
       }
@@ -68,7 +68,7 @@ export function pairLinesForSplit(lines: DiffLine[]): SplitRow[] {
       // Standalone addition (not preceded by deletions)
       rows.push({
         left: null,
-        right: { lineNumber: line.newLineNumber, content: line.content, lineType: "addition" },
+        right: { lineNumber: line.newLineNumber, content: line.content, lineType: "addition", originalLineIndex: i },
       });
       i++;
       continue;

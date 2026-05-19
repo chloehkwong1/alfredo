@@ -20,6 +20,7 @@ interface SplitDiffBodyProps {
   highlightCommentLine?: number | null;
   highlightLineRef: React.RefObject<HTMLDivElement | null>;
   searchQuery?: string;
+  activeSearchMatch?: { hunkIndex: number; lineIndex: number } | null;
   syncSplitScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   onAddAnnotation: (filePath: string, lineNumber: number, side: DiffSide) => void;
   onDeleteAnnotation: (id: string) => void;
@@ -40,6 +41,7 @@ function SplitDiffBody({
   highlightCommentLine,
   highlightLineRef,
   searchQuery,
+  activeSearchMatch,
   syncSplitScroll,
   onAddAnnotation,
   onDeleteAnnotation,
@@ -114,6 +116,11 @@ function SplitDiffBody({
                       const lineComments = lineNumber !== null ? (prCommentsByLine.get(`old:${lineNumber}`) ?? []) : [];
                       const hasComments = lineComments.length > 0;
                       const commentsExpanded = lineNumber !== null && expandedCommentLines.has(lineNumber);
+                      const isActiveMatch =
+                        activeSearchMatch != null &&
+                        activeSearchMatch.hunkIndex === hunkIndex &&
+                        row.left?.originalLineIndex === activeSearchMatch.lineIndex &&
+                        row.left?.lineType !== "context";
                       return (
                         <div key={rowIndex}>
                           <SplitSideContent
@@ -122,6 +129,7 @@ function SplitDiffBody({
                             align="left"
                             onClickLine={lineNumber !== null ? (ln) => onAddAnnotation(file.path, ln, side) : undefined}
                             searchQuery={searchQuery}
+                            isActiveSearchMatch={isActiveMatch}
                           />
                           {hasComments && lineNumber !== null && (
                             <DiffCommentThread
@@ -155,6 +163,10 @@ function SplitDiffBody({
                       const lineComments = lineNumber !== null ? (prCommentsByLine.get(`new:${lineNumber}`) ?? []) : [];
                       const hasComments = lineComments.length > 0;
                       const commentsExpanded = lineNumber !== null && expandedCommentLines.has(lineNumber);
+                      const isActiveMatch =
+                        activeSearchMatch != null &&
+                        activeSearchMatch.hunkIndex === hunkIndex &&
+                        row.right?.originalLineIndex === activeSearchMatch.lineIndex;
 
                       return (
                         <div key={rowIndex}>
@@ -164,6 +176,7 @@ function SplitDiffBody({
                             align="right"
                             onClickLine={lineNumber !== null ? (ln) => onAddAnnotation(file.path, ln, side) : undefined}
                             searchQuery={searchQuery}
+                            isActiveSearchMatch={isActiveMatch}
                           />
                           {hasComments && lineNumber !== null && (
                             <div ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}>

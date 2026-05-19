@@ -7,6 +7,7 @@ interface SplitSide {
   lineNumber: number | null;
   content: string; // includes prefix (+/-/space)
   lineType: "context" | "addition" | "deletion";
+  originalLineIndex?: number;
 }
 
 interface SplitDiffLineProps {
@@ -38,12 +39,14 @@ export function SplitSideContent({
   onClickLine,
   align,
   searchQuery,
+  isActiveSearchMatch,
 }: {
   side: SplitSide | null;
   filePath: string;
   onClickLine?: (lineNumber: number) => void;
   align: "left" | "right";
   searchQuery?: string;
+  isActiveSearchMatch?: boolean;
 }) {
   const [tokens, setTokens] = useState<ThemedToken[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -97,9 +100,11 @@ export function SplitSideContent({
   return (
     <div
       ref={ref}
+      id={isActiveSearchMatch ? "active-search-match" : undefined}
       className={[
         "flex-1 flex font-mono text-xs leading-5 group/split",
         bgClass,
+        isActiveSearchMatch ? "ring-1 ring-search-match-active ring-inset" : "",
         canClick ? "cursor-pointer hover:bg-bg-hover/50" : "",
       ].join(" ")}
       onClick={canClick ? () => onClickLine!(side.lineNumber!) : undefined}
