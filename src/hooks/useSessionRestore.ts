@@ -50,10 +50,125 @@ export function useSessionRestore(
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   const markWorktreeSeen = useWorkspaceStore((s) => s.markWorktreeSeen);
   const restoredRepos = useRef(new Set<string>());
+  // Tracks one-time restore for synthetic worktrees (branch-mode repos and
+  // pinned main cards on worktree-mode repos). Keyed by synthetic worktree
+  // id rather than repo path so a worktree-mode repo's pinned-main synthetic
+  // is restored independently from its real worktrees.
+  const restoredSyntheticIds = useRef(new Set<string>());
 
   const selectedReposKey = selectedRepos.join(",");
   const repoModeKey = repos.map((r) => `${r.path}:${r.mode}`).join(",");
   const showMainCardReposKey = [...showMainCardRepos].sort().join(",");
+
+  // Restore persisted session state onto a synthetic worktree (main-branch
+  // tab in branch-mode repos, or pinned main card on worktree-mode repos).
+  // Must run BEFORE setWorktreesForRepo writes the synthetic into the store,
+  // for the same reason as the real-worktree Phase 1 below: otherwise
+  // AppShell's ensureDefaultTabs effect fires on activation and creates
+  // fresh tabs without resumeSessionId, dropping the chat.
+  const applySessionToSynthetic = async (repo: string, wt: Worktree) => {
+    const session = await loadSession(repo, wt.id);
+    if (!session) return;
+
+    // Mutate the synthetic in place — the caller writes this same object into
+    // the store via setWorktreesForRepo. buildSyntheticBranchWorktree hardcodes
+    // column to "inProgress", so without this the user's manual column move
+    // (Done / Review etc., via AgentItem.handleMoveToColumn) resets on reload.
+    // Subsequent effect re-runs preserve column via mergeWorktreeState's
+    // `column: old.column` carry-over, so applying once on first restore is enough.
+    if (session.column) {
+      wt.column = session.column;
+    }
+
+    restoreTabs(wt.id, session.tabs, session.activeTabId);
+
+    if (session.terminals) {
+      for (const [tabId, termData] of Object.entries(session.terminals)) {
+        if (termData.scrollback) {
+          sessionManager.loadScrollbackOnly(tabId, termData.scrollback, wt.path);
+        }
+      }
+    }
+
+    if (session.diffViewMode) {
+      useWorkspaceStore.getState().setDiffViewMode(wt.id, normalizeDiffViewMode(session.diffViewMode));
+    }
+    if (session.changesViewMode) {
+      useWorkspaceStore.getState().setChangesViewMode(wt.id, session.changesViewMode);
+    }
+    if (session.changesPanelCollapsed != null) {
+      useWorkspaceStore.getState().setChangesPanelCollapsed(wt.id, session.changesPanelCollapsed);
+    }
+    if (session.seenWorktree) {
+      markWorktreeSeen(wt.id);
+    }
+    if (session.unreadWorktree) {
+      useWorkspaceStore.getState().markWorktreeUnread(wt.id);
+    }
+    if (session.pinnedWorktree) {
+      useWorkspaceStore.getState().togglePinWorktree(wt.id);
+    }
+
+    if (session.annotations?.length) {
+      const store = useWorkspaceStore.getState();
+      for (const annotation of session.annotations) {
+        store.addAnnotation(annotation);
+      }
+    }
+
+    if (session.prPanelState) {
+      usePrStore.getState().setPrPanelState(wt.id, session.prPanelState);
+    }
+
+    const sessionLayout = session.layout;
+    const sessionPanes = session.panes;
+    const sessionActivePaneId = session.activePaneId;
+    if (sessionLayout && sessionPanes) {
+      useLayoutStore.getState().restoreLayout(
+        wt.id, sessionLayout, sessionPanes, sessionActivePaneId ?? Object.keys(sessionPanes)[0],
+      );
+    } else {
+      const tabIds = session.tabs.map((t) => t.id);
+      useLayoutStore.getState().initLayout(wt.id, tabIds, session.activeTabId);
+    }
+
+    const agentTabs = session.tabs.filter(isAgentTab);
+    const tabsWithSession = agentTabs.filter((t) => t.resumeSessionId);
+    const tabsWithoutSession = agentTabs.filter((t) => !t.resumeSessionId);
+
+    let latestSessionId: string | null = null;
+    try {
+      latestSessionId = await findClaudeSession(wt.path) ?? null;
+    } catch (e) {
+      console.warn(`[useSessionRestore] Failed to find Claude session for ${wt.path}:`, e);
+    }
+
+    if (agentTabs.length === 1) {
+      const sessionId = latestSessionId ?? tabsWithSession[0]?.resumeSessionId ?? session.claudeSessionId ?? null;
+      if (sessionId) {
+        wt.claudeSessionId = sessionId;
+        updateTab(wt.id, agentTabs[0].id, { resumeSessionId: sessionId });
+      }
+    } else if (agentTabs.length > 1) {
+      if (tabsWithoutSession.length > 0) {
+        const fallbackSessionId = latestSessionId ?? session.claudeSessionId ?? null;
+        if (fallbackSessionId) {
+          updateTab(wt.id, tabsWithoutSession[0].id, { resumeSessionId: fallbackSessionId });
+        }
+      }
+      if (tabsWithSession.length > 0) {
+        wt.claudeSessionId = tabsWithSession[0].resumeSessionId;
+      } else if (latestSessionId) {
+        wt.claudeSessionId = latestSessionId;
+      }
+    }
+
+    for (const tab of session.tabs) {
+      if (isAgentTab(tab)) {
+        markWorktreeSeen(wt.id);
+      }
+    }
+  };
 
   // Own the synthetic "main card" entries for worktree-mode repos that opted
   // in via showMainCardRepos. Decoupled from listWorktrees so the entry is
@@ -65,6 +180,9 @@ export function useSessionRestore(
   // Declared BEFORE the listWorktrees effect so it runs first on mount and
   // the synthetic is in place before any later writes.
   useEffect(() => {
+    // Guards async session-restore writes from landing after a newer effect
+    // run has changed the expected set of pinned-main synthetics.
+    let cancelled = false;
     const repoModeMap = new Map(repos.map((r) => [r.path, r.mode]));
     const expectedIds = new Set<string>();
     const toAdd: string[] = [];
@@ -110,15 +228,35 @@ export function useSessionRestore(
     }
 
     for (const repo of toAdd) {
-      const latest = useWorkspaceStore.getState().worktrees.filter(
-        (wt) => wt.repoPath === repo,
-      );
-      const existing = latest.find((wt) => wt.id === repoId(repo));
-      if (existing && existing.isPinnedMainCard === true) continue;
-      // Either no entry yet, or a non-pinned (branch-mode-created) entry needs upgrading.
-      const withoutExisting = existing ? latest.filter((wt) => wt.id !== existing.id) : latest;
-      setWorktreesForRepo(repo, [...withoutExisting, buildSyntheticBranchWorktree(repo, null, true)]);
+      const synthetic = buildSyntheticBranchWorktree(repo, null, true);
+      const isFirstRestore = !restoredSyntheticIds.current.has(synthetic.id);
+
+      const writeSynthetic = () => {
+        if (cancelled) return;
+        const latest = useWorkspaceStore.getState().worktrees.filter(
+          (wt) => wt.repoPath === repo,
+        );
+        const existing = latest.find((wt) => wt.id === repoId(repo));
+        if (existing && existing.isPinnedMainCard === true) return;
+        // Either no entry yet, or a non-pinned (branch-mode-created) entry needs upgrading.
+        const withoutExisting = existing ? latest.filter((wt) => wt.id !== existing.id) : latest;
+        setWorktreesForRepo(repo, [...withoutExisting, synthetic]);
+      };
+
+      if (isFirstRestore) {
+        restoredSyntheticIds.current.add(synthetic.id);
+        applySessionToSynthetic(repo, synthetic)
+          .then(writeSynthetic)
+          .catch((e) => {
+            console.warn(`[session-restore] Failed to restore synthetic main card for ${repo}:`, e);
+            writeSynthetic();
+          });
+      } else {
+        writeSynthetic();
+      }
     }
+
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedReposKey, repoModeKey, showMainCardReposKey, setWorktreesForRepo, removeWorktree]);
 
@@ -153,9 +291,20 @@ export function useSessionRestore(
       // For branch-mode repos, create a synthetic worktree entry so the rest
       // of the app (TerminalView, ChangesPanel) can find it in the store.
       if (isBranchMode) {
-        getActiveBranch(repo).then((branch) => {
+        getActiveBranch(repo).then(async (branch) => {
           if (cancelled) return;
-          setWorktreesForRepo(repo, [buildSyntheticBranchWorktree(repo, branch)]);
+          const synthetic = buildSyntheticBranchWorktree(repo, branch);
+          const isFirstRestore = !restoredSyntheticIds.current.has(synthetic.id);
+          if (isFirstRestore) {
+            restoredSyntheticIds.current.add(synthetic.id);
+            try {
+              await applySessionToSynthetic(repo, synthetic);
+            } catch (e) {
+              console.warn(`[session-restore] Failed to restore synthetic for ${repo}:`, e);
+            }
+            if (cancelled) return;
+          }
+          setWorktreesForRepo(repo, [synthetic]);
         }).catch((e) => console.warn(`[session-restore] Failed to get active branch for ${repo}:`, e));
         continue;
       }
