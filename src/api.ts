@@ -139,6 +139,16 @@ export function rebaseWorktree(
   return invoke("rebase_worktree", { worktreePath, stackParent: stackParent ?? null });
 }
 
+// ── Notes ───────────────────────────────────────────────────────
+
+export function readWorktreeNotes(worktreePath: string): Promise<string> {
+  return invoke("read_worktree_notes", { worktreePath });
+}
+
+export function writeWorktreeNotes(worktreePath: string, content: string): Promise<void> {
+  return invoke("write_worktree_notes", { worktreePath, content });
+}
+
 // ── Git Ops ─────────────────────────────────────────────────────
 
 export function setStackParent(
