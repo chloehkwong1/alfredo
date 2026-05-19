@@ -1,0 +1,19 @@
+package.json
+  s_ceb8d1caaf9dac::t_fedaa53532ce37 36-40,63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "fdf597ec5514a95f867b55b7e0e225e1efbdccc7",
+  "prompts": {},
+  "sessions": {
+    "s_ceb8d1caaf9dac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aa4293d4-f163-4f0d-85a4-8fd96951cbb1",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
