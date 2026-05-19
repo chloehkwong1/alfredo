@@ -64,7 +64,7 @@ async fn ensure_gitignore(worktree_root: &Path) -> std::io::Result<()> {
     }
     new_contents.push_str(GITIGNORE_LINE);
     new_contents.push('\n');
-    let tmp = gitignore.with_extension("gitignore.tmp");
+    let tmp = gitignore.with_file_name(".gitignore.tmp");
     let mut f = std::fs::File::create(&tmp)?;
     f.write_all(new_contents.as_bytes())?;
     f.sync_all()?;
@@ -140,6 +140,17 @@ mod tests {
         let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         assert!(gi.contains("node_modules"));
         assert!(gi.contains("dist"));
+        assert!(gi.lines().any(|l| l.trim() == ".alfredo/notes.md"));
+    }
+
+    #[tokio::test]
+    async fn write_handles_gitignore_without_trailing_newline() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join(".gitignore"), "node_modules").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        write_worktree_notes(path, "x".into()).await.unwrap();
+        let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(gi.contains("node_modules\n"));
         assert!(gi.lines().any(|l| l.trim() == ".alfredo/notes.md"));
     }
 
