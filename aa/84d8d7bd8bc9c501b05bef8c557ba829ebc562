@@ -1,0 +1,30 @@
+src/components/changes/ChangesView.tsx
+  s_0b5d8728f70e6d::t_8123c71689741d 1,16,51-68,103-123
+  s_75aa01d35e4cbb::t_c1f5e2a6d0279c 294-301
+src/components/changes/useAnnotationActions.ts
+  s_75aa01d35e4cbb::t_db5dbacb8b088b 37,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "aa84d8d7bd8bc9c501b05bef8c557ba829ebc562",
+  "prompts": {},
+  "sessions": {
+    "s_0b5d8728f70e6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b11d655-87a1-4161-ac3b-5ef9991969c9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_75aa01d35e4cbb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f67addc-7e1b-40e8-b7cb-66eed23ee9db",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
