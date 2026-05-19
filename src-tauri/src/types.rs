@@ -242,6 +242,17 @@ pub struct PrReview {
     pub body: Option<String>,
 }
 
+/// Which side of a diff a comment or annotation is anchored to.
+/// `Old` = the pre-change file (deletion / LEFT side).
+/// `New` = the post-change file (addition / context / RIGHT side).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DiffSide {
+    Old,
+    #[default]
+    New,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PrComment {
@@ -250,6 +261,8 @@ pub struct PrComment {
     pub body: String,
     pub path: Option<String>,
     pub line: Option<u32>,
+    #[serde(default)]
+    pub side: DiffSide,
     pub resolved: bool,
     pub created_at: String,
     pub updated_at: String,

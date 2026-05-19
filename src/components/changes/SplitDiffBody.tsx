@@ -14,7 +14,7 @@ interface SplitDiffBodyProps {
   loadingGaps: Set<string>;
   handleExpandContext: (gapKey: string) => void;
   annotationsByLine: Map<string, Annotation[]>;
-  prCommentsByLine: Map<number, PrComment[]>;
+  prCommentsByLine: Map<string, PrComment[]>;
   expandedCommentLines: Set<number>;
   toggleCommentLine: (lineNumber: number) => void;
   highlightCommentLine?: number | null;
@@ -111,6 +111,9 @@ function SplitDiffBody({
                       const lineNumber = row.left?.lineNumber ?? null;
                       const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
                       const lineAnnotations = annotationKey !== null ? (annotationsByLine.get(annotationKey) ?? []) : [];
+                      const lineComments = lineNumber !== null ? (prCommentsByLine.get(`old:${lineNumber}`) ?? []) : [];
+                      const hasComments = lineComments.length > 0;
+                      const commentsExpanded = lineNumber !== null && expandedCommentLines.has(lineNumber);
                       return (
                         <div key={rowIndex}>
                           <SplitSideContent
@@ -120,6 +123,14 @@ function SplitDiffBody({
                             onClickLine={lineNumber !== null ? (ln) => onAddAnnotation(file.path, ln, side) : undefined}
                             searchQuery={searchQuery}
                           />
+                          {hasComments && lineNumber !== null && (
+                            <DiffCommentThread
+                              comments={lineComments}
+                              expanded={commentsExpanded}
+                              onToggle={() => toggleCommentLine(lineNumber)}
+                              onSendToClaude={onSendToClaude}
+                            />
+                          )}
                           {lineAnnotations.map((ann) => (
                             <AnnotationBubble
                               key={ann.id}
@@ -141,7 +152,7 @@ function SplitDiffBody({
                       const lineNumber = row.right?.lineNumber ?? null;
                       const annotationKey = lineNumber !== null ? `${side}:${lineNumber}` : null;
                       const lineAnnotations = annotationKey !== null ? (annotationsByLine.get(annotationKey) ?? []) : [];
-                      const lineComments = lineNumber !== null ? (prCommentsByLine.get(lineNumber) ?? []) : [];
+                      const lineComments = lineNumber !== null ? (prCommentsByLine.get(`new:${lineNumber}`) ?? []) : [];
                       const hasComments = lineComments.length > 0;
                       const commentsExpanded = lineNumber !== null && expandedCommentLines.has(lineNumber);
 

@@ -3,6 +3,7 @@ import { SyntaxDiffLine } from "./SyntaxDiffLine";
 import { AnnotationBubble } from "./AnnotationBubble";
 import { DiffCommentThread } from "./DiffCommentThread";
 import { ExpandContextButton } from "./ExpandContextButton";
+import { getRowComments } from "./prCommentLookup";
 import type { DiffFile, DiffLine, Annotation, PrComment, DiffSide } from "../../types";
 import type { GapInfo } from "./useContextExpansion";
 
@@ -13,7 +14,7 @@ interface UnifiedDiffBodyProps {
   loadingGaps: Set<string>;
   handleExpandContext: (gapKey: string) => void;
   annotationsByLine: Map<string, Annotation[]>;
-  prCommentsByLine: Map<number, PrComment[]>;
+  prCommentsByLine: Map<string, PrComment[]>;
   expandedCommentLines: Set<number>;
   toggleCommentLine: (lineNumber: number) => void;
   highlightCommentLine?: number | null;
@@ -87,9 +88,11 @@ function UnifiedDiffBody({
               const lineAnnotations = annotationKey !== null
                 ? (annotationsByLine.get(annotationKey) ?? [])
                 : [];
-              const lineComments = lineNumber !== null
-                ? (prCommentsByLine.get(lineNumber) ?? [])
-                : [];
+              const lineComments = getRowComments(
+                prCommentsByLine,
+                line.oldLineNumber,
+                line.newLineNumber,
+              );
               const hasComments = lineComments.length > 0;
               const commentsExpanded =
                 lineNumber !== null &&

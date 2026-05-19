@@ -6,6 +6,7 @@ import { SplitDiffBody } from "./SplitDiffBody";
 import { MonacoDiffBody } from "./MonacoDiffBody";
 import { MarkdownView } from "./MarkdownView";
 import { AnnotationInput } from "./AnnotationInput";
+import { groupPrCommentsByLine } from "./prCommentLookup";
 import { useFileViewModeStore } from "../../stores/fileViewModeStore";
 import type {
   DiffFile,
@@ -64,7 +65,7 @@ interface LegacyDiffBodyProps {
   commitHash?: string;
   autoExpandAll?: boolean;
   annotationsByLine: Map<string, Annotation[]>;
-  prCommentsByLine: Map<number, PrComment[]>;
+  prCommentsByLine: Map<string, PrComment[]>;
   expandedCommentLines: Set<number>;
   toggleCommentLine: (lineNumber: number) => void;
   highlightCommentLine?: number | null;
@@ -261,21 +262,10 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       return map;
     }, [annotations, file.path]);
 
-    // Group PR comments by line number for O(1) lookup
-    const prCommentsByLine = useMemo(() => {
-      const map = new Map<number, PrComment[]>();
-      for (const comment of prComments) {
-        if (comment.path !== file.path || comment.line === null) continue;
-        const key = comment.line;
-        const existing = map.get(key);
-        if (existing) {
-          existing.push(comment);
-        } else {
-          map.set(key, [comment]);
-        }
-      }
-      return map;
-    }, [prComments, file.path]);
+    const prCommentsByLine = useMemo(
+      () => groupPrCommentsByLine(prComments, file.path, file.oldPath ?? null),
+      [prComments, file.path, file.oldPath],
+    );
 
     function toggleCommentLine(lineNumber: number) {
       setExpandedCommentLines((prev) => {

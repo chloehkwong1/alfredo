@@ -393,6 +393,7 @@ export interface PrComment {
   body: string;
   path: string | null;
   line: number | null;
+  side: DiffSide;
   resolved: boolean;
   createdAt: string;
   updatedAt: string;

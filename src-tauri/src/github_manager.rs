@@ -202,12 +202,20 @@ fn parse_pr_comments_response(response: &serde_json::Value) -> Vec<PrComment> {
         .map(|arr| {
             arr.iter()
                 .filter_map(|c| {
+                    // GitHub returns "LEFT" for the pre-change side and "RIGHT" for the
+                    // post-change side. The field is absent on older single-line comments
+                    // — GitHub's documented default is "RIGHT".
+                    let side = match c.get("side").and_then(serde_json::Value::as_str) {
+                        Some("LEFT") => crate::types::DiffSide::Old,
+                        _ => crate::types::DiffSide::New,
+                    };
                     Some(PrComment {
                         id: c.get("id")?.as_u64()?,
                         author: c.get("user")?.get("login")?.as_str()?.to_string(),
                         body: c.get("body")?.as_str()?.to_string(),
                         path: c.get("path").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
                         line: c.get("line").and_then(serde_json::Value::as_u64).map(|n| n as u32),
+                        side,
                         resolved: false,
                         created_at: c.get("created_at")?.as_str()?.to_string(),
                         updated_at: c.get("updated_at")?.as_str()?.to_string(),
@@ -232,6 +240,7 @@ fn parse_issue_comments_response(response: &serde_json::Value) -> Vec<PrComment>
                         body: c.get("body")?.as_str()?.to_string(),
                         path: None,
                         line: None,
+                        side: crate::types::DiffSide::default(),
                         resolved: false,
                         created_at: c.get("created_at")?.as_str()?.to_string(),
                         updated_at: c.get("updated_at")?.as_str()?.to_string(),
