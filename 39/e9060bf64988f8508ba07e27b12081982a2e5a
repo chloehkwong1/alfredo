@@ -1,0 +1,20 @@
+src/components/notes/NotesEditor.tsx
+  s_4a24e234e229eb::t_682d3766a1cb29 1
+  s_4a24e234e229eb::t_07a86d3ea1e2f2 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "39e9060bf64988f8508ba07e27b12081982a2e5a",
+  "prompts": {},
+  "sessions": {
+    "s_4a24e234e229eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5a9c9e4-a625-4d77-8a56-5ccd6d821510",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
