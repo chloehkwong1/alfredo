@@ -1,0 +1,21 @@
+src-tauri/src/commands/notes.rs
+  s_4a24e234e229eb::t_d6e731c29e6d3d 10
+  s_4a24e234e229eb::t_b7a6aa79a0411f 130-131,133-140,143-144,148-150,152-161,164-165,170-172,175-178,182-184,187-189
+  s_4a24e234e229eb::t_36fdc77d0756c9 28-29,37,48-68,73,80,82,86,90,92-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "e9410a2c385bda2b34b01cfdbc6227e1ff3fb518",
+  "prompts": {},
+  "sessions": {
+    "s_4a24e234e229eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5a9c9e4-a625-4d77-8a56-5ccd6d821510",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
