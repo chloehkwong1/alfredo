@@ -1,0 +1,25 @@
+src/services/notesAutosave.ts
+  s_4a24e234e229eb::t_9c5207742547e3 1-29
+src/components/notes/NotesTab.tsx
+  s_4a24e234e229eb::t_5757225d460312 2,4,35,39,43-44,46,50-54
+src/components/layout/useSessionAutoSave.ts
+  s_4a24e234e229eb::t_f8201c1fb87aec 10
+  s_4a24e234e229eb::t_b28d1a45b14a47 125-128
+  s_4a24e234e229eb::t_ff719bdb2db615 164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "f132f67c42581cb34606120b29670e2412ec3303",
+  "prompts": {},
+  "sessions": {
+    "s_4a24e234e229eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5a9c9e4-a625-4d77-8a56-5ccd6d821510",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
