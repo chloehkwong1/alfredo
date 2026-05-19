@@ -13,7 +13,7 @@ import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { ensureAgentSession, writeToSession, focusAgentTab } from "../../services/agentMessenger";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
-import { Trash2, Check, Copy, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, Check, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
 import { normalizeDiffViewMode } from "../../types";
 import { useAnnotationActions } from "./useAnnotationActions";
@@ -100,10 +100,10 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
         )}
       </div>
       {body && (
-        <div className="flex items-start gap-1 mt-1">
+        <>
           <div
             ref={bodyRef}
-            className={`text-xs text-text-secondary whitespace-pre-wrap leading-relaxed flex-1 min-w-0 ${
+            className={`text-xs text-text-secondary whitespace-pre-wrap leading-relaxed mt-1 ${
               bodyExpanded ? "" : "line-clamp-2"
             }`}
           >
@@ -113,15 +113,13 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
             <button
               type="button"
               onClick={() => setBodyExpanded((v) => !v)}
-              title={bodyExpanded ? "Collapse message" : "Expand message"}
-              aria-label={bodyExpanded ? "Collapse message" : "Expand message"}
               aria-expanded={bodyExpanded}
-              className="p-1 rounded text-text-tertiary hover:bg-bg-hover hover:text-text-primary transition-colors shrink-0"
+              className="text-accent-primary text-[11px] mt-1 bg-transparent border-none cursor-pointer p-0 font-[inherit] hover:underline"
             >
-              {bodyExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              {bodyExpanded ? "Show less" : "Show more"}
             </button>
           )}
-        </div>
+        </>
       )}
       <div className="flex items-center gap-2 mt-1 text-[10px] text-text-tertiary">
         <button
