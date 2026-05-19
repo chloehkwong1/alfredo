@@ -2,6 +2,13 @@ import { Check, ChevronDown, ChevronRight, Copy, Eye, Trash2 } from "lucide-reac
 import type { DiffFile, FileViewMode } from "../../types";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 
+// Experiment flag: set `alfredo:no-sticky-diff` to "1" to drop sticky positioning
+// while debugging WebKit compositing-layer corruption in the diff view.
+function isStickyDisabled(): boolean {
+  return typeof window !== "undefined"
+    && window.localStorage.getItem("alfredo:no-sticky-diff") === "1";
+}
+
 interface DiffFileHeaderProps {
   file: DiffFile;
   expanded: boolean;
@@ -40,7 +47,10 @@ function DiffFileHeader({
 
   return (
     <div
-      className="group/header sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default cursor-pointer select-none hover:bg-bg-hover transition-colors"
+      className={[
+        "group/header flex items-center gap-2 px-3 py-1.5 bg-bg-secondary border-b border-border-default cursor-pointer select-none hover:bg-bg-hover transition-colors",
+        isStickyDisabled() ? "" : "sticky top-0 z-10",
+      ].join(" ")}
       onClick={() => onToggleExpanded(file.path)}
     >
       <span className="text-text-tertiary flex-shrink-0">

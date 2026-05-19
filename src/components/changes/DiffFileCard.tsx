@@ -21,6 +21,13 @@ function isMonacoFlagOn(): boolean {
     && window.localStorage.getItem("alfredo:monaco") === "1";
 }
 
+// Experiment flag: set `alfredo:no-sticky-diff` to "1" to drop sticky positioning
+// while debugging WebKit compositing-layer corruption in the diff view.
+function isStickyDisabled(): boolean {
+  return typeof window !== "undefined"
+    && window.localStorage.getItem("alfredo:no-sticky-diff") === "1";
+}
+
 function isMarkdownPath(path: string): boolean {
   return /\.(md|markdown|mdx)$/i.test(path);
 }
@@ -141,6 +148,7 @@ function LegacyDiffBody({
       highlightCommentLine={highlightCommentLine}
       highlightLineRef={highlightLineRef}
       searchQuery={searchQuery}
+      activeSearchMatch={activeSearchMatch}
       syncSplitScroll={syncSplitScroll}
       onAddAnnotation={onAddAnnotation}
       onDeleteAnnotation={onDeleteAnnotation}
@@ -339,7 +347,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
 
         {/* Sticky annotation input — rendered outside overflow-x-auto so sticky works against the outer scroll container */}
         {expanded && hasBeenVisible && activeAnnotationLine?.filePath === file.path && (
-          <div className="sticky bottom-0 z-20">
+          <div className={isStickyDisabled() ? "z-20" : "sticky bottom-0 z-20"}>
             <AnnotationInput
               filePath={file.path}
               lineNumber={activeAnnotationLine.lineNumber}
