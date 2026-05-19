@@ -15,6 +15,31 @@
   vertical-align: middle;
 }
 
+/* Tiptap TaskList renders `<ul data-type="taskList"><li><label><input/></label><div>…</div></li></ul>`.
+ * The GFM selector above doesn't match (input is wrapped in <label>), so prose
+ * still draws a disc bullet next to the checkbox. Strip it and lay out as flex. */
+.tiptap-notes ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.tiptap-notes ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.tiptap-notes ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-top: 0.3rem;
+  cursor: pointer;
+}
+.tiptap-notes ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tiptap-notes ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+
 /* Map Tailwind's prose color theme onto Alfredo's design tokens so prose
  * automatically follows light/dark theme switches. */
 @utility prose-alfredo {
