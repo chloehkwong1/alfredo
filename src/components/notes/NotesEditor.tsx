@@ -1,6 +1,5 @@
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { Markdown } from "tiptap-markdown";
@@ -18,8 +17,8 @@ interface NotesEditorProps {
 export function NotesEditor({ initialMarkdown, onMarkdownChange, onEditorReady }: NotesEditorProps) {
   const editor = useEditor({
     extensions: [
+      // StarterKit v3 already bundles Underline, bold/italic/strike, and lists.
       StarterKit,
-      Underline,
       TaskList,
       TaskItem.configure({ nested: true }),
       Markdown.configure({ html: true, tightLists: true, transformPastedText: true }),
