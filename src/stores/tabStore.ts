@@ -107,8 +107,9 @@ export const useTabStore = create<TabState>((set, get) => ({
 
     const hasAgent = cleaned.some((t) => isAgentTab(t));
     const hasShell = cleaned.some((t) => t.type === "shell");
+    const hasNotes = cleaned.some((t) => t.type === "notes");
 
-    if (hasAgent && hasShell && !hadStale) return;
+    if (hasAgent && hasShell && hasNotes && !hadStale) return;
 
     const defaultAgent = getDefaultAgent();
     const tabs = [...cleaned];
@@ -135,6 +136,16 @@ export const useTabStore = create<TabState>((set, get) => ({
       tabs.splice(lastAgentIdx + 1, 0, shellTab);
     }
 
+    // Notes is a permanent per-worktree singleton, pinned as the leftmost tab.
+    if (!hasNotes) {
+      const notesTab: WorkspaceTab = {
+        id: `${worktreeId}:notes:${crypto.randomUUID().slice(0, 8)}`,
+        type: "notes",
+        label: "Notes",
+      };
+      tabs.unshift(notesTab);
+    }
+
     if (hadServer && !tabs.some((t) => t.type === "server")) {
       console.warn(`[tabStore] ensureDefaultTabs DROPPED server tab for ${worktreeId}!`, { existing: existing.map(t => t.type), cleaned: tabs.map(t => t.type) });
     }
@@ -150,6 +161,13 @@ export const useTabStore = create<TabState>((set, get) => ({
   addTab: (worktreeId, type) =>
     set((state) => {
       const existing = state.tabs[worktreeId] ?? [];
+      // Notes is a per-worktree singleton — focus the existing one, never add a second.
+      if (type === "notes") {
+        const notes = existing.find((t) => t.type === "notes");
+        if (notes) {
+          return { activeTabId: { ...state.activeTabId, [worktreeId]: notes.id } };
+        }
+      }
       const count = existing.filter((t) => t.type === type).length;
       const labelMap: Record<string, string> = {
         claude: "Claude",
@@ -179,6 +197,8 @@ export const useTabStore = create<TabState>((set, get) => ({
       const existing = state.tabs[worktreeId] ?? [];
       const tabToRemove = existing.find((t) => t.id === tabId);
       if (!tabToRemove) return state;
+      // Notes is a permanent per-worktree singleton — never removable.
+      if (tabToRemove.type === "notes") return state;
       if (tabToRemove.type === "server") {
         console.warn(`[tabStore] removing server tab ${tabId} from ${worktreeId}`, new Error().stack);
       }

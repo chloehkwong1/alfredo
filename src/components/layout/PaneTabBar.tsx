@@ -296,13 +296,11 @@ function PinnedTab({
   isActive,
   worktreeId,
   paneId,
-  onClose,
 }: {
   tab: WorkspaceTab;
   isActive: boolean;
   worktreeId: string;
   paneId: string;
-  onClose: (e: React.MouseEvent, tabId: string) => void;
 }) {
   const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
@@ -320,21 +318,13 @@ function PinnedTab({
       }}
       title={effectiveLabel}
       className={[
-        "group h-full px-2 transition-colors cursor-pointer flex items-center relative flex-shrink-0",
+        "group h-full px-2.5 transition-colors cursor-pointer flex items-center relative flex-shrink-0",
         isActive
           ? "text-text-primary"
           : "text-text-tertiary hover:text-text-secondary",
       ].join(" ")}
     >
       <Icon size={14} />
-      <button
-        type="button"
-        aria-label={`Close ${effectiveLabel} tab`}
-        onClick={(e) => onClose(e, tab.id)}
-        className="ml-0.5 rounded p-0.5 transition-opacity opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary cursor-pointer"
-      >
-        <X size={10} />
-      </button>
       {isActive && (
         <motion.div
           layoutId={`tab-underline-${paneId}`}
@@ -539,7 +529,6 @@ function PaneTabBar({
                 isActive={tab.id === activeTabId}
                 worktreeId={worktreeId}
                 paneId={paneId}
-                onClose={handleCloseTab}
               />
             ))}
             <SortableContext
@@ -619,9 +608,6 @@ function PaneTabBar({
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
             <Terminal size={14} /> New terminal tab
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => handleAddTab("notes")}>
-            <NotebookPen size={14} /> New notes tab
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

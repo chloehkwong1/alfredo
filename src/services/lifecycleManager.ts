@@ -41,6 +41,10 @@ class LifecycleManager {
    * and remove from layout pane.
    */
   async removeTab(worktreeId: string, tabId: string): Promise<void> {
+    // Notes is a permanent per-worktree singleton — never removable, including
+    // via bulk-close paths (Close Others / Close to Right).
+    const tab = useTabStore.getState().tabs[worktreeId]?.find((t) => t.id === tabId);
+    if (tab?.type === "notes") return;
     await sessionManager.closeSession(tabId);
     useTabStore.getState().removeTab(worktreeId, tabId);
     useLayoutStore.getState().removeTabFromPane(worktreeId, tabId);
