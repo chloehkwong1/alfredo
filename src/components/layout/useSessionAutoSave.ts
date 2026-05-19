@@ -7,6 +7,7 @@ import { useLayoutStore } from "../../stores/layoutStore";
 import { usePrStore } from "../../stores/prStore";
 import { saveAllSessions } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
+import { flushAllPendingNotes } from "../../services/notesAutosave";
 
 const AUTO_SAVE_INTERVAL_MS = 30_000;
 const LOG_PREFIX = "[useSessionAutoSave]";
@@ -121,6 +122,11 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
         console.error(`${LOG_PREFIX} session save on close failed:`, err);
       }
       try {
+        await flushAllPendingNotes();
+      } catch (err) {
+        console.error(`${LOG_PREFIX} notes flush on close failed:`, err);
+      }
+      try {
         await currentWindow.destroy();
       } catch (err) {
         // If destroy throws, the window stays open — log loudly and tell the
@@ -155,6 +161,7 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
 
     const handleBeforeUnload = () => {
       collectAndSaveAllSessionsOnce().catch((e) => console.error("Failed to save sessions on unload:", e));
+      flushAllPendingNotes().catch((e) => console.error("Failed to flush notes on unload:", e));
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);

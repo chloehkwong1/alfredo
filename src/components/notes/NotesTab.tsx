@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { readWorktreeNotes, writeWorktreeNotes } from "../../api";
+import { readWorktreeNotes } from "../../api";
 import { NotesEditor } from "./NotesEditor";
+import { setPendingNote, flushNote } from "../../services/notesAutosave";
 
 interface NotesTabProps {
   worktreePath: string;
@@ -11,7 +12,6 @@ const SAVE_DEBOUNCE_MS = 500;
 export function NotesTab({ worktreePath }: NotesTabProps) {
   const [initialMarkdown, setInitialMarkdown] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const pendingRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
 
   // Load once per worktreePath change.
@@ -31,38 +31,28 @@ export function NotesTab({ worktreePath }: NotesTabProps) {
     };
   }, [worktreePath]);
 
-  function flush() {
-    if (timerRef.current != null) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    const pending = pendingRef.current;
-    if (pending == null) return;
-    pendingRef.current = null;
-    writeWorktreeNotes(worktreePath, pending).catch((e) => {
-      console.warn("[NotesTab] write failed", e);
-    });
-  }
-
   function handleMarkdownChange(md: string) {
-    pendingRef.current = md;
+    setPendingNote(worktreePath, md);
     if (timerRef.current != null) clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
-      flush();
+      void flushNote(worktreePath);
     }, SAVE_DEBOUNCE_MS);
   }
 
-  // Flush on tab switch / unmount / window blur.
+  // Flush on tab switch / unmount / window blur. App quit/reload is handled
+  // app-level via flushAllPendingNotes in useSessionAutoSave.
   useEffect(() => {
-    const onBlur = () => flush();
+    const onBlur = () => void flushNote(worktreePath);
     window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("blur", onBlur);
-      flush();
+      if (timerRef.current != null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      void flushNote(worktreePath);
     };
-    // flush is intentionally referenced in cleanup; eslint will flag — silence if needed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [worktreePath]);
 
   if (loadError) {
