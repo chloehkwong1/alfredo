@@ -1,0 +1,20 @@
+src-tauri/src/lib.rs
+  s_4a24e234e229eb::t_6ea1ede7f4c30e 65
+  s_4a24e234e229eb::t_d09476c5f453b7 289-291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "f9d1a7daab839ba4932dc26509e19e25075f8987",
+  "prompts": {},
+  "sessions": {
+    "s_4a24e234e229eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5a9c9e4-a625-4d77-8a56-5ccd6d821510",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
