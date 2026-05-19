@@ -1,0 +1,25 @@
+src/stores/tabStore.ts
+  s_4a24e234e229eb::t_d29cf61464db20 104
+  s_4a24e234e229eb::t_337bb18eaa7fbb 161
+src/types.ts
+  s_4a24e234e229eb::t_340cb40f5bdaab 322
+src/components/layout/PaneTabBar.tsx
+  s_4a24e234e229eb::t_4ddff276379be3 103
+  s_4a24e234e229eb::t_8df55644291e20 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "7c59a9e1ecaa5053b87b8b3d486672434f5b210c",
+  "prompts": {},
+  "sessions": {
+    "s_4a24e234e229eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5a9c9e4-a625-4d77-8a56-5ccd6d821510",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
