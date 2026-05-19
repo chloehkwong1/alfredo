@@ -62,7 +62,7 @@ fn updater_endpoint_urls(receive_beta: bool) -> Vec<url::Url> {
         .collect()
 }
 
-use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, notes, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -286,6 +286,9 @@ pub fn run() {
             // Updater
             updater_cmds::check_for_update_filtered,
             updater_cmds::install_pending_update,
+            // Notes
+            notes::read_worktree_notes,
+            notes::write_worktree_notes,
             // Notifications
             notification::send_app_notification,
             notification::notification_permission_status,

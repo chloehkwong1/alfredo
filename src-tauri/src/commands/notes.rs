@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Registered in `lib.rs` `invoke_handler!` by Task 2 of the worktree-notepad plan.
-
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tokio::fs;
