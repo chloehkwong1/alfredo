@@ -204,7 +204,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
     if (annotations.length === 0 || sendingAnnotations.current) return;
     sendingAnnotations.current = true;
     try {
-      const message = formatAnnotationsMessage(annotations);
+      const message = formatAnnotationsMessage(annotations, displayFiles);
       let session;
       try {
         session = await ensureAgentSession(worktreeId, repoPath, worktree?.branch);
