@@ -10,7 +10,7 @@ import {
   PanelBottom,
   Radio,
   Combine,
-  StickyNote,
+  NotebookPen,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -100,7 +100,7 @@ const TAB_ICONS: Record<TabType, ComponentType<{ size?: number; className?: stri
   shell: Terminal,
   server: Radio,
   diff: GitCompareArrows,
-  notes: StickyNote,
+  notes: NotebookPen,
 };
 
 interface PaneTabBarProps {
@@ -552,6 +552,9 @@ function PaneTabBar({
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
             <Terminal size={14} /> New terminal tab
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => handleAddTab("notes")}>
+            <NotebookPen size={14} /> New notes tab
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
