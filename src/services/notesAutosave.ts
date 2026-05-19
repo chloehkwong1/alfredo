@@ -19,6 +19,9 @@ export async function flushNote(worktreePath: string): Promise<void> {
   try {
     await writeWorktreeNotes(worktreePath, md);
   } catch (e) {
+    // Re-queue so a later flush retries — but don't clobber a newer edit that
+    // arrived during the await.
+    if (!pending.has(worktreePath)) pending.set(worktreePath, md);
     console.warn("[notesAutosave] write failed", e);
   }
 }
