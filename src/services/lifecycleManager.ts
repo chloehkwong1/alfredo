@@ -214,10 +214,16 @@ class LifecycleManager {
     );
     const activePaneId = layoutState.activePaneId[worktreeId];
 
-    // Add orphaned tabs (in tabStore but not in any pane) to the active pane
+    // Add orphaned tabs (in tabStore but not in any pane) to the active pane.
+    // The notes tab is pinned leftmost and must not steal focus — adopt it via
+    // addPinnedTabToPane (front insert, preserves the active tab).
     for (const tab of wtTabs) {
       if (!allPaneTabIds.has(tab.id) && activePaneId) {
-        layoutState.addTabToPane(worktreeId, activePaneId, tab.id);
+        if (tab.type === "notes") {
+          layoutState.addPinnedTabToPane(worktreeId, activePaneId, tab.id);
+        } else {
+          layoutState.addTabToPane(worktreeId, activePaneId, tab.id);
+        }
       }
     }
 

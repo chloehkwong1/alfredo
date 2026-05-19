@@ -40,6 +40,9 @@ interface LayoutState {
   setPaneActiveTab: (worktreeId: string, paneId: string, tabId: string) => void;
   setLastFocusedAgentTab: (worktreeId: string, tabId: string) => void;
   addTabToPane: (worktreeId: string, paneId: string, tabId: string) => void;
+  /** Insert a tab at the front of a pane WITHOUT changing the active tab.
+   * Used to adopt the permanent notes tab without stealing focus. */
+  addPinnedTabToPane: (worktreeId: string, paneId: string, tabId: string) => void;
   removeTabFromPane: (worktreeId: string, tabId: string) => void;
   moveTabToSiblingPane: (worktreeId: string, paneId: string, tabId: string) => void;
   reorderTabs: (worktreeId: string, paneId: string, fromIndex: number, toIndex: number) => void;
@@ -306,6 +309,28 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
               tabIds: [...pane.tabIds, tabId],
               activeTabId: tabId,
               previewTabId: pane.previewTabId ?? null,
+            },
+          },
+        },
+      };
+    });
+  },
+
+  addPinnedTabToPane: (worktreeId, paneId, tabId) => {
+    set((s) => {
+      const worktreePanes = s.panes[worktreeId];
+      if (!worktreePanes) return s;
+      const targetPaneId = worktreePanes[paneId] ? paneId : s.activePaneId[worktreeId];
+      const pane = worktreePanes[targetPaneId];
+      if (!pane || pane.tabIds.includes(tabId)) return s;
+      return {
+        panes: {
+          ...s.panes,
+          [worktreeId]: {
+            ...worktreePanes,
+            [targetPaneId]: {
+              ...pane,
+              tabIds: [tabId, ...pane.tabIds],
             },
           },
         },

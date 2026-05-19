@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { readWorktreeNotes, writeWorktreeNotes } from "../../api";
 import { NotesEditor } from "./NotesEditor";
-import type { Editor } from "@tiptap/react";
 
 interface NotesTabProps {
   worktreePath: string;
@@ -14,7 +13,6 @@ export function NotesTab({ worktreePath }: NotesTabProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const pendingRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
-  const editorRef = useRef<Editor | null>(null);
 
   // Load once per worktreePath change.
   useEffect(() => {
@@ -84,9 +82,6 @@ export function NotesTab({ worktreePath }: NotesTabProps) {
     <NotesEditor
       initialMarkdown={initialMarkdown}
       onMarkdownChange={handleMarkdownChange}
-      onEditorReady={(editor) => {
-        editorRef.current = editor;
-      }}
     />
   );
 }

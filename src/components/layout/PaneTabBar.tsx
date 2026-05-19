@@ -308,13 +308,25 @@ function PinnedTab({
   const Icon = TAB_ICONS[tab.type];
   const effectiveLabel = tab.dynamicLabel ?? tab.label;
 
+  const activate = () => {
+    setPaneActiveTab(worktreeId, paneId, tab.id);
+    setActivePaneId(worktreeId, paneId);
+    setActiveTabId(worktreeId, tab.id);
+  };
+
   return (
     <div
       data-tab-id={tab.id}
-      onClick={() => {
-        setPaneActiveTab(worktreeId, paneId, tab.id);
-        setActivePaneId(worktreeId, paneId);
-        setActiveTabId(worktreeId, tab.id);
+      role="tab"
+      tabIndex={0}
+      aria-label={effectiveLabel}
+      aria-selected={isActive}
+      onClick={activate}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          activate();
+        }
       }}
       title={effectiveLabel}
       className={[
