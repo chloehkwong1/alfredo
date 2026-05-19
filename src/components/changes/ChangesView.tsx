@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { DiffFileCard } from "./DiffFileCard";
 import { useDiscardChanges } from "./useDiscardChanges";
@@ -13,7 +13,7 @@ import { useDiffSearch } from "../../hooks/useDiffSearch";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { ensureAgentSession, writeToSession, focusAgentTab } from "../../services/agentMessenger";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
-import { Trash2, Check, Copy, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trash2, Check, Copy, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import type { CommitInfo, DiffTarget, PrComment } from "../../types";
 import { normalizeDiffViewMode } from "../../types";
 import { useAnnotationActions } from "./useAnnotationActions";
@@ -48,6 +48,24 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
   const subject = firstNewline === -1 ? commit.message : commit.message.slice(0, firstNewline);
   const body = firstNewline === -1 ? "" : commit.message.slice(firstNewline + 1).trim();
   const { copied, copy: handleCopy } = useCopyToClipboard();
+  const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [bodyOverflows, setBodyOverflows] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setBodyExpanded(false);
+  }, [commit.hash]);
+
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    // +1 tolerates sub-pixel rounding when content is exactly 2 lines.
+    const measure = () => setBodyOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [body, bodyExpanded]);
 
   const isYou = gitUser != null && commit.author.toLowerCase() === gitUser.toLowerCase();
 
@@ -82,8 +100,27 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
         )}
       </div>
       {body && (
-        <div className="text-xs text-text-secondary mt-1 whitespace-pre-wrap leading-relaxed">
-          {body}
+        <div className="flex items-start gap-1 mt-1">
+          <div
+            ref={bodyRef}
+            className={`text-xs text-text-secondary whitespace-pre-wrap leading-relaxed flex-1 min-w-0 ${
+              bodyExpanded ? "" : "line-clamp-2"
+            }`}
+          >
+            {body}
+          </div>
+          {(bodyOverflows || bodyExpanded) && (
+            <button
+              type="button"
+              onClick={() => setBodyExpanded((v) => !v)}
+              title={bodyExpanded ? "Collapse message" : "Expand message"}
+              aria-label={bodyExpanded ? "Collapse message" : "Expand message"}
+              aria-expanded={bodyExpanded}
+              className="p-1 rounded text-text-tertiary hover:bg-bg-hover hover:text-text-primary transition-colors shrink-0"
+            >
+              {bodyExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
         </div>
       )}
       <div className="flex items-center gap-2 mt-1 text-[10px] text-text-tertiary">
@@ -253,6 +290,14 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
   // allCommits changes every 10s (commit poll) which would otherwise re-trigger scroll.
   const allCommitsRef = useRef(allCommits);
   allCommitsRef.current = allCommits;
+
+  // Annotations are scoped to a (filePath, lineNumber) within a specific
+  // commit/working-tree snapshot. When the preview tab swaps to a new target,
+  // any open-but-unsubmitted annotation input would otherwise persist and end
+  // up saved against the wrong commit's content.
+  useEffect(() => {
+    resetActiveAnnotation();
+  }, [diffTarget?.type, diffTarget?.filePath, diffTarget?.commitHash, diffTarget?.isUncommitted, resetActiveAnnotation]);
 
   // Drive display from diffTarget prop (replaces DOM event listeners)
   useEffect(() => {

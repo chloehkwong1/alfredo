@@ -31,17 +31,15 @@ export function useAnnotationActions(
     (filePath: string, lineNumber: number, side: DiffSide) => {
       setActiveAnnotationLine((prev) => {
         const toggling = prev?.filePath === filePath && prev?.lineNumber === lineNumber && prev?.side === side;
-        if (!toggling) {
-          lifecycleManager.pinCurrentPreview(worktreeId);
-        }
         return toggling ? null : { filePath, lineNumber, side };
       });
     },
-    [worktreeId],
+    [],
   );
 
   const handleSubmitAnnotation = useCallback(
     (filePath: string, lineNumber: number, side: DiffSide, text: string) => {
+      lifecycleManager.pinCurrentPreview(worktreeId);
       const currentCommits = commitsRef.current;
       const commitHash =
         viewMode === "commits" && selectedCommitIndex !== null && currentCommits.length > 0
