@@ -291,6 +291,61 @@ function SortableTab({
   );
 }
 
+function PinnedTab({
+  tab,
+  isActive,
+  worktreeId,
+  paneId,
+  onClose,
+}: {
+  tab: WorkspaceTab;
+  isActive: boolean;
+  worktreeId: string;
+  paneId: string;
+  onClose: (e: React.MouseEvent, tabId: string) => void;
+}) {
+  const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
+  const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
+  const setActiveTabId = useTabStore((s) => s.setActiveTabId);
+  const Icon = TAB_ICONS[tab.type];
+  const effectiveLabel = tab.dynamicLabel ?? tab.label;
+
+  return (
+    <div
+      data-tab-id={tab.id}
+      onClick={() => {
+        setPaneActiveTab(worktreeId, paneId, tab.id);
+        setActivePaneId(worktreeId, paneId);
+        setActiveTabId(worktreeId, tab.id);
+      }}
+      title={effectiveLabel}
+      className={[
+        "group h-full px-2 transition-colors cursor-pointer flex items-center relative flex-shrink-0",
+        isActive
+          ? "text-text-primary"
+          : "text-text-tertiary hover:text-text-secondary",
+      ].join(" ")}
+    >
+      <Icon size={14} />
+      <button
+        type="button"
+        aria-label={`Close ${effectiveLabel} tab`}
+        onClick={(e) => onClose(e, tab.id)}
+        className="ml-0.5 rounded p-0.5 transition-opacity opacity-0 group-hover:opacity-100 hover:bg-bg-tertiary cursor-pointer"
+      >
+        <X size={10} />
+      </button>
+      {isActive && (
+        <motion.div
+          layoutId={`tab-underline-${paneId}`}
+          className="absolute bottom-0 left-2 right-2 h-0.5 bg-accent-primary"
+          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+        />
+      )}
+    </div>
+  );
+}
+
 function PaneTabBar({
   paneId,
   worktreeId,
@@ -416,7 +471,9 @@ function PaneTabBar({
   const draggedTab = dragActiveId ? paneTabs.find((t) => t.id === dragActiveId) : null;
 
   const terminalTabs = paneTabs.filter((t) => t.type in TAB_ICONS);
-  const terminalTabIds = terminalTabs.map((t) => t.id);
+  const pinnedTabs = terminalTabs.filter((t) => t.type === "notes");
+  const sortableTabs = terminalTabs.filter((t) => t.type !== "notes");
+  const sortableTabIds = sortableTabs.map((t) => t.id);
   const tabCount = terminalTabs.length;
   const lastTabId = tabCount > 0 ? terminalTabs[tabCount - 1].id : null;
 
@@ -475,11 +532,21 @@ function PaneTabBar({
             ref={scrollContainerRef}
             className="flex items-center h-full w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
+            {pinnedTabs.map((tab) => (
+              <PinnedTab
+                key={tab.id}
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                worktreeId={worktreeId}
+                paneId={paneId}
+                onClose={handleCloseTab}
+              />
+            ))}
             <SortableContext
-              items={terminalTabIds}
+              items={sortableTabIds}
               strategy={horizontalListSortingStrategy}
             >
-              {terminalTabs.map((tab, tabIdx) => {
+              {sortableTabs.map((tab, tabIdx) => {
                 const isActive = tab.id === activeTabId;
                 return (
                   <SortableTab
@@ -493,7 +560,7 @@ function PaneTabBar({
                     onCloseOthers={handleCloseOthers}
                     onCloseToRight={handleCloseToRight}
                     hasOthersToClose={terminalTabs.length > 1}
-                    hasTabsToRightToClose={tabIdx < terminalTabs.length - 1}
+                    hasTabsToRightToClose={tabIdx < sortableTabs.length - 1}
                     onSplit={handleSplit}
                     onMoveToSibling={handleMoveToSibling}
                     isSplit={isSplit}
