@@ -1,6 +1,7 @@
 import { PaneTabBar, useCrossPaneDrag } from "./PaneTabBar";
 import { TerminalView } from "../terminal";
 import { ChangesView } from "../changes/ChangesView";
+import { NotesTab } from "../notes/NotesTab";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -41,6 +42,8 @@ function PaneView({
   const showDropZone = isSplit && crossDrag != null && crossDrag.paneId !== paneId && crossDrag.worktreeId === worktreeId;
 
   const showChanges = activeTab?.type === "diff";
+  const showNotes = activeTab?.type === "notes";
+  const showTerminal = activeTab != null && !showChanges && !showNotes;
 
   // Tab-bar clicks update activePaneId; typing into an xterm textarea doesn't.
   // Route focus→active here so pane-scoped shortcuts (Cmd+K, Cmd+T, Cmd+W, splits)
@@ -82,7 +85,7 @@ function PaneView({
         assignedPort={assignedPort}
       />
       <div className="flex-1 min-h-0 min-w-0 relative overflow-hidden">
-        {activeTab && activeTab.type !== "diff" ? (
+        {showTerminal ? (
           <TerminalView key={activeTab.id} tabId={activeTab.id} tabType={activeTab.type} />
         ) : null}
         {showChanges && (
@@ -94,6 +97,11 @@ function PaneView({
               repoPath={worktree?.path ?? "."}
               diffTarget={activeTab.diffTarget}
             />
+          </div>
+        )}
+        {showNotes && worktree && (
+          <div className="absolute inset-0 z-10 bg-bg-primary">
+            <NotesTab key={`${activeTab.id}:${worktree.path}`} worktreePath={worktree.path} />
           </div>
         )}
       </div>
