@@ -1,0 +1,24 @@
+src/hooks/useSessionRestore.ts
+  s_41284f1075b906::t_56a4b140e7b8eb 73-82
+  s_41284f1075b906::t_d35fc24aa37dfd 53-57,63-72,83-171
+  s_41284f1075b906::t_ec088d24da6b70 235,258-259
+  s_41284f1075b906::t_4f711d15064be7 231-234,236-256
+  s_41284f1075b906::t_9081d20fd3676b 183-185
+  s_41284f1075b906::t_2fdfaaf25d6f43 294,296-307
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "bab14914b63bc010e8ec07a2913a879e7f3e4d5d",
+  "prompts": {},
+  "sessions": {
+    "s_41284f1075b906": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2804a96-aa2f-4b2a-9684-c2eccf247d9b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
