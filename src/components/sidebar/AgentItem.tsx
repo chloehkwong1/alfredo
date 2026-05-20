@@ -300,6 +300,7 @@ function AgentItemContent({
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
   repoIndex = 0, showRepoTag = false, hasParentWorktree = false,
 }: AgentItemContentProps) {
+  const mutedTextClass = isSelected ? "text-text-secondary" : "text-text-tertiary";
   return (
     <>
       <span
@@ -343,19 +344,19 @@ function AgentItemContent({
             </span>
           )}
           {worktree.prStatus && (
-            <span className="text-xs text-text-tertiary flex-shrink-0">#{worktree.prStatus.number}</span>
+            <span className={`text-xs ${mutedTextClass} flex-shrink-0`}>#{worktree.prStatus.number}</span>
           )}
           <span className="flex items-center gap-1.5 ml-auto flex-shrink-0">
             <RelativeTime
               timestamp={worktree.lastActivityAt}
-              className="text-2xs text-text-tertiary tabular-nums"
+              className={`text-2xs ${mutedTextClass} tabular-nums`}
             />
             {isPinned && <Pin className="h-[11px] w-[11px] text-accent-primary opacity-45" />}
           </span>
         </div>
         {/* Line 2: PR title (only if PR exists) */}
         {worktree.prStatus && (
-          <div className="text-xs text-text-tertiary truncate mt-0.5">
+          <div className={`text-xs ${mutedTextClass} truncate mt-0.5`}>
             {worktree.prStatus.title}
           </div>
         )}
@@ -372,7 +373,7 @@ function AgentItemContent({
                     ? "text-accent-primary font-medium"
                     : (effectiveStatus as string) === "error"
                       ? "text-status-error font-medium"
-                      : "text-text-tertiary",
+                      : mutedTextClass,
             ].join(" ")}>
               {effectiveStatus === "busy" ? <><ThinkingText /><ThinkingDots /></> : getStatusText(effectiveStatus)}
             </span>
@@ -410,7 +411,7 @@ function AgentItemContent({
         </div>
         {/* Stack indicator */}
         {worktree.stackParent && (
-          <div className="flex items-center gap-1 mt-1 text-[10px] text-text-tertiary min-w-0">
+          <div className={`flex items-center gap-1 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
             <span className="flex-shrink-0">on</span>
             <span className="truncate" title={worktree.stackParent}>
               {worktree.stackParent}
@@ -721,8 +722,8 @@ const AgentItem = memo(function AgentItem({
         isEditingLabel ? "cursor-default" : "cursor-grab",
         getBorderClass(effectiveStatus, isUnread),
         isSelected
-          ? "bg-[rgba(255,255,255,0.07)]"
-          : "hover:bg-[rgba(255,255,255,0.035)]",
+          ? "bg-bg-active"
+          : "hover:bg-bg-hover",
         isDimmed && !isSelected
           ? "opacity-45 hover:opacity-70"
           : "",
