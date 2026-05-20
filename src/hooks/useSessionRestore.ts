@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, debugLog } from "../api";
+import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, debugLog, reconcileWorktreePorts } from "../api";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
@@ -328,6 +328,16 @@ export function useSessionRestore(
           const isFirstRestore = !restoredRepos.current.has(repo);
           if (isFirstRestore) {
             restoredRepos.current.add(repo);
+            // One-shot per launch: free ports whose worktree is gone. Clears
+            // assignments orphaned before the release-key fix and any future
+            // stragglers. Fire-and-forget — never blocks restore.
+            reconcileWorktreePorts(repo)
+              .then((pruned) => {
+                if (pruned.length > 0) {
+                  console.info(`[session-restore] reconciled ${pruned.length} orphan port(s) for ${repo}`);
+                }
+              })
+              .catch((e) => console.warn(`[session-restore] port reconcile failed for ${repo}:`, e));
           }
 
           // ── Phase 1: Restore all session state BEFORE making worktrees

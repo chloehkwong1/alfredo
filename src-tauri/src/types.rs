@@ -405,7 +405,7 @@ pub struct EffectiveConfig {
     pub upstream_in_git: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub repo_path: String,

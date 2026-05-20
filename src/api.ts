@@ -212,6 +212,10 @@ export function getAssignedWorktreePort(repoPath: string, worktreeName: string):
   return invoke("get_assigned_worktree_port", { repoPath, worktreeName });
 }
 
+export function reconcileWorktreePorts(repoPath: string): Promise<string[]> {
+  return invoke("reconcile_worktree_ports", { repoPath });
+}
+
 // ── Branch Mode ─────────────────────────────────────────────────
 
 export function listBranches(repoPath: string, includeDefaultBranches?: boolean): Promise<Worktree[]> {

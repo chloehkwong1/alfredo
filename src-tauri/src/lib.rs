@@ -211,6 +211,7 @@ pub fn run() {
             worktree::claim_worktree_port,
             worktree::release_worktree_port,
             worktree::take_worktree_port,
+            worktree::reconcile_worktree_ports,
             worktree::get_assigned_worktree_port,
             // GitHub
             github::sync_pr_status,

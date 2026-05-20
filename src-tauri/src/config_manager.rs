@@ -503,6 +503,25 @@ pub fn release_port(config: &mut AppConfig, worktree_name: &str) {
     config.port_assignments.remove(worktree_name);
 }
 
+/// Remove port assignments whose worktree `id` is not in `live_ids`.
+/// Returns the removed keys. Caller must build `live_ids` from an
+/// authoritative, *unfiltered* worktree enumeration.
+pub fn prune_orphan_ports(
+    config: &mut AppConfig,
+    live_ids: &std::collections::HashSet<String>,
+) -> Vec<String> {
+    let stale: Vec<String> = config
+        .port_assignments
+        .keys()
+        .filter(|k| !live_ids.contains(*k))
+        .cloned()
+        .collect();
+    for k in &stale {
+        config.port_assignments.remove(k);
+    }
+    stale
+}
+
 /// Collapse runs of whitespace (including embedded newlines) into a single
 /// space and trim. Multi-line commands saved before the frontend
 /// `normalizeCommand` fix — or written by older Alfredo builds, hand edits,
@@ -573,6 +592,24 @@ pub async fn run_setup_scripts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_prune_orphan_ports_removes_only_absent_worktrees() {
+        let mut config = AppConfig {
+            repo_path: "/repo".into(),
+            ..Default::default()
+        };
+        config.port_assignments.insert("/repo::live".into(), 3000);
+        config.port_assignments.insert("/repo::gone".into(), 3001);
+
+        let live: std::collections::HashSet<String> =
+            ["/repo::live".to_string()].into_iter().collect();
+        let pruned = prune_orphan_ports(&mut config, &live);
+
+        assert_eq!(pruned, vec!["/repo::gone".to_string()]);
+        assert!(config.port_assignments.contains_key("/repo::live"));
+        assert!(!config.port_assignments.contains_key("/repo::gone"));
+    }
 
     #[tokio::test]
     async fn test_load_missing_config_returns_defaults() -> Result<(), Box<dyn std::error::Error>> {

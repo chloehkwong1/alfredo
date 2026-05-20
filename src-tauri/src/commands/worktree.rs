@@ -525,6 +525,39 @@ pub async fn release_worktree_port(
     Ok(())
 }
 
+/// Drop port assignments whose worktree no longer exists. Enumerates git
+/// worktrees *without* the base-path filter (so a worktree outside the
+/// configured base is still treated as live and never pruned), then removes
+/// any `port_assignments` key not in that set. Returns the pruned keys.
+///
+/// Only mutates on a successful enumeration — a transient git error returns
+/// `Err` and frees nothing. Called once per repo on load; also clears
+/// assignments orphaned before the release-key fix landed.
+#[tauri::command]
+pub async fn reconcile_worktree_ports(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+) -> Result<Vec<String>> {
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+
+    let repo = repo_path.clone();
+    let worktrees =
+        tokio::task::spawn_blocking(move || git_manager::list_worktrees(&repo, None))
+            .await
+            .map_err(|e| AppError::Git(format!("task join error: {e}")))??;
+    let live_ids: std::collections::HashSet<String> =
+        worktrees.into_iter().map(|wt| wt.id).collect();
+
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    let pruned = config_manager::prune_orphan_ports(&mut config, &live_ids);
+    if !pruned.is_empty() {
+        config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    }
+    Ok(pruned)
+}
+
 /// Atomically reassign a specific port to a worktree, releasing whichever
 /// worktree currently holds it (if any). Used by the port picker when the
 /// user explicitly takes a port. Returns the previous holder's name so the
