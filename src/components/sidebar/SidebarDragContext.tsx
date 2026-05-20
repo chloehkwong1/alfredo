@@ -20,7 +20,7 @@ import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import type { KanbanColumn, Worktree } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
-import { setWorktreeColumn } from "../../api";
+import { setWorktreeColumn, releasePortFor } from "../../api";
 import { AgentItemOverlay } from "./AgentItemOverlay";
 
 const COLUMNS: KanbanColumn[] = [
@@ -265,6 +265,13 @@ function SidebarDragContext({
         setWorktreeColumn(worktree.repoPath, worktree.name, worktree.column).catch((e) => {
           console.error("[drag] Failed to persist column change:", e);
         });
+
+        // Release the port when dragged to Done (keyed on id).
+        if (worktree.column === "done") {
+          releasePortFor(worktree).catch((e) =>
+            console.warn("[drag] Failed to release port on Done:", worktree.id, e),
+          );
+        }
       }
 
       // If the dragged item ended up in a different, persistently-collapsed

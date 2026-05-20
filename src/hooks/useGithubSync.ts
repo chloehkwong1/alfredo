@@ -4,7 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { PrUpdatePayload, StackRebaseStatus } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
-import { getPrFiles, setSyncRepoPaths, runArchiveScript } from "../api";
+import { getPrFiles, setSyncRepoPaths, runArchiveScript, releasePortFor } from "../api";
 import { lifecycleManager } from "../services/lifecycleManager";
 
 /**
@@ -82,6 +82,9 @@ export function useGithubSync() {
           } catch (e) {
             console.warn("[github-sync] Archive script failed for", wt.id, e);
           }
+          releasePortFor(wt).catch((e) =>
+            console.warn("[github-sync] Failed to release port on auto-archive:", wt.id, e),
+          );
         }
 
         useWorkspaceStore.setState((s) => ({

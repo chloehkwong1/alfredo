@@ -14,7 +14,7 @@ import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
-import { runArchiveScript, countWorktrees } from "../../api";
+import { runArchiveScript, countWorktrees, releasePortFor } from "../../api";
 import { LifecycleNudge } from "./LifecycleNudge";
 
 const COLUMNS: KanbanColumn[] = [
@@ -115,6 +115,9 @@ function Sidebar({
       } catch (e) {
         console.warn("[sidebar] Archive script failed:", e);
       }
+      releasePortFor(wt).catch((e) =>
+        console.warn("[sidebar] Failed to release port on archive:", wt.id, e),
+      );
     }
     archiveWorktree(id);
   }, [worktrees, archiveWorktree]);

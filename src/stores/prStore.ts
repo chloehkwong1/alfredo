@@ -7,7 +7,7 @@ import type {
   PrStatusWithColumn,
   Worktree,
 } from "../types";
-import { releaseWorktreePort } from "../api";
+import { releasePortFor } from "../api";
 
 interface ColumnOverride {
   column: KanbanColumn;
@@ -247,8 +247,8 @@ export const usePrStore = create<PrState>((set, get) => ({
       // also prevents a double-fire after a manual drag-to-Done (frontend column
       // is already "done" by the next sync tick).
       if (wt.column !== "done" && column === "done") {
-        releaseWorktreePort(wt.repoPath, wt.name).catch((e) => {
-          console.warn("[pr-store] Failed to release port on auto-Done:", wt.name, e);
+        releasePortFor(wt).catch((e) => {
+          console.warn("[pr-store] Failed to release port on auto-Done:", wt.id, e);
         });
       }
 

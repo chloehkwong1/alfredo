@@ -7,6 +7,7 @@ const mockRemoveWorktreeState = vi.fn();
 const mockRemoveLayout = vi.fn();
 const mockCloseSession = vi.fn().mockResolvedValue(undefined);
 const mockDeleteWorktreeApi = vi.fn().mockResolvedValue(undefined);
+const mockReleaseWorktreePort = vi.fn((..._args: unknown[]) => Promise.resolve());
 const mockDeleteSessionFile = vi.fn().mockResolvedValue(undefined);
 const mockAddTab = vi.fn();
 const mockRemoveTab = vi.fn();
@@ -57,6 +58,9 @@ vi.mock("./sessionManager", () => ({
 
 vi.mock("../api", () => ({
   deleteWorktree: (...args: unknown[]) => mockDeleteWorktreeApi(...args),
+  releaseWorktreePort: (...args: unknown[]) => mockReleaseWorktreePort(...args),
+  releasePortFor: (wt: { repoPath: string; id: string }) =>
+    mockReleaseWorktreePort(wt.repoPath, wt.id),
 }));
 
 vi.mock("./SessionPersistence", () => ({
@@ -70,6 +74,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockCloseSession.mockResolvedValue(undefined);
   mockDeleteWorktreeApi.mockResolvedValue(undefined);
+  mockReleaseWorktreePort.mockResolvedValue(undefined);
   mockDeleteSessionFile.mockResolvedValue(undefined);
   tabStoreState = {
     tabs: {},
@@ -280,6 +285,16 @@ describe("lifecycleManager", () => {
       // Should still attempt all cleanup despite session close failure
       expect(mockDeleteWorktreeApi).toHaveBeenCalled();
       expect(mockDeleteSessionFile).toHaveBeenCalled();
+    });
+
+    it("releases the worktree port by id before deleting", async () => {
+      await lifecycleManager.removeWorktree(
+        "/repo::feat/x",      // worktreeId (the port_assignments key)
+        "/repo",              // repoPath
+        "feat-x",             // worktreeName (git name — must NOT be the release key)
+      );
+      expect(mockReleaseWorktreePort).toHaveBeenCalledWith("/repo", "/repo::feat/x");
+      expect(mockReleaseWorktreePort).not.toHaveBeenCalledWith("/repo", "feat-x");
     });
 
     it("continues cleanup even when deleteWorktreeApi fails", async () => {

@@ -3,7 +3,7 @@ import { useTabStore } from "../stores/tabStore";
 import { usePrStore } from "../stores/prStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { sessionManager, stateSourceMap } from "./sessionManager";
-import { deleteWorktree as deleteWorktreeApi } from "../api";
+import { deleteWorktree as deleteWorktreeApi, releasePortFor } from "../api";
 import { deleteSession as deleteSessionFile } from "./SessionPersistence";
 import type { TabType, DiffTarget, WorkspaceTab } from "../types";
 
@@ -75,14 +75,20 @@ class LifecycleManager {
       await sessionManager.closeSession(tab.id).catch((e) => console.warn('[lifecycle] Failed to close session:', tab.id, e));
     }
 
-    // 3. Delete git worktree (async, log failure)
+    // 3. Release the dev-server port (by id — the key claim stored it under).
+    //    Done before git deletion so the slot frees even if git delete fails.
+    await releasePortFor({ repoPath, id: worktreeId }).catch((e) =>
+      console.warn("[lifecycle] Failed to release port:", worktreeId, e),
+    );
+
+    // 4. Delete git worktree (async, log failure)
     try {
       await deleteWorktreeApi(repoPath, worktreeName, true);
     } catch (e) {
       console.error("Failed to delete worktree:", e);
     }
 
-    // 4. Delete session file (async, non-critical)
+    // 5. Delete session file (async, non-critical)
     try {
       await deleteSessionFile(repoPath, worktreeId);
     } catch {
