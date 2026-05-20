@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, MessageSquare, Send, Trash2 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import "@xterm/xterm/css/xterm.css";
 
@@ -13,6 +14,7 @@ import { sessionManager } from "../../services/sessionManager";
 import { writePty, getConfig, getAppConfig, findClaudeSession, debugLog, dumpPtyBuffer } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
+import { useToastStore } from "../../stores/toastStore";
 import { Button } from "../ui/Button";
 import { CatLogo } from "../ui/CatLogo";
 import { TerminalSearchBar } from "./TerminalSearchBar";
@@ -286,8 +288,51 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeWorktreeId, tabId]);
 
-  // Cmd+Shift+D — dump the active pane's PTY replay buffer to disk for
-  // offline xterm-corruption diagnosis. Gated to the active pane like Cmd+F.
+  // One-shot diagnostic capture of THIS pane for xterm-corruption analysis:
+  // a screenshot (the on-screen garble), the raw replay-buffer bytes, and
+  // xterm's serialized view — all written as siblings under one timestamp to
+  // ~/Library/Logs/Alfredo/. The screenshot is the only half that records
+  // GPU-composited corruption; comparing the byte/serialized halves tells us
+  // whether garble is deterministic from the stream (parser) or diverged in
+  // the live xterm (renderer). Fire-and-scroll: capture, then scroll away.
+  const showToast = useToastStore((s) => s.show);
+  const capturePane = useCallback(async () => {
+    const session = sessionManager.getSession(sessionKey);
+    const sessionId = session?.sessionId || sessionKey;
+    const bytes = sessionManager.getBufferedOutput(sessionKey);
+    let serialized: string | null = null;
+    if (ptyTerminal) {
+      const addon = new SerializeAddon();
+      try {
+        ptyTerminal.loadAddon(addon);
+        serialized = addon.serialize();
+      } catch (err) {
+        console.warn(`[pty-dump] serialize failed:`, err);
+      } finally {
+        addon.dispose();
+      }
+    }
+    try {
+      const paths = await dumpPtyBuffer(sessionId, bytes, serialized, true);
+      console.log(
+        `[pty-dump] saved ${bytes.length}B raw → ${paths.raw}` +
+          (paths.serialized ? `\n[pty-dump] saved serialized → ${paths.serialized}` : "") +
+          (paths.screenshot ? `\n[pty-dump] saved screenshot → ${paths.screenshot}` : ""),
+      );
+      const revealTarget = paths.screenshot ?? paths.raw;
+      showToast({
+        message: paths.screenshot
+          ? "Captured pane — screenshot + buffer saved. Scroll away to clear the garble."
+          : "Buffer saved. Screenshot needs Screen Recording permission (System Settings → Privacy).",
+        action: { label: "Show in Finder", onClick: () => void revealItemInDir(revealTarget) },
+      });
+    } catch (err) {
+      console.error(`[pty-dump] failed:`, err);
+      showToast({ message: "Pane capture failed — see console." });
+    }
+  }, [sessionKey, ptyTerminal, showToast]);
+
+  // Cmd+Shift+D fires the capture for the active pane (gated like Cmd+F).
   useEffect(() => {
     if (!activeWorktreeId || !tabId) return;
 
@@ -299,43 +344,12 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       if (!myPaneId || activePaneId !== myPaneId) return;
       e.preventDefault();
       e.stopPropagation();
-
-      const session = sessionManager.getSession(sessionKey);
-      const sessionId = session?.sessionId || sessionKey;
-      const bytes = sessionManager.getBufferedOutput(sessionKey);
-      if (bytes.length === 0) {
-        console.warn(`[pty-dump] session ${sessionKey} has no buffered output`);
-        return;
-      }
-      // Snapshot xterm's own view of the visible buffer for offline comparison
-      // with what replaying the raw bytes produces.
-      let serialized: string | null = null;
-      if (ptyTerminal) {
-        const addon = new SerializeAddon();
-        try {
-          ptyTerminal.loadAddon(addon);
-          serialized = addon.serialize();
-        } catch (err) {
-          console.warn(`[pty-dump] serialize failed:`, err);
-        } finally {
-          addon.dispose();
-        }
-      }
-      dumpPtyBuffer(sessionId, bytes, serialized)
-        .then((paths) => {
-          console.log(
-            `[pty-dump] saved ${bytes.length}B raw → ${paths.raw}` +
-              (paths.serialized ? `\n[pty-dump] saved serialized → ${paths.serialized}` : ""),
-          );
-        })
-        .catch((err) => {
-          console.error(`[pty-dump] failed:`, err);
-        });
+      void capturePane();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeWorktreeId, tabId, sessionKey, ptyTerminal]);
+  }, [activeWorktreeId, tabId, capturePane]);
 
   // Track whether the terminal is scrolled away from the bottom.
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);

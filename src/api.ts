@@ -480,12 +480,14 @@ export function deleteSessionFile(
 export interface PtyDumpPaths {
   raw: string;
   serialized: string | null;
+  screenshot: string | null;
 }
 
 export function dumpPtyBuffer(
   sessionId: string,
   bytes: Uint8Array,
   serialized: string | null,
+  captureScreenshot: boolean,
 ): Promise<PtyDumpPaths> {
   // JSON-array IPC encoding is fine for the ~50KB ring buffer this is wired
   // to today; switch to Tauri raw IPC if this ever becomes an auto-dump path.
@@ -493,6 +495,7 @@ export function dumpPtyBuffer(
     sessionId,
     bytes: Array.from(bytes),
     serialized,
+    captureScreenshot,
   });
 }
 

@@ -165,6 +165,40 @@ fn sanitise_filename_component(s: &str) -> String {
 pub struct PtyDumpPaths {
     raw: String,
     serialized: Option<String>,
+    screenshot: Option<String>,
+}
+
+/// Capture the full screen to `path` via macOS `screencapture`. This is the
+/// only way to record the *garble itself*: the corruption lives in WebKit's
+/// GPU-composited output, so `canvas.toDataURL()` (which reads the drawing
+/// buffer) would miss exactly what we're hunting. Requires Screen Recording
+/// permission — the first invocation prompts, and may yield a window-less
+/// image until granted and the app is relaunched. Returns the path only when
+/// a file was actually written.
+#[cfg(target_os = "macos")]
+async fn capture_screen(path: &std::path::Path) -> Option<String> {
+    // `-x` suppresses the camera shutter sound.
+    let status = tokio::process::Command::new("screencapture")
+        .arg("-x")
+        .arg(path)
+        .status()
+        .await;
+    match status {
+        Ok(s) if s.success() && path.exists() => Some(path.to_string_lossy().into_owned()),
+        Ok(s) => {
+            tracing::warn!("screencapture did not produce a file (exit: {s:?})");
+            None
+        }
+        Err(e) => {
+            tracing::warn!("screencapture failed to spawn: {e}");
+            None
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn capture_screen(_path: &std::path::Path) -> Option<String> {
+    None
 }
 
 /// Diagnostic: write a snapshot of an xterm session for offline replay.
@@ -182,6 +216,7 @@ pub async fn dump_pty_buffer(
     session_id: String,
     bytes: Vec<u8>,
     serialized: Option<String>,
+    capture_screenshot: bool,
 ) -> Result<PtyDumpPaths> {
     // Bounded by today's 50KB ring buffer; cap defends against future buffer
     // size changes or direct devtools invocation with a huge array.
@@ -218,9 +253,19 @@ pub async fn dump_pty_buffer(
         None
     };
 
+    // Sibling screenshot under the same stamp captures the on-screen garble
+    // that the byte/serialized halves can't (renderer-state corruption).
+    let screenshot_path = if capture_screenshot {
+        let p = dir.join(format!("pty-dump-{stamp}-{safe_id}.png"));
+        capture_screen(&p).await
+    } else {
+        None
+    };
+
     Ok(PtyDumpPaths {
         raw: raw_path.to_string_lossy().into_owned(),
         serialized: serialized_path,
+        screenshot: screenshot_path,
     })
 }
 
