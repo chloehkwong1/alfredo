@@ -1,0 +1,40 @@
+src/services/lifecycleManager.test.ts
+  s_b478068633ab49::t_7c5addb6fc3eca 77
+  s_b478068633ab49::t_03df4b9c0b29f6 61-63
+  s_b478068633ab49::t_ef16c50092715e 10
+  s_b478068633ab49::t_fb692e5f16bdd7 290-299
+src/stores/prStore.ts
+  s_b478068633ab49::t_f23dbc86ea2862 250-251
+  s_b478068633ab49::t_4fcb744fc15f7a 10
+src/components/sidebar/SidebarDragContext.tsx
+  s_b478068633ab49::t_ccd721ea1d270b 268-274
+  s_b478068633ab49::t_8d418d866d4316 23
+src/components/sidebar/Sidebar.tsx
+  s_b478068633ab49::t_9f17b34b87f1ea 118-120
+  s_b478068633ab49::t_345a1f4128f8f1 17
+src/services/lifecycleManager.ts
+  s_b478068633ab49::t_1eb44ba3bcb196 78-84,91
+  s_b478068633ab49::t_297538e601af5c 6
+src/components/sidebar/AgentItem.tsx
+  s_b478068633ab49::t_31faaec5e6ba0c 8
+  s_b478068633ab49::t_271fec32371a42 702-706
+src/hooks/useGithubSync.ts
+  s_b478068633ab49::t_a3e5913908b852 85-87
+  s_b478068633ab49::t_e524c0cdde2cd6 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "ef314100f5d7e7adb7f151eb735af55d67eda19f",
+  "prompts": {},
+  "sessions": {
+    "s_b478068633ab49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24bd45ec-578d-4bee-a4cd-f46df746513b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
