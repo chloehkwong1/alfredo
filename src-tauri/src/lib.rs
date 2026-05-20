@@ -62,6 +62,17 @@ fn updater_endpoint_urls(receive_beta: bool) -> Vec<url::Url> {
         .collect()
 }
 
+/// Whether an offered update version may be installed on the current channel.
+///
+/// Stable-channel clients must refuse prerelease builds even when the feed
+/// serves one: GitHub's `latest` pointer can be moved onto a prerelease by a
+/// release-process slip, and that must never reach stable users (issue #47).
+/// SemVer marks prereleases with a `-suffix` after MAJOR.MINOR.PATCH
+/// ("0.16.0-beta.1"); the version core never contains a hyphen.
+fn should_offer_version(version: &str, receive_beta: bool) -> bool {
+    receive_beta || !version.contains('-')
+}
+
 use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, notes, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
@@ -348,5 +359,36 @@ mod updater_endpoint_tests {
         assert_eq!(endpoints.len(), 2);
         assert!(endpoints[0].as_str().contains("/beta-latest/"));
         assert!(endpoints[1].as_str().contains("/releases/latest/download/"));
+    }
+}
+
+#[cfg(test)]
+mod updater_channel_guard_tests {
+    use super::should_offer_version;
+
+    #[test]
+    fn stable_channel_refuses_prerelease_versions() {
+        // The exact scenario from issue #47: a beta wrongly served at the
+        // stable `latest` slot must not be offered to a stable user.
+        assert!(!should_offer_version("0.16.0-beta.1", false));
+        assert!(!should_offer_version("0.17.0-beta.2", false));
+    }
+
+    #[test]
+    fn stable_channel_accepts_stable_versions() {
+        assert!(should_offer_version("0.16.0", false));
+    }
+
+    #[test]
+    fn stable_channel_accepts_build_metadata() {
+        // Build metadata uses `+`, never `-`, so the hyphen heuristic must not
+        // mistake a stable build-metadata version for a prerelease.
+        assert!(should_offer_version("0.16.0+ci.123", false));
+    }
+
+    #[test]
+    fn beta_channel_accepts_both() {
+        assert!(should_offer_version("0.16.0-beta.1", true));
+        assert!(should_offer_version("0.16.0", true));
     }
 }

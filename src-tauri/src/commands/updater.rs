@@ -38,7 +38,7 @@ pub async fn check_for_update_filtered(
         .map_err(|e| e.to_string())?;
 
     match updater.check().await.map_err(|e| e.to_string())? {
-        Some(update) => {
+        Some(update) if crate::should_offer_version(&update.version, receive_beta) => {
             let info = UpdateInfo {
                 version: update.version.clone(),
                 current_version: update.current_version.clone(),
@@ -46,6 +46,16 @@ pub async fn check_for_update_filtered(
             };
             *pending.0.lock().await = Some(update);
             Ok(Some(info))
+        }
+        // A prerelease served on the stable channel — the issue #47 anomaly.
+        // Refuse it and log so a recurring release-process slip is diagnosable.
+        Some(update) => {
+            eprintln!(
+                "[updater] refused prerelease {} on stable channel (issue #47)",
+                update.version
+            );
+            *pending.0.lock().await = None;
+            Ok(None)
         }
         None => {
             *pending.0.lock().await = None;
