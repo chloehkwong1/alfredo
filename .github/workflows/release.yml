@@ -59,14 +59,28 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-beta') }}
           args: ${{ matrix.args }}
 
+  # Move the beta-latest updater pointer ONLY after every matrix leg has
+  # finished. Running this inside the matrix (on the fast Ubuntu leg) raced the
+  # slow macOS notarization, snapshotting latest.json before the aarch64 entry
+  # was merged — which dropped Apple Silicon from the pointer. Gating on
+  # `needs: release` guarantees the release's latest.json is complete first.
+  update-beta-pointer:
+    needs: release
+    if: contains(github.ref_name, '-beta')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
       - name: Update beta-latest pointer release
-        if: contains(github.ref_name, '-beta') && matrix.platform == 'ubuntu-22.04'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          # Download latest.json from the real beta release we just published.
+          # Download latest.json from the real beta release (now complete —
+          # all matrix legs have finished writing their platform entries).
           gh release download "${{ github.ref_name }}" \
             --pattern "latest.json" \
             --clobber \
