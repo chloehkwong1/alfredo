@@ -190,6 +190,16 @@ export function releaseWorktreePort(repoPath: string, worktreeName: string): Pro
   return invoke("release_worktree_port", { repoPath, worktreeName });
 }
 
+/**
+ * Release a worktree's port using its `id` — the key `port_assignments` is
+ * stored under. Always prefer this over `releaseWorktreePort` at call sites
+ * that have a Worktree: it reads `wt.id`, so no caller can accidentally pass
+ * `wt.name` (the bug that made every release a silent no-op).
+ */
+export function releasePortFor(wt: { repoPath: string; id: string }): Promise<void> {
+  return releaseWorktreePort(wt.repoPath, wt.id);
+}
+
 export function takeWorktreePort(
   repoPath: string,
   worktreeName: string,
