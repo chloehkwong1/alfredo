@@ -186,7 +186,6 @@ pub async fn delete_worktree(
     // deletion succeeds. Leaving a stale entry behind risks it rehydrating onto
     // an unrelated worktree that later reuses the same name.
     config.linear_tickets.remove(&worktree_name);
-    config_manager::release_port(&mut config, &worktree_name);
     let _ = config_manager::save_config(&app_data_dir, &repo_path, &config).await;
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path.as_deref()).await
 }
@@ -416,16 +415,13 @@ pub async fn set_worktree_column(
     worktree_name: String,
     column: KanbanColumn,
 ) -> Result<()> {
-    // Released-on-Done path touches port_assignments; serialize with claims.
+    // port_lock is held to serialize this command's whole-config save_config
+    // against concurrent port claims/releases. Port release on Done now lives
+    // in the frontend (releasePortFor, keyed on worktree id) — the backend
+    // can't derive the id (`repo::branch`) from the worktree name alone.
     let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
     let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
-    // Releasing the port here keeps the "sticky until Done" contract in the
-    // backend itself — the frontend can't forget to release by moving a
-    // worktree through a different code path (drag, kanban, keyboard shortcut).
-    if column == KanbanColumn::Done {
-        config_manager::release_port(&mut config, &worktree_name);
-    }
     config_manager::set_column_override(&mut config, &worktree_name, column);
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
