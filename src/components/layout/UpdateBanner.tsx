@@ -37,6 +37,11 @@ export function UpdateBanner({ updater }: UpdateBannerProps) {
               Release notes
               <ExternalLink size={10} />
             </button>
+            {error && (
+              <span className="text-status-error truncate max-w-[260px]" style={{ fontSize: 11 }}>
+                ({error})
+              </span>
+            )}
           </div>
           <Button variant="primary" size="sm" onClick={update}>
             Update &amp; restart

@@ -96,7 +96,10 @@ pub async fn install_pending_update(
             },
         )
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            tracing::error!("failed to download/install update: {e}");
+            e.to_string()
+        })?;
 
     // Only clear the stored update on success so a retry is possible on failure.
     *pending.0.lock().await = None;
