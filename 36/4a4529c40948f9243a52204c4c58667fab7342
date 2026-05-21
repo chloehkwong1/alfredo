@@ -1,0 +1,21 @@
+src/components/layout/UpdateBanner.tsx
+  s_4a06f8c00cd440::t_64b10cd86036e3 40-44
+src-tauri/src/commands/updater.rs
+  s_4a06f8c00cd440::t_3d818e96bbf752 99-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "364a4529c40948f9243a52204c4c58667fab7342",
+  "prompts": {},
+  "sessions": {
+    "s_4a06f8c00cd440": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a8469b5-0e3b-4a38-8007-b982477f9a4e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
