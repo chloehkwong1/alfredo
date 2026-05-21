@@ -498,9 +498,11 @@ pub fn assign_next_port(
     Some(port)
 }
 
-/// Release a worktree's port assignment.
-pub fn release_port(config: &mut AppConfig, worktree_name: &str) {
-    config.port_assignments.remove(worktree_name);
+/// Release a worktree's port assignment. Returns the freed port, or `None` if
+/// the key held no assignment (the latter is the diagnostic signal for a
+/// release keyed on the wrong identifier).
+pub fn release_port(config: &mut AppConfig, worktree_name: &str) -> Option<u16> {
+    config.port_assignments.remove(worktree_name)
 }
 
 /// Remove port assignments whose worktree `id` is not in `live_ids`.

@@ -461,15 +461,18 @@ pub async fn claim_worktree_port(
     let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
 
     if let Some(port) = config_manager::get_assigned_port(&config, &worktree_name) {
+        tracing::info!(key = %worktree_name, port, "[ports] claim: already assigned");
         return Ok(PortClaimResult::Assigned { port });
     }
 
     match config_manager::assign_next_port(&mut config, &worktree_name, range_start, range_end) {
         Some(port) => {
             config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+            tracing::info!(key = %worktree_name, port, "[ports] claimed port");
             Ok(PortClaimResult::Assigned { port })
         }
         None => {
+            tracing::warn!(key = %worktree_name, range_start, range_end, "[ports] claim: range full");
             let holders = config
                 .port_assignments
                 .iter()
@@ -520,7 +523,10 @@ pub async fn release_worktree_port(
     let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
     let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
-    config_manager::release_port(&mut config, &worktree_name);
+    match config_manager::release_port(&mut config, &worktree_name) {
+        Some(port) => tracing::info!(key = %worktree_name, port, "[ports] released assignment"),
+        None => tracing::info!(key = %worktree_name, "[ports] release: no assignment found for key"),
+    }
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
 }
@@ -554,6 +560,7 @@ pub async fn reconcile_worktree_ports(
     let pruned = config_manager::prune_orphan_ports(&mut config, &live_ids);
     if !pruned.is_empty() {
         config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+        tracing::info!(count = pruned.len(), keys = ?pruned, "[ports] reconcile pruned orphan assignments");
     }
     Ok(pruned)
 }
@@ -617,6 +624,7 @@ pub async fn take_worktree_port(
         .insert(worktree_name.clone(), port);
 
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    tracing::info!(key = %worktree_name, port, previous_holder = ?previous_holder, "[ports] took port");
     Ok(TakePortResult::Taken {
         port,
         previous_holder,
