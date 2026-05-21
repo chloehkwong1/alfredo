@@ -48,24 +48,31 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
   const subject = firstNewline === -1 ? commit.message : commit.message.slice(0, firstNewline);
   const body = firstNewline === -1 ? "" : commit.message.slice(firstNewline + 1).trim();
   const { copied, copy: handleCopy } = useCopyToClipboard();
-  const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [bodyExpanded, setBodyExpanded] = useState(true);
   const [bodyOverflows, setBodyOverflows] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setBodyExpanded(false);
+    setBodyExpanded(true);
   }, [commit.hash]);
 
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el) return;
-    // +1 tolerates sub-pixel rounding when content is exactly 2 lines.
-    const measure = () => setBodyOverflows(el.scrollHeight > el.clientHeight + 1);
+    // scrollHeight reports full content height whether the body is clamped or
+    // expanded, so compare it to the 2-line collapsed height to decide whether
+    // a toggle is needed. +1 tolerates sub-pixel rounding at exactly 2 lines.
+    // Relies on the element carrying an explicit numeric line-height (the
+    // leading-relaxed class) — a "normal" line-height would parse to NaN.
+    const measure = () => {
+      const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+      setBodyOverflows(el.scrollHeight > lineHeight * 2 + 1);
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [body, bodyExpanded]);
+  }, [body]);
 
   const isYou = gitUser != null && commit.author.toLowerCase() === gitUser.toLowerCase();
 
@@ -109,7 +116,7 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
           >
             {body}
           </div>
-          {(bodyOverflows || bodyExpanded) && (
+          {bodyOverflows && (
             <button
               type="button"
               onClick={() => setBodyExpanded((v) => !v)}
