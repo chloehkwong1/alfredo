@@ -7,6 +7,30 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.17.0 — 2026-05-22**
+- **Per-worktree Notes** — every worktree now has a built-in Notes tab:
+  a rich-text editor with a formatting toolbar, task-list checkboxes,
+  and debounced autosave, pinned leftmost as an icon tab.
+- **Fixed garbled terminal text on macOS** — under heavy output the
+  WebGL renderer could draw the wrong glyphs (e.g. "code" showing as
+  "node"), and the garble survived scrolling. Updated xterm to pick up
+  the upstream fix for texture-atlas page-merge corruption — the deeper
+  cause behind the wake/DPR rebuild added in v0.16.0.
+- **Rename a worktree** from the sidebar right-click menu.
+- **Quote deleted lines in comments** — annotating a removed diff line
+  now sends the deleted content along to Claude.
+- **Stable updates never offer betas** — the stable channel refuses
+  prerelease builds even if the feed serves one, and failed update
+  installs/downloads now show in the log and banner instead of silently
+  reverting.
+- Various fixes: main tabs and chats resume on app reload; PR review
+  comments anchor to the correct side (no double-render); split-view
+  diff search scrolls to the active match; the annotation preview tab
+  pins on submit rather than on open; setup-script errors include the
+  exit code and output; orphaned worktree ports reconciled on repo load
+  and released reliably on done/archive/delete; new "bear" notification
+  sound.
+
 **v0.16.0 — 2026-05-18**
 - **Change a worktree's base branch** — a new dialog in the sidebar
   context menu lets you re-point a worktree at a different base (e.g.
@@ -102,38 +126,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   `^`, `:`, `?`, etc.) show an inline error and keep the Create
   button disabled instead of failing with a toast after the
   worktree creation kicks off.
-
-**v0.14.0 — 2026-05-07**
-- **Repo-shared `alfredo.json`** — repos can now ship a committed
-  `alfredo.json` that teammates inherit (setup scripts, run script,
-  archive script, port range, port env var, default agent). Personal
-  settings layer on top, with badges showing inheritance and a
-  **Reset to repo default** action per field. The Workspace Settings
-  dialog has been split into **General / Scripts / Ports** tabs, and
-  a chip in the header shows whether `alfredo.json` is tracked in
-  git. On first load, any personal repo-shared values are migrated
-  silently into `alfredo.json` so existing setups don't drift.
-- **Dock badge for needs-attention worktrees** — the macOS dock icon
-  now mirrors the live count of worktrees waiting on you (input
-  needed, finished, failed checks).
-- **Clickable terminal links** — URLs, `localhost[:PORT]`, absolute
-  file paths (with optional `:line:col`), and email addresses are
-  now highlighted and clickable in any xterm pane. Lines that wrap
-  across rows are stitched back together so long links still match
-  as a single unit.
-- **`$ALFREDO_ROOT_PATH` and `$ALFREDO_WORKTREE_PATH`** are now
-  exposed to setup/run/archive scripts and to interactive PTY
-  shells, mirroring Conductor's env. Useful for `cp
-  $ALFREDO_ROOT_PATH/.env .env`-style scaffolding.
-- Various fixes: malformed `alfredo.json` no longer wedges the
-  loading screen; over-escaped script commands healed on personal-
-  config load; setup scripts run cleanly without a TTY (login shell
-  drops `-i`); whitespace collapsed in pasted and executed script
-  commands; **⌘⇧K** rebuilds the terminal's WebGL glyph atlas if it
-  corrupts; closed-not-merged PRs stop hitting GitHub for enrichment
-  after 24h; column / archive layout preserved across branch ↔
-  worktree mode switches; setup scripts and port range now read the
-  effective (merged) config when creating a worktree; rendered-view
-  toggle in the Changes panel starts at 50% opacity until hovered.
 
 Check the releases page for older versions and full detail.
