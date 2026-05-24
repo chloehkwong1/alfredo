@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use git2::{Delta, DiffFormat, DiffOptions, Repository, Sort};
 use serde::{Deserialize, Serialize};
@@ -423,35 +423,74 @@ pub async fn get_diff(
 
 /// Get the diff of uncommitted changes (working tree + index vs HEAD).
 ///
-/// Uses git CLI instead of git2 because git2 has known issues with
-/// `diff_index_to_workdir` on linked worktrees (reports all tracked files
-/// as deleted). The CLI output is parsed back via `git2::Diff::from_buffer`
-/// so the existing `diff_to_files` converter can be reused.
+/// Tracked changes come from git2's `diff_tree_to_workdir_with_index`
+/// (HEAD tree → index+workdir), which mirrors `git diff HEAD`. We use the
+/// `*_with_index` variant — not `diff_index_to_workdir`, which mis-reports
+/// every tracked file as deleted on linked worktrees. We also avoid the older
+/// `git diff -p` + `Diff::from_buffer` round-trip: libgit2's patch parser
+/// rejects valid git output it can't model (e.g. empty-blob add/delete deltas
+/// emit no `---`/`+++` lines), which crashed the Changes panel.
 ///
 /// Also includes untracked files (new files not yet staged) by running
 /// `git ls-files --others --exclude-standard` and reading their contents.
 #[tauri::command]
 pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
     tokio::task::spawn_blocking(move || {
-        // 1. Get tracked file changes via git diff HEAD
-        let output = git_command_sync()
-            .args(["diff", "HEAD", "--no-ext-diff", "-p", "--no-color"])
-            .current_dir(&repo_path)
-            .output()
-            .map_err(|e| AppError::Git(format!("failed to run git diff: {e}")))?;
+        let repo = open_repo(&repo_path)?;
+        let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
 
-        if !output.status.success() {
-            let err = String::from_utf8_lossy(&output.stderr);
-            return Err(AppError::Git(format!("git diff HEAD failed: {err}")));
+        // 1. Tracked file changes (working tree + index vs HEAD) via git2.
+        let mut diff_opts = git2::DiffOptions::new();
+        diff_opts.include_untracked(false);
+        let mut diff = repo
+            .diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut diff_opts))
+            .map_err(|e| AppError::Git(format!("failed to diff working tree: {e}")))?;
+        // Match `git diff HEAD`'s default rename detection (honors diff.renames).
+        diff.find_similar(None)
+            .map_err(|e| AppError::Git(format!("rename detection failed: {e}")))?;
+        let mut files = diff_to_files(&diff)?;
+
+        // Drop phantom deletions from case-folding collisions. When HEAD contains
+        // two paths differing only in case (e.g. `Ui/Button/x` and `ui/button/x`),
+        // a case-insensitive filesystem holds a single file, so libgit2 pairs one
+        // entry and reports the other as deleted. git CLI hides this via
+        // core.ignorecase. A deletion is a phantom only when BOTH hold:
+        //   (a) a file still exists at that path on disk (the surviving variant
+        //       occupies it on a case-insensitive filesystem), and
+        //   (b) HEAD holds another path that case-folds to it (the twin).
+        // Genuine deletions fail (b): a recreated file, or a dir/symlink put at the
+        // same path, has no case-fold twin in HEAD, so it is preserved. Requiring
+        // (a) too keeps real deletions of one twin on case-sensitive filesystems,
+        // where the deleted path no longer exists on disk.
+        // Residual edge (accepted): on a case-sensitive FS with a real HEAD
+        // case-collision, stage-deleting one twin while leaving its file on disk
+        // (e.g. `git rm --cached`) is mistaken for a phantom. Disambiguating which
+        // twin libgit2 paired isn't worth the complexity for that corner.
+        let has_suspect_deletion = files.iter().any(|f| {
+            f.status == "deleted" && std::path::Path::new(&repo_path).join(&f.path).exists()
+        });
+        if has_suspect_deletion {
+            let mut head_casefold_counts: HashMap<String, usize> = HashMap::new();
+            if let Some(tree) = &head_tree {
+                let _ = tree.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
+                    if entry.kind() == Some(git2::ObjectType::Blob) {
+                        let path = format!("{root}{}", entry.name().unwrap_or_default());
+                        *head_casefold_counts.entry(path.to_lowercase()).or_insert(0) += 1;
+                    }
+                    git2::TreeWalkResult::Ok
+                });
+            }
+            files.retain(|f| {
+                if f.status != "deleted" {
+                    return true;
+                }
+                let on_disk = std::path::Path::new(&repo_path).join(&f.path).exists();
+                let has_twin = head_casefold_counts
+                    .get(&f.path.to_lowercase())
+                    .is_some_and(|n| *n > 1);
+                !(on_disk && has_twin)
+            });
         }
-
-        let mut files = if output.stdout.is_empty() {
-            Vec::new()
-        } else {
-            let diff = git2::Diff::from_buffer(&output.stdout)
-                .map_err(|e| AppError::Git(format!("failed to parse diff buffer: {e}")))?;
-            diff_to_files(&diff)?
-        };
 
         // 2. Get untracked files (new files not yet git-added)
         let untracked_output = git_command_sync()
@@ -530,8 +569,7 @@ pub async fn get_uncommitted_diff(repo_path: String) -> Result<Vec<DiffFile>> {
         // 4. Populate full file content (HEAD tree → original, workdir → modified).
         //    The untracked path above already set modified_content for new files;
         //    populate_workdir_content only fills fields that are still None.
-        let repo = open_repo(&repo_path)?;
-        let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+        //    `repo` and `head_tree` were computed at the top of this closure.
         populate_workdir_content(&repo, &repo_path, &mut files, head_tree.as_ref());
 
         Ok(files)
@@ -1587,9 +1625,12 @@ mod tests {
         assert!(result.is_empty());
     }
 
-    // ── Diff::from_buffer (exercises the get_uncommitted_diff code path) ─
+    // ── diff_to_files converter, fed via Diff::from_buffer ──────────────
+    // These characterize `diff_to_files` against real CLI diff text. NOTE:
+    // `get_uncommitted_diff` no longer uses `Diff::from_buffer` — it builds the
+    // git2::Diff natively — so these guard the converter, not the live path.
 
-    /// Generate a real unified diff using git CLI (same approach as get_uncommitted_diff).
+    /// Generate a real unified diff using git CLI, to feed `Diff::from_buffer`.
     fn generate_cli_diff(repo_path: &str, old_hash: &str, new_hash: &str) -> Vec<u8> {
         let output = std::process::Command::new("git")
             .args(["diff", old_hash, new_hash, "--no-ext-diff", "-p", "--no-color"])
@@ -1603,7 +1644,7 @@ mod tests {
     #[test]
     fn diff_from_buffer_round_trips_through_parse() {
         // Generate a real diff via git CLI, then parse via Diff::from_buffer +
-        // diff_to_files — exactly the code path get_uncommitted_diff uses.
+        // diff_to_files. Exercises the diff_to_files converter.
         let (dir, repo) = create_test_repo();
 
         std::fs::write(dir.path().join("hello.txt"), "line one\nline three\nline four\n").unwrap();
@@ -1715,6 +1756,125 @@ mod tests {
         let diff = git2::Diff::from_buffer(b"").expect("from_buffer should handle empty input");
         let files = diff_to_files(&diff).expect("diff_to_files should succeed");
         assert!(files.is_empty());
+    }
+
+    #[tokio::test]
+    async fn uncommitted_diff_keeps_real_deletion_when_path_recreated() {
+        // The phantom-deletion filter must not hide genuine deletions. Here a file
+        // is staged-deleted (`git rm`) and a new untracked file is dropped at the
+        // same path. The deletion has no case-fold twin in HEAD, so it must survive
+        // even though something now occupies its path on disk.
+        let (dir, repo) = create_test_repo();
+        std::fs::write(dir.path().join("bar.txt"), "orig\n").unwrap();
+        {
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new("bar.txt")).unwrap();
+            index.write().unwrap();
+        }
+        create_commit(&repo, "initial");
+
+        let rm = std::process::Command::new("git")
+            .args(["rm", "bar.txt"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        assert!(rm.status.success(), "git rm failed");
+        std::fs::write(dir.path().join("bar.txt"), "brand new\n").unwrap();
+
+        let repo_path = dir.path().to_str().unwrap().to_string();
+        let files = get_uncommitted_diff(repo_path).await.expect("diff should succeed");
+
+        assert!(
+            files.iter().any(|f| f.path == "bar.txt" && f.status == "deleted"),
+            "real deletion must survive the phantom filter, got: {:?}",
+            files.iter().map(|f| (&f.path, &f.status)).collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn uncommitted_diff_filters_case_collision_phantom_on_macos() {
+        // Two committed paths differing only in case collapse to one file on a
+        // case-insensitive filesystem, so libgit2 reports the other as deleted.
+        // That phantom must be filtered. The colliding file is left unchanged
+        // (its surviving twin is therefore absent from the diff, mirroring the
+        // real bug) and an unrelated file carries the actual change.
+        use std::process::Command;
+        fn git(args: &[&str], d: &std::path::Path) {
+            assert!(
+                Command::new("git").args(args).current_dir(d).output().unwrap().status.success(),
+                "git {args:?} failed"
+            );
+        }
+        let (dir, _repo) = create_test_repo();
+        let d = dir.path();
+        git(&["config", "core.ignorecase", "false"], d);
+        std::fs::create_dir_all(d.join("dir/Sub")).unwrap();
+        std::fs::write(d.join("dir/Sub/x.txt"), "hi\n").unwrap();
+        std::fs::write(d.join("y.txt"), "orig\n").unwrap();
+        git(&["add", "dir/Sub/x.txt", "y.txt"], d);
+        let blob = Command::new("git")
+            .args(["rev-parse", ":dir/Sub/x.txt"])
+            .current_dir(d)
+            .output()
+            .unwrap();
+        let blob = String::from_utf8_lossy(&blob.stdout).trim().to_string();
+        git(&["update-index", "--add", "--cacheinfo", &format!("100644,{blob},dir/sub/x.txt")], d);
+        git(&["commit", "-m", "case collision"], d);
+
+        std::fs::write(d.join("y.txt"), "changed\n").unwrap();
+
+        let files = get_uncommitted_diff(d.to_str().unwrap().to_string())
+            .await
+            .expect("diff should succeed");
+
+        assert!(
+            !files.iter().any(|f| f.status == "deleted"),
+            "case-collision phantom deletion must be filtered, got: {:?}",
+            files.iter().map(|f| (&f.path, &f.status)).collect::<Vec<_>>()
+        );
+        assert!(
+            files.iter().any(|f| f.path == "y.txt" && f.status == "modified"),
+            "the real change must still be reported"
+        );
+    }
+
+    #[tokio::test]
+    async fn uncommitted_diff_handles_empty_file_deletion() {
+        // Regression: a zero-byte tracked file that is deleted emits a git diff
+        // header with no ---/+++/hunk lines. The old `git diff -p` +
+        // Diff::from_buffer path crashed with "invalid patch header"; the native
+        // git2 diff must report it without error.
+        let (dir, repo) = create_test_repo();
+
+        std::fs::write(dir.path().join(".keep"), "").unwrap();
+        std::fs::write(dir.path().join("a.txt"), "one\ntwo\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new(".keep")).unwrap();
+        index.add_path(std::path::Path::new("a.txt")).unwrap();
+        index.write().unwrap();
+        create_commit(&repo, "initial");
+
+        std::fs::remove_file(dir.path().join(".keep")).unwrap();
+        std::fs::write(dir.path().join("a.txt"), "one\ntwo\nthree\n").unwrap();
+
+        let repo_path = dir.path().to_str().unwrap().to_string();
+        let files = get_uncommitted_diff(repo_path)
+            .await
+            .expect("empty-file deletion must not crash the diff");
+
+        let keep = files
+            .iter()
+            .find(|f| f.path == ".keep")
+            .expect("empty .keep deletion should be reported");
+        assert_eq!(keep.status, "deleted");
+
+        let a = files
+            .iter()
+            .find(|f| f.path == "a.txt")
+            .expect("modified a.txt should be reported");
+        assert_eq!(a.status, "modified");
+        assert_eq!(a.additions, 1);
     }
 
     // ── get_commits (exercises git2 revwalk API) ────────────────
