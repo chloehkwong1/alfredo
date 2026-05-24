@@ -7,6 +7,13 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.17.1 — 2026-05-24**
+- **Changes panel no longer fails to load** — deleting an empty file
+  (e.g. a Rails `.keep`) could make the Changes panel error out with
+  "couldn't load changes". Uncommitted diffs are now computed natively
+  so they load reliably; this also clears spurious "deleted" rows for
+  files whose paths differ only in case.
+
 **v0.17.0 — 2026-05-22**
 - **Per-worktree Notes** — every worktree now has a built-in Notes tab:
   a rich-text editor with a formatting toolbar, task-list checkboxes,
@@ -119,12 +126,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   busy state is marked stale (rather than forced idle) when the
   hook channel goes silent; sidebar column-expand state only
   persists on drop, not mid-drag.
-
-**v0.14.1 — 2026-05-07**
-- New-worktree dialog now validates branch names inline against
-  git's `check-ref-format` rules — invalid characters (spaces, `~`,
-  `^`, `:`, `?`, etc.) show an inline error and keep the Create
-  button disabled instead of failing with a toast after the
-  worktree creation kicks off.
 
 Check the releases page for older versions and full detail.
