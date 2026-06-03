@@ -12,6 +12,8 @@ import {
   Combine,
   NotebookPen,
   ChevronDown,
+  LayoutList,
+  LayoutGrid,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -56,6 +58,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
 import { GROUP_ORDER, GROUP_LABELS, getActiveGroup, getGroupForTab, getTabsInGroup, summarizeGroupActivity, type GroupActivityStatus, type TabGroupId } from "../../lib/tabGroups";
 import { useAppConfigValue } from "../../stores/appConfigStore";
+import { useAppConfig } from "../../hooks/useAppConfig";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
   busy: { cls: "bg-status-busy", label: "Thinking" },
@@ -500,6 +503,7 @@ function PaneTabBar({
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
   const groupedTabs = useAppConfigValue((s) => s.config?.groupedTabs ?? true);
   const defaultAgent = useAppConfigValue((s) => s.config?.defaultAgent ?? "claude");
+  const { updateConfig } = useAppConfig();
   const activeGroup = getActiveGroup(pane?.activeTabId, tabs);
   const sessionStatuses = useSessionStatusStore((s) => s.statuses);
   const worktreeStaleBusy = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId)?.staleBusy ?? false);
@@ -724,6 +728,15 @@ function PaneTabBar({
                 }}
               />
             )}
+            <button
+              type="button"
+              onClick={() => updateConfig({ groupedTabs: !groupedTabs })}
+              aria-label={groupedTabs ? "Show all tabs in one row (flat layout)" : "Group tabs by category"}
+              title={groupedTabs ? "Show all tabs" : "Group tabs by category"}
+              className="h-full px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
+            >
+              {groupedTabs ? <LayoutList size={14} /> : <LayoutGrid size={14} />}
+            </button>
             <SortableContext
               items={sortableTabIds}
               strategy={horizontalListSortingStrategy}
@@ -798,7 +811,7 @@ function PaneTabBar({
             <button
               type="button"
               className="h-11 px-3 ml-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
-              aria-label="New tab"
+              aria-label={groupedTabs ? "New agent tab" : "New tab"}
             >
               <Plus size={16} />
             </button>
