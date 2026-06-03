@@ -575,6 +575,15 @@ function PaneTabBar({
             ref={scrollContainerRef}
             className="flex items-center h-full w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
+            {pinnedTabs.map((tab) => (
+              <PinnedTab
+                key={tab.id}
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                worktreeId={worktreeId}
+                paneId={paneId}
+              />
+            ))}
             {groupedTabs && (
               <GroupSwitcher
                 activeGroup={activeGroup}
@@ -585,15 +594,6 @@ function PaneTabBar({
                 }}
               />
             )}
-            {pinnedTabs.map((tab) => (
-              <PinnedTab
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                worktreeId={worktreeId}
-                paneId={paneId}
-              />
-            ))}
             <SortableContext
               items={sortableTabIds}
               strategy={horizontalListSortingStrategy}
