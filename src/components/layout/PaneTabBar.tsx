@@ -106,6 +106,16 @@ const TAB_ICONS: Record<TabType, ComponentType<{ size?: number; className?: stri
   notes: NotebookPen,
 };
 
+const TAB_TYPE_LABELS: Record<TabType, string> = {
+  claude: "Claude",
+  codex: "Codex",
+  gemini: "Gemini",
+  shell: "Terminal",
+  diff: "Diff",
+  server: "Server",
+  notes: "Notes",
+};
+
 interface PaneTabBarProps {
   paneId: string;
   worktreeId: string;
@@ -404,10 +414,6 @@ function EmptyGroupState({
   onAddDefaultAgent: () => void;
   onAddShell: () => void;
 }) {
-  const labelMap: Record<TabType, string> = {
-    claude: "Claude", codex: "Codex", gemini: "Gemini",
-    shell: "Terminal", diff: "Diff", server: "Server", notes: "Notes",
-  };
   const cls = "h-full px-3 text-sm text-text-tertiary flex items-center gap-2";
   const btn = "text-accent-primary hover:underline cursor-pointer";
 
@@ -416,7 +422,7 @@ function EmptyGroupState({
       <div className={cls}>
         <span>No agents —</span>
         <button type="button" className={btn} onClick={onAddDefaultAgent}>
-          + Add {labelMap[defaultAgent] ?? "Claude"}
+          + Add {TAB_TYPE_LABELS[defaultAgent]}
         </button>
       </div>
     );
