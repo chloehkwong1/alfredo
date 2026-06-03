@@ -387,6 +387,71 @@ function GroupSwitcher({
   );
 }
 
+function EmptyGroupState({
+  group,
+  defaultAgent,
+  runScriptName,
+  isServerRunning,
+  onToggleServer,
+  onAddDefaultAgent,
+  onAddShell,
+}: {
+  group: TabGroupId;
+  defaultAgent: TabType;
+  runScriptName: string | undefined;
+  isServerRunning: boolean;
+  onToggleServer: (() => void) | undefined;
+  onAddDefaultAgent: () => void;
+  onAddShell: () => void;
+}) {
+  const labelMap: Record<TabType, string> = {
+    claude: "Claude", codex: "Codex", gemini: "Gemini",
+    shell: "Terminal", diff: "Diff", server: "Server", notes: "Notes",
+  };
+  const cls = "h-full px-3 text-sm text-text-tertiary flex items-center gap-2";
+  const btn = "text-accent-primary hover:underline cursor-pointer";
+
+  if (group === "agents") {
+    return (
+      <div className={cls}>
+        <span>No agents —</span>
+        <button type="button" className={btn} onClick={onAddDefaultAgent}>
+          + Add {labelMap[defaultAgent] ?? "Claude"}
+        </button>
+      </div>
+    );
+  }
+  if (group === "terminals") {
+    return (
+      <div className={cls}>
+        <span>No terminals —</span>
+        <button type="button" className={btn} onClick={onAddShell}>
+          + New terminal
+        </button>
+      </div>
+    );
+  }
+  if (group === "server") {
+    if (isServerRunning || !runScriptName || !onToggleServer) {
+      return <div className={cls}>Server not running</div>;
+    }
+    return (
+      <div className={cls}>
+        <span>Server not running —</span>
+        <button type="button" className={btn} onClick={onToggleServer}>
+          Start {runScriptName}
+        </button>
+      </div>
+    );
+  }
+  // files
+  return (
+    <div className={cls}>
+      No diff open — open a file from the Changes panel
+    </div>
+  );
+}
+
 function PaneTabBar({
   paneId,
   worktreeId,
@@ -406,6 +471,7 @@ function PaneTabBar({
   const layout = useLayoutStore((s) => s.layout[worktreeId]);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
   const groupedTabs = useAppConfigValue((s) => s.config?.groupedTabs ?? true);
+  const defaultAgent = useAppConfigValue((s) => s.config?.defaultAgent ?? "claude");
   const activeGroup = getActiveGroup(pane?.activeTabId, tabs);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
@@ -650,6 +716,17 @@ function PaneTabBar({
                 );
               })}
             </SortableContext>
+            {groupedTabs && sortableTabs.length === 0 && (
+              <EmptyGroupState
+                group={activeGroup}
+                defaultAgent={defaultAgent}
+                runScriptName={runScriptName}
+                isServerRunning={!!isServerRunning}
+                onToggleServer={onToggleServer}
+                onAddDefaultAgent={() => handleAddTab(defaultAgent)}
+                onAddShell={() => handleAddTab("shell")}
+              />
+            )}
           </div>
           <div
             aria-hidden
