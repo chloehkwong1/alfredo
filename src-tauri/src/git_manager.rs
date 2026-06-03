@@ -544,6 +544,114 @@ pub fn commits_behind(worktree_path: &str, stack_parent: Option<&str>) -> Result
     Ok(count)
 }
 
+/// Best-effort `git fetch` for a repo, throttled to once per 30s per repo.
+/// Key is per-repo (not per-worktree) so N worktrees of the same repo coalesce
+/// into a single fetch every 30s instead of fanning out into N. Set `force` to
+/// bypass the throttle (used by post-action refetches that need fresh state).
+/// Silent on failure — offline or auth-broken remotes must not surface noise.
+///
+/// Trade-off: the throttle slot is stamped only on successful fetch, so a
+/// network blip doesn't suppress retries for 30s. The cost is a small TOCTOU
+/// window where concurrent first-mounts (e.g. several worktree panels at app
+/// start) can each spawn their own fetch before any has finished and stamped
+/// the slot. Acceptable: the worst case is N initial fetches once per app
+/// launch, after which steady-state coalesces correctly. A `force` post-action
+/// fetch also stamps the per-repo slot on success, suppressing sibling
+/// worktrees' next poll fetches — that's desirable (post-push freshness applies
+/// to the whole repo) but worth flagging.
+pub async fn fetch_upstream_throttled(repo_path: &str, force: bool) {
+    const THROTTLE: std::time::Duration = std::time::Duration::from_secs(30);
+    let key = format!("upstream-counts:{repo_path}");
+
+    if !force {
+        let should_fetch = match FETCH_THROTTLE.lock() {
+            Ok(map) => !matches!(map.get(&key), Some(last) if last.elapsed() < THROTTLE),
+            Err(_) => {
+                tracing::warn!("[fetch_upstream_throttled] FETCH_THROTTLE poisoned; skipping fetch");
+                return;
+            }
+        };
+        if !should_fetch {
+            return;
+        }
+    }
+
+    // Spawn with kill_on_drop so a hung fetch is reaped when timeout fires
+    // (default kill_on_drop is false → orphaned `git fetch` children pile up).
+    let fetch = git_command()
+        .args(["fetch", "--quiet", "--no-auto-maintenance"])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .current_dir(repo_path)
+        .kill_on_drop(true)
+        .output();
+
+    // Only stamp the throttle on a successful fetch — a network blip shouldn't
+    // suppress retries for 30s.
+    if let Ok(Ok(output)) = tokio::time::timeout(std::time::Duration::from_secs(15), fetch).await {
+        if output.status.success() {
+            if let Ok(mut map) = FETCH_THROTTLE.lock() {
+                map.insert(key, Instant::now());
+            }
+        }
+    }
+}
+
+/// Count how many commits the current branch is ahead/behind its upstream tracking ref.
+/// Returns `Ok(None)` only when no upstream is configured (rev-parse fails); a
+/// rev-list failure with a configured upstream bubbles up as `Err` so the UI
+/// doesn't misread a transient git failure as "no upstream → Publish". A
+/// detached HEAD (mid-rebase, mid-merge, mid-bisect) also bubbles as `Err`
+/// — frontend keeps the prior counts and the "Publish" CTA never appears
+/// during a conflict resolution.
+pub fn ahead_behind_vs_upstream(worktree_path: &str) -> Result<Option<(u32, u32)>, AppError> {
+    // Detached HEAD = no current branch = no meaningful ahead/behind. Catch
+    // this before rev-parse @{upstream}, which would otherwise non-zero and
+    // get misread as "no upstream set".
+    let symbolic = git_command_sync()
+        .args(["symbolic-ref", "--quiet", "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git symbolic-ref: {e}")))?;
+    if !symbolic.status.success() {
+        return Err(AppError::Git(
+            "HEAD is detached (likely mid-rebase, mid-merge, or mid-bisect)".into(),
+        ));
+    }
+
+    let upstream = git_command_sync()
+        .args(["rev-parse", "--abbrev-ref", "@{upstream}"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git rev-parse: {e}")))?;
+    if !upstream.status.success() {
+        return Ok(None); // no upstream set
+    }
+
+    let counts = git_command_sync()
+        .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git rev-list: {e}")))?;
+    if !counts.status.success() {
+        let stderr = String::from_utf8_lossy(&counts.stderr);
+        return Err(AppError::Git(format!("git rev-list --left-right failed: {stderr}")));
+    }
+
+    let s = String::from_utf8_lossy(&counts.stdout);
+    let mut parts = s.split_whitespace();
+    // Both tokens must parse — otherwise the output format isn't what we expect
+    // and silently coercing to (0, 0) would mask a real failure as "in sync".
+    let (Some(ahead), Some(behind)) = (
+        parts.next().and_then(|n| n.parse::<u32>().ok()),
+        parts.next().and_then(|n| n.parse::<u32>().ok()),
+    ) else {
+        return Err(AppError::Git(format!(
+            "git rev-list --left-right --count returned unexpected output: {s:?}"
+        )));
+    };
+    Ok(Some((ahead, behind)))
+}
+
 /// Rebase the current branch onto a target branch (or the default remote branch if None).
 /// Fetches origin first, then runs `git rebase origin/<target>`.
 /// Returns Ok(()) on success, or an error with stderr on failure.

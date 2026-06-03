@@ -139,6 +139,26 @@ export function rebaseWorktree(
   return invoke("rebase_worktree", { worktreePath, stackParent: stackParent ?? null });
 }
 
+export async function getAheadBehindOrigin(
+  worktreePath: string,
+  repoPath: string,
+  forceFetch = false,
+): Promise<[number, number] | null> {
+  return invoke("get_ahead_behind_origin", { worktreePath, repoPath, forceFetch });
+}
+
+export async function gitPush(repoPath: string): Promise<void> {
+  return invoke("git_push", { repoPath });
+}
+
+export async function gitPullRebase(repoPath: string): Promise<void> {
+  return invoke("git_pull_rebase", { repoPath });
+}
+
+export async function gitPublishBranch(repoPath: string, branch: string): Promise<void> {
+  return invoke("git_publish_branch", { repoPath, branch });
+}
+
 // ── Notes ───────────────────────────────────────────────────────
 
 export function readWorktreeNotes(worktreePath: string): Promise<string> {

@@ -217,6 +217,7 @@ pub fn run() {
             worktree::get_worktree_status,
             worktree::set_worktree_column,
             worktree::get_commits_behind_main,
+            worktree::get_ahead_behind_origin,
             worktree::rebase_worktree,
             worktree::set_stack_parent,
             worktree::claim_worktree_port,
@@ -295,6 +296,9 @@ pub fn run() {
             // Git ops
             git_ops::git_merge,
             git_ops::git_push_force_with_lease,
+            git_ops::git_push,
+            git_ops::git_pull_rebase,
+            git_ops::git_publish_branch,
             // Updater
             updater_cmds::check_for_update_filtered,
             updater_cmds::install_pending_update,

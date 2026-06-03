@@ -379,6 +379,24 @@ pub async fn get_commits_behind_main(
         .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
 
+/// Return (ahead, behind) for a worktree's branch vs its upstream tracking branch.
+/// Returns None when no upstream is set. Triggers a throttled background fetch
+/// keyed on `repo_path` (so N worktrees of one repo share one fetch every 30 s).
+/// Set `force_fetch: true` to bypass the throttle — used for post-action
+/// refetches that need fresh remote state immediately.
+#[tauri::command]
+pub async fn get_ahead_behind_origin(
+    worktree_path: String,
+    repo_path: String,
+    force_fetch: Option<bool>,
+) -> Result<Option<(u32, u32)>> {
+    git_manager::fetch_upstream_throttled(&repo_path, force_fetch.unwrap_or(false)).await;
+    let path = worktree_path.clone();
+    tokio::task::spawn_blocking(move || git_manager::ahead_behind_vs_upstream(&path))
+        .await
+        .map_err(|e| AppError::Git(format!("task join error: {e}")))?
+}
+
 /// Rebase a worktree's branch onto a target branch (or the default branch if None).
 #[tauri::command]
 pub async fn rebase_worktree(

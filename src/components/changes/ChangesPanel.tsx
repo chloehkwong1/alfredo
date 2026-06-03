@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, GitBranch, PanelRightClose, PanelRightOpen, X } from "lucide-react";
+import { Check, Copy, Download, GitBranch, PanelRightClose, PanelRightOpen, RefreshCw, Upload, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
 import { RecentCommitsSection } from "./RecentCommitsSection";
@@ -12,7 +13,7 @@ import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { useChangesData } from "../../hooks/useChangesData";
 import { useGitUser } from "../../hooks/useGitUser";
-import { discardFile, discardAllUncommitted, getCommitsBehindMain, rebaseWorktree } from "../../api";
+import { discardFile, discardAllUncommitted, getAheadBehindOrigin, getCommitsBehindMain, gitPublishBranch, gitPullRebase, gitPush, rebaseWorktree } from "../../api";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { shouldShowSimplifiedMainView } from "../../lib/cardViewMode";
 import type { ViewMode } from "./FileSidebar";
@@ -128,6 +129,189 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
   );
 }
 
+function OriginSyncBanner({
+  worktreePath,
+  repoPath,
+  branch,
+}: { worktreePath: string; repoPath: string; branch: string }) {
+  // counts: undefined = first-load, null = no upstream, [a, b] = ahead/behind
+  const [counts, setCounts] = useState<[number, number] | null | undefined>(undefined);
+  const [loading, setLoading] = useState(false);
+  // Pair the error message with the action it came from so the header reads
+  // "Pull failed" after a Pull even if the counts have since shifted such
+  // that the live buttonLabel would now read "Push".
+  const [error, setError] = useState<{ msg: string; action: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  // Guards setState calls in handleAction against firing after unmount.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    // Reset to first-load state when switching worktree, otherwise the prior
+    // worktree's counts flicker through with the new worktree's branch label.
+    setCounts(undefined);
+    let cancelled = false;
+    const poll = () => {
+      getAheadBehindOrigin(worktreePath, repoPath).then((r) => {
+        if (cancelled) return;
+        setCounts(r);
+        // A successful poll means whatever produced an earlier action error
+        // is no longer the live state; clear it so the banner doesn't keep
+        // showing "Push failed" next to fresh, correct counts.
+        setError(null);
+      }).catch(() => {
+        // Don't reset to undefined here — that would hide the banner on a
+        // transient IPC error and lose the user's last-known prompt. Leave
+        // the previous counts in place; the next poll will reconcile.
+      });
+    };
+    poll();
+    const id = setInterval(poll, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [worktreePath, repoPath]);
+
+  const refetch = () => {
+    // Bypass the backend throttle: the user just took a remote-touching
+    // action, so we need fresh state, not the cached count from 30s ago.
+    getAheadBehindOrigin(worktreePath, repoPath, true).then((r) => {
+      if (mountedRef.current) setCounts(r);
+    }).catch(() => {});
+  };
+
+  const handleAction = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (counts === null) {
+        await gitPublishBranch(worktreePath, branch);
+      } else if (counts) {
+        const [ahead, behind] = counts;
+        if (behind > 0) {
+          await gitPullRebase(worktreePath);
+        }
+        if (ahead > 0) {
+          await gitPush(worktreePath);
+        }
+      }
+      // Optimistic only on full success — hides the banner immediately so it
+      // doesn't visually lag the action. The refetch in finally then confirms
+      // (or corrects, e.g. if a teammate raced a new commit in between).
+      if (mountedRef.current) setCounts([0, 0]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Origin sync failed:", msg);
+      if (mountedRef.current) setError({ msg, action: buttonLabel });
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+        // Always refetch — on success to confirm [0, 0], on partial failure
+        // (e.g. pull --rebase succeeded then push rejected) so the banner
+        // reflects the new on-disk state rather than the pre-action counts.
+        refetch();
+      }
+    }
+  };
+
+  const handleCopyError = async () => {
+    if (!error) return;
+    try {
+      await navigator.clipboard.writeText(error.msg);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      console.error("Failed to copy origin sync error:", e);
+    }
+  };
+
+  if (counts === undefined) return null; // first poll still in flight
+  const hasUpstream = counts !== null;
+  const [ahead, behind] = counts ?? [0, 0];
+  const inSync = hasUpstream && ahead === 0 && behind === 0;
+  if (inSync) return null;
+
+  let label: string;
+  let buttonLabel: string;
+  let Icon: LucideIcon;
+  if (!hasUpstream) {
+    label = "No upstream branch";
+    buttonLabel = "Publish";
+    Icon = Upload;
+  } else if (ahead > 0 && behind === 0) {
+    label = `${ahead} ahead of origin/${branch}`;
+    buttonLabel = "Push";
+    Icon = Upload;
+  } else if (ahead === 0 && behind > 0) {
+    label = `${behind} behind origin/${branch}`;
+    buttonLabel = "Pull";
+    Icon = Download;
+  } else {
+    label = `${ahead} ahead · ${behind} behind origin/${branch}`;
+    buttonLabel = "Sync";
+    Icon = RefreshCw;
+  }
+  // Explicit map so the in-flight label survives future button-label renames.
+  const inFlightLabel: Record<string, string> = {
+    Publish: "Publishing…",
+    Push: "Pushing…",
+    Pull: "Pulling…",
+    Sync: "Syncing…",
+  };
+
+  return (
+    <div className="bg-accent-primary/15 border-t border-accent-primary/30 border-l-2 border-l-accent-primary shrink-0">
+      <div className="px-2.5 py-1.5 text-xs font-semibold flex items-center gap-2 text-text-secondary">
+        <Icon size={13} className="shrink-0" />
+        <span className="flex-1 min-w-0 text-[11px] truncate">{label}</span>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleAction}
+          disabled={loading}
+          className="text-2xs px-2 py-0.5 h-auto bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 disabled:opacity-50 font-medium shrink-0"
+        >
+          {loading ? (inFlightLabel[buttonLabel] ?? buttonLabel) : buttonLabel}
+        </Button>
+      </div>
+      {error && (
+        <div className="px-2.5 pb-1.5 border-t border-red-400/20">
+          <div className="flex items-center justify-between gap-2 pt-1.5">
+            <span className="text-red-400 text-2xs font-semibold">{error.action} failed</span>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={handleCopyError}
+                className={`text-2xs px-1.5 py-0.5 rounded border inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                  copied
+                    ? "text-status-idle border-status-idle/30"
+                    : "text-text-secondary border-border-subtle hover:bg-white/5 hover:text-text-primary hover:border-border-hover"
+                }`}
+              >
+                {copied ? <Check size={9} /> : <Copy size={9} />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                aria-label="Dismiss origin sync error"
+                className="text-text-tertiary hover:text-text-secondary cursor-pointer p-0.5"
+                title="Dismiss"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          </div>
+          <pre className="mt-1 text-2xs text-red-400/90 whitespace-pre-wrap break-words font-mono max-h-40 overflow-auto">
+            {error.msg}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WorkspacePanel({
   worktreeId,
   repoPath,
@@ -160,6 +344,11 @@ function WorkspacePanel({
   // OR it's a pinned main card, OR it has a PR. Hidden during merge conflicts.
   // The banner's internal behindCount === 0 short-circuit handles up-to-date.
   const showRebaseBanner = !!worktree && (!worktree.isBranchMode || !!worktree.isPinnedMainCard || !!pr) && mergeable !== false;
+  // Mirror the rebase banner's mergeable gate AND exclude branch-mode synthetics:
+  // those share the repo root path so push/pull would operate on whatever the
+  // repo's HEAD is, not the branch shown in the sidebar — a "push the wrong
+  // branch" footgun. Also exclude pinned-main cards (no meaningful tracking branch).
+  const showOriginSyncBanner = !!worktree?.branch && !worktree.isBranchMode && !worktree.isPinnedMainCard && mergeable !== false;
 
   // Map panel tab to data-fetching view mode — force "changes" when tabs are hidden
   const dataViewMode: ViewMode = isBranchModeDefault ? "changes" : (panelTab === "commits" ? "commits" : "changes");
@@ -416,6 +605,7 @@ function WorkspacePanel({
         />
       )}
 
+      {showOriginSyncBanner && <OriginSyncBanner worktreePath={worktree!.path} repoPath={repoPath} branch={worktree!.branch} />}
       {showRebaseBanner && <RebaseBanner repoPath={repoPath} worktreePath={worktree!.path} stackParent={worktree!.stackParent} />}
 
       {/* Discard confirmation dialog */}
