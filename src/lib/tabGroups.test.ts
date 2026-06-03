@@ -5,6 +5,7 @@ import {
   getGroupForTab,
   getTabsInGroup,
   getActiveGroup,
+  summarizeGroupActivity,
 } from "./tabGroups";
 import type { WorkspaceTab } from "../types";
 
@@ -81,6 +82,40 @@ describe("tabGroups", () => {
         expect(typeof GROUP_LABELS[g]).toBe("string");
         expect(GROUP_LABELS[g].length).toBeGreaterThan(0);
       }
+    });
+  });
+
+  describe("summarizeGroupActivity", () => {
+    it("returns no dot when no non-active groups have notable status", () => {
+      const tabs: WorkspaceTab[] = [tab("c1", "claude"), tab("s1", "shell")];
+      const statuses = { c1: "idle" as const, s1: "idle" as const };
+      const r = summarizeGroupActivity(tabs, statuses, "agents", {});
+      expect(r.activeDot).toBeNull();
+      expect(r.perGroup.terminals).toBeNull();
+    });
+
+    it("prioritises waitingForInput over busy across non-active groups", () => {
+      const tabs: WorkspaceTab[] = [tab("c1", "claude"), tab("c2", "codex"), tab("s1", "shell")];
+      const statuses = { c1: "busy" as const, c2: "waitingForInput" as const, s1: "idle" as const };
+      const r = summarizeGroupActivity(tabs, statuses, "terminals", {});
+      // Active group is terminals, so agents contributes its highest-priority status.
+      expect(r.activeDot).toBe("waitingForInput");
+      expect(r.perGroup.agents).toBe("waitingForInput");
+      expect(r.perGroup.terminals).toBeNull(); // active group never contributes to activeDot
+    });
+
+    it("maps a stale-busy worktree to 'stale' status on agent tabs", () => {
+      const tabs: WorkspaceTab[] = [tab("c1", "claude")];
+      const statuses = { c1: "busy" as const };
+      const r = summarizeGroupActivity(tabs, statuses, "terminals", { c1: true });
+      expect(r.perGroup.agents).toBe("stale");
+    });
+
+    it("returns no dot for non-agent tabs even when statuses contain entries", () => {
+      const tabs: WorkspaceTab[] = [tab("s1", "shell")];
+      const statuses = { s1: "busy" as const };
+      const r = summarizeGroupActivity(tabs, statuses, "agents", {});
+      expect(r.perGroup.terminals).toBeNull();
     });
   });
 });

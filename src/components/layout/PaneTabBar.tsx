@@ -54,7 +54,7 @@ import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
-import { GROUP_ORDER, GROUP_LABELS, getActiveGroup, getGroupForTab, getTabsInGroup, type TabGroupId } from "../../lib/tabGroups";
+import { GROUP_ORDER, GROUP_LABELS, getActiveGroup, getGroupForTab, getTabsInGroup, summarizeGroupActivity, type GroupActivityStatus, type TabGroupId } from "../../lib/tabGroups";
 import { useAppConfigValue } from "../../stores/appConfigStore";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
@@ -62,6 +62,12 @@ const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; la
   stale: { cls: "bg-amber-400", label: "Unresponsive" },
   idle: { cls: "bg-status-idle", label: "Idle" },
   waitingForInput: { cls: "bg-accent-primary", label: "Waiting for input", pulse: true },
+};
+
+const GROUP_DOT_CLASS: Record<GroupActivityStatus, { cls: string; label: string; pulse?: boolean }> = {
+  waitingForInput: { cls: "bg-accent-primary", label: "Waiting for input", pulse: true },
+  stale: { cls: "bg-amber-400", label: "Unresponsive" },
+  busy: { cls: "bg-status-busy", label: "Thinking" },
 };
 
 // ── Cross-pane drag state (module-level pub/sub) ──
@@ -361,13 +367,27 @@ function PinnedTab({
   );
 }
 
+function GroupDot({ status }: { status: GroupActivityStatus | null }) {
+  if (!status) return null;
+  const d = GROUP_DOT_CLASS[status];
+  return (
+    <span
+      aria-label={d.label}
+      title={d.label}
+      className={["h-1.5 w-1.5 rounded-full flex-shrink-0", d.cls, d.pulse ? "animate-pulse-dot" : ""].join(" ")}
+    />
+  );
+}
+
 function GroupSwitcher({
   activeGroup,
   tabs,
+  activity,
   onSelect,
 }: {
   activeGroup: TabGroupId;
   tabs: WorkspaceTab[];
+  activity: ReturnType<typeof summarizeGroupActivity>;
   onSelect: (group: TabGroupId) => void;
 }) {
   return (
@@ -380,6 +400,7 @@ function GroupSwitcher({
         >
           {GROUP_LABELS[activeGroup]}
           <ChevronDown size={12} className="opacity-60 group-hover:opacity-100" />
+          <GroupDot status={activity.activeDot} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -388,7 +409,8 @@ function GroupSwitcher({
           return (
             <DropdownMenuItem key={g} onSelect={() => onSelect(g)}>
               <span className="flex-1">{GROUP_LABELS[g]}</span>
-              <span className="text-text-tertiary text-xs ml-3">({count})</span>
+              <GroupDot status={activity.perGroup[g]} />
+              <span className="text-text-tertiary text-xs ml-2">({count})</span>
             </DropdownMenuItem>
           );
         })}
@@ -479,6 +501,12 @@ function PaneTabBar({
   const groupedTabs = useAppConfigValue((s) => s.config?.groupedTabs ?? true);
   const defaultAgent = useAppConfigValue((s) => s.config?.defaultAgent ?? "claude");
   const activeGroup = getActiveGroup(pane?.activeTabId, tabs);
+  const sessionStatuses = useSessionStatusStore((s) => s.statuses);
+  const worktreeStaleBusy = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId)?.staleBusy ?? false);
+  const staleBusyMap = Object.fromEntries(
+    tabs.map((t) => [t.id, isAgentTab(t) && worktreeStaleBusy ? true : false]),
+  );
+  const activity = summarizeGroupActivity(tabs, sessionStatuses, activeGroup, staleBusyMap);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -680,6 +708,7 @@ function PaneTabBar({
               <GroupSwitcher
                 activeGroup={activeGroup}
                 tabs={tabs}
+                activity={activity}
                 onSelect={(g) => {
                   const remembered = lastActiveInGroupRef.current[g];
                   const inGroup = getTabsInGroup(tabs, g);
