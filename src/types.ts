@@ -506,6 +506,9 @@ export interface GlobalAppConfig {
   receiveBetaUpdates?: boolean;
   /** First-time worktree-lifecycle nudge has been dismissed by the user. */
   dismissedLifecycleNudge?: boolean;
+  /** Whether the pane tab bar groups tabs by category (Agents / Terminals / Server / Files).
+   *  When false, all tabs render in one scrollable row (legacy layout). Default true. */
+  groupedTabs?: boolean;
 }
 
 // ── Inline annotation ────────────────────────────────────────────

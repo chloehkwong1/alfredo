@@ -49,6 +49,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             comment_chips: vec![],
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
+            grouped_tabs: true,
         });
     }
 
@@ -203,6 +204,7 @@ pub async fn migrate_if_needed(
         comment_chips: vec![],
         dismissed_lifecycle_nudge: false,
         receive_beta_updates: false,
+        grouped_tabs: true,
     };
 
     save(app_data_dir, &global).await?;
@@ -273,6 +275,7 @@ mod tests {
             comment_chips: vec![],
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
+            grouped_tabs: true,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -322,6 +325,7 @@ mod tests {
             comment_chips: vec![],
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
+            grouped_tabs: true,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -368,6 +372,7 @@ mod tests {
             comment_chips: vec![],
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
+            grouped_tabs: true,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);
