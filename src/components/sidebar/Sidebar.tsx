@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Settings, Plus, HelpCircle, Pin, PinOff, ChevronsLeft } from "lucide-react";
 import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
@@ -183,6 +183,57 @@ function Sidebar({
   const handleToggleHideUnpinned = useCallback(() => {
     updateConfig((prev) => ({ hideUnpinnedWorktrees: !(prev.hideUnpinnedWorktrees ?? false) }));
   }, [updateConfig]);
+
+  // Auto-expand a kanban section when a worktree arrives in it or transitions
+  // into it (e.g. GitHub sync moving a PR from In Progress → Needs Review).
+  // Without this, newly-added PR-review worktrees vanish into a collapsed
+  // section once the auto-column re-classification fires.
+  const seenColumnsByIdRef = useRef<Map<string, KanbanColumn> | null>(null);
+  useEffect(() => {
+    const activeNow = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode);
+    const seen = seenColumnsByIdRef.current;
+
+    const nextSnapshot = new Map<string, KanbanColumn>();
+    for (const wt of activeNow) nextSnapshot.set(wt.id, wt.column);
+
+    // First pass after mount: snapshot only, never expand — respects the
+    // user's persisted collapsed state on app start / repo switch.
+    if (seen === null) {
+      seenColumnsByIdRef.current = nextSnapshot;
+      return;
+    }
+
+    const arrivalColumns = new Set<KanbanColumn>();
+    for (const wt of activeNow) {
+      const prev = seen.get(wt.id);
+      if (prev === undefined || prev !== wt.column) {
+        arrivalColumns.add(wt.column);
+      }
+    }
+
+    seenColumnsByIdRef.current = nextSnapshot;
+
+    if (arrivalColumns.size === 0) return;
+    // Gate on distinct destination columns, not row count: a burst of N PR
+    // syncs landing in the same column should still expand it (size=1),
+    // while a repo switch sprays arrivals across many sections (size > 2).
+    if (arrivalColumns.size > 2) return;
+
+    const toExpand = new Set<string>(
+      [...arrivalColumns].filter((c) => collapsedColumns.includes(c)),
+    );
+    if (toExpand.size === 0) return;
+
+    updateConfig((prev) => ({
+      collapsedKanbanColumns: (prev.collapsedKanbanColumns ?? []).filter(
+        (c) => !toExpand.has(c),
+      ),
+    }));
+    // collapsedColumns and updateConfig intentionally omitted: this effect
+    // should only fire on worktree mutations (arrivals / transitions), not
+    // when the user manually toggles a section.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [worktrees]);
 
   async function handleDeleteWorktree(id: string) {
     const wt = worktrees.find((w) => w.id === id);
