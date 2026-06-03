@@ -1,0 +1,21 @@
+src/components/layout/PaneTabBar.tsx
+  s_29fb98aa8c94ed::t_0d90c88ce753e6 474
+  s_29fb98aa8c94ed::t_d87c2c35756ed9 719-729
+  s_29fb98aa8c94ed::t_e78d9f32b81639 390-454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e531456a5c70cd9bab978db6baba0b4962d994af",
+  "prompts": {},
+  "sessions": {
+    "s_29fb98aa8c94ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "02c26694-d515-41fd-b9fd-a45e02528785",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
