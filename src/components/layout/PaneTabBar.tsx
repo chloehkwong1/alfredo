@@ -54,7 +54,7 @@ import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
-import { GROUP_ORDER, GROUP_LABELS, getActiveGroup, getTabsInGroup, type TabGroupId } from "../../lib/tabGroups";
+import { GROUP_ORDER, GROUP_LABELS, getActiveGroup, getGroupForTab, getTabsInGroup, type TabGroupId } from "../../lib/tabGroups";
 import { useAppConfigValue } from "../../stores/appConfigStore";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
@@ -513,9 +513,13 @@ function PaneTabBar({
 
   const draggedTab = dragActiveId ? paneTabs.find((t) => t.id === dragActiveId) : null;
 
-  const terminalTabs = paneTabs.filter((t) => t.type in TAB_ICONS);
-  const pinnedTabs = terminalTabs.filter((t) => t.type === "notes");
-  const sortableTabs = terminalTabs.filter((t) => t.type !== "notes");
+  const visibleTabs = paneTabs.filter((t) => t.type in TAB_ICONS);
+  const pinnedTabs = visibleTabs.filter((t) => t.type === "notes");
+  const nonPinnedTabs = visibleTabs.filter((t) => t.type !== "notes");
+  const sortableTabs = groupedTabs
+    ? nonPinnedTabs.filter((t) => getGroupForTab(t) === activeGroup)
+    : nonPinnedTabs;
+  const terminalTabs = visibleTabs; // preserve existing semantics for downstream refs
   const sortableTabIds = sortableTabs.map((t) => t.id);
   const tabCount = terminalTabs.length;
   const lastTabId = tabCount > 0 ? terminalTabs[tabCount - 1].id : null;
@@ -589,8 +593,13 @@ function PaneTabBar({
                 activeGroup={activeGroup}
                 tabs={tabs}
                 onSelect={(g) => {
-                  // Behavior wired in Task 4
-                  console.log("[GroupSwitcher] selected", g);
+                  const target = getTabsInGroup(tabs, g)[0];
+                  if (target) {
+                    useLayoutStore.getState().setPaneActiveTab(worktreeId, paneId, target.id);
+                    useLayoutStore.getState().setActivePaneId(worktreeId, paneId);
+                    useTabStore.getState().setActiveTabId(worktreeId, target.id);
+                  }
+                  // If group is empty, the bar will render the empty state from Task 6.
                 }}
               />
             )}
