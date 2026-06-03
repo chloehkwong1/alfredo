@@ -375,6 +375,22 @@ function GlobalSettingsDialog({
                   </div>
                 </div>
 
+                <SectionTitle>Tabs</SectionTitle>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-text-primary">Group tabs by category</div>
+                    <p className="text-xs text-text-tertiary mt-[5px]">
+                      Show only one tab category at a time (Agents, Terminals, Server, Files) with a switcher. Turn off to show every tab in one scrollable row.
+                    </p>
+                  </div>
+                  <div className="shrink-0 pt-0.5">
+                    <Toggle
+                      checked={appConfig.groupedTabs ?? true}
+                      onChange={(v) => updateAppConfig({ groupedTabs: v })}
+                    />
+                  </div>
+                </div>
+
                 <SectionTitle>Diff View</SectionTitle>
                 <Field label="Default diff view" hint="Applied when a worktree has no explicit view mode set.">
                   <div className="flex border border-border-default rounded overflow-hidden w-fit">
