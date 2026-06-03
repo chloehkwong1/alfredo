@@ -413,6 +413,23 @@ function PaneTabBar({
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
   const prevTabCountRef = useRef(0);
+  const lastActiveInGroupRef = useRef<Record<TabGroupId, string | undefined>>({
+    agents: undefined,
+    terminals: undefined,
+    server: undefined,
+    files: undefined,
+  });
+
+  useEffect(() => {
+    const id = pane?.activeTabId;
+    if (!id) return;
+    const t = tabs.find((tab) => tab.id === id);
+    if (!t) return;
+    const g = getGroupForTab(t);
+    if (g) {
+      lastActiveInGroupRef.current[g] = id;
+    }
+  }, [pane?.activeTabId, tabs]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -592,7 +609,11 @@ function PaneTabBar({
                 activeGroup={activeGroup}
                 tabs={tabs}
                 onSelect={(g) => {
-                  const target = getTabsInGroup(tabs, g)[0];
+                  const remembered = lastActiveInGroupRef.current[g];
+                  const inGroup = getTabsInGroup(tabs, g);
+                  const target =
+                    (remembered && inGroup.find((t) => t.id === remembered)) ??
+                    inGroup[0];
                   if (target) {
                     useLayoutStore.getState().setPaneActiveTab(worktreeId, paneId, target.id);
                     useLayoutStore.getState().setActivePaneId(worktreeId, paneId);
