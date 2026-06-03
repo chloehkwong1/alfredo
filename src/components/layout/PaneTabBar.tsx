@@ -504,7 +504,7 @@ function PaneTabBar({
   const sessionStatuses = useSessionStatusStore((s) => s.statuses);
   const worktreeStaleBusy = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId)?.staleBusy ?? false);
   const staleBusyMap = Object.fromEntries(
-    tabs.map((t) => [t.id, isAgentTab(t) && worktreeStaleBusy ? true : false]),
+    tabs.map((t) => [t.id, isAgentTab(t) && worktreeStaleBusy]),
   );
   const activity = summarizeGroupActivity(tabs, sessionStatuses, activeGroup, staleBusyMap);
 
