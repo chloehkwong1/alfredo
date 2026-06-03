@@ -11,6 +11,7 @@ import {
   Radio,
   Combine,
   NotebookPen,
+  ChevronDown,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -53,6 +54,8 @@ import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
+import { GROUP_ORDER, GROUP_LABELS, getActiveGroup, getTabsInGroup, type TabGroupId } from "../../lib/tabGroups";
+import { useAppConfigValue } from "../../stores/appConfigStore";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
   busy: { cls: "bg-status-busy", label: "Thinking" },
@@ -348,6 +351,42 @@ function PinnedTab({
   );
 }
 
+function GroupSwitcher({
+  activeGroup,
+  tabs,
+  onSelect,
+}: {
+  activeGroup: TabGroupId;
+  tabs: WorkspaceTab[];
+  onSelect: (group: TabGroupId) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="group h-full px-2.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors cursor-pointer flex items-center gap-1 flex-shrink-0"
+          aria-label={`Switch tab group (current: ${GROUP_LABELS[activeGroup]})`}
+        >
+          {GROUP_LABELS[activeGroup]}
+          <ChevronDown size={12} className="opacity-60 group-hover:opacity-100" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {GROUP_ORDER.map((g) => {
+          const count = getTabsInGroup(tabs, g).length;
+          return (
+            <DropdownMenuItem key={g} onSelect={() => onSelect(g)}>
+              <span className="flex-1">{GROUP_LABELS[g]}</span>
+              <span className="text-text-tertiary text-xs ml-3">({count})</span>
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function PaneTabBar({
   paneId,
   worktreeId,
@@ -366,6 +405,8 @@ function PaneTabBar({
   const moveTabToSiblingPane = useLayoutStore((s) => s.moveTabToSiblingPane);
   const layout = useLayoutStore((s) => s.layout[worktreeId]);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
+  const groupedTabs = useAppConfigValue((s) => s.config?.groupedTabs ?? true);
+  const activeGroup = getActiveGroup(pane?.activeTabId, tabs);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -534,6 +575,16 @@ function PaneTabBar({
             ref={scrollContainerRef}
             className="flex items-center h-full w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
+            {groupedTabs && (
+              <GroupSwitcher
+                activeGroup={activeGroup}
+                tabs={tabs}
+                onSelect={(g) => {
+                  // Behavior wired in Task 4
+                  console.log("[GroupSwitcher] selected", g);
+                }}
+              />
+            )}
             {pinnedTabs.map((tab) => (
               <PinnedTab
                 key={tab.id}
