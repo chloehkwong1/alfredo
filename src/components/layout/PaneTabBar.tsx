@@ -763,29 +763,47 @@ function PaneTabBar({
         </DragOverlay>
       </DndContext>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="h-11 px-3 ml-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
-          >
-            <Plus size={16} />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {agentMenuItems
-            .filter((item) => availableAgents.includes(item.agentId))
-            .map((item) => (
-              <DropdownMenuItem key={item.type} onSelect={() => handleAddTab(item.type)}>
-                {item.icon} New {item.label} tab
-              </DropdownMenuItem>
-            ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
-            <Terminal size={14} /> New terminal tab
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {(!groupedTabs || activeGroup === "agents") && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="h-11 px-3 ml-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
+              aria-label="New tab"
+            >
+              <Plus size={16} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {agentMenuItems
+              .filter((item) => availableAgents.includes(item.agentId))
+              .map((item) => (
+                <DropdownMenuItem key={item.type} onSelect={() => handleAddTab(item.type)}>
+                  {item.icon} New {item.label} tab
+                </DropdownMenuItem>
+              ))}
+            {!groupedTabs && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
+                  <Terminal size={14} /> New terminal tab
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      {groupedTabs && activeGroup === "terminals" && (
+        <button
+          type="button"
+          onClick={() => handleAddTab("shell")}
+          aria-label="New terminal tab"
+          className="h-11 px-3 ml-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
+        >
+          <Plus size={16} />
+        </button>
+      )}
+      {/* Server + Files have singleton membership; no + button. */}
 
       <div className="flex-1" />
 
