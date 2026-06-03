@@ -519,10 +519,9 @@ function PaneTabBar({
   const sortableTabs = groupedTabs
     ? nonPinnedTabs.filter((t) => getGroupForTab(t) === activeGroup)
     : nonPinnedTabs;
-  const terminalTabs = visibleTabs; // preserve existing semantics for downstream refs
   const sortableTabIds = sortableTabs.map((t) => t.id);
-  const tabCount = terminalTabs.length;
-  const lastTabId = tabCount > 0 ? terminalTabs[tabCount - 1].id : null;
+  const tabCount = visibleTabs.length;
+  const lastTabId = tabCount > 0 ? visibleTabs[tabCount - 1].id : null;
 
   useEffect(() => {
     const el = scrollContainerRef.current;
@@ -599,7 +598,7 @@ function PaneTabBar({
                     useLayoutStore.getState().setActivePaneId(worktreeId, paneId);
                     useTabStore.getState().setActiveTabId(worktreeId, target.id);
                   }
-                  // If group is empty, the bar will render the empty state from Task 6.
+                  // Empty group is a no-op here; the empty state UI is handled at the bar level.
                 }}
               />
             )}
@@ -620,7 +619,7 @@ function PaneTabBar({
                     onClose={handleCloseTab}
                     onCloseOthers={handleCloseOthers}
                     onCloseToRight={handleCloseToRight}
-                    hasOthersToClose={terminalTabs.length > 1}
+                    hasOthersToClose={visibleTabs.length > 1}
                     hasTabsToRightToClose={tabIdx < sortableTabs.length - 1}
                     onSplit={handleSplit}
                     onMoveToSibling={handleMoveToSibling}
