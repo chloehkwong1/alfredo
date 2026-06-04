@@ -117,5 +117,18 @@ describe("tabGroups", () => {
       const r = summarizeGroupActivity(tabs, statuses, "agents", {});
       expect(r.perGroup.terminals).toBeNull();
     });
+
+    it("excludes the active group from activeDot even when it contains a notable agent", () => {
+      // c1 is an agent in the active group (agents). c1 is waitingForInput.
+      // activeDot should be null because the active group never contributes.
+      // perGroup.agents should still reflect the agent's status — without this
+      // assertion the test would pass even if the `g === activeGroup` skip in
+      // summarizeGroupActivity were deleted.
+      const tabs: WorkspaceTab[] = [tab("c1", "claude")];
+      const statuses = { c1: "waitingForInput" as const };
+      const r = summarizeGroupActivity(tabs, statuses, "agents", {});
+      expect(r.activeDot).toBeNull();
+      expect(r.perGroup.agents).toBe("waitingForInput");
+    });
   });
 });
