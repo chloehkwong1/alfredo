@@ -564,13 +564,15 @@ function PaneTabBar({
   }
 
   function handleCloseOthers(tabId: string) {
-    removeTabs(paneTabs.filter((t) => t.id !== tabId).map((t) => t.id));
+    const scope = groupedTabs ? sortableTabs : paneTabs;
+    removeTabs(scope.filter((t) => t.id !== tabId).map((t) => t.id));
   }
 
   function handleCloseToRight(tabId: string) {
-    const idx = paneTabs.findIndex((t) => t.id === tabId);
+    const scope = groupedTabs ? sortableTabs : paneTabs;
+    const idx = scope.findIndex((t) => t.id === tabId);
     if (idx === -1) return;
-    removeTabs(paneTabs.slice(idx + 1).map((t) => t.id));
+    removeTabs(scope.slice(idx + 1).map((t) => t.id));
   }
 
   function handleAddTab(type: TabType) {
@@ -766,7 +768,7 @@ function PaneTabBar({
                     onClose={handleCloseTab}
                     onCloseOthers={handleCloseOthers}
                     onCloseToRight={handleCloseToRight}
-                    hasOthersToClose={visibleTabs.length > 1}
+                    hasOthersToClose={(groupedTabs ? sortableTabs.length : visibleTabs.length) > 1}
                     hasTabsToRightToClose={tabIdx < sortableTabs.length - 1}
                     onSplit={handleSplit}
                     onMoveToSibling={handleMoveToSibling}
