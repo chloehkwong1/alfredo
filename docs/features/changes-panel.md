@@ -24,5 +24,16 @@ bar. It has up to three tabs:
   branch. Shows PR title, description, merge status, reviews, and
   inline comment threads (see pr-checks doc for the checks section).
 
+At the bottom of the panel an **origin sync banner** appears whenever
+the branch is out of step with its upstream. The label reads `N ahead
+of origin/<branch>`, `N behind origin/<branch>`, `A ahead · B behind
+origin/<branch>`, or `No upstream branch`, and the CTA matches:
+**Push** when only ahead, **Pull** when only behind (`git pull
+--rebase`), **Sync** when both directions diverged (pull --rebase then
+push), or **Publish** when the branch has never been pushed. The
+banner hides entirely when the branch is in sync, when you're on the
+pinned main card, and in branch mode. It polls every 60 seconds while
+the panel is open.
+
 Branch mode on the default branch hides the tab bar because there's
 nothing to diff against — only the uncommitted file list is shown.
