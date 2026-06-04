@@ -48,12 +48,12 @@ function CommitHeader({ commit, gitUser, nav }: { commit: CommitInfo; gitUser: s
   const subject = firstNewline === -1 ? commit.message : commit.message.slice(0, firstNewline);
   const body = firstNewline === -1 ? "" : commit.message.slice(firstNewline + 1).trim();
   const { copied, copy: handleCopy } = useCopyToClipboard();
-  const [bodyExpanded, setBodyExpanded] = useState(true);
+  const [bodyExpanded, setBodyExpanded] = useState(false);
   const [bodyOverflows, setBodyOverflows] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setBodyExpanded(true);
+    setBodyExpanded(false);
   }, [commit.hash]);
 
   useLayoutEffect(() => {
