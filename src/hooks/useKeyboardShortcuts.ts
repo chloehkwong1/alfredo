@@ -7,7 +7,7 @@ import { lifecycleManager } from "../services/lifecycleManager";
 import { sessionManager } from "../services/sessionManager";
 import { zoomIn, zoomOut, zoomReset } from "../services/uiZoom";
 import { loadTerminalPreferences, saveTerminalPreferences, TERMINAL_DEFAULTS } from "../services/terminalPreferences";
-import { getGroupForTab } from "../lib/tabGroups";
+import { getActiveGroup, getGroupForTab } from "../lib/tabGroups";
 import type { WorkspaceTab } from "../types";
 
 /**
@@ -139,16 +139,15 @@ export function useKeyboardShortcuts(
           if (pane && pane.tabIds.length > 1 && pane.activeTabId) {
             const grouped = useAppConfigStore.getState().config?.groupedTabs ?? true;
             const allTabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
-            const activeTabObj = allTabs.find((t) => t.id === pane.activeTabId);
             let cycleIds: string[];
-            if (grouped && activeTabObj) {
-              const activeGroup = getGroupForTab(activeTabObj);
-              cycleIds = activeGroup
-                ? pane.tabIds.filter((id) => {
-                    const t = allTabs.find((x) => x.id === id);
-                    return t && getGroupForTab(t) === activeGroup;
-                  })
-                : pane.tabIds;
+            if (grouped) {
+              // Use the same fallback semantics as the bar (getActiveGroup):
+              // Notes / missing → "agents", which is what the user sees.
+              const activeGroup = getActiveGroup(pane.activeTabId, allTabs);
+              cycleIds = pane.tabIds.filter((id) => {
+                const t = allTabs.find((x) => x.id === id);
+                return t && getGroupForTab(t) === activeGroup;
+              });
             } else {
               cycleIds = pane.tabIds;
             }
