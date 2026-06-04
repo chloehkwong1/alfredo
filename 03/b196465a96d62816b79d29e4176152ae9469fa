@@ -1,0 +1,21 @@
+docs/features/changes-panel.md
+  s_a83d58c0a714ff::t_122adef2c710b3 27-37
+docs/features/tab-groups.md
+  s_a83d58c0a714ff::t_3c7344e4aebd6e 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "03b196465a96d62816b79d29e4176152ae9469fa",
+  "prompts": {},
+  "sessions": {
+    "s_a83d58c0a714ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6429658d-10fa-435e-96be-1a88a3f50735",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
