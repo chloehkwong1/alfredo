@@ -253,6 +253,52 @@ describe("layoutStore", () => {
     });
   });
 
+  // ── setPaneTabIds ───────────────────────────────────────────
+
+  describe("setPaneTabIds", () => {
+    it("replaces tab order when given a permutation", () => {
+      initWith(["tab-1", "tab-2", "tab-3"], "tab-1");
+      const paneId = getSinglePaneId();
+
+      getState().setPaneTabIds(W, paneId, ["tab-3", "tab-1", "tab-2"]);
+
+      const pane = getState().panes[W][paneId];
+      expect(pane.tabIds).toEqual(["tab-3", "tab-1", "tab-2"]);
+    });
+
+    it("refuses non-permutations (different length)", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      initWith(["tab-1", "tab-2"], "tab-1");
+      const paneId = getSinglePaneId();
+
+      getState().setPaneTabIds(W, paneId, ["tab-1"]);
+
+      const pane = getState().panes[W][paneId];
+      expect(pane.tabIds).toEqual(["tab-1", "tab-2"]);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it("refuses non-permutations (different ids)", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      initWith(["tab-1", "tab-2"], "tab-1");
+      const paneId = getSinglePaneId();
+
+      getState().setPaneTabIds(W, paneId, ["tab-1", "tab-99"]);
+
+      const pane = getState().panes[W][paneId];
+      expect(pane.tabIds).toEqual(["tab-1", "tab-2"]);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it("no-ops for nonexistent pane", () => {
+      initWith(["tab-1"]);
+      // Should not throw
+      getState().setPaneTabIds(W, "nonexistent", ["tab-1"]);
+    });
+  });
+
   // ── moveTabToSiblingPane ────────────────────────────────────
 
   describe("moveTabToSiblingPane", () => {

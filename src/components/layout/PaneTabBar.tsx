@@ -642,6 +642,29 @@ function PaneTabBar({
     const toIndex = tabIds.indexOf(over.id as string);
     if (fromIndex === -1 || toIndex === -1) return;
 
+    if (groupedTabs) {
+      // In grouped mode, only the active group is rendered for dragging.
+      // Reordering must preserve hidden-group tabs' absolute positions:
+      // reorder the active-group's slots in place, leave other slots alone.
+      const sortableIds = sortableTabs.map((t) => t.id);
+      const sortableFrom = sortableIds.indexOf(active.id as string);
+      const sortableTo = sortableIds.indexOf(over.id as string);
+      if (sortableFrom === -1 || sortableTo === -1) {
+        reorderTabs(worktreeId, paneId, fromIndex, toIndex);
+        return;
+      }
+      const newSortable = [...sortableIds];
+      const [moved] = newSortable.splice(sortableFrom, 1);
+      newSortable.splice(sortableTo, 0, moved);
+      const sortableSet = new Set(sortableIds);
+      let pickIdx = 0;
+      const next = tabIds.map((id) =>
+        sortableSet.has(id) ? newSortable[pickIdx++] : id,
+      );
+      useLayoutStore.getState().setPaneTabIds(worktreeId, paneId, next);
+      return;
+    }
+
     reorderTabs(worktreeId, paneId, fromIndex, toIndex);
   }
 

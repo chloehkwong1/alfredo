@@ -46,6 +46,7 @@ interface LayoutState {
   removeTabFromPane: (worktreeId: string, tabId: string) => void;
   moveTabToSiblingPane: (worktreeId: string, paneId: string, tabId: string) => void;
   reorderTabs: (worktreeId: string, paneId: string, fromIndex: number, toIndex: number) => void;
+  setPaneTabIds: (worktreeId: string, paneId: string, tabIds: string[]) => void;
   openPreviewTab: (worktreeId: string, paneId: string, tabId: string) => void;
   pinPreviewTab: (worktreeId: string, paneId: string) => void;
 
@@ -440,6 +441,34 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
           [worktreeId]: {
             ...worktreePanes,
             [paneId]: { ...pane, tabIds },
+          },
+        },
+      };
+    });
+  },
+
+  setPaneTabIds: (worktreeId, paneId, tabIds) => {
+    set((s) => {
+      const worktreePanes = s.panes[worktreeId];
+      const pane = worktreePanes?.[paneId];
+      if (!pane) return s;
+      // Refuse to drop or duplicate tabs — must be a permutation of the current set.
+      const before = new Set(pane.tabIds);
+      if (
+        tabIds.length !== pane.tabIds.length ||
+        !tabIds.every((id) => before.has(id))
+      ) {
+        console.warn(
+          "setPaneTabIds: ids must be a permutation of the current pane.tabIds",
+        );
+        return s;
+      }
+      return {
+        panes: {
+          ...s.panes,
+          [worktreeId]: {
+            ...worktreePanes,
+            [paneId]: { ...pane, tabIds: [...tabIds] },
           },
         },
       };
