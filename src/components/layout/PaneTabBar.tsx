@@ -424,7 +424,7 @@ function GroupSwitcher({
 
 function EmptyGroupState({
   group,
-  defaultAgent,
+  addableAgent,
   runScriptName,
   isServerRunning,
   onToggleServer,
@@ -432,7 +432,7 @@ function EmptyGroupState({
   onAddShell,
 }: {
   group: TabGroupId;
-  defaultAgent: TabType;
+  addableAgent: TabType | null;
   runScriptName: string | undefined;
   isServerRunning: boolean;
   onToggleServer: (() => void) | undefined;
@@ -443,11 +443,14 @@ function EmptyGroupState({
   const btn = "text-accent-primary hover:underline cursor-pointer";
 
   if (group === "agents") {
+    if (!addableAgent) {
+      return <div className={cls}>No agents available</div>;
+    }
     return (
       <div className={cls}>
         <span>No agents —</span>
         <button type="button" className={btn} onClick={onAddDefaultAgent}>
-          + Add {TAB_TYPE_LABELS[defaultAgent]}
+          + Add {TAB_TYPE_LABELS[addableAgent]}
         </button>
       </div>
     );
@@ -463,8 +466,11 @@ function EmptyGroupState({
     );
   }
   if (group === "server") {
-    if (isServerRunning || !runScriptName || !onToggleServer) {
-      return <div className={cls}>Server not running</div>;
+    if (isServerRunning) {
+      return <div className={cls}>Server is running in another pane</div>;
+    }
+    if (!runScriptName || !onToggleServer) {
+      return <div className={cls}>No run script configured</div>;
     }
     return (
       <div className={cls}>
@@ -504,13 +510,16 @@ function PaneTabBar({
   const groupedTabs = useAppConfigValue((s) => s.config?.groupedTabs ?? true);
   const defaultAgent = useAppConfigValue((s) => s.config?.defaultAgent ?? "claude");
   const { updateConfig } = useAppConfig();
-  const activeGroup = getActiveGroup(pane?.activeTabId, tabs);
+  const paneTabs = (pane?.tabIds ?? [])
+    .map((id) => tabs.find((t) => t.id === id))
+    .filter((t): t is WorkspaceTab => t != null);
+  const activeGroup = getActiveGroup(pane?.activeTabId, paneTabs);
   const sessionStatuses = useSessionStatusStore((s) => s.statuses);
   const worktreeStaleBusy = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId)?.staleBusy ?? false);
   const staleBusyMap = Object.fromEntries(
-    tabs.map((t) => [t.id, isAgentTab(t) && worktreeStaleBusy]),
+    paneTabs.map((t) => [t.id, isAgentTab(t) && worktreeStaleBusy]),
   );
-  const activity = summarizeGroupActivity(tabs, sessionStatuses, activeGroup, staleBusyMap);
+  const activity = summarizeGroupActivity(paneTabs, sessionStatuses, activeGroup, staleBusyMap);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -527,21 +536,17 @@ function PaneTabBar({
   useEffect(() => {
     const id = pane?.activeTabId;
     if (!id) return;
-    const t = tabs.find((tab) => tab.id === id);
+    const t = paneTabs.find((tab) => tab.id === id);
     if (!t) return;
     const g = getGroupForTab(t);
     if (g) {
       lastActiveInGroupRef.current[g] = id;
     }
-  }, [pane?.activeTabId, tabs]);
+  }, [pane?.activeTabId, paneTabs]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
-
-  const paneTabs = (pane?.tabIds ?? [])
-    .map((id) => tabs.find((t) => t.id === id))
-    .filter((t): t is WorkspaceTab => t != null);
 
   const activeTabId = pane?.activeTabId;
 
@@ -589,6 +594,12 @@ function PaneTabBar({
     { type: "codex", agentId: "codex", label: "Codex", icon: <AGENT_ICONS.codex size={14} /> },
     { type: "gemini", agentId: "geminiCli", label: "Gemini", icon: <AGENT_ICONS.gemini size={14} /> },
   ];
+
+  const addableAgent: TabType | null = (() => {
+    const items = agentMenuItems.filter((item) => availableAgents.includes(item.agentId));
+    const preferred = items.find((item) => item.type === defaultAgent);
+    return preferred?.type ?? items[0]?.type ?? null;
+  })();
 
   function handleDragStart(tabId: string) {
     setDragActiveId(tabId);
@@ -641,8 +652,9 @@ function PaneTabBar({
     ? nonPinnedTabs.filter((t) => getGroupForTab(t) === activeGroup)
     : nonPinnedTabs;
   const sortableTabIds = sortableTabs.map((t) => t.id);
-  const tabCount = visibleTabs.length;
-  const lastTabId = tabCount > 0 ? visibleTabs[tabCount - 1].id : null;
+  const renderedTabs = groupedTabs ? sortableTabs : visibleTabs;
+  const tabCount = renderedTabs.length;
+  const lastTabId = tabCount > 0 ? renderedTabs[tabCount - 1].id : null;
 
   useEffect(() => {
     const el = scrollContainerRef.current;
@@ -711,11 +723,11 @@ function PaneTabBar({
             {groupedTabs && (
               <GroupSwitcher
                 activeGroup={activeGroup}
-                tabs={tabs}
+                tabs={paneTabs}
                 activity={activity}
                 onSelect={(g) => {
                   const remembered = lastActiveInGroupRef.current[g];
-                  const inGroup = getTabsInGroup(tabs, g);
+                  const inGroup = getTabsInGroup(paneTabs, g);
                   const target =
                     (remembered && inGroup.find((t) => t.id === remembered)) ??
                     inGroup[0];
@@ -767,11 +779,11 @@ function PaneTabBar({
             {groupedTabs && sortableTabs.length === 0 && (
               <EmptyGroupState
                 group={activeGroup}
-                defaultAgent={defaultAgent}
+                addableAgent={addableAgent}
                 runScriptName={runScriptName}
                 isServerRunning={!!isServerRunning}
                 onToggleServer={onToggleServer}
-                onAddDefaultAgent={() => handleAddTab(defaultAgent)}
+                onAddDefaultAgent={() => addableAgent && handleAddTab(addableAgent)}
                 onAddShell={() => handleAddTab("shell")}
               />
             )}
