@@ -756,6 +756,15 @@ function PaneTabBar({
                 paneId={paneId}
               />
             ))}
+            <button
+              type="button"
+              onClick={() => updateConfig((prev) => ({ groupedTabs: !(prev.groupedTabs ?? true) }))}
+              aria-label={groupedTabs ? "Show all tabs in one row (flat layout)" : "Group tabs by category"}
+              title={groupedTabs ? "Show all tabs" : "Group tabs by category"}
+              className="h-full px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
+            >
+              {groupedTabs ? <LayoutList size={14} /> : <LayoutGrid size={14} />}
+            </button>
             {groupedTabs && (
               <GroupSwitcher
                 activeGroup={activeGroup}
@@ -780,15 +789,6 @@ function PaneTabBar({
                 }}
               />
             )}
-            <button
-              type="button"
-              onClick={() => updateConfig((prev) => ({ groupedTabs: !(prev.groupedTabs ?? true) }))}
-              aria-label={groupedTabs ? "Show all tabs in one row (flat layout)" : "Group tabs by category"}
-              title={groupedTabs ? "Show all tabs" : "Group tabs by category"}
-              className="h-full px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
-            >
-              {groupedTabs ? <LayoutList size={14} /> : <LayoutGrid size={14} />}
-            </button>
             <SortableContext
               items={sortableTabIds}
               strategy={horizontalListSortingStrategy}
