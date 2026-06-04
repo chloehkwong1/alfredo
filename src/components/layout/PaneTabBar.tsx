@@ -513,7 +513,13 @@ function PaneTabBar({
   const paneTabs = (pane?.tabIds ?? [])
     .map((id) => tabs.find((t) => t.id === id))
     .filter((t): t is WorkspaceTab => t != null);
-  const activeGroup = getActiveGroup(pane?.activeTabId, paneTabs);
+  // User-selected group via the dropdown. Cleared the moment the active tab
+  // changes — because activating a real tab makes the derived group authoritative.
+  // This lets the user navigate to an empty group (e.g. Files with no diff
+  // open) and see its empty-state UI.
+  const [selectedGroupOverride, setSelectedGroupOverride] = useState<TabGroupId | null>(null);
+  const derivedGroup = getActiveGroup(pane?.activeTabId, paneTabs);
+  const activeGroup = selectedGroupOverride ?? derivedGroup;
   const sessionStatuses = useSessionStatusStore((s) => s.statuses);
   const worktreeStaleBusy = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId)?.staleBusy ?? false);
   const staleBusyMap = Object.fromEntries(
@@ -543,6 +549,11 @@ function PaneTabBar({
       lastActiveInGroupRef.current[g] = id;
     }
   }, [pane?.activeTabId, paneTabs]);
+
+  // Clear the override whenever activeTabId changes — derived group takes over.
+  useEffect(() => {
+    setSelectedGroupOverride(null);
+  }, [pane?.activeTabId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -757,11 +768,15 @@ function PaneTabBar({
                     (remembered && inGroup.find((t) => t.id === remembered)) ??
                     inGroup[0];
                   if (target) {
+                    // Activating a tab will fire the effect that clears the override.
                     useLayoutStore.getState().setPaneActiveTab(worktreeId, paneId, target.id);
                     useLayoutStore.getState().setActivePaneId(worktreeId, paneId);
                     useTabStore.getState().setActiveTabId(worktreeId, target.id);
+                  } else {
+                    // Empty group — keep showing this group's empty state until
+                    // the user activates a real tab.
+                    setSelectedGroupOverride(g);
                   }
-                  // Empty group is a no-op here; the empty state UI is handled at the bar level.
                 }}
               />
             )}
