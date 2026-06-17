@@ -1,0 +1,62 @@
+src/types.ts
+  s_ab90dcf7de3546::t_daf9e2cdbbd115 29
+  s_ab90dcf7de3546::t_6edd084dea186d 56-59
+src-tauri/src/state_server.rs
+  s_ab90dcf7de3546::t_d293c702e61bd6 151
+src/stores/workspaceStore.test.ts
+  s_ab90dcf7de3546::t_b6c9ae5d691ea2 77
+  s_ab90dcf7de3546::t_26056ed9d52418 49
+src-tauri/src/pty_manager.rs
+  s_ab90dcf7de3546::t_b34361653314d6 1894-1924
+  s_ab90dcf7de3546::t_80bb8496aaf6d8 1171-1177
+src/stores/workspaceStore.ts
+  s_ab90dcf7de3546::t_019707b5326333 135-138
+src/test/status-scenarios.test.ts
+  s_ab90dcf7de3546::t_7c280cf1a949d0 660
+  s_ab90dcf7de3546::t_5a625a9e469fa2 798
+  s_ab90dcf7de3546::t_6b51d62422ae9f 156
+  s_ab90dcf7de3546::t_158b480521fc9d 902-921
+  s_ab90dcf7de3546::t_bcc5037043f3fe 836-901,922-923
+  s_ab90dcf7de3546::t_4dedd41c72529f 750-759
+  s_ab90dcf7de3546::t_0215d561bfc119 315-338,363-390
+  s_ab90dcf7de3546::t_ae57c6ea2114e6 339-362
+  s_ab90dcf7de3546::t_f8e3ef30ff9d3a 709-747
+src/components/sidebar/AgentItem.tsx
+  s_ab90dcf7de3546::t_fcc0fd83c976f0 378-382
+src/services/sessionManager.ts
+  s_ab90dcf7de3546::t_e51a987c311e58 630
+  s_ab90dcf7de3546::t_81df0f96a26500 131
+  s_ab90dcf7de3546::t_048e6d3bf7fffd 71-100,103
+  s_ab90dcf7de3546::t_e570f54d635e57 163-183
+  s_ab90dcf7de3546::t_1598acae091b92 501
+  s_ab90dcf7de3546::t_89dc6324c5101b 20,23
+  s_ab90dcf7de3546::t_b622977d335423 152-154,156-157
+  s_ab90dcf7de3546::t_0de7a8775cfb87 274,421,576
+src-tauri/src/types.rs
+  s_ab90dcf7de3546::t_bff18b4e6f455e 106
+src/services/sessionChannel.ts
+  s_ab90dcf7de3546::t_8df7e89288f007 231-242
+  s_ab90dcf7de3546::t_99bd5e2befd9b1 365-381
+  s_ab90dcf7de3546::t_b1843e18124ba8 466-474
+  s_ab90dcf7de3546::t_89ddc85a469ed8 33-40
+  s_ab90dcf7de3546::t_8bb11688263cac 187,195-224
+  s_ab90dcf7de3546::t_58b3997ae8a7a5 328-331
+src/services/sessionTypes.ts
+  s_ab90dcf7de3546::t_1e4a44a0a3d651 89-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "f8a1f18534ac80a225ff3d7d740e08107cb09920",
+  "prompts": {},
+  "sessions": {
+    "s_ab90dcf7de3546": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "533829e1-5954-4318-a5e9-47555af98910",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
