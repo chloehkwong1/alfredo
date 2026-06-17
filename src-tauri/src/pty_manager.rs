@@ -1120,6 +1120,21 @@ fn write_hooks_config(
             r#"cat > /dev/null; echo "$(date +%H:%M:%S) FIRE {state}({phase}) notify={reason} session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested {state} session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?notify={reason}&phase={phase}" || echo "$(date +%H:%M:%S) FAIL {state}({phase}) notify={reason} session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
+    // PreToolUse fires for every tool. Most are work → busy?phase=toolStart.
+    // `AskUserQuestion` is the exception: it blocks the agent waiting on the
+    // user, but (unlike a permission prompt or MCP elicitation) it fires no
+    // PermissionRequest/Notification hook of its own, so plain `busy` would
+    // leave the sidebar showing "Editing…" the entire time the agent is parked
+    // on a question. Branch on `tool_name` (read from the hook's stdin JSON,
+    // same INPUT=$(cat) pattern as PostToolUseFailure) and route it to
+    // waitingForInput + notify input. Both branches keep phase=toolStart so
+    // workDepth still increments and stays balanced against the matching
+    // PostToolUse(toolEnd) when the user answers.
+    let cmd_pretooluse = || -> String {
+        format!(
+            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q" || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
+        )
+    };
 
     let hook_entry = |command: String| -> serde_json::Value {
         serde_json::json!({
@@ -1144,8 +1159,9 @@ fn write_hooks_config(
         ("SessionStart",      hook_entry(cmd("idle"))),
         // UserPromptSubmit → busy + phase=promptStart
         ("UserPromptSubmit",  hook_entry(cmd_phase("busy", "promptStart"))),
-        // PreToolUse → busy + phase=toolStart
-        ("PreToolUse",        hook_entry(cmd_phase("busy", "toolStart"))),
+        // PreToolUse → busy + phase=toolStart, except AskUserQuestion →
+        // waitingForInput + notify input (see cmd_pretooluse).
+        ("PreToolUse",        hook_entry(cmd_pretooluse())),
         // PostToolUse → busy + phase=toolEnd
         ("PostToolUse",       hook_entry(cmd_phase("busy", "toolEnd"))),
         // Stop → idle + notify finished + phase=turnEnd
@@ -1821,6 +1837,51 @@ mod tests {
         assert!(!is_alfredo_session_comm("vim"));
         assert!(!is_alfredo_session_comm("Code Helper"));
         assert!(!is_alfredo_session_comm("node"));
+    }
+
+    /// AskUserQuestion blocks waiting on the user but fires no
+    /// PermissionRequest/Notification hook of its own (no permission needed,
+    /// not MCP elicitation), so without a dedicated branch the PreToolUse hook
+    /// posts plain `busy` and the sidebar shows "Editing…" the whole time the
+    /// agent is parked on a question. The PreToolUse hook must branch on
+    /// `tool_name` and route AskUserQuestion to waitingForInput + notify input.
+    #[test]
+    fn pretooluse_hook_routes_askuserquestion_to_waiting_for_input() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let worktree = tmp.path().join("wt");
+        std::fs::create_dir_all(&worktree).unwrap();
+
+        write_hooks_config(worktree.to_str().unwrap(), "http://127.0.0.1:0", "owner/wt")
+            .expect("write hooks");
+
+        let contents =
+            std::fs::read_to_string(worktree.join(".claude/settings.local.json")).expect("read");
+        let config: serde_json::Value = serde_json::from_str(&contents).expect("parse");
+
+        let cmd = config["hooks"]["PreToolUse"]
+            .as_array()
+            .expect("PreToolUse array")
+            .iter()
+            .find_map(|e| e["hooks"][0]["command"].as_str())
+            .expect("PreToolUse command");
+
+        // Branches on the tool name read from the hook's stdin JSON.
+        assert!(
+            cmd.contains("AskUserQuestion"),
+            "PreToolUse must branch on AskUserQuestion; got: {cmd}"
+        );
+        // AskUserQuestion → waitingForInput + notify (banner + pulsing dot),
+        // phase=toolStart so workDepth still increments.
+        assert!(
+            cmd.contains("ST=waitingForInput; Q='?notify=input&phase=toolStart'"),
+            "AskUserQuestion branch must route to waitingForInput?notify=input&phase=toolStart; got: {cmd}"
+        );
+        // Every other tool still posts busy?phase=toolStart (depth +1, balanced
+        // by the matching PostToolUse toolEnd).
+        assert!(
+            cmd.contains("ST=busy; Q='?phase=toolStart'"),
+            "default branch must route to busy?phase=toolStart; got: {cmd}"
+        );
     }
 
     /// Boot cleanup must skip stripping alfredo hooks from a settings file

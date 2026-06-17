@@ -620,6 +620,15 @@ describe("applyHookToDepth", () => {
   it("leaves depth unchanged on waitingForInput", () => {
     expect(applyHookToDepth(1, "waitingForInput", "none")).toBe(1);
   });
+
+  // Alfredo's AskUserQuestion PreToolUse hook emits waitingForInput?phase=toolStart
+  // (the agent is parked on a question but a tool is genuinely in flight). Depth
+  // is driven by phase, not state, so it must increment like any toolStart and
+  // get balanced by the matching PostToolUse(toolEnd) when the user answers.
+  it("increments on toolStart even when state is waitingForInput (AskUserQuestion)", () => {
+    expect(applyHookToDepth(0, "waitingForInput", "toolStart")).toBe(1);
+    expect(applyHookToDepth(applyHookToDepth(0, "waitingForInput", "toolStart"), "busy", "toolEnd")).toBe(0);
+  });
 });
 
 describe("multi-tab reconciler independence", () => {
