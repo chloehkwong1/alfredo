@@ -86,6 +86,15 @@ export interface ManagedSession {
    *  `turnEnd` and `notRunning`. While > 0 the reconciler is forbidden
    *  from flipping busy → idle, regardless of hook or output silence. */
   workDepth: number;
+  /** Background/Task subagents currently in flight. Incremented on
+   *  `subagentStart`, decremented on `subagentEnd` (clamped ≥0), reset to 0 on
+   *  `promptStart` (new user turn — any prior subagents are done) and
+   *  `notRunning`. Deliberately NOT reset on `turnEnd`: the main agent fires
+   *  Stop the moment it dispatches background agents and yields, so the count
+   *  must survive that Stop. While > 0, the idle transition is suppressed (the
+   *  session is parked waiting on subagents) and the reconciler is forbidden
+   *  from stale-rescuing — same role workDepth plays for foreground tools. */
+  subagentDepth: number;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
   /** Diagnostic: consecutive drainPending dispatches since the queue last

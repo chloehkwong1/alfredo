@@ -153,6 +153,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     pendingIdleTimer: null,
     turnEndAt: 0,
     workDepth: 0,
+    subagentDepth: 0,
     pasteDiagDrainChain: 0,
     pasteDiagLastLogAt: 0,
     staleHookNotifiedAt: 0,
@@ -309,6 +310,82 @@ describe("SessionManager.reconcileAll", () => {
     (mgr as any).reconcileAll();
 
     expect(session.agentState).toBe("busy");
+  });
+
+  it("does NOT mark stale / flip idle while subagentDepth > 0, even if hooks AND output both stale", () => {
+    // A worktree running silent background agents (subagentDepth=1) with no
+    // hooks or output for 80s must stay busy and NOT be marked stale — the
+    // subagent is structural proof work is happening, the same role workDepth
+    // plays for foreground tools.
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      lastHookAt: Date.now() - 80_000,
+      lastOutputAt: Date.now() - 80_000,
+      workDepth: 0,
+      subagentDepth: 1,
+    });
+    (mgr as any).sessions.set("wt-bg:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-bg", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.agentState).toBe("busy");
+    expect(useWorkspaceStore.getState().worktrees[0].staleBusy).toBe(false);
+  });
+
+  it("self-heals a stranded subagentDepth (dropped SubagentStop) once BOTH channels are silent past the threshold", () => {
+    // A dropped SubagentStop strands subagentDepth > 0; because the rescue
+    // paths are gated on !hasWorkInFlight, the session would be stuck
+    // 'Running N agents…' forever. After STALE_SUBAGENT_FORCE_MS of hook+output
+    // silence, the count is cleared and the standard soft-rescue flips it idle.
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      workDepth: 0,
+      subagentDepth: 2,
+      lastHookAt: Date.now() - 301_000,   // > STALE_SUBAGENT_FORCE_MS (300s)
+      lastOutputAt: Date.now() - 301_000, // output also silent
+    });
+    (mgr as any).sessions.set("wt-strand:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-strand", agentStatus: "busy", staleBusy: false, runningAgents: 2 } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.subagentDepth).toBe(0);
+    expect(session.agentState).toBe("idle"); // soft-rescue fires same tick
+  });
+
+  it("projects summed subagentDepth onto worktree.runningAgents", () => {
+    const mgr = new SessionManager();
+    const sessA = makeFakeSession({ sessionId: "a", agentState: "busy", subagentDepth: 2 });
+    const sessB = makeFakeSession({ sessionId: "b", agentState: "busy", subagentDepth: 1 });
+    (mgr as any).sessions.set("wt-count:claude:a", sessA);
+    (mgr as any).sessions.set("wt-count:claude:b", sessB);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-count", agentStatus: "busy", runningAgents: 0 } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(useWorkspaceStore.getState().worktrees[0].runningAgents).toBe(3);
+  });
+
+  it("clears worktree.runningAgents back to 0 when no subagents remain", () => {
+    const mgr = new SessionManager();
+    const session = makeFakeSession({ agentState: "busy", subagentDepth: 0 });
+    (mgr as any).sessions.set("wt-clear:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-clear", agentStatus: "busy", runningAgents: 5 } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(useWorkspaceStore.getState().worktrees[0].runningAgents).toBe(0);
   });
 
   it("does not touch sessions where hooksActive=false (detector-driven)", () => {
@@ -580,7 +657,7 @@ describe("seenWorktrees ordering invariant", () => {
   });
 });
 
-import { applyHookToDepth } from "../services/sessionChannel";
+import { applyHookToDepth, applySubagentDepth, hasWorkInFlight } from "../services/sessionChannel";
 
 describe("applyHookToDepth", () => {
   it("increments on promptStart", () => {
@@ -629,6 +706,57 @@ describe("applyHookToDepth", () => {
     expect(applyHookToDepth(0, "waitingForInput", "toolStart")).toBe(1);
     expect(applyHookToDepth(applyHookToDepth(0, "waitingForInput", "toolStart"), "busy", "toolEnd")).toBe(0);
   });
+
+  it("leaves depth unchanged on subagentStart (subagents are tracked separately)", () => {
+    expect(applyHookToDepth(2, "busy", "subagentStart")).toBe(2);
+  });
+});
+
+describe("applySubagentDepth", () => {
+  it("increments on subagentStart", () => {
+    expect(applySubagentDepth(0, "busy", "subagentStart")).toBe(1);
+    expect(applySubagentDepth(2, "busy", "subagentStart")).toBe(3);
+  });
+
+  it("decrements on subagentEnd, clamped at zero", () => {
+    expect(applySubagentDepth(2, "busy", "subagentEnd")).toBe(1);
+    expect(applySubagentDepth(1, "busy", "subagentEnd")).toBe(0);
+    expect(applySubagentDepth(0, "busy", "subagentEnd")).toBe(0);
+  });
+
+  // The crux of the fix: the main agent fires Stop (turnEnd) the moment it
+  // dispatches background agents and yields. The count must survive that Stop
+  // so the idle transition can be suppressed while subagents still run.
+  it("leaves depth UNCHANGED on turnEnd (subagents outlive the parent's Stop)", () => {
+    expect(applySubagentDepth(2, "idle", "turnEnd")).toBe(2);
+  });
+
+  it("resets to zero on promptStart (new user turn — prior subagents are done)", () => {
+    expect(applySubagentDepth(3, "busy", "promptStart")).toBe(0);
+  });
+
+  it("resets to zero on notRunning (PTY exited)", () => {
+    expect(applySubagentDepth(4, "notRunning", "none")).toBe(0);
+    expect(applySubagentDepth(4, "notRunning", "subagentEnd")).toBe(0);
+  });
+
+  it("leaves depth unchanged on tool phases and bare busy", () => {
+    expect(applySubagentDepth(1, "busy", "toolStart")).toBe(1);
+    expect(applySubagentDepth(1, "busy", "toolEnd")).toBe(1);
+    expect(applySubagentDepth(1, "busy", "none")).toBe(1);
+  });
+});
+
+describe("hasWorkInFlight", () => {
+  it("is true when either workDepth or subagentDepth is > 0", () => {
+    expect(hasWorkInFlight({ workDepth: 1, subagentDepth: 0 })).toBe(true);
+    expect(hasWorkInFlight({ workDepth: 0, subagentDepth: 1 })).toBe(true);
+    expect(hasWorkInFlight({ workDepth: 2, subagentDepth: 3 })).toBe(true);
+  });
+
+  it("is false only when both are zero", () => {
+    expect(hasWorkInFlight({ workDepth: 0, subagentDepth: 0 })).toBe(false);
+  });
 });
 
 describe("multi-tab reconciler independence", () => {
@@ -667,7 +795,7 @@ describe("multi-tab reconciler independence", () => {
   });
 });
 
-import { createSessionChannel, stateSourceMap } from "../services/sessionChannel";
+import { createSessionChannel, stateSourceMap, IDLE_DEBOUNCE_MS } from "../services/sessionChannel";
 
 describe("createSessionChannel wires workDepth updates", () => {
   it("increments session.workDepth on busy(toolStart) hook event", () => {
@@ -702,6 +830,94 @@ describe("createSessionChannel wires workDepth updates", () => {
     });
 
     expect(session.workDepth).toBe(1);
+  });
+});
+
+describe("createSessionChannel background-subagent (SubagentStart) handling", () => {
+  const fakeWriter = { scheduleWrite: () => {}, appendToBuffer: () => {} };
+
+  function hook(channel: any, phase: string, state = "busy", notify = "none") {
+    channel.onmessage({ event: "hookAgentState", data: { state, phase, notify } });
+  }
+
+  it("increments subagentDepth on subagentStart and keeps the session busy", () => {
+    const session = makeFakeSession({ agentState: "busy", subagentDepth: 0 });
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-sa", "wt-sa:main") as any;
+
+    hook(channel, "subagentStart");
+    hook(channel, "subagentStart");
+
+    expect(session.subagentDepth).toBe(2);
+    expect(session.agentState).toBe("busy");
+  });
+
+  it("SUPPRESSES idle(turnEnd) while background subagents are still in flight", () => {
+    // Reproduces the live-log Scenario A: the main agent dispatches background
+    // agents (subagentStart ×2), then yields → Stop fires → idle(turnEnd). The
+    // turn isn't really done, so the session must stay busy, not flip to Idle.
+    const session = makeFakeSession({ agentState: "busy", subagentDepth: 0 });
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-sa2", "wt-sa2:main") as any;
+
+    hook(channel, "subagentStart");
+    hook(channel, "subagentStart");
+    hook(channel, "turnEnd", "idle", "finished"); // main yields while agents run
+
+    expect(session.agentState).toBe("busy");
+    expect(session.pendingIdleTimer).toBe(null); // suppressed, not even debounced
+    expect(session.subagentDepth).toBe(2);
+  });
+
+  it("transitions to idle once the last subagent finishes and the real Stop fires", () => {
+    vi.useFakeTimers();
+    // No worktree in the store → the debounced idle skips the notification path.
+    useWorkspaceStore.setState({ worktrees: [] });
+    const session = makeFakeSession({ agentState: "busy", subagentDepth: 0 });
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-sa3", "wt-sa3:main") as any;
+
+    hook(channel, "subagentStart");
+    hook(channel, "subagentStart");
+    hook(channel, "turnEnd", "idle", "finished"); // suppressed
+    expect(session.agentState).toBe("busy");
+
+    hook(channel, "subagentEnd");
+    hook(channel, "subagentEnd");
+    expect(session.subagentDepth).toBe(0);
+
+    // Main agent wakes, does its real work, then fires the genuine Stop.
+    hook(channel, "turnEnd", "idle", "finished");
+    expect(session.pendingIdleTimer).not.toBe(null); // no longer suppressed — debounced
+    vi.advanceTimersByTime(IDLE_DEBOUNCE_MS + 10);
+    expect(session.agentState).toBe("idle");
+
+    vi.useRealTimers();
+  });
+
+  it("self-heals a dropped subagentEnd on the next promptStart (new user turn)", () => {
+    const session = makeFakeSession({ agentState: "busy", subagentDepth: 3 });
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-sa4", "wt-sa4:main") as any;
+
+    hook(channel, "promptStart"); // fresh user turn — prior subagents are done
+    expect(session.subagentDepth).toBe(0);
+  });
+
+  it("detector idle is REJECTED while subagentDepth > 0 even after hooks go stale", () => {
+    // The detector fallback re-engages after 60s of hook silence. Real
+    // background agents fire no parent tool-hooks, so a long run goes silent and
+    // the detector misreads the `❯` prompt as idle. subagentDepth > 0 must mute
+    // it — otherwise the session false-flips to idle mid-run (undoing the fix).
+    const session = makeFakeSession({
+      agentState: "busy",
+      hookDerivedState: "busy",
+      subagentDepth: 1,
+      workDepth: 0,
+      hooksActive: true,
+      lastHookAt: Date.now() - 80_000, // hooks stale → detector unmutes
+    });
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-sa5", "wt-sa5:main") as any;
+
+    channel.onmessage({ event: "agentState", data: "idle" });
+
+    expect(session.agentState).toBe("busy"); // detector idle rejected
   });
 });
 

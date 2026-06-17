@@ -1168,6 +1168,13 @@ fn write_hooks_config(
         ("Stop",              hook_entry(cmd_notify_phase("idle", "finished", "turnEnd"))),
         // StopFailure → idle + notify error + phase=turnEnd
         ("StopFailure",       hook_entry(cmd_notify_phase("idle", "error", "turnEnd"))),
+        // SubagentStart → busy + phase=subagentStart. Fires when the main agent
+        // spawns a background/Task subagent. Without this, the main session fires
+        // Stop (idle) the moment it dispatches and yields, so a worktree running
+        // background investigation agents shows "Idle" until they finish. The
+        // frontend counts subagentStart/subagentEnd into a subagentDepth and
+        // suppresses the idle transition while > 0 (see sessionChannel.ts).
+        ("SubagentStart",     hook_entry(cmd_phase("busy", "subagentStart"))),
         // SubagentStop → busy + phase=subagentEnd (distinct phase avoids bare-busy suppression)
         ("SubagentStop",      hook_entry(cmd_phase("busy", "subagentEnd"))),
         // PermissionRequest → waitingForInput + notify input
@@ -1881,6 +1888,37 @@ mod tests {
         assert!(
             cmd.contains("ST=busy; Q='?phase=toolStart'"),
             "default branch must route to busy?phase=toolStart; got: {cmd}"
+        );
+    }
+
+    /// When the main agent dispatches a background/Task subagent it fires
+    /// SubagentStart (parent context) and then, the moment it yields, Stop —
+    /// so without a SubagentStart hook the sidebar shows "Idle" while the
+    /// subagent runs. SubagentStart must post busy?phase=subagentStart so the
+    /// frontend can count it into subagentDepth and gate the idle transition.
+    #[test]
+    fn subagent_start_hook_posts_busy_subagent_start() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let worktree = tmp.path().join("wt");
+        std::fs::create_dir_all(&worktree).unwrap();
+
+        write_hooks_config(worktree.to_str().unwrap(), "http://127.0.0.1:0", "owner/wt")
+            .expect("write hooks");
+
+        let contents =
+            std::fs::read_to_string(worktree.join(".claude/settings.local.json")).expect("read");
+        let config: serde_json::Value = serde_json::from_str(&contents).expect("parse");
+
+        let cmd = config["hooks"]["SubagentStart"]
+            .as_array()
+            .expect("SubagentStart array")
+            .iter()
+            .find_map(|e| e["hooks"][0]["command"].as_str())
+            .expect("SubagentStart command");
+
+        assert!(
+            cmd.contains("/busy?phase=subagentStart"),
+            "SubagentStart must post busy?phase=subagentStart; got: {cmd}"
         );
     }
 

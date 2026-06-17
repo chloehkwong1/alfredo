@@ -46,6 +46,7 @@ describe("setWorktrees / mergeWorktreeState", () => {
           justCreated: true,
           additions: 917,
           deletions: 90,
+          runningAgents: 3,
         }),
       ],
     });
@@ -73,6 +74,7 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.justCreated).toBe(true);
     expect(wt.additions).toBe(917);
     expect(wt.deletions).toBe(90);
+    expect(wt.runningAgents).toBe(3);
   });
 
   it("uses fresh stackParent/stackChildren/stackRebaseStatus when defined", () => {

@@ -17,8 +17,10 @@ import {
   STALE_HOOK_MS,
   STALE_OUTPUT_IDLE_MS,
   STALE_HOOK_FORCE_MS,
+  STALE_SUBAGENT_FORCE_MS,
   createSessionChannel,
   fireDebugNotification,
+  hasWorkInFlight,
   type SessionWriter,
 } from "./sessionChannel";
 
@@ -66,13 +68,39 @@ export class SessionManager implements SessionWriter {
       // tools that stream output to stay busy even when hooks are silent.
       // Reordering these blocks breaks that guard — see e03b8c5.
       //
-      // Both paths are additionally gated on workDepth === 0: a tool in
-      // flight (workDepth > 0) means we have structural proof work is
-      // happening — no time-based rescue should fire until toolEnd
-      // decrements the counter or turnEnd resets it.
+      // Both paths are additionally gated on !hasWorkInFlight (workDepth === 0
+      // AND subagentDepth === 0): a tool in flight (workDepth > 0) or a
+      // background subagent in flight (subagentDepth > 0) is structural proof
+      // work is happening — no time-based rescue should fire until
+      // toolEnd/subagentEnd decrements the counter or turnEnd/promptStart
+      // resets it. Without the subagentDepth arm, a worktree running silent
+      // background agents for 60s+ would be falsely marked stale.
+
+      // Stranded-subagent self-heal: subagentDepth is normally cleared by
+      // subagentEnd or the next promptStart, but a dropped SubagentStop hook
+      // (curl --max-time 2 timeout) would otherwise strand it > 0 forever —
+      // and because the rescue paths below are gated on !hasWorkInFlight, the
+      // session would be stuck "Running N agents…" with no recovery. If BOTH
+      // channels have been silent well past the normal thresholds, treat the
+      // count as lost and clear it so the standard rescue can proceed on this
+      // same tick. The output-silence requirement means a genuinely long
+      // background agent that is still streaming output is never false-healed.
+      if (
+        session.subagentDepth > 0
+        && session.lastHookAt > 0
+        && now - session.lastHookAt > STALE_SUBAGENT_FORCE_MS
+        && session.lastOutputAt > 0
+        && now - session.lastOutputAt > STALE_OUTPUT_IDLE_MS
+      ) {
+        const lostMsg = `[reconcile:${worktreeId}] stranded subagentDepth=${session.subagentDepth} cleared (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms — assuming dropped SubagentStop, sessionKey=${sessionKey})`;
+        console.warn(lostMsg);
+        debugLog(lostMsg).catch(() => {});
+        session.subagentDepth = 0;
+      }
+
       if (
         session.agentState === "busy"
-        && session.workDepth === 0
+        && !hasWorkInFlight(session)
         && session.lastHookAt > 0
         && now - session.lastHookAt > STALE_HOOK_MS
         && session.lastOutputAt > 0
@@ -100,7 +128,7 @@ export class SessionManager implements SessionWriter {
       // soft path once output also goes silent.
       if (
         session.agentState === "busy"
-        && session.workDepth === 0
+        && !hasWorkInFlight(session)
         && session.lastHookAt > 0
         && now - session.lastHookAt > STALE_HOOK_FORCE_MS
       ) {
@@ -121,11 +149,36 @@ export class SessionManager implements SessionWriter {
       }
 
       // ── staleBusy display flag ──────────────────────────────
+      // Gate on subagentDepth === 0: a session running background agents is
+      // legitimately busy even when its own output goes silent, so it must show
+      // "Running N agents…", not "Unresponsive".
       const alive = !session.sessionId || now - session.lastHeartbeat < 6000;
-      const staleBusy = computeStaleBusy(session.agentState, alive, session.lastOutputAt, now);
+      const staleBusy = session.subagentDepth === 0
+        && computeStaleBusy(session.agentState, alive, session.lastOutputAt, now);
       const current = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
       if (current && current.staleBusy !== staleBusy) {
         useWorkspaceStore.getState().updateWorktree(worktreeId, { staleBusy });
+      }
+    }
+
+    // ── runningAgents count (sidebar "Running N agents…") ──────
+    // Aggregate background-subagent depth across every session of each worktree
+    // and project the total onto the worktree. Kept separate from the rescue
+    // loop above (which has several early `continue`s) so the count is computed
+    // for every live session. 500ms lag on the *number* is fine — the busy
+    // status itself flips in real time via the hook handler + status mirror.
+    const subagentCounts = new Map<string, number>();
+    for (const [key, sess] of this.sessions.entries()) {
+      if (sess.ptyExited) continue;
+      if (sess.subagentDepth > 0) {
+        const wid = key.split(":")[0];
+        subagentCounts.set(wid, (subagentCounts.get(wid) ?? 0) + sess.subagentDepth);
+      }
+    }
+    for (const wt of useWorkspaceStore.getState().worktrees) {
+      const n = subagentCounts.get(wt.id) ?? 0;
+      if ((wt.runningAgents ?? 0) !== n) {
+        useWorkspaceStore.getState().updateWorktree(wt.id, { runningAgents: n });
       }
     }
   }
@@ -218,6 +271,7 @@ export class SessionManager implements SessionWriter {
       pendingIdleTimer: null,
       turnEndAt: 0,
       workDepth: 0,
+      subagentDepth: 0,
       pasteDiagDrainChain: 0,
       pasteDiagLastLogAt: 0,
       staleHookNotifiedAt: 0,
@@ -364,6 +418,7 @@ export class SessionManager implements SessionWriter {
       pendingIdleTimer: null,
       turnEndAt: 0,
       workDepth: 0,
+      subagentDepth: 0,
       pasteDiagDrainChain: 0,
       pasteDiagLastLogAt: 0,
       staleHookNotifiedAt: 0,
@@ -443,6 +498,7 @@ export class SessionManager implements SessionWriter {
     session.ptyExited = false;
     session.agentState = mode === "shell" ? "notRunning" : "busy";
     session.workDepth = 0;
+    session.subagentDepth = 0;
     session.lastHeartbeat = Date.now();
     // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the
     // PTY actually produces output, rather than seeing the stale value from
@@ -517,6 +573,7 @@ export class SessionManager implements SessionWriter {
       pendingIdleTimer: null,
       turnEndAt: 0,
       workDepth: 0,
+      subagentDepth: 0,
       pasteDiagDrainChain: 0,
       pasteDiagLastLogAt: 0,
       staleHookNotifiedAt: 0,
@@ -570,6 +627,7 @@ export class SessionManager implements SessionWriter {
     session.hooksActive = false;
     session.agentState = "notRunning";
     session.workDepth = 0;
+    session.subagentDepth = 0;
     session.hookDerivedState = null;
 
     // Intentionally kept as "notRunning" (not cleared): the session still exists,

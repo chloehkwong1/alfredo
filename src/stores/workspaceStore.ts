@@ -132,6 +132,10 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         agentStatus: old.agentStatus,
         channelAlive: old.channelAlive,
         staleBusy: old.staleBusy,
+        // Frontend-only count written by the reconciler — listWorktrees has no
+        // such field, so a refresh would blank "Running N agents…" to undefined
+        // until the next 500ms tick (same flicker the diff stats below avoid).
+        runningAgents: old.runningAgents,
         archived: old.archived,
         archivedAt: old.archivedAt,
         unarchivedAt: old.unarchivedAt,

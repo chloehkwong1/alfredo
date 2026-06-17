@@ -30,6 +30,14 @@ export const STALE_OUTPUT_IDLE_MS = 10_000;
  *  cursor repositioning) while idle, keeping lastOutputAt fresh and preventing
  *  the output-based reconciler from triggering. */
 export const STALE_HOOK_FORCE_MS = 60_000;
+/** Stranded-subagent self-heal threshold. subagentDepth is normally cleared by
+ *  subagentEnd or the next promptStart, but a dropped SubagentStop hook (curl
+ *  timeout) would strand it > 0 forever — and since the rescue paths are gated
+ *  on no-work-in-flight, the session would be stuck "Running N agents…" with no
+ *  recovery. If BOTH channels are silent this long, treat the count as lost.
+ *  Far longer than STALE_HOOK_FORCE_MS so a genuinely long-running background
+ *  agent (which streams output and keeps lastOutputAt fresh) is never healed. */
+export const STALE_SUBAGENT_FORCE_MS = 300_000;
 /** Debounce window for idle(turnEnd) transitions.
  *  Claude Code fires Stop (turnEnd) between every turn — including sub-agent
  *  completions. Defer the entire state+notification transition so a following
@@ -176,11 +184,60 @@ export function applyHookToDepth(
       return Math.max(0, depth - 1);
     case "turnEnd":
       return 0;
+    case "subagentStart":
     case "subagentEnd":
     case "none":
     default:
       return depth;
   }
+}
+
+/**
+ * Background-subagent counter. Tracks how many Task/background subagents the
+ * main agent has in flight, independent of workDepth (tools).
+ *
+ *   subagentStart            → +1
+ *   subagentEnd              → max(0, d - 1)
+ *   promptStart              → 0 (new user turn — any prior subagents are done)
+ *   notRunning (any phase)   → 0 (PTY exited)
+ *   anything else            → unchanged
+ *
+ * Crucially NOT reset on turnEnd: Claude Code fires Stop (turnEnd) the moment
+ * the main agent dispatches background agents and yields, while the subagents
+ * keep running. The count must survive that Stop so the idle transition can be
+ * suppressed (see the hook handler). promptStart is the self-heal boundary — a
+ * fresh user turn means a dropped subagentEnd can't strand the counter forever.
+ * Pure function — safe to unit test.
+ */
+export function applySubagentDepth(
+  depth: number,
+  state: import("../types").AgentState,
+  phase: import("../types").HookPhase,
+): number {
+  if (state === "notRunning") return 0;
+  switch (phase) {
+    case "subagentStart":
+      return depth + 1;
+    case "subagentEnd":
+      return Math.max(0, depth - 1);
+    case "promptStart":
+      return 0;
+    default:
+      return depth;
+  }
+}
+
+/**
+ * Structural proof that work is in flight: a foreground tool (workDepth) or a
+ * background/Task subagent (subagentDepth). While this holds, the reconciler
+ * refuses to stale-rescue and the detector fallback refuses to flip the session
+ * idle — both would otherwise false-idle a session that is genuinely working.
+ * Single definition so every gate reads the same predicate.
+ */
+export function hasWorkInFlight(
+  session: Pick<ManagedSession, "workDepth" | "subagentDepth">,
+): boolean {
+  return session.workDepth > 0 || session.subagentDepth > 0;
 }
 
 /**
@@ -268,6 +325,10 @@ export function createSessionChannel(
         // If a future phase ever mutates depth at phase="none", move this
         // line after the suppression check.
         session.workDepth = applyHookToDepth(session.workDepth, state, phase);
+        // Background-subagent counter, tracked separately from workDepth and on
+        // the same "before any suppression break" line — every subagent phase is
+        // != "none" so this never strands the counter.
+        session.subagentDepth = applySubagentDepth(session.subagentDepth, state, phase);
 
         // Suppress spurious bare-busy hooks that fire immediately after turnEnd.
         // Claude Code's internal state settles with idle(turnEnd) → idle → busy(none),
@@ -298,6 +359,23 @@ export function createSessionChannel(
           && session.agentState !== "busy"
         ) {
           console.debug(`[status:${worktreeId}] straggler subagentEnd IGNORED (session is ${session.agentState})`);
+          break;
+        }
+
+        // Stop fired while background subagents are still running. The main
+        // agent dispatches background/Task agents and immediately yields its
+        // turn — Claude Code fires Stop (idle/turnEnd) the moment it parks, but
+        // the work isn't done. Keep the session busy and swallow the "finished"
+        // notification. subagentDepth is cleared by each matching subagentEnd
+        // (and by promptStart on the next user turn), after which a real Stop
+        // transitions to idle normally. Mirrors the workDepth > 0 guard the
+        // reconciler uses for foreground tools.
+        if (state === "idle" && phase === "turnEnd" && session.subagentDepth > 0) {
+          console.debug(`[status:${worktreeId}] idle(turnEnd) SUPPRESSED — ${session.subagentDepth} subagent(s) in flight`);
+          if (session.pendingIdleTimer !== null) {
+            clearTimeout(session.pendingIdleTimer);
+            session.pendingIdleTimer = null;
+          }
           break;
         }
 
@@ -385,13 +463,15 @@ export function createSessionChannel(
         // plan), no hooks fire for minutes; after STALE_HOOK_MS the detector
         // unmutes and misreads Claude Code's `❯` prompt redraws as idle, then
         // the next text chunk as busy → sidebar flickers busy/idle/done at a
-        // few-second cadence. workDepth > 0 means hooks structurally proved
-        // the turn is still open (UserPromptSubmit not yet matched by Stop),
-        // so the detector's idle reading is a false positive. The reconciler
-        // already trusts workDepth > 0 (see sessionManager.ts:75 and :99) —
-        // this makes the detector path consistent.
-        if (session.hookDerivedState === "busy" && session.workDepth > 0) {
-          console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hook=busy, workDepth=${session.workDepth})`);
+        // few-second cadence. hasWorkInFlight means hooks structurally proved
+        // work is still open — a foreground tool (workDepth) OR a background
+        // subagent (subagentDepth). The latter is the common case here: real
+        // background agents fire no parent tool-hooks, so a >60s run goes
+        // hook-silent, the detector unmutes, and without the subagentDepth
+        // arm it would false-flip the session to idle mid-run. The reconciler
+        // already trusts this same predicate (sessionManager rescue gates).
+        if (session.hookDerivedState === "busy" && hasWorkInFlight(session)) {
+          console.debug(`[status:${worktreeId}] detector "${event.data}" REJECTED (hook=busy, workDepth=${session.workDepth}, subagentDepth=${session.subagentDepth})`);
           break;
         }
         const fallback = session.hooksActive;

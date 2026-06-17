@@ -103,6 +103,7 @@ pub enum HookPhase {
     ToolStart,    // PreToolUse
     ToolEnd,      // PostToolUse / PostToolUseFailure
     TurnEnd,      // Stop / StopFailure (resets counter)
+    SubagentStart, // SubagentStart — a background/Task subagent was spawned; parent stays busy while it runs
     SubagentEnd,  // SubagentStop — straggler after parent's TurnEnd must not wake idle sessions
 }
 

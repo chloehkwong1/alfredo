@@ -26,7 +26,7 @@ export type PtyEvent =
   | { event: "cwd"; data: string | null };
 
 /** Hook lifecycle phase — mirrors the Rust `HookPhase` enum. */
-export type HookPhase = "none" | "promptStart" | "toolStart" | "toolEnd" | "turnEnd" | "subagentEnd";
+export type HookPhase = "none" | "promptStart" | "toolStart" | "toolEnd" | "turnEnd" | "subagentStart" | "subagentEnd";
 
 // ── Agent ───────────────────────────────────────────────────────
 
@@ -53,6 +53,10 @@ export interface Worktree {
   agentStatus: AgentState;
   channelAlive?: boolean;
   staleBusy?: boolean;
+  /** Number of background/Task subagents currently in flight across this
+   *  worktree's sessions. When > 0 the sidebar renders "Running N agents…"
+   *  instead of "Thinking…". Written by the reconciler (see sessionManager). */
+  runningAgents?: number;
   column: KanbanColumn;
   isBranchMode: boolean;
   additions: number | null;

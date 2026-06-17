@@ -375,7 +375,11 @@ function AgentItemContent({
                       ? "text-status-error font-medium"
                       : mutedTextClass,
             ].join(" ")}>
-              {effectiveStatus === "busy" ? <><ThinkingText /><ThinkingDots /></> : getStatusText(effectiveStatus)}
+              {effectiveStatus === "busy"
+                ? (worktree.runningAgents && worktree.runningAgents > 0
+                    ? <>Running {worktree.runningAgents} agent{worktree.runningAgents === 1 ? "" : "s"}<ThinkingDots /></>
+                    : <><ThinkingText /><ThinkingDots /></>)
+                : getStatusText(effectiveStatus)}
             </span>
             {isServerRunning && <ServerIndicator port={serverPort} />}
             {!isServerRunning && assignedPort && (
