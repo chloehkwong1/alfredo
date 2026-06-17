@@ -205,6 +205,14 @@ function Sidebar({
 
     const arrivalColumns = new Set<KanbanColumn>();
     for (const wt of activeNow) {
+      // "done" never drives auto-expand: when a worktree lands in Done via an
+      // automatic transition (merge detection / GitHub sync / auto-archive)
+      // there's no reason to pop the section open — completed work doesn't
+      // need surfacing. Excluded here (not just at the toExpand filter below)
+      // so a Done arrival also can't inflate the size gate and suppress a
+      // sibling column's expansion. Manual drops onto a collapsed Done still
+      // expand it via the drag path (SidebarDragContext's onExpandColumn).
+      if (wt.column === "done") continue;
       const prev = seen.get(wt.id);
       if (prev === undefined || prev !== wt.column) {
         arrivalColumns.add(wt.column);
