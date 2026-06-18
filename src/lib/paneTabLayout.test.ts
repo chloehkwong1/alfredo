@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { pinnedAgentTab, partitionFlatTabs } from "./paneTabLayout";
+import { splitByWidth } from "./paneTabLayout";
 import type { WorkspaceTab, TabType } from "../types";
 
 function tab(id: string, type: TabType): WorkspaceTab {
@@ -55,5 +56,36 @@ describe("partitionFlatTabs", () => {
     const { pinned, rest } = partitionFlatTabs(tabs, "sh", undefined);
     expect(pinned).toEqual([]);
     expect(rest.map((t) => t.id)).toEqual(["sh", "n"]);
+  });
+});
+
+describe("splitByWidth", () => {
+  it("shows all when every tab fits", () => {
+    const tabs = [tab("a", "shell"), tab("b", "notes")];
+    const { visible, overflow } = splitByWidth(tabs, [100, 100], 500);
+    expect(visible.map((t) => t.id)).toEqual(["a", "b"]);
+    expect(overflow).toEqual([]);
+  });
+
+  it("overflows the tabs that do not fit, reserving room for the trigger", () => {
+    const tabs = [tab("a", "shell"), tab("b", "notes"), tab("c", "shell")];
+    // widths 100 each, container 250, trigger reserve 40 -> fits 2
+    const { visible, overflow } = splitByWidth(tabs, [100, 100, 100], 250, 40);
+    expect(visible.map((t) => t.id)).toEqual(["a", "b"]);
+    expect(overflow.map((t) => t.id)).toEqual(["c"]);
+  });
+
+  it("keeps at least one visible even if it technically does not fit", () => {
+    const tabs = [tab("a", "shell"), tab("b", "notes")];
+    const { visible, overflow } = splitByWidth(tabs, [400, 400], 100, 40);
+    expect(visible.map((t) => t.id)).toEqual(["a"]);
+    expect(overflow.map((t) => t.id)).toEqual(["b"]);
+  });
+
+  it("no overflow trigger reserve when nothing overflows", () => {
+    const tabs = [tab("a", "shell")];
+    const { visible, overflow } = splitByWidth(tabs, [90], 100, 40);
+    expect(visible.map((t) => t.id)).toEqual(["a"]);
+    expect(overflow).toEqual([]);
   });
 });

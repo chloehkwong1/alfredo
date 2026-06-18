@@ -35,3 +35,29 @@ export function partitionFlatTabs(
   const rest = tabs.filter((t) => !pinnedIds.has(t.id));
   return { pinned, rest };
 }
+
+/**
+ * Greedily place tabs left-to-right until they no longer fit `containerWidth`,
+ * overflowing the remainder. When anything overflows, reserve `triggerWidth`
+ * for the "⋯" button. Always keeps at least the first tab visible.
+ */
+export function splitByWidth<T>(
+  tabs: T[],
+  widths: number[],
+  containerWidth: number,
+  triggerWidth = 0,
+): { visible: T[]; overflow: T[] } {
+  const total = widths.reduce((a, b) => a + b, 0);
+  if (total <= containerWidth) return { visible: tabs, overflow: [] };
+
+  const budget = containerWidth - triggerWidth;
+  const visible: T[] = [];
+  let used = 0;
+  for (let i = 0; i < tabs.length; i++) {
+    const next = used + widths[i];
+    if (visible.length > 0 && next > budget) break;
+    visible.push(tabs[i]);
+    used = next;
+  }
+  return { visible, overflow: tabs.slice(visible.length) };
+}
