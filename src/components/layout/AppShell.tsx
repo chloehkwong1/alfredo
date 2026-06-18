@@ -20,6 +20,8 @@ import { ShortcutsOverlay } from "../settings/ShortcutsOverlay";
 import { OPEN_WORKSPACE_SETTINGS_EVENT } from "../settings/openWorkspaceSettings";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
+import { useLayoutStore } from "../../stores/layoutStore";
+import { tabSwitchTarget } from "../../lib/paneTabLayout";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
 import { useSessionRestore } from "../../hooks/useSessionRestore";
@@ -210,6 +212,35 @@ function AppShell() {
     window.addEventListener("keydown", handleTogglePanel);
     return () => window.removeEventListener("keydown", handleTogglePanel);
   }, [activeWorktreeId, setChangesPanelCollapsed]);
+
+  // Cmd+J (Mac) / Ctrl+J (Windows/Linux) to toggle active pane between agent and diff tabs
+  useEffect(() => {
+    function handleTabToggle(e: KeyboardEvent) {
+      if (!activeWorktreeId) return;
+      if (e.key.toLowerCase() === "j" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        const layout = useLayoutStore.getState();
+        const paneId = layout.activePaneId[activeWorktreeId];
+        const pane = paneId ? layout.panes[activeWorktreeId]?.[paneId] : undefined;
+        if (!paneId || !pane) return;
+        const tabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
+        const paneTabs = pane.tabIds
+          .map((id) => tabs.find((t) => t.id === id))
+          .filter((t): t is NonNullable<typeof t> => t != null);
+        const target = tabSwitchTarget(
+          paneTabs,
+          pane.activeTabId,
+          layout.lastFocusedAgentTabId[activeWorktreeId],
+        );
+        if (!target) return;
+        layout.setPaneActiveTab(activeWorktreeId, paneId, target);
+        layout.setActivePaneId(activeWorktreeId, paneId);
+        useTabStore.getState().setActiveTabId(activeWorktreeId, target);
+      }
+    }
+    window.addEventListener("keydown", handleTabToggle);
+    return () => window.removeEventListener("keydown", handleTabToggle);
+  }, [activeWorktreeId]);
 
   const annotationCount = activeWorktreeId
     ? (annotations[activeWorktreeId]?.length ?? 0)

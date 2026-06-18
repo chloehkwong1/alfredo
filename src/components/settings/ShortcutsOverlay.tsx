@@ -34,6 +34,7 @@ const SHORTCUT_GROUPS = [
     shortcuts: [
       { keys: "⌘ B", description: "Toggle sidebar" },
       { keys: "⌘ I", description: "Toggle changes panel" },
+      { keys: "⌘ J", description: "Toggle agent / diff" },
     ],
   },
   {
