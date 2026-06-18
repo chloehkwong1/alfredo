@@ -1,0 +1,23 @@
+src/lib/paneTabLayout.ts
+  s_dce08dd7e4a34d::t_031d9b61242459 86-88,94,98-101
+src/components/layout/AppShell.tsx
+  s_dce08dd7e4a34d::t_4fcb9f79bf1195 234
+src/lib/paneTabLayout.test.ts
+  s_dce08dd7e4a34d::t_a6d140d7640ae4 94-97,100,102,107,110-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "4e43878ff07b69719ba5a2ad23ebb13ffb923419",
+  "prompts": {},
+  "sessions": {
+    "s_dce08dd7e4a34d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d114f005-067d-402d-858e-a98c0ca61367",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
