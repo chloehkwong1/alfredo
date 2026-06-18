@@ -57,6 +57,7 @@ import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
 import { GROUP_ORDER, GROUP_LABELS, getActiveGroup, getGroupForTab, getTabsInGroup, summarizeGroupActivity, type GroupActivityStatus, type TabGroupId } from "../../lib/tabGroups";
+import { partitionFlatTabs } from "../../lib/paneTabLayout";
 import { useAppConfigValue } from "../../stores/appConfigStore";
 import { useAppConfig } from "../../hooks/useAppConfig";
 
@@ -359,6 +360,60 @@ function PinnedTab({
       ].join(" ")}
     >
       <Icon size={14} />
+      {isActive && (
+        <motion.div
+          layoutId={`tab-underline-${paneId}`}
+          className="absolute bottom-0 left-2 right-2 h-0.5 bg-accent-primary"
+          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+        />
+      )}
+    </div>
+  );
+}
+
+function FlatPinnedAnchor({
+  tab,
+  isActive,
+  worktreeId,
+  paneId,
+}: {
+  tab: WorkspaceTab;
+  isActive: boolean;
+  worktreeId: string;
+  paneId: string;
+}) {
+  const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
+  const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
+  const setActiveTabId = useTabStore((s) => s.setActiveTabId);
+  const Icon = TAB_ICONS[tab.type];
+  const label = tab.dynamicLabel ?? tab.label;
+  const activate = () => {
+    setPaneActiveTab(worktreeId, paneId, tab.id);
+    setActivePaneId(worktreeId, paneId);
+    setActiveTabId(worktreeId, tab.id);
+  };
+  return (
+    <div
+      data-tab-id={tab.id}
+      role="tab"
+      tabIndex={0}
+      aria-label={label}
+      aria-selected={isActive}
+      title={label}
+      onClick={activate}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          activate();
+        }
+      }}
+      className={[
+        "group h-full px-2.5 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative flex-shrink-0",
+        isActive ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
+      ].join(" ")}
+    >
+      {!isAgentTab(tab) && <Icon size={14} />}
+      <span className="max-w-[120px] truncate">{label}</span>
       {isActive && (
         <motion.div
           layoutId={`tab-underline-${paneId}`}
@@ -684,9 +739,15 @@ function PaneTabBar({
   const visibleTabs = paneTabs.filter((t) => t.type in TAB_ICONS);
   const pinnedTabs = visibleTabs.filter((t) => t.type === "notes");
   const nonPinnedTabs = visibleTabs.filter((t) => t.type !== "notes");
+  const lastFocusedAgentTabId = useLayoutStore(
+    (s) => s.lastFocusedAgentTabId[worktreeId],
+  );
+  const flatPartition = !groupedTabs
+    ? partitionFlatTabs(visibleTabs, activeTabId, lastFocusedAgentTabId)
+    : null;
   const sortableTabs = groupedTabs
     ? nonPinnedTabs.filter((t) => getGroupForTab(t) === activeGroup)
-    : nonPinnedTabs;
+    : (flatPartition?.rest ?? nonPinnedTabs);
   const sortableTabIds = sortableTabs.map((t) => t.id);
   const renderedTabs = groupedTabs ? sortableTabs : visibleTabs;
   const tabCount = renderedTabs.length;
@@ -743,11 +804,24 @@ function PaneTabBar({
         onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
       >
         <div className="relative flex items-center h-full min-w-0">
+          {flatPartition && flatPartition.pinned.length > 0 && (
+            <div className="flex items-center h-full flex-shrink-0 border-r border-border-subtle">
+              {flatPartition.pinned.map((tab) => (
+                <FlatPinnedAnchor
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  worktreeId={worktreeId}
+                  paneId={paneId}
+                />
+              ))}
+            </div>
+          )}
           <div
             ref={scrollContainerRef}
             className="flex items-center h-full w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {pinnedTabs.map((tab) => (
+            {groupedTabs && pinnedTabs.map((tab) => (
               <PinnedTab
                 key={tab.id}
                 tab={tab}
