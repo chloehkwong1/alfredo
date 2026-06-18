@@ -61,3 +61,19 @@ export function splitByWidth<T>(
   }
   return { visible, overflow: tabs.slice(visible.length) };
 }
+
+/**
+ * Agent↔Diff two-way toggle target. From an agent tab, return the diff tab id;
+ * from anything else, return the agent to pin/focus. Undefined if no target.
+ */
+export function tabSwitchTarget(
+  tabs: WorkspaceTab[],
+  activeTabId: string | undefined,
+  lastFocusedAgentTabId: string | undefined,
+): string | undefined {
+  const active = tabs.find((t) => t.id === activeTabId);
+  if (active && isAgentTab(active)) {
+    return tabs.find((t) => t.type === "diff")?.id;
+  }
+  return pinnedAgentTab(tabs, activeTabId, lastFocusedAgentTabId)?.id;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pinnedAgentTab, partitionFlatTabs } from "./paneTabLayout";
+import { pinnedAgentTab, partitionFlatTabs, tabSwitchTarget } from "./paneTabLayout";
 import { splitByWidth } from "./paneTabLayout";
 import type { WorkspaceTab, TabType } from "../types";
 
@@ -87,5 +87,27 @@ describe("splitByWidth", () => {
     const { visible, overflow } = splitByWidth(tabs, [90], 100, 40);
     expect(visible.map((t) => t.id)).toEqual(["a"]);
     expect(overflow).toEqual([]);
+  });
+});
+
+describe("tabSwitchTarget", () => {
+  it("from an agent -> the diff tab", () => {
+    const tabs = [tab("a1", "claude"), tab("d", "diff")];
+    expect(tabSwitchTarget(tabs, "a1", undefined)).toBe("d");
+  });
+
+  it("from diff -> the active/last agent", () => {
+    const tabs = [tab("a1", "claude"), tab("d", "diff")];
+    expect(tabSwitchTarget(tabs, "d", "a1")).toBe("a1");
+  });
+
+  it("from a terminal -> the agent", () => {
+    const tabs = [tab("sh", "shell"), tab("a1", "codex"), tab("d", "diff")];
+    expect(tabSwitchTarget(tabs, "sh", undefined)).toBe("a1");
+  });
+
+  it("returns undefined from an agent when no diff exists", () => {
+    const tabs = [tab("a1", "claude"), tab("sh", "shell")];
+    expect(tabSwitchTarget(tabs, "a1", undefined)).toBeUndefined();
   });
 });
