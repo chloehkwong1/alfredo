@@ -1,0 +1,19 @@
+src/hooks/useKeyboardShortcuts.ts
+  s_dce08dd7e4a34d::t_0f0f90306643a2 136-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "a5fc32a20c147efa566415b706ccafbe7401b21c",
+  "prompts": {},
+  "sessions": {
+    "s_dce08dd7e4a34d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d114f005-067d-402d-858e-a98c0ca61367",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
