@@ -14,6 +14,7 @@ import {
   ChevronDown,
   LayoutList,
   LayoutGrid,
+  MoreHorizontal,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -57,7 +58,7 @@ import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
 import { GROUP_ORDER, GROUP_LABELS, getActiveGroup, getGroupForTab, getTabsInGroup, summarizeGroupActivity, type GroupActivityStatus, type TabGroupId } from "../../lib/tabGroups";
-import { partitionFlatTabs } from "../../lib/paneTabLayout";
+import { partitionFlatTabs, splitByWidth } from "../../lib/paneTabLayout";
 import { useAppConfigValue } from "../../stores/appConfigStore";
 import { useAppConfig } from "../../hooks/useAppConfig";
 
@@ -586,6 +587,8 @@ function PaneTabBar({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [tabWidths, setTabWidths] = useState<Record<string, number>>({});
   const prevTabCountRef = useRef(0);
   const lastActiveInGroupRef = useRef<Record<TabGroupId, string | undefined>>({
     agents: undefined,
@@ -749,6 +752,20 @@ function PaneTabBar({
     ? nonPinnedTabs.filter((t) => getGroupForTab(t) === activeGroup)
     : (flatPartition?.rest ?? nonPinnedTabs);
   const sortableTabIds = sortableTabs.map((t) => t.id);
+
+  const TRIGGER_W = 36; // px reserved for the ⋯ button; visual tuning deferred to maintainer
+  const flatOverflow =
+    !groupedTabs && containerWidth > 0
+      ? splitByWidth(
+          sortableTabs,
+          sortableTabs.map((t) => tabWidths[t.id] ?? 9999),
+          containerWidth,
+          TRIGGER_W,
+        )
+      : null;
+  const renderTabs = flatOverflow ? flatOverflow.visible : sortableTabs;
+  const overflowTabs = flatOverflow ? flatOverflow.overflow : [];
+
   const renderedTabs = groupedTabs ? sortableTabs : visibleTabs;
   const tabCount = renderedTabs.length;
   const lastTabId = tabCount > 0 ? renderedTabs[tabCount - 1].id : null;
@@ -769,6 +786,25 @@ function PaneTabBar({
       ro.disconnect();
     };
   }, [tabCount]);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || groupedTabs) return;
+    const measure = () => {
+      setContainerWidth(el.clientWidth);
+      const widths: Record<string, number> = {};
+      el.querySelectorAll<HTMLElement>("[data-tab-id]").forEach((node) => {
+        const id = node.dataset.tabId;
+        if (id) widths[id] = node.offsetWidth;
+      });
+      setTabWidths(widths);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupedTabs, sortableTabIds.join(",")]);
 
   useEffect(() => {
     if (!activeTabId) return;
@@ -867,7 +903,7 @@ function PaneTabBar({
               items={sortableTabIds}
               strategy={horizontalListSortingStrategy}
             >
-              {sortableTabs.map((tab, tabIdx) => {
+              {renderTabs.map((tab, tabIdx) => {
                 const isActive = tab.id === activeTabId;
                 return (
                   <SortableTab
@@ -890,6 +926,38 @@ function PaneTabBar({
                 );
               })}
             </SortableContext>
+            {!groupedTabs && overflowTabs.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`${overflowTabs.length} more tabs`}
+                    title="More tabs"
+                    className="h-full px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
+                  >
+                    <MoreHorizontal size={16} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {overflowTabs.map((t) => {
+                    const Icon = TAB_ICONS[t.type];
+                    return (
+                      <DropdownMenuItem
+                        key={t.id}
+                        onSelect={() => {
+                          useLayoutStore.getState().setPaneActiveTab(worktreeId, paneId, t.id);
+                          useLayoutStore.getState().setActivePaneId(worktreeId, paneId);
+                          useTabStore.getState().setActiveTabId(worktreeId, t.id);
+                        }}
+                      >
+                        {!isAgentTab(t) && <Icon size={14} />}
+                        <span className="flex-1 truncate">{t.dynamicLabel ?? t.label}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             {groupedTabs && sortableTabs.length === 0 && (
               <EmptyGroupState
                 group={activeGroup}
@@ -902,20 +970,24 @@ function PaneTabBar({
               />
             )}
           </div>
-          <div
-            aria-hidden
-            className={[
-              "absolute left-0 top-0 bottom-0 w-6 pointer-events-none bg-gradient-to-r from-bg-bar to-transparent transition-opacity duration-150",
-              showLeftFade ? "opacity-100" : "opacity-0",
-            ].join(" ")}
-          />
-          <div
-            aria-hidden
-            className={[
-              "absolute right-0 top-0 bottom-0 w-6 pointer-events-none bg-gradient-to-l from-bg-bar to-transparent transition-opacity duration-150",
-              showRightFade ? "opacity-100" : "opacity-0",
-            ].join(" ")}
-          />
+          {groupedTabs && (
+            <>
+              <div
+                aria-hidden
+                className={[
+                  "absolute left-0 top-0 bottom-0 w-6 pointer-events-none bg-gradient-to-r from-bg-bar to-transparent transition-opacity duration-150",
+                  showLeftFade ? "opacity-100" : "opacity-0",
+                ].join(" ")}
+              />
+              <div
+                aria-hidden
+                className={[
+                  "absolute right-0 top-0 bottom-0 w-6 pointer-events-none bg-gradient-to-l from-bg-bar to-transparent transition-opacity duration-150",
+                  showRightFade ? "opacity-100" : "opacity-0",
+                ].join(" ")}
+              />
+            </>
+          )}
         </div>
 
         <DragOverlay>
