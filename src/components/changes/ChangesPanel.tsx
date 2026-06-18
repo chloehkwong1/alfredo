@@ -686,10 +686,22 @@ function WorkspacePanelMinimized({
   const fileCount = uncommittedFiles.length + committedFiles.length;
   const hasPr = pr !== null;
 
+  // Without a summary, a screen reader gets nothing about what's inside the
+  // collapsed rail. Fold the at-a-glance counts into the label so it's as
+  // informative by ear as the icons + tooltips are by sight.
+  const { failingChecks, unresolvedComments, reviewDecision } = usePrBadgeCounts(worktreeId);
+  const summary = [
+    fileCount > 0 ? `${fileCount} file${fileCount !== 1 ? "s" : ""}` : null,
+    hasPr && failingChecks > 0 ? `${failingChecks} check${failingChecks !== 1 ? "s" : ""} failing` : null,
+    hasPr && reviewDecision === "CHANGES_REQUESTED" ? "changes requested" : null,
+    hasPr && unresolvedComments > 0 ? `${unresolvedComments} unresolved comment${unresolvedComments !== 1 ? "s" : ""}` : null,
+  ].filter(Boolean).join(", ");
+  const ariaLabel = summary ? `Expand Changes panel — ${summary}` : "Expand Changes panel";
+
   return (
     <button
       onClick={onExpand}
-      aria-label="Expand panel"
+      aria-label={ariaLabel}
       className="flex flex-col items-center gap-2 w-8 h-full bg-bg-primary border-l border-border-default hover:bg-bg-hover transition-colors py-3 flex-shrink-0 cursor-pointer"
     >
       <PanelRightOpen size={14} className="text-text-tertiary flex-shrink-0" />

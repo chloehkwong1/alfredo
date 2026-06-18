@@ -146,30 +146,44 @@ interface PrRailIconsProps {
 export function PrRailIcons({ worktreeId }: PrRailIconsProps) {
   const { checkRuns, reviewDecision, failingChecks, pendingChecks, unresolvedComments, approvals } = usePrBadgeCounts(worktreeId);
 
+  // Monochrome badges drop the colour cue, so the tooltip carries the state
+  // (pass/fail/pending, review decision) the colour used to convey on hover.
+  const checksTitle =
+    failingChecks > 0 ? `${failingChecks} check${failingChecks !== 1 ? "s" : ""} failing`
+    : pendingChecks > 0 ? `${pendingChecks} check${pendingChecks !== 1 ? "s" : ""} running`
+    : checkRuns.length > 0 ? `${checkRuns.length} check${checkRuns.length !== 1 ? "s" : ""} passing`
+    : "No checks";
+  const reviewsTitle =
+    reviewDecision === "CHANGES_REQUESTED" ? "Changes requested"
+    : reviewDecision === "APPROVED" ? "Approved"
+    : approvals > 0 ? `${approvals} approval${approvals !== 1 ? "s" : ""}`
+    : "Reviews";
+  const commentsTitle =
+    unresolvedComments > 0 ? `${unresolvedComments} unresolved comment${unresolvedComments !== 1 ? "s" : ""}` : "Comments";
+
   return (
     <>
-      {/* Checks icon + badge */}
+      {/* Checks icon + badge — icon turns red when checks are failing */}
       <RailIcon
         icon={<CircleCheck size={16} />}
         count={failingChecks > 0 ? failingChecks : pendingChecks > 0 ? pendingChecks : checkRuns.length}
-        badgeVariant={failingChecks > 0 ? "error" : pendingChecks > 0 ? "pending" : "ok"}
-        title="Check runs"
+        attention={failingChecks > 0}
+        title={checksTitle}
       />
 
-      {/* Reviews icon + badge */}
+      {/* Reviews icon + badge — icon turns red when changes are requested */}
       <RailIcon
         icon={<Eye size={16} />}
         count={approvals}
-        badgeVariant={reviewDecision === "APPROVED" ? "ok" : reviewDecision === "CHANGES_REQUESTED" ? "error" : "neutral"}
-        title="Reviews"
+        attention={reviewDecision === "CHANGES_REQUESTED"}
+        title={reviewsTitle}
       />
 
       {/* Comments icon + badge */}
       <RailIcon
         icon={<MessageCircle size={16} />}
         count={unresolvedComments}
-        badgeVariant="info"
-        title="Comments"
+        title={commentsTitle}
       />
     </>
   );
@@ -372,42 +386,29 @@ function ResolvedToggle({ count, children }: { count: number; children: React.Re
 
 // ── Layout primitives (internal) ──────────────────────────────────
 
-type BadgeVariant = "error" | "ok" | "pending" | "info" | "neutral";
-
-function badgeBgClass(variant: BadgeVariant): string {
-  switch (variant) {
-    case "error": return "bg-diff-removed";
-    case "ok": return "bg-diff-added";
-    case "pending": return "bg-status-busy";
-    case "info": return "bg-accent-primary";
-    case "neutral": return "bg-text-tertiary";
-  }
-}
 
 function RailIcon({
   icon,
   count,
-  badgeVariant,
+  attention = false,
   title,
 }: {
   icon: React.ReactNode;
   count: number;
-  badgeVariant: BadgeVariant;
+  // Tints the icon (not the badge) to flag something that needs attention —
+  // failing checks, changes requested. Badges stay neutral; colour lives on
+  // the icon, matching how status is signalled elsewhere in the app.
+  attention?: boolean;
   title: string;
 }) {
   return (
     <div
-      className="relative text-text-tertiary leading-none"
+      className={`relative leading-none ${attention ? "text-status-error" : "text-text-tertiary"}`}
       title={title}
     >
       {icon}
       {count > 0 && (
-        <span
-          className={[
-            "absolute -top-[5px] -right-[6px] flex items-center justify-center text-[10px] font-bold text-white rounded-md min-w-[15px] h-[15px] px-0.5 leading-none",
-            badgeBgClass(badgeVariant),
-          ].join(" ")}
-        >
+        <span className="absolute -top-1 -right-1 flex items-center justify-center text-[9px] font-semibold leading-none min-w-[14px] px-1 py-px rounded-sm bg-white/5 text-text-tertiary">
           {count > 99 ? "99+" : count}
         </span>
       )}
