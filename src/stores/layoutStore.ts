@@ -14,6 +14,8 @@ interface LayoutState {
   activePaneId: Record<string, string>;
   /** Most recently focused agent tab per worktree (used to route inline review comments). */
   lastFocusedAgentTabId: Record<string, string>;
+  /** Most recently focused non-agent tab per worktree (used to restore context when toggling back from an agent). */
+  lastFocusedNonAgentTabId: Record<string, string>;
 
   // ── Initialization ──
   initLayout: (worktreeId: string, tabIds: string[], activeTabId: string) => void;
@@ -39,6 +41,7 @@ interface LayoutState {
   setActivePaneId: (worktreeId: string, paneId: string) => void;
   setPaneActiveTab: (worktreeId: string, paneId: string, tabId: string) => void;
   setLastFocusedAgentTab: (worktreeId: string, tabId: string) => void;
+  setLastFocusedNonAgentTab: (worktreeId: string, tabId: string) => void;
   addTabToPane: (worktreeId: string, paneId: string, tabId: string) => void;
   /** Insert a tab at the front of a pane WITHOUT changing the active tab.
    * Used to adopt the permanent notes tab without stealing focus. */
@@ -115,6 +118,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   panes: {},
   activePaneId: {},
   lastFocusedAgentTabId: {},
+  lastFocusedNonAgentTabId: {},
 
   initLayout: (worktreeId, tabIds, activeTabId) => {
     const paneId = generatePaneId();
@@ -154,11 +158,13 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const { [worktreeId]: _p, ...restPanes } = s.panes;
       const { [worktreeId]: _a, ...restActive } = s.activePaneId;
       const { [worktreeId]: _f, ...restLastAgent } = s.lastFocusedAgentTabId;
+      const { [worktreeId]: _fn, ...restLastNonAgent } = s.lastFocusedNonAgentTabId;
       return {
         layout: restLayout,
         panes: restPanes,
         activePaneId: restActive,
         lastFocusedAgentTabId: restLastAgent,
+        lastFocusedNonAgentTabId: restLastNonAgent,
       };
     });
   },
@@ -259,9 +265,14 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         tab && isAgentTab(tab)
           ? { ...s.lastFocusedAgentTabId, [worktreeId]: activeTabId! }
           : s.lastFocusedAgentTabId;
+      const nextLastNonAgent =
+        tab && !isAgentTab(tab)
+          ? { ...s.lastFocusedNonAgentTabId, [worktreeId]: activeTabId! }
+          : s.lastFocusedNonAgentTabId;
       return {
         activePaneId: { ...s.activePaneId, [worktreeId]: paneId },
         lastFocusedAgentTabId: nextLastFocused,
+        lastFocusedNonAgentTabId: nextLastNonAgent,
       };
     });
   },
@@ -269,6 +280,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setLastFocusedAgentTab: (worktreeId, tabId) => {
     set((s) => ({
       lastFocusedAgentTabId: { ...s.lastFocusedAgentTabId, [worktreeId]: tabId },
+    }));
+  },
+
+  setLastFocusedNonAgentTab: (worktreeId, tabId) => {
+    set((s) => ({
+      lastFocusedNonAgentTabId: { ...s.lastFocusedNonAgentTabId, [worktreeId]: tabId },
     }));
   },
 
@@ -281,6 +298,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         tab && isAgentTab(tab)
           ? { ...s.lastFocusedAgentTabId, [worktreeId]: tabId }
           : s.lastFocusedAgentTabId;
+      const nextLastNonAgent =
+        tab && !isAgentTab(tab)
+          ? { ...s.lastFocusedNonAgentTabId, [worktreeId]: tabId }
+          : s.lastFocusedNonAgentTabId;
       return {
         panes: {
           ...s.panes,
@@ -290,6 +311,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
           },
         },
         lastFocusedAgentTabId: nextLastFocused,
+        lastFocusedNonAgentTabId: nextLastNonAgent,
       };
     });
   },

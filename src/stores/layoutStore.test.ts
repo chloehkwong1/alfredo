@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { LayoutNode, Pane } from "../types";
 
+const mockTabStoreState: { tabs: Record<string, { id: string; type: string }[]>; removeTab: ReturnType<typeof vi.fn> } = {
+  tabs: {},
+  removeTab: vi.fn(),
+};
+
 vi.mock("./tabStore", () => ({
   useTabStore: {
-    getState: () => ({
-      removeTab: vi.fn(),
-    }),
+    getState: () => mockTabStoreState,
   },
 }));
 
@@ -30,7 +33,8 @@ function getSinglePaneId(): string {
 
 describe("layoutStore", () => {
   beforeEach(() => {
-    useLayoutStore.setState({ layout: {}, panes: {}, activePaneId: {} });
+    useLayoutStore.setState({ layout: {}, panes: {}, activePaneId: {}, lastFocusedAgentTabId: {}, lastFocusedNonAgentTabId: {} });
+    mockTabStoreState.tabs = {};
   });
 
   // ── initLayout ──────────────────────────────────────────────
@@ -540,6 +544,32 @@ describe("layoutStore", () => {
       expect(state.layout[W]).toBeUndefined();
       expect(state.panes[W]).toBeUndefined();
       expect(state.activePaneId[W]).toBeUndefined();
+    });
+  });
+
+  // ── lastFocusedNonAgentTabId ────────────────────────────────
+
+  describe("lastFocusedNonAgentTabId", () => {
+    it("tracks lastFocusedNonAgentTabId when a non-agent tab is activated", () => {
+      // Seed tabStore with an agent tab "a1" and a diff tab "d1"
+      mockTabStoreState.tabs[W] = [
+        { id: "a1", type: "claude" },
+        { id: "d1", type: "diff" },
+      ];
+
+      initWith(["a1", "d1"], "a1");
+      const paneId = getSinglePaneId();
+
+      // Activate the diff tab — should record d1 as lastFocusedNonAgentTabId
+      getState().setPaneActiveTab(W, paneId, "d1");
+      expect(getState().lastFocusedNonAgentTabId[W]).toBe("d1");
+
+      // Activate the agent tab — must NOT overwrite the non-agent memory
+      getState().setPaneActiveTab(W, paneId, "a1");
+      expect(getState().lastFocusedNonAgentTabId[W]).toBe("d1");
+
+      // Agent activation SHOULD update lastFocusedAgentTabId
+      expect(getState().lastFocusedAgentTabId[W]).toBe("a1");
     });
   });
 
