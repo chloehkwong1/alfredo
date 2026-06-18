@@ -1,0 +1,22 @@
+src/components/settings/ShortcutsOverlay.tsx
+  s_62af5ebfa5c2c6::t_44d61945032899 37
+src/components/layout/AppShell.tsx
+  s_62af5ebfa5c2c6::t_75813c21a4983d 23-24
+  s_62af5ebfa5c2c6::t_02001aa7991165 216-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "63f6c92e18b3286d3d587522cf1c9d30d307111a",
+  "prompts": {},
+  "sessions": {
+    "s_62af5ebfa5c2c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ce0233e6-757f-48bc-adf0-e643d5cc93f7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
