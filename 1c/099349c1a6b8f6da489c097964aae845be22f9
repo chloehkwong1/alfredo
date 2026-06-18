@@ -1,0 +1,21 @@
+src/lib/paneTabLayout.ts
+  s_62af5ebfa5c2c6::t_d1b4a336b15c37 1-37
+src/lib/paneTabLayout.test.ts
+  s_62af5ebfa5c2c6::t_b9f1fe515bb10c 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "1c099349c1a6b8f6da489c097964aae845be22f9",
+  "prompts": {},
+  "sessions": {
+    "s_62af5ebfa5c2c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ce0233e6-757f-48bc-adf0-e643d5cc93f7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
