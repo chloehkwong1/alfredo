@@ -133,7 +133,12 @@ export function useKeyboardShortcuts(
           const activePaneId = layoutState.activePaneId[activeWorktreeId];
           const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
           if (pane && pane.tabIds.length > 1 && pane.activeTabId) {
-            const cycleIds = pane.tabIds;
+            // Cycle the working tabs only — the pinned Notes anchor is a
+            // separate affordance, not part of the session/diff rows.
+            const wtTabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
+            const cycleIds = pane.tabIds.filter(
+              (id) => wtTabs.find((t) => t.id === id)?.type !== "notes",
+            );
             const idx = cycleIds.indexOf(pane.activeTabId);
             if (idx !== -1) {
               const delta = event.key === "ArrowRight" ? 1 : -1;
