@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pinnedAgentTab, partitionFlatTabs, tabSwitchTarget } from "./paneTabLayout";
+import { pinnedAgentTab, partitionFlatTabs, tabSwitchTarget, isSessionTab, partitionPaneTabs } from "./paneTabLayout";
 import { splitByWidth } from "./paneTabLayout";
 import type { WorkspaceTab, TabType } from "../types";
 
@@ -109,5 +109,30 @@ describe("tabSwitchTarget", () => {
   it("returns undefined from an agent when no diff exists", () => {
     const tabs = [tab("a1", "claude"), tab("sh", "shell")];
     expect(tabSwitchTarget(tabs, "a1", undefined)).toBeUndefined();
+  });
+});
+
+describe("partitionPaneTabs", () => {
+  it("splits into notes (single), sessions (agent/terminal/server), and diffs — preserving order", () => {
+    const tabs = [
+      tab("n", "notes"),
+      tab("a1", "claude"),
+      tab("d1", "diff"),
+      tab("sh", "shell"),
+      tab("sv", "server"),
+      tab("d2", "diff"),
+    ];
+    const { notes, sessions, diffs } = partitionPaneTabs(tabs);
+    expect(notes?.id).toBe("n");
+    expect(sessions.map((t) => t.id)).toEqual(["a1", "sh", "sv"]);
+    expect(diffs.map((t) => t.id)).toEqual(["d1", "d2"]);
+  });
+
+  it("notes is undefined when absent; isSessionTab excludes diff and notes", () => {
+    expect(partitionPaneTabs([tab("d", "diff")]).notes).toBeUndefined();
+    expect(isSessionTab(tab("a1", "claude"))).toBe(true);
+    expect(isSessionTab(tab("sv", "server"))).toBe(true);
+    expect(isSessionTab(tab("d", "diff"))).toBe(false);
+    expect(isSessionTab(tab("n", "notes"))).toBe(false);
   });
 });

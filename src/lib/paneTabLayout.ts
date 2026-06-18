@@ -62,6 +62,26 @@ export function splitByWidth<T>(
   return { visible, overflow: tabs.slice(visible.length) };
 }
 
+/** A "session" is anything that runs in the pane as a terminal-style view —
+ *  agents, shells, and the dev server. (Everything except diff and notes.) */
+export function isSessionTab(t: WorkspaceTab): boolean {
+  return t.type !== "diff" && t.type !== "notes";
+}
+
+/** Split a pane's tabs into the leftmost Notes singleton, the session tabs
+ *  (Row 1), and the diff tabs (Row 2), each preserving original order. */
+export function partitionPaneTabs(tabs: WorkspaceTab[]): {
+  notes: WorkspaceTab | undefined;
+  sessions: WorkspaceTab[];
+  diffs: WorkspaceTab[];
+} {
+  return {
+    notes: tabs.find((t) => t.type === "notes"),
+    sessions: tabs.filter(isSessionTab),
+    diffs: tabs.filter((t) => t.type === "diff"),
+  };
+}
+
 /**
  * Agent↔Diff two-way toggle target. From an agent tab, return the diff tab id;
  * from anything else, return the agent to pin/focus. Undefined if no target.
