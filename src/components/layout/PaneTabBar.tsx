@@ -72,6 +72,9 @@ interface CrossPaneDrag {
 let crossPaneDragState: CrossPaneDrag | null = null;
 const crossPaneDragListeners = new Set<() => void>();
 
+/** Stable empty array so the tab-store selector doesn't allocate per render. */
+const EMPTY_TABS: WorkspaceTab[] = [];
+
 export function setCrossPaneDrag(state: CrossPaneDrag | null) {
   crossPaneDragState = state;
   crossPaneDragListeners.forEach((l) => l());
@@ -359,8 +362,7 @@ function PaneTabBar({
   runScriptUrl,
   assignedPort,
 }: PaneTabBarProps) {
-  const allTabs = useTabStore((s) => s.tabs);
-  const tabs = allTabs[worktreeId] ?? [];
+  const tabs = useTabStore((s) => s.tabs[worktreeId] ?? EMPTY_TABS);
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
   const splitPane = useLayoutStore((s) => s.splitPane);
   const moveTabToSiblingPane = useLayoutStore((s) => s.moveTabToSiblingPane);
@@ -700,6 +702,17 @@ function PaneTabBar({
                   ))}
                 </SortableContext>
               </div>
+              <DragOverlay>
+                {draggedTab ? (
+                  <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
+                    {!isAgentTab(draggedTab) && (() => {
+                      const Icon = TAB_ICONS[draggedTab.type];
+                      return <Icon size={14} />;
+                    })()}
+                    <span className="max-w-[240px] truncate">{draggedTab.dynamicLabel ?? draggedTab.label}</span>
+                  </div>
+                ) : null}
+              </DragOverlay>
             </DndContext>
           </div>
         </div>
