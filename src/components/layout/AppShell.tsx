@@ -231,7 +231,7 @@ function AppShell() {
           paneTabs,
           pane.activeTabId,
           layout.lastFocusedAgentTabId[activeWorktreeId],
-          undefined, // lastFocusedNonAgentTabId — not tracked yet; wired up in a follow-up
+          layout.lastFocusedNonAgentTabId[activeWorktreeId],
         );
         if (!target) return;
         layout.setPaneActiveTab(activeWorktreeId, paneId, target);
