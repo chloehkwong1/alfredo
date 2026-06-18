@@ -2,12 +2,10 @@ import { useEffect } from "react";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
-import { useAppConfigStore } from "../stores/appConfigStore";
 import { lifecycleManager } from "../services/lifecycleManager";
 import { sessionManager } from "../services/sessionManager";
 import { zoomIn, zoomOut, zoomReset } from "../services/uiZoom";
 import { loadTerminalPreferences, saveTerminalPreferences, TERMINAL_DEFAULTS } from "../services/terminalPreferences";
-import { getActiveGroup, getGroupForTab } from "../lib/tabGroups";
 import type { WorkspaceTab } from "../types";
 
 /**
@@ -123,8 +121,6 @@ export function useKeyboardShortcuts(
       }
 
       // Cmd+Option+Left / Cmd+Option+Right: cycle tabs in active pane (wraps).
-      // When `groupedTabs` is on, cycling is scoped to the active group so we
-      // don't silently flip the switcher to a different category mid-cycle.
       if (
         event.metaKey &&
         event.altKey &&
@@ -137,28 +133,13 @@ export function useKeyboardShortcuts(
           const activePaneId = layoutState.activePaneId[activeWorktreeId];
           const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
           if (pane && pane.tabIds.length > 1 && pane.activeTabId) {
-            const grouped = useAppConfigStore.getState().config?.groupedTabs ?? true;
-            const allTabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
-            let cycleIds: string[];
-            if (grouped) {
-              // Use the same fallback semantics as the bar (getActiveGroup):
-              // Notes / missing → "agents", which is what the user sees.
-              const activeGroup = getActiveGroup(pane.activeTabId, allTabs);
-              cycleIds = pane.tabIds.filter((id) => {
-                const t = allTabs.find((x) => x.id === id);
-                return t && getGroupForTab(t) === activeGroup;
-              });
-            } else {
-              cycleIds = pane.tabIds;
-            }
-            if (cycleIds.length > 1) {
-              const idx = cycleIds.indexOf(pane.activeTabId);
-              if (idx !== -1) {
-                const delta = event.key === "ArrowRight" ? 1 : -1;
-                const nextId = cycleIds[(idx + delta + cycleIds.length) % cycleIds.length];
-                layoutState.setPaneActiveTab(activeWorktreeId, activePaneId, nextId);
-                useTabStore.getState().setActiveTabId(activeWorktreeId, nextId);
-              }
+            const cycleIds = pane.tabIds;
+            const idx = cycleIds.indexOf(pane.activeTabId);
+            if (idx !== -1) {
+              const delta = event.key === "ArrowRight" ? 1 : -1;
+              const nextId = cycleIds[(idx + delta + cycleIds.length) % cycleIds.length];
+              layoutState.setPaneActiveTab(activeWorktreeId, activePaneId, nextId);
+              useTabStore.getState().setActiveTabId(activeWorktreeId, nextId);
             }
           }
         }
