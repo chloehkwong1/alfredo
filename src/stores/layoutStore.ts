@@ -40,8 +40,6 @@ interface LayoutState {
   // ── Pane actions ──
   setActivePaneId: (worktreeId: string, paneId: string) => void;
   setPaneActiveTab: (worktreeId: string, paneId: string, tabId: string) => void;
-  setLastFocusedAgentTab: (worktreeId: string, tabId: string) => void;
-  setLastFocusedNonAgentTab: (worktreeId: string, tabId: string) => void;
   addTabToPane: (worktreeId: string, paneId: string, tabId: string) => void;
   /** Insert a tab at the front of a pane WITHOUT changing the active tab.
    * Used to adopt the permanent notes tab without stealing focus. */
@@ -111,6 +109,35 @@ function removeLeaf(node: LayoutNode, targetPaneId: string): LayoutNode | null {
     return { ...node, children: [node.children[0], rightResult] };
   }
   return null;
+}
+
+/**
+ * Compute the lastFocused* map update for activating `tabId` in `worktreeId`.
+ * Agents update the agent memory; sessions and diffs update the non-agent
+ * memory. The pinned Notes anchor updates neither — it must never become the
+ * Cmd/Ctrl+J "jump back" target. Returns a partial state to spread into a
+ * `set` return so every active-tab path tracks focus the same way.
+ */
+function trackFocus(
+  s: LayoutState,
+  worktreeId: string,
+  tabId: string | undefined,
+): Partial<LayoutState> {
+  const tab = tabId
+    ? useTabStore.getState().tabs[worktreeId]?.find((t) => t.id === tabId)
+    : undefined;
+  if (!tab) return {};
+  if (isAgentTab(tab)) {
+    return {
+      lastFocusedAgentTabId: { ...s.lastFocusedAgentTabId, [worktreeId]: tab.id },
+    };
+  }
+  if (tab.type !== "notes") {
+    return {
+      lastFocusedNonAgentTabId: { ...s.lastFocusedNonAgentTabId, [worktreeId]: tab.id },
+    };
+  }
+  return {};
 }
 
 export const useLayoutStore = create<LayoutState>((set, get) => ({
@@ -258,50 +285,17 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       // follows the user's current attention — not just their last
       // tab-chip click.
       const activeTabId = s.panes[worktreeId]?.[paneId]?.activeTabId;
-      const tab = activeTabId
-        ? useTabStore.getState().tabs[worktreeId]?.find((t) => t.id === activeTabId)
-        : undefined;
-      const nextLastFocused =
-        tab && isAgentTab(tab)
-          ? { ...s.lastFocusedAgentTabId, [worktreeId]: activeTabId! }
-          : s.lastFocusedAgentTabId;
-      const nextLastNonAgent =
-        tab && !isAgentTab(tab)
-          ? { ...s.lastFocusedNonAgentTabId, [worktreeId]: activeTabId! }
-          : s.lastFocusedNonAgentTabId;
       return {
         activePaneId: { ...s.activePaneId, [worktreeId]: paneId },
-        lastFocusedAgentTabId: nextLastFocused,
-        lastFocusedNonAgentTabId: nextLastNonAgent,
+        ...trackFocus(s, worktreeId, activeTabId),
       };
     });
-  },
-
-  setLastFocusedAgentTab: (worktreeId, tabId) => {
-    set((s) => ({
-      lastFocusedAgentTabId: { ...s.lastFocusedAgentTabId, [worktreeId]: tabId },
-    }));
-  },
-
-  setLastFocusedNonAgentTab: (worktreeId, tabId) => {
-    set((s) => ({
-      lastFocusedNonAgentTabId: { ...s.lastFocusedNonAgentTabId, [worktreeId]: tabId },
-    }));
   },
 
   setPaneActiveTab: (worktreeId, paneId, tabId) => {
     set((s) => {
       const worktreePanes = s.panes[worktreeId];
       if (!worktreePanes?.[paneId]) return s;
-      const tab = useTabStore.getState().tabs[worktreeId]?.find((t) => t.id === tabId);
-      const nextLastFocused =
-        tab && isAgentTab(tab)
-          ? { ...s.lastFocusedAgentTabId, [worktreeId]: tabId }
-          : s.lastFocusedAgentTabId;
-      const nextLastNonAgent =
-        tab && !isAgentTab(tab)
-          ? { ...s.lastFocusedNonAgentTabId, [worktreeId]: tabId }
-          : s.lastFocusedNonAgentTabId;
       return {
         panes: {
           ...s.panes,
@@ -310,8 +304,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             [paneId]: { ...worktreePanes[paneId], activeTabId: tabId },
           },
         },
-        lastFocusedAgentTabId: nextLastFocused,
-        lastFocusedNonAgentTabId: nextLastNonAgent,
+        ...trackFocus(s, worktreeId, tabId),
       };
     });
   },
@@ -335,6 +328,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
             },
           },
         },
+        ...trackFocus(s, worktreeId, tabId),
       };
     });
   },
@@ -379,8 +373,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       return;
     }
 
+    // When the active tab is closed, fall back to the first remaining working
+    // tab rather than the pinned Notes anchor (which sorts first).
+    const wtTabs = useTabStore.getState().tabs[worktreeId];
+    const fallbackActiveId =
+      newTabIds.find(
+        (id) => wtTabs?.find((t) => t.id === id)?.type !== "notes",
+      ) ?? newTabIds[0];
     const newActiveTabId =
-      pane.activeTabId === tabId ? newTabIds[0] : pane.activeTabId;
+      pane.activeTabId === tabId ? fallbackActiveId : pane.activeTabId;
     const newPreviewTabId =
       pane.previewTabId === tabId ? null : pane.previewTabId ?? null;
 
@@ -526,6 +527,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
           [paneId]: { tabIds: newTabIds, activeTabId: tabId, previewTabId: tabId },
         },
       },
+      ...trackFocus(s, worktreeId, tabId),
     }));
   },
 
