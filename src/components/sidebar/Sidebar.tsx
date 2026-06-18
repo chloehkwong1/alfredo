@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Settings, Plus, HelpCircle, Pin, PinOff, ChevronsLeft } from "lucide-react";
+import { Settings, Plus, HelpCircle, Pin, PinOff, ChevronsLeft, Bell, BellOff } from "lucide-react";
 import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -10,11 +10,12 @@ import { RepoSelector } from "./RepoSelector";
 import { BranchSection } from "./BranchSection";
 import { useBranchRepos } from "../../hooks/useBranchRepos";
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
+import { DEFAULT_NOTIFICATION_CONFIG } from "../settings/notificationConfig";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
-import { runArchiveScript, countWorktrees, releasePortFor } from "../../api";
+import { runArchiveScript, countWorktrees, releasePortFor, notificationPermissionStatus, requestNotificationPermission } from "../../api";
 import { LifecycleNudge } from "./LifecycleNudge";
 
 const COLUMNS: KanbanColumn[] = [
@@ -126,6 +127,26 @@ function Sidebar({
   const collapsedColumns = config?.collapsedKanbanColumns ?? [];
   const hideUnpinned = config?.hideUnpinnedWorktrees ?? false;
   const showMainCardRepos = config?.showMainCardRepos ?? [];
+
+  const notificationsEnabled = config?.notifications?.enabled ?? false;
+
+  // Global notifications toggle. Enabling re-checks OS permission (requesting it
+  // if undecided) so the bell mirrors the master toggle in Notification settings.
+  const handleToggleNotifications = useCallback(async () => {
+    if (notificationsEnabled) {
+      await updateConfig((prev) => ({
+        notifications: { ...(prev.notifications ?? DEFAULT_NOTIFICATION_CONFIG), enabled: false },
+      }));
+      return;
+    }
+    const status = await notificationPermissionStatus();
+    const granted = status === "granted" || (await requestNotificationPermission());
+    if (granted) {
+      await updateConfig((prev) => ({
+        notifications: { ...(prev.notifications ?? DEFAULT_NOTIFICATION_CONFIG), enabled: true },
+      }));
+    }
+  }, [notificationsEnabled, updateConfig]);
 
   const handleToggleCollapsed = useCallback((column: KanbanColumn) => {
     updateConfig((prev) => {
@@ -438,6 +459,14 @@ function Sidebar({
             onClick={() => window.dispatchEvent(new CustomEvent("alfredo:toggle-ask"))}
           >
             <HelpCircle />
+          </IconButton>
+          <IconButton
+            size="sm"
+            label={notificationsEnabled ? "Mute notifications" : "Enable notifications"}
+            className="rounded-[6px]"
+            onClick={handleToggleNotifications}
+          >
+            {notificationsEnabled ? <Bell /> : <BellOff />}
           </IconButton>
           <IconButton size="sm" label="App settings" className="rounded-[6px]" onClick={() => window.dispatchEvent(new Event("alfredo:settings-open"))}>
             <Settings />
