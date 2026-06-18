@@ -376,7 +376,6 @@ function PaneTabBar({
   const diffIds = diffs.map((t) => t.id);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const prevTabCountRef = useRef(0);
 
@@ -550,7 +549,6 @@ function PaneTabBar({
           onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
         >
           <div
-            ref={scrollContainerRef}
             className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0"
           >
             <SortableContext items={sessionIds} strategy={horizontalListSortingStrategy}>
