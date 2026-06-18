@@ -41,8 +41,9 @@ export function partitionPaneTabs(tabs: WorkspaceTab[]): {
 
 /**
  * Two-way "jump to/from the agent" target. From an agent tab, return the
- * last-focused non-agent (else the first non-agent). From anything else,
- * return the active/last agent. Undefined if no target exists.
+ * last-focused working view — a session or diff, never the pinned Notes anchor
+ * — falling back to the first such tab. From anything else, return the
+ * active/last agent. Undefined if no target exists.
  */
 export function tabSwitchTarget(
   tabs: WorkspaceTab[],
@@ -52,10 +53,14 @@ export function tabSwitchTarget(
 ): string | undefined {
   const active = tabs.find((t) => t.id === activeTabId);
   if (active && isAgentTab(active)) {
+    // Notes is a pinned anchor and sorts first, so it must be excluded — but
+    // diffs are valid targets, so this is not `isSessionTab`.
+    const isReturnTarget = (t: WorkspaceTab) =>
+      !isAgentTab(t) && t.type !== "notes";
     const remembered = tabs.find(
-      (t) => t.id === lastFocusedNonAgentTabId && !isAgentTab(t),
+      (t) => t.id === lastFocusedNonAgentTabId && isReturnTarget(t),
     );
-    return (remembered ?? tabs.find((t) => !isAgentTab(t)))?.id;
+    return (remembered ?? tabs.find(isReturnTarget))?.id;
   }
   return pinnedAgentTab(tabs, activeTabId, lastFocusedAgentTabId)?.id;
 }

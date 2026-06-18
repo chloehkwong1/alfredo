@@ -49,6 +49,28 @@ describe("tabSwitchTarget", () => {
     const tabs = [tab("a1", "claude"), tab("a2", "codex")];
     expect(tabSwitchTarget(tabs, "a1", undefined, undefined)).toBeUndefined();
   });
+
+  it("from an agent -> skips the pinned Notes anchor (which sorts first)", () => {
+    // Notes is leftmost (it is pinned to the front of the pane).
+    const tabs = [
+      tab("n", "notes"),
+      tab("a1", "claude"),
+      tab("sh", "shell"),
+      tab("d", "diff"),
+    ];
+    // No remembered tab -> first *working* tab, never Notes.
+    expect(tabSwitchTarget(tabs, "a1", undefined, undefined)).toBe("sh");
+    // A stale remembered Notes id is ignored -> falls back to first working tab.
+    expect(tabSwitchTarget(tabs, "a1", undefined, "n")).toBe("sh");
+    // A remembered diff is still honoured (diffs are valid targets).
+    expect(tabSwitchTarget(tabs, "a1", undefined, "d")).toBe("d");
+  });
+
+  it("returns undefined from an agent when Notes is the only non-agent tab", () => {
+    const tabs = [tab("n", "notes"), tab("a1", "claude")];
+    expect(tabSwitchTarget(tabs, "a1", undefined, undefined)).toBeUndefined();
+    expect(tabSwitchTarget(tabs, "a1", undefined, "n")).toBeUndefined();
+  });
 });
 
 describe("partitionPaneTabs", () => {
