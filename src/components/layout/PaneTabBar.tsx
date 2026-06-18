@@ -11,10 +11,6 @@ import {
   Radio,
   Combine,
   NotebookPen,
-  ChevronDown,
-  LayoutList,
-  LayoutGrid,
-  MoreHorizontal,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -57,22 +53,13 @@ import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
-import { GROUP_ORDER, GROUP_LABELS, getActiveGroup, getGroupForTab, getTabsInGroup, summarizeGroupActivity, type GroupActivityStatus, type TabGroupId } from "../../lib/tabGroups";
-import { partitionFlatTabs, splitByWidth } from "../../lib/paneTabLayout";
-import { useAppConfigValue } from "../../stores/appConfigStore";
-import { useAppConfig } from "../../hooks/useAppConfig";
+import { partitionPaneTabs } from "../../lib/paneTabLayout";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
   busy: { cls: "bg-status-busy", label: "Thinking" },
   stale: { cls: "bg-amber-400", label: "Unresponsive" },
   idle: { cls: "bg-status-idle", label: "Idle" },
   waitingForInput: { cls: "bg-accent-primary", label: "Waiting for input", pulse: true },
-};
-
-const GROUP_DOT_CLASS: Record<GroupActivityStatus, { cls: string; label: string; pulse?: boolean }> = {
-  waitingForInput: { cls: "bg-accent-primary", label: "Waiting for input", pulse: true },
-  stale: { cls: "bg-amber-400", label: "Unresponsive" },
-  busy: { cls: "bg-status-busy", label: "Thinking" },
 };
 
 // ── Cross-pane drag state (module-level pub/sub) ──
@@ -115,16 +102,6 @@ const TAB_ICONS: Record<TabType, ComponentType<{ size?: number; className?: stri
   server: Radio,
   diff: GitCompareArrows,
   notes: NotebookPen,
-};
-
-const TAB_TYPE_LABELS: Record<TabType, string> = {
-  claude: "Claude",
-  codex: "Codex",
-  gemini: "Gemini",
-  shell: "Terminal",
-  diff: "Diff",
-  server: "Server",
-  notes: "Notes",
 };
 
 interface PaneTabBarProps {
@@ -372,179 +349,6 @@ function PinnedTab({
   );
 }
 
-function FlatPinnedAnchor({
-  tab,
-  isActive,
-  worktreeId,
-  paneId,
-}: {
-  tab: WorkspaceTab;
-  isActive: boolean;
-  worktreeId: string;
-  paneId: string;
-}) {
-  const setPaneActiveTab = useLayoutStore((s) => s.setPaneActiveTab);
-  const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
-  const setActiveTabId = useTabStore((s) => s.setActiveTabId);
-  const Icon = TAB_ICONS[tab.type];
-  const label = tab.dynamicLabel ?? tab.label;
-  const activate = () => {
-    setPaneActiveTab(worktreeId, paneId, tab.id);
-    setActivePaneId(worktreeId, paneId);
-    setActiveTabId(worktreeId, tab.id);
-  };
-  return (
-    <div
-      data-tab-id={tab.id}
-      role="tab"
-      tabIndex={0}
-      aria-label={label}
-      aria-selected={isActive}
-      title={label}
-      onClick={activate}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          activate();
-        }
-      }}
-      className={[
-        "group h-full px-2.5 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative flex-shrink-0",
-        isActive ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
-      ].join(" ")}
-    >
-      {!isAgentTab(tab) && <Icon size={14} />}
-      <span className="max-w-[120px] truncate">{label}</span>
-      {isActive && (
-        <motion.div
-          layoutId={`tab-underline-${paneId}`}
-          className="absolute bottom-0 left-2 right-2 h-0.5 bg-accent-primary"
-          transition={{ type: "spring", stiffness: 500, damping: 35 }}
-        />
-      )}
-    </div>
-  );
-}
-
-function GroupDot({ status }: { status: GroupActivityStatus | null }) {
-  if (!status) return null;
-  const d = GROUP_DOT_CLASS[status];
-  return (
-    <span
-      aria-label={d.label}
-      title={d.label}
-      className={["h-1.5 w-1.5 rounded-full flex-shrink-0", d.cls, d.pulse ? "animate-pulse-dot" : ""].join(" ")}
-    />
-  );
-}
-
-function GroupSwitcher({
-  activeGroup,
-  tabs,
-  activity,
-  onSelect,
-}: {
-  activeGroup: TabGroupId;
-  tabs: WorkspaceTab[];
-  activity: ReturnType<typeof summarizeGroupActivity>;
-  onSelect: (group: TabGroupId) => void;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="group h-full px-2.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors cursor-pointer flex items-center gap-1 flex-shrink-0"
-          aria-label={`Switch tab group (current: ${GROUP_LABELS[activeGroup]})`}
-        >
-          {GROUP_LABELS[activeGroup]}
-          <ChevronDown size={12} className="opacity-60 group-hover:opacity-100" />
-          <GroupDot status={activity.activeDot} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {GROUP_ORDER.map((g) => {
-          const count = getTabsInGroup(tabs, g).length;
-          return (
-            <DropdownMenuItem key={g} onSelect={() => onSelect(g)}>
-              <span className="flex-1">{GROUP_LABELS[g]}</span>
-              <GroupDot status={activity.perGroup[g]} />
-              <span className="text-text-tertiary text-xs ml-2">({count})</span>
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function EmptyGroupState({
-  group,
-  addableAgent,
-  runScriptName,
-  isServerRunning,
-  onToggleServer,
-  onAddDefaultAgent,
-  onAddShell,
-}: {
-  group: TabGroupId;
-  addableAgent: TabType | null;
-  runScriptName: string | undefined;
-  isServerRunning: boolean;
-  onToggleServer: (() => void) | undefined;
-  onAddDefaultAgent: () => void;
-  onAddShell: () => void;
-}) {
-  const cls = "h-full px-3 text-sm text-text-tertiary flex items-center gap-2";
-  const btn = "text-accent-primary hover:underline cursor-pointer";
-
-  if (group === "agents") {
-    if (!addableAgent) {
-      return <div className={cls}>No agents available</div>;
-    }
-    return (
-      <div className={cls}>
-        <span>No agents —</span>
-        <button type="button" className={btn} onClick={onAddDefaultAgent}>
-          + Add {TAB_TYPE_LABELS[addableAgent]}
-        </button>
-      </div>
-    );
-  }
-  if (group === "terminals") {
-    return (
-      <div className={cls}>
-        <span>No terminals —</span>
-        <button type="button" className={btn} onClick={onAddShell}>
-          + New terminal
-        </button>
-      </div>
-    );
-  }
-  if (group === "server") {
-    if (isServerRunning) {
-      return <div className={cls}>Server is running in another pane</div>;
-    }
-    if (!runScriptName || !onToggleServer) {
-      return <div className={cls}>No run script configured</div>;
-    }
-    return (
-      <div className={cls}>
-        <span>Server not running —</span>
-        <button type="button" className={btn} onClick={onToggleServer}>
-          Start {runScriptName}
-        </button>
-      </div>
-    );
-  }
-  // files
-  return (
-    <div className={cls}>
-      No diff open — open a file from the Changes panel
-    </div>
-  );
-}
-
 function PaneTabBar({
   paneId,
   worktreeId,
@@ -558,60 +362,35 @@ function PaneTabBar({
   const allTabs = useTabStore((s) => s.tabs);
   const tabs = allTabs[worktreeId] ?? [];
   const pane = useLayoutStore((s) => s.panes[worktreeId]?.[paneId]);
-  const reorderTabs = useLayoutStore((s) => s.reorderTabs);
   const splitPane = useLayoutStore((s) => s.splitPane);
   const moveTabToSiblingPane = useLayoutStore((s) => s.moveTabToSiblingPane);
   const layout = useLayoutStore((s) => s.layout[worktreeId]);
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
-  const groupedTabs = useAppConfigValue((s) => s.config?.groupedTabs ?? true);
-  const defaultAgent = useAppConfigValue((s) => s.config?.defaultAgent ?? "claude");
-  const { updateConfig } = useAppConfig();
   const paneTabs = (pane?.tabIds ?? [])
     .map((id) => tabs.find((t) => t.id === id))
     .filter((t): t is WorkspaceTab => t != null);
-  // User-selected group via the dropdown. Cleared the moment the active tab
-  // changes — because activating a real tab makes the derived group authoritative.
-  // This lets the user navigate to an empty group (e.g. Files with no diff
-  // open) and see its empty-state UI.
-  const [selectedGroupOverride, setSelectedGroupOverride] = useState<TabGroupId | null>(null);
-  const derivedGroup = getActiveGroup(pane?.activeTabId, paneTabs);
-  const activeGroup = selectedGroupOverride ?? derivedGroup;
-  const sessionStatuses = useSessionStatusStore((s) => s.statuses);
-  const worktreeStaleBusy = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId)?.staleBusy ?? false);
-  const staleBusyMap = Object.fromEntries(
-    paneTabs.map((t) => [t.id, isAgentTab(t) && worktreeStaleBusy]),
-  );
-  const activity = summarizeGroupActivity(paneTabs, sessionStatuses, activeGroup, staleBusyMap);
+
+  const { notes, sessions, diffs } = partitionPaneTabs(paneTabs);
+  const showDiffRow = diffs.length > 0;
+  const sessionIds = sessions.map((t) => t.id);
+  const diffIds = diffs.map((t) => t.id);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [showLeftFade, setShowLeftFade] = useState(false);
-  const [showRightFade, setShowRightFade] = useState(false);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const [tabWidths, setTabWidths] = useState<Record<string, number>>({});
+  const barRef = useRef<HTMLDivElement>(null);
   const prevTabCountRef = useRef(0);
-  const lastActiveInGroupRef = useRef<Record<TabGroupId, string | undefined>>({
-    agents: undefined,
-    terminals: undefined,
-    server: undefined,
-    files: undefined,
-  });
 
+  const [bornPulse, setBornPulse] = useState(false);
+  const prevShowDiffRowRef = useRef(showDiffRow);
   useEffect(() => {
-    const id = pane?.activeTabId;
-    if (!id) return;
-    const t = paneTabs.find((tab) => tab.id === id);
-    if (!t) return;
-    const g = getGroupForTab(t);
-    if (g) {
-      lastActiveInGroupRef.current[g] = id;
+    if (showDiffRow && !prevShowDiffRowRef.current) {
+      setBornPulse(true);
+      const timer = setTimeout(() => setBornPulse(false), 600);
+      prevShowDiffRowRef.current = showDiffRow;
+      return () => clearTimeout(timer);
     }
-  }, [pane?.activeTabId, paneTabs]);
-
-  // Clear the override whenever activeTabId changes — derived group takes over.
-  useEffect(() => {
-    setSelectedGroupOverride(null);
-  }, [pane?.activeTabId]);
+    prevShowDiffRowRef.current = showDiffRow;
+  }, [showDiffRow]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -632,13 +411,17 @@ function PaneTabBar({
     }
   }
 
+  function categoryFor(tabId: string): WorkspaceTab[] {
+    return diffIds.includes(tabId) ? diffs : sessions;
+  }
+
   function handleCloseOthers(tabId: string) {
-    const scope = groupedTabs ? sortableTabs : paneTabs;
+    const scope = categoryFor(tabId);
     removeTabs(scope.filter((t) => t.id !== tabId).map((t) => t.id));
   }
 
   function handleCloseToRight(tabId: string) {
-    const scope = groupedTabs ? sortableTabs : paneTabs;
+    const scope = categoryFor(tabId);
     const idx = scope.findIndex((t) => t.id === tabId);
     if (idx === -1) return;
     removeTabs(scope.slice(idx + 1).map((t) => t.id));
@@ -666,17 +449,25 @@ function PaneTabBar({
     { type: "gemini", agentId: "geminiCli", label: "Gemini", icon: <AGENT_ICONS.gemini size={14} /> },
   ];
 
-  const addableAgent: TabType | null = (() => {
-    const items = agentMenuItems.filter((item) => availableAgents.includes(item.agentId));
-    const preferred = items.find((item) => item.type === defaultAgent);
-    return preferred?.type ?? items[0]?.type ?? null;
-  })();
-
   function handleDragStart(tabId: string) {
     setDragActiveId(tabId);
     if (isSplit) {
       setCrossPaneDrag({ worktreeId, paneId, tabId });
     }
+  }
+
+  function reorderWithinCategory(categoryIds: string[], activeId: string, overId: string) {
+    const tabIds = pane?.tabIds ?? [];
+    const from = categoryIds.indexOf(activeId);
+    const to = categoryIds.indexOf(overId);
+    if (from === -1 || to === -1) return;
+    const next = [...categoryIds];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    const inCat = new Set(categoryIds);
+    let i = 0;
+    const merged = tabIds.map((id) => (inCat.has(id) ? next[i++] : id));
+    useLayoutStore.getState().setPaneTabIds(worktreeId, paneId, merged);
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -706,117 +497,28 @@ function PaneTabBar({
 
     if (!over || active.id === over.id) return;
 
-    const tabIds = pane?.tabIds ?? [];
-    const fromIndex = tabIds.indexOf(active.id as string);
-    const toIndex = tabIds.indexOf(over.id as string);
-    if (fromIndex === -1 || toIndex === -1) return;
-
-    if (groupedTabs) {
-      // In grouped mode, only the active group is rendered for dragging.
-      // Reordering must preserve hidden-group tabs' absolute positions:
-      // reorder the active-group's slots in place, leave other slots alone.
-      const sortableIds = sortableTabs.map((t) => t.id);
-      const sortableFrom = sortableIds.indexOf(active.id as string);
-      const sortableTo = sortableIds.indexOf(over.id as string);
-      if (sortableFrom === -1 || sortableTo === -1) {
-        reorderTabs(worktreeId, paneId, fromIndex, toIndex);
-        return;
-      }
-      const newSortable = [...sortableIds];
-      const [moved] = newSortable.splice(sortableFrom, 1);
-      newSortable.splice(sortableTo, 0, moved);
-      const sortableSet = new Set(sortableIds);
-      let pickIdx = 0;
-      const next = tabIds.map((id) =>
-        sortableSet.has(id) ? newSortable[pickIdx++] : id,
-      );
-      useLayoutStore.getState().setPaneTabIds(worktreeId, paneId, next);
-      return;
-    }
-
-    reorderTabs(worktreeId, paneId, fromIndex, toIndex);
+    const cat = sessionIds.includes(active.id as string) ? sessionIds : diffIds;
+    reorderWithinCategory(cat, active.id as string, over.id as string);
   }
 
   const draggedTab = dragActiveId ? paneTabs.find((t) => t.id === dragActiveId) : null;
 
-  const visibleTabs = paneTabs.filter((t) => t.type in TAB_ICONS);
-  const pinnedTabs = visibleTabs.filter((t) => t.type === "notes");
-  const nonPinnedTabs = visibleTabs.filter((t) => t.type !== "notes");
-  const lastFocusedAgentTabId = useLayoutStore(
-    (s) => s.lastFocusedAgentTabId[worktreeId],
-  );
-  const flatPartition = !groupedTabs
-    ? partitionFlatTabs(visibleTabs, activeTabId, lastFocusedAgentTabId)
-    : null;
-  const sortableTabs = groupedTabs
-    ? nonPinnedTabs.filter((t) => getGroupForTab(t) === activeGroup)
-    : (flatPartition?.rest ?? nonPinnedTabs);
-  const sortableTabIds = sortableTabs.map((t) => t.id);
+  const tabCount = paneTabs.length;
+  const lastTabId = tabCount > 0 ? paneTabs[tabCount - 1].id : null;
 
-  const TRIGGER_W = 36; // px reserved for the ⋯ button; visual tuning deferred to maintainer
-  const flatOverflow =
-    !groupedTabs && containerWidth > 0
-      ? splitByWidth(
-          sortableTabs,
-          sortableTabs.map((t) => tabWidths[t.id] ?? 9999),
-          containerWidth,
-          TRIGGER_W,
-        )
-      : null;
-  const renderTabs = flatOverflow ? flatOverflow.visible : sortableTabs;
-  const overflowTabs = flatOverflow ? flatOverflow.overflow : [];
-
-  const renderedTabs = groupedTabs ? sortableTabs : visibleTabs;
-  const tabCount = renderedTabs.length;
-  const lastTabId = tabCount > 0 ? renderedTabs[tabCount - 1].id : null;
-
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const update = () => {
-      setShowLeftFade(el.scrollLeft > 0);
-      setShowRightFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
-    };
-    update();
-    el.addEventListener("scroll", update, { passive: true });
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => {
-      el.removeEventListener("scroll", update);
-      ro.disconnect();
-    };
-  }, [tabCount]);
-
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el || groupedTabs) return;
-    const measure = () => {
-      setContainerWidth(el.clientWidth);
-      const widths: Record<string, number> = {};
-      el.querySelectorAll<HTMLElement>("[data-tab-id]").forEach((node) => {
-        const id = node.dataset.tabId;
-        if (id) widths[id] = node.offsetWidth;
-      });
-      setTabWidths(widths);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupedTabs, sortableTabIds.join(",")]);
-
+  // Auto-scroll the active tab into view across BOTH rows.
   useEffect(() => {
     if (!activeTabId) return;
-    const el = scrollContainerRef.current?.querySelector(
+    const el = barRef.current?.querySelector(
       `[data-tab-id="${activeTabId}"]`,
     );
     el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
   }, [activeTabId]);
 
+  // Scroll a newly-appended tab into view.
   useEffect(() => {
     if (tabCount > prevTabCountRef.current && lastTabId) {
-      const el = scrollContainerRef.current?.querySelector(
+      const el = barRef.current?.querySelector(
         `[data-tab-id="${lastTabId}"]`,
       );
       el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
@@ -826,190 +528,73 @@ function PaneTabBar({
 
   return (
     <div
+      ref={barRef}
       className={[
-        "flex items-center w-full h-11 bg-bg-bar border-b flex-shrink-0 relative",
+        "flex flex-col w-full bg-bg-bar border-b flex-shrink-0 relative",
         isActivePane ? "border-accent-primary/30" : "border-border-subtle",
       ].join(" ")}
       onClick={() => setActivePaneId(worktreeId, paneId)}
     >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={({ active }) => handleDragStart(active.id as string)}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
-      >
-        <div className="relative flex items-center h-full min-w-0">
-          {flatPartition && flatPartition.pinned.length > 0 && (
-            <div className="flex items-center h-full flex-shrink-0 border-r border-border-subtle">
-              {flatPartition.pinned.map((tab) => (
-                <FlatPinnedAnchor
+      {/* ── Row 1: sessions ── */}
+      <div className="flex items-center w-full h-11 min-w-0">
+        {notes && (
+          <div className="flex items-center h-full flex-shrink-0 border-r border-border-subtle">
+            <PinnedTab tab={notes} isActive={notes.id === activeTabId} worktreeId={worktreeId} paneId={paneId} />
+          </div>
+        )}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={({ active }) => handleDragStart(active.id as string)}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
+        >
+          <div
+            ref={scrollContainerRef}
+            className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0"
+          >
+            <SortableContext items={sessionIds} strategy={horizontalListSortingStrategy}>
+              {sessions.map((tab, i) => (
+                <SortableTab
                   key={tab.id}
                   tab={tab}
                   isActive={tab.id === activeTabId}
+                  canClose={true}
                   worktreeId={worktreeId}
                   paneId={paneId}
+                  onClose={handleCloseTab}
+                  onCloseOthers={handleCloseOthers}
+                  onCloseToRight={handleCloseToRight}
+                  hasOthersToClose={sessions.length > 1}
+                  hasTabsToRightToClose={i < sessions.length - 1}
+                  onSplit={handleSplit}
+                  onMoveToSibling={handleMoveToSibling}
+                  isSplit={isSplit}
+                  isPreview={pane?.previewTabId === tab.id}
                 />
               ))}
-            </div>
-          )}
-          <div
-            ref={scrollContainerRef}
-            className="flex items-center h-full w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            {groupedTabs && pinnedTabs.map((tab) => (
-              <PinnedTab
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                worktreeId={worktreeId}
-                paneId={paneId}
-              />
-            ))}
-            <button
-              type="button"
-              onClick={() => updateConfig((prev) => ({ groupedTabs: !(prev.groupedTabs ?? true) }))}
-              aria-label={groupedTabs ? "Show all tabs in one row (flat layout)" : "Group tabs by category"}
-              title={groupedTabs ? "Show all tabs" : "Group tabs by category"}
-              className="h-full px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
-            >
-              {groupedTabs ? <LayoutList size={14} /> : <LayoutGrid size={14} />}
-            </button>
-            {groupedTabs && (
-              <GroupSwitcher
-                activeGroup={activeGroup}
-                tabs={paneTabs}
-                activity={activity}
-                onSelect={(g) => {
-                  const remembered = lastActiveInGroupRef.current[g];
-                  const inGroup = getTabsInGroup(paneTabs, g);
-                  const target =
-                    (remembered && inGroup.find((t) => t.id === remembered)) ??
-                    inGroup[0];
-                  if (target) {
-                    // Activating a tab will fire the effect that clears the override.
-                    useLayoutStore.getState().setPaneActiveTab(worktreeId, paneId, target.id);
-                    useLayoutStore.getState().setActivePaneId(worktreeId, paneId);
-                    useTabStore.getState().setActiveTabId(worktreeId, target.id);
-                  } else {
-                    // Empty group — keep showing this group's empty state until
-                    // the user activates a real tab.
-                    setSelectedGroupOverride(g);
-                  }
-                }}
-              />
-            )}
-            <SortableContext
-              items={sortableTabIds}
-              strategy={horizontalListSortingStrategy}
-            >
-              {renderTabs.map((tab, tabIdx) => {
-                const isActive = tab.id === activeTabId;
-                return (
-                  <SortableTab
-                    key={tab.id}
-                    tab={tab}
-                    isActive={isActive}
-                    canClose={true}
-                    worktreeId={worktreeId}
-                    paneId={paneId}
-                    onClose={handleCloseTab}
-                    onCloseOthers={handleCloseOthers}
-                    onCloseToRight={handleCloseToRight}
-                    hasOthersToClose={(groupedTabs ? sortableTabs.length : visibleTabs.length) > 1}
-                    hasTabsToRightToClose={tabIdx < sortableTabs.length - 1}
-                    onSplit={handleSplit}
-                    onMoveToSibling={handleMoveToSibling}
-                    isSplit={isSplit}
-                    isPreview={pane?.previewTabId === tab.id}
-                  />
-                );
-              })}
             </SortableContext>
-            {!groupedTabs && overflowTabs.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={`${overflowTabs.length} more tabs`}
-                    title="More tabs"
-                    className="h-full px-2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
-                  >
-                    <MoreHorizontal size={16} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {overflowTabs.map((t) => {
-                    const Icon = TAB_ICONS[t.type];
-                    return (
-                      <DropdownMenuItem
-                        key={t.id}
-                        onSelect={() => {
-                          useLayoutStore.getState().setPaneActiveTab(worktreeId, paneId, t.id);
-                          useLayoutStore.getState().setActivePaneId(worktreeId, paneId);
-                          useTabStore.getState().setActiveTabId(worktreeId, t.id);
-                        }}
-                      >
-                        {!isAgentTab(t) && <Icon size={14} />}
-                        <span className="flex-1 truncate">{t.dynamicLabel ?? t.label}</span>
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {groupedTabs && sortableTabs.length === 0 && (
-              <EmptyGroupState
-                group={activeGroup}
-                addableAgent={addableAgent}
-                runScriptName={runScriptName}
-                isServerRunning={!!isServerRunning}
-                onToggleServer={onToggleServer}
-                onAddDefaultAgent={() => addableAgent && handleAddTab(addableAgent)}
-                onAddShell={() => handleAddTab("shell")}
-              />
-            )}
           </div>
-          {groupedTabs && (
-            <>
-              <div
-                aria-hidden
-                className={[
-                  "absolute left-0 top-0 bottom-0 w-6 pointer-events-none bg-gradient-to-r from-bg-bar to-transparent transition-opacity duration-150",
-                  showLeftFade ? "opacity-100" : "opacity-0",
-                ].join(" ")}
-              />
-              <div
-                aria-hidden
-                className={[
-                  "absolute right-0 top-0 bottom-0 w-6 pointer-events-none bg-gradient-to-l from-bg-bar to-transparent transition-opacity duration-150",
-                  showRightFade ? "opacity-100" : "opacity-0",
-                ].join(" ")}
-              />
-            </>
-          )}
-        </div>
+          <DragOverlay>
+            {draggedTab ? (
+              <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
+                {!isAgentTab(draggedTab) && (() => {
+                  const Icon = TAB_ICONS[draggedTab.type];
+                  return <Icon size={14} />;
+                })()}
+                <span className="max-w-[240px] truncate">{draggedTab.dynamicLabel ?? draggedTab.label}</span>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
 
-        <DragOverlay>
-          {draggedTab ? (
-            <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
-              {!isAgentTab(draggedTab) && (() => {
-                const Icon = TAB_ICONS[draggedTab.type];
-                return <Icon size={14} />;
-              })()}
-              <span className="max-w-[240px] truncate">{draggedTab.dynamicLabel ?? draggedTab.label}</span>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-
-      {(!groupedTabs || activeGroup === "agents") && (
+        {/* + new-session menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
               className="h-11 px-3 ml-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
-              aria-label={groupedTabs ? "New agent tab" : "New tab"}
+              aria-label="New tab"
             >
               <Plus size={16} />
             </button>
@@ -1022,75 +607,105 @@ function PaneTabBar({
                   {item.icon} New {item.label} tab
                 </DropdownMenuItem>
               ))}
-            {!groupedTabs && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
-                  <Terminal size={14} /> New terminal tab
-                </DropdownMenuItem>
-              </>
-            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
+              <Terminal size={14} /> New terminal tab
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      )}
-      {groupedTabs && activeGroup === "terminals" && (
-        <button
-          type="button"
-          onClick={() => handleAddTab("shell")}
-          aria-label="New terminal tab"
-          className="h-11 px-3 ml-1 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer flex items-center flex-shrink-0"
-        >
-          <Plus size={16} />
-        </button>
-      )}
-      {/* Server + Files have singleton membership; no + button. */}
 
-      <div className="flex-1" />
+        <div className="flex-1" />
 
-      {assignedPort && isServerRunning && !runScriptUrl && (
-        <button
-          type="button"
-          onClick={() => openUrl(`http://localhost:${assignedPort}`)}
-          className="inline-flex items-center gap-1.5 h-6 px-2 mr-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
-          title={`Open http://localhost:${assignedPort} in browser`}
-        >
-          <Globe size={12} />
-          localhost:{assignedPort}
-          <ArrowUpRight size={11} className="opacity-70" />
-        </button>
-      )}
+        {assignedPort && isServerRunning && !runScriptUrl && (
+          <button
+            type="button"
+            onClick={() => openUrl(`http://localhost:${assignedPort}`)}
+            className="inline-flex items-center gap-1.5 h-6 px-2 mr-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
+            title={`Open http://localhost:${assignedPort} in browser`}
+          >
+            <Globe size={12} />
+            localhost:{assignedPort}
+            <ArrowUpRight size={11} className="opacity-70" />
+          </button>
+        )}
 
-      {onToggleServer && runScriptName && (
-        <div className="flex items-center gap-1 mr-2 flex-shrink-0">
-          <AnimatePresence>
-            {isServerRunning && runScriptUrl && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: "auto" }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                <button
-                  type="button"
-                  onClick={() => openUrl(runScriptUrl)}
-                  className="inline-flex items-center gap-1.5 h-6 px-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
-                  title={`Open ${runScriptUrl} in browser`}
+        {onToggleServer && runScriptName && (
+          <div className="flex items-center gap-1 mr-2 flex-shrink-0">
+            <AnimatePresence>
+              {isServerRunning && runScriptUrl && (
+                <motion.div
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.15 }}
                 >
-                  <Globe size={12} />
-                  {runScriptUrl.replace(/^https?:\/\//, "")}
-                  <ArrowUpRight size={11} className="opacity-70" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <StartServerControl
-            worktreeId={worktreeId}
-            isServerRunning={!!isServerRunning}
-            runScriptName={runScriptName}
-            onToggleServer={onToggleServer}
-          />
+                  <button
+                    type="button"
+                    onClick={() => openUrl(runScriptUrl)}
+                    className="inline-flex items-center gap-1.5 h-6 px-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
+                    title={`Open ${runScriptUrl} in browser`}
+                  >
+                    <Globe size={12} />
+                    {runScriptUrl.replace(/^https?:\/\//, "")}
+                    <ArrowUpRight size={11} className="opacity-70" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <StartServerControl
+              worktreeId={worktreeId}
+              isServerRunning={!!isServerRunning}
+              runScriptName={runScriptName}
+              onToggleServer={onToggleServer}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ── Row 2: diffs — animates height 0↔auto via grid-rows ── */}
+      <div
+        className={[
+          "grid transition-[grid-template-rows] duration-150 ease-out",
+          showDiffRow ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+          bornPulse ? "shadow-[inset_0_0_0_1px_var(--color-accent-primary)]" : "",
+        ].join(" ")}
+      >
+        <div className="overflow-hidden min-h-0">
+          <div className="flex items-center w-full h-9 min-w-0 border-t border-border-subtle bg-bg-bar/90">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={({ active }) => handleDragStart(active.id as string)}
+              onDragEnd={handleDragEnd}
+              onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
+            >
+              <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 pl-2">
+                <SortableContext items={diffIds} strategy={horizontalListSortingStrategy}>
+                  {diffs.map((tab, i) => (
+                    <SortableTab
+                      key={tab.id}
+                      tab={tab}
+                      isActive={tab.id === activeTabId}
+                      canClose={true}
+                      worktreeId={worktreeId}
+                      paneId={paneId}
+                      onClose={handleCloseTab}
+                      onCloseOthers={handleCloseOthers}
+                      onCloseToRight={handleCloseToRight}
+                      hasOthersToClose={diffs.length > 1}
+                      hasTabsToRightToClose={i < diffs.length - 1}
+                      onSplit={handleSplit}
+                      onMoveToSibling={handleMoveToSibling}
+                      isSplit={isSplit}
+                      isPreview={pane?.previewTabId === tab.id}
+                    />
+                  ))}
+                </SortableContext>
+              </div>
+            </DndContext>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
