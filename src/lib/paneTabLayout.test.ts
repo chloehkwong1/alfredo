@@ -91,24 +91,25 @@ describe("splitByWidth", () => {
 });
 
 describe("tabSwitchTarget", () => {
-  it("from an agent -> the diff tab", () => {
-    const tabs = [tab("a1", "claude"), tab("d", "diff")];
-    expect(tabSwitchTarget(tabs, "a1", undefined)).toBe("d");
+  it("from an agent -> the last-focused non-agent (else first non-agent)", () => {
+    const tabs = [tab("a1", "claude"), tab("sh", "shell"), tab("d", "diff")];
+    expect(tabSwitchTarget(tabs, "a1", undefined, "d")).toBe("d");      // remembered non-agent
+    expect(tabSwitchTarget(tabs, "a1", undefined, undefined)).toBe("sh"); // else first non-agent
   });
 
-  it("from diff -> the active/last agent", () => {
+  it("from a non-agent -> the active/last agent", () => {
     const tabs = [tab("a1", "claude"), tab("d", "diff")];
-    expect(tabSwitchTarget(tabs, "d", "a1")).toBe("a1");
+    expect(tabSwitchTarget(tabs, "d", "a1", undefined)).toBe("a1");
   });
 
   it("from a terminal -> the agent", () => {
     const tabs = [tab("sh", "shell"), tab("a1", "codex"), tab("d", "diff")];
-    expect(tabSwitchTarget(tabs, "sh", undefined)).toBe("a1");
+    expect(tabSwitchTarget(tabs, "sh", undefined, undefined)).toBe("a1");
   });
 
-  it("returns undefined from an agent when no diff exists", () => {
-    const tabs = [tab("a1", "claude"), tab("sh", "shell")];
-    expect(tabSwitchTarget(tabs, "a1", undefined)).toBeUndefined();
+  it("returns undefined from an agent when there is no non-agent", () => {
+    const tabs = [tab("a1", "claude"), tab("a2", "codex")];
+    expect(tabSwitchTarget(tabs, "a1", undefined, undefined)).toBeUndefined();
   });
 });
 

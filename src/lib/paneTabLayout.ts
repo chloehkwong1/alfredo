@@ -83,17 +83,22 @@ export function partitionPaneTabs(tabs: WorkspaceTab[]): {
 }
 
 /**
- * Agent↔Diff two-way toggle target. From an agent tab, return the diff tab id;
- * from anything else, return the agent to pin/focus. Undefined if no target.
+ * Two-way "jump to/from the agent" target. From an agent tab, return the
+ * last-focused non-agent (else the first non-agent). From anything else,
+ * return the active/last agent. Undefined if no target exists.
  */
 export function tabSwitchTarget(
   tabs: WorkspaceTab[],
   activeTabId: string | undefined,
   lastFocusedAgentTabId: string | undefined,
+  lastFocusedNonAgentTabId: string | undefined,
 ): string | undefined {
   const active = tabs.find((t) => t.id === activeTabId);
   if (active && isAgentTab(active)) {
-    return tabs.find((t) => t.type === "diff")?.id;
+    const remembered = tabs.find(
+      (t) => t.id === lastFocusedNonAgentTabId && !isAgentTab(t),
+    );
+    return (remembered ?? tabs.find((t) => !isAgentTab(t)))?.id;
   }
   return pinnedAgentTab(tabs, activeTabId, lastFocusedAgentTabId)?.id;
 }
