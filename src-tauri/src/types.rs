@@ -467,8 +467,6 @@ pub struct LinearTicketRef {
 
 pub fn default_archive_days() -> Option<u32> { Some(2) }
 
-fn default_grouped_tabs() -> bool { true }
-
 // ── Linear OAuth ───────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -572,10 +570,6 @@ pub struct GlobalAppConfig {
     /// Opt in to pre-release builds from the beta update channel.
     #[serde(default)]
     pub receive_beta_updates: bool,
-    /// Whether the pane tab bar groups tabs by category (Agents / Terminals / Server / Files).
-    /// When false, all tabs render in one scrollable row (legacy layout).
-    #[serde(default = "default_grouped_tabs")]
-    pub grouped_tabs: bool,
 }
 
 fn default_editor() -> String { "vscode".into() }
