@@ -1,0 +1,19 @@
+docs/features/pane-tab-bar.md
+  s_829ebf588f1e9d::t_7d7c6b2d43dc4c 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "d278824c3b07fc0bc9511fd521f6d0698b4b58f7",
+  "prompts": {},
+  "sessions": {
+    "s_829ebf588f1e9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ac86f67-8fcd-40f4-85b1-5013aa0c2c20",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
