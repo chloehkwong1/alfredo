@@ -4,6 +4,7 @@ import {
   X,
   Terminal,
   GitCompareArrows,
+  ListX,
   Globe,
   ArrowUpRight,
   PanelRight,
@@ -428,6 +429,10 @@ function PaneTabBar({
     removeTabs(scope.slice(idx + 1).map((t) => t.id));
   }
 
+  function handleCloseAllDiffs() {
+    removeTabs(diffIds);
+  }
+
   function handleAddTab(type: TabType) {
     lifecycleManager.addTab(worktreeId, type, paneId);
   }
@@ -714,6 +719,18 @@ function PaneTabBar({
                 ) : null}
               </DragOverlay>
             </DndContext>
+            {/* far-right pinned control — mirrors the server controls on Row 1 */}
+            <div className="flex-1" />
+            <div className="w-px h-5 bg-border-subtle flex-shrink-0" />
+            <button
+              type="button"
+              onClick={handleCloseAllDiffs}
+              className="inline-flex items-center gap-1.5 h-[22px] px-2 mr-1 rounded text-xs text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors cursor-pointer flex-shrink-0"
+              title="Close all changes"
+            >
+              <ListX size={13} />
+              Close all
+            </button>
           </div>
         </div>
       </div>
