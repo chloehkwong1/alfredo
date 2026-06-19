@@ -1,0 +1,25 @@
+docs/features/notification-settings.md
+  s_f90761b53870ac::t_bd55a790310063 13-16
+  s_f90761b53870ac::t_24da1cfdb01f38 3
+docs/features/whats-new.md
+  s_f90761b53870ac::t_71d391fb4d4db3 10-33
+docs/features/pane-tab-bar.md
+  s_f90761b53870ac::t_13b61242cf61a6 3
+  s_f90761b53870ac::t_47ea2858c3b6ed 40-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "bd36c52d2f2dae4e91be8e9ba2c5d97396afe4d6",
+  "prompts": {},
+  "sessions": {
+    "s_f90761b53870ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "360f85d3-989b-445d-8adc-36d23a586163",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
