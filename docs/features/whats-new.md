@@ -7,6 +7,30 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.18.0 — 2026-06-19**
+- **Two-row pane tab bar** — each pane now splits its tabs across two
+  rows: your sessions (agents, terminals, dev server) on top, and a
+  diffs row that slides in below only when you have a diff open and
+  collapses again when you close the last one. Each row scrolls on its
+  own, so a busy worktree stays scannable. A new **Close all** button on
+  the far right of the diffs row clears every open diff at once.
+- **Jump between the agent and your work with Cmd/Ctrl+J** — toggle
+  between the agent and your last-focused session or diff (never Notes),
+  then press again to jump back.
+- **Origin sync banner** — when a worktree's branch is ahead of or
+  behind its upstream, a banner in the Changes panel shows the gap so
+  you know when to push or pull.
+- **Notifications quick-toggle** — turn Alfredo's notifications on or off
+  straight from the sidebar footer, without opening Settings.
+- **Opus 4.8** is now selectable as a model, and the Sonnet 4.6 context
+  label is corrected.
+- Clearer sidebar status — it shows "Running N agents" while background
+  subagents are working, and "Waiting for input" when an agent parks on
+  a question.
+- Various fixes: the kanban section auto-expands when a worktree arrives
+  or changes column; collapsed-rail PR badges match Alfredo's design;
+  long commit messages collapse by default in the Changes panel.
+
 **v0.17.1 — 2026-05-24**
 - **Changes panel no longer fails to load** — deleting an empty file
   (e.g. a Rails `.keep`) could make the Changes panel error out with
@@ -94,37 +118,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   cache now refreshes on every config save.
 - **File list in the Changes panel scrolls** when it overflows the
   panel height (regression from v0.15.0).
-
-**v0.15.0 — 2026-05-11**
-- **Collapse the sidebar with ⌘B** — press ⌘B, run "Toggle sidebar"
-  from the command palette, or click the `«` chevron in the sidebar
-  header to hide the worktree list. A slim 32px rail with a `»`
-  chevron stays visible on the left edge; click it (or press ⌘B
-  again) to bring the sidebar back. State persists across restarts.
-- **PRs auto-move to Done on approval** — when a PR you opened or
-  one you authored gets approved, Alfredo moves the worktree to
-  Done automatically. If reviewers re-request changes the worktree
-  moves back to Review on its own, so the kanban stays in sync with
-  GitHub state without manual dragging.
-- **Done worktrees auto-unpin** — pinned worktrees lose their pin
-  when they reach Done, and a new **Unpin all** button on the Done
-  column header clears every pin at once.
-- **Clickable relative paths in the terminal** — relative paths like
-  `src/foo.tsx` or `./bin/script:42` are now linkified in PTY output
-  alongside absolute paths, URLs, and `localhost` links. ⌘-click
-  opens them in your editor.
-- Various fixes: macOS voice mode works again (audio-input
-  entitlement was missing from the bundle); live `claude` / `codex`
-  / `gemini` pids are recognised as Alfredo sessions instead of
-  being treated as recycled OS pids; symlinked
-  `.claude/settings.local.json` hooks survive across PTY restarts;
-  cross-repo worktrees with the same branch name no longer
-  overwrite each other's state; the rebase banner returns on
-  non-pinned worktrees; the settings chip refreshes when an
-  `alfredo.json` field changes; React errors and unhandled
-  rejections are piped to `alfredo.log` for postmortems; sidebar
-  busy state is marked stale (rather than forced idle) when the
-  hook channel goes silent; sidebar column-expand state only
-  persists on drop, not mid-drag.
 
 Check the releases page for older versions and full detail.

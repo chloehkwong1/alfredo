@@ -1,6 +1,6 @@
 ---
 title: Notification settings — enable, triggers, sound, test
-keywords: [notifications, notify, alerts, sound, notification sound, mute, do not disturb, waiting, idle, banner, test notification]
+keywords: [notifications, notify, alerts, sound, notification sound, mute, do not disturb, waiting, idle, banner, test notification, quick toggle, sidebar bell, mute notifications]
 ui_path: Sidebar → ⚙ Settings → Notifications tab
 ---
 
@@ -10,6 +10,10 @@ Alfredo alerts you about background agent activity.
 - **Enable Notifications** — master toggle at the top. If your OS
   denied permission, an error message appears with a pointer to your
   system settings.
+- **Quick-toggle from the sidebar** — a bell button in the sidebar
+  footer flips notifications on or off without opening Settings; it
+  mirrors the **Enable Notifications** master toggle above (enabling it
+  re-checks OS permission).
 - **Notify when → Agent waiting for input** — toggle. Alerts when an
   agent pauses on a prompt.
 - **Notify when → Agent finished work** — toggle. Alerts when an agent

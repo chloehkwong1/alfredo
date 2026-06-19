@@ -1,6 +1,6 @@
 ---
 title: Pane tab bar — sessions and diffs rows
-keywords: [pane tab bar, two rows, sessions row, diffs row, notes tab, pinned notes, reorder tabs, scroll tabs, jump to agent, cmd j, ctrl j, cycle tabs, cmd option left right, split pane tab]
+keywords: [pane tab bar, two rows, sessions row, diffs row, notes tab, pinned notes, reorder tabs, scroll tabs, jump to agent, cmd j, ctrl j, cycle tabs, cmd option left right, split pane tab, close all diffs, close all changes]
 ui_path: Pane tab bar (top of each pane)
 ---
 
@@ -37,7 +37,9 @@ terminal. When a dev server is configured, its run control and a
 
 Every diff tab you open lives in the second row. It animates open the
 first moment a diff appears and collapses once the last diff closes, so
-diffs never compete with sessions for horizontal space.
+diffs never compete with sessions for horizontal space. A **Close all**
+button pinned at the far right of the row closes every open diff at once
+— your sessions and Notes are left untouched.
 
 ### Reordering, splitting, and closing
 
