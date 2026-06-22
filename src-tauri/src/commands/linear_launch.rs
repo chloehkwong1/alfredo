@@ -1,7 +1,3 @@
-// These items are not yet wired into the app (future task); suppress dead-code
-// until they are connected via lib.rs invoke_handler.
-#![allow(dead_code)]
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -73,6 +69,21 @@ pub fn match_workdir_to_repo(workdir: &str, repo_paths: &[String]) -> Option<Str
         .into_iter()
         .find(|(c, _)| *c == matched)
         .map(|(_, orig)| orig)
+}
+
+use std::sync::Mutex;
+use tauri::State;
+
+/// Cold-start replay buffer: holds the most recent open-issue request until the
+/// frontend drains it on mount (covers the app being booted by the Linear
+/// invocation before the webview is listening).
+#[derive(Default)]
+pub struct PendingOpenIssue(pub Mutex<Option<OpenIssueRequest>>);
+
+#[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
+pub fn take_pending_open_issue(state: State<'_, PendingOpenIssue>) -> Option<OpenIssueRequest> {
+    state.0.lock().ok().and_then(|mut g| g.take())
 }
 
 #[cfg(test)]

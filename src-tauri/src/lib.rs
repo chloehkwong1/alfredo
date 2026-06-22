@@ -73,7 +73,7 @@ fn should_offer_version(version: &str, receive_beta: bool) -> bool {
     receive_beta || !version.contains('-')
 }
 
-use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_oauth as linear_oauth_cmds, notes, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -82,10 +82,26 @@ use stack_manager::StackState;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            // Phase-0: focus the main window only. Any non-open-issue launch
-            // (incl. the updater's relaunch) must be untouched.
-            use tauri::Manager;
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            use tauri::{Emitter, Manager};
+            // Strict router: only act on a valid open-issue invocation. Anything
+            // else (plain relaunch, updater relaunch) just focuses the window.
+            if let Some(mut req) = commands::linear_launch::parse_open_issue(&argv) {
+                // Match workdir -> managed repo using on-disk config (best effort).
+                let repo_paths: Vec<String> =
+                    crate::app_config_manager::load_sync_best_effort()
+                        .map(|cfg| cfg.repos.into_iter().map(|r| r.path).collect())
+                        .unwrap_or_default();
+                req.matched_repo_path =
+                    commands::linear_launch::match_workdir_to_repo(&req.workdir, &repo_paths);
+
+                if let Some(state) = app.try_state::<commands::linear_launch::PendingOpenIssue>() {
+                    if let Ok(mut g) = state.0.lock() {
+                        *g = Some(req.clone());
+                    }
+                }
+                let _ = app.emit("linear://open-issue", req);
+            }
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_focus();
             }
@@ -105,6 +121,7 @@ pub fn run() {
         })
         .manage(StackState::new())
         .manage(commands::worktree::PortConfigLock::default())
+        .manage(commands::linear_launch::PendingOpenIssue::default())
         .setup(|app| {
             crate::logging::init();
             // Warm the shared HTTP client so any TLS-init failure surfaces
@@ -317,6 +334,8 @@ pub fn run() {
             notification::send_app_notification,
             notification::notification_permission_status,
             notification::request_notification_permission,
+            // Linear coding-tool
+            linear_launch::take_pending_open_issue,
         ])
         .build(tauri::generate_context!())
         .unwrap_or_else(|e| {
