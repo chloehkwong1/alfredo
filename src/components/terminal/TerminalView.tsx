@@ -106,11 +106,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   });
   const finalizeLaunch = useTabStore((s) => s.finalizeLaunch);
   const setLastCustomCommand = useWorkspaceStore((s) => s.setLastCustomCommand);
-  const pendingPrompt = useWorkspaceStore((s) =>
-    activeWorktreeId ? s.pendingPrompt[activeWorktreeId] : undefined,
-  );
-  const setPendingPrompt = useWorkspaceStore((s) => s.setPendingPrompt);
-  const clearPendingPrompt = useWorkspaceStore((s) => s.clearPendingPrompt);
 
   const [resolvedArgs, setResolvedArgs] = useState<string[] | null>(null);
   const [prefill, setPrefill] = useState("");
@@ -153,14 +148,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       if (launchCommand !== undefined) {
         const parsed = parseLaunchFlags(launchCommand);
         hasSpawnedRef.current = true;
-        if (parsed.ok) {
-          const ws = useWorkspaceStore.getState();
-          const stagedPrompt = activeWorktreeId ? ws.pendingPrompt[activeWorktreeId] : undefined;
-          if (stagedPrompt && activeWorktreeId) ws.clearPendingPrompt(activeWorktreeId);
-          setResolvedArgs(stagedPrompt ? [...parsed.args, stagedPrompt] : parsed.args);
-        } else {
-          setResolvedArgs([]);
-        }
+        setResolvedArgs(parsed.ok ? parsed.args : []);
         return;
       }
 
@@ -271,13 +259,11 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
   // Launch overlay: finalize the pending tab with the user's flags. Clearing
   // pendingLaunch re-runs the resolve effect → resolvedArgs resolves → spawn.
-  const handleLaunch = useCallback((flags: string, prompt: string) => {
+  const handleLaunch = useCallback((flags: string) => {
     if (!activeWorktreeId || !tabId) return;
     setLastCustomCommand(activeWorktreeId, flags);
-    if (prompt.trim()) setPendingPrompt(activeWorktreeId, prompt);
-    else clearPendingPrompt(activeWorktreeId);
     finalizeLaunch(activeWorktreeId, tabId, flags);
-  }, [activeWorktreeId, tabId, finalizeLaunch, setLastCustomCommand, setPendingPrompt, clearPendingPrompt]);
+  }, [activeWorktreeId, tabId, finalizeLaunch, setLastCustomCommand]);
 
   const handleLaunchCancel = useCallback(() => {
     if (!activeWorktreeId || !tabId) return;
@@ -623,7 +609,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
           <ClaudeLaunchOverlay
             key={prefill}
             prefill={prefill}
-            promptPrefill={pendingPrompt}
             onLaunch={handleLaunch}
             onCancel={handleLaunchCancel}
           />
