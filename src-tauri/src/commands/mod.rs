@@ -25,3 +25,4 @@ pub mod app_detection;
 pub mod output_styles;
 pub mod updater;
 pub mod notification;
+pub mod linear_launch;
