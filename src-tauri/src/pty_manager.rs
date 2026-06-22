@@ -1130,9 +1130,13 @@ fn write_hooks_config(
     // waitingForInput + notify input. Both branches keep phase=toolStart so
     // workDepth still increments and stays balanced against the matching
     // PostToolUse(toolEnd) when the user answers.
+    // `Monitor` is the second exception: it registers a background watch and
+    // returns immediately, so its PreToolUse routes to busy?phase=monitorStart
+    // so the frontend can set a sticky monitor-pending flag. The matching
+    // PostToolUse still posts toolEnd, keeping workDepth balanced.
     let cmd_pretooluse = || -> String {
         format!(
-            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q" || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
+            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; elif printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"Monitor"'; then ST=busy; Q='?phase=monitorStart'; LBL='busy(monitorStart)'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q" || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
 
@@ -1888,6 +1892,46 @@ mod tests {
         assert!(
             cmd.contains("ST=busy; Q='?phase=toolStart'"),
             "default branch must route to busy?phase=toolStart; got: {cmd}"
+        );
+    }
+
+    /// The Monitor tool registers a background watch and returns immediately; its
+    /// PreToolUse must post a distinct `monitorStart` phase so the frontend can set
+    /// a sticky monitor-pending flag (the matching PostToolUse still posts toolEnd,
+    /// keeping workDepth balanced). Without this the turn-end Stop shows "Idle" and
+    /// fires a false "finished" notification while the monitor is still pending.
+    #[test]
+    fn pretooluse_hook_routes_monitor_to_monitor_start() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let worktree = tmp.path().join("wt");
+        std::fs::create_dir_all(&worktree).unwrap();
+
+        write_hooks_config(worktree.to_str().unwrap(), "http://127.0.0.1:0", "owner/wt")
+            .expect("write hooks");
+
+        let contents =
+            std::fs::read_to_string(worktree.join(".claude/settings.local.json")).expect("read");
+        let config: serde_json::Value = serde_json::from_str(&contents).expect("parse");
+
+        let cmd = config["hooks"]["PreToolUse"]
+            .as_array()
+            .expect("PreToolUse array")
+            .iter()
+            .find_map(|e| e["hooks"][0]["command"].as_str())
+            .expect("PreToolUse command");
+
+        assert!(
+            cmd.contains(r#""Monitor""#),
+            "PreToolUse must branch on the Monitor tool name; got: {cmd}"
+        );
+        assert!(
+            cmd.contains("ST=busy; Q='?phase=monitorStart'"),
+            "Monitor branch must route to busy?phase=monitorStart; got: {cmd}"
+        );
+        // The generic (non-AskUserQuestion, non-Monitor) branch must remain.
+        assert!(
+            cmd.contains("ST=busy; Q='?phase=toolStart'"),
+            "default branch must still route to busy?phase=toolStart; got: {cmd}"
         );
     }
 

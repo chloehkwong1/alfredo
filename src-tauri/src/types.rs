@@ -105,6 +105,7 @@ pub enum HookPhase {
     TurnEnd,      // Stop / StopFailure (resets counter)
     SubagentStart, // SubagentStart — a background/Task subagent was spawned; parent stays busy while it runs
     SubagentEnd,  // SubagentStop — straggler after parent's TurnEnd must not wake idle sessions
+    MonitorStart, // PreToolUse for the Monitor tool — sets a sticky monitor-pending flag (no completion hook)
 }
 
 // ── Worktree / Kanban ───────────────────────────────────────────
