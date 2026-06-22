@@ -82,6 +82,10 @@ export function useSessionRestore(
 
     restoreTabs(wt.id, session.tabs, session.activeTabId);
 
+    if (session.lastCustomCommand) {
+      useWorkspaceStore.getState().setLastCustomCommand(wt.id, session.lastCustomCommand);
+    }
+
     if (session.terminals) {
       for (const [tabId, termData] of Object.entries(session.terminals)) {
         if (termData.scrollback) {
@@ -368,6 +372,10 @@ export function useSessionRestore(
             if (!isFirstRestore) continue;
 
             restoreTabs(wt.id, session.tabs, session.activeTabId);
+
+            if (session.lastCustomCommand) {
+              useWorkspaceStore.getState().setLastCustomCommand(wt.id, session.lastCustomCommand);
+            }
 
             // Pre-load terminal scrollback so it's visible before PTY spawns
             if (session.terminals) {

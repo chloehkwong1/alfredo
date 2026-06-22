@@ -33,6 +33,8 @@ export interface SessionData {
   pinnedWorktree?: boolean;
   /** Claude Code session UUID for `--resume` on next spawn. */
   claudeSessionId?: string;
+  /** Last custom launch command for this worktree, to prefill the launch overlay. */
+  lastCustomCommand?: string;
   /** Whether this worktree is archived (hidden from active view). */
   archived?: boolean;
   /** Unix ms timestamp when the worktree was archived. */
@@ -90,13 +92,24 @@ export async function saveAllSessions(
   getUnreadWorktree?: (worktreeId: string) => boolean | undefined,
   getPinnedWorktree?: (worktreeId: string) => boolean | undefined,
   getClaudeSessionId?: (worktreeId: string) => string | undefined,
+  getLastCustomCommand?: (worktreeId: string) => string | undefined,
   getArchived?: (worktreeId: string) => boolean | undefined,
   getArchivedAt?: (worktreeId: string) => number | undefined,
   getUnarchivedAt?: (worktreeId: string) => number | undefined,
   getAnnotations?: (worktreeId: string) => Annotation[] | undefined,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
-    const tabs = getTabs(wtId).filter((t) => t.type !== "server");
+    // Drop tabs still awaiting a launch decision (overlay open, no command
+    // chosen yet) — otherwise they'd restore as ordinary Claude tabs that
+    // auto-spawn the default args, violating the "no spawn until Launch"
+    // contract. A finalized launch tab keeps its `launchCommand` and re-runs
+    // on restore; `pendingLaunch` is transient and always stripped. (Dropping
+    // the tab here also prunes it from pane state below, which keys off
+    // `tabs.some(...)`.)
+    const tabs = getTabs(wtId)
+      .filter((t) => t.type !== "server")
+      .filter((t) => !(t.pendingLaunch && t.launchCommand === undefined))
+      .map(({ pendingLaunch: _pendingLaunch, ...rest }) => rest);
     const terminals: Record<string, { scrollback: string }> = {};
     for (const tab of tabs) {
       if (isAgentTab(tab) || tab.type === "shell") {
@@ -145,6 +158,7 @@ export async function saveAllSessions(
       unreadWorktree: getUnreadWorktree?.(wtId),
       pinnedWorktree: getPinnedWorktree?.(wtId),
       claudeSessionId: getClaudeSessionId?.(wtId),
+      lastCustomCommand: getLastCustomCommand?.(wtId),
       archived: getArchived?.(wtId),
       archivedAt: getArchivedAt?.(wtId),
       unarchivedAt: getUnarchivedAt?.(wtId),
