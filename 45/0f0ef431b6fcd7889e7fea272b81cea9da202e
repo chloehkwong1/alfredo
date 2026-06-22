@@ -1,0 +1,32 @@
+src/services/linearWorktree.ts
+  s_5c40009d98013d::t_15396e7e64bdd2 1-13
+src/components/terminal/TerminalView.tsx
+  s_5c40009d98013d::t_fe12a1a9f5dc10 156-163
+  s_5c40009d98013d::t_509c5db81aee5b 109-113
+  s_5c40009d98013d::t_61baadf50fa5b8 274,277-278,280
+  s_5c40009d98013d::t_a4412e0d83fabb 626
+src/components/terminal/ClaudeLaunchOverlay.tsx
+  s_5c40009d98013d::t_72ac7692d4656b 8-9,15,20
+  s_5c40009d98013d::t_f969f6e6dc4559 114
+  s_5c40009d98013d::t_c80a8b221486ed 82-90
+src/stores/workspaceStore.ts
+  s_5c40009d98013d::t_c6a5d15d137468 199-207
+  s_5c40009d98013d::t_7532fa7356e6cb 518
+  s_5c40009d98013d::t_c5d490ef2523b3 38-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "450f0ef431b6fcd7889e7fea272b81cea9da202e",
+  "prompts": {},
+  "sessions": {
+    "s_5c40009d98013d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f6fec59-c9a1-429f-8193-bc6f73221f78",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
