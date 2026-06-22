@@ -35,6 +35,10 @@ interface WorkspaceState {
   /** Last custom launch command per worktree, used to prefill the launch overlay. Keyed by worktreeId. */
   lastCustomCommand: Record<string, string>;
   setLastCustomCommand: (worktreeId: string, cmd: string) => void;
+  /** Staged prompt to pass as a positional CLI argument to claude on next launch. Keyed by worktreeId. */
+  pendingPrompt: Record<string, string>;
+  setPendingPrompt: (worktreeId: string, prompt: string) => void;
+  clearPendingPrompt: (worktreeId: string) => void;
   /** Tracks running dev servers per worktree. Keyed by worktreeId. */
   runningServers: Record<string, { sessionId: string; tabId: string; port?: number; createdAt?: number }>;
   /** Repo paths where GitHub auth has failed (token missing/expired). */
@@ -192,6 +196,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     set((state) => ({
       lastCustomCommand: { ...state.lastCustomCommand, [worktreeId]: cmd },
     })),
+  pendingPrompt: {},
+  setPendingPrompt: (worktreeId, prompt) =>
+    set((state) => ({ pendingPrompt: { ...state.pendingPrompt, [worktreeId]: prompt } })),
+  clearPendingPrompt: (worktreeId) =>
+    set((state) => {
+      const next = { ...state.pendingPrompt };
+      delete next[worktreeId];
+      return { pendingPrompt: next };
+    }),
   runningServers: {},
   githubAuthErrors: new Set<string>(),
   setGithubAuthError: (repoPath) =>
@@ -502,6 +515,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       archiveAfterDays: 2,
       deleteAfterDays: 0,
       lastCustomCommand: {},
+      pendingPrompt: {},
       runningServers: {},
       githubAuthErrors: new Set<string>(),
     }),

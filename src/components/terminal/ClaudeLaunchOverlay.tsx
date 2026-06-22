@@ -5,16 +5,19 @@ import { parseLaunchFlags } from "../../services/launchCommand";
 
 interface ClaudeLaunchOverlayProps {
   prefill: string;
-  onLaunch: (flags: string) => void;
+  promptPrefill?: string;
+  onLaunch: (flags: string, prompt: string) => void;
   onCancel: () => void;
 }
 
 function ClaudeLaunchOverlay({
   prefill,
+  promptPrefill,
   onLaunch,
   onCancel,
 }: ClaudeLaunchOverlayProps) {
   const [value, setValue] = useState(prefill);
+  const [prompt, setPrompt] = useState(promptPrefill ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const parsed = parseLaunchFlags(value);
@@ -33,13 +36,13 @@ function ClaudeLaunchOverlay({
       if (e.key === "Enter") {
         e.preventDefault();
         if (error) return;
-        onLaunch(value.trim());
+        onLaunch(value.trim(), prompt);
       } else if (e.key === "Escape") {
         e.preventDefault();
         onCancel();
       }
     },
-    [error, value, onLaunch, onCancel],
+    [error, value, prompt, onLaunch, onCancel],
   );
 
   return (
@@ -76,6 +79,15 @@ function ClaudeLaunchOverlay({
           className="flex-1 bg-transparent font-mono text-sm text-text-primary outline-none placeholder:text-text-tertiary"
         />
       </div>
+      {promptPrefill !== undefined && (
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={8}
+          placeholder="Issue prompt — sent to Claude on launch"
+          className="w-full rounded border border-accent-primary/20 bg-bg-secondary px-2 py-1.5 font-mono text-sm text-text-primary outline-none placeholder:text-text-tertiary resize-none"
+        />
+      )}
       <div className="flex items-center justify-between">
         {error ? (
           <span
@@ -99,7 +111,7 @@ function ClaudeLaunchOverlay({
             size="sm"
             variant="primary"
             disabled={error != null}
-            onClick={() => onLaunch(value.trim())}
+            onClick={() => onLaunch(value.trim(), prompt)}
           >
             Launch ⏎
           </Button>
