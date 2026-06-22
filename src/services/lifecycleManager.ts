@@ -21,9 +21,14 @@ class LifecycleManager {
    * Add a tab to a worktree, placing it in the specified pane (or active pane).
    * Returns the new tab's ID, or null if creation failed.
    */
-  addTab(worktreeId: string, type: TabType, paneId?: string): string | null {
+  addTab(
+    worktreeId: string,
+    type: TabType,
+    paneId?: string,
+    init?: Partial<Pick<WorkspaceTab, "pendingLaunch" | "launchCommand">>,
+  ): string | null {
     const prevTabs = useTabStore.getState().tabs[worktreeId] ?? [];
-    useTabStore.getState().addTab(worktreeId, type);
+    useTabStore.getState().addTab(worktreeId, type, init);
     const newTabs = useTabStore.getState().tabs[worktreeId] ?? [];
     const newTab = newTabs.find((t) => !prevTabs.some((p) => p.id === t.id));
     if (!newTab) return null;
@@ -34,6 +39,15 @@ class LifecycleManager {
       layoutState.addTabToPane(worktreeId, targetPaneId, newTab.id);
     }
     return newTab.id;
+  }
+
+  /**
+   * Add a Claude tab in pending-launch state — TerminalView renders the
+   * launch overlay and gates the PTY spawn until the user confirms a command.
+   * Same pane-attach/activate flow as addTab. Returns the new tab's ID.
+   */
+  addCustomLaunchTab(worktreeId: string, paneId?: string): string | null {
+    return this.addTab(worktreeId, "claude", paneId, { pendingLaunch: true });
   }
 
   /**

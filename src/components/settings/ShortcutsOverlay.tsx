@@ -20,6 +20,7 @@ const SHORTCUT_GROUPS = [
       { keys: "⌘ ⇧ R", description: "Add repository" },
       { keys: "⌘ N", description: "New worktree" },
       { keys: "⌘ T", description: "New tab" },
+      { keys: "⌘ ⌥ T", description: "New Claude tab with custom command" },
       { keys: "⌘ W", description: "Close tab" },
       { keys: "⌘ \\", description: "Split pane right" },
       { keys: "⌘ ⇧ \\", description: "Split pane down" },

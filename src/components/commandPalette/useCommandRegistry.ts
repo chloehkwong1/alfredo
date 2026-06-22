@@ -18,6 +18,7 @@ import {
   FolderOpen,
   Code,
   TerminalSquare,
+  SlidersHorizontal,
 } from "lucide-react";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
@@ -74,6 +75,19 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       action: () => {
         if (activeWorktreeId) {
           lifecycleManager.addTab(activeWorktreeId, "claude");
+        }
+      },
+      enabled: () => !!activeWorktreeId,
+    },
+    {
+      id: "new-claude-tab-command",
+      label: "Claude with custom command…",
+      category: "actions",
+      shortcut: "⌘⌥T",
+      icon: SlidersHorizontal,
+      action: () => {
+        if (activeWorktreeId) {
+          lifecycleManager.addCustomLaunchTab(activeWorktreeId);
         }
       },
       enabled: () => !!activeWorktreeId,

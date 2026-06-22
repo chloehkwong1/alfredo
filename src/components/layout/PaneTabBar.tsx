@@ -12,6 +12,7 @@ import {
   Radio,
   Combine,
   NotebookPen,
+  SlidersHorizontal,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -53,7 +54,7 @@ import { lifecycleManager } from "../../services/lifecycleManager";
 import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
 import { partitionPaneTabs } from "../../lib/paneTabLayout";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
@@ -608,9 +609,19 @@ function PaneTabBar({
             {agentMenuItems
               .filter((item) => availableAgents.includes(item.agentId))
               .map((item) => (
-                <DropdownMenuItem key={item.type} onSelect={() => handleAddTab(item.type)}>
-                  {item.icon} New {item.label} tab
-                </DropdownMenuItem>
+                <Fragment key={item.type}>
+                  <DropdownMenuItem onSelect={() => handleAddTab(item.type)}>
+                    {item.icon} New {item.label} tab
+                  </DropdownMenuItem>
+                  {item.type === "claude" && (
+                    <DropdownMenuItem
+                      onSelect={() => lifecycleManager.addCustomLaunchTab(worktreeId, paneId)}
+                    >
+                      <SlidersHorizontal size={14} className="text-accent-primary" />
+                      Claude with custom command…
+                    </DropdownMenuItem>
+                  )}
+                </Fragment>
               ))}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => handleAddTab("shell")}>

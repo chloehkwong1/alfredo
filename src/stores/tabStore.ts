@@ -60,7 +60,13 @@ interface TabState {
   /** Raw label inputs per tab. Keyed by tabId. */
   labelInputs: Record<string, TabLabelInputs>;
 
-  addTab: (worktreeId: string, type: TabType) => void;
+  addTab: (
+    worktreeId: string,
+    type: TabType,
+    init?: Partial<Pick<WorkspaceTab, "pendingLaunch" | "launchCommand">>,
+  ) => void;
+  /** Finalize a pending launch: clear the overlay flag and set the command. */
+  finalizeLaunch: (worktreeId: string, tabId: string, launchCommand: string) => void;
   removeTab: (worktreeId: string, tabId: string) => void;
   setActiveTabId: (worktreeId: string, tabId: string) => void;
   updateTab: (worktreeId: string, tabId: string, patch: Partial<WorkspaceTab>) => void;
@@ -158,7 +164,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     });
   },
 
-  addTab: (worktreeId, type) =>
+  addTab: (worktreeId, type, init) =>
     set((state) => {
       const existing = state.tabs[worktreeId] ?? [];
       // Notes is a per-worktree singleton — focus the existing one, never add a second.
@@ -184,6 +190,7 @@ export const useTabStore = create<TabState>((set, get) => ({
         id: `${worktreeId}:${type}:${crypto.randomUUID().slice(0, 8)}`,
         type,
         label,
+        ...init,
       };
       const tabs = [...existing, tab];
       return {
@@ -191,6 +198,16 @@ export const useTabStore = create<TabState>((set, get) => ({
         activeTabId: { ...state.activeTabId, [worktreeId]: tab.id },
       };
     }),
+
+  finalizeLaunch: (worktreeId, tabId, launchCommand) =>
+    set((state) => ({
+      tabs: {
+        ...state.tabs,
+        [worktreeId]: (state.tabs[worktreeId] ?? []).map((t) =>
+          t.id === tabId ? { ...t, pendingLaunch: false, launchCommand } : t,
+        ),
+      },
+    })),
 
   removeTab: (worktreeId, tabId) =>
     set((state) => {

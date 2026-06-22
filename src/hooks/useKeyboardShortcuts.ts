@@ -12,6 +12,7 @@ import type { WorkspaceTab } from "../types";
  * Global keyboard shortcuts for the workspace:
  * - Cmd+N: open Create Worktree dialog
  * - Cmd+T: new tab of same type as active pane's current tab
+ * - Cmd+Option+T: new Claude tab with a custom launch command
  * - Cmd+W: close active tab (unless last tab in pane)
  * - Cmd+R: reload/refresh the app
  * - Cmd+Shift+R: open Add Repository modal
@@ -79,6 +80,19 @@ export function useKeyboardShortcuts(
       if (event.metaKey && !event.shiftKey && event.key === "n") {
         event.preventDefault();
         onCreateDialog();
+        return;
+      }
+
+      // Cmd+Option+T: new Claude tab in pending-launch (custom command) state.
+      // Use event.code — Option mutates event.key on macOS. Placed before the
+      // plain Cmd+T branch so the altKey combo never falls through to it.
+      if (event.metaKey && event.altKey && !event.shiftKey && event.code === "KeyT") {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const layoutState = useLayoutStore.getState();
+          const activePaneId = layoutState.activePaneId[activeWorktreeId];
+          lifecycleManager.addCustomLaunchTab(activeWorktreeId, activePaneId);
+        }
         return;
       }
 
