@@ -28,6 +28,7 @@ import { useSessionRestore } from "../../hooks/useSessionRestore";
 import { useServer, useStaleServerCleanup, useServerReconciliation } from "../../hooks/useServer";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useUpdater } from "../../hooks/useUpdater";
+import { useLinearOpenIssue } from "../../hooks/useLinearOpenIssue";
 import { UpdateBanner } from "./UpdateBanner";
 import { useAgentStore } from "../../stores/agentStore";
 import { useRepoDialogs } from "./useRepoDialogs";
@@ -55,6 +56,7 @@ function AppShell() {
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
   useDensity();
   const updater = useUpdater();
+  useLinearOpenIssue();
   const refreshAgents = useAgentStore((s) => s.refresh);
 
   useEffect(() => {
