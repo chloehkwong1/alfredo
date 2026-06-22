@@ -43,6 +43,23 @@ export const STALE_SUBAGENT_FORCE_MS = 300_000;
  *  completions. Defer the entire state+notification transition so a following
  *  busy(promptStart) can cancel it within this window. */
 export const IDLE_DEBOUNCE_MS = 300;
+/** Recency window: if a subagent hook (`subagentStart`/`subagentEnd`) arrived
+ *  within this long, treat the session as still in a background-agent harvest
+ *  loop and use the longer idle(turnEnd) debounce below. Comfortably above the
+ *  observed ~5–15s gap between a park (turnEnd) and the agent's next resume, so
+ *  the long window stays engaged across consecutive harvest cycles. */
+export const SUBAGENT_ACTIVITY_RECENCY_MS = 60_000;
+/** idle(turnEnd) debounce while subagent activity is recent. Claude Code does
+ *  NOT reliably fire SubagentStart for background/Workflow agents (only
+ *  SubagentStop), so subagentDepth under-counts, the depth>0 guard sits at 0
+ *  while agents are still running, and every "park between results" Stop leaks a
+ *  "finished" notification. This longer window lets the agent's next resume —
+ *  busy(promptStart)/busy(toolStart), which cancel the pending timer — suppress
+ *  the spurious notification; it only fires when the agent goes quiet for real.
+ *  The cost is the genuine final notification landing ~this late during a
+ *  background task (fine for multi-minute fan-outs); an active user never sees
+ *  the delay because their next action cancels the timer. */
+export const IDLE_DEBOUNCE_SUBAGENT_MS = 15_000;
 /** Grace period after turnEnd during which bare-busy hooks (no phase) are
  *  suppressed. Claude Code fires idle(turnEnd) → idle → busy(none) as its
  *  internal state settles after a turn, but the bare busy is not real work.
@@ -329,6 +346,14 @@ export function createSessionChannel(
         // the same "before any suppression break" line — every subagent phase is
         // != "none" so this never strands the counter.
         session.subagentDepth = applySubagentDepth(session.subagentDepth, state, phase);
+        // Record subagent activity (start OR end) before any suppression break.
+        // SubagentStop is reliable where SubagentStart is not, so subagentEnd is
+        // the load-bearing signal here: it proves the session was recently doing
+        // background work even when no matching subagentStart ever incremented
+        // the counter. Drives the adaptive idle(turnEnd) debounce below.
+        if (phase === "subagentStart" || phase === "subagentEnd") {
+          session.lastSubagentActivityAt = Date.now();
+        }
 
         // Suppress spurious bare-busy hooks that fire immediately after turnEnd.
         // Claude Code's internal state settles with idle(turnEnd) → idle → busy(none),
@@ -388,10 +413,18 @@ export function createSessionChannel(
           session.turnEndAt = 0;
         }
 
-        // Cancel any pending debounced idle — a new non-idle hook supersedes it.
-        // Don't cancel on idle→idle transitions: turnEnd fires notify=finished,
-        // then a bare idle follows — cancelling would swallow the notification.
-        if (session.pendingIdleTimer !== null && state !== "idle") {
+        // Cancel any pending debounced idle — but only on genuine forward
+        // progress (the agent resumed real work or now needs the user). A
+        // "completion straggler" — busy(toolEnd) from a late PostToolUse /
+        // PermissionDenied, busy(subagentEnd) from a late SubagentStop, or a
+        // bare busy(none) settle — is NOT forward progress: arriving within the
+        // (now longer) debounce window after the real final turnEnd it would
+        // otherwise cancel the timer and permanently swallow the "finished"
+        // notification. Don't cancel on idle→idle either: turnEnd fires
+        // notify=finished, then a bare idle follows — cancelling would swallow it.
+        const isCompletionStraggler =
+          state === "busy" && (phase === "toolEnd" || phase === "subagentEnd" || phase === "none");
+        if (session.pendingIdleTimer !== null && state !== "idle" && !isCompletionStraggler) {
           clearTimeout(session.pendingIdleTimer);
           session.pendingIdleTimer = null;
         }
@@ -405,7 +438,26 @@ export function createSessionChannel(
         // immediately starts another turn. Defer the entire state+notification
         // transition so busy(promptStart) can cancel it within the window.
         if (state === "idle" && phase === "turnEnd") {
-          console.debug(`[status:${worktreeId}] hook → idle(turnEnd) DEBOUNCING ${IDLE_DEBOUNCE_MS}ms${notify !== "none" ? ` notify=${notify}` : ""}`);
+          // Single-timer invariant: a second idle(turnEnd) reaches here without
+          // hitting the forward-progress cancel above (state is "idle"), so clear
+          // any timer a prior turnEnd left pending before scheduling a new one.
+          // Otherwise the old timer is orphaned but still fires → double idle
+          // transition and a duplicate "finished" notification.
+          if (session.pendingIdleTimer !== null) {
+            clearTimeout(session.pendingIdleTimer);
+            session.pendingIdleTimer = null;
+          }
+          // Adaptive window: while subagent activity is recent, the agent is
+          // likely parked between background-agent results and will resume in
+          // seconds. subagentDepth under-counts (SubagentStart is unreliable),
+          // so we can't rely on the depth>0 hard-suppress alone — use the long
+          // window and let the resume cancel the timer. Normal turns (no recent
+          // subagent activity) keep the snappy 300ms window.
+          const recentSubagentActivity =
+            session.lastSubagentActivityAt > 0
+            && Date.now() - session.lastSubagentActivityAt < SUBAGENT_ACTIVITY_RECENCY_MS;
+          const debounceMs = recentSubagentActivity ? IDLE_DEBOUNCE_SUBAGENT_MS : IDLE_DEBOUNCE_MS;
+          console.debug(`[status:${worktreeId}] hook → idle(turnEnd) DEBOUNCING ${debounceMs}ms${recentSubagentActivity ? " (subagent-recent)" : ""}${notify !== "none" ? ` notify=${notify}` : ""}`);
           session.pendingIdleTimer = setTimeout(() => {
             session.pendingIdleTimer = null;
             session.agentState = "idle";
@@ -420,7 +472,7 @@ export function createSessionChannel(
                 fireHookNotification(wt.branch, notify, worktreeId);
               }
             }
-          }, IDLE_DEBOUNCE_MS);
+          }, debounceMs);
           break;
         }
 

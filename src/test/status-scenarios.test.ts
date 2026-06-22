@@ -154,6 +154,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     turnEndAt: 0,
     workDepth: 0,
     subagentDepth: 0,
+    lastSubagentActivityAt: 0,
     pasteDiagDrainChain: 0,
     pasteDiagLastLogAt: 0,
     staleHookNotifiedAt: 0,
@@ -795,7 +796,7 @@ describe("multi-tab reconciler independence", () => {
   });
 });
 
-import { createSessionChannel, stateSourceMap, IDLE_DEBOUNCE_MS } from "../services/sessionChannel";
+import { createSessionChannel, stateSourceMap, IDLE_DEBOUNCE_MS, IDLE_DEBOUNCE_SUBAGENT_MS } from "../services/sessionChannel";
 
 describe("createSessionChannel wires workDepth updates", () => {
   it("increments session.workDepth on busy(toolStart) hook event", () => {
@@ -869,6 +870,7 @@ describe("createSessionChannel background-subagent (SubagentStart) handling", ()
 
   it("transitions to idle once the last subagent finishes and the real Stop fires", () => {
     vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000); // realistic clock so subagent-recency works
     // No worktree in the store → the debounced idle skips the notification path.
     useWorkspaceStore.setState({ worktrees: [] });
     const session = makeFakeSession({ agentState: "busy", subagentDepth: 0 });
@@ -886,7 +888,12 @@ describe("createSessionChannel background-subagent (SubagentStart) handling", ()
     // Main agent wakes, does its real work, then fires the genuine Stop.
     hook(channel, "turnEnd", "idle", "finished");
     expect(session.pendingIdleTimer).not.toBe(null); // no longer suppressed — debounced
+    // Subagent activity was recent, so the LONG window is in effect: the short
+    // 300ms debounce must not fire it yet (the genuine final notification lands
+    // ~IDLE_DEBOUNCE_SUBAGENT_MS late during a background task — by design).
     vi.advanceTimersByTime(IDLE_DEBOUNCE_MS + 10);
+    expect(session.agentState).toBe("busy");
+    vi.advanceTimersByTime(IDLE_DEBOUNCE_SUBAGENT_MS);
     expect(session.agentState).toBe("idle");
 
     vi.useRealTimers();
@@ -898,6 +905,120 @@ describe("createSessionChannel background-subagent (SubagentStart) handling", ()
 
     hook(channel, "promptStart"); // fresh user turn — prior subagents are done
     expect(session.subagentDepth).toBe(0);
+  });
+
+  it("does NOT notify on a turnEnd when subagentDepth under-counted but a resume follows (the leak fix)", () => {
+    // Live root cause: Claude Code fires SubagentStop for background/Workflow
+    // agents but NOT SubagentStart, so subagentDepth under-counts and sits at 0
+    // while agents are still running. The depth>0 hard-suppress can't catch the
+    // repeated park-between-results Stops → every harvest cycle leaked a banner.
+    // The adaptive long window + resume-cancels it fix the leak.
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000); // realistic clock so subagent-recency works
+    try {
+      useWorkspaceStore.setState({ worktrees: [] });
+      const session = makeFakeSession({ agentState: "busy", subagentDepth: 0 });
+      const channel = createSessionChannel(fakeWriter as any, session, "wt-leak", "wt-leak:main") as any;
+
+      // SubagentStop with no matching SubagentStart → depth stays 0, activity recorded.
+      hook(channel, "subagentEnd");
+      expect(session.subagentDepth).toBe(0);
+      expect(session.lastSubagentActivityAt).toBeGreaterThan(0);
+
+      // Main agent parks → Stop. depth==0 so the hard-suppress doesn't apply; it
+      // debounces on the LONG window because subagent activity is recent.
+      hook(channel, "turnEnd", "idle", "finished");
+      expect(session.pendingIdleTimer).not.toBe(null);
+      vi.advanceTimersByTime(IDLE_DEBOUNCE_MS + 10);
+      expect(session.agentState).toBe("busy"); // long window — not fired yet
+
+      // Agent wakes to harvest the next result → busy(toolStart) cancels it.
+      hook(channel, "toolStart");
+      expect(session.pendingIdleTimer).toBe(null);
+
+      // Even past the full long window, no idle transition / notification fired.
+      vi.advanceTimersByTime(IDLE_DEBOUNCE_SUBAGENT_MS + 10);
+      expect(session.agentState).toBe("busy");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does NOT let a straggler (busy toolEnd / subagentEnd) cancel the real finished notification", () => {
+    // The dangerous failure mode the long window opens: a late PostToolUse /
+    // PermissionDenied (busy toolEnd) or a late SubagentStop (busy subagentEnd)
+    // arriving inside the window after the GENUINE final turnEnd must NOT cancel
+    // the pending timer — that would permanently swallow the finished banner.
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000); // realistic clock so subagent-recency works
+    try {
+      useWorkspaceStore.setState({ worktrees: [] });
+      const session = makeFakeSession({ agentState: "busy", subagentDepth: 0 });
+      const channel = createSessionChannel(fakeWriter as any, session, "wt-strag", "wt-strag:main") as any;
+
+      hook(channel, "subagentEnd"); // recent activity → long window
+      hook(channel, "turnEnd", "idle", "finished"); // the genuine final Stop
+      expect(session.pendingIdleTimer).not.toBe(null);
+
+      hook(channel, "toolEnd"); // late PostToolUse straggler — must not cancel
+      expect(session.pendingIdleTimer).not.toBe(null);
+      hook(channel, "subagentEnd"); // late SubagentStop straggler — must not cancel
+      expect(session.pendingIdleTimer).not.toBe(null);
+
+      // Window elapses → the finish settles to idle (notification delivered).
+      vi.advanceTimersByTime(IDLE_DEBOUNCE_SUBAGENT_MS + 10);
+      expect(session.agentState).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not leak an orphaned timer when idle(turnEnd) fires twice in a row (single-timer invariant)", () => {
+    // Regression: a second idle(turnEnd) does NOT hit the forward-progress
+    // cancel (state is "idle"), so without an explicit clear it would overwrite
+    // pendingIdleTimer and orphan the first setTimeout — which still fires,
+    // double-notifying. The intervening straggler subagentEnd no longer cancels
+    // (by design), so it can't clean up the first timer either. This sequence
+    // (turnEnd → subagentEnd → turnEnd) appears verbatim in the live hook log.
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000); // realistic clock so subagent-recency works
+    try {
+      useWorkspaceStore.setState({ worktrees: [] });
+      const session = makeFakeSession({ agentState: "busy", subagentDepth: 0 });
+      const channel = createSessionChannel(fakeWriter as any, session, "wt-dbl", "wt-dbl:main") as any;
+
+      hook(channel, "subagentEnd"); // recent activity → long window
+      hook(channel, "turnEnd", "idle", "finished"); // schedules timer T1
+      hook(channel, "subagentEnd"); // straggler — no longer cancels T1
+      hook(channel, "turnEnd", "idle", "finished"); // must clear T1, not orphan it
+
+      // Single-timer invariant: exactly one pending idle timer, never two.
+      expect(vi.getTimerCount()).toBe(1);
+
+      vi.advanceTimersByTime(IDLE_DEBOUNCE_SUBAGENT_MS + 10);
+      expect(session.agentState).toBe("idle");
+      expect(vi.getTimerCount()).toBe(0); // no orphan left ticking
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses the snappy 300ms window for a normal turnEnd with no recent subagent activity", () => {
+    // Regression guard for the trade-off: the long window must apply ONLY when
+    // subagent activity is recent. A plain turn keeps the fast notification.
+    vi.useFakeTimers();
+    try {
+      useWorkspaceStore.setState({ worktrees: [] });
+      const session = makeFakeSession({ agentState: "busy", subagentDepth: 0 });
+      const channel = createSessionChannel(fakeWriter as any, session, "wt-normal", "wt-normal:main") as any;
+
+      hook(channel, "turnEnd", "idle", "finished");
+      expect(session.pendingIdleTimer).not.toBe(null);
+      vi.advanceTimersByTime(IDLE_DEBOUNCE_MS + 10);
+      expect(session.agentState).toBe("idle"); // fired on the short window
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("detector idle is REJECTED while subagentDepth > 0 even after hooks go stale", () => {

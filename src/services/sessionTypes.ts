@@ -95,6 +95,14 @@ export interface ManagedSession {
    *  session is parked waiting on subagents) and the reconciler is forbidden
    *  from stale-rescuing — same role workDepth plays for foreground tools. */
   subagentDepth: number;
+  /** Timestamp of the last subagent hook (`subagentStart` or `subagentEnd`).
+   *  Claude Code does NOT reliably fire SubagentStart for background/Workflow
+   *  agents (only SubagentStop), so subagentDepth under-counts and the depth>0
+   *  idle-suppression leaks "finished" notifications on every harvest cycle.
+   *  When this is recent, the idle(turnEnd) debounce uses a longer window so the
+   *  agent's next resume can cancel a spurious notification. Zero until the
+   *  first subagent hook. */
+  lastSubagentActivityAt: number;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
   /** Diagnostic: consecutive drainPending dispatches since the queue last
