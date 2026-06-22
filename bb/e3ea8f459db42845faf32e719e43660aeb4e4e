@@ -1,0 +1,25 @@
+src-tauri/src/pty_manager.rs
+  s_d465237df2eeb4::t_a4e5130f9b2e20 1931-1935
+  s_d465237df2eeb4::t_9b9ab069808577 1133-1136,1139
+  s_d465237df2eeb4::t_1a19cbc12f9ba0 1898-1930,1936-1937
+src-tauri/src/types.rs
+  s_d465237df2eeb4::t_0b6419786f797d 108
+src-tauri/src/state_server.rs
+  s_d465237df2eeb4::t_00598b427170b0 153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "bbe3ea8f459db42845faf32e719e43660aeb4e4e",
+  "prompts": {},
+  "sessions": {
+    "s_d465237df2eeb4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9afd57c4-94ce-44cb-b9ba-306df16c4716",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}
