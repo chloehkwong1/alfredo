@@ -1,0 +1,29 @@
+src/hooks/useSessionRestore.ts
+  s_2ec75beb1601d9::t_c42adb152567e4 376-378
+  s_2ec75beb1601d9::t_1c1406847c2433 85-88
+src/components/layout/useSessionAutoSave.ts
+  s_2ec75beb1601d9::t_4d84efdd9e0774 103
+  s_2ec75beb1601d9::t_94d5e7092f7e0a 76
+src/services/SessionPersistence.ts
+  s_2ec75beb1601d9::t_d1b16744208892 102-108,111
+  s_2ec75beb1601d9::t_60989a3d95e88f 161
+  s_2ec75beb1601d9::t_cf13f77e30737c 36-37
+  s_2ec75beb1601d9::t_6c9be1a7039930 109-110,112
+  s_2ec75beb1601d9::t_caaea40c4a6798 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "5bcda44f66b9f2c894d5c3982e4f183c67fb24ff",
+  "prompts": {},
+  "sessions": {
+    "s_2ec75beb1601d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04aa8615-bcaf-4b1f-95b8-48be652ea2a9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
