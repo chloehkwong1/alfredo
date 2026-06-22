@@ -124,6 +124,35 @@ pub fn run() {
         .manage(commands::linear_launch::PendingOpenIssue::default())
         .setup(|app| {
             crate::logging::init();
+            // Cold-start handling for Linear "open in Alfredo": the
+            // single-instance callback only fires for a *second* instance, so a
+            // first/fresh instance launched with `open-issue …` args must parse
+            // them here and buffer the request for the frontend to drain on mount
+            // (via take_pending_open_issue).
+            {
+                let argv: Vec<String> = std::env::args().collect();
+                if let Some(mut req) = commands::linear_launch::parse_open_issue(&argv) {
+                    let repo_paths: Vec<String> =
+                        crate::app_config_manager::load_sync_best_effort()
+                            .map(|cfg| cfg.repos.into_iter().map(|r| r.path).collect())
+                            .unwrap_or_default();
+                    req.matched_repo_path = commands::linear_launch::match_workdir_to_repo(
+                        &req.workdir,
+                        &repo_paths,
+                    );
+                    eprintln!(
+                        "[linear] cold-start open-issue: branch={} matched_repo={:?}",
+                        req.branch, req.matched_repo_path
+                    );
+                    if let Some(state) =
+                        app.try_state::<commands::linear_launch::PendingOpenIssue>()
+                    {
+                        if let Ok(mut g) = state.0.lock() {
+                            *g = Some(req);
+                        }
+                    }
+                }
+            }
             // Warm the shared HTTP client so any TLS-init failure surfaces
             // at startup rather than on the first GitHub interaction.
             crate::github_manager::init_shared_clients();
