@@ -1,0 +1,19 @@
+src/services/linearOpenIssue.ts
+  s_5c40009d98013d::t_6904b77a76c0b2 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "9437386873c4cce604f7c7c707cda84dba283806",
+  "prompts": {},
+  "sessions": {
+    "s_5c40009d98013d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f6fec59-c9a1-429f-8193-bc6f73221f78",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
