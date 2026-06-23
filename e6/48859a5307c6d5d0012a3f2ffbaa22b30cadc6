@@ -1,0 +1,34 @@
+src/services/sessionChannel.ts
+  s_d465237df2eeb4::t_ed34e270dc7dc1 384
+  s_d465237df2eeb4::t_96d4e61320c629 249-278
+  s_d465237df2eeb4::t_b3f977b3dee6ee 199
+  s_d465237df2eeb4::t_6b8b2c20bdac3e 381-383
+src/services/sessionTypes.ts
+  s_d465237df2eeb4::t_f5585fdab9c67a 106-112
+src/test/status-scenarios.test.ts
+  s_d465237df2eeb4::t_96744fa8d6b96d 662
+  s_d465237df2eeb4::t_91caed069e5a62 715-718
+  s_d465237df2eeb4::t_4e0a98c3a3829d 158
+  s_d465237df2eeb4::t_57057766567c7c 756-770,772-775
+  s_d465237df2eeb4::t_5accdd584ab63f 771
+src/types.ts
+  s_d465237df2eeb4::t_38c04086c1b763 29
+src/services/sessionManager.ts
+  s_d465237df2eeb4::t_6cdb2ab1e82a6c 276,425,582
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "e648859a5307c6d5d0012a3f2ffbaa22b30cadc6",
+  "prompts": {},
+  "sessions": {
+    "s_d465237df2eeb4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9afd57c4-94ce-44cb-b9ba-306df16c4716",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}
