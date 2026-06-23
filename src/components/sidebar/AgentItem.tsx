@@ -378,7 +378,9 @@ function AgentItemContent({
               {effectiveStatus === "busy"
                 ? (worktree.runningAgents && worktree.runningAgents > 0
                     ? <>Running {worktree.runningAgents} agent{worktree.runningAgents === 1 ? "" : "s"}<ThinkingDots /></>
-                    : <><ThinkingText /><ThinkingDots /></>)
+                    : worktree.monitorPending
+                      ? <>Monitoring<ThinkingDots /></>
+                      : <><ThinkingText /><ThinkingDots /></>)
                 : getStatusText(effectiveStatus)}
             </span>
             {isServerRunning && <ServerIndicator port={serverPort} />}
