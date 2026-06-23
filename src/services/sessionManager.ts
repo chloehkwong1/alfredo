@@ -18,6 +18,7 @@ import {
   STALE_OUTPUT_IDLE_MS,
   STALE_HOOK_FORCE_MS,
   STALE_SUBAGENT_FORCE_MS,
+  STALE_MONITOR_FORCE_MS,
   createSessionChannel,
   fireDebugNotification,
   hasWorkInFlight,
@@ -98,6 +99,28 @@ export class SessionManager implements SessionWriter {
         session.subagentDepth = 0;
       }
 
+      // Stranded-monitor self-heal: monitorPending is normally cleared by the
+      // agent's resume (promptStart) or notRunning, but a monitor that times out
+      // or is cancelled without waking the agent would strand it true forever.
+      // Mirror the stranded-subagent heal: once BOTH channels are silent past the
+      // (longer) monitor threshold, treat it as lost so the standard rescue can
+      // proceed on this same tick. (For a parked monitor output silence is the
+      // default state, so the output guard is conservative rather than
+      // discriminative — unlike the subagent case where it protects a genuinely
+      // streaming background agent.)
+      if (
+        session.monitorPending
+        && session.lastHookAt > 0
+        && now - session.lastHookAt > STALE_MONITOR_FORCE_MS
+        && session.lastOutputAt > 0
+        && now - session.lastOutputAt > STALE_OUTPUT_IDLE_MS
+      ) {
+        const lostMsg = `[reconcile:${worktreeId}] stranded monitorPending cleared (hooks silent ${now - session.lastHookAt}ms, no output ${now - session.lastOutputAt}ms — assuming timed-out/cancelled monitor, sessionKey=${sessionKey})`;
+        console.warn(lostMsg);
+        debugLog(lostMsg).catch(() => {});
+        session.monitorPending = false;
+      }
+
       if (
         session.agentState === "busy"
         && !hasWorkInFlight(session)
@@ -149,11 +172,13 @@ export class SessionManager implements SessionWriter {
       }
 
       // ── staleBusy display flag ──────────────────────────────
-      // Gate on subagentDepth === 0: a session running background agents is
-      // legitimately busy even when its own output goes silent, so it must show
-      // "Running N agents…", not "Unresponsive".
+      // Gate on subagentDepth === 0 AND !monitorPending: a session running
+      // background agents or parked on a monitor is legitimately busy even
+      // when its own output goes silent, so it must show "Running N agents…"
+      // / "Monitoring…", not "Unresponsive".
       const alive = !session.sessionId || now - session.lastHeartbeat < 6000;
       const staleBusy = session.subagentDepth === 0
+        && !session.monitorPending
         && computeStaleBusy(session.agentState, alive, session.lastOutputAt, now);
       const current = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
       if (current && current.staleBusy !== staleBusy) {
@@ -179,6 +204,21 @@ export class SessionManager implements SessionWriter {
       const n = subagentCounts.get(wt.id) ?? 0;
       if ((wt.runningAgents ?? 0) !== n) {
         useWorkspaceStore.getState().updateWorktree(wt.id, { runningAgents: n });
+      }
+    }
+
+    // ── monitorPending projection (sidebar "Monitoring…") ──────
+    // A worktree is "monitoring" if any of its live sessions has a pending
+    // monitor. Boolean OR across sessions; mirrors the runningAgents projection.
+    const monitoringWts = new Set<string>();
+    for (const [key, sess] of this.sessions.entries()) {
+      if (sess.ptyExited) continue;
+      if (sess.monitorPending) monitoringWts.add(key.split(":")[0]);
+    }
+    for (const wt of useWorkspaceStore.getState().worktrees) {
+      const pending = monitoringWts.has(wt.id);
+      if ((wt.monitorPending ?? false) !== pending) {
+        useWorkspaceStore.getState().updateWorktree(wt.id, { monitorPending: pending });
       }
     }
   }

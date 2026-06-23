@@ -57,6 +57,10 @@ export interface Worktree {
    *  worktree's sessions. When > 0 the sidebar renders "Running N agents…"
    *  instead of "Thinking…". Written by the reconciler (see sessionManager). */
   runningAgents?: number;
+  /** True while at least one of this worktree's sessions is parked on a pending
+   *  Claude Code monitor. The sidebar renders "Monitoring…" instead of "Idle".
+   *  Written by the reconciler (see sessionManager). */
+  monitorPending?: boolean;
   column: KanbanColumn;
   isBranchMode: boolean;
   additions: number | null;

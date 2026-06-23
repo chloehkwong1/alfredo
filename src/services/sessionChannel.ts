@@ -38,6 +38,14 @@ export const STALE_HOOK_FORCE_MS = 60_000;
  *  Far longer than STALE_HOOK_FORCE_MS so a genuinely long-running background
  *  agent (which streams output and keeps lastOutputAt fresh) is never healed. */
 export const STALE_SUBAGENT_FORCE_MS = 300_000;
+/** Stranded-monitor self-heal threshold. monitorPending is normally cleared by
+ *  the agent's resume (promptStart) or notRunning. If a monitor times out or is
+ *  cancelled and never wakes the agent, the flag would strand true forever and —
+ *  since the rescue paths are gated on no-work-in-flight, the session would be
+ *  stuck "Monitoring…". If BOTH channels are silent this long, treat it as lost.
+ *  Longer than the observed 300s monitor timeout so a genuinely waiting monitor
+ *  is never healed early. */
+export const STALE_MONITOR_FORCE_MS = 360_000;
 /** Debounce window for idle(turnEnd) transitions.
  *  Claude Code fires Stop (turnEnd) between every turn — including sub-agent
  *  completions. Defer the entire state+notification transition so a following

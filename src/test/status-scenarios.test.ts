@@ -390,6 +390,57 @@ describe("SessionManager.reconcileAll", () => {
     expect(useWorkspaceStore.getState().worktrees[0].runningAgents).toBe(0);
   });
 
+  it("self-heals a stranded monitorPending (timed-out/cancelled monitor) once BOTH channels are silent past the threshold", () => {
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      monitorPending: true,
+      lastHookAt: Date.now() - 361_000,   // > STALE_MONITOR_FORCE_MS (360s)
+      lastOutputAt: Date.now() - 361_000, // output also silent
+    });
+    (mgr as any).sessions.set("wt-mon:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-mon", agentStatus: "busy", staleBusy: false, monitorPending: true } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(session.monitorPending).toBe(false);
+    expect(session.agentState).toBe("idle"); // soft-rescue fires same tick
+  });
+
+  it("projects monitorPending onto worktree.monitorPending", () => {
+    const mgr = new SessionManager();
+    const sess = makeFakeSession({ agentState: "busy", monitorPending: true });
+    (mgr as any).sessions.set("wt-mp:main", sess);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-mp", agentStatus: "busy", monitorPending: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(useWorkspaceStore.getState().worktrees[0].monitorPending).toBe(true);
+  });
+
+  it("does NOT mark a monitor-pending session staleBusy despite silent output (Monitoring…, not Unresponsive)", () => {
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      monitorPending: true,
+      lastHookAt: Date.now() - 5_000,    // hooks fresh → no self-heal / no rescue
+      lastOutputAt: Date.now() - 90_000, // output silent > STALE_BUSY_MS (60s)
+    });
+    (mgr as any).sessions.set("wt-monstale:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-monstale", agentStatus: "busy", staleBusy: false, monitorPending: true } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    expect(useWorkspaceStore.getState().worktrees[0].staleBusy).toBe(false);
+    expect(session.monitorPending).toBe(true); // still pending, not healed
+  });
+
   it("does not touch sessions where hooksActive=false (detector-driven)", () => {
     const mgr = new SessionManager();
     const session = makeFakeSession({
