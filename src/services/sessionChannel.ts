@@ -284,9 +284,9 @@ export function applyMonitorPending(
  * Single definition so every gate reads the same predicate.
  */
 export function hasWorkInFlight(
-  session: Pick<ManagedSession, "workDepth" | "subagentDepth">,
+  session: Pick<ManagedSession, "workDepth" | "subagentDepth" | "monitorPending">,
 ): boolean {
-  return session.workDepth > 0 || session.subagentDepth > 0;
+  return session.workDepth > 0 || session.subagentDepth > 0 || session.monitorPending;
 }
 
 /**
@@ -423,16 +423,13 @@ export function createSessionChannel(
           break;
         }
 
-        // Stop fired while background subagents are still running. The main
-        // agent dispatches background/Task agents and immediately yields its
-        // turn — Claude Code fires Stop (idle/turnEnd) the moment it parks, but
-        // the work isn't done. Keep the session busy and swallow the "finished"
-        // notification. subagentDepth is cleared by each matching subagentEnd
-        // (and by promptStart on the next user turn), after which a real Stop
-        // transitions to idle normally. Mirrors the workDepth > 0 guard the
-        // reconciler uses for foreground tools.
-        if (state === "idle" && phase === "turnEnd" && session.subagentDepth > 0) {
-          console.debug(`[status:${worktreeId}] idle(turnEnd) SUPPRESSED — ${session.subagentDepth} subagent(s) in flight`);
+        // Stop fired while background subagents are running OR a monitor is
+        // pending. In both cases the agent parked itself and will resume — keep
+        // the session busy and swallow the "finished" notification (this break
+        // is BEFORE the notification-firing debounce below). subagentDepth is
+        // cleared by subagentEnd/promptStart; monitorPending by promptStart.
+        if (state === "idle" && phase === "turnEnd" && (session.subagentDepth > 0 || session.monitorPending)) {
+          console.debug(`[status:${worktreeId}] idle(turnEnd) SUPPRESSED — subagentDepth=${session.subagentDepth} monitorPending=${session.monitorPending}`);
           if (session.pendingIdleTimer !== null) {
             clearTimeout(session.pendingIdleTimer);
             session.pendingIdleTimer = null;

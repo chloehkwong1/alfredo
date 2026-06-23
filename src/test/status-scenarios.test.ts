@@ -775,13 +775,20 @@ describe("applyMonitorPending", () => {
 
 describe("hasWorkInFlight", () => {
   it("is true when either workDepth or subagentDepth is > 0", () => {
-    expect(hasWorkInFlight({ workDepth: 1, subagentDepth: 0 })).toBe(true);
-    expect(hasWorkInFlight({ workDepth: 0, subagentDepth: 1 })).toBe(true);
-    expect(hasWorkInFlight({ workDepth: 2, subagentDepth: 3 })).toBe(true);
+    expect(hasWorkInFlight({ workDepth: 1, subagentDepth: 0, monitorPending: false })).toBe(true);
+    expect(hasWorkInFlight({ workDepth: 0, subagentDepth: 1, monitorPending: false })).toBe(true);
+    expect(hasWorkInFlight({ workDepth: 2, subagentDepth: 3, monitorPending: false })).toBe(true);
   });
 
   it("is false only when both are zero", () => {
-    expect(hasWorkInFlight({ workDepth: 0, subagentDepth: 0 })).toBe(false);
+    expect(hasWorkInFlight({ workDepth: 0, subagentDepth: 0, monitorPending: false })).toBe(false);
+  });
+
+  it("is true when a monitor is pending even with zero depth", () => {
+    expect(hasWorkInFlight({ workDepth: 0, subagentDepth: 0, monitorPending: true })).toBe(true);
+  });
+  it("is false when no work and no monitor", () => {
+    expect(hasWorkInFlight({ workDepth: 0, subagentDepth: 0, monitorPending: false })).toBe(false);
   });
 });
 
