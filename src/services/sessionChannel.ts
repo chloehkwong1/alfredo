@@ -196,6 +196,7 @@ export function applyHookToDepth(
   switch (phase) {
     case "promptStart":
     case "toolStart":
+    case "monitorStart":
       return depth + 1;
     case "toolEnd":
       return Math.max(0, depth - 1);
@@ -241,6 +242,37 @@ export function applySubagentDepth(
       return 0;
     default:
       return depth;
+  }
+}
+
+/**
+ * Monitor-pending flag. The Claude Code `Monitor` tool registers a background
+ * watch and returns immediately — there is NO hook when the monitor later
+ * completes, so this cannot be a balanced counter. It is a sticky flag:
+ *
+ *   monitorStart  → true   (Monitor tool's PreToolUse)
+ *   promptStart   → false  (agent resumed / fresh turn — the self-heal boundary)
+ *   notRunning    → false  (PTY exited)
+ *   anything else → unchanged
+ *
+ * Crucially NOT reset on `turnEnd`: Claude Code fires Stop the moment the agent
+ * parks on the monitor, and the flag must survive that Stop so the idle
+ * transition can be suppressed (see the hook handler). Mirrors applySubagentDepth.
+ * Pure function — safe to unit test.
+ */
+export function applyMonitorPending(
+  pending: boolean,
+  state: import("../types").AgentState,
+  phase: import("../types").HookPhase,
+): boolean {
+  if (state === "notRunning") return false;
+  switch (phase) {
+    case "monitorStart":
+      return true;
+    case "promptStart":
+      return false;
+    default:
+      return pending;
   }
 }
 
@@ -346,6 +378,10 @@ export function createSessionChannel(
         // the same "before any suppression break" line — every subagent phase is
         // != "none" so this never strands the counter.
         session.subagentDepth = applySubagentDepth(session.subagentDepth, state, phase);
+        // Monitor-pending flag, updated on the same pre-suppression line — set on
+        // monitorStart, cleared on promptStart/notRunning, deliberately survives
+        // turnEnd (the parking Stop) so the idle transition can be suppressed.
+        session.monitorPending = applyMonitorPending(session.monitorPending, state, phase);
         // Record subagent activity (start OR end) before any suppression break.
         // SubagentStop is reliable where SubagentStart is not, so subagentEnd is
         // the load-bearing signal here: it proves the session was recently doing

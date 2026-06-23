@@ -103,6 +103,13 @@ export interface ManagedSession {
    *  agent's next resume can cancel a spurious notification. Zero until the
    *  first subagent hook. */
   lastSubagentActivityAt: number;
+  /** True while the agent has a pending Claude Code monitor (set by the Monitor
+   *  tool's PreToolUse → `monitorStart`). Like subagentDepth it MUST survive the
+   *  `turnEnd` Stop that fires when the agent parks on the monitor; reset on
+   *  `promptStart` (resume) and `notRunning`. While true the idle transition is
+   *  suppressed and the reconciler won't stale-rescue. There is no per-monitor
+   *  completion hook, so this is a sticky flag, not a counter. */
+  monitorPending: boolean;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
   /** Diagnostic: consecutive drainPending dispatches since the queue last

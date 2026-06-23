@@ -26,7 +26,7 @@ export type PtyEvent =
   | { event: "cwd"; data: string | null };
 
 /** Hook lifecycle phase — mirrors the Rust `HookPhase` enum. */
-export type HookPhase = "none" | "promptStart" | "toolStart" | "toolEnd" | "turnEnd" | "subagentStart" | "subagentEnd";
+export type HookPhase = "none" | "promptStart" | "toolStart" | "toolEnd" | "turnEnd" | "subagentStart" | "subagentEnd" | "monitorStart";
 
 // ── Agent ───────────────────────────────────────────────────────
 

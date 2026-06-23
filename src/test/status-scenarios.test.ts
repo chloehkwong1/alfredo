@@ -155,6 +155,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     workDepth: 0,
     subagentDepth: 0,
     lastSubagentActivityAt: 0,
+    monitorPending: false,
     pasteDiagDrainChain: 0,
     pasteDiagLastLogAt: 0,
     staleHookNotifiedAt: 0,
@@ -658,7 +659,7 @@ describe("seenWorktrees ordering invariant", () => {
   });
 });
 
-import { applyHookToDepth, applySubagentDepth, hasWorkInFlight } from "../services/sessionChannel";
+import { applyHookToDepth, applySubagentDepth, applyMonitorPending, hasWorkInFlight } from "../services/sessionChannel";
 
 describe("applyHookToDepth", () => {
   it("increments on promptStart", () => {
@@ -711,6 +712,10 @@ describe("applyHookToDepth", () => {
   it("leaves depth unchanged on subagentStart (subagents are tracked separately)", () => {
     expect(applyHookToDepth(2, "busy", "subagentStart")).toBe(2);
   });
+
+  it("increments on monitorStart (balanced by the Monitor PostToolUse toolEnd)", () => {
+    expect(applyHookToDepth(0, "busy", "monitorStart")).toBe(1);
+  });
 });
 
 describe("applySubagentDepth", () => {
@@ -745,6 +750,26 @@ describe("applySubagentDepth", () => {
     expect(applySubagentDepth(1, "busy", "toolStart")).toBe(1);
     expect(applySubagentDepth(1, "busy", "toolEnd")).toBe(1);
     expect(applySubagentDepth(1, "busy", "none")).toBe(1);
+  });
+});
+
+describe("applyMonitorPending", () => {
+  it("sets true on monitorStart", () => {
+    expect(applyMonitorPending(false, "busy", "monitorStart")).toBe(true);
+  });
+  it("survives turnEnd — must outlive the parking Stop", () => {
+    expect(applyMonitorPending(true, "idle", "turnEnd")).toBe(true);
+  });
+  it("clears on promptStart (resume / fresh turn)", () => {
+    expect(applyMonitorPending(true, "busy", "promptStart")).toBe(false);
+  });
+  it("clears on notRunning (PTY exit)", () => {
+    expect(applyMonitorPending(true, "notRunning", "none")).toBe(false);
+  });
+  it("is unchanged by tool/subagent phases", () => {
+    expect(applyMonitorPending(true, "busy", "toolEnd")).toBe(true);
+    expect(applyMonitorPending(true, "busy", "toolStart")).toBe(true);
+    expect(applyMonitorPending(true, "busy", "subagentStart")).toBe(true);
   });
 });
 
