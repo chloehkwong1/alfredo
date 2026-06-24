@@ -202,6 +202,13 @@ export function setWorktreeColumn(
   return invoke("set_worktree_column", { repoPath, worktreeName, column });
 }
 
+/** Drop a worktree's persisted column override, reverting it to the
+ *  auto-derived kanban column. Used to self-heal a stale auto-Done when the
+ *  worktree's branch goes live again (reopened / reused with a new PR). */
+export function clearWorktreeColumn(repoPath: string, worktreeName: string): Promise<void> {
+  return invoke("clear_worktree_column", { repoPath, worktreeName });
+}
+
 export function claimWorktreePort(repoPath: string, worktreeName: string): Promise<PortClaimResult> {
   return invoke("claim_worktree_port", { repoPath, worktreeName });
 }

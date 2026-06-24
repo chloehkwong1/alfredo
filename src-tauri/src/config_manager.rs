@@ -459,6 +459,13 @@ pub fn set_column_override(
         .insert(worktree_name.to_string(), column);
 }
 
+/// Drop a worktree's column override, reverting it to the auto-derived column.
+/// Mirrors `clear_stack_parent` — used to self-heal a stale auto-Done and on
+/// worktree deletion so a reused name does not inherit it.
+pub fn clear_column_override(config: &mut AppConfig, worktree_name: &str) {
+    config.column_overrides.remove(worktree_name);
+}
+
 pub fn get_stack_parent(config: &AppConfig, worktree_name: &str) -> Option<String> {
     config.stack_parent_overrides.get(worktree_name).cloned()
 }
@@ -594,6 +601,26 @@ pub async fn run_setup_scripts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_clear_column_override_removes_only_named_worktree() {
+        let mut config = AppConfig {
+            repo_path: "/repo".into(),
+            ..Default::default()
+        };
+        set_column_override(&mut config, "feature-1", KanbanColumn::Done);
+        set_column_override(&mut config, "feature-2", KanbanColumn::Blocked);
+
+        clear_column_override(&mut config, "feature-1");
+
+        assert!(!config.column_overrides.contains_key("feature-1"));
+        assert_eq!(
+            config.column_overrides.get("feature-2"),
+            Some(&KanbanColumn::Blocked)
+        );
+        // Clearing an absent worktree is a no-op (no panic).
+        clear_column_override(&mut config, "never-existed");
+    }
 
     #[test]
     fn test_prune_orphan_ports_removes_only_absent_worktrees() {

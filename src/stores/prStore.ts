@@ -7,7 +7,7 @@ import type {
   PrStatusWithColumn,
   Worktree,
 } from "../types";
-import { releasePortFor } from "../api";
+import { releasePortFor, setWorktreeColumn, clearWorktreeColumn } from "../api";
 
 interface ColumnOverride {
   column: KanbanColumn;
@@ -250,6 +250,34 @@ export const usePrStore = create<PrState>((set, get) => ({
         releasePortFor(wt).catch((e) => {
           console.warn("[pr-store] Failed to release port on auto-Done:", wt.id, e);
         });
+      }
+
+      // Persist (and reverse) the auto-Done column to the per-repo config so it
+      // survives a restart. Without this, a restart re-derives the column purely
+      // from the 30-closed-PR sync window; once a merged PR ages out there is no
+      // record it was Done and the worktree pops back to "In progress".
+      // Skip entirely when the user has a live manual placement (an in-memory
+      // override) — that is owned by the drag handler / session restore, and
+      // touching the backend column here would clobber a drag-out-of-Done.
+      if (!newOverrides[wt.id]) {
+        const prevSummary = state.prSummary[wt.id];
+        const wasTerminal = !!(prevSummary?.merged || prevSummary?.closed);
+        const isTerminal = pr.merged || pr.state === "closed";
+        if (isTerminal && !wasTerminal) {
+          // PR just reached a terminal state — persist Done. Fires once, on the
+          // non-terminal → terminal edge, independent of whether the column was
+          // already Done, so the approve-then-merge path is covered too.
+          setWorktreeColumn(wt.repoPath, wt.name, "done").catch((e) => {
+            console.warn("[pr-store] Failed to persist auto-Done column:", wt.id, e);
+          });
+        } else if (wt.column === "done" && column !== "done") {
+          // Worktree was showing Done but its branch is live again (reopened, or
+          // reused with a new PR) — drop the stale persisted Done so it doesn't
+          // re-hydrate as Done on the next boot.
+          clearWorktreeColumn(wt.repoPath, wt.name).catch((e) => {
+            console.warn("[pr-store] Failed to clear stale Done column:", wt.id, e);
+          });
+        }
       }
 
       // Sidebar summary data — preserve cached enrichment values when Phase 1

@@ -270,6 +270,7 @@ pub fn run() {
             worktree::get_worktree_diff_stats,
             worktree::get_worktree_status,
             worktree::set_worktree_column,
+            worktree::clear_worktree_column,
             worktree::get_commits_behind_main,
             worktree::get_ahead_behind_origin,
             worktree::rebase_worktree,

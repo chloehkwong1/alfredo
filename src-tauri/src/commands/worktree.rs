@@ -186,6 +186,9 @@ pub async fn delete_worktree(
     // deletion succeeds. Leaving a stale entry behind risks it rehydrating onto
     // an unrelated worktree that later reuses the same name.
     config.linear_tickets.remove(&worktree_name);
+    // Same rationale for the column override: a persisted auto-Done (or manual
+    // placement) must not rehydrate onto a future worktree that reuses the name.
+    config_manager::clear_column_override(&mut config, &worktree_name);
     let _ = config_manager::save_config(&app_data_dir, &repo_path, &config).await;
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path.as_deref()).await
 }
@@ -441,6 +444,26 @@ pub async fn set_worktree_column(
     let app_data_dir = resolve_app_data_dir(&app)?;
     let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     config_manager::set_column_override(&mut config, &worktree_name, column);
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    Ok(())
+}
+
+/// Drop a worktree's persisted column override, reverting it to the auto-derived
+/// kanban column. The PR sync calls this to self-heal a stale auto-Done when a
+/// worktree's branch goes live again (reopened, or reused with a new PR).
+#[tauri::command]
+pub async fn clear_worktree_column(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<()> {
+    // Mirror set_worktree_column: hold port_lock to serialize the whole-config
+    // save against concurrent port claims/releases.
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    config_manager::clear_column_override(&mut config, &worktree_name);
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
 }
