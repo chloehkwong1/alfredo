@@ -375,6 +375,8 @@ pub fn run() {
             session::save_session_file,
             session::load_session_file,
             session::delete_session_file,
+            session::record_resume_session_id,
+            session::load_resume_session_ids,
             session::find_claude_session,
             session::list_claude_sessions,
             session::dump_pty_buffer,

@@ -53,6 +53,25 @@ export async function saveSession(
   await saveSessionFile(repoPath, worktreeId, JSON.stringify(data, null, 2));
 }
 
+/**
+ * Overlay the resume-id sidecar (`{ tabId: sessionId }`, persisted eagerly on
+ * discovery by the Rust `record_resume_session_id` command) onto restored tabs.
+ * The sidecar is always at least as fresh as the session blob's per-tab
+ * resumeSessionId — discovery writes it immediately, the blob only every 30s /
+ * on clean quit — so its entries win. Tabs with no sidecar entry keep the blob
+ * value (backward-compatible with sessions saved before this feature), and
+ * sidecar entries for tabs that no longer exist are ignored. Mutates `tabs`.
+ */
+export function applyResumeSidecar(
+  tabs: WorkspaceTab[],
+  sidecar: Record<string, string>,
+): void {
+  for (const tab of tabs) {
+    const id = sidecar[tab.id];
+    if (id) tab.resumeSessionId = id;
+  }
+}
+
 export async function loadSession(
   repoPath: string,
   worktreeId: string,

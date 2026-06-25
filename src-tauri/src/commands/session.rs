@@ -134,6 +134,47 @@ async fn ensure_sessions_dir(app_data_dir: &std::path::Path, repo_path: &str) ->
     Ok(())
 }
 
+/// Path of the per-worktree resume-id sidecar — a small `{ tabId: sessionId }`
+/// map persisted eagerly the moment discovery adopts a session, so a Force Quit
+/// / crash (uncatchable SIGKILL) can't strand a freshly-discovered id between
+/// the 30s blob autosaves. Lives beside the full session blob, sanitised the
+/// same way so slashy branch names stay flat.
+fn resume_sidecar_path(dir: &std::path::Path, worktree_id: &str) -> std::path::PathBuf {
+    dir.join(format!("{}.resume.json", sanitise_id(worktree_id)))
+}
+
+/// Read the sidecar map, treating a missing or unparsable file as empty — a
+/// stale/garbled sidecar must never block restore, which still has the session
+/// blob's own resumeSessionId to fall back on.
+async fn read_resume_map(
+    path: &std::path::Path,
+) -> Result<std::collections::HashMap<String, String>> {
+    match tokio::fs::read_to_string(path).await {
+        Ok(s) => Ok(serde_json::from_str(&s).unwrap_or_default()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Ok(std::collections::HashMap::new())
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Upsert one tab's resume id in the sidecar under `dir`. Discovery is the only
+/// writer, so the read-modify-write needs no locking. `dir` must already exist.
+async fn upsert_resume_id(
+    dir: &std::path::Path,
+    worktree_id: &str,
+    tab_id: &str,
+    session_id: &str,
+) -> Result<()> {
+    let path = resume_sidecar_path(dir, worktree_id);
+    let mut map = read_resume_map(&path).await?;
+    map.insert(tab_id.to_string(), session_id.to_string());
+    let data = serde_json::to_string(&map)
+        .map_err(|e| AppError::Config(format!("serialize resume sidecar: {e}")))?;
+    tokio::fs::write(&path, data).await?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn save_session_file(app: tauri::AppHandle, repo_path: String, worktree_id: String, data: String) -> Result<()> {
     let app_data_dir = app.path().app_data_dir()
@@ -143,6 +184,41 @@ pub async fn save_session_file(app: tauri::AppHandle, repo_path: String, worktre
     let path = sessions_dir(&app_data_dir, &repo_path).join(format!("{safe_id}.json"));
     tokio::fs::write(&path, data).await?;
     Ok(())
+}
+
+/// Eagerly persist one tab's freshly-discovered Claude session id to the
+/// sidecar. Called by TerminalView's discovery loop the instant it adopts a
+/// session — a tiny scoped write that survives Force Quit / crash, unlike the
+/// 30s blob autosave and the (SIGKILL-skipped) onCloseRequested save.
+#[tauri::command]
+pub async fn record_resume_session_id(
+    app: tauri::AppHandle,
+    repo_path: String,
+    worktree_id: String,
+    tab_id: String,
+    session_id: String,
+) -> Result<()> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
+    ensure_sessions_dir(&app_data_dir, &repo_path).await?;
+    let dir = sessions_dir(&app_data_dir, &repo_path);
+    upsert_resume_id(&dir, &worktree_id, &tab_id, &session_id).await
+}
+
+/// Load the resume-id sidecar map (`{ tabId: sessionId }`) for a worktree.
+/// Empty when no sidecar exists yet (e.g. first run after this feature, or a
+/// worktree that never spawned an agent). Restore overlays these onto the
+/// session blob's per-tab ids, which they always supersede in freshness.
+#[tauri::command]
+pub async fn load_resume_session_ids(
+    app: tauri::AppHandle,
+    repo_path: String,
+    worktree_id: String,
+) -> Result<std::collections::HashMap<String, String>> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
+    let dir = sessions_dir(&app_data_dir, &repo_path);
+    read_resume_map(&resume_sidecar_path(&dir, &worktree_id)).await
 }
 
 #[tauri::command]
@@ -319,7 +395,11 @@ pub async fn delete_session_file(app: tauri::AppHandle, repo_path: String, workt
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
     let safe_id = sanitise_id(&worktree_id);
-    let path = sessions_dir(&app_data_dir, &repo_path).join(format!("{safe_id}.json"));
+    let dir = sessions_dir(&app_data_dir, &repo_path);
+    // Drop the resume-id sidecar alongside the blob so a recreated worktree at
+    // the same id never inherits a stale tab→session mapping.
+    let _ = tokio::fs::remove_file(resume_sidecar_path(&dir, &worktree_id)).await;
+    let path = dir.join(format!("{safe_id}.json"));
     match tokio::fs::remove_file(&path).await {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -329,8 +409,47 @@ pub async fn delete_session_file(app: tauri::AppHandle, repo_path: String, workt
 
 #[cfg(test)]
 mod tests {
-    use super::{latest_session, scan_sessions_in};
+    use super::{latest_session, read_resume_map, resume_sidecar_path, scan_sessions_in, upsert_resume_id};
     use std::time::{Duration, SystemTime};
+
+    #[tokio::test]
+    async fn resume_sidecar_missing_reads_empty() {
+        let tmp = tempfile::tempdir().unwrap();
+        let map = read_resume_map(&resume_sidecar_path(tmp.path(), "repo::branch"))
+            .await
+            .unwrap();
+        assert!(map.is_empty());
+    }
+
+    #[tokio::test]
+    async fn resume_sidecar_records_and_updates_per_tab() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        upsert_resume_id(dir, "repo::branch", "tab-1", "sess-A").await.unwrap();
+        upsert_resume_id(dir, "repo::branch", "tab-2", "sess-B").await.unwrap();
+
+        let map = read_resume_map(&resume_sidecar_path(dir, "repo::branch")).await.unwrap();
+        assert_eq!(map.get("tab-1"), Some(&"sess-A".to_string()));
+        assert_eq!(map.get("tab-2"), Some(&"sess-B".to_string()));
+
+        // A later discovery for the same tab (e.g. /clear) overwrites only that tab.
+        upsert_resume_id(dir, "repo::branch", "tab-1", "sess-A2").await.unwrap();
+        let map = read_resume_map(&resume_sidecar_path(dir, "repo::branch")).await.unwrap();
+        assert_eq!(map.get("tab-1"), Some(&"sess-A2".to_string()));
+        assert_eq!(map.get("tab-2"), Some(&"sess-B".to_string()));
+    }
+
+    #[tokio::test]
+    async fn resume_sidecar_filename_flattens_slashy_branches() {
+        let tmp = tempfile::tempdir().unwrap();
+        // worktree_id carrying a `/` (branch feat/x) must not create nested dirs.
+        upsert_resume_id(tmp.path(), "repo::feat/x", "tab-1", "sess-A").await.unwrap();
+        let path = resume_sidecar_path(tmp.path(), "repo::feat/x");
+        assert!(path.file_name().unwrap().to_str().unwrap().ends_with(".resume.json"));
+        assert!(!path.to_str().unwrap().contains("feat/x"));
+        let map = read_resume_map(&path).await.unwrap();
+        assert_eq!(map.get("tab-1"), Some(&"sess-A".to_string()));
+    }
 
     /// Write `{uuid}.jsonl` into `dir` with an explicit mtime so ordering is
     /// deterministic (no sleeps).

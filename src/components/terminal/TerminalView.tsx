@@ -12,7 +12,7 @@ import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { sessionManager } from "../../services/sessionManager";
 import { lifecycleManager } from "../../services/lifecycleManager";
-import { writePty, getConfig, getAppConfig, findClaudeSession, listClaudeSessions, debugLog, dumpPtyBuffer } from "../../api";
+import { writePty, getConfig, getAppConfig, findClaudeSession, listClaudeSessions, recordResumeSessionId, debugLog, dumpPtyBuffer } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useToastStore } from "../../stores/toastStore";
@@ -258,6 +258,15 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         if (ownedBySibling) return;
 
         useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: fsSessionId });
+        // Write-through: persist the freshly-adopted id immediately via the
+        // Rust sidecar, so a Force Quit / crash (uncatchable SIGKILL — the
+        // onCloseRequested save never fires) before the next 30s blob autosave
+        // can't strand it. Scoped to this tab: no debounce, no all-repos snapshot.
+        if (worktree?.repoPath) {
+          recordResumeSessionId(worktree.repoPath, activeWorktreeId, tabId, fsSessionId).catch((e) =>
+            console.warn(`[TerminalView] Failed to persist resume session id for ${worktree.path}:`, e),
+          );
+        }
       }).catch((e) => {
         console.warn(`[TerminalView] Failed to discover Claude session for ${worktree.path}:`, e);
       });

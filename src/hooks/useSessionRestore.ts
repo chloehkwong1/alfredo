@@ -2,9 +2,9 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, debugLog, reconcileWorktreePorts } from "../api";
+import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, debugLog, reconcileWorktreePorts, loadResumeSessionIds } from "../api";
 import { withRetry } from "./withRetry";
-import { loadSession } from "../services/SessionPersistence";
+import { loadSession, applyResumeSidecar } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
 import { repoId } from "./useBranchRepos";
@@ -70,6 +70,15 @@ export function useSessionRestore(
   const applySessionToSynthetic = async (repo: string, wt: Worktree) => {
     const session = await loadSession(repo, wt.id);
     if (!session) return;
+
+    // Overlay the eagerly-persisted resume-id sidecar — always at least as fresh
+    // as the blob's per-tab ids, so a session discovered just before a Force Quit
+    // survives. No-op when no sidecar exists (sessions saved before this feature).
+    try {
+      applyResumeSidecar(session.tabs, await loadResumeSessionIds(repo, wt.id));
+    } catch (e) {
+      console.warn(`[useSessionRestore] Failed to load resume sidecar for ${wt.path}:`, e);
+    }
 
     // Mutate the synthetic in place — the caller writes this same object into
     // the store via setWorktreesForRepo. buildSyntheticBranchWorktree hardcodes
@@ -361,6 +370,15 @@ export function useSessionRestore(
           for (const wt of wts) {
             const session = await loadSession(repo, wt.id);
             if (!session) continue;
+
+            // Overlay the eagerly-persisted resume-id sidecar (fresher than the
+            // blob's per-tab ids) before the resume logic below reads them, so a
+            // session discovered just before a Force Quit survives restart.
+            try {
+              applyResumeSidecar(session.tabs, await loadResumeSessionIds(repo, wt.id));
+            } catch (e) {
+              console.warn(`[useSessionRestore] Failed to load resume sidecar for ${wt.path}:`, e);
+            }
 
             // Apply persisted worktree state directly to the object so
             // it's set atomically when setWorktreesForRepo stores them.

@@ -532,6 +532,24 @@ export function loadSessionFile(
   return invoke("load_session_file", { repoPath, worktreeId });
 }
 
+/** Eagerly persist one tab's discovered Claude session id (write-through, Rust-side). */
+export function recordResumeSessionId(
+  repoPath: string,
+  worktreeId: string,
+  tabId: string,
+  sessionId: string,
+): Promise<void> {
+  return invoke("record_resume_session_id", { repoPath, worktreeId, tabId, sessionId });
+}
+
+/** Load the resume-id sidecar (`{ tabId: sessionId }`) overlaid onto restored tabs. */
+export function loadResumeSessionIds(
+  repoPath: string,
+  worktreeId: string,
+): Promise<Record<string, string>> {
+  return invoke("load_resume_session_ids", { repoPath, worktreeId });
+}
+
 export function deleteSessionFile(
   repoPath: string,
   worktreeId: string,
