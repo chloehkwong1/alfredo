@@ -8,8 +8,12 @@ import { usePrStore } from "../../stores/prStore";
 import { saveAllSessions } from "../../services/SessionPersistence";
 import { sessionManager } from "../../services/sessionManager";
 import { flushAllPendingNotes } from "../../services/notesAutosave";
+import type { WorkspaceTab } from "../../types";
 
 const AUTO_SAVE_INTERVAL_MS = 30_000;
+// Coalesce bursts of resumeSessionId changes (e.g. several tabs adopting their
+// sessions at once on cold start) into a single write-through save.
+const RESUME_PERSIST_DEBOUNCE_MS = 1_000;
 const LOG_PREFIX = "[useSessionAutoSave]";
 
 /**
@@ -110,6 +114,51 @@ function collectAndSaveAllSessions() {
   return Promise.allSettled(saves);
 }
 
+/** Stable signature of every tab's resumeSessionId, to detect real changes. */
+function resumeIdSignature(tabs: Record<string, WorkspaceTab[]>): string {
+  const parts: string[] = [];
+  for (const [wtId, list] of Object.entries(tabs)) {
+    for (const tab of list) {
+      if (tab.resumeSessionId) parts.push(`${wtId}/${tab.id}=${tab.resumeSessionId}`);
+    }
+  }
+  return parts.sort().join("|");
+}
+
+/**
+ * Persist sessions eagerly the moment any tab's resumeSessionId changes.
+ *
+ * The 30s interval autosave and the onCloseRequested handler were the only
+ * writers of resumeSessionId — but Force Quit / a crash sends an uncatchable
+ * SIGKILL, so onCloseRequested never fires, and the WebView throttles the 30s
+ * interval while Alfredo is backgrounded. TerminalView's discovery loop only
+ * mutates the in-memory tab store, so a freshly-spawned session id was stranded
+ * until the next clean quit — and lost on a Force-Quit reinstall. Writing
+ * through on change shrinks that loss window to the debounce interval.
+ *
+ * Returns an unsubscribe function.
+ */
+export function installResumeSessionPersistence(): () => void {
+  let lastSignature = resumeIdSignature(useTabStore.getState().tabs);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const unsubscribe = useTabStore.subscribe((state) => {
+    const signature = resumeIdSignature(state.tabs);
+    if (signature === lastSignature) return;
+    lastSignature = signature;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      collectAndSaveAllSessionsOnce().catch((err) =>
+        console.error(`${LOG_PREFIX} resume-session write-through failed:`, err),
+      );
+    }, RESUME_PERSIST_DEBOUNCE_MS);
+  });
+  return () => {
+    if (timer) clearTimeout(timer);
+    unsubscribe();
+  };
+}
+
 export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolean): void {
   // Save sessions on app quit (only when worktrees exist — not during onboarding)
   useEffect(() => {
@@ -179,5 +228,13 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
     }, AUTO_SAVE_INTERVAL_MS);
 
     return () => clearInterval(interval);
+  }, [repoPath, hasWorktrees]);
+
+  // Write-through: persist resumeSessionId the moment it changes, so a Force
+  // Quit / crash (uncatchable SIGKILL — onCloseRequested never fires) can't
+  // strand a freshly-discovered session on the next launch.
+  useEffect(() => {
+    if (!repoPath || !hasWorktrees) return;
+    return installResumeSessionPersistence();
   }, [repoPath, hasWorktrees]);
 }
