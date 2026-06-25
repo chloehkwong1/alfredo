@@ -12,7 +12,7 @@ import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { sessionManager } from "../../services/sessionManager";
 import { lifecycleManager } from "../../services/lifecycleManager";
-import { writePty, getConfig, getAppConfig, findClaudeSession, debugLog, dumpPtyBuffer } from "../../api";
+import { writePty, getConfig, getAppConfig, findClaudeSession, listClaudeSessions, debugLog, dumpPtyBuffer } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useToastStore } from "../../stores/toastStore";
@@ -142,22 +142,28 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
         return;
       }
 
-      // Finalized custom launch: spawn from the user's flags, bypassing the
-      // resolved-settings args and the --resume injection entirely. Use an
-      // explicit undefined check — an empty string is a valid bare `claude`.
+      // Inject --resume for a RESTORED tab (first spawn only) so a restart
+      // continues the conversation. De-dupe any --resume already present (a
+      // custom launch command may include one), else claude gets two
+      // conflicting flags.
+      const finalize = (args: string[]) => {
+        if (!hasSpawnedRef.current && claudeSessionId && !args.includes("--resume")) {
+          args.push("--resume", claudeSessionId);
+        }
+        hasSpawnedRef.current = true;
+        setResolvedArgs(args);
+      };
+
+      // Finalized custom launch: spawn from the user's flags instead of the
+      // resolved-settings args. Use an explicit undefined check — an empty
+      // string is a valid bare `claude`.
       if (launchCommand !== undefined) {
         const parsed = parseLaunchFlags(launchCommand);
-        hasSpawnedRef.current = true;
-        setResolvedArgs(parsed.ok ? parsed.args : []);
+        finalize(parsed.ok ? parsed.args : []);
         return;
       }
 
-      const args = buildClaudeArgs(resolved);
-      if (!hasSpawnedRef.current && claudeSessionId) {
-        args.push("--resume", claudeSessionId);
-      }
-      hasSpawnedRef.current = true;
-      setResolvedArgs(args);
+      finalize(buildClaudeArgs(resolved));
     }).catch((err) => {
       if (aborted) return;
       // Don't block the spawn on settings resolution: fall through with no
@@ -187,6 +193,34 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     sessionType,
   });
 
+  // Snapshot the sessions that already exist in this worktree's cwd-keyed
+  // project dir BEFORE our Claude writes its own. Claude keys logs only by cwd,
+  // so that dir is shared by sibling tabs, the user's other terminals at the
+  // same path, and the historical pile a worktree accumulates (/code-review,
+  // /open-pr, restarts, /clear forks). The discovery loop below excludes this
+  // baseline so it only ever adopts the session THIS tab spawned — never a
+  // foreign one. Captured on mount / restart so it lands before the PTY (which
+  // spawns only after async settings resolution) creates its file.
+  const spawnBaselineRef = useRef<string[] | null>(null);
+  useEffect(() => {
+    if (!isAgentTab || !worktree?.path) return;
+    let cancelled = false;
+    // Drop any prior baseline synchronously so a restart (reconnectKey change)
+    // can't leave the discovery loop excluding the *old* snapshot and re-adopting
+    // the session we just abandoned. discover() skips while this is null.
+    spawnBaselineRef.current = null;
+    listClaudeSessions(worktree.path)
+      .then((ids) => { if (!cancelled) spawnBaselineRef.current = ids; })
+      .catch((e) => {
+        // Fall back to an empty baseline (old global-newest behaviour) rather
+        // than blocking discovery entirely.
+        if (cancelled) return;
+        if (spawnBaselineRef.current === null) spawnBaselineRef.current = [];
+        console.warn(`[TerminalView] Failed to snapshot Claude sessions for ${worktree.path}:`, e);
+      });
+    return () => { cancelled = true; };
+  }, [isAgentTab, worktree?.path, reconnectKey]);
+
   // Discover and keep the Claude session ID in sync with the filesystem.
   // Runs once on first output, then periodically to catch mid-session changes
   // (e.g. /clear creating a new session). Updates resumeSessionId so the
@@ -197,7 +231,14 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     if (!activeWorktreeId || !worktree?.path) return;
 
     const discover = () => {
-      findClaudeSession(worktree.path).then((fsSessionId) => {
+      // Wait until the spawn baseline is captured. Discovering against an empty
+      // exclude set would reintroduce the global-newest bug the baseline exists
+      // to prevent (a fast first tick beating the async snapshot). `null` means
+      // "still loading"; `[]` means "loaded (or failed) — safe to proceed".
+      if (spawnBaselineRef.current === null) return;
+      // Exclude the spawn-time baseline so we adopt only a session born from
+      // this tab's own run, not a foreign session that merely shares the cwd.
+      findClaudeSession(worktree.path, spawnBaselineRef.current).then((fsSessionId) => {
         if (!fsSessionId || !activeWorktreeId || !tabId) return;
 
         const tabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];

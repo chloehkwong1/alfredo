@@ -14,6 +14,7 @@ import { RepoSetupDialog } from "../onboarding/RepoSetupDialog";
 import { QuickStartPanel } from "../onboarding/QuickStartPanel";
 import { RemoveRepoDialog } from "../sidebar/RemoveRepoDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
+import { OpenIssueRepoPicker } from "../kanban/OpenIssueRepoPicker";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { ShortcutsOverlay } from "../settings/ShortcutsOverlay";
@@ -497,6 +498,12 @@ function AppShell() {
           defaultRepoPath={defaultRepoPath}
         />
       </SectionErrorBoundary>
+      <OpenIssueRepoPicker
+        repos={repos.filter((r) => r.mode === "worktree")}
+        repoColors={repoColors ?? {}}
+        repoDisplayNames={repoDisplayNames ?? {}}
+        defaultRepoPath={defaultRepoPath}
+      />
       <GlobalSettingsDialog
         open={globalSettingsOpen}
         onOpenChange={(open) => {

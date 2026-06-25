@@ -11,27 +11,26 @@ fn normalize_project_dir(s: &str) -> String {
     s.replace('_', "-")
 }
 
-/// Find the most recent Claude Code session for a given worktree path.
+/// Scan `projects_dir` for every top-level `{uuid}.jsonl` belonging to
+/// `worktree_path`, returning `(session_uuid, mtime)` for each.
 ///
-/// Claude Code stores conversation logs at `~/.claude/projects/{project-dir}/{uuid}.jsonl`
-/// where `project-dir` is derived from the worktree's absolute path. The exact encoding
-/// has changed across Claude versions, so we normalize both sides and scan for a match.
-#[tauri::command]
-pub async fn find_claude_session(worktree_path: String) -> Result<Option<String>> {
-    let home = std::env::var("HOME").map(std::path::PathBuf::from).map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::NotFound, "could not determine home directory")
-    })?;
-    let projects_dir = home.join(".claude").join("projects");
-
+/// Subagent transcripts live one level deeper in `<uuid>/subagents/` and are
+/// intentionally NOT recursed into — only top-level interactive sessions are
+/// resumable, so they're the only ones we surface.
+async fn scan_sessions_in(
+    projects_dir: &std::path::Path,
+    worktree_path: &str,
+) -> Result<Vec<(String, std::time::SystemTime)>> {
     let needle = normalize_project_dir(&worktree_path.replace('/', "-"));
 
-    let mut dir_listing = match tokio::fs::read_dir(&projects_dir).await {
+    let mut dir_listing = match tokio::fs::read_dir(projects_dir).await {
         Ok(rd) => rd,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(e.into()),
     };
 
-    // Collect matching project directories.
+    // Collect matching project directories (encoding drifts across Claude
+    // versions, so compare normalized names rather than requiring equality).
     let mut matching_dirs = Vec::new();
     while let Some(entry) = dir_listing.next_entry().await? {
         let name = entry.file_name();
@@ -41,15 +40,12 @@ pub async fn find_claude_session(worktree_path: String) -> Result<Option<String>
         }
     }
 
-    // Scan all matching directories for the most recent .jsonl file.
-    let mut best: Option<(String, std::time::SystemTime)> = None;
-
+    let mut sessions = Vec::new();
     for dir in matching_dirs {
         let mut read_dir = match tokio::fs::read_dir(&dir).await {
             Ok(rd) => rd,
             Err(_) => continue,
         };
-
         while let Some(entry) = read_dir.next_entry().await? {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
@@ -57,17 +53,66 @@ pub async fn find_claude_session(worktree_path: String) -> Result<Option<String>
             }
             let meta = entry.metadata().await?;
             let mtime = meta.modified()?;
-            let uuid = match path.file_stem().and_then(|s| s.to_str()) {
-                Some(s) => s.to_string(),
-                None => continue,
-            };
-            if best.as_ref().is_none_or(|(_, best_time)| mtime > *best_time) {
-                best = Some((uuid, mtime));
-            }
+            let Some(uuid) = path.file_stem().and_then(|s| s.to_str()) else { continue };
+            sessions.push((uuid.to_string(), mtime));
         }
     }
+    Ok(sessions)
+}
 
-    Ok(best.map(|(uuid, _)| uuid))
+/// Resolve `~/.claude/projects` and scan it for `worktree_path`'s sessions.
+async fn scan_sessions(worktree_path: &str) -> Result<Vec<(String, std::time::SystemTime)>> {
+    let home = std::env::var("HOME").map(std::path::PathBuf::from).map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::NotFound, "could not determine home directory")
+    })?;
+    let projects_dir = home.join(".claude").join("projects");
+    scan_sessions_in(&projects_dir, worktree_path).await
+}
+
+/// Pick the most-recently-modified session, skipping any UUID in `exclude`.
+fn latest_session(
+    sessions: Vec<(String, std::time::SystemTime)>,
+    exclude: &[String],
+) -> Option<String> {
+    // HashSet lookup keeps this O(sessions) — the discovery loop calls it every
+    // 5s with the full pre-spawn baseline, which can be large on worktrees that
+    // accumulate many historical sessions.
+    let excluded: std::collections::HashSet<&str> = exclude.iter().map(String::as_str).collect();
+    sessions
+        .into_iter()
+        .filter(|(uuid, _)| !excluded.contains(uuid.as_str()))
+        .max_by_key(|(_, mtime)| *mtime)
+        .map(|(uuid, _)| uuid)
+}
+
+/// Find the most recent Claude Code session for a worktree, skipping any UUIDs
+/// in `exclude_ids`.
+///
+/// Claude keys conversation logs (`~/.claude/projects/{project-dir}/{uuid}.jsonl`)
+/// only by launch cwd. That one directory is shared by EVERY Claude that ever ran
+/// at this path — other Alfredo tabs/worktrees at the same cwd, the user's own
+/// terminals, and the pile a single worktree accumulates (`/code-review`,
+/// `/open-pr`, restarts, `/clear` forks). Picking "newest mtime" blindly resolves
+/// to the wrong conversation constantly (resuming a stale/foreign session and
+/// stranding the user's real work). `exclude_ids` carries the sessions that
+/// already existed when this tab spawned, so the discovery loop only adopts a
+/// session born from this tab's own run rather than a sibling's.
+#[tauri::command]
+pub async fn find_claude_session(
+    worktree_path: String,
+    exclude_ids: Vec<String>,
+) -> Result<Option<String>> {
+    let sessions = scan_sessions(&worktree_path).await?;
+    Ok(latest_session(sessions, &exclude_ids))
+}
+
+/// List every top-level session UUID for a worktree path (order unspecified).
+/// Snapshotted at spawn time so the discovery loop can tell THIS tab's freshly
+/// created session apart from the foreign/historical ones already on disk.
+#[tauri::command]
+pub async fn list_claude_sessions(worktree_path: String) -> Result<Vec<String>> {
+    let sessions = scan_sessions(&worktree_path).await?;
+    Ok(sessions.into_iter().map(|(uuid, _)| uuid).collect())
 }
 
 /// Sanitise a worktree ID for use as a flat filename.
@@ -279,5 +324,76 @@ pub async fn delete_session_file(app: tauri::AppHandle, repo_path: String, workt
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{latest_session, scan_sessions_in};
+    use std::time::{Duration, SystemTime};
+
+    /// Write `{uuid}.jsonl` into `dir` with an explicit mtime so ordering is
+    /// deterministic (no sleeps).
+    async fn write_session(dir: &std::path::Path, uuid: &str, modified: SystemTime) {
+        let path = dir.join(format!("{uuid}.jsonl"));
+        tokio::fs::write(&path, b"{}\n").await.unwrap();
+        let f = std::fs::File::options().write(true).open(&path).unwrap();
+        f.set_modified(modified).unwrap();
+    }
+
+    fn at(secs: u64) -> SystemTime {
+        SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000 + secs)
+    }
+
+    #[tokio::test]
+    async fn picks_newest_top_level_session() {
+        let tmp = tempfile::tempdir().unwrap();
+        let proj = tmp.path().join("-tmp-wt");
+        tokio::fs::create_dir_all(&proj).await.unwrap();
+        write_session(&proj, "old", at(0)).await;
+        write_session(&proj, "new", at(10)).await;
+
+        let sessions = scan_sessions_in(tmp.path(), "/tmp/wt").await.unwrap();
+        assert_eq!(latest_session(sessions, &[]), Some("new".to_string()));
+    }
+
+    #[tokio::test]
+    async fn exclude_skips_foreign_sessions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let proj = tmp.path().join("-tmp-wt");
+        tokio::fs::create_dir_all(&proj).await.unwrap();
+        write_session(&proj, "mine", at(0)).await;
+        // A foreign session (another tab/terminal) touched more recently.
+        write_session(&proj, "foreign", at(10)).await;
+
+        let sessions = scan_sessions_in(tmp.path(), "/tmp/wt").await.unwrap();
+        // The bug: newest mtime is the foreign session.
+        assert_eq!(latest_session(sessions.clone(), &[]), Some("foreign".to_string()));
+        // The fix: excluding the pre-existing foreign session yields our own.
+        assert_eq!(
+            latest_session(sessions, &["foreign".to_string()]),
+            Some("mine".to_string()),
+        );
+    }
+
+    #[tokio::test]
+    async fn ignores_subagent_transcripts_in_subdirs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let proj = tmp.path().join("-tmp-wt");
+        let subagents = proj.join("abc").join("subagents");
+        tokio::fs::create_dir_all(&subagents).await.unwrap();
+        write_session(&proj, "main", at(0)).await;
+        // A subagent transcript with a much newer mtime must not be surfaced.
+        write_session(&subagents, "subagent", at(99)).await;
+
+        let sessions = scan_sessions_in(tmp.path(), "/tmp/wt").await.unwrap();
+        assert_eq!(latest_session(sessions, &[]), Some("main".to_string()));
+    }
+
+    #[tokio::test]
+    async fn no_matching_dir_yields_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        let sessions = scan_sessions_in(tmp.path(), "/tmp/missing").await.unwrap();
+        assert!(latest_session(sessions, &[]).is_none());
     }
 }

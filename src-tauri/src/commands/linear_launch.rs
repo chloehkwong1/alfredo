@@ -38,6 +38,59 @@ pub fn parse_open_issue(argv: &[String]) -> Option<OpenIssueRequest> {
     Some(req)
 }
 
+/// True for a Linear template var that wasn't substituted (a raw `{{workDir}}`).
+/// Custom-link mode only fills `{{prompt}}`, so the structured params can arrive
+/// as literal placeholders — treat those as absent rather than real values.
+fn is_unsubstituted(v: &str) -> bool {
+    let t = v.trim();
+    t.starts_with("{{") && t.ends_with("}}")
+}
+
+/// Parse an `alfredo://Alfredo/open-issue?prompt=…[&branch=…&issue=…&…]` deep
+/// link into the same request shape as the argv parser. The `url` crate
+/// percent-decodes every value, so a multi-line `prompt` survives intact.
+///
+/// `prompt` is the only required field, and in Linear's "Custom link" mode it's
+/// the only one that substitutes — the others come through as literal `{{…}}`
+/// and are dropped (the frontend recovers the identifier + branch from the
+/// prompt text). Returns None for any other scheme or action.
+pub fn parse_open_issue_url(raw: &str) -> Option<OpenIssueRequest> {
+    let url = url::Url::parse(raw).ok()?;
+    if url.scheme() != "alfredo" {
+        return None;
+    }
+    // Action is "open-issue", carried either as the first path segment
+    // (`alfredo://Alfredo/open-issue?…`, so Linear labels the tool "Alfredo")
+    // or — for the original form — as the host (`alfredo://open-issue?…`).
+    let action = url
+        .path_segments()
+        .and_then(|mut segs| segs.find(|s| !s.is_empty()).map(ToString::to_string))
+        .or_else(|| url.host_str().map(ToString::to_string));
+    if action.as_deref() != Some("open-issue") {
+        return None;
+    }
+    let take = |v: std::borrow::Cow<'_, str>| -> Option<String> {
+        if is_unsubstituted(v.as_ref()) {
+            None
+        } else {
+            Some(v.into_owned())
+        }
+    };
+    let mut req = OpenIssueRequest::default();
+    for (key, val) in url.query_pairs() {
+        match key.as_ref() {
+            "workdir" => req.workdir = take(val).unwrap_or_default(),
+            "branch" => req.branch = take(val).unwrap_or_default(),
+            "prompt" => req.prompt = take(val).unwrap_or_default(),
+            "issue" => req.issue_id = take(val).filter(|s| !s.is_empty()),
+            "project" => req.project = take(val).filter(|s| !s.is_empty()),
+            _ => {}
+        }
+    }
+    // The prompt is the one field Custom-link mode always fills.
+    (!req.prompt.is_empty()).then_some(req)
+}
+
 /// Pure longest-prefix match over already-canonicalized paths.
 /// Returns the managed repo path that equals `workdir` or is its closest ancestor.
 pub fn longest_prefix_match(workdir: &str, repo_paths: &[String]) -> Option<String> {
@@ -131,6 +184,65 @@ mod tests {
     fn missing_required_flag_is_none() {
         let a = argv(&["x", "open-issue", "--workdir", "/r", "--prompt", "p"]);
         assert!(parse_open_issue(&a).is_none());
+    }
+
+    #[test]
+    fn parses_deep_link_full() {
+        let r = parse_open_issue_url(
+            "alfredo://open-issue?workdir=/Users/chloe/dev/alfredo&branch=chloe%2Feng-412&prompt=Title%0Abody&issue=ENG-412&project=Q3",
+        )
+        .unwrap();
+        assert_eq!(r.workdir, "/Users/chloe/dev/alfredo");
+        assert_eq!(r.branch, "chloe/eng-412");
+        assert_eq!(r.prompt, "Title\nbody");
+        assert_eq!(r.issue_id.as_deref(), Some("ENG-412"));
+        assert_eq!(r.project.as_deref(), Some("Q3"));
+    }
+
+    #[test]
+    fn parses_deep_link_prompt_only() {
+        // Linear's "Custom link" mode sends only the rendered prompt template.
+        let r = parse_open_issue_url("alfredo://open-issue?prompt=Work%20on%20ENG-412").unwrap();
+        assert_eq!(r.prompt, "Work on ENG-412");
+        assert!(r.workdir.is_empty());
+        assert!(r.branch.is_empty());
+        assert_eq!(r.issue_id, None);
+    }
+
+    #[test]
+    fn deep_link_rejects_wrong_scheme() {
+        assert!(parse_open_issue_url("conductor://open-issue?prompt=x").is_none());
+    }
+
+    #[test]
+    fn deep_link_rejects_wrong_action() {
+        assert!(parse_open_issue_url("alfredo://other?prompt=x").is_none());
+    }
+
+    #[test]
+    fn deep_link_requires_prompt() {
+        assert!(parse_open_issue_url("alfredo://open-issue?branch=b").is_none());
+    }
+
+    #[test]
+    fn deep_link_action_from_path_with_app_host() {
+        // `alfredo://Alfredo/open-issue?…` — host "Alfredo" is the label, the
+        // action comes from the path segment.
+        let r = parse_open_issue_url("alfredo://Alfredo/open-issue?prompt=hello").unwrap();
+        assert_eq!(r.prompt, "hello");
+    }
+
+    #[test]
+    fn deep_link_drops_unsubstituted_placeholders() {
+        // Custom-link mode fills only {{prompt}}; the rest arrive literal.
+        let r = parse_open_issue_url(
+            "alfredo://Alfredo/open-issue?workdir={{workDir}}&branch={{issue.branchName}}&issue={{issue.identifier}}&prompt=Real%20text",
+        )
+        .unwrap();
+        assert_eq!(r.prompt, "Real text");
+        assert!(r.workdir.is_empty());
+        assert!(r.branch.is_empty());
+        assert_eq!(r.issue_id, None);
     }
 
     #[test]

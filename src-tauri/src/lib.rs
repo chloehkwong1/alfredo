@@ -80,32 +80,45 @@ use sleep_inhibitor::SleepInhibitor;
 use stack_manager::StackState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Funnel an inbound open-issue request (argv or `alfredo://` deep link) into
+/// the cold-start buffer and — when the webview is already listening — the
+/// `linear://open-issue` event. Repo matching is best-effort: a `workdir`-less
+/// request (Linear "Custom link" mode) simply yields no `matched_repo_path`.
+fn dispatch_open_issue<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    mut req: commands::linear_launch::OpenIssueRequest,
+    emit: bool,
+) {
+    use tauri::{Emitter, Manager};
+    let repo_paths: Vec<String> = crate::app_config_manager::load_sync_best_effort()
+        .map(|cfg| cfg.repos.into_iter().map(|r| r.path).collect())
+        .unwrap_or_default();
+    req.matched_repo_path =
+        commands::linear_launch::match_workdir_to_repo(&req.workdir, &repo_paths);
+    if let Some(state) = app.try_state::<commands::linear_launch::PendingOpenIssue>() {
+        if let Ok(mut g) = state.0.lock() {
+            *g = Some(req.clone());
+        }
+    }
+    if emit {
+        let _ = app.emit("linear://open-issue", req);
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            use tauri::{Emitter, Manager};
+            use tauri::Manager;
             // Strict router: only act on a valid open-issue invocation. Anything
             // else (plain relaunch, updater relaunch) just focuses the window.
-            if let Some(mut req) = commands::linear_launch::parse_open_issue(&argv) {
-                // Match workdir -> managed repo using on-disk config (best effort).
-                let repo_paths: Vec<String> =
-                    crate::app_config_manager::load_sync_best_effort()
-                        .map(|cfg| cfg.repos.into_iter().map(|r| r.path).collect())
-                        .unwrap_or_default();
-                req.matched_repo_path =
-                    commands::linear_launch::match_workdir_to_repo(&req.workdir, &repo_paths);
-
-                if let Some(state) = app.try_state::<commands::linear_launch::PendingOpenIssue>() {
-                    if let Ok(mut g) = state.0.lock() {
-                        *g = Some(req.clone());
-                    }
-                }
-                let _ = app.emit("linear://open-issue", req);
+            if let Some(req) = commands::linear_launch::parse_open_issue(&argv) {
+                dispatch_open_issue(app, req, true);
             }
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_focus();
             }
         }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -131,27 +144,41 @@ pub fn run() {
             // (via take_pending_open_issue).
             {
                 let argv: Vec<String> = std::env::args().collect();
-                if let Some(mut req) = commands::linear_launch::parse_open_issue(&argv) {
-                    let repo_paths: Vec<String> =
-                        crate::app_config_manager::load_sync_best_effort()
-                            .map(|cfg| cfg.repos.into_iter().map(|r| r.path).collect())
-                            .unwrap_or_default();
-                    req.matched_repo_path = commands::linear_launch::match_workdir_to_repo(
-                        &req.workdir,
-                        &repo_paths,
-                    );
-                    eprintln!(
-                        "[linear] cold-start open-issue: branch={} matched_repo={:?}",
-                        req.branch, req.matched_repo_path
-                    );
-                    if let Some(state) =
-                        app.try_state::<commands::linear_launch::PendingOpenIssue>()
-                    {
-                        if let Ok(mut g) = state.0.lock() {
-                            *g = Some(req);
+                if let Some(req) = commands::linear_launch::parse_open_issue(&argv) {
+                    eprintln!("[linear] cold-start open-issue (argv): branch={}", req.branch);
+                    dispatch_open_issue(app.handle(), req, false);
+                }
+            }
+            // Deep-link transport: an `alfredo://open-issue?…` URL opened via the
+            // OS (no terminal, unlike the raw-binary custom script). A cold start
+            // surfaces the launch URL through get_current; a warm app receives it
+            // through on_open_url. Both funnel into the same buffer/event path.
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Ok(Some(urls)) = app.deep_link().get_current() {
+                    for url in &urls {
+                        if let Some(req) =
+                            commands::linear_launch::parse_open_issue_url(url.as_str())
+                        {
+                            eprintln!("[linear] cold-start open-issue (deep link)");
+                            dispatch_open_issue(app.handle(), req, false);
                         }
                     }
                 }
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    use tauri::Manager;
+                    for url in event.urls() {
+                        if let Some(req) =
+                            commands::linear_launch::parse_open_issue_url(url.as_str())
+                        {
+                            dispatch_open_issue(&handle, req, true);
+                            if let Some(win) = handle.get_webview_window("main") {
+                                let _ = win.set_focus();
+                            }
+                        }
+                    }
+                });
             }
             // Warm the shared HTTP client so any TLS-init failure surfaces
             // at startup rather than on the first GitHub interaction.
@@ -265,12 +292,14 @@ pub fn run() {
             worktree::create_worktree_from,
             worktree::create_worktree,
             worktree::delete_worktree,
+            worktree::worktree_dirty_state,
             worktree::list_worktrees,
             worktree::count_worktrees,
             worktree::get_worktree_diff_stats,
             worktree::get_worktree_status,
             worktree::set_worktree_column,
             worktree::clear_worktree_column,
+            worktree::set_worktree_linear_ticket,
             worktree::get_commits_behind_main,
             worktree::get_ahead_behind_origin,
             worktree::rebase_worktree,
@@ -347,6 +376,7 @@ pub fn run() {
             session::load_session_file,
             session::delete_session_file,
             session::find_claude_session,
+            session::list_claude_sessions,
             session::dump_pty_buffer,
             // Git ops
             git_ops::git_merge,

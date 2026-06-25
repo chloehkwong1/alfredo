@@ -941,6 +941,7 @@ const AgentItem = memo(function AgentItem({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         branch={worktree.branch}
+        worktreePath={worktree.path}
         onConfirm={() => onDelete?.(worktree.id)}
       />
 

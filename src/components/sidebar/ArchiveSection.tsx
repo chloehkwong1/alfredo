@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from "../ui/Dialog";
 import type { Worktree } from "../../types";
+import { worktreeDirtyState } from "../../api";
 import { DeleteWorktreeConfirm } from "./DeleteWorktreeConfirm";
 
 interface ArchiveSectionProps {
@@ -92,6 +93,36 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
   const [isExpanded, setIsExpanded] = useState(false);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Worktree | null>(null);
+
+  // "Delete all" force-removes every archived worktree, so it needs the same
+  // untracked-work guard as the single-delete confirm. Fetch each worktree's
+  // dirty state when the dialog opens and surface which ones hold unseen work.
+  const [dirtyAll, setDirtyAll] = useState<{ branch: string; count: number }[] | null>(null);
+  useEffect(() => {
+    if (!deleteAllDialogOpen) {
+      setDirtyAll(null);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      worktrees
+        .filter((wt) => wt.path)
+        .map(async (wt) => {
+          try {
+            const d = await worktreeDirtyState(wt.path);
+            const count = d.untracked.length + d.uncommitted.length;
+            return count > 0 ? { branch: wt.branch, count } : null;
+          } catch {
+            return null;
+          }
+        }),
+    ).then((rows) => {
+      if (!cancelled) {
+        setDirtyAll(rows.filter((r): r is { branch: string; count: number } => r !== null));
+      }
+    });
+    return () => { cancelled = true; };
+  }, [deleteAllDialogOpen, worktrees]);
 
   const isEmpty = worktrees.length === 0;
   const hasRules = archiveAfterDays > 0 || deleteAfterDays > 0;
@@ -263,6 +294,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
         open={pendingDelete !== null}
         onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
         branch={pendingDelete?.branch ?? ""}
+        worktreePath={pendingDelete?.path}
         onConfirm={() => {
           if (pendingDelete) onDelete(pendingDelete.id);
           setPendingDelete(null);
@@ -285,10 +317,30 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
               <li className="py-0.5 italic text-text-tertiary">+{worktrees.length - 5} more</li>
             )}
           </ul>
+          {dirtyAll && dirtyAll.length > 0 && (
+            <div className="mb-3 rounded-md border border-red-400/25 bg-red-400/10 px-3 py-2.5 text-xs">
+              <p className="font-medium text-red-400">
+                {dirtyAll.length} of these {dirtyAll.length === 1 ? "worktrees has" : "worktrees have"} unsaved work that will be permanently deleted
+              </p>
+              <p className="mt-1 text-text-secondary">
+                Untracked files (e.g. /research output) don't show in the changes badge:
+              </p>
+              <ul className="mt-1.5 space-y-0.5 font-mono text-text-secondary">
+                {dirtyAll.slice(0, 6).map((r) => (
+                  <li key={r.branch} className="truncate">{r.branch} — {r.count} file{r.count === 1 ? "" : "s"}</li>
+                ))}
+                {dirtyAll.length > 6 && (
+                  <li className="text-text-tertiary">…and {dirtyAll.length - 6} more</li>
+                )}
+              </ul>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="secondary" onClick={() => setDeleteAllDialogOpen(false)}>Cancel</Button>
             <Button variant="danger" onClick={() => { setDeleteAllDialogOpen(false); onDeleteAll(); }}>
-              Delete {worktrees.length} worktree{worktrees.length === 1 ? "" : "s"}
+              {dirtyAll && dirtyAll.length > 0
+                ? `Delete ${worktrees.length} anyway`
+                : `Delete ${worktrees.length} worktree${worktrees.length === 1 ? "" : "s"}`}
             </Button>
           </DialogFooter>
         </DialogContent>

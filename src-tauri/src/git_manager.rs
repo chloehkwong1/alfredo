@@ -795,6 +795,61 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
     Ok(())
 }
 
+/// Uncommitted work in a worktree that a delete would destroy irreversibly.
+///
+/// `untracked` is the crucial one: untracked files (e.g. `/research` output in
+/// `.claude/research/`) never appear in `git diff`, so the sidebar's diff-stat
+/// badge shows +0/-0 and the worktree *looks* empty — yet `git worktree remove
+/// --force` wipes them. Surfacing this in the delete confirm is what stops a
+/// "looks empty" worktree from silently taking hours of work with it.
+#[derive(serde::Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorktreeDirtyState {
+    /// Untracked paths (`git status` `??`). Invisible to the diff-stat badge.
+    pub untracked: Vec<String>,
+    /// Tracked-but-uncommitted paths (modified/added/deleted, not yet committed).
+    pub uncommitted: Vec<String>,
+}
+
+/// Classify a worktree's working tree into untracked vs tracked-uncommitted
+/// paths via `git status --porcelain`. Ignored files (`!!`) are intentionally
+/// excluded — only real, would-be-lost work is reported. Returns an empty state
+/// (rather than erroring) when the path isn't a git worktree, so the delete
+/// confirm degrades to its plain form instead of blocking deletion.
+pub async fn worktree_dirty_state(worktree_path: &str) -> Result<WorktreeDirtyState, AppError> {
+    // `core.quotepath=false` keeps non-ASCII filenames readable (git otherwise
+    // C-escapes them). A missing/unreadable worktree dir makes the spawn or the
+    // command fail — treat either as "nothing to warn about" so the delete
+    // confirm still works (honouring the empty-state contract above).
+    let output = match git_command()
+        .args(["-c", "core.quotepath=false", "status", "--porcelain"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+    {
+        Ok(o) if o.status.success() => o,
+        _ => return Ok(WorktreeDirtyState::default()),
+    };
+
+    let mut state = WorktreeDirtyState::default();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        // Porcelain v1: two status chars, a space, then the path.
+        if line.len() < 4 {
+            continue;
+        }
+        let (code, rest) = line.split_at(3);
+        // Renames/copies render as "old -> new"; keep the current (new) path so
+        // the warning lists the file that actually exists.
+        let path = rest.rsplit(" -> ").next().unwrap_or(rest).trim().to_string();
+        if code.starts_with("??") {
+            state.untracked.push(path);
+        } else {
+            state.uncommitted.push(path);
+        }
+    }
+    Ok(state)
+}
+
 /// Get diff stats (additions, deletions) for a worktree's branch changes.
 /// Shows committed changes vs the default branch (main/master) or the stack parent branch,
 /// which is what users expect the badge to represent — the scope of work on the branch.
@@ -1332,6 +1387,70 @@ mod tests {
 
         let stats = get_diff_stats(path_str, Some("main")).expect("get_diff_stats");
         assert_eq!(stats, (0, 0));
+    }
+
+    /// The delete-confirm guard: an untracked file (the `/research` case) must be
+    /// reported even though it contributes nothing to the diff-stat badge, and a
+    /// tracked-but-uncommitted edit lands in the separate `uncommitted` bucket.
+    #[tokio::test]
+    async fn worktree_dirty_state_classifies_untracked_and_uncommitted() {
+        let dir = init_test_repo();
+        let path = dir.path();
+        let path_str = path.to_str().expect("temp dir path is valid UTF-8");
+
+        let git = |args: &[&str]| {
+            StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(path)
+                .output()
+                .expect("git command")
+        };
+
+        std::fs::write(path.join("tracked.txt"), "v1\n").expect("write tracked");
+        git(&["add", "."]);
+        git(&["commit", "-m", "init"]);
+
+        // Untracked research output + an uncommitted edit to a tracked file.
+        std::fs::create_dir_all(path.join(".research")).expect("mkdir .research");
+        std::fs::write(path.join(".research/notes.md"), "findings\n").expect("write untracked");
+        std::fs::write(path.join("tracked.txt"), "v2\n").expect("edit tracked");
+
+        let state = worktree_dirty_state(path_str).await.expect("dirty state");
+        assert!(
+            state.untracked.iter().any(|p| p.contains(".research")),
+            "untracked should include research output, got {:?}",
+            state.untracked,
+        );
+        assert!(
+            state.uncommitted.iter().any(|p| p == "tracked.txt"),
+            "uncommitted should include the edited tracked file, got {:?}",
+            state.uncommitted,
+        );
+    }
+
+    /// A committed-clean worktree reports nothing, so the confirm stays in its
+    /// plain fast-delete form.
+    #[tokio::test]
+    async fn worktree_dirty_state_clean_worktree_is_empty() {
+        let dir = init_test_repo();
+        let path = dir.path();
+
+        let git = |args: &[&str]| {
+            StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(path)
+                .output()
+                .expect("git command")
+        };
+
+        std::fs::write(path.join("a.txt"), "x\n").expect("write a.txt");
+        git(&["add", "."]);
+        git(&["commit", "-m", "init"]);
+
+        let state = worktree_dirty_state(path.to_str().unwrap()).await.expect("dirty state");
+        assert!(state.untracked.is_empty() && state.uncommitted.is_empty());
     }
 
     /// Behind base + uncommitted tracked edit: badge should report only the uncommitted scope,

@@ -3,6 +3,7 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, debugLog, reconcileWorktreePorts } from "../api";
+import { withRetry } from "./withRetry";
 import { loadSession } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
 import { usePrStore } from "../stores/prStore";
@@ -148,7 +149,7 @@ export function useSessionRestore(
     }
 
     if (agentTabs.length === 1) {
-      const sessionId = latestSessionId ?? tabsWithSession[0]?.resumeSessionId ?? session.claudeSessionId ?? null;
+      const sessionId = tabsWithSession[0]?.resumeSessionId ?? session.claudeSessionId ?? latestSessionId ?? null;
       if (sessionId) {
         wt.claudeSessionId = sessionId;
         updateTab(wt.id, agentTabs[0].id, { resumeSessionId: sessionId });
@@ -295,7 +296,12 @@ export function useSessionRestore(
       // For branch-mode repos, create a synthetic worktree entry so the rest
       // of the app (TerminalView, ChangesPanel) can find it in the store.
       if (isBranchMode) {
-        getActiveBranch(repo).then(async (branch) => {
+        // Same cold-start hardening as the worktree path below: a transient
+        // getActiveBranch reject in the startup burst would otherwise drop the
+        // branch-mode synthetic, stranding the repo until a manual repo toggle.
+        // On total failure withRetry yields null and buildSyntheticBranchWorktree
+        // falls back to "main" (useBranchRepos later syncs the real branch).
+        withRetry(() => getActiveBranch(repo), () => cancelled, `getActiveBranch ${repo}`).then(async (branch) => {
           if (cancelled) return;
           const synthetic = buildSyntheticBranchWorktree(repo, branch);
           const isFirstRestore = !restoredSyntheticIds.current.has(synthetic.id);
@@ -313,8 +319,9 @@ export function useSessionRestore(
         continue;
       }
 
-      listWorktrees(repo).then(async (wts) => {
+      withRetry(() => listWorktrees(repo), () => cancelled, `listWorktrees ${repo}`).then(async (result) => {
         if (cancelled) return;
+        const wts = result ?? [];
         if (wts.length > 0) {
           // First-restore tracking: tabs, layouts, annotations, pins,
           // scrollback and prStore overrides live in independent stores
@@ -454,9 +461,13 @@ export function useSessionRestore(
             }
 
             // Restore per-tab Claude session IDs.
-            // Always check the filesystem for the most recent session so we
-            // don't resume a stale conversation when the user's real session
-            // changed mid-use (e.g. /clear created a new session).
+            // Trust the persisted resumeSessionId: TerminalView's discovery loop
+            // keeps it current during the session (it follows /clear forks via
+            // the spawn-baseline exclusion), so by restart time it already names
+            // this tab's real conversation. The filesystem (`latestSessionId`) is
+            // only a fallback for tabs that never recorded an id — picking it
+            // ahead of the saved id is exactly what resumed a foreign session
+            // sharing the cwd and stranded the user's work.
             const agentTabs = session.tabs.filter(isAgentTab);
             const tabsWithSession = agentTabs.filter((t) => t.resumeSessionId);
             const tabsWithoutSession = agentTabs.filter((t) => !t.resumeSessionId);
@@ -469,9 +480,9 @@ export function useSessionRestore(
             }
 
             if (agentTabs.length === 1) {
-              // Single agent tab: always use the most recent session from
-              // the filesystem — the saved resumeSessionId may be stale.
-              const sessionId = latestSessionId ?? tabsWithSession[0]?.resumeSessionId ?? session.claudeSessionId ?? null;
+              // Single agent tab: prefer the persisted id; fall back to the
+              // filesystem only when nothing was ever recorded for this tab.
+              const sessionId = tabsWithSession[0]?.resumeSessionId ?? session.claudeSessionId ?? latestSessionId ?? null;
               if (sessionId) {
                 wt.claudeSessionId = sessionId;
                 updateTab(wt.id, agentTabs[0].id, { resumeSessionId: sessionId });

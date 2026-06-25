@@ -22,7 +22,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-store = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
-tauri-plugin-single-instance = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-deep-link = "2"
 portable-pty = "0.9"
 git2 = "0.20"
 octocrab = { version = "0.41", default-features = false, features = ["default-client", "follow-redirect", "retry", "timeout", "tracing", "opentls"] }

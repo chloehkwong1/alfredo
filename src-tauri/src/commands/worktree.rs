@@ -193,12 +193,28 @@ pub async fn delete_worktree(
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path.as_deref()).await
 }
 
+/// Report uncommitted/untracked work that deleting this worktree would destroy.
+/// The delete confirm uses it to warn about work the diff-stat badge can't see —
+/// untracked files (e.g. `/research` output) show +0/-0 yet are wiped on delete.
+#[tauri::command]
+pub async fn worktree_dirty_state(worktree_path: String) -> Result<git_manager::WorktreeDirtyState> {
+    git_manager::worktree_dirty_state(&worktree_path).await
+}
+
 /// List all worktrees for a repository, filtered to the configured base path
 /// (or repo parent directory if not configured).
 #[tauri::command]
 pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Worktree>> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path)
+        .await
+        .map_err(|e| {
+            // Diagnostic for the cold-start "empty sidebar" race: when this
+            // step is the transient failure, the frontend retry recovers but
+            // we want the source pinned. See useSessionRestore Effect 1.
+            tracing::warn!(repo = %repo_path, step = "load_personal_config", error = %e, "[list_worktrees] failed");
+            e
+        })?;
     let base_path = config.worktree_base_path.clone().unwrap_or_else(|| {
         std::path::Path::new(&repo_path)
             .parent()
@@ -213,6 +229,15 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
         tokio::task::spawn_blocking(move || git_manager::list_worktrees(&repo_path_clone, Some(&base_path)))
             .await
             .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
+
+    // Pin the transient cold-start trigger (see useSessionRestore Effect 1's
+    // retry): an enumeration error is otherwise invisible — the frontend's
+    // only log of it goes to the browser console, not alfredo.log. An empty
+    // result is a common legitimate state (libgit2 excludes the primary
+    // checkout) and is no longer retried, so it is intentionally not logged.
+    if let Err(e) = &worktrees {
+        tracing::warn!(repo = %repo_path, step = "git_enumeration", error = %e, "[list_worktrees] failed");
+    }
 
     // Apply persisted column overrides from .alfredo.json so worktrees
     // arrive on the frontend with the correct kanban column immediately.
@@ -740,6 +765,29 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
     write_default_slash_commands(&worktree.path).await;
 
     Ok(worktree)
+}
+
+/// Persist a Linear ticket link for an already-created worktree so the StatusBar
+/// chip shows and survives restart. Pure persistence: the caller (the Linear
+/// "open issue" flow) has already fetched the ticket, so this never touches the
+/// Linear API and can't fail the worktree just because Linear is unreachable.
+#[tauri::command]
+pub async fn set_worktree_linear_ticket(
+    app: AppHandle,
+    repo_path: String,
+    worktree_name: String,
+    url: String,
+    identifier: String,
+) -> Result<()> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    config_manager::set_linear_ticket(
+        &mut config,
+        &worktree_name,
+        crate::types::LinearTicketRef { url, identifier },
+    );
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    Ok(())
 }
 
 /// Create a worktree from a GitHub pull request by fetching the PR's head branch.

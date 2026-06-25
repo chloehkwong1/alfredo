@@ -125,6 +125,17 @@ export function deleteWorktree(
   return invoke("delete_worktree", { repoPath, worktreeName, force });
 }
 
+/** Uncommitted work a worktree delete would destroy. `untracked` files are the
+ *  dangerous ones — they show +0/-0 in the diff badge but are wiped on delete. */
+export interface WorktreeDirtyState {
+  untracked: string[];
+  uncommitted: string[];
+}
+
+export function worktreeDirtyState(worktreePath: string): Promise<WorktreeDirtyState> {
+  return invoke("worktree_dirty_state", { worktreePath });
+}
+
 export function getCommitsBehindMain(
   worktreePath: string,
   stackParent?: string | null,
@@ -328,6 +339,16 @@ export function searchLinearIssues(
 
 export function listMyLinearIssues(): Promise<LinearTicket[]> {
   return invoke("list_my_linear_issues");
+}
+
+/** Persist a Linear ticket link for a worktree so the StatusBar chip survives restart. */
+export function setWorktreeLinearTicket(
+  repoPath: string,
+  worktreeName: string,
+  url: string,
+  identifier: string,
+): Promise<void> {
+  return invoke("set_worktree_linear_ticket", { repoPath, worktreeName, url, identifier });
 }
 
 export function linearOAuthStart(): Promise<void> {
@@ -594,8 +615,18 @@ export function setCommentChips(chips: string[]): Promise<GlobalAppConfig> {
 
 // ── Claude Session ─────────────────────────────────────────────
 
-export function findClaudeSession(worktreePath: string): Promise<string | null> {
-  return invoke("find_claude_session", { worktreePath });
+export function findClaudeSession(
+  worktreePath: string,
+  excludeIds: string[] = [],
+): Promise<string | null> {
+  return invoke("find_claude_session", { worktreePath, excludeIds });
+}
+
+// List every top-level Claude session UUID for a worktree path. Snapshotted at
+// spawn time so the discovery loop can tell this tab's freshly created session
+// apart from foreign/historical ones already sharing the cwd-keyed project dir.
+export function listClaudeSessions(worktreePath: string): Promise<string[]> {
+  return invoke("list_claude_sessions", { worktreePath });
 }
 
 export function openInEditor(
