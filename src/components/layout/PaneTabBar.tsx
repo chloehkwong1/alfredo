@@ -617,10 +617,14 @@ function PaneTabBar({
             <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
               <Terminal size={14} /> New terminal tab
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="font-normal">
-              Default Claude flags set in Settings
-            </DropdownMenuLabel>
+            {availableAgents.includes("claudeCode") && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="font-normal">
+                  Default Claude flags set in Settings
+                </DropdownMenuLabel>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 

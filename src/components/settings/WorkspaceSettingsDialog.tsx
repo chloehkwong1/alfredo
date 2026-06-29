@@ -1129,7 +1129,7 @@ function WorkspaceSettingsDialog({
             <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={!dirty || saving}>
+            <Button type="submit" size="sm" disabled={!dirty || saving || repoExtraFlagsError != null}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </div>

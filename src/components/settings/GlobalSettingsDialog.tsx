@@ -13,6 +13,7 @@ import { NotificationSettings } from "./NotificationSettings";
 import { DEFAULT_NOTIFICATION_CONFIG } from "./notificationConfig";
 import { TerminalSettings } from "./TerminalSettings";
 import { ThemeSelector } from "./ThemeSelector";
+import { parseLaunchFlags } from "../../services/launchCommand";
 
 type GlobalTab =
   | "general"
@@ -274,6 +275,8 @@ function GlobalSettingsDialog({
 
   if (!appConfig || !repoConfig) return null;
 
+  const extraFlagsValid = parseLaunchFlags(appConfig.extraFlags ?? "").ok;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[680px] p-0 overflow-hidden">
@@ -523,7 +526,7 @@ function GlobalSettingsDialog({
             {dirty ? "Cancel" : "Close"}
           </Button>
           {tab !== "terminal" && tab !== "comment-chips" && (
-            <Button type="submit" size="sm" disabled={!dirty || saving}>
+            <Button type="submit" size="sm" disabled={!dirty || saving || !extraFlagsValid}>
               {saving ? "Saving..." : "Save"}
             </Button>
           )}
