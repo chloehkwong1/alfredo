@@ -1,5 +1,6 @@
-import type { NotifyReason } from "../types";
+import type { NotifyReason, Worktree } from "../types";
 import { sendNotification } from "../hooks/notificationUtils";
+import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
 import { createPtyChannel, getAppConfig } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
@@ -96,7 +97,7 @@ const lastNotifyAt = new Map<string, number>();
  * Reads config each time so changes take effect immediately.
  */
 export async function fireHookNotification(
-  branch: string,
+  worktree: Pick<Worktree, "path" | "branch" | "name">,
   notify: NotifyReason,
   worktreeId?: string,
 ) {
@@ -120,6 +121,10 @@ export async function fireHookNotification(
   if (notify === "input" && !config.notifyOnWaiting) return;
   if ((notify === "finished" || notify === "error") && !config.notifyOnIdle) return;
 
+  // Resolve the display name the same way the sidebar does, so a rename (which
+  // writes worktreeLabels[path]) reaches the notification too. Reading raw
+  // wt.branch here is what surfaced "HEAD needs your input" after a rebase.
+  const branch = worktreeDisplayLabel(worktree, appConfig?.worktreeLabels?.[worktree.path]);
   const dbg = appConfig?.debugMode ? " [hook]" : "";
   const message =
     notify === "finished" ? `${branch} finished${dbg}` :
@@ -510,7 +515,7 @@ export function createSessionChannel(
             if (notify !== "none") {
               const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
               if (wt) {
-                fireHookNotification(wt.branch, notify, worktreeId);
+                fireHookNotification(wt, notify, worktreeId);
               }
             }
           }, debounceMs);
@@ -530,7 +535,7 @@ export function createSessionChannel(
         if (notify !== "none") {
           const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
           if (wt) {
-            fireHookNotification(wt.branch, notify, worktreeId);
+            fireHookNotification(wt, notify, worktreeId);
           }
         }
         break;

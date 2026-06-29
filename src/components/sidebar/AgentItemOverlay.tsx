@@ -1,5 +1,6 @@
 import type { Worktree } from "../../types";
 import { AgentItemContent, useAgentItemState, getBorderClass } from "./AgentItem";
+import { worktreeDisplayLabel } from "../../lib/worktreeDisplayLabel";
 
 interface AgentItemOverlayProps {
   worktree: Worktree;
@@ -26,7 +27,7 @@ function AgentItemOverlay({ worktree, width, label }: AgentItemOverlayProps) {
         isServerRunning={isServerRunning}
         serverPort={serverPort}
         prSummary={prSummary}
-        displayLabel={label ?? worktree.branch ?? worktree.name}
+        displayLabel={worktreeDisplayLabel(worktree, label)}
         isEditing={false}
         onStartEdit={() => {}}
         onCommitEdit={() => {}}

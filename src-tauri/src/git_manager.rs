@@ -1176,13 +1176,14 @@ pub fn get_status(worktree_path: &str) -> Result<WorktreeStatus, AppError> {
     let repo = Repository::open(worktree_path)
         .map_err(|e| AppError::Git(format!("failed to open worktree repo: {e}")))?;
 
-    let branch = match repo.head() {
-        Ok(head) => head
-            .shorthand()
-            .unwrap_or("HEAD")
-            .to_string(),
-        Err(_) => "HEAD".to_string(),
-    };
+    // Mirror list_worktrees' fallback: when the branch is undeterminable (a
+    // non-rebase detached HEAD), use the worktree directory name rather than the
+    // literal "HEAD", so both refresh paths agree on the branch/id token.
+    let branch = resolve_worktree_branch(&repo).unwrap_or_else(|| {
+        std::path::Path::new(worktree_path)
+            .file_name()
+            .map_or_else(|| "HEAD".to_string(), |n| n.to_string_lossy().into_owned())
+    });
 
     Ok(WorktreeStatus { branch })
 }
@@ -1196,8 +1197,55 @@ pub struct WorktreeStatus {
 /// Helper: open a repo at a path and read the current branch name.
 fn get_branch_for_path(path: &Path) -> Option<String> {
     let repo = Repository::open(path).ok()?;
-    let head = repo.head().ok()?;
-    head.shorthand().map(std::string::ToString::to_string)
+    resolve_worktree_branch(&repo)
+}
+
+/// Resolve the branch a worktree is on, surviving a detached HEAD mid-rebase.
+///
+/// `git rebase` detaches HEAD while it replays commits, so `head().shorthand()`
+/// returns the literal `"HEAD"` for the duration. If a worktree-list refresh
+/// lands in that window the branch — and the worktree `id` derived from it
+/// (`{repo}::{branch}`) — gets recorded as `"HEAD"`, and because nothing
+/// re-resolves a worktree-mode branch after the rebase finishes it sticks for
+/// the rest of the session (the sidebar shows `HEAD`; notifications say "HEAD
+/// needs your input"). When detached, recover the branch the rebase will return
+/// to from its state dir so `"HEAD"` is never captured. Returns `None` only when
+/// genuinely undeterminable (e.g. a non-rebase detached checkout); `list_worktrees`
+/// then falls back to the worktree directory name rather than `"HEAD"`.
+fn resolve_worktree_branch(repo: &Repository) -> Option<String> {
+    if let Ok(head) = repo.head() {
+        if let Some(name) = head.shorthand() {
+            // A branch literally named "HEAD" is forbidden by git, so this
+            // reliably means a detached HEAD rather than a real branch.
+            if name != "HEAD" {
+                return Some(name.to_string());
+            }
+        }
+    }
+    rebase_head_name(repo)
+}
+
+/// The branch an in-progress rebase will return to, read from the worktree's
+/// rebase state dir. Merge-backend rebase (git's default) writes
+/// `rebase-merge/head-name`; the older am backend writes `rebase-apply/head-name`.
+/// Both hold a full ref like `refs/heads/feature`.
+fn rebase_head_name(repo: &Repository) -> Option<String> {
+    let gitdir = repo.path();
+    for sub in ["rebase-merge/head-name", "rebase-apply/head-name"] {
+        if let Ok(contents) = std::fs::read_to_string(gitdir.join(sub)) {
+            // Only a real branch ref counts. A rebase begun from an already
+            // detached HEAD writes the literal "detached HEAD" here (no
+            // refs/heads/ prefix); requiring the prefix makes that case return
+            // None so callers fall back to the worktree name rather than
+            // surfacing "detached HEAD" as if it were a branch.
+            if let Some(branch) = contents.trim().strip_prefix("refs/heads/") {
+                if !branch.is_empty() {
+                    return Some(branch.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Helper: get the epoch milliseconds of the latest commit on HEAD.
@@ -1295,6 +1343,101 @@ mod tests {
         let path_str = dir.path().to_str().expect("temp dir path is valid UTF-8");
         let status = get_status(path_str).expect("get_status should succeed");
         assert!(!status.branch.is_empty());
+    }
+
+    /// Run a git command in `dir` with test identity, returning its output.
+    fn git_in(dir: &Path, args: &[&str]) -> std::process::Output {
+        StdCommand::new("git")
+            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .expect("git command")
+    }
+
+    #[tokio::test]
+    async fn test_resolve_branch_recovers_from_rebase_in_linked_worktree() {
+        // A conflicting `git rebase` pauses with HEAD detached. The naive
+        // `head().shorthand()` returns the literal "HEAD" for the duration; the
+        // resolver must recover the real branch from the worktree's *own* gitdir
+        // (`.git/worktrees/<name>/rebase-merge/head-name`) so the branch — and the
+        // id derived from it — is never recorded as "HEAD". Uses a real linked
+        // worktree so the per-worktree gitdir path semantics (repo.path(), the
+        // crux of the bug) are actually exercised, not the main repo where
+        // path()==commondir.
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        // Dedicated base dir so the worktree path doesn't collide with sibling
+        // worktree tests (which the default base_path — the shared repo parent —
+        // otherwise would; see test_list_worktrees_filters_by_base_path).
+        let base_dir = TempDir::new().expect("create base temp dir");
+        let base_path = base_dir.path().to_str().expect("base path is valid UTF-8");
+
+        let wt_path = create_worktree(repo_path, "feature", "main", Some(base_path))
+            .await
+            .expect("create_worktree should succeed");
+
+        // feature adds a file…
+        std::fs::write(wt_path.join("conflict.txt"), "feature\n").expect("write feature");
+        git_in(&wt_path, &["add", "-A"]);
+        git_in(&wt_path, &["commit", "-m", "feature add"]);
+
+        // …main adds the same path with different content (add/add conflict).
+        std::fs::write(dir.path().join("conflict.txt"), "main\n").expect("write main");
+        git_in(dir.path(), &["add", "-A"]);
+        git_in(dir.path(), &["commit", "-m", "main add"]);
+
+        // Rebase feature onto main inside the worktree → conflict → detached HEAD.
+        let rebase = git_in(&wt_path, &["rebase", "main"]);
+        assert!(!rebase.status.success(), "rebase should conflict and pause");
+
+        let branch = get_branch_for_path(&wt_path).expect("should resolve a branch mid-rebase");
+        assert_eq!(branch, "feature", "expected real branch mid-rebase, got {branch:?}");
+
+        git_in(&wt_path, &["rebase", "--abort"]);
+        delete_worktree(repo_path, "feature", true, Some(base_path))
+            .await
+            .expect("delete should succeed");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_branch_does_not_leak_detached_head_sentinel() {
+        // A rebase begun from an already-detached HEAD writes the literal
+        // "detached HEAD" (not a refs/heads/ ref) into head-name. The resolver
+        // must NOT surface that as a branch — it returns None so list_worktrees
+        // falls back to the worktree directory name.
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        let base_dir = TempDir::new().expect("create base temp dir");
+        let base_path = base_dir.path().to_str().expect("base path is valid UTF-8");
+
+        let wt_path = create_worktree(repo_path, "feature", "main", Some(base_path))
+            .await
+            .expect("create_worktree should succeed");
+
+        std::fs::write(wt_path.join("conflict.txt"), "feature\n").expect("write feature");
+        git_in(&wt_path, &["add", "-A"]);
+        git_in(&wt_path, &["commit", "-m", "feature add"]);
+
+        std::fs::write(dir.path().join("conflict.txt"), "main\n").expect("write main");
+        git_in(dir.path(), &["add", "-A"]);
+        git_in(dir.path(), &["commit", "-m", "main add"]);
+
+        // Detach HEAD first, then rebase — head-name becomes "detached HEAD".
+        git_in(&wt_path, &["checkout", "--detach"]);
+        let rebase = git_in(&wt_path, &["rebase", "main"]);
+        assert!(!rebase.status.success(), "rebase should conflict and pause");
+
+        let resolved = get_branch_for_path(&wt_path);
+        assert!(
+            resolved.is_none(),
+            "must not surface the 'detached HEAD' sentinel as a branch, got {resolved:?}",
+        );
+
+        git_in(&wt_path, &["rebase", "--abort"]);
+        delete_worktree(repo_path, "feature", true, Some(base_path))
+            .await
+            .expect("delete should succeed");
     }
 
     #[tokio::test]

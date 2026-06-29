@@ -12,6 +12,7 @@ import { openInApp } from "../../api";
 import { CATEGORY_ICON } from "../ui/OpenInDropdown";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
+import { worktreeDisplayLabel } from "../../lib/worktreeDisplayLabel";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -636,14 +637,14 @@ const AgentItem = memo(function AgentItem({
   const [createFromOpen, setCreateFromOpen] = useState(false);
   const [changeBaseOpen, setChangeBaseOpen] = useState(false);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const displayLabel = label ?? worktree.branch ?? worktree.name;
+  const displayLabel = worktreeDisplayLabel(worktree, label);
   const handleStartEdit = () => setIsEditingLabel(true);
   const handleCancelEdit = () => setIsEditingLabel(false);
   const handleCommitEdit = (next: string) => {
     setIsEditingLabel(false);
     if (!onRename) return;
     const trimmed = next.trim();
-    const branchName = worktree.branch ?? worktree.name;
+    const branchName = worktreeDisplayLabel(worktree, null);
     if (trimmed === "" || trimmed === branchName) {
       if (label != null) onRename(worktree.path, null);
       return;
