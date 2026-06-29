@@ -1,0 +1,45 @@
+src/services/openIssueFlow.ts
+  s_9cfe0fd4e4b173::t_12e6a08d370bb3 137-139
+  s_9cfe0fd4e4b173::t_c32a8532025769 5
+  s_b2ccad72830516::t_b46199be1b01cb 6
+  s_b2ccad72830516::t_0c4ae7300eab8a 194-220
+  s_9cfe0fd4e4b173::t_3155da85ed125e 248
+  s_9cfe0fd4e4b173::t_ed7325ff710279 141-142
+  s_b2ccad72830516::t_82dc6ed68d35d6 221
+src/components/layout/AppShell.tsx
+  s_b2ccad72830516::t_5c6a5de2d319ed 392-405
+  s_9cfe0fd4e4b173::t_7e154b876e2622 18
+src/stores/openIssueProgressStore.ts
+  s_9cfe0fd4e4b173::t_397690694d0b2a 1-3,7-28
+  s_9cfe0fd4e4b173::t_784f4df6525033 4-6
+src/components/ui/Toaster.tsx
+  s_9cfe0fd4e4b173::t_79e92e056bcbdd 3-5,13-18,20-29,31-39,41-51,53-54
+src/components/layout/OpenIssueOverlay.tsx
+  s_9cfe0fd4e4b173::t_9b5342683d8103 3,6,15-16,19
+  s_9cfe0fd4e4b173::t_726af388b24a3b 1-2,4-5,12-14,17-18,20-46
+  s_b2ccad72830516::t_6086fa55575efc 7-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d2da0840589efc894b950b5e4c8425e0e5cfeb53",
+  "prompts": {},
+  "sessions": {
+    "s_9cfe0fd4e4b173": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c7e4092-56ed-4af7-b557-54edeb2a9d18",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_b2ccad72830516": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "93ab7212-e84f-4d2a-91bd-ed1344656503",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
