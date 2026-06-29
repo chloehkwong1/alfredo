@@ -2,6 +2,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useClaudeModels, useEffortOptions, usePermissionModes } from "../../services/modelCatalog";
 import { useOutputStyles } from "../../hooks/useOutputStyles";
 import type { ClaudeDefaults, TabType } from "../../types";
+import { parseLaunchFlags } from "../../services/launchCommand";
 
 const selectClass = [
   "h-8 w-full px-3 text-[13px] font-normal",
@@ -41,6 +42,9 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
   );
 
   const permissionValue = settings.permissionMode ?? "default";
+
+  const extraFlagsResult = parseLaunchFlags(settings.extraFlags ?? "");
+  const extraFlagsError = extraFlagsResult.ok ? null : extraFlagsResult.error;
 
   return (
     <div>
@@ -194,6 +198,31 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
             ].join(" ")}
           />
         </button>
+      </div>
+
+      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+        Additional flags
+      </div>
+
+      <div className="mb-4">
+        <input
+          type="text"
+          spellCheck={false}
+          value={settings.extraFlags ?? ""}
+          onChange={(e) => update({ extraFlags: e.target.value || undefined })}
+          placeholder="e.g. --mcp-config ./mcp.json"
+          className={[
+            "h-8 w-full px-3 text-[13px] font-mono",
+            "bg-bg-primary text-text-primary",
+            "border rounded-[var(--radius-md)]",
+            extraFlagsError ? "border-red-500" : "border-border-default hover:border-border-hover",
+            "focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50",
+            "transition-all duration-[var(--transition-fast)]",
+          ].join(" ")}
+        />
+        <p className={["text-xs mt-[5px]", extraFlagsError ? "text-red-500" : "text-text-tertiary"].join(" ")}>
+          {extraFlagsError ?? "Passed to every new Claude tab — e.g. --mcp-config ./mcp.json."}
+        </p>
       </div>
 
       <p className="text-xs text-text-tertiary border-t border-border-default pt-4 mt-7">

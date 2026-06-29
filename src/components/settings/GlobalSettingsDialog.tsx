@@ -461,6 +461,7 @@ function GlobalSettingsDialog({
                   dangerouslySkipPermissions: appConfig.dangerouslySkipPermissions ?? undefined,
                   outputStyle: appConfig.outputStyle ?? undefined,
                   verbose: appConfig.verbose ?? undefined,
+                  extraFlags: appConfig.extraFlags ?? undefined,
                 }}
                 onChange={(claudeDefaults) =>
                   updateAppConfig({
@@ -470,6 +471,7 @@ function GlobalSettingsDialog({
                     dangerouslySkipPermissions: claudeDefaults.dangerouslySkipPermissions ?? null,
                     outputStyle: claudeDefaults.outputStyle ?? null,
                     verbose: claudeDefaults.verbose ?? null,
+                    extraFlags: claudeDefaults.extraFlags ?? null,
                   })
                 }
                 defaultAgent={(appConfig.defaultAgent as TabType) ?? "claude"}
