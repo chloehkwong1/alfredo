@@ -11,6 +11,21 @@ describe("resolveSettings extraFlags", () => {
     const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "--repo" }, undefined);
     expect(r.extraFlags).toBe("--repo");
   });
+
+  it("falls through to global when repo extraFlags is empty string", () => {
+    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "" }, undefined);
+    expect(r.extraFlags).toBe("--global");
+  });
+
+  it("falls through to global when repo extraFlags is whitespace-only", () => {
+    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "   " }, undefined);
+    expect(r.extraFlags).toBe("--global");
+  });
+
+  it("resolves to undefined when both repo and global extraFlags are blank", () => {
+    const r = resolveSettings({ extraFlags: "" }, { extraFlags: "   " }, undefined);
+    expect(r.extraFlags).toBeUndefined();
+  });
 });
 
 describe("buildClaudeArgs extraFlags", () => {

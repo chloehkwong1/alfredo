@@ -3,14 +3,15 @@ export type ParseResult =
   | { ok: false; error: string };
 
 /**
- * Tokenize a custom launch line (a string of flags, no binary) into an argv
- * array the way a shell would: whitespace-separated, with single/double quotes
- * grouping tokens and stripped from the output.
+ * Tokenize a free-form launch-flags string (flags only, no binary) into an
+ * argv array for use by buildClaudeArgs. Parsing follows shell conventions:
+ * whitespace-separated tokens, with single/double quotes grouping and stripped.
  *
  * - Double quotes ("…") support \" escapes.
  * - Single quotes ('…') are literal: no escape or quote processing inside, so
  *   JSON/regex values survive intact.
- * - An unbalanced quote returns { ok: false } so the UI can block Launch.
+ * - An unbalanced quote returns { ok: false }; this also drives live validation
+ *   in the settings UI (red border shown until the quote is closed).
  * - Empty / whitespace-only input → { ok: true, args: [] } (bare `claude`).
  */
 export function parseLaunchFlags(input: string): ParseResult {

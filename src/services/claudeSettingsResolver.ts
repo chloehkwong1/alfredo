@@ -20,6 +20,9 @@ export function resolveSettings(
   repoDefaults?: ClaudeDefaults,
   overrides?: ClaudeOverrides,
 ): ResolvedClaudeSettings {
+  // For free-form text fields, treat blank/whitespace-only as absent so a
+  // hand-edited empty alfredo.json value doesn't silently shadow the global.
+  const cleanFlags = (v?: string | null) => (v && v.trim() ? v : undefined);
   return {
     model: overrides?.model ?? repoDefaults?.model ?? globalDefaults?.model ?? undefined,
     effort: overrides?.effort ?? repoDefaults?.effort ?? globalDefaults?.effort ?? undefined,
@@ -27,7 +30,7 @@ export function resolveSettings(
     dangerouslySkipPermissions: repoDefaults?.dangerouslySkipPermissions ?? globalDefaults?.dangerouslySkipPermissions ?? undefined,
     outputStyle: overrides?.outputStyle ?? repoDefaults?.outputStyle ?? globalDefaults?.outputStyle ?? undefined,
     verbose: repoDefaults?.verbose ?? globalDefaults?.verbose ?? undefined,
-    extraFlags: repoDefaults?.extraFlags ?? globalDefaults?.extraFlags ?? undefined,
+    extraFlags: cleanFlags(repoDefaults?.extraFlags) ?? cleanFlags(globalDefaults?.extraFlags),
   };
 }
 
