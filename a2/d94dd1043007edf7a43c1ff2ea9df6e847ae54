@@ -1,0 +1,44 @@
+src/components/sidebar/AgentItemOverlay.tsx
+  s_3b999fe9bf1617::t_c86a026f7f6c5c 3
+  s_3b999fe9bf1617::t_f7488de7fc4075 30
+src/lib/worktreeDisplayLabel.test.ts
+  s_3b999fe9bf1617::t_3ccef259a0d370 1-3,5-6,9-11,14-16,21
+  s_3b999fe9bf1617::t_a94f103889ab41 4,7-8,12-13,17-20
+src-tauri/src/git_manager.rs
+  s_3b999fe9bf1617::t_7b9f0f0c8900d4 1370-1376,1398
+  s_3b999fe9bf1617::t_95ed3e58b13982 1236-1244
+  s_3b999fe9bf1617::t_d1c25aa09c3339 1200-1235,1245-1248
+  s_3b999fe9bf1617::t_8e471e83fea235 1348-1359,1362-1367,1369,1377-1391,1394,1396-1397,1399-1410,1413,1415-1435,1437,1439-1440
+  s_3b999fe9bf1617::t_9aebe589ca964a 1360-1361,1368,1392-1393,1395,1436,1441-1442
+  s_3b999fe9bf1617::t_a4d21ad5b2b005 1411-1412,1414,1438
+  s_3b999fe9bf1617::t_2be8081205d5b1 1179-1186
+src/lib/worktreeDisplayLabel.ts
+  s_3b999fe9bf1617::t_351cb14e565732 1-3,5-6,12-13,16,18
+  s_3b999fe9bf1617::t_dd2ef39de3e267 4,7-11,14-15,17
+src/services/sessionChannel.ts
+  s_3b999fe9bf1617::t_2dddedd87f087f 127
+  s_3b999fe9bf1617::t_b4ca59a6e0e5dd 518
+  s_3b999fe9bf1617::t_3069524923323d 1,3
+  s_3b999fe9bf1617::t_93c969a09860ca 538
+  s_3b999fe9bf1617::t_0532925c51def0 100,124-126
+src/components/sidebar/AgentItem.tsx
+  s_3b999fe9bf1617::t_bddd21bb2aae40 647
+  s_3b999fe9bf1617::t_9319b0fb621d04 640
+  s_3b999fe9bf1617::t_9b5363a29e5d51 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a2d94dd1043007edf7a43c1ff2ea9df6e847ae54",
+  "prompts": {},
+  "sessions": {
+    "s_3b999fe9bf1617": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11a29ba0-3a28-4458-a5aa-9228008a9bb7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
