@@ -1130,4 +1130,16 @@ mod tests {
         assert!(result.upstream.is_some());
         Ok(())
     }
+
+    #[test]
+    fn claude_defaults_extra_flags_round_trips() {
+        let cd = crate::types::ClaudeDefaults {
+            extra_flags: Some("--mcp-config ./mcp.json".to_string()),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&cd).unwrap();
+        assert!(json.contains("extraFlags"), "serialized as camelCase: {json}");
+        let back: crate::types::ClaudeDefaults = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.extra_flags.as_deref(), Some("--mcp-config ./mcp.json"));
+    }
 }

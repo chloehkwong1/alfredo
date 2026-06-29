@@ -342,6 +342,8 @@ pub struct ClaudeDefaults {
     pub output_style: Option<String>,
     #[serde(default)]
     pub verbose: Option<bool>,
+    #[serde(default)]
+    pub extra_flags: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -538,6 +540,8 @@ pub struct GlobalAppConfig {
     pub output_style: Option<String>,
     #[serde(default)]
     pub verbose: Option<bool>,
+    #[serde(default)]
+    pub extra_flags: Option<String>,
     #[serde(default)]
     pub default_diff_view_mode: Option<String>,
     #[serde(default)]

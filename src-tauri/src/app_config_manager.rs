@@ -34,6 +34,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             dangerously_skip_permissions: None,
             output_style: None,
             verbose: None,
+            extra_flags: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
@@ -188,6 +189,7 @@ pub async fn migrate_if_needed(
         dangerously_skip_permissions: None,
         output_style: None,
         verbose: None,
+        extra_flags: None,
         default_diff_view_mode: None,
         collapsed_kanban_columns: vec![],
         sidebar_collapsed: None,
@@ -258,6 +260,7 @@ mod tests {
             dangerously_skip_permissions: None,
             output_style: None,
             verbose: None,
+            extra_flags: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
@@ -307,6 +310,7 @@ mod tests {
             dangerously_skip_permissions: None,
             output_style: None,
             verbose: None,
+            extra_flags: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
@@ -353,6 +357,7 @@ mod tests {
             dangerously_skip_permissions: None,
             output_style: None,
             verbose: None,
+            extra_flags: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
@@ -398,5 +403,11 @@ mod tests {
         let loaded = load(dir.path()).await?;
         assert!(loaded.comment_chips.is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn global_config_without_extra_flags_deserializes_to_none() {
+        let cfg: crate::types::GlobalAppConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(cfg.extra_flags, None);
     }
 }
