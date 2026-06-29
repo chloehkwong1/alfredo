@@ -76,19 +76,3 @@ export function parseLaunchFlags(input: string): ParseResult {
 
   return { ok: true, args };
 }
-
-/**
- * Join arg tokens into a display string suitable for prefilling the launch
- * line, single-quoting any token containing whitespace OR a quote character.
- *
- * buildClaudeArgs emits a `--settings '{"outputStyle":"…"}'` token (see
- * claudeSettingsResolver.ts ~line 50-52) with embedded double-quotes but no
- * spaces. A whitespace-only quoting rule would leave it bare, and
- * parseLaunchFlags would then strip the JSON quotes, corrupting the setting.
- * Single-quoting any token with a quote char keeps the round-trip clean.
- */
-export function formatPrefill(defaultArgs: string[]): string {
-  return defaultArgs
-    .map((token) => (/[\s'"]/.test(token) ? `'${token}'` : token))
-    .join(" ");
-}

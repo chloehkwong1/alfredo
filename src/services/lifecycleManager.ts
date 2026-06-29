@@ -25,10 +25,9 @@ class LifecycleManager {
     worktreeId: string,
     type: TabType,
     paneId?: string,
-    init?: Partial<Pick<WorkspaceTab, "pendingLaunch" | "launchCommand">>,
   ): string | null {
     const prevTabs = useTabStore.getState().tabs[worktreeId] ?? [];
-    useTabStore.getState().addTab(worktreeId, type, init);
+    useTabStore.getState().addTab(worktreeId, type);
     const newTabs = useTabStore.getState().tabs[worktreeId] ?? [];
     const newTab = newTabs.find((t) => !prevTabs.some((p) => p.id === t.id));
     if (!newTab) return null;

@@ -125,7 +125,7 @@ describe("lifecycleManager", () => {
       const result = lifecycleManager.addTab(worktreeId, "shell");
 
       expect(result).toBe("tab-2");
-      expect(mockAddTab).toHaveBeenCalledWith(worktreeId, "shell", undefined);
+      expect(mockAddTab).toHaveBeenCalledWith(worktreeId, "shell");
       expect(mockAddTabToPane).toHaveBeenCalledWith(
         worktreeId,
         "pane-1",

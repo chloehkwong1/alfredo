@@ -32,9 +32,6 @@ interface WorkspaceState {
   archiveAfterDays: number;
   /** Number of days after archiving before a worktree is auto-deleted. 0 = never. */
   deleteAfterDays: number;
-  /** Last custom launch command per worktree, used to prefill the launch overlay. Keyed by worktreeId. */
-  lastCustomCommand: Record<string, string>;
-  setLastCustomCommand: (worktreeId: string, cmd: string) => void;
   /** Tracks running dev servers per worktree. Keyed by worktreeId. */
   runningServers: Record<string, { sessionId: string; tabId: string; port?: number; createdAt?: number }>;
   /** Repo paths where GitHub auth has failed (token missing/expired). */
@@ -187,11 +184,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   sidebarCollapsed: false,
   archiveAfterDays: 2,
   deleteAfterDays: 0,
-  lastCustomCommand: {},
-  setLastCustomCommand: (worktreeId, cmd) =>
-    set((state) => ({
-      lastCustomCommand: { ...state.lastCustomCommand, [worktreeId]: cmd },
-    })),
   runningServers: {},
   githubAuthErrors: new Set<string>(),
   setGithubAuthError: (repoPath) =>
@@ -256,10 +248,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
         pinnedWorktrees: newPinned,
         runningServers: (() => {
           const { [id]: _, ...rest } = state.runningServers;
-          return rest;
-        })(),
-        lastCustomCommand: (() => {
-          const { [id]: _cmd, ...rest } = state.lastCustomCommand;
           return rest;
         })(),
       };
@@ -501,7 +489,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       sidebarCollapsed: false,
       archiveAfterDays: 2,
       deleteAfterDays: 0,
-      lastCustomCommand: {},
       runningServers: {},
       githubAuthErrors: new Set<string>(),
     }),

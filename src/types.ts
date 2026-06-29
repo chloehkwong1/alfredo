@@ -447,12 +447,6 @@ export interface WorkspaceTab {
   };
   /** Set only on tabs restored from a saved session — triggers --resume on first spawn. */
   resumeSessionId?: string;
-  /** True while the launch overlay is showing (pre-spawn). Never persisted as
-   *  true — a half-created tab must not restore into a pending overlay. */
-  pendingLaunch?: boolean;
-  /** Finalized custom launch flags for this tab. When set, overrides
-   *  buildClaudeArgs and is re-run silently on restart. */
-  launchCommand?: string;
   diffTarget?: DiffTarget;
   /**
    * Live, dynamically-resolved label (OSC title / foreground process / CWD).
