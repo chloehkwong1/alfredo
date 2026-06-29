@@ -1,0 +1,23 @@
+src/services/claudeSettingsResolver.ts
+  s_c3bd219a51919f::t_2968f7e605d766 23-25,33
+src/services/claudeSettingsResolver.test.ts
+  s_c3bd219a51919f::t_3c39e829c6ecac 14-28
+src/services/launchCommand.ts
+  s_c3bd219a51919f::t_4d2d1244e65364 6-8,13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "7d351d79a4e579d941196be061c960b4cce1cffb",
+  "prompts": {},
+  "sessions": {
+    "s_c3bd219a51919f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afb971b1-a2c1-4c25-a452-70b25c8212d7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
