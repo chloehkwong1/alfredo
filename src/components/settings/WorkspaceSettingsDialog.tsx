@@ -32,6 +32,7 @@ import { useAppConfigStore } from "../../stores/appConfigStore";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { useRepoConfig } from "../../hooks/useRepoConfig";
 import { openPathInEditor } from "../../services/openExternal";
+import { parseLaunchFlags } from "../../services/launchCommand";
 import { Button } from "../ui/Button";
 import { Dialog, DialogContent } from "../ui/Dialog";
 import { RepoDropdown } from "../ui/RepoDropdown";
@@ -656,6 +657,9 @@ function WorkspaceSettingsDialog({
       ? Number(setupConfigured) + Number(runConfigured) + Number(archiveConfigured)
       : Number(runConfigured);
 
+  const repoExtraFlagsResult = parseLaunchFlags(config.claudeDefaults?.extraFlags ?? "");
+  const repoExtraFlagsError = repoExtraFlagsResult.ok ? null : repoExtraFlagsResult.error;
+
   const tabs: TabSpec[] = [
     { id: "general", label: "General" },
     { id: "scripts", label: "Scripts", count: scriptsCount, tourId: "setup-script-tab" },
@@ -842,6 +846,31 @@ function WorkspaceSettingsDialog({
                     </p>
                   </div>
                 )}
+                <div className="mb-[18px]">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">Claude launch flags</div>
+                  <input
+                    type="text"
+                    spellCheck={false}
+                    className={[
+                      repoExtraFlagsError ? "!border-red-500" : "",
+                      inputClass,
+                      "font-mono",
+                    ].join(" ")}
+                    placeholder="e.g. --mcp-config ./mcp.json"
+                    value={config.claudeDefaults?.extraFlags ?? ""}
+                    onChange={(e) =>
+                      updateConfig({
+                        claudeDefaults: {
+                          ...config.claudeDefaults,
+                          extraFlags: e.target.value || undefined,
+                        },
+                      })
+                    }
+                  />
+                  <p className={["text-xs mt-[5px]", repoExtraFlagsError ? "text-red-500" : "text-text-tertiary"].join(" ")}>
+                    {repoExtraFlagsError ?? "Extra flags for new Claude tabs in this repo. Overrides the global default."}
+                  </p>
+                </div>
               </div>
             )}
 
