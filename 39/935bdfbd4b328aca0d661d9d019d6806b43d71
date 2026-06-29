@@ -1,0 +1,22 @@
+src/services/terminalFactory.ts
+  s_18c926266cd830::t_09e7b802565428 243-270,272-280,282-283,285-289
+src/services/terminalFactory.test.ts
+  s_18c926266cd830::t_def74ebdbc4a9f 3
+  s_18c926266cd830::t_b84cdf09cc8ff2 149-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "39935bdfbd4b328aca0d661d9d019d6806b43d71",
+  "prompts": {},
+  "sessions": {
+    "s_18c926266cd830": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d854fe06-1a4c-4c15-9e31-4b8437973b97",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
