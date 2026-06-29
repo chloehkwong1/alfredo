@@ -140,6 +140,11 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       }
       hasSpawnedRef.current = true;
       setResolvedArgs(args);
+    })
+    .catch((err) => {
+      if (aborted) return;
+      console.error(`[TerminalView] settings resolution threw for ${repoPath}:`, err);
+      setResolvedArgs([]);
     });
     return () => { aborted = true; };
   }, [repoPath, worktree?.branch, mode, claudeSessionId, tabType, tabCommand]);
