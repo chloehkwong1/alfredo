@@ -1,0 +1,21 @@
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_c3bd219a51919f::t_32fe5f44a5bc46 35
+  s_c3bd219a51919f::t_108e8f1981978c 849-873
+  s_c3bd219a51919f::t_3b3f057ce8d50f 660-662
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "12618379e1b76622edf8b389ef798dd187c80df5",
+  "prompts": {},
+  "sessions": {
+    "s_c3bd219a51919f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afb971b1-a2c1-4c25-a452-70b25c8212d7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
