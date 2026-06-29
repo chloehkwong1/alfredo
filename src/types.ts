@@ -204,6 +204,7 @@ export interface ClaudeDefaults {
   dangerouslySkipPermissions?: boolean;
   outputStyle?: string;
   verbose?: boolean;
+  extraFlags?: string;
 }
 
 export interface ClaudeOverrides {
@@ -492,6 +493,7 @@ export interface GlobalAppConfig {
   dangerouslySkipPermissions?: boolean | null;
   outputStyle?: string | null;
   verbose?: boolean | null;
+  extraFlags?: string | null;
   /** Default diff view mode for new worktrees. */
   defaultDiffViewMode?: DiffViewMode;
   /** Which kanban column groups are collapsed in the sidebar. */

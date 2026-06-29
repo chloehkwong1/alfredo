@@ -1,4 +1,5 @@
 import type { ClaudeDefaults, ClaudeOverrides, GlobalAppConfig } from "../types";
+import { parseLaunchFlags } from "./launchCommand";
 
 export interface ResolvedClaudeSettings {
   model?: string;
@@ -7,6 +8,7 @@ export interface ResolvedClaudeSettings {
   dangerouslySkipPermissions?: boolean;
   outputStyle?: string;
   verbose?: boolean;
+  extraFlags?: string;
 }
 
 /**
@@ -14,7 +16,7 @@ export interface ResolvedClaudeSettings {
  * Each layer overrides the previous; only defined fields are merged.
  */
 export function resolveSettings(
-  globalDefaults?: Pick<GlobalAppConfig, "model" | "effort" | "permissionMode" | "dangerouslySkipPermissions" | "outputStyle" | "verbose"> | null,
+  globalDefaults?: Pick<GlobalAppConfig, "model" | "effort" | "permissionMode" | "dangerouslySkipPermissions" | "outputStyle" | "verbose" | "extraFlags"> | null,
   repoDefaults?: ClaudeDefaults,
   overrides?: ClaudeOverrides,
 ): ResolvedClaudeSettings {
@@ -25,6 +27,7 @@ export function resolveSettings(
     dangerouslySkipPermissions: repoDefaults?.dangerouslySkipPermissions ?? globalDefaults?.dangerouslySkipPermissions ?? undefined,
     outputStyle: overrides?.outputStyle ?? repoDefaults?.outputStyle ?? globalDefaults?.outputStyle ?? undefined,
     verbose: repoDefaults?.verbose ?? globalDefaults?.verbose ?? undefined,
+    extraFlags: repoDefaults?.extraFlags ?? globalDefaults?.extraFlags ?? undefined,
   };
 }
 
@@ -52,6 +55,10 @@ export function buildClaudeArgs(settings: ResolvedClaudeSettings): string[] {
   }
   if (settings.verbose) {
     args.push("--verbose");
+  }
+  if (settings.extraFlags) {
+    const parsed = parseLaunchFlags(settings.extraFlags);
+    if (parsed.ok) args.push(...parsed.args);
   }
 
   return args;
