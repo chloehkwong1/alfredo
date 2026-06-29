@@ -15,6 +15,7 @@ import { QuickStartPanel } from "../onboarding/QuickStartPanel";
 import { RemoveRepoDialog } from "../sidebar/RemoveRepoDialog";
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { OpenIssueRepoPicker } from "../kanban/OpenIssueRepoPicker";
+import { OpenIssueOverlay } from "./OpenIssueOverlay";
 import { GlobalSettingsDialog } from "../settings/GlobalSettingsDialog";
 import { WorkspaceSettingsDialog } from "../settings/WorkspaceSettingsDialog";
 import { ShortcutsOverlay } from "../settings/ShortcutsOverlay";
@@ -388,15 +389,20 @@ function AppShell() {
                 onLayoutChanged={changesPanelLayout.onLayoutChanged}
               >
                 <Panel id="content" minSize={changesPanelCollapsed ? "100%" : "50%"}>
-                  <LayoutRenderer
-                    worktreeId={activeWorktreeId}
-                    onToggleServer={handleToggleServer}
-                    isServerRunning={isServerRunningHere}
-                    runScriptName={runScript?.name}
-                    runScriptUrl={runScript?.url}
-                    assignedPort={worktree?.assignedPort}
-                    hasWorktreeRepos={hasWorktreeRepos}
-                  />
+                  {/* `relative` so OpenIssueOverlay centers over the terminal/chat
+                      pane only, not the changes panel beside it. */}
+                  <div className="relative h-full min-h-0">
+                    <LayoutRenderer
+                      worktreeId={activeWorktreeId}
+                      onToggleServer={handleToggleServer}
+                      isServerRunning={isServerRunningHere}
+                      runScriptName={runScript?.name}
+                      runScriptUrl={runScript?.url}
+                      assignedPort={worktree?.assignedPort}
+                      hasWorktreeRepos={hasWorktreeRepos}
+                    />
+                    <OpenIssueOverlay />
+                  </div>
                 </Panel>
                 {!changesPanelCollapsed && (
                   <>

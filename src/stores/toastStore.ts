@@ -10,10 +10,6 @@ export interface Toast {
   /** Auto-dismiss timeout in ms. Defaults to 6000. Pass 0 to keep the toast
    *  until manually dismissed (rare — used for blocking errors). */
   durationMs?: number;
-  /** "progress" renders a prominent, spinner-led toast centered at the top —
-   *  for in-flight actions that would otherwise read as "nothing happened".
-   *  Defaults to the standard bottom-right notification. */
-  variant?: "default" | "progress";
 }
 
 interface ToastState {

@@ -2,7 +2,8 @@ import { createWorktreeFrom, searchLinearIssues, setWorktreeLinearTicket } from 
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useToastStore } from "../stores/toastStore";
-import { getAgentSessionInfo, writeToSession, focusAgentTab } from "./agentMessenger";
+import { useOpenIssueProgress } from "../stores/openIssueProgressStore";
+import { ensureAgentSession, getAgentSessionInfo, writeToSession, focusAgentTab } from "./agentMessenger";
 import { sessionManager } from "./sessionManager";
 import type { OpenIssueRequest } from "./linearOpenIssue";
 import type { Worktree, LinearTicket } from "../types";
@@ -133,15 +134,12 @@ export async function openIssueInRepo(
   repoPath: string,
   { prompt, branch, issueId }: OpenIssuePayload,
 ): Promise<void> {
-  // Progress toast: create → boot → paste takes a few seconds and otherwise
-  // reads as "nothing happened". Kept open (durationMs: 0) until the paste lands
-  // (or the flow bails) via the `finally` below.
+  // Progress overlay: create → boot → paste takes a few seconds and otherwise
+  // reads as "nothing happened". Shown until the paste lands (or the flow bails)
+  // via the `finally` below.
   const repoName = repoPath.split("/").filter(Boolean).pop() ?? "the repo";
-  const progressId = useToastStore.getState().show({
-    message: `Opening ${issueId ?? branch} in ${repoName}…`,
-    durationMs: 0,
-    variant: "progress",
-  });
+  const worktreeId = `${repoPath}::${branch}`;
+  useOpenIssueProgress.getState().start({ worktreeId, label: issueId ?? branch, repo: repoName });
 
   // Fetch the full issue up front so it overlaps worktree creation + Claude boot
   // rather than adding latency before the paste. Linear truncates {{prompt}} in
@@ -155,8 +153,6 @@ export async function openIssueInRepo(
     : Promise.resolve(null);
 
   try {
-    const worktreeId = `${repoPath}::${branch}`;
-
     if (!useWorkspaceStore.getState().worktrees.some((wt) => wt.id === worktreeId)) {
       const placeholder: Worktree = {
         id: worktreeId,
@@ -195,14 +191,35 @@ export async function openIssueInRepo(
       }
     }
 
-    // Navigate to the worktree and focus its agent tab. This MOUNTS the terminal
-    // component, whose usePty hook spawns the PTY (it must be the SOLE spawner —
-    // an eager spawn here would race it and leave input/resize unwired). Wait for
-    // that spawn to finish, then paste.
-    useWorkspaceStore.getState().setActiveWorktree(worktreeId);
-    focusAgentTab(worktreeId);
+    // Don't yank focus away from a worktree the user is already working in: if one
+    // is focused, open this issue in the BACKGROUND (spawn its agent + paste the
+    // prompt, but leave the active worktree alone). Only auto-navigate when nothing
+    // is focused — a cold start or an empty workspace.
+    const focusedId = useWorkspaceStore.getState().activeWorktreeId;
+    const openInBackground = !!focusedId && focusedId !== worktreeId;
 
-    const session = await waitForSpawnedSession(worktreeId);
+    let session;
+    if (openInBackground) {
+      // No terminal mounts to spawn the PTY for us, so spawn it directly. Safe to
+      // be the spawner here precisely because the worktree isn't active — usePty
+      // isn't racing us, and when the user switches to it later usePty attaches to
+      // this already-spawned session and wires up input/resize.
+      try {
+        session = await ensureAgentSession(worktreeId, repoPath, branch);
+      } catch (e) {
+        console.error("[linear] background agent spawn failed:", e);
+        return;
+      }
+    } else {
+      // Navigate to the worktree and focus its agent tab. This MOUNTS the terminal
+      // component, whose usePty hook spawns the PTY (it must be the SOLE spawner —
+      // an eager spawn here would race it and leave input/resize unwired). Wait for
+      // that spawn to finish, then paste.
+      useWorkspaceStore.getState().setActiveWorktree(worktreeId);
+      focusAgentTab(worktreeId);
+      session = await waitForSpawnedSession(worktreeId);
+    }
+
     if (!session?.sessionId) return;
     await waitForAgentReady(session);
 
@@ -228,6 +245,6 @@ export async function openIssueInRepo(
       }
     }
   } finally {
-    useToastStore.getState().dismiss(progressId);
+    useOpenIssueProgress.getState().stop();
   }
 }
