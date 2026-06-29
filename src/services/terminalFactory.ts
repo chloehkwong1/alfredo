@@ -240,25 +240,53 @@ export function createTerminal(opts: { cwd?: string } = {}): { terminal: Termina
   const searchAddon = new SearchAddon();
   terminal.loadAddon(searchAddon);
 
-  // ── Shift+Enter → newline ──────────────────────────────────────
-  // Block ALL event types (keydown, keypress, keyup) for Shift+Enter.
-  // Only send the kitty sequence on keydown to avoid duplicates.
-  terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-    // Shift+Enter → send kitty protocol sequence for newline
-    if (event.key === "Enter" && event.shiftKey) {
-      if (event.type === "keydown") {
-        terminal.input("\x1b[13;2u", false);
-      }
-      return false;
-    }
-    // Let all Cmd+ shortcuts bubble to app-level handlers
-    if (event.metaKey) {
-      return false;
-    }
-    return true;
-  });
+  // ── Custom key handling (Shift+Enter newline, Cmd+C copy) ──────
+  terminal.attachCustomKeyEventHandler((event) => handleTerminalKeyEvent(terminal, event));
 
   return { terminal, searchAddon };
+}
+
+/**
+ * Custom key handler for the terminal. Returns `false` to tell xterm to skip
+ * its own processing of the event (xterm does NOT preventDefault in that case,
+ * so the event still bubbles to app-level handlers); `true` lets xterm handle
+ * the key normally.
+ *
+ * - Shift+Enter → send the kitty-protocol newline sequence (Claude Code reads
+ *   it as "insert newline"). Block all event types; only send on keydown to
+ *   avoid duplicates.
+ * - Cmd+C → copy the current selection ourselves. xterm's selection is its own
+ *   model, not a native DOM selection, so the webview's default Copy finds
+ *   nothing and macOS plays the system beep. We write `terminal.getSelection()`
+ *   to the clipboard and `preventDefault()` to suppress that beep. Excludes
+ *   Cmd+Shift+C, which is the app's "toggle changes panel" shortcut.
+ * - Any other Cmd+ shortcut → return false so it bubbles to the window-level
+ *   keyboard handler (Cmd+T, Cmd+W, …).
+ */
+export function handleTerminalKeyEvent(terminal: Terminal, event: KeyboardEvent): boolean {
+  // Shift+Enter → newline
+  if (event.key === "Enter" && event.shiftKey) {
+    if (event.type === "keydown") {
+      terminal.input("\x1b[13;2u", false);
+    }
+    return false;
+  }
+
+  // Cmd+C → copy the selection and swallow the macOS NSBeep
+  if (event.metaKey && !event.shiftKey && (event.key === "c" || event.key === "C")) {
+    if (event.type === "keydown") {
+      const sel = terminal.getSelection();
+      if (sel) navigator.clipboard.writeText(sel).catch(console.error);
+      event.preventDefault();
+    }
+    return false;
+  }
+
+  // Let all other Cmd+ shortcuts bubble to app-level handlers
+  if (event.metaKey) {
+    return false;
+  }
+  return true;
 }
 
 /**

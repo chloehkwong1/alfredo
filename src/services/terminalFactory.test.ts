@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Terminal } from "@xterm/xterm";
-import { registerSelectToCopy } from "./terminalFactory";
+import { registerSelectToCopy, handleTerminalKeyEvent } from "./terminalFactory";
 
 interface FakeTerminal {
   element: HTMLElement;
@@ -144,5 +144,92 @@ describe("registerSelectToCopy", () => {
 
     await flushMicrotasks();
     expect(writeText).toHaveBeenCalledWith("off-edge selection");
+  });
+});
+
+describe("handleTerminalKeyEvent", () => {
+  let writeText: ReturnType<typeof vi.fn>;
+  let input: ReturnType<typeof vi.fn>;
+
+  function fakeTerminal(selection = "") {
+    input = vi.fn();
+    return { getSelection: () => selection, input } as unknown as Terminal;
+  }
+
+  function key(
+    type: "keydown" | "keyup",
+    init: KeyboardEventInit,
+  ): { event: KeyboardEvent; preventDefault: ReturnType<typeof vi.fn> } {
+    const event = new KeyboardEvent(type, init);
+    const preventDefault = vi.fn();
+    event.preventDefault = preventDefault;
+    return { event, preventDefault };
+  }
+
+  beforeEach(() => {
+    writeText = vi.fn(() => Promise.resolve());
+    Object.assign(navigator, { clipboard: { writeText } });
+  });
+
+  it("copies the selection and suppresses the default on Cmd+C keydown", () => {
+    const term = fakeTerminal("copied text");
+    const { event, preventDefault } = key("keydown", { metaKey: true, key: "c" });
+
+    const result = handleTerminalKeyEvent(term, event);
+
+    expect(result).toBe(false);
+    expect(writeText).toHaveBeenCalledWith("copied text");
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("still suppresses the beep on Cmd+C with no selection", () => {
+    const term = fakeTerminal("");
+    const { event, preventDefault } = key("keydown", { metaKey: true, key: "c" });
+
+    const result = handleTerminalKeyEvent(term, event);
+
+    expect(result).toBe(false);
+    expect(writeText).not.toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not intercept Cmd+Shift+C (changes-panel shortcut) — lets it bubble", () => {
+    const term = fakeTerminal("ignored");
+    const { event, preventDefault } = key("keydown", { metaKey: true, shiftKey: true, key: "C" });
+
+    const result = handleTerminalKeyEvent(term, event);
+
+    // Returns false so it bubbles, but must NOT copy or preventDefault.
+    expect(result).toBe(false);
+    expect(writeText).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("only acts on Cmd+C keydown, not keyup", () => {
+    const term = fakeTerminal("text");
+    const { event, preventDefault } = key("keyup", { metaKey: true, key: "c" });
+
+    const result = handleTerminalKeyEvent(term, event);
+
+    expect(result).toBe(false);
+    expect(writeText).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("sends the kitty newline sequence on Shift+Enter keydown", () => {
+    const term = fakeTerminal();
+    const { event } = key("keydown", { key: "Enter", shiftKey: true });
+
+    const result = handleTerminalKeyEvent(term, event);
+
+    expect(result).toBe(false);
+    expect(input).toHaveBeenCalledWith("\x1b[13;2u", false);
+  });
+
+  it("passes plain keys through to xterm", () => {
+    const term = fakeTerminal();
+    const { event } = key("keydown", { key: "a" });
+
+    expect(handleTerminalKeyEvent(term, event)).toBe(true);
   });
 });
