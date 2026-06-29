@@ -1,0 +1,27 @@
+src/stores/tabStore.ts
+  s_c3bd219a51919f::t_12445049dd7a71 164
+src/services/SessionPersistence.ts
+  s_c3bd219a51919f::t_496955c29f7a6b 118
+src/services/lifecycleManager.ts
+  s_c3bd219a51919f::t_df461b12a5f616 30
+src/services/lifecycleManager.test.ts
+  s_c3bd219a51919f::t_d78c12877d5b18 128
+src/services/launchCommand.test.ts
+  s_c3bd219a51919f::t_e71371c51471b0 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "56b3b11e569c5c53e2da5936a0cfcc8010821c6e",
+  "prompts": {},
+  "sessions": {
+    "s_c3bd219a51919f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afb971b1-a2c1-4c25-a452-70b25c8212d7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
