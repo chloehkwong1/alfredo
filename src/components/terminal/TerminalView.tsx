@@ -115,6 +115,19 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   // runs can't set hasSpawnedRef before the current run sees claudeSessionId.
   useEffect(() => {
     if (mode !== "claude") {
+      // Server tabs carry a run command — spawn it directly as the shell's
+      // argument (`$SHELL -i -c <cmd>`) so it runs with the user's interactive
+      // rc environment (PATH/nvm/etc.) without typing into the PTY, which raced
+      // the shell's startup and dropped the leading character. A command-less
+      // server tab is a reattached/reconciled one whose PTY survived on the Rust
+      // side: resolve to [] so usePty's getOrSpawn reuses the existing session
+      // and mounts it. Leaving args null here would strand the reattached server
+      // invisible — no terminal, no disconnect banner. Plain shell tabs spawn a
+      // bare interactive shell.
+      if (tabType === "server") {
+        setResolvedArgs(tabCommand ? ["-i", "-c", tabCommand] : []);
+        return;
+      }
       setResolvedArgs([]);
       return;
     }
@@ -175,7 +188,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       setResolvedArgs([]);
     });
     return () => { aborted = true; };
-  }, [repoPath, worktree?.branch, mode, claudeSessionId, pendingLaunch, launchCommand, activeWorktreeId]);
+  }, [repoPath, worktree?.branch, mode, claudeSessionId, pendingLaunch, launchCommand, activeWorktreeId, tabType, tabCommand]);
 
   const [showSearch, setShowSearch] = useState(false);
 
@@ -189,7 +202,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     mode,
     args: resolvedArgs,
     reconnectKey,
-    startupCommand: tabCommand,
     sessionType,
   });
 
@@ -328,27 +340,34 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
     // Resolve new args BEFORE closing the old session so a config error
     // doesn't leave the session dead with no reconnect trigger.
-    try {
-      const [appCfg, config] = await Promise.all([getAppConfig(), getConfig(repoPath)]);
-      const branch = worktree.branch ?? "";
-      const resolved = resolveSettings(
-        appCfg,
-        config.claudeDefaults,
-        config.worktreeOverrides?.[branch],
-      );
-      setResolvedArgs(buildClaudeArgs(resolved));
-    } catch {
-      // Config fetch failed — keep current args and still restart.
-    }
+    if (tabType === "server") {
+      // Re-run the server's command (`$SHELL -i -c <cmd>`). A reattached server
+      // tab has no stored command — fall back to a bare shell rather than the
+      // Claude args, which the shell would mis-parse into a broken process.
+      setResolvedArgs(tabCommand ? ["-i", "-c", tabCommand] : []);
+    } else {
+      try {
+        const [appCfg, config] = await Promise.all([getAppConfig(), getConfig(repoPath)]);
+        const branch = worktree.branch ?? "";
+        const resolved = resolveSettings(
+          appCfg,
+          config.claudeDefaults,
+          config.worktreeOverrides?.[branch],
+        );
+        setResolvedArgs(buildClaudeArgs(resolved));
+      } catch {
+        // Config fetch failed — keep current args and still restart.
+      }
 
-    // Clear the stale resumeSessionId so the discovery effect can find the
-    // new session that the fresh Claude instance will create.
-    hasDiscoveredSession.current = false;
-    useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: undefined });
+      // Clear the stale resumeSessionId so the discovery effect can find the
+      // new session that the fresh Claude instance will create.
+      hasDiscoveredSession.current = false;
+      useTabStore.getState().updateTab(activeWorktreeId, tabId, { resumeSessionId: undefined });
+    }
 
     await sessionManager.closeSession(sessionKey);
     setReconnectKey((k) => k + 1);
-  }, [tabId, activeWorktreeId, worktree, sessionKey, repoPath]);
+  }, [tabId, activeWorktreeId, worktree, sessionKey, repoPath, tabType, tabCommand]);
 
   // Focus terminal when programmatically switched to (e.g. "Fix with agent")
   useEffect(() => {

@@ -145,7 +145,6 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     writeInFlight: false,
     disposed: false,
     restoredFromScrollback: false,
-    startupCommandSent: false,
     allowNextClearScrollback: false,
     lastHookAt: now - 5_000,
     lastHookDesc: "",

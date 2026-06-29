@@ -15,11 +15,6 @@ import { sessionManager } from "../services/sessionManager";
 import { lifecycleManager } from "../services/lifecycleManager";
 import type { RunScript, Session } from "../types";
 
-/** Single-quote a string for safe use in `sh -c '…'`. */
-function shellQuote(s: string): string {
-  return "'" + s.replace(/'/g, "'\\''") + "'";
-}
-
 /** Extract port number from a URL string (e.g. "http://localhost:3000" → 3000). */
 function extractPort(url: string): number | undefined {
   try {
@@ -296,6 +291,14 @@ export function useServer(activeWorktreeId: string | null) {
         return;
       }
 
+      // An empty/whitespace run command would spawn a bare shell with no server
+      // (the resolve-args path falls back to []), leaving a dead tab. Don't start.
+      const runCommand = runScript.command.replace(/\s+/g, " ").trim();
+      if (!runCommand) {
+        console.warn("[handleToggleServer] run command is empty — not starting server");
+        return;
+      }
+
       // Port claim happens here, on the explicit Start-server path, rather than
       // eagerly at session spawn — opening a worktree must never trigger the
       // picker. If a port is already persisted we skip; if the range is full
@@ -337,11 +340,15 @@ export function useServer(activeWorktreeId: string | null) {
 
       const tabId = lifecycleManager.addTab(activeWorktreeId, "server");
       if (tabId) {
-        // Prefix with `exec` so the shell is replaced by the server process.
-        // Without this, the shell stays alive after the server exits and
-        // heartbeats keep flowing — the stale-server cleanup never triggers.
+        // Store the raw run command. TerminalView spawns the server PTY directly
+        // as `$SHELL -i -c <command>` (see its resolve-args effect) rather than
+        // typing the command into an interactive shell — keystroke injection
+        // raced the shell's line-editor startup and intermittently dropped the
+        // leading character. `-i` still sources the user's rc file (PATH/nvm/etc.),
+        // so the command runs with the same environment as a normal terminal tab,
+        // and when it exits the PTY closes so the stale-server cleanup fires.
         useTabStore.getState().updateTab(activeWorktreeId, tabId, {
-          command: `exec sh -c ${shellQuote(runScript.command.replace(/\s+/g, " ").trim())}`,
+          command: runCommand,
         });
       }
 

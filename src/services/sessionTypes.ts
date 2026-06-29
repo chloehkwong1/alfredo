@@ -51,9 +51,6 @@ export interface ManagedSession {
   disposed: boolean;
   /** Whether this session was restored from saved scrollback (for auto-resume). */
   restoredFromScrollback: boolean;
-  /** True once a startup command has been written to this session's PTY.
-   *  Prevents StrictMode double-fire from executing the command twice. */
-  startupCommandSent: boolean;
   /** When true, the next ESC[3J in PTY output is passed through to xterm instead
    *  of being stripped. Set when the user explicitly sends /clear. */
   allowNextClearScrollback: boolean;

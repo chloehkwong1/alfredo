@@ -36,8 +36,6 @@ interface UsePtyOptions {
   args?: string[] | null;
   /** Increment to force the hook to re-run and re-wire the session. */
   reconnectKey?: number;
-  /** Command to write to stdin after the shell spawns (used by server tabs). */
-  startupCommand?: string;
   /** Session type hint passed to the Rust backend. */
   sessionType?: SessionType;
 }
@@ -73,7 +71,6 @@ export function usePty({
   mode = "claude",
   args,
   reconnectKey,
-  startupCommand,
   sessionType,
 }: UsePtyOptions): UsePtyReturn {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
@@ -87,13 +84,11 @@ export function usePty({
   const hasOutputRef = useRef(false);
   hasOutputRef.current = hasOutput;
 
-  // Use refs for args and startupCommand so they don't trigger re-attach cycles.
+  // Use a ref for args so it doesn't trigger re-attach cycles.
   // Track whether args have resolved (null → array) so the effect re-fires.
   const argsResolved = args !== null;
   const argsRef = useRef(args);
   argsRef.current = args;
-  const startupCommandRef = useRef(startupCommand);
-  startupCommandRef.current = startupCommand;
 
   useEffect(() => {
     // Wait for settings to resolve before spawning (args === null means still loading)
@@ -264,27 +259,6 @@ export function usePty({
       if (!typing) {
         term.focus();
       }
-
-      // Write startup command after shell produces its first output (prompt ready).
-      // Guard with startupCommandSent to prevent StrictMode double-fire.
-      if (startupCommandRef.current && session.sessionId && !session.startupCommandSent) {
-        session.startupCommandSent = true;
-        let startupAttempts = 0;
-        const waitForReady = setInterval(() => {
-          startupAttempts++;
-          const s = sessionRef.current;
-          if (s && s.lastOutputAt > 0) {
-            clearInterval(waitForReady);
-            const cmd = startupCommandRef.current + "\n";
-            const bytes = Array.from(new TextEncoder().encode(cmd));
-            writePty(s.sessionId, bytes).catch(console.error);
-          } else if (startupAttempts >= 50) {
-            clearInterval(waitForReady);
-            console.warn("[usePty] shell never produced output, skipping startup command");
-          }
-        }, 100);
-      }
-
     }
 
     attach().catch((err) => {
