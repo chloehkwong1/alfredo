@@ -12,7 +12,6 @@ import {
   Radio,
   Combine,
   NotebookPen,
-  SlidersHorizontal,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -37,6 +36,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "../ui/DropdownMenu";
 import {
   ContextMenu,
@@ -54,7 +54,7 @@ import { lifecycleManager } from "../../services/lifecycleManager";
 import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
 import { partitionPaneTabs } from "../../lib/paneTabLayout";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
@@ -609,24 +609,18 @@ function PaneTabBar({
             {agentMenuItems
               .filter((item) => availableAgents.includes(item.agentId))
               .map((item) => (
-                <Fragment key={item.type}>
-                  <DropdownMenuItem onSelect={() => handleAddTab(item.type)}>
-                    {item.icon} New {item.label} tab
-                  </DropdownMenuItem>
-                  {item.type === "claude" && (
-                    <DropdownMenuItem
-                      onSelect={() => lifecycleManager.addCustomLaunchTab(worktreeId, paneId)}
-                    >
-                      <SlidersHorizontal size={14} className="text-accent-primary" />
-                      Claude with custom command…
-                    </DropdownMenuItem>
-                  )}
-                </Fragment>
+                <DropdownMenuItem key={item.type} onSelect={() => handleAddTab(item.type)}>
+                  {item.icon} New {item.label} tab
+                </DropdownMenuItem>
               ))}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => handleAddTab("shell")}>
               <Terminal size={14} /> New terminal tab
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="font-normal">
+              Default Claude flags set in Settings
+            </DropdownMenuLabel>
           </DropdownMenuContent>
         </DropdownMenu>
 

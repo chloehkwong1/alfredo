@@ -42,15 +42,6 @@ class LifecycleManager {
   }
 
   /**
-   * Add a Claude tab in pending-launch state — TerminalView renders the
-   * launch overlay and gates the PTY spawn until the user confirms a command.
-   * Same pane-attach/activate flow as addTab. Returns the new tab's ID.
-   */
-  addCustomLaunchTab(worktreeId: string, paneId?: string): string | null {
-    return this.addTab(worktreeId, "claude", paneId, { pendingLaunch: true });
-  }
-
-  /**
    * Remove a tab: close its PTY session, remove from workspace store,
    * and remove from layout pane.
    */

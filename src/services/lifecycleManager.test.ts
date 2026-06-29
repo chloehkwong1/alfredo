@@ -133,35 +133,6 @@ describe("lifecycleManager", () => {
       );
     });
 
-    it("addCustomLaunchTab forwards { pendingLaunch: true } into a claude tab", () => {
-      const existingTab = { id: "tab-1", type: "claude" as const, label: "Claude" };
-      const newTab = { id: "tab-2", type: "claude" as const, label: "Claude" };
-
-      tabStoreState.tabs = { [worktreeId]: [existingTab] };
-      mockAddTab.mockImplementation(() => {
-        (tabStoreState.tabs as Record<string, unknown[]>)[worktreeId] = [
-          existingTab,
-          newTab,
-        ];
-      });
-      (layoutStoreState.activePaneId as Record<string, string>)[worktreeId] =
-        "pane-1";
-
-      const result = lifecycleManager.addCustomLaunchTab(worktreeId, "pane-1");
-
-      expect(result).toBe("tab-2");
-      // The pending-launch init must reach the store — it's what gates the PTY
-      // spawn and triggers the launch overlay.
-      expect(mockAddTab).toHaveBeenCalledWith(worktreeId, "claude", {
-        pendingLaunch: true,
-      });
-      expect(mockAddTabToPane).toHaveBeenCalledWith(
-        worktreeId,
-        "pane-1",
-        "tab-2",
-      );
-    });
-
     it("returns null when no new tab was created", () => {
       const tabs = [{ id: "tab-1", type: "claude" as const, label: "Claude" }];
       tabStoreState.tabs = { [worktreeId]: tabs };
