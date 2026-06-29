@@ -11,7 +11,6 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { sessionManager } from "../../services/sessionManager";
-import { lifecycleManager } from "../../services/lifecycleManager";
 import { writePty, getConfig, getAppConfig, findClaudeSession, listClaudeSessions, recordResumeSessionId, debugLog, dumpPtyBuffer } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
@@ -24,8 +23,6 @@ import {
   resolveSettings,
   buildClaudeArgs,
 } from "../../services/claudeSettingsResolver";
-import { parseLaunchFlags, formatPrefill } from "../../services/launchCommand";
-import { ClaudeLaunchOverlay } from "./ClaudeLaunchOverlay";
 import type { Annotation, SessionType, TabType } from "../../types";
 
 function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell"; sessionType: SessionType } {
@@ -91,24 +88,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     return tabs.find((t) => t.id === tabId)?.resumeSessionId;
   });
 
-  // A pending-launch tab shows the launch overlay and defers spawn until the
-  // user hits Launch; once finalized, launchCommand holds the flags to spawn
-  // with (instead of the resolved settings args + --resume).
-  const pendingLaunch = useTabStore((s) => {
-    if (!activeWorktreeId || !tabId) return false;
-    const tabs = s.tabs[activeWorktreeId] ?? [];
-    return tabs.find((t) => t.id === tabId)?.pendingLaunch ?? false;
-  });
-  const launchCommand = useTabStore((s) => {
-    if (!activeWorktreeId || !tabId) return undefined;
-    const tabs = s.tabs[activeWorktreeId] ?? [];
-    return tabs.find((t) => t.id === tabId)?.launchCommand;
-  });
-  const finalizeLaunch = useTabStore((s) => s.finalizeLaunch);
-  const setLastCustomCommand = useWorkspaceStore((s) => s.setLastCustomCommand);
-
   const [resolvedArgs, setResolvedArgs] = useState<string[] | null>(null);
-  const [prefill, setPrefill] = useState("");
 
   // Resolve settings when component mounts — must complete before PTY spawns.
   // Uses an aborted flag so stale .then() callbacks from superseded effect
@@ -133,62 +113,36 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }
     if (!repoPath) return;
     let aborted = false;
-    Promise.all([getAppConfig(), getConfig(repoPath)]).then(([appCfg, config]) => {
+    Promise.allSettled([getAppConfig(), getConfig(repoPath)]).then(([appRes, cfgRes]) => {
       if (aborted) return;
+      if (appRes.status === "rejected" || cfgRes.status === "rejected") {
+        console.error(
+          `[TerminalView] settings resolution failed for ${repoPath}:`,
+          appRes.status === "rejected" ? appRes.reason : (cfgRes as PromiseRejectedResult).reason,
+        );
+        useToastStore.getState().show({
+          message: "Couldn't load Claude settings — launching with defaults.",
+        });
+      }
+      const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
+      const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
       const branch = worktree?.branch ?? "";
       const resolved = resolveSettings(
         appCfg,
-        config.claudeDefaults,
-        config.worktreeOverrides?.[branch],
+        config?.claudeDefaults,
+        config?.worktreeOverrides?.[branch],
       );
-      // Pending launch: compute the overlay prefill (last custom command for
-      // this worktree, else the resolved default flags) and defer the spawn —
-      // resolvedArgs stays null until the user hits Launch. Read the last
-      // command via getState so it isn't an effect dependency: it's shared
-      // per-worktree and changes on every launch, which would otherwise
-      // re-fire this effect in sibling Claude tabs.
-      if (pendingLaunch) {
-        const lastCmd = activeWorktreeId
-          ? useWorkspaceStore.getState().lastCustomCommand[activeWorktreeId]
-          : undefined;
-        setPrefill(lastCmd ?? formatPrefill(buildClaudeArgs(resolved)));
-        return;
+      const args = buildClaudeArgs(resolved);
+      // Inject --resume for a RESTORED tab (first spawn only). De-dupe any
+      // --resume already present (extra flags may include one).
+      if (!hasSpawnedRef.current && claudeSessionId && !args.includes("--resume")) {
+        args.push("--resume", claudeSessionId);
       }
-
-      // Inject --resume for a RESTORED tab (first spawn only) so a restart
-      // continues the conversation. De-dupe any --resume already present (a
-      // custom launch command may include one), else claude gets two
-      // conflicting flags.
-      const finalize = (args: string[]) => {
-        if (!hasSpawnedRef.current && claudeSessionId && !args.includes("--resume")) {
-          args.push("--resume", claudeSessionId);
-        }
-        hasSpawnedRef.current = true;
-        setResolvedArgs(args);
-      };
-
-      // Finalized custom launch: spawn from the user's flags instead of the
-      // resolved-settings args. Use an explicit undefined check — an empty
-      // string is a valid bare `claude`.
-      if (launchCommand !== undefined) {
-        const parsed = parseLaunchFlags(launchCommand);
-        finalize(parsed.ok ? parsed.args : []);
-        return;
-      }
-
-      finalize(buildClaudeArgs(resolved));
-    }).catch((err) => {
-      if (aborted) return;
-      // Don't block the spawn on settings resolution: fall through with no
-      // CLI flags so the user can still get a working terminal — the most
-      // common cause is a malformed alfredo.json, which surfaces separately
-      // when the user opens Repository Settings.
-      console.error(`[TerminalView] settings resolution failed for ${repoPath}:`, err);
       hasSpawnedRef.current = true;
-      setResolvedArgs([]);
+      setResolvedArgs(args);
     });
     return () => { aborted = true; };
-  }, [repoPath, worktree?.branch, mode, claudeSessionId, pendingLaunch, launchCommand, activeWorktreeId, tabType, tabCommand]);
+  }, [repoPath, worktree?.branch, mode, claudeSessionId, tabType, tabCommand]);
 
   const [showSearch, setShowSearch] = useState(false);
 
@@ -318,22 +272,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       clearAnnotations(activeWorktreeId);
     }
   }, [activeWorktreeId, clearAnnotations]);
-
-  // Launch overlay: finalize the pending tab with the user's flags. Clearing
-  // pendingLaunch re-runs the resolve effect → resolvedArgs resolves → spawn.
-  const handleLaunch = useCallback((flags: string) => {
-    if (!activeWorktreeId || !tabId) return;
-    setLastCustomCommand(activeWorktreeId, flags);
-    finalizeLaunch(activeWorktreeId, tabId, flags);
-  }, [activeWorktreeId, tabId, finalizeLaunch, setLastCustomCommand]);
-
-  const handleLaunchCancel = useCallback(() => {
-    if (!activeWorktreeId || !tabId) return;
-    // Route through lifecycleManager so the tab is also removed from its pane
-    // layout — the raw tabStore.removeTab leaves an orphaned pane/active-tab
-    // slot pointing at the deleted tab.
-    void lifecycleManager.removeTab(activeWorktreeId, tabId);
-  }, [activeWorktreeId, tabId]);
 
   const handleRestartSession = useCallback(async () => {
     if (!tabId || !activeWorktreeId || !worktree || !repoPath) return;
@@ -673,14 +611,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
               Drop to paste file path
             </span>
           </div>
-        )}
-        {mode === "claude" && pendingLaunch && (
-          <ClaudeLaunchOverlay
-            key={prefill}
-            prefill={prefill}
-            onLaunch={handleLaunch}
-            onCancel={handleLaunchCancel}
-          />
         )}
       </div>
     </div>
