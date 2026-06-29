@@ -36,6 +36,35 @@ function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemin
   }
 }
 
+const SETTINGS_LOAD_ERROR_MSG = "Couldn't load Claude settings — launching with defaults.";
+
+/**
+ * Load both configs via allSettled, log + toast on any rejection (deduped),
+ * then resolve and build Claude launch args from whatever succeeded.
+ * Never throws — on total failure returns args built from all-null config.
+ */
+async function resolveLaunchArgs(repoPath: string, branch: string): Promise<string[]> {
+  const [appRes, cfgRes] = await Promise.allSettled([getAppConfig(), getConfig(repoPath)]);
+  if (appRes.status === "rejected" || cfgRes.status === "rejected") {
+    console.error(
+      `[TerminalView] settings resolution failed for ${repoPath}:`,
+      [appRes, cfgRes].filter((r) => r.status === "rejected").map((r) => (r as PromiseRejectedResult).reason),
+    );
+    const { toasts, show } = useToastStore.getState();
+    if (!toasts.some((t) => t.message === SETTINGS_LOAD_ERROR_MSG)) {
+      show({ message: SETTINGS_LOAD_ERROR_MSG });
+    }
+  }
+  const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
+  const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
+  const resolved = resolveSettings(
+    appCfg,
+    config?.claudeDefaults,
+    config?.worktreeOverrides?.[branch],
+  );
+  return buildClaudeArgs(resolved);
+}
+
 interface TerminalViewProps {
   /** The tab ID, used as the session key. */
   tabId?: string;
@@ -113,26 +142,8 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }
     if (!repoPath) return;
     let aborted = false;
-    Promise.allSettled([getAppConfig(), getConfig(repoPath)]).then(([appRes, cfgRes]) => {
+    resolveLaunchArgs(repoPath, worktree?.branch ?? "").then((args) => {
       if (aborted) return;
-      if (appRes.status === "rejected" || cfgRes.status === "rejected") {
-        console.error(
-          `[TerminalView] settings resolution failed for ${repoPath}:`,
-          appRes.status === "rejected" ? appRes.reason : (cfgRes as PromiseRejectedResult).reason,
-        );
-        useToastStore.getState().show({
-          message: "Couldn't load Claude settings — launching with defaults.",
-        });
-      }
-      const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
-      const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
-      const branch = worktree?.branch ?? "";
-      const resolved = resolveSettings(
-        appCfg,
-        config?.claudeDefaults,
-        config?.worktreeOverrides?.[branch],
-      );
-      const args = buildClaudeArgs(resolved);
       // Inject --resume for a RESTORED tab (first spawn only). De-dupe any
       // --resume already present (extra flags may include one).
       if (!hasSpawnedRef.current && claudeSessionId && !args.includes("--resume")) {
@@ -140,11 +151,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       }
       hasSpawnedRef.current = true;
       setResolvedArgs(args);
-    })
-    .catch((err) => {
-      if (aborted) return;
-      console.error(`[TerminalView] settings resolution threw for ${repoPath}:`, err);
-      setResolvedArgs([]);
     });
     return () => { aborted = true; };
   }, [repoPath, worktree?.branch, mode, claudeSessionId, tabType, tabCommand]);
@@ -289,18 +295,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       // Claude args, which the shell would mis-parse into a broken process.
       setResolvedArgs(tabCommand ? ["-i", "-c", tabCommand] : []);
     } else {
-      try {
-        const [appCfg, config] = await Promise.all([getAppConfig(), getConfig(repoPath)]);
-        const branch = worktree.branch ?? "";
-        const resolved = resolveSettings(
-          appCfg,
-          config.claudeDefaults,
-          config.worktreeOverrides?.[branch],
-        );
-        setResolvedArgs(buildClaudeArgs(resolved));
-      } catch {
-        // Config fetch failed — keep current args and still restart.
-      }
+      setResolvedArgs(await resolveLaunchArgs(repoPath, worktree.branch ?? ""));
 
       // Clear the stale resumeSessionId so the discovery effect can find the
       // new session that the fresh Claude instance will create.
