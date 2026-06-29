@@ -22,6 +22,10 @@ export function useChangesData(
   baseBranch?: string,
   mergeCommitSha?: string,
   skipCommitted?: boolean,
+  // Clamp default-branch drift out of the committed diff/commits. Set only when
+  // `baseBranch` is a user-selected stack parent (no PR); a PR base must be
+  // diffed verbatim. See get_diff/get_commits (clamp_drift) and clamp_to_main_fork.
+  clampDrift?: boolean,
 ): UseChangesDataReturn {
   const [uncommittedFiles, setUncommittedFiles] = useState<DiffFile[]>([]);
   const [committedFiles, setCommittedFiles] = useState<DiffFile[]>([]);
@@ -60,10 +64,10 @@ export function useChangesData(
     // Always use local git for commits and file diffs — local state is the source of truth.
     // PR metadata (comments, reviews, checks) is fetched separately via usePrStore.
     const fetchLocal = () => {
-      getDiff(repoPath, baseBranch, mergeCommitSha)
+      getDiff(repoPath, baseBranch, mergeCommitSha, clampDrift)
         .then((files) => { if (!cancelled) { setCommittedFiles(files); setError(null); } })
         .catch((err) => { if (!cancelled) setError(`Committed diff failed: ${err}`); });
-      getCommits(repoPath, baseBranch, mergeCommitSha)
+      getCommits(repoPath, baseBranch, mergeCommitSha, clampDrift)
         .then((branchList) => {
           if (cancelled) return;
           setCommits(branchList);
@@ -87,7 +91,7 @@ export function useChangesData(
     fetchLocal();
     const interval = setInterval(fetchLocal, 10_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [repoPath, baseBranch, mergeCommitSha, skipCommitted]);
+  }, [repoPath, baseBranch, mergeCommitSha, skipCommitted, clampDrift]);
 
   // Build combined commit list for index lookups
   const allCommits = useMemo(

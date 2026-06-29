@@ -35,6 +35,7 @@ pub fn resolve_diff_range(
     base_oid: Oid,
     head_oid: Oid,
     merge_commit_sha: Option<&str>,
+    main_oid: Option<Oid>,
 ) -> Result<DiffRange, AppError> {
     // HEAD has commits unique to itself — return (merge_base, head). A raw
     // base_oid here would make tree-to-tree diff misattribute upstream-only
@@ -46,7 +47,8 @@ pub fn resolve_diff_range(
         let mb = repo
             .merge_base(base_oid, head_oid)
             .map_err(|e| AppError::Git(format!("merge_base failed: {e}")))?;
-        return Ok(DiffRange { base: mb, head: head_oid });
+        let base = clamp_to_main_fork(repo, mb, head_oid, main_oid)?;
+        return Ok(DiffRange { base, head: head_oid });
     }
 
     // HEAD is contained in base. PR metadata wins when present: a rebase-merged
@@ -85,6 +87,49 @@ pub fn resolve_diff_range(
     // no PR metadata). Caller will see base==head and render an explicit
     // "branch fully contained in base" empty state.
     Ok(DiffRange { base: head_oid, head: head_oid })
+}
+
+/// Advance the diff base past default-branch drift for a stacked/sibling branch.
+///
+/// `mb` is `merge_base(base, head)`. When `head` is stacked on a *sibling* that
+/// forked from the default branch at an older point than `head` did, `mb` reaches
+/// back past where `head` itself forked from the default branch — so default-branch
+/// commits between the two fork points get miscounted as `head`'s own work. When
+/// the default-branch fork point (`merge_base(main, head)`) is strictly newer than
+/// `mb` (a descendant of it), use that instead.
+///
+/// Returns `mb` unchanged (no clamp) when:
+/// - `main_oid` is absent — non-stacked worktree, where the diff is already taken
+///   against the default branch, so there's nothing to clamp;
+/// - main shares no history with `head` (`merge_base` errors);
+/// - the two fork points are equal or incomparable (e.g. merge commits in `head`'s
+///   history), where "newer" is undefined;
+/// - `head` is fully contained in the default branch, where clamping would
+///   collapse the range to empty and erase the branch's work.
+fn clamp_to_main_fork(
+    repo: &Repository,
+    mb: Oid,
+    head: Oid,
+    main_oid: Option<Oid>,
+) -> Result<Oid, AppError> {
+    let Some(main_oid) = main_oid else { return Ok(mb) };
+    let mb_main = match repo.merge_base(main_oid, head) {
+        Ok(m) => m,
+        Err(_) => return Ok(mb),
+    };
+    // `mb_main == head` means HEAD is fully contained in the default branch
+    // (already landed): clamping there would collapse the range to empty and
+    // erase the branch's work, so decline and keep the stack-parent merge-base.
+    // The `graph_descendant_of` check fails safe to the unclamped `mb` on error,
+    // mirroring the `merge_base` arm above (corrupt-repo robustness).
+    if mb_main != mb
+        && mb_main != head
+        && repo.graph_descendant_of(mb_main, mb).unwrap_or(false)
+    {
+        Ok(mb_main)
+    } else {
+        Ok(mb)
+    }
 }
 
 /// True iff `head` is reachable from `base` by following first parents.
@@ -198,13 +243,29 @@ mod tests {
         repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parent_refs).unwrap()
     }
 
+    /// Commit on top of an explicit parent (or as a root when `parent` is None),
+    /// without moving any ref. Only the commit graph matters for range
+    /// resolution, so the unique `content` per call just keeps oids distinct.
+    fn commit_on(repo: &Repository, parent: Option<Oid>, content: &str, msg: &str) -> Oid {
+        let dir = repo.workdir().unwrap();
+        std::fs::write(dir.join("f"), content).unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("f")).unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let sig = repo.signature().unwrap();
+        let parents: Vec<git2::Commit> =
+            parent.map(|p| vec![repo.find_commit(p).unwrap()]).unwrap_or_default();
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+        repo.commit(None, &sig, &sig, msg, &tree, &parent_refs).unwrap()
+    }
+
     #[test]
     fn returns_merge_base_when_head_is_ahead_of_base() {
         let (_dir, repo) = init_repo();
         let base = commit_file(&repo, "a", "1", "init");
         let head = commit_file(&repo, "a", "2", "feature work");
 
-        let range = resolve_diff_range(&repo, base, head, None).unwrap();
+        let range = resolve_diff_range(&repo, base, head, None, None).unwrap();
 
         // base is itself the fork point here (head's parent), so merge_base == base.
         assert_eq!(range.base, base);
@@ -245,7 +306,7 @@ mod tests {
                 .unwrap();
         }
 
-        let range = resolve_diff_range(&repo, upstream_tip, head, None).unwrap();
+        let range = resolve_diff_range(&repo, upstream_tip, head, None, None).unwrap();
 
         assert_eq!(range.base, fork, "base must be the fork point, not origin/main tip");
         assert_eq!(range.head, head);
@@ -290,7 +351,7 @@ mod tests {
         // base_oid = main_tip; head_oid = branch_tip (ancestor of main_tip).
         let range = resolve_diff_range(
             &repo, main_tip, branch_tip,
-            Some(&merge_commit.to_string()),
+            Some(&merge_commit.to_string()), None,
         ).unwrap();
 
         // Want: base = merge_commit^1 (the fork point on main), head = merge_commit (or branch_tip).
@@ -321,7 +382,7 @@ mod tests {
         ).unwrap();
 
         // No merge_commit_sha provided — must discover via ancestry-path walk.
-        let range = resolve_diff_range(&repo, main_tip, branch_tip, None).unwrap();
+        let range = resolve_diff_range(&repo, main_tip, branch_tip, None, None).unwrap();
 
         assert_eq!(range.base, fork);
         assert_eq!(range.head, merge_commit);
@@ -342,7 +403,7 @@ mod tests {
             &[&repo.find_commit(head).unwrap()],
         ).unwrap();
 
-        let range = resolve_diff_range(&repo, main_tip, head, None).unwrap();
+        let range = resolve_diff_range(&repo, main_tip, head, None, None).unwrap();
 
         // Caller sees base == head → renders empty state.
         assert_eq!(range.base, range.head);
@@ -397,7 +458,7 @@ mod tests {
             )
             .unwrap();
 
-        let range = resolve_diff_range(&repo, main_tip, head, None).unwrap();
+        let range = resolve_diff_range(&repo, main_tip, head, None, None).unwrap();
 
         // HEAD has no commits of its own — the unrelated PR's merge must not
         // be misattributed to it. Range collapses to (head, head).
@@ -435,9 +496,135 @@ mod tests {
             .unwrap();
 
         // Worktree HEAD = the rebased commit on main's first-parent trunk.
-        let range = resolve_diff_range(&repo, main_tip, merged, Some(&merged.to_string())).unwrap();
+        let range = resolve_diff_range(&repo, main_tip, merged, Some(&merged.to_string()), None).unwrap();
 
         assert_eq!(range.base, fork, "base should be merge_commit^1 (fork point)");
         assert_eq!(range.head, merged, "head should be the named merge commit");
+    }
+
+    #[test]
+    fn clamps_to_main_fork_for_sibling_stacked_branch() {
+        // PRO-5615 topology: base (stack parent) and head are siblings — both
+        // forked from the default branch, but at *different* points. head forked
+        // from a newer main commit than base did, so merge_base(base, head) is an
+        // old common ancestor. Without clamping, every default-branch commit
+        // between the two fork points gets counted as head's work.
+        let (_dir, repo) = init_repo();
+        let m0 = commit_on(&repo, None, "m0", "m0");
+        let m1 = commit_on(&repo, Some(m0), "m1", "m1");
+        let m2 = commit_on(&repo, Some(m1), "m2", "m2");
+        let m3 = commit_on(&repo, Some(m2), "m3", "m3"); // default-branch tip
+
+        // base (stack parent): forks off the old m0.
+        let b1 = commit_on(&repo, Some(m0), "b1", "b1");
+        let base = commit_on(&repo, Some(b1), "b2", "b2");
+
+        // head (our branch): forks off the newer m2.
+        let h1 = commit_on(&repo, Some(m2), "h1", "h1");
+        let head = commit_on(&repo, Some(h1), "h2", "h2");
+
+        // Sanity: the un-clamped merge-base is the old m0.
+        assert_eq!(repo.merge_base(base, head).unwrap(), m0);
+
+        let range = resolve_diff_range(&repo, base, head, None, Some(m3)).unwrap();
+
+        assert_eq!(
+            range.base, m2,
+            "base must clamp to where head forked from main (m2), not the old merge-base m0",
+        );
+        assert_eq!(range.head, head);
+
+        // Unique-to-head is exactly head's own two commits — no main drift.
+        let mut walk = repo.revwalk().unwrap();
+        walk.push(head).unwrap();
+        walk.hide(range.base).unwrap();
+        let unique: Vec<_> = walk.map(|o| o.unwrap()).collect();
+        assert_eq!(unique.len(), 2, "only h1+h2 should be unique to head");
+        assert!(unique.contains(&h1));
+        assert!(!unique.contains(&m1), "main drift m1 must not be attributed to head");
+        assert!(!unique.contains(&m2), "main drift m2 must not be attributed to head");
+    }
+
+    #[test]
+    fn does_not_clamp_proper_stack_descended_from_base() {
+        // A real stack: head descends from base, which descends from main. The
+        // merge-base with base is already base's tip, so the clamp must be a
+        // no-op — clamping to the main fork would wrongly drop base's commits.
+        let (_dir, repo) = init_repo();
+        let main_tip = commit_on(&repo, None, "m0", "m0");
+        let b1 = commit_on(&repo, Some(main_tip), "b1", "b1");
+        let base = commit_on(&repo, Some(b1), "b2", "b2");
+        let head = commit_on(&repo, Some(base), "h1", "h1");
+
+        let range = resolve_diff_range(&repo, base, head, None, Some(main_tip)).unwrap();
+
+        assert_eq!(range.base, base, "proper stack must diff against base's tip");
+        assert_eq!(range.head, head);
+    }
+
+    #[test]
+    fn does_not_clamp_when_main_oid_absent() {
+        // Same sibling topology, but no main oid supplied → behaviour is the
+        // pre-clamp merge-base (proves the clamp is gated on main_oid).
+        let (_dir, repo) = init_repo();
+        let m0 = commit_on(&repo, None, "m0", "m0");
+        let m1 = commit_on(&repo, Some(m0), "m1", "m1");
+        let m2 = commit_on(&repo, Some(m1), "m2", "m2");
+        let b1 = commit_on(&repo, Some(m0), "b1", "b1");
+        let base = commit_on(&repo, Some(b1), "b2", "b2");
+        let h1 = commit_on(&repo, Some(m2), "h1", "h1");
+        let head = commit_on(&repo, Some(h1), "h2", "h2");
+
+        let range = resolve_diff_range(&repo, base, head, None, None).unwrap();
+
+        assert_eq!(range.base, m0, "without main_oid the base stays the raw merge-base");
+        assert_eq!(range.head, head);
+    }
+
+    #[test]
+    fn does_not_clamp_to_empty_when_head_already_merged_into_main() {
+        // A stacked worktree whose branch has already landed on the default
+        // branch (HEAD is fully contained in main), while its sibling stack
+        // parent has not caught up. merge_base(main, head) == head, so clamping
+        // would collapse the range to (head, head) and erase the branch's work
+        // from the panel/badge. The clamp must decline and keep the stack-parent
+        // merge-base so the user still sees HEAD's commits.
+        let (_dir, repo) = init_repo();
+        let m0 = commit_on(&repo, None, "m0", "m0");
+
+        // head's own work off m0.
+        let h1 = commit_on(&repo, Some(m0), "h1", "h1");
+        let head = commit_on(&repo, Some(h1), "h2", "h2");
+
+        // main advances past head (head is now an ancestor of main_tip).
+        let main_tip = commit_on(&repo, Some(head), "m-after", "main past head");
+
+        // stack parent: a sibling off m0 that has not absorbed head.
+        let base = commit_on(&repo, Some(m0), "b1", "b1");
+
+        // Sanity: head is contained in main, so its main fork point is head itself.
+        assert_eq!(repo.merge_base(main_tip, head).unwrap(), head);
+
+        let range = resolve_diff_range(&repo, base, head, None, Some(main_tip)).unwrap();
+
+        assert_ne!(range.base, range.head, "clamp must not collapse a real range to empty");
+        assert_eq!(range.base, m0, "should keep the stack-parent merge-base, not clamp to head");
+        assert_eq!(range.head, head);
+    }
+
+    #[test]
+    fn does_not_clamp_when_main_shares_no_history_with_head() {
+        // main_oid points at a disconnected root (no merge-base with head). The
+        // clamp must fail safe to the original merge-base, not error.
+        let (_dir, repo) = init_repo();
+        let unrelated_main = commit_on(&repo, None, "main-root", "unrelated main");
+        let shared = commit_on(&repo, None, "shared-root", "shared root");
+        let base = commit_on(&repo, Some(shared), "b1", "b1");
+        let head = commit_on(&repo, Some(shared), "h1", "h1");
+
+        let range = resolve_diff_range(&repo, base, head, None, Some(unrelated_main)).unwrap();
+
+        assert_eq!(range.base, shared, "no shared history with main → keep merge-base");
+        assert_eq!(range.head, head);
     }
 }

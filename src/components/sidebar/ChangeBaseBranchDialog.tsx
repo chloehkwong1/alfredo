@@ -8,7 +8,7 @@ import {
   DialogDescription,
 } from "../ui/Dialog";
 import { Input } from "../ui/Input";
-import { listBranches, setStackParent, getDefaultBranch, getCommitsBehindMain } from "../../api";
+import { listBranches, setStackParent, getDefaultBranch, getCommitsBehindMain, getWorktreeDiffStats } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { Worktree } from "../../types";
 
@@ -126,6 +126,22 @@ function ChangeBaseBranchDialog({ open, onOpenChange, worktree }: ChangeBaseBran
             });
           })
           .catch((e) => console.warn("[change-base] commits-behind probe failed:", e));
+      }
+
+      // Re-scope the +/- diff badge to the new base now, instead of waiting for
+      // the next agent busy→idle transition. Fire on any real parent change
+      // (including clearing back to the default branch). Skip when a PR exists —
+      // that badge is driven by the GitHub PR diff (getPrFiles in usePty), which
+      // the local stack parent must not override.
+      if (nextParent !== prevParent && !worktree.prStatus?.number) {
+        getWorktreeDiffStats(worktree.path, nextParent)
+          .then(([additions, deletions]) => {
+            // Drop a stale response if the parent changed again meanwhile.
+            const current = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktree.id);
+            if (current?.stackParent !== nextParent) return;
+            useWorkspaceStore.getState().updateWorktree(worktree.id, { additions, deletions });
+          })
+          .catch((e) => console.warn("[change-base] diff-stats refresh failed:", e));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

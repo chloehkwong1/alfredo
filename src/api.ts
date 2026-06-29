@@ -382,11 +382,13 @@ export function getDiff(
   repoPath: string,
   defaultBranch?: string,
   mergeCommitSha?: string,
+  clampDrift?: boolean,
 ): Promise<DiffFile[]> {
   return invoke<DiffFile[]>("get_diff", {
     repoPath,
     defaultBranch,
     mergeCommitSha,
+    clampDrift,
   });
 }
 
@@ -420,11 +422,13 @@ export function getCommits(
   repoPath: string,
   defaultBranch?: string,
   mergeCommitSha?: string,
+  clampDrift?: boolean,
 ): Promise<CommitInfo[]> {
   return invoke<CommitInfo[]>("get_commits", {
     repoPath,
     defaultBranch,
     mergeCommitSha,
+    clampDrift,
   });
 }
 

@@ -364,6 +364,7 @@ function WorkspacePanel({
     effectiveBaseBranch,
     pr?.mergeCommitSha ?? undefined,
     isBranchModeDefault,
+    /* clampDrift */ !pr,
   );
 
   const gitUser = useGitUser(repoPath);
@@ -681,6 +682,7 @@ function WorkspacePanelMinimized({
     minimizedBaseBranch,
     pr?.mergeCommitSha ?? undefined,
     isBranchModeDefault,
+    /* clampDrift */ !pr,
   );
 
   const fileCount = uncommittedFiles.length + committedFiles.length;

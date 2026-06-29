@@ -902,7 +902,7 @@ pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result
     let mut additions = 0u32;
     let mut deletions = 0u32;
 
-    let (a, d) = shortstat_for_range(worktree_path, &diff_base, None);
+    let (a, d) = shortstat_for_range(worktree_path, &diff_base, None, stack_parent);
     additions = additions.saturating_add(a);
     deletions = deletions.saturating_add(d);
 
@@ -1004,6 +1004,7 @@ fn shortstat_for_range(
     worktree_path: &str,
     diff_base: &str,
     merge_commit_sha: Option<&str>,
+    stack_parent: Option<&str>,
 ) -> (u32, u32) {
     use git2::Repository;
 
@@ -1025,8 +1026,9 @@ fn shortstat_for_range(
             })?;
         let head_oid = repo.head().ok()?.target()?;
 
+        let main_oid = crate::commands::diff::stack_clamp_oid(&repo, stack_parent);
         let range = crate::commands::diff_range::resolve_diff_range(
-            &repo, base_oid, head_oid, merge_commit_sha,
+            &repo, base_oid, head_oid, merge_commit_sha, main_oid,
         )
         .ok()?;
 

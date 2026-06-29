@@ -77,7 +77,7 @@ fn open_repo(repo_path: &str) -> Result<Repository> {
 /// Prefers remote tracking branches (`origin/main`) over local branches because
 /// local `main` can be stale (not pulled recently), causing diffs and commit
 /// lists to include other people's commits that landed on main since the last pull.
-fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Result<git2::Oid> {
+pub(crate) fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Result<git2::Oid> {
     // When an explicit name is provided, try it directly.
     if let Some(name) = default_branch {
         let remote_ref = format!("refs/remotes/origin/{name}");
@@ -121,6 +121,22 @@ fn resolve_default_branch(repo: &Repository, default_branch: Option<&str>) -> Re
     Err(AppError::Git(
         "could not resolve default branch (tried origin/HEAD, main, develop, master)".into(),
     ))
+}
+
+/// The default-branch tip to clamp a stacked diff against, for `resolve_diff_range`.
+///
+/// Returns `Some(default_tip)` only when an explicit base branch (a stack
+/// parent) is set — that's the case where the diff base could reach back past
+/// where HEAD forked from the default branch and wrongly count default-branch
+/// drift as this branch's work. For a non-stacked worktree (`base_branch` is
+/// `None`, so the diff is already taken against the default branch) it returns
+/// `None`, which makes the clamp a guaranteed no-op.
+pub(crate) fn stack_clamp_oid(repo: &Repository, base_branch: Option<&str>) -> Option<git2::Oid> {
+    if base_branch.is_some() {
+        resolve_default_branch(repo, None).ok()
+    } else {
+        None
+    }
 }
 
 fn delta_to_status(delta: Delta) -> &'static str {
@@ -378,6 +394,7 @@ pub async fn get_diff(
     repo_path: String,
     default_branch: Option<String>,
     merge_commit_sha: Option<String>,
+    clamp_drift: Option<bool>,
 ) -> Result<Vec<DiffFile>> {
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
@@ -390,8 +407,17 @@ pub async fn get_diff(
             .target()
             .ok_or_else(|| AppError::Git("HEAD has no target".into()))?;
 
+        // Only clamp default-branch drift when the base is a user-selected stack
+        // parent (clamp_drift). When a PR exists the base is GitHub's PR base,
+        // which must be diffed verbatim to match the PR, so the caller passes
+        // clamp_drift = false.
+        let main_oid = if clamp_drift.unwrap_or(false) {
+            stack_clamp_oid(&repo, default_branch.as_deref())
+        } else {
+            None
+        };
         let range = crate::commands::diff_range::resolve_diff_range(
-            &repo, default_oid, head_oid, merge_commit_sha.as_deref(),
+            &repo, default_oid, head_oid, merge_commit_sha.as_deref(), main_oid,
         )?;
 
         // Empty-range short-circuit (branch fully contained, no merge found).
@@ -721,6 +747,7 @@ pub async fn get_commits(
     repo_path: String,
     default_branch: Option<String>,
     merge_commit_sha: Option<String>,
+    clamp_drift: Option<bool>,
 ) -> Result<Vec<CommitInfo>> {
     tokio::task::spawn_blocking(move || {
         let repo = open_repo(&repo_path)?;
@@ -733,8 +760,15 @@ pub async fn get_commits(
             .target()
             .ok_or_else(|| AppError::Git("HEAD has no target".into()))?;
 
+        // See get_diff: clamp default-branch drift only for a user-selected
+        // stack parent, never for a PR base.
+        let main_oid = if clamp_drift.unwrap_or(false) {
+            stack_clamp_oid(&repo, default_branch.as_deref())
+        } else {
+            None
+        };
         let range = crate::commands::diff_range::resolve_diff_range(
-            &repo, default_oid, head_oid, merge_commit_sha.as_deref(),
+            &repo, default_oid, head_oid, merge_commit_sha.as_deref(), main_oid,
         )?;
 
         if range.base == range.head {
