@@ -1,0 +1,27 @@
+src/components/settings/AgentSettings.tsx
+  s_3306ce9c86f6a8::t_0cfc941364725f 5,46,213-214,224-225
+src/components/settings/GlobalSettingsDialog.tsx
+  s_3306ce9c86f6a8::t_6713d64874153f 16,278
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_3306ce9c86f6a8::t_529a9312c73741 35,660,860-861,871
+src/services/launchCommand.test.ts
+  s_3306ce9c86f6a8::t_825e0660446914 2,41-70
+src/services/launchCommand.ts
+  s_3306ce9c86f6a8::t_4deebb048c59c7 80-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "a356f63bf17a787260222c1728d3c07e6c91b3ad",
+  "prompts": {},
+  "sessions": {
+    "s_3306ce9c86f6a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aeac31942b0cbca68",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
