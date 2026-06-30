@@ -13,7 +13,7 @@ import { NotificationSettings } from "./NotificationSettings";
 import { DEFAULT_NOTIFICATION_CONFIG } from "./notificationConfig";
 import { TerminalSettings } from "./TerminalSettings";
 import { ThemeSelector } from "./ThemeSelector";
-import { parseLaunchFlags } from "../../services/launchCommand";
+import { flagsError } from "../../services/launchCommand";
 
 type GlobalTab =
   | "general"
@@ -275,7 +275,7 @@ function GlobalSettingsDialog({
 
   if (!appConfig || !repoConfig) return null;
 
-  const extraFlagsValid = parseLaunchFlags(appConfig.extraFlags ?? "").ok;
+  const extraFlagsValid = flagsError(appConfig.extraFlags) == null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

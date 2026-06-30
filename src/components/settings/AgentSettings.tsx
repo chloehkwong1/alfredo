@@ -2,7 +2,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useClaudeModels, useEffortOptions, usePermissionModes } from "../../services/modelCatalog";
 import { useOutputStyles } from "../../hooks/useOutputStyles";
 import type { ClaudeDefaults, TabType } from "../../types";
-import { parseLaunchFlags } from "../../services/launchCommand";
+import { flagsError } from "../../services/launchCommand";
 
 const selectClass = [
   "h-8 w-full px-3 text-[13px] font-normal",
@@ -43,8 +43,7 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
 
   const permissionValue = settings.permissionMode ?? "default";
 
-  const extraFlagsResult = parseLaunchFlags(settings.extraFlags ?? "");
-  const extraFlagsError = extraFlagsResult.ok ? null : extraFlagsResult.error;
+  const extraFlagsError = flagsError(settings.extraFlags);
 
   return (
     <div>
@@ -211,6 +210,8 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
           value={settings.extraFlags ?? ""}
           onChange={(e) => update({ extraFlags: e.target.value || undefined })}
           placeholder="e.g. --mcp-config ./mcp.json"
+          aria-invalid={extraFlagsError != null}
+          aria-describedby="agent-extra-flags-desc"
           className={[
             "h-8 w-full px-3 text-[13px] font-mono",
             "bg-bg-primary text-text-primary",
@@ -220,8 +221,8 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
             "transition-all duration-[var(--transition-fast)]",
           ].join(" ")}
         />
-        <p className={["text-xs mt-[5px]", extraFlagsError ? "text-red-500" : "text-text-tertiary"].join(" ")}>
-          {extraFlagsError ?? "Passed to every new Claude tab — e.g. --mcp-config ./mcp.json."}
+        <p id="agent-extra-flags-desc" className={["text-xs mt-[5px]", extraFlagsError ? "text-red-500" : "text-text-tertiary"].join(" ")}>
+          {extraFlagsError ?? "Passed to every new Claude tab; overrides matching structured flags (e.g. --model). Example: --mcp-config ./mcp.json."}
         </p>
       </div>
 

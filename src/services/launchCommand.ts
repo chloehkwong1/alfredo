@@ -77,3 +77,9 @@ export function parseLaunchFlags(input: string): ParseResult {
 
   return { ok: true, args };
 }
+
+/** Parse error for a launch-flags string, or null if it is valid (empty is valid). */
+export function flagsError(input: string | null | undefined): string | null {
+  const result = parseLaunchFlags(input ?? "");
+  return result.ok ? null : result.error;
+}

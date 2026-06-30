@@ -32,7 +32,7 @@ import { useAppConfigStore } from "../../stores/appConfigStore";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { useRepoConfig } from "../../hooks/useRepoConfig";
 import { openPathInEditor } from "../../services/openExternal";
-import { parseLaunchFlags } from "../../services/launchCommand";
+import { flagsError } from "../../services/launchCommand";
 import { Button } from "../ui/Button";
 import { Dialog, DialogContent } from "../ui/Dialog";
 import { RepoDropdown } from "../ui/RepoDropdown";
@@ -657,8 +657,7 @@ function WorkspaceSettingsDialog({
       ? Number(setupConfigured) + Number(runConfigured) + Number(archiveConfigured)
       : Number(runConfigured);
 
-  const repoExtraFlagsResult = parseLaunchFlags(config.claudeDefaults?.extraFlags ?? "");
-  const repoExtraFlagsError = repoExtraFlagsResult.ok ? null : repoExtraFlagsResult.error;
+  const repoExtraFlagsError = flagsError(config.claudeDefaults?.extraFlags);
 
   const tabs: TabSpec[] = [
     { id: "general", label: "General" },
@@ -858,6 +857,8 @@ function WorkspaceSettingsDialog({
                     ].join(" ")}
                     placeholder="e.g. --mcp-config ./mcp.json"
                     value={config.claudeDefaults?.extraFlags ?? ""}
+                    aria-invalid={repoExtraFlagsError != null}
+                    aria-describedby="repo-extra-flags-desc"
                     onChange={(e) =>
                       updateConfig({
                         claudeDefaults: {
@@ -867,7 +868,7 @@ function WorkspaceSettingsDialog({
                       })
                     }
                   />
-                  <p className={["text-xs mt-[5px]", repoExtraFlagsError ? "text-red-500" : "text-text-tertiary"].join(" ")}>
+                  <p id="repo-extra-flags-desc" className={["text-xs mt-[5px]", repoExtraFlagsError ? "text-red-500" : "text-text-tertiary"].join(" ")}>
                     {repoExtraFlagsError ?? "Extra flags for new Claude tabs in this repo. Overrides the global default."}
                   </p>
                 </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseLaunchFlags } from "./launchCommand";
+import { flagsError, parseLaunchFlags } from "./launchCommand";
 
 describe("parseLaunchFlags", () => {
   it("splits plain flags on whitespace", () => {
@@ -36,5 +36,35 @@ describe("parseLaunchFlags", () => {
 
   it("treats whitespace-only input as a valid bare launch", () => {
     expect(parseLaunchFlags("   \t  ")).toEqual({ ok: true, args: [] });
+  });
+});
+
+describe("flagsError", () => {
+  it("returns null for valid flags", () => {
+    expect(flagsError("--continue --chrome")).toBeNull();
+  });
+
+  it("returns null for empty string", () => {
+    expect(flagsError("")).toBeNull();
+  });
+
+  it("returns null for undefined", () => {
+    expect(flagsError(undefined)).toBeNull();
+  });
+
+  it("returns null for null", () => {
+    expect(flagsError(null)).toBeNull();
+  });
+
+  it("returns the error string for an unbalanced double quote", () => {
+    expect(flagsError('--append-system-prompt "be terse')).toBe(
+      'Unbalanced quote — close the " to launch.',
+    );
+  });
+
+  it("returns the error string for an unbalanced single quote", () => {
+    expect(flagsError("--settings 'foo")).toBe(
+      "Unbalanced quote — close the ' to launch.",
+    );
   });
 });
