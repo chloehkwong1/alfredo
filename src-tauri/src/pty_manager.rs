@@ -287,6 +287,22 @@ impl PtyManager {
         cmd.args(&args);
         cmd.cwd(&worktree_path);
 
+        // Strip any "running inside an outer Claude Code session" markers we may
+        // have inherited. Alfredo can pick these up when it is itself launched
+        // from within a Claude Code shell (e.g. an agent rebuilds Alfredo and
+        // relaunches it via `open`, leaking CLAUDECODE / CLAUDE_CODE_SESSION_ID /
+        // CLAUDE_CODE_CHILD_SESSION into our process env). Passing them through
+        // makes every agent we spawn believe it is a nested *child* session, so
+        // it never writes a resumable transcript to ~/.claude/projects — silently
+        // losing the user's conversation history. Remove them so each spawned
+        // agent starts as a clean top-level session regardless of how Alfredo
+        // was launched.
+        for (key, _) in std::env::vars() {
+            if is_leaked_outer_session_var(&key) {
+                cmd.env_remove(&key);
+            }
+        }
+
         // GUI apps on macOS don't inherit the user's shell PATH, so CLI tools
         // like `claude`, `codex`, `aider` won't be found. Use the same
         // augmented PATH that git/gh commands use.
@@ -1472,6 +1488,18 @@ fn is_alfredo_session_pid(pid: i32) -> bool {
     is_alfredo_session_comm(comm)
 }
 
+/// True for an env var key that marks a process as running *inside* an outer
+/// Claude Code session. We strip these from agents we spawn (see `spawn`) so a
+/// spawned agent never mistakes itself for a nested child session — which would
+/// stop it persisting a resumable transcript. The `CLAUDE_CODE_` prefix covers
+/// the session-id / child-session / entrypoint / execpath markers (and any
+/// future ones); `CLAUDECODE` is the bare in-session flag; `CLAUDE_MEM_WORKER_PORT`
+/// points memsearch at the outer session's worker. `CLAUDE_API_KEY` and other
+/// non-`CLAUDE_CODE_` vars are deliberately preserved.
+fn is_leaked_outer_session_var(key: &str) -> bool {
+    key.starts_with("CLAUDE_CODE_") || key == "CLAUDECODE" || key == "CLAUDE_MEM_WORKER_PORT"
+}
+
 /// True if the given `ps -o comm=` result is a shell itself (so we should
 /// treat it as "no foreground process"). Handles login-shell prefix `-`
 /// and absolute paths like `/bin/zsh`.
@@ -1584,6 +1612,25 @@ fn is_alfredo_hook_entry(entry: &serde_json::Value) -> bool {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strips_outer_claude_session_markers_only() {
+        // Inherited "inside an outer Claude session" markers — must be stripped
+        // so spawned agents don't behave as nested child sessions.
+        assert!(is_leaked_outer_session_var("CLAUDECODE"));
+        assert!(is_leaked_outer_session_var("CLAUDE_CODE_SESSION_ID"));
+        assert!(is_leaked_outer_session_var("CLAUDE_CODE_CHILD_SESSION"));
+        assert!(is_leaked_outer_session_var("CLAUDE_CODE_ENTRYPOINT"));
+        assert!(is_leaked_outer_session_var("CLAUDE_CODE_EXECPATH"));
+        assert!(is_leaked_outer_session_var("CLAUDE_MEM_WORKER_PORT"));
+
+        // Must be preserved: Alfredo's own vars, user credentials, generic env.
+        assert!(!is_leaked_outer_session_var("ALFREDO_SESSION_ID"));
+        assert!(!is_leaked_outer_session_var("CLAUDE_API_KEY"));
+        assert!(!is_leaked_outer_session_var("ANTHROPIC_API_KEY"));
+        assert!(!is_leaked_outer_session_var("PATH"));
+        assert!(!is_leaked_outer_session_var("HOME"));
+    }
 
     /// Verify that the manager can spawn, list, and close a simple session.
     #[test]
