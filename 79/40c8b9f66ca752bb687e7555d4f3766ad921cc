@@ -1,0 +1,21 @@
+src-tauri/src/pty_manager.rs
+  s_c12a4027d87e3c::t_1e94f45d1aaf8a 290-305
+  s_c12a4027d87e3c::t_821898dd6bcaa5 1616-1634
+  s_c12a4027d87e3c::t_fc9456e63ef05a 1491-1502
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "7940c8b9f66ca752bb687e7555d4f3766ad921cc",
+  "prompts": {},
+  "sessions": {
+    "s_c12a4027d87e3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f310843-44cd-49b6-9e3a-8e800879ee99",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
