@@ -35,6 +35,27 @@ export function resolveSettings(
 }
 
 /**
+ * Reconcile a restored tab's own session with any session-selection flag the
+ * user put in extra flags: strip `--resume`/`--resume=<id>`/`--continue` (the
+ * tab's own session must win on restore), then append `--resume <sessionId>`.
+ *
+ * Only call this on the restored-tab path (when `claudeSessionId` is set).
+ * For non-restored tabs, leave extra flags untouched.
+ */
+export function withResumeSession(args: string[], sessionId: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--resume") { i++; continue; }       // skip flag AND its value token
+    if (a.startsWith("--resume=")) continue;         // single-token equals form
+    if (a === "--continue") continue;
+    out.push(a);
+  }
+  out.push("--resume", sessionId);
+  return out;
+}
+
+/**
  * Convert resolved settings to an array of CLI flags for claude.
  */
 export function buildClaudeArgs(settings: ResolvedClaudeSettings): string[] {

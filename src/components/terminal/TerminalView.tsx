@@ -22,6 +22,7 @@ import { TerminalLoadingScreen } from "./TerminalLoadingScreen";
 import {
   resolveSettings,
   buildClaudeArgs,
+  withResumeSession,
 } from "../../services/claudeSettingsResolver";
 import type { Annotation, SessionType, TabType } from "../../types";
 
@@ -144,13 +145,15 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     let aborted = false;
     resolveLaunchArgs(repoPath, worktree?.branch ?? "").then((args) => {
       if (aborted) return;
-      // Inject --resume for a RESTORED tab (first spawn only). De-dupe any
-      // --resume already present (extra flags may include one).
-      if (!hasSpawnedRef.current && claudeSessionId && !args.includes("--resume")) {
-        args.push("--resume", claudeSessionId);
+      // On a RESTORED tab (first spawn only): strip any --resume/--resume=<id>/
+      // --continue from extra flags so the tab's own session deterministically
+      // wins, then inject --resume <claudeSessionId>.
+      let finalArgs = args;
+      if (!hasSpawnedRef.current && claudeSessionId) {
+        finalArgs = withResumeSession(args, claudeSessionId);
       }
       hasSpawnedRef.current = true;
-      setResolvedArgs(args);
+      setResolvedArgs(finalArgs);
     });
     return () => { aborted = true; };
   }, [repoPath, worktree?.branch, mode, claudeSessionId, tabType, tabCommand]);
