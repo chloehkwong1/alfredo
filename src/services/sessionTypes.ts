@@ -9,6 +9,22 @@ export const OUTPUT_BUFFER_CAPACITY = 50_000;
 
 export interface ManagedSession {
   sessionId: string;
+  /** The worktree this session belongs to (`${repoPath}::${branch}`). Captured
+   *  at construction so the reconciler and sidebar projections don't re-derive
+   *  it from the session key: keys are `${worktreeId}:${type}:${uuid}` and
+   *  worktreeId itself contains `::`, so a naive `split(":")[0]` truncates it to
+   *  just the repoPath and never matches a real `wt.id`. */
+  worktreeId: string;
+  /** Snapshot of the Claude session ids that already existed in this worktree's
+   *  project dir at the instant this session was spawned — captured by a
+   *  background pre-spawner (ensureAgentSession) BEFORE the PTY starts, so the
+   *  discovery loop can tell this tab's own (about-to-be-born) session apart
+   *  from foreign siblings. Undefined for foreground/restore spawns, where
+   *  TerminalView's own mount-time snapshot is captured before the PTY and is
+   *  correct. Set here because a background-opened worktree mounts its terminal
+   *  AFTER its session file already exists, making a mount-time snapshot too
+   *  late (it would include, and thus permanently exclude, this tab's session). */
+  spawnBaseline?: string[];
   terminal: Terminal;
   fitAddon: FitAddon;
   searchAddon: SearchAddon;

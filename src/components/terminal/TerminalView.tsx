@@ -211,14 +211,21 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     if (!activeWorktreeId || !worktree?.path) return;
 
     const discover = () => {
-      // Wait until the spawn baseline is captured. Discovering against an empty
-      // exclude set would reintroduce the global-newest bug the baseline exists
-      // to prevent (a fast first tick beating the async snapshot). `null` means
+      // Prefer a baseline captured at spawn time by a background pre-spawner
+      // (ensureAgentSession stores it on the session). For a background-opened
+      // worktree our terminal mounts AFTER our own session file exists, so the
+      // mount-time snapshot below would wrongly include (and exclude) it.
+      // Foreground/restore spawns leave spawnBaseline undefined and fall back to
+      // the mount snapshot, which for those paths is captured before the PTY.
+      const baseline = sessionManager.getSession(sessionKey)?.spawnBaseline ?? spawnBaselineRef.current;
+      // Wait until a baseline is available. Discovering against an empty exclude
+      // set would reintroduce the global-newest bug the baseline exists to
+      // prevent (a fast first tick beating the async snapshot). `null` means
       // "still loading"; `[]` means "loaded (or failed) — safe to proceed".
-      if (spawnBaselineRef.current === null) return;
-      // Exclude the spawn-time baseline so we adopt only a session born from
-      // this tab's own run, not a foreign session that merely shares the cwd.
-      findClaudeSession(worktree.path, spawnBaselineRef.current).then((fsSessionId) => {
+      if (baseline === null) return;
+      // Exclude the baseline so we adopt only a session born from this tab's own
+      // run, not a foreign session that merely shares the cwd.
+      findClaudeSession(worktree.path, baseline).then((fsSessionId) => {
         if (!fsSessionId || !activeWorktreeId || !tabId) return;
 
         const tabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];

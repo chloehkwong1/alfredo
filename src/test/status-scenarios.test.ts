@@ -128,6 +128,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
   const now = Date.now();
   return {
     sessionId: "fake-session",
+    worktreeId: "fake-repo::fake-branch",
     terminal: {} as any,
     fitAddon: {} as any,
     searchAddon: {} as any,
@@ -281,13 +282,16 @@ describe("SessionManager.reconcileAll", () => {
     const mgr = new SessionManager();
     const session = makeFakeSession({
       agentState: "busy",
+      worktreeId: "repo::wt-dead-hooks",
       lastHookAt: Date.now() - 70_000,
       lastOutputAt: Date.now() - 500,
       workDepth: 0,
     });
-    (mgr as any).sessions.set("wt-dead-hooks:main", session);
+    // The `::` in the worktree id is deliberate — real ids are `${repoPath}::${branch}`.
+    // A naive split(":") derivation truncates it and silently kills the projection.
+    (mgr as any).sessions.set("repo::wt-dead-hooks:main", session);
     useWorkspaceStore.setState({
-      worktrees: [{ id: "wt-dead-hooks", agentStatus: "busy", staleBusy: false } as any],
+      worktrees: [{ id: "repo::wt-dead-hooks", agentStatus: "busy", staleBusy: false } as any],
     });
 
     (mgr as any).reconcileAll();
@@ -363,12 +367,12 @@ describe("SessionManager.reconcileAll", () => {
 
   it("projects summed subagentDepth onto worktree.runningAgents", () => {
     const mgr = new SessionManager();
-    const sessA = makeFakeSession({ sessionId: "a", agentState: "busy", subagentDepth: 2 });
-    const sessB = makeFakeSession({ sessionId: "b", agentState: "busy", subagentDepth: 1 });
-    (mgr as any).sessions.set("wt-count:claude:a", sessA);
-    (mgr as any).sessions.set("wt-count:claude:b", sessB);
+    const sessA = makeFakeSession({ sessionId: "a", worktreeId: "repo::wt-count", agentState: "busy", subagentDepth: 2 });
+    const sessB = makeFakeSession({ sessionId: "b", worktreeId: "repo::wt-count", agentState: "busy", subagentDepth: 1 });
+    (mgr as any).sessions.set("repo::wt-count:claude:a", sessA);
+    (mgr as any).sessions.set("repo::wt-count:claude:b", sessB);
     useWorkspaceStore.setState({
-      worktrees: [{ id: "wt-count", agentStatus: "busy", runningAgents: 0 } as any],
+      worktrees: [{ id: "repo::wt-count", agentStatus: "busy", runningAgents: 0 } as any],
     });
 
     (mgr as any).reconcileAll();
@@ -410,10 +414,12 @@ describe("SessionManager.reconcileAll", () => {
 
   it("projects monitorPending onto worktree.monitorPending", () => {
     const mgr = new SessionManager();
-    const sess = makeFakeSession({ agentState: "busy", monitorPending: true });
-    (mgr as any).sessions.set("wt-mp:main", sess);
+    const sess = makeFakeSession({ agentState: "busy", worktreeId: "repo::wt-mp", monitorPending: true });
+    // `::` in the id guards the projection: the old key.split(":")[0] derivation
+    // truncated `${repoPath}::${branch}` to just repoPath, so this never matched.
+    (mgr as any).sessions.set("repo::wt-mp:main", sess);
     useWorkspaceStore.setState({
-      worktrees: [{ id: "wt-mp", agentStatus: "busy", monitorPending: false } as any],
+      worktrees: [{ id: "repo::wt-mp", agentStatus: "busy", monitorPending: false } as any],
     });
 
     (mgr as any).reconcileAll();

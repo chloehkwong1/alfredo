@@ -60,7 +60,7 @@ export class SessionManager implements SessionWriter {
     for (const [sessionKey, session] of this.sessions.entries()) {
       if (!session.hooksActive) continue;
       if (session.ptyExited) continue;
-      const worktreeId = sessionKey.split(":")[0];
+      const worktreeId = session.worktreeId;
 
       // ── busy → idle reconciliation ──────────────────────────
       // ORDERING INVARIANT: the soft check (hook silence + output silence)
@@ -193,10 +193,10 @@ export class SessionManager implements SessionWriter {
     // for every live session. 500ms lag on the *number* is fine — the busy
     // status itself flips in real time via the hook handler + status mirror.
     const subagentCounts = new Map<string, number>();
-    for (const [key, sess] of this.sessions.entries()) {
+    for (const sess of this.sessions.values()) {
       if (sess.ptyExited) continue;
       if (sess.subagentDepth > 0) {
-        const wid = key.split(":")[0];
+        const wid = sess.worktreeId;
         subagentCounts.set(wid, (subagentCounts.get(wid) ?? 0) + sess.subagentDepth);
       }
     }
@@ -211,9 +211,9 @@ export class SessionManager implements SessionWriter {
     // A worktree is "monitoring" if any of its live sessions has a pending
     // monitor. Boolean OR across sessions; mirrors the runningAgents projection.
     const monitoringWts = new Set<string>();
-    for (const [key, sess] of this.sessions.entries()) {
+    for (const sess of this.sessions.values()) {
       if (sess.ptyExited) continue;
-      if (sess.monitorPending) monitoringWts.add(key.split(":")[0]);
+      if (sess.monitorPending) monitoringWts.add(sess.worktreeId);
     }
     for (const wt of useWorkspaceStore.getState().worktrees) {
       const pending = monitoringWts.has(wt.id);
@@ -241,9 +241,11 @@ export class SessionManager implements SessionWriter {
     initialScrollback?: string,
     args?: string[],
     sessionType?: SessionType,
+    spawnBaseline?: string[],
   ): Promise<ManagedSession> {
-    const prefix = sessionKey.split(":", 1)[0];
-    if (prefix && prefix !== worktreeId) {
+    // Session keys are either the bare worktreeId or `${worktreeId}:${type}:${uuid}`.
+    // worktreeId contains `::`, so compare by prefix rather than splitting on `:`.
+    if (sessionKey !== worktreeId && !sessionKey.startsWith(`${worktreeId}:`)) {
       console.warn(
         `[sessionManager] getOrSpawn prefix mismatch: sessionKey=${sessionKey} worktreeId=${worktreeId} worktreePath=${worktreePath} mode=${mode} sessionType=${sessionType}`,
       );
@@ -286,6 +288,8 @@ export class SessionManager implements SessionWriter {
 
     const session: ManagedSession = {
       sessionId: "", // filled after spawn
+      worktreeId,
+      spawnBaseline,
       terminal,
       fitAddon,
       searchAddon,
@@ -396,6 +400,7 @@ export class SessionManager implements SessionWriter {
    */
   loadScrollbackOnly(
     sessionKey: string,
+    worktreeId: string,
     initialScrollback?: string,
     worktreePath?: string,
   ): ManagedSession {
@@ -434,6 +439,7 @@ export class SessionManager implements SessionWriter {
 
     const session: ManagedSession = {
       sessionId: "", // No PTY — filled when user chooses to spawn
+      worktreeId,
       terminal,
       fitAddon,
       searchAddon,
@@ -590,6 +596,7 @@ export class SessionManager implements SessionWriter {
 
     const session: ManagedSession = {
       sessionId,
+      worktreeId,
       terminal,
       fitAddon,
       searchAddon,

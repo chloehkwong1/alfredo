@@ -1,4 +1,4 @@
-import { createWorktreeFrom, searchLinearIssues, setWorktreeLinearTicket } from "../api";
+import { createWorktreeFrom, getDefaultBranch, searchLinearIssues, setWorktreeLinearTicket } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useToastStore } from "../stores/toastStore";
@@ -170,10 +170,15 @@ export async function openIssueInRepo(
       };
       useWorkspaceStore.getState().addWorktree(placeholder);
       try {
+        // Resolve the repo's real default branch (master/develop/trunk/…) rather
+        // than assuming "main" — otherwise createWorktreeFrom throws on any repo
+        // without a `main` ref and the issue can never be opened there. Falls back
+        // to "main" only if resolution fails (matches the prior behaviour).
+        const base = await getDefaultBranch(repoPath).catch(() => "main");
         const real = await createWorktreeFrom(repoPath, {
           kind: "newBranch",
           name: branch,
-          base: "main", // TODO: resolve the repo's real default branch instead of assuming main
+          base,
         });
         useWorkspaceStore.getState().replaceWorktree(worktreeId, real);
         try {

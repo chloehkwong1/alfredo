@@ -1,7 +1,8 @@
-import { writePty, getConfig, getAppConfig } from "../api";
+import { writePty, getConfig, getAppConfig, listClaudeSessions } from "../api";
 import { resolveSettings, buildClaudeArgs } from "./claudeSettingsResolver";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 import { sessionManager } from "./sessionManager";
 import { findAgentTab, isAgentTab } from "../types";
 
@@ -69,15 +70,52 @@ export async function ensureAgentSession(
   const existing = sessionManager.getSession(sessionKey);
   if (existing) return existing;
 
-  const [appCfg, config] = await Promise.all([getAppConfig(), getConfig(repoPath)]);
+  // Spawn in the worktree's own checkout, not repoPath. repoPath is the repo
+  // root (the default-branch checkout), so using it as the cwd launches the
+  // agent on `main` even though the sidebar shows the new worktree. The store
+  // is the source of truth for the path (a branch-mode worktree's path already
+  // equals repoPath, so this is a no-op there). getConfig still reads from
+  // repoPath — config lives at the repo root, not per-worktree.
+  const worktreePath =
+    useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId)?.path || repoPath;
+
+  // Load configs resiliently: a transient getConfig/getAppConfig rejection must
+  // not throw here, or the caller silently drops the whole action — e.g. the
+  // background open-issue path creates the worktree but never launches Claude,
+  // and send-to-Claude/PR-comment paths abort mid-flight. Mirror
+  // TerminalView.resolveLaunchArgs: degrade to defaults built from whatever
+  // resolved rather than failing.
+  //
+  // We also snapshot the worktree's existing Claude sessions here — a PRE-SPAWN
+  // baseline. Because we (a background spawner) start the PTY before the terminal
+  // ever mounts, TerminalView's own mount-time snapshot would run too late and
+  // already contain this tab's freshly-written session, permanently excluding it
+  // from discovery. Capturing it now (before getOrSpawn spawns) lets discovery
+  // adopt this tab's own session and persist its resumeSessionId.
+  const [appRes, cfgRes, baseRes] = await Promise.allSettled([
+    getAppConfig(),
+    getConfig(repoPath),
+    listClaudeSessions(worktreePath),
+  ]);
+  if (appRes.status === "rejected" || cfgRes.status === "rejected") {
+    console.error(
+      `[agentMessenger] settings resolution failed for ${repoPath}; launching with defaults:`,
+      [appRes, cfgRes]
+        .filter((r) => r.status === "rejected")
+        .map((r) => (r as PromiseRejectedResult).reason),
+    );
+  }
+  const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
+  const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
+  const spawnBaseline = baseRes.status === "fulfilled" ? baseRes.value : [];
   const resolved = resolveSettings(
     appCfg,
-    config.claudeDefaults,
-    config.worktreeOverrides?.[branch ?? ""],
+    config?.claudeDefaults,
+    config?.worktreeOverrides?.[branch ?? ""],
   );
   const args = buildClaudeArgs(resolved);
   return sessionManager.getOrSpawn(
-    sessionKey, worktreeId, repoPath, "claude", undefined, args,
+    sessionKey, worktreeId, worktreePath, "claude", undefined, args, undefined, spawnBaseline,
   );
 }
 

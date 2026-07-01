@@ -95,7 +95,7 @@ export function useSessionRestore(
     if (session.terminals) {
       for (const [tabId, termData] of Object.entries(session.terminals)) {
         if (termData.scrollback) {
-          sessionManager.loadScrollbackOnly(tabId, termData.scrollback, wt.path);
+          sessionManager.loadScrollbackOnly(tabId, wt.id, termData.scrollback, wt.path);
         }
       }
     }
@@ -398,7 +398,7 @@ export function useSessionRestore(
             if (session.terminals) {
               for (const [tabId, termData] of Object.entries(session.terminals)) {
                 if (termData.scrollback) {
-                  sessionManager.loadScrollbackOnly(tabId, termData.scrollback, wt.path);
+                  sessionManager.loadScrollbackOnly(tabId, wt.id, termData.scrollback, wt.path);
                 }
               }
             }
