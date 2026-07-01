@@ -1,0 +1,49 @@
+src/components/terminal/TerminalView.tsx
+  s_fa244c070b16fc::t_5a1478eed85b32 214-223,225-228
+src/services/agentMessenger.ts
+  s_fa244c070b16fc::t_cd836a9d447e8a 88-99,110,118
+  s_fa244c070b16fc::t_a482a54defeae5 1
+  s_fa244c070b16fc::t_0bdd959cc9ea8c 73-81
+  s_fa244c070b16fc::t_4eca7c78976287 5
+  s_fa244c070b16fc::t_c5ff2fc34aceb3 82-87,100-109,113-114
+src/test/status-scenarios.test.ts
+  s_fa244c070b16fc::t_e08467006c8688 131
+  s_fa244c070b16fc::t_90f1cb7a74b7bd 370-373,375
+  s_fa244c070b16fc::t_4caa8253734e89 285,290-292,294
+  s_fa244c070b16fc::t_982b86ee1e5708 417-420,422
+src/services/sessionTypes.ts
+  s_fa244c070b16fc::t_80a67669591da2 18-27
+  s_fa244c070b16fc::t_d96239f7c1dc29 12-17
+src/hooks/useSessionRestore.ts
+  s_fa244c070b16fc::t_3d4577d246b460 98,401
+src/services/openIssueFlow.ts
+  s_fa244c070b16fc::t_acfd074298f98b 173-177,181
+  s_fa244c070b16fc::t_379517649a4acf 1
+src/services/sessionManager.ts
+  s_fa244c070b16fc::t_689ec1016ffee1 246-248
+  s_fa244c070b16fc::t_1a8d31cc200d1a 292
+  s_fa244c070b16fc::t_e6cf94f2c6a932 442
+  s_fa244c070b16fc::t_3fc42acd1576e4 403
+  s_fa244c070b16fc::t_3dfe1870294fa2 214,216
+  s_fa244c070b16fc::t_e9633a0dee5e68 196,199
+  s_fa244c070b16fc::t_95ad98882de0e6 291
+  s_fa244c070b16fc::t_1da50c3d3ee50d 244
+  s_fa244c070b16fc::t_2e3d04d88a57c2 63
+  s_fa244c070b16fc::t_50cd5b92093dd8 599
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "c0da9d54dd12f978782f336495e195b45bd7b5f4",
+  "prompts": {},
+  "sessions": {
+    "s_fa244c070b16fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e93dab43-99a7-4f22-813c-99bca23427f5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
