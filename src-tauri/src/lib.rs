@@ -134,6 +134,7 @@ pub fn run() {
         })
         .manage(StackState::new())
         .manage(commands::worktree::PortConfigLock::default())
+        .manage(commands::session::ResumeSidecarLock::default())
         .manage(commands::linear_launch::PendingOpenIssue::default())
         .setup(|app| {
             crate::logging::init();

@@ -158,8 +158,18 @@ async fn read_resume_map(
     }
 }
 
-/// Upsert one tab's resume id in the sidecar under `dir`. Discovery is the only
-/// writer, so the read-modify-write needs no locking. `dir` must already exist.
+/// Serializes sidecar writes. Discovery is per-*tab*, not global: every agent
+/// tab in a worktree runs its own discovery loop, so two tabs adopting sessions
+/// near-simultaneously (multi-tab restore, background open-issue + foreground
+/// tab) can interleave the sidecar's read→insert→write and silently drop one
+/// entry — which never self-heals, because discovery stops re-persisting once
+/// its own id matches. Writes are tiny and rare, so one app-wide async mutex
+/// (mirroring worktree.rs's PortConfigLock) is plenty.
+#[derive(Default)]
+pub struct ResumeSidecarLock(pub tokio::sync::Mutex<()>);
+
+/// Upsert one tab's resume id in the sidecar under `dir`. Callers must hold
+/// `ResumeSidecarLock` across this read-modify-write. `dir` must already exist.
 async fn upsert_resume_id(
     dir: &std::path::Path,
     worktree_id: &str,
@@ -193,6 +203,7 @@ pub async fn save_session_file(app: tauri::AppHandle, repo_path: String, worktre
 #[tauri::command]
 pub async fn record_resume_session_id(
     app: tauri::AppHandle,
+    lock: tauri::State<'_, ResumeSidecarLock>,
     repo_path: String,
     worktree_id: String,
     tab_id: String,
@@ -200,6 +211,7 @@ pub async fn record_resume_session_id(
 ) -> Result<()> {
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
+    let _guard = lock.0.lock().await;
     ensure_sessions_dir(&app_data_dir, &repo_path).await?;
     let dir = sessions_dir(&app_data_dir, &repo_path);
     upsert_resume_id(&dir, &worktree_id, &tab_id, &session_id).await
@@ -391,13 +403,20 @@ pub async fn dump_pty_buffer(
 }
 
 #[tauri::command]
-pub async fn delete_session_file(app: tauri::AppHandle, repo_path: String, worktree_id: String) -> Result<()> {
+pub async fn delete_session_file(
+    app: tauri::AppHandle,
+    lock: tauri::State<'_, ResumeSidecarLock>,
+    repo_path: String,
+    worktree_id: String,
+) -> Result<()> {
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
     let safe_id = sanitise_id(&worktree_id);
     let dir = sessions_dir(&app_data_dir, &repo_path);
     // Drop the resume-id sidecar alongside the blob so a recreated worktree at
-    // the same id never inherits a stale tab→session mapping.
+    // the same id never inherits a stale tab→session mapping. Hold the sidecar
+    // lock so a discovery tick racing this delete can't recreate the file.
+    let _guard = lock.0.lock().await;
     let _ = tokio::fs::remove_file(resume_sidecar_path(&dir, &worktree_id)).await;
     let path = dir.join(format!("{safe_id}.json"));
     match tokio::fs::remove_file(&path).await {
