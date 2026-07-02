@@ -181,7 +181,11 @@ async fn upsert_resume_id(
     map.insert(tab_id.to_string(), session_id.to_string());
     let data = serde_json::to_string(&map)
         .map_err(|e| AppError::Config(format!("serialize resume sidecar: {e}")))?;
-    tokio::fs::write(&path, data).await?;
+    // Write-temp-then-rename: this file exists to survive Force Quit / crash,
+    // so a kill mid-write must not tear it and discard every tab's id.
+    let tmp = path.with_extension("json.tmp");
+    tokio::fs::write(&tmp, data).await?;
+    tokio::fs::rename(&tmp, &path).await?;
     Ok(())
 }
 
