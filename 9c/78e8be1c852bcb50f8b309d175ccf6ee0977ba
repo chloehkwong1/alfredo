@@ -1,0 +1,19 @@
+src/components/kanban/create-worktree/BaseBranchPicker.tsx
+  s_9e92bed010c03d::t_cd6debd9d82b18 107-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "9c78e8be1c852bcb50f8b309d175ccf6ee0977ba",
+  "prompts": {},
+  "sessions": {
+    "s_9e92bed010c03d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b5268b54-7817-41cb-844e-a4c84a6a8d4c",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
