@@ -1,0 +1,25 @@
+src-tauri/tauri.conf.json
+  s_97359c3668af1a::t_54de3620b105a6 4
+src-tauri/Cargo.toml
+  s_97359c3668af1a::t_54de3620b105a6 3
+package.json
+  s_97359c3668af1a::t_54de3620b105a6 4
+src-tauri/Cargo.lock
+  s_97359c3668af1a::t_201c492593721b 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "de91ecb233a8240ea24b5948d6caa60715497be1",
+  "prompts": {},
+  "sessions": {
+    "s_97359c3668af1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fefb954-6b1b-473a-b3f1-e35b739ed68e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
