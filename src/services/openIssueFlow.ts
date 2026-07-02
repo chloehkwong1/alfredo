@@ -133,6 +133,7 @@ function buildIssuePrompt(ticket: LinearTicket, branch: string): string {
 export async function openIssueInRepo(
   repoPath: string,
   { prompt, branch, issueId }: OpenIssuePayload,
+  baseOverride?: string,
 ): Promise<void> {
   // Progress overlay: create → boot → paste takes a few seconds and otherwise
   // reads as "nothing happened". Shown until the paste lands (or the flow bails)
@@ -170,11 +171,12 @@ export async function openIssueInRepo(
       };
       useWorkspaceStore.getState().addWorktree(placeholder);
       try {
-        // Resolve the repo's real default branch (master/develop/trunk/…) rather
-        // than assuming "main" — otherwise createWorktreeFrom throws on any repo
-        // without a `main` ref and the issue can never be opened there. Falls back
-        // to "main" only if resolution fails (matches the prior behaviour).
-        const base = await getDefaultBranch(repoPath).catch(() => "main");
+        // Use the caller's chosen base branch when supplied (the repo picker lets
+        // the user override it). Otherwise resolve the repo's real default branch
+        // (master/develop/trunk/…) rather than assuming "main" — createWorktreeFrom
+        // throws on any repo without a `main` ref. Falls back to "main" only if
+        // resolution fails (matches the prior behaviour).
+        const base = baseOverride || (await getDefaultBranch(repoPath).catch(() => "main"));
         const real = await createWorktreeFrom(repoPath, {
           kind: "newBranch",
           name: branch,

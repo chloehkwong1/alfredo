@@ -9,6 +9,8 @@ import {
 } from "../ui/Dialog";
 import { Button } from "../ui/Button";
 import { RepoDropdown } from "../ui/RepoDropdown";
+import { BaseBranchPicker } from "./create-worktree/BaseBranchPicker";
+import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import type { RepoEntry } from "../../types";
 import {
   OPEN_ISSUE_PICK_REPO_EVENT,
@@ -39,6 +41,14 @@ function OpenIssueRepoPicker({
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<PickRepoDetail | null>(null);
   const [repoPath, setRepoPath] = useState<string | undefined>(defaultRepoPath);
+  // The user's explicit base-branch pick, or null to use the repo's default.
+  const [baseOverride, setBaseOverride] = useState<string | null>(null);
+
+  // Resolve the selected repo's default branch (master/develop/…) for display,
+  // via the shared hook CreateWorktreeDialog uses to seed this same picker.
+  const resolvedDefault = useDefaultBranch(open ? repoPath : undefined);
+  // What the picker shows: the user's pick, else the repo's resolved default.
+  const baseBranch = baseOverride ?? resolvedDefault ?? "";
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -49,16 +59,27 @@ function OpenIssueRepoPicker({
         ? defaultRepoPath
         : repos[0]?.path;
       setRepoPath(preferred);
+      // Each issue starts from the repo default; drop any prior explicit pick.
+      setBaseOverride(null);
       setOpen(true);
     };
     window.addEventListener(OPEN_ISSUE_PICK_REPO_EVENT, handler);
     return () => window.removeEventListener(OPEN_ISSUE_PICK_REPO_EVENT, handler);
   }, [defaultRepoPath, repos]);
 
+  // Drop the explicit pick when the repo changes so the new repo falls back to
+  // ITS default instead of carrying the previous repo's selection.
+  useEffect(() => {
+    setBaseOverride(null);
+  }, [repoPath]);
+
   function handleOpen() {
     if (!pending || !repoPath) return;
     setOpen(false);
-    void openIssueInRepo(repoPath, pending);
+    // Forward only an EXPLICIT pick. Otherwise pass "" so openIssueInRepo resolves
+    // the repo's real default itself — never a stale default carried from another
+    // repo (or an in-flight resolution) that may not exist here.
+    void openIssueInRepo(repoPath, pending, baseOverride ?? "");
   }
 
   return (
@@ -87,6 +108,16 @@ function OpenIssueRepoPicker({
                 repoDisplayNames={repoDisplayNames}
                 value={repoPath}
                 onChange={setRepoPath}
+              />
+            )}
+
+            {repoPath && baseBranch && (
+              <BaseBranchPicker
+                key={repoPath}
+                repoPath={repoPath}
+                baseBranch={baseBranch}
+                onBaseBranchChange={setBaseOverride}
+                open={open}
               />
             )}
           </div>
