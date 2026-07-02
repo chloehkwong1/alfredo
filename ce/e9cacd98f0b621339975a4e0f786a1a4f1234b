@@ -1,0 +1,19 @@
+src/components/kanban/OpenIssueRepoPicker.tsx
+  s_97359c3668af1a::t_102b6bba1e960f 76-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "cee9cacd98f0b621339975a4e0f786a1a4f1234b",
+  "prompts": {},
+  "sessions": {
+    "s_97359c3668af1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fefb954-6b1b-473a-b3f1-e35b739ed68e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
