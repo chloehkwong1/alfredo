@@ -212,6 +212,9 @@ export function applyHookToDepth(
     case "monitorStart":
       return depth + 1;
     case "toolEnd":
+    case "questionEnd":
+      // questionEnd is AskUserQuestion/ExitPlanMode's own PostToolUse — it
+      // balances the +1 from their PreToolUse (waitingForInput?phase=toolStart).
       return Math.max(0, depth - 1);
     case "turnEnd":
       return 0;
@@ -287,6 +290,41 @@ export function applyMonitorPending(
     default:
       return pending;
   }
+}
+
+/**
+ * Awaiting-answer flag. AskUserQuestion (and ExitPlanMode) park the agent on a
+ * TUI prompt; their PreToolUse posts `waitingForInput?phase=toolStart`. While
+ * parked, concurrent background subagents keep firing busy hooks under the
+ * same session id and would clobber the displayed waitingForInput (live trace
+ * 2026-07-02, session 88e70a3c). Sticky flag semantics:
+ *
+ *   waitingForInput(toolStart) → true   (the question/plan-approval parks)
+ *   questionEnd                → false  (its own PostToolUse — parent-only,
+ *                                        subagents cannot ask the user)
+ *   notRunning                 → false  (PTY exited)
+ *   anything else              → unchanged
+ *
+ * Deliberately NOT cleared on `turnEnd` (a straggler Stop fires while parked —
+ * trace 13:20:22) and NOT on `promptStart` (task-notifications are delivered
+ * as user turns and fire UserPromptSubmit while the question is still parked —
+ * trace 13:20:44; the hook's stdin carries no prompt text, so auto-injected
+ * turns are indistinguishable at the hook layer). The user-side self-heal is
+ * the local Enter/Esc keystroke clear in usePty — the only way to answer or
+ * cancel the prompt, and something an auto-injected turn cannot fake.
+ * Notification-sourced waitingForInput (permission prompts, phase=none) does
+ * NOT set the flag: it has no parent-only resolution marker, so pinning it
+ * could stick. Pure function — safe to unit test.
+ */
+export function applyAwaitingAnswer(
+  awaiting: boolean,
+  state: import("../types").AgentState,
+  phase: import("../types").HookPhase,
+): boolean {
+  if (state === "notRunning") return false;
+  if (state === "waitingForInput" && phase === "toolStart") return true;
+  if (phase === "questionEnd") return false;
+  return awaiting;
 }
 
 /**
@@ -395,6 +433,11 @@ export function createSessionChannel(
         // monitorStart, cleared on promptStart/notRunning, deliberately survives
         // turnEnd (the parking Stop) so the idle transition can be suppressed.
         session.monitorPending = applyMonitorPending(session.monitorPending, state, phase);
+        // Awaiting-answer flag, same pre-suppression line. Set when
+        // AskUserQuestion/ExitPlanMode park the agent, cleared by their own
+        // PostToolUse (questionEnd) — MUST update before the questionEnd hook
+        // reaches the busy display gate below so the resume becomes visible.
+        session.awaitingAnswer = applyAwaitingAnswer(session.awaitingAnswer, state, phase);
         // Record subagent activity (start OR end) before any suppression break.
         // SubagentStop is reliable where SubagentStart is not, so subagentEnd is
         // the load-bearing signal here: it proves the session was recently doing
@@ -441,12 +484,27 @@ export function createSessionChannel(
         // the session busy and swallow the "finished" notification (this break
         // is BEFORE the notification-firing debounce below). subagentDepth is
         // cleared by subagentEnd/promptStart; monitorPending by promptStart.
-        if (state === "idle" && phase === "turnEnd" && (session.subagentDepth > 0 || session.monitorPending)) {
-          console.debug(`[status:${worktreeId}] idle(turnEnd) SUPPRESSED — subagentDepth=${session.subagentDepth} monitorPending=${session.monitorPending}`);
+        // awaitingAnswer joins the suppression: a straggler Stop fires while the
+        // agent is parked on a question (live trace 2026-07-02 13:20:22) — the
+        // turn is not finished for the user, so neither the idle display nor the
+        // "finished" notification may land while the question is unanswered.
+        if (state === "idle" && phase === "turnEnd" && (session.subagentDepth > 0 || session.monitorPending || session.awaitingAnswer)) {
+          console.debug(`[status:${worktreeId}] idle(turnEnd) SUPPRESSED — subagentDepth=${session.subagentDepth} monitorPending=${session.monitorPending} awaitingAnswer=${session.awaitingAnswer}`);
           if (session.pendingIdleTimer !== null) {
             clearTimeout(session.pendingIdleTimer);
             session.pendingIdleTimer = null;
           }
+          break;
+        }
+
+        // Busy display gate: while parked on AskUserQuestion/ExitPlanMode, busy
+        // hooks come from concurrent background subagents (and auto-injected
+        // task-notification turns), not from the parent — counters above stay
+        // accurate, but the displayed state must remain waitingForInput. A
+        // questionEnd never reaches this gate: applyAwaitingAnswer already
+        // cleared the flag on the pre-suppression line.
+        if (session.awaitingAnswer && state === "busy") {
+          console.debug(`[status:${worktreeId}] busy(${phase}) display-SUPPRESSED — awaitingAnswer`);
           break;
         }
 

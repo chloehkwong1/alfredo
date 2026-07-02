@@ -164,6 +164,15 @@ export function usePty({
           const bytes = Array.from(new TextEncoder().encode(data));
           writePty(session.sessionId, bytes).catch(console.error);
 
+          // Enter submits / bare Esc cancels a parked AskUserQuestion — the only
+          // ways to resolve it, and signals an auto-injected turn cannot fake.
+          // Local-keystroke clear is the user-side self-heal for a lost
+          // questionEnd hook; see applyAwaitingAnswer in sessionChannel.ts.
+          // (Arrow keys arrive as multi-byte ESC sequences, not a bare \x1b.)
+          if (session.awaitingAnswer && (data === "\r" || data === "\x1b")) {
+            session.awaitingAnswer = false;
+          }
+
           // Mirror typed keys into a preview buffer while the agent's TUI
           // hasn't initialized yet (e.g. SessionStart hooks are blocking).
           // The bytes are already in the kernel stdin buffer; this just makes

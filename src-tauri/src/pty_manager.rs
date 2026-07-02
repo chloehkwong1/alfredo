@@ -1137,22 +1137,34 @@ fn write_hooks_config(
         )
     };
     // PreToolUse fires for every tool. Most are work → busy?phase=toolStart.
-    // `AskUserQuestion` is the exception: it blocks the agent waiting on the
-    // user, but (unlike a permission prompt or MCP elicitation) it fires no
-    // PermissionRequest/Notification hook of its own, so plain `busy` would
-    // leave the sidebar showing "Editing…" the entire time the agent is parked
-    // on a question. Branch on `tool_name` (read from the hook's stdin JSON,
-    // same INPUT=$(cat) pattern as PostToolUseFailure) and route it to
-    // waitingForInput + notify input. Both branches keep phase=toolStart so
-    // workDepth still increments and stays balanced against the matching
-    // PostToolUse(toolEnd) when the user answers.
+    // `AskUserQuestion` and `ExitPlanMode` are the exception: they block the
+    // agent waiting on the user, but (unlike a permission prompt or MCP
+    // elicitation) fire no PermissionRequest/Notification hook of their own,
+    // so plain `busy` would leave the sidebar showing "Editing…" the entire
+    // time the agent is parked. Branch on `tool_name` (read from the hook's
+    // stdin JSON, same INPUT=$(cat) pattern as PostToolUseFailure) and route
+    // them to waitingForInput + notify input. Both branches keep
+    // phase=toolStart so workDepth still increments and stays balanced against
+    // the matching PostToolUse (which posts questionEnd for these two tools —
+    // see cmd_posttooluse).
     // `Monitor` is the second exception: it registers a background watch and
     // returns immediately, so its PreToolUse routes to busy?phase=monitorStart
     // so the frontend can set a sticky monitor-pending flag. The matching
     // PostToolUse still posts toolEnd, keeping workDepth balanced.
     let cmd_pretooluse = || -> String {
         format!(
-            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; elif printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"Monitor"'; then ST=busy; Q='?phase=monitorStart'; LBL='busy(monitorStart)'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q" || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
+            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"(AskUserQuestion|ExitPlanMode)"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; elif printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"Monitor"'; then ST=busy; Q='?phase=monitorStart'; LBL='busy(monitorStart)'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q" || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
+        )
+    };
+    // PostToolUse fires for every tool → busy?phase=toolEnd, EXCEPT the two
+    // park-on-user tools above: their completion means "the user answered /
+    // approved" and must clear the frontend's sticky awaiting-answer flag.
+    // Only the parent agent can call them (subagents have no user channel),
+    // so questionEnd is a parent-only signal — concurrent background-subagent
+    // toolEnds can't fake it. questionEnd decrements workDepth like toolEnd.
+    let cmd_posttooluse = || -> String {
+        format!(
+            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"(AskUserQuestion|ExitPlanMode)"'; then PH=questionEnd; else PH=toolEnd; fi; echo "$(date +%H:%M:%S) FIRE busy($PH) session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested busy session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/busy?phase=$PH" || echo "$(date +%H:%M:%S) FAIL busy($PH) session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
 
@@ -1182,8 +1194,10 @@ fn write_hooks_config(
         // PreToolUse → busy + phase=toolStart, except AskUserQuestion →
         // waitingForInput + notify input (see cmd_pretooluse).
         ("PreToolUse",        hook_entry(cmd_pretooluse())),
-        // PostToolUse → busy + phase=toolEnd
-        ("PostToolUse",       hook_entry(cmd_phase("busy", "toolEnd"))),
+        // PostToolUse → busy + phase=toolEnd, except AskUserQuestion/ExitPlanMode
+        // → busy + phase=questionEnd (clears the awaiting-answer flag; see
+        // cmd_posttooluse).
+        ("PostToolUse",       hook_entry(cmd_posttooluse())),
         // Stop → idle + notify finished + phase=turnEnd
         ("Stop",              hook_entry(cmd_notify_phase("idle", "finished", "turnEnd"))),
         // StopFailure → idle + notify error + phase=turnEnd
@@ -1934,11 +1948,57 @@ mod tests {
             cmd.contains("ST=waitingForInput; Q='?notify=input&phase=toolStart'"),
             "AskUserQuestion branch must route to waitingForInput?notify=input&phase=toolStart; got: {cmd}"
         );
+        // ExitPlanMode parks the agent on plan approval exactly like a question.
+        assert!(
+            cmd.contains("ExitPlanMode"),
+            "PreToolUse must branch on ExitPlanMode; got: {cmd}"
+        );
         // Every other tool still posts busy?phase=toolStart (depth +1, balanced
         // by the matching PostToolUse toolEnd).
         assert!(
             cmd.contains("ST=busy; Q='?phase=toolStart'"),
             "default branch must route to busy?phase=toolStart; got: {cmd}"
+        );
+    }
+
+    /// PostToolUse must branch on the two park-on-user tools and post a distinct
+    /// `questionEnd` phase — the parent-only signal that clears the frontend's
+    /// sticky awaiting-answer flag. Without it, concurrent background-subagent
+    /// busy hooks clobber the displayed waitingForInput while the agent is
+    /// parked on a question (live trace 2026-07-02, session 88e70a3c).
+    #[test]
+    fn posttooluse_hook_routes_question_tools_to_question_end() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let worktree = tmp.path().join("wt");
+        std::fs::create_dir_all(&worktree).unwrap();
+
+        write_hooks_config(worktree.to_str().unwrap(), "http://127.0.0.1:0", "owner/wt")
+            .expect("write hooks");
+
+        let contents =
+            std::fs::read_to_string(worktree.join(".claude/settings.local.json")).expect("read");
+        let config: serde_json::Value = serde_json::from_str(&contents).expect("parse");
+
+        let cmd = config["hooks"]["PostToolUse"]
+            .as_array()
+            .expect("PostToolUse array")
+            .iter()
+            .find_map(|e| e["hooks"][0]["command"].as_str())
+            .expect("PostToolUse command");
+
+        assert!(
+            cmd.contains("AskUserQuestion") && cmd.contains("ExitPlanMode"),
+            "PostToolUse must branch on AskUserQuestion and ExitPlanMode; got: {cmd}"
+        );
+        assert!(
+            cmd.contains("PH=questionEnd"),
+            "question-tool branch must post phase=questionEnd; got: {cmd}"
+        );
+        // Every other tool still posts busy?phase=toolEnd (depth -1, balancing
+        // its PreToolUse toolStart).
+        assert!(
+            cmd.contains("PH=toolEnd"),
+            "default branch must still post busy?phase=toolEnd; got: {cmd}"
         );
     }
 

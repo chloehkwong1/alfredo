@@ -151,6 +151,7 @@ fn parse_phase(query: Option<&str>) -> HookPhase {
         Some("subagentStart") => HookPhase::SubagentStart,
         Some("subagentEnd") => HookPhase::SubagentEnd,
         Some("monitorStart") => HookPhase::MonitorStart,
+        Some("questionEnd") => HookPhase::QuestionEnd,
         _ => HookPhase::None,
     }
 }

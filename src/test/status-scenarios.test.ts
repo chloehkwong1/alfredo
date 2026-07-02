@@ -156,6 +156,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     subagentDepth: 0,
     lastSubagentActivityAt: 0,
     monitorPending: false,
+    awaitingAnswer: false,
     pasteDiagDrainChain: 0,
     pasteDiagLastLogAt: 0,
     staleHookNotifiedAt: 0,
@@ -715,7 +716,7 @@ describe("seenWorktrees ordering invariant", () => {
   });
 });
 
-import { applyHookToDepth, applySubagentDepth, applyMonitorPending, hasWorkInFlight } from "../services/sessionChannel";
+import { applyHookToDepth, applySubagentDepth, applyMonitorPending, applyAwaitingAnswer, hasWorkInFlight } from "../services/sessionChannel";
 
 describe("applyHookToDepth", () => {
   it("increments on promptStart", () => {
@@ -1271,6 +1272,126 @@ describe("detector mute while hook-derived state is idle", () => {
     // Detector then misreads next text chunk as busy (no-op, but proves the
     // flip from above didn't sneak through).
     (channel as any).onmessage({ event: "agentState", data: "busy" });
+    expect(session.agentState).toBe("busy");
+  });
+});
+
+describe("applyAwaitingAnswer", () => {
+  it("sets on the AskUserQuestion entry signature — waitingForInput(toolStart)", () => {
+    expect(applyAwaitingAnswer(false, "waitingForInput", "toolStart")).toBe(true);
+  });
+  it("does NOT set on Notification-sourced waitingForInput (permission prompts have no clear marker)", () => {
+    expect(applyAwaitingAnswer(false, "waitingForInput", "none")).toBe(false);
+    expect(applyAwaitingAnswer(false, "waitingForInput", "toolEnd")).toBe(false);
+  });
+  it("clears on questionEnd (PostToolUse of AskUserQuestion/ExitPlanMode — parent-only)", () => {
+    expect(applyAwaitingAnswer(true, "busy", "questionEnd")).toBe(false);
+  });
+  it("survives turnEnd — a straggler Stop fires while parked (live trace 2026-07-02 13:20:22)", () => {
+    expect(applyAwaitingAnswer(true, "idle", "turnEnd")).toBe(true);
+  });
+  it("survives promptStart — task-notifications fire UserPromptSubmit while parked (live trace 2026-07-02 13:20:44)", () => {
+    expect(applyAwaitingAnswer(true, "busy", "promptStart")).toBe(true);
+  });
+  it("clears on notRunning (PTY exit)", () => {
+    expect(applyAwaitingAnswer(true, "notRunning", "none")).toBe(false);
+  });
+  it("is unchanged by tool/subagent phases", () => {
+    expect(applyAwaitingAnswer(true, "busy", "toolStart")).toBe(true);
+    expect(applyAwaitingAnswer(true, "busy", "toolEnd")).toBe(true);
+    expect(applyAwaitingAnswer(true, "busy", "subagentEnd")).toBe(true);
+    expect(applyAwaitingAnswer(false, "busy", "toolStart")).toBe(false);
+  });
+});
+
+describe("applyHookToDepth questionEnd", () => {
+  it("decrements like toolEnd — balances the AskUserQuestion PreToolUse(toolStart) increment", () => {
+    expect(applyHookToDepth(1, "busy", "questionEnd")).toBe(0);
+    expect(applyHookToDepth(0, "busy", "questionEnd")).toBe(0);
+    // Full round trip: question parks (+1), user answers (-1).
+    expect(applyHookToDepth(applyHookToDepth(0, "waitingForInput", "toolStart"), "busy", "questionEnd")).toBe(0);
+  });
+});
+
+describe("awaitingAnswer — AskUserQuestion parked while background work fires busy hooks", () => {
+  const fakeWriter = { scheduleWrite: () => {}, appendToBuffer: () => {} };
+
+  function hook(channel: any, phase: string, state = "busy", notify = "none") {
+    channel.onmessage({ event: "hookAgentState", data: { state, phase, notify } });
+  }
+
+  it("replays the 2026-07-02 live trace: display pinned to waitingForInput through subagent busy, straggler Stop, and auto-injected promptStart", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000);
+    useWorkspaceStore.setState({ worktrees: [] });
+    const session = makeFakeSession({ agentState: "busy" });
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-ask", "wt-ask:main") as any;
+
+    // 13:18:22 — AskUserQuestion parks (PreToolUse tool_name branch)
+    hook(channel, "toolStart", "waitingForInput", "input");
+    expect(session.agentState).toBe("waitingForInput");
+    expect(session.awaitingAnswer).toBe(true);
+    expect(session.workDepth).toBe(1);
+
+    // 13:18:22/28 — elicitation Notification re-fires bare waitingForInput
+    hook(channel, "none", "waitingForInput", "input");
+    expect(session.agentState).toBe("waitingForInput");
+
+    // 13:18:56 → 13:20:13 — background subagents keep firing busy hooks.
+    // Pre-fix these clobbered the display to busy ("Writing code…").
+    hook(channel, "subagentEnd");
+    expect(session.agentState).toBe("waitingForInput");
+    hook(channel, "toolStart");
+    expect(session.agentState).toBe("waitingForInput");
+    hook(channel, "toolEnd");
+    expect(session.agentState).toBe("waitingForInput");
+
+    // 13:20:22 — straggler Stop while parked. subagentDepth is 0 here
+    // (SubagentStart never fired), so only awaitingAnswer can suppress it.
+    hook(channel, "turnEnd", "idle", "finished");
+    expect(session.agentState).toBe("waitingForInput");
+    expect(session.pendingIdleTimer).toBe(null); // suppressed outright — no false "finished"
+
+    // 13:20:44 — a task-notification is delivered as a user turn and fires
+    // UserPromptSubmit. It must NOT clear the flag: the question is still parked.
+    hook(channel, "promptStart");
+    expect(session.awaitingAnswer).toBe(true);
+    expect(session.agentState).toBe("waitingForInput");
+
+    // 13:21:34+ — more background tool pairs
+    hook(channel, "toolStart");
+    hook(channel, "toolEnd");
+    expect(session.agentState).toBe("waitingForInput");
+
+    // User answers → PostToolUse(AskUserQuestion) posts questionEnd:
+    // flag clears and the agent's ongoing work becomes visible again.
+    hook(channel, "questionEnd");
+    expect(session.awaitingAnswer).toBe(false);
+    expect(session.agentState).toBe("busy");
+
+    // Genuine Stop after the turn completes → debounced idle lands normally.
+    hook(channel, "turnEnd", "idle", "finished");
+    expect(session.pendingIdleTimer).not.toBe(null);
+    vi.advanceTimersByTime(IDLE_DEBOUNCE_SUBAGENT_MS + IDLE_DEBOUNCE_MS + 10);
+    expect(session.agentState).toBe("idle");
+    vi.useRealTimers();
+  });
+
+  it("Esc-cancel path: local keystroke cleared the flag, so the next real turn displays busy", () => {
+    // usePty clears awaitingAnswer on a bare Esc / Enter keystroke (the only
+    // way to answer or cancel the TUI question). Simulate the flag already
+    // cleared by input, then the interrupt + new turn hooks.
+    const session = makeFakeSession({ agentState: "waitingForInput", awaitingAnswer: false, workDepth: 1 });
+    const channel = createSessionChannel(fakeWriter as any, session, "wt-esc", "wt-esc:main") as any;
+
+    // PostToolUseFailure(is_interrupt) posts waitingForInput(toolEnd) — REPL at prompt.
+    hook(channel, "toolEnd", "waitingForInput", "none");
+    expect(session.agentState).toBe("waitingForInput");
+    expect(session.workDepth).toBe(0);
+    expect(session.awaitingAnswer).toBe(false); // toolEnd-waiting must not re-arm the flag
+
+    // User submits a fresh prompt — the new turn must be visibly busy.
+    hook(channel, "promptStart");
     expect(session.agentState).toBe("busy");
   });
 });

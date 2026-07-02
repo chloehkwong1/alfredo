@@ -123,6 +123,17 @@ export interface ManagedSession {
    *  suppressed and the reconciler won't stale-rescue. There is no per-monitor
    *  completion hook, so this is a sticky flag, not a counter. */
   monitorPending: boolean;
+  /** True while the agent is parked on an AskUserQuestion/ExitPlanMode prompt
+   *  (set by their PreToolUse → `waitingForInput(toolStart)`). While set, busy
+   *  hooks from concurrent background subagents update the counters but must
+   *  not clobber the displayed waitingForInput, and idle(turnEnd) is suppressed
+   *  (a straggler Stop fires while parked — live-verified 2026-07-02). Cleared
+   *  by the matching PostToolUse (`questionEnd`, parent-only — subagents can't
+   *  ask), by a local Enter/Esc keystroke (usePty — the only way to answer or
+   *  cancel), and on `notRunning`. Deliberately NOT cleared on `promptStart`:
+   *  task-notifications fire UserPromptSubmit while the question is still
+   *  parked. Sibling of `monitorPending` in spirit and plumbing. */
+  awaitingAnswer: boolean;
   /** Optional callback fired once when the first output byte arrives. */
   onFirstOutput?: () => void;
   /** Diagnostic: consecutive drainPending dispatches since the queue last
