@@ -73,6 +73,15 @@ function OpenIssueRepoPicker({
     setBaseOverride(null);
   }, [repoPath]);
 
+  // A cold-start deep link can open this dialog before app config has loaded,
+  // i.e. with repos=[] and no selection. Nothing else re-seeds repoPath when
+  // the repos arrive, so without this the dialog stays a dead end (no dropdown,
+  // disabled submit) until the user cancels and re-clicks the link.
+  useEffect(() => {
+    if (!open || repoPath || repos.length === 0) return;
+    setRepoPath(repos.some((r) => r.path === defaultRepoPath) ? defaultRepoPath : repos[0]?.path);
+  }, [open, repoPath, repos, defaultRepoPath]);
+
   function handleOpen() {
     if (!pending || !repoPath) return;
     setOpen(false);
