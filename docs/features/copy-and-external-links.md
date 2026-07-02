@@ -11,9 +11,9 @@ Three quick-access items on the worktree right-click menu:
   pasting into PRs, commit messages, or Slack.
 - **Open in Linear** — opens the worktree's linked Linear ticket in
   your browser. Only appears if the worktree has a ticket URL
-  attached (either created from a Linear issue via the
-  create-worktree dialog, or auto-linked by branch name matching an
-  issue identifier).
+  attached (created from a Linear issue via the create-worktree
+  dialog or the "Open in Alfredo" deep link, or auto-linked by branch
+  name matching an issue identifier).
 - **View PR on GitHub** — opens the pull request in your browser.
   Only appears once Alfredo has detected a PR for this branch
   (requires a GitHub token / `gh` login on the Integrations tab).
