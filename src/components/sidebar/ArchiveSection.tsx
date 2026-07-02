@@ -337,7 +337,9 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
           )}
           <DialogFooter>
             <Button variant="secondary" onClick={() => setDeleteAllDialogOpen(false)}>Cancel</Button>
-            <Button variant="danger" onClick={() => { setDeleteAllDialogOpen(false); onDeleteAll(); }}>
+            {/* Disabled until the dirty check resolves — a fast click must not
+                force-delete before the unsaved-work warning had a chance to render. */}
+            <Button variant="danger" disabled={dirtyAll === null} onClick={() => { setDeleteAllDialogOpen(false); onDeleteAll(); }}>
               {dirtyAll && dirtyAll.length > 0
                 ? `Delete ${worktrees.length} anyway`
                 : `Delete ${worktrees.length} worktree${worktrees.length === 1 ? "" : "s"}`}
