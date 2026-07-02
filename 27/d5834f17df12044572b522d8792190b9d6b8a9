@@ -1,0 +1,25 @@
+docs/features/open-from-linear.md
+  s_97359c3668af1a::t_8eb294c1d623c6 1-57
+docs/features/copy-and-external-links.md
+  s_97359c3668af1a::t_d612ca52dedcb8 14-16
+docs/features/claude-launch-flags.md
+  s_97359c3668af1a::t_4934ce5d0570ea 1-32
+docs/features/agent-status-indicators.md
+  s_97359c3668af1a::t_8d72c6fc5aa143 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "27d5834f17df12044572b522d8792190b9d6b8a9",
+  "prompts": {},
+  "sessions": {
+    "s_97359c3668af1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fefb954-6b1b-473a-b3f1-e35b739ed68e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
