@@ -774,11 +774,16 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
 #[tauri::command]
 pub async fn set_worktree_linear_ticket(
     app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
     repo_path: String,
     worktree_name: String,
     url: String,
     identifier: String,
 ) -> Result<()> {
+    // Mirror set_worktree_column: hold port_lock to serialize the whole-config
+    // save against concurrent port claims/releases — this fires from the Linear
+    // open-issue flow right when the fresh worktree may be claiming a port.
+    let _guard = port_lock.0.lock().await;
     let app_data_dir = resolve_app_data_dir(&app)?;
     let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     config_manager::set_linear_ticket(
