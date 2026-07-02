@@ -1,0 +1,28 @@
+src/services/openIssueFlow.ts
+  s_9e92bed010c03d::t_a28eda754bd82a 174-179
+  s_9e92bed010c03d::t_1a40988a7eee29 136
+src/components/kanban/OpenIssueRepoPicker.tsx
+  s_9e92bed010c03d::t_a4771630c89221 12
+  s_9e92bed010c03d::t_de97af79cedbd1 72
+  s_9e92bed010c03d::t_62e9ae802a06a3 113-118,120
+  s_9e92bed010c03d::t_ef25e06a301a05 13
+  s_9e92bed010c03d::t_ce26617bfe2a14 119
+  s_9e92bed010c03d::t_72db12b9ceb324 44-51,62-63,70-71,73-75,79-82
+  s_9e92bed010c03d::t_8a725cbd3a2a68 121-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "644d8c56052c6bfaa824374a06c0bbaf57a6aee6",
+  "prompts": {},
+  "sessions": {
+    "s_9e92bed010c03d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b5268b54-7817-41cb-844e-a4c84a6a8d4c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
