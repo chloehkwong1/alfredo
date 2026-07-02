@@ -1,4 +1,4 @@
-import { createWorktreeFrom, getDefaultBranch, searchLinearIssues, setWorktreeLinearTicket } from "../api";
+import { createWorktreeFrom, getDefaultBranch, listWorktrees, searchLinearIssues, setWorktreeLinearTicket } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useToastStore } from "../stores/toastStore";
@@ -105,6 +105,27 @@ async function waitForSpawnedSession(
 }
 
 /**
+ * Poll until a worktree id appears in the workspace store, or time out. Used on
+ * cold start, where an open-issue request can outrun useSessionRestore's
+ * hydration: a worktree that already exists on disk (same Linear link
+ * re-clicked after a restart) isn't in the store yet, and we must wait for
+ * hydration to surface it — never seed it ourselves, because restoreTabs
+ * replaces a worktree's tabs wholesale and would orphan any session we'd
+ * spawned against self-made tabs.
+ */
+async function waitForWorktreeInStore(
+  worktreeId: string,
+  { timeoutMs = 15000 }: { timeoutMs?: number } = {},
+): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (useWorkspaceStore.getState().worktrees.some((wt) => wt.id === worktreeId)) return true;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
+
+/**
  * Build the full prompt from a fetched ticket. Linear truncates `{{prompt}}` in
  * the Custom-link URL for long issues (it appends "[Truncated …]"), so we paste
  * the API's complete title + description instead, under the same "Work on … /
@@ -155,46 +176,61 @@ export async function openIssueInRepo(
 
   try {
     if (!useWorkspaceStore.getState().worktrees.some((wt) => wt.id === worktreeId)) {
-      const placeholder: Worktree = {
-        id: worktreeId,
-        name: branch,
-        path: "",
-        branch,
-        prStatus: null,
-        agentStatus: "notRunning",
-        column: "inProgress",
-        isBranchMode: false,
-        additions: null,
-        deletions: null,
-        repoPath,
-        creating: true,
-      };
-      useWorkspaceStore.getState().addWorktree(placeholder);
-      try {
-        // Use the caller's chosen base branch when supplied (the repo picker lets
-        // the user override it). Otherwise resolve the repo's real default branch
-        // (master/develop/trunk/…) rather than assuming "main" — createWorktreeFrom
-        // throws on any repo without a `main` ref. Falls back to "main" only if
-        // resolution fails (matches the prior behaviour).
-        const base = baseOverride || (await getDefaultBranch(repoPath).catch(() => "main"));
-        const real = await createWorktreeFrom(repoPath, {
-          kind: "newBranch",
+      // The store isn't ground truth on cold start (hydration may still be
+      // running), and re-creating an on-disk worktree throws a git "already
+      // exists" error that aborts the whole flow. Ask git itself; when the
+      // worktree exists, wait for hydration to surface it and fall through to
+      // the shared focus/spawn/paste path below.
+      const onDisk = await listWorktrees(repoPath).catch(() => [] as Worktree[]);
+      if (onDisk.some((wt) => wt.id === worktreeId)) {
+        if (!(await waitForWorktreeInStore(worktreeId))) {
+          useToastStore.getState().show({
+            message: `A worktree for ${branch} already exists but its repo didn't load — open it from the sidebar.`,
+          });
+          return;
+        }
+      } else {
+        const placeholder: Worktree = {
+          id: worktreeId,
           name: branch,
-          base,
-        });
-        useWorkspaceStore.getState().replaceWorktree(worktreeId, real);
+          path: "",
+          branch,
+          prStatus: null,
+          agentStatus: "notRunning",
+          column: "inProgress",
+          isBranchMode: false,
+          additions: null,
+          deletions: null,
+          repoPath,
+          creating: true,
+        };
+        useWorkspaceStore.getState().addWorktree(placeholder);
         try {
-          useTabStore.getState().ensureDefaultTabs(real.id);
-        } catch (e) {
-          console.error("[linear] ensureDefaultTabs failed:", e);
+          // Use the caller's chosen base branch when supplied (the repo picker lets
+          // the user override it). Otherwise resolve the repo's real default branch
+          // (master/develop/trunk/…) rather than assuming "main" — createWorktreeFrom
+          // throws on any repo without a `main` ref. Falls back to "main" only if
+          // resolution fails (matches the prior behaviour).
+          const base = baseOverride || (await getDefaultBranch(repoPath).catch(() => "main"));
+          const real = await createWorktreeFrom(repoPath, {
+            kind: "newBranch",
+            name: branch,
+            base,
+          });
+          useWorkspaceStore.getState().replaceWorktree(worktreeId, real);
+          try {
+            useTabStore.getState().ensureDefaultTabs(real.id);
+          } catch (e) {
+            console.error("[linear] ensureDefaultTabs failed:", e);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          const marked = useWorkspaceStore.getState().failWorktree(worktreeId, message);
+          if (!marked) {
+            useToastStore.getState().show({ message: `Worktree creation failed: ${message}` });
+          }
+          return;
         }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        const marked = useWorkspaceStore.getState().failWorktree(worktreeId, message);
-        if (!marked) {
-          useToastStore.getState().show({ message: `Worktree creation failed: ${message}` });
-        }
-        return;
       }
     }
 
