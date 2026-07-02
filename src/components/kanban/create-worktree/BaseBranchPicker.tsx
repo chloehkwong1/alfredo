@@ -104,6 +104,19 @@ function BaseBranchPicker({
         if (e.key === "Escape") {
           e.stopPropagation();
           collapse();
+        } else if (e.key === "Enter") {
+          // The filter input lives inside the parent dialog's <form>; without this
+          // an Enter press bubbles up and submits the form (creating a worktree on
+          // the current base) instead of choosing a branch. Swallow it and select
+          // the first match, matching the "type to filter, Enter to pick" intent.
+          e.preventDefault();
+          e.stopPropagation();
+          const first = filtered[0];
+          if (first) {
+            onBaseBranchChange(first.branch);
+            setExpanded(false);
+            setFilter("");
+          }
         }
       }}
     >
