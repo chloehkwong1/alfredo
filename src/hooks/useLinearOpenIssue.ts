@@ -36,6 +36,11 @@ export function useLinearOpenIssue() {
     };
 
     listen<OpenIssueRequest>("linear://open-issue", (e) => {
+      // The backend buffers every request as a cold-start fallback, even when
+      // it emits. Receiving the event proves we're alive to handle it, so drop
+      // the buffered copy — otherwise a later webview reload (crash recovery,
+      // cache clear) drains the buffer and replays an already-handled request.
+      void takePendingOpenIssue().catch(() => undefined);
       void handle(e.payload);
     }).then((fn) => {
       if (cancelled) fn();
