@@ -1,0 +1,22 @@
+docs/features/pane-tab-bar.md
+  s_c0089e7450a603::t_faf3ba9e1bae42 3,8-15,28-47,59-75,82-83
+docs/features/tab-labels-and-icons.md
+  s_c0089e7450a603::t_32a788b586c053 3
+  s_c0089e7450a603::t_ebe568af0d91f9 17-24,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e71b19e6bfff55b8be76cbb7ef9690809799edc4",
+  "prompts": {},
+  "sessions": {
+    "s_c0089e7450a603": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d915ae2a-1126-45f9-b018-51fafc0e01e6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
