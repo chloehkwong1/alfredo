@@ -401,6 +401,11 @@ function PaneTabBar({
     };
   }, [sessionCount, spilled]);
 
+  // Agents alone can trip shouldSpill (it's count-only); with zero terminals
+  // there is no spill row to host the server controls, so both the row and
+  // the row-1 handoff gate on this flag rather than raw `spilled`.
+  const showSpillRow = spilled && terminals.length > 0;
+
   const agentIds = agents.map((t) => t.id);
   const terminalIds = terminals.map((t) => t.id);
   const diffIds = diffs.map((t) => t.id);
@@ -735,18 +740,18 @@ function PaneTabBar({
         </DropdownMenu>
 
         <div className="flex-1" />
-        {!spilled && serverControls}
+        {!showSpillRow && serverControls}
       </div>
 
       {/* ── Spilled terminal row — animates height 0↔auto via grid-rows ── */}
       <div
         className={[
           "grid transition-[grid-template-rows] duration-150 ease-out",
-          spilled ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+          showSpillRow ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         ].join(" ")}
       >
         <div className="overflow-hidden min-h-0">
-          {spilled && terminals.length > 0 && (
+          {showSpillRow && (
             <div className="flex items-center w-full h-[30px] min-w-0 border-t border-border-subtle bg-bg-bar/90">
               <DndContext
                 sensors={sensors}
