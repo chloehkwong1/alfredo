@@ -6,6 +6,7 @@ import { lifecycleManager } from "../services/lifecycleManager";
 import { sessionManager } from "../services/sessionManager";
 import { zoomIn, zoomOut, zoomReset } from "../services/uiZoom";
 import { loadTerminalPreferences, saveTerminalPreferences, TERMINAL_DEFAULTS } from "../services/terminalPreferences";
+import { displayCycleOrder } from "../lib/paneTabLayout";
 import type { WorkspaceTab } from "../types";
 
 /**
@@ -133,12 +134,10 @@ export function useKeyboardShortcuts(
           const activePaneId = layoutState.activePaneId[activeWorktreeId];
           const pane = activePaneId ? layoutState.panes[activeWorktreeId]?.[activePaneId] : null;
           if (pane && pane.tabIds.length > 1 && pane.activeTabId) {
-            // Cycle the working tabs only — the pinned Notes anchor is a
-            // separate affordance, not part of the session/diff rows.
             const wtTabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
-            const cycleIds = pane.tabIds.filter(
-              (id) => wtTabs.find((t) => t.id === id)?.type !== "notes",
-            );
+            // Cycle in visual order — agents, terminals, diffs (Notes excluded)
+            // — so the keyboard walk matches the segmented bar.
+            const cycleIds = displayCycleOrder(wtTabs, pane.tabIds);
             const idx = cycleIds.indexOf(pane.activeTabId);
             if (idx !== -1) {
               const delta = event.key === "ArrowRight" ? 1 : -1;
