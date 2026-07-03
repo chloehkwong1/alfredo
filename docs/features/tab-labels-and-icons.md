@@ -1,6 +1,6 @@
 ---
 title: Tab labels and agent brand icons
-keywords: [tab label, dynamic label, osc title, terminal title, process name, cwd, brand icons, claude icon, codex icon, gemini icon, simple-icons]
+keywords: [tab label, dynamic label, osc title, terminal title, process name, cwd, brand icons, claude icon, codex icon, gemini icon, simple-icons, rename tab, custom label]
 ui_path: Pane tab bar at the top of each worktree pane
 ---
 
@@ -14,10 +14,16 @@ Alfredo polls the foreground process and current working directory
 and renders those in the label, so a `cd` or a long-running command
 is visible at a glance.
 
+A renamed tab (see *Renaming tabs*) overrides the dynamic label. While
+a custom name is set, Alfredo ignores OSC title updates and process/cwd
+changes — the tab holds its name until you clear it. Clearing it
+(committing an empty rename field) hands control back to the dynamic
+label. The full label priority is: **custom name** → **dynamic label**
+(OSC title / process / cwd) → **static label** (tab type, shown when
+the PTY hasn't emitted anything yet).
+
 Tabs are widened to 240px to give the dynamic label room to breathe,
-and long labels truncate with an ellipsis. If a PTY hasn't emitted any
-title yet (freshly opened tab), the label falls back to the tab's
-static label.
+and long labels truncate with an ellipsis.
 
 Agent tabs intentionally omit a type icon next to the dynamic label,
 because the OSC title already starts with a brand glyph at a slightly
