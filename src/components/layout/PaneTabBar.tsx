@@ -399,7 +399,7 @@ function PaneTabBar({
       ro.disconnect();
       el.removeEventListener("scroll", measure);
     };
-  }, [sessionCount]);
+  }, [sessionCount, spilled]);
 
   const agentIds = agents.map((t) => t.id);
   const terminalIds = terminals.map((t) => t.id);
@@ -746,53 +746,55 @@ function PaneTabBar({
         ].join(" ")}
       >
         <div className="overflow-hidden min-h-0">
-          <div className="flex items-center w-full h-[30px] min-w-0 border-t border-border-subtle bg-bg-bar/90">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={({ active }) => handleDragStart(active.id as string)}
-              onDragEnd={handleDragEnd}
-              onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
-            >
-              <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 pl-2">
-                <SortableContext items={terminalIds} strategy={horizontalListSortingStrategy}>
-                  {terminals.map((tab, i) => (
-                    <SortableTab
-                      key={tab.id}
-                      tab={tab}
-                      isActive={tab.id === activeTabId}
-                      canClose={true}
-                      worktreeId={worktreeId}
-                      paneId={paneId}
-                      onClose={handleCloseTab}
-                      onCloseOthers={handleCloseOthers}
-                      onCloseToRight={handleCloseToRight}
-                      hasOthersToClose={terminals.length > 1}
-                      hasTabsToRightToClose={i < terminals.length - 1}
-                      onSplit={handleSplit}
-                      onMoveToSibling={handleMoveToSibling}
-                      isSplit={isSplit}
-                      isPreview={pane?.previewTabId === tab.id}
-                      compact
-                    />
-                  ))}
-                </SortableContext>
-              </div>
-              <DragOverlay>
-                {draggedTab ? (
-                  <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
-                    {!isAgentTab(draggedTab) && (() => {
-                      const Icon = TAB_ICONS[draggedTab.type];
-                      return <Icon size={14} />;
-                    })()}
-                    <span className="max-w-[240px] truncate">{effectiveTabLabel(draggedTab)}</span>
-                  </div>
-                ) : null}
-              </DragOverlay>
-            </DndContext>
-            <div className="flex-1" />
-            {serverControls}
-          </div>
+          {spilled && terminals.length > 0 && (
+            <div className="flex items-center w-full h-[30px] min-w-0 border-t border-border-subtle bg-bg-bar/90">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={({ active }) => handleDragStart(active.id as string)}
+                onDragEnd={handleDragEnd}
+                onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
+              >
+                <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 pl-2">
+                  <SortableContext items={terminalIds} strategy={horizontalListSortingStrategy}>
+                    {terminals.map((tab, i) => (
+                      <SortableTab
+                        key={tab.id}
+                        tab={tab}
+                        isActive={tab.id === activeTabId}
+                        canClose={true}
+                        worktreeId={worktreeId}
+                        paneId={paneId}
+                        onClose={handleCloseTab}
+                        onCloseOthers={handleCloseOthers}
+                        onCloseToRight={handleCloseToRight}
+                        hasOthersToClose={terminals.length > 1}
+                        hasTabsToRightToClose={i < terminals.length - 1}
+                        onSplit={handleSplit}
+                        onMoveToSibling={handleMoveToSibling}
+                        isSplit={isSplit}
+                        isPreview={pane?.previewTabId === tab.id}
+                        compact
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+                <DragOverlay>
+                  {draggedTab ? (
+                    <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
+                      {!isAgentTab(draggedTab) && (() => {
+                        const Icon = TAB_ICONS[draggedTab.type];
+                        return <Icon size={14} />;
+                      })()}
+                      <span className="max-w-[240px] truncate">{effectiveTabLabel(draggedTab)}</span>
+                    </div>
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
+              <div className="flex-1" />
+              {serverControls}
+            </div>
+          )}
         </div>
       </div>
 
