@@ -55,7 +55,7 @@ import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
-import { partitionPaneTabs, effectiveTabLabel } from "../../lib/paneTabLayout";
+import { partitionPaneTabs, effectiveTabLabel, shouldSpill } from "../../lib/paneTabLayout";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
   busy: { cls: "bg-status-busy", label: "Thinking" },
@@ -135,6 +135,7 @@ function SortableTab({
   onMoveToSibling,
   isSplit,
   isPreview,
+  compact = false,
 }: {
   tab: WorkspaceTab;
   isActive: boolean;
@@ -150,6 +151,7 @@ function SortableTab({
   onMoveToSibling: (tabId: string) => void;
   isSplit: boolean;
   isPreview: boolean;
+  compact?: boolean;
 }) {
   const {
     attributes,
@@ -204,13 +206,13 @@ function SortableTab({
             }
           }}
           className={[
-            "group h-full px-3 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative",
+            `group h-full ${compact ? "px-2 text-xs" : "px-3 text-sm"} font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative`,
             isActive
               ? "text-text-primary"
               : "text-text-tertiary hover:text-text-secondary",
           ].join(" ")}
         >
-          {!isAgentTab(tab) && <Icon size={14} />}
+          {!isAgentTab(tab) && <Icon size={compact ? 12 : 14} />}
           <span title={effectiveLabel} className={["max-w-[240px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{effectiveLabel}</span>
           {statusDot && (
             <span
@@ -375,9 +377,32 @@ function PaneTabBar({
     .filter((t): t is WorkspaceTab => t != null);
 
   const { notes, agents, terminals, diffs } = partitionPaneTabs(paneTabs);
-  const sessions = [...agents, ...terminals];
   const showDiffRow = diffs.length > 0;
-  const sessionIds = sessions.map((t) => t.id);
+
+  const sessionCount = agents.length + terminals.length;
+  const [spilled, setSpilled] = useState(false);
+  const sessionScrollRef = useRef<HTMLDivElement>(null);
+  const [clipped, setClipped] = useState(false);
+
+  useEffect(() => {
+    const el = sessionScrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      setSpilled((prev) => shouldSpill(el.clientWidth, sessionCount, prev));
+      setClipped(el.scrollWidth > el.clientWidth + 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    el.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", measure);
+    };
+  }, [sessionCount]);
+
+  const agentIds = agents.map((t) => t.id);
+  const terminalIds = terminals.map((t) => t.id);
   const diffIds = diffs.map((t) => t.id);
 
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
@@ -416,7 +441,9 @@ function PaneTabBar({
   }
 
   function categoryFor(tabId: string): WorkspaceTab[] {
-    return diffIds.includes(tabId) ? diffs : sessions;
+    if (diffIds.includes(tabId)) return diffs;
+    if (terminalIds.includes(tabId)) return terminals;
+    return agents;
   }
 
   function handleCloseOthers(tabId: string) {
@@ -505,7 +532,7 @@ function PaneTabBar({
 
     if (!over || active.id === over.id) return;
 
-    const cat = sessionIds.includes(active.id as string) ? sessionIds : diffIds;
+    const cat = categoryFor(active.id as string).map((t) => t.id);
     reorderWithinCategory(cat, active.id as string, over.id as string);
   }
 
@@ -534,6 +561,54 @@ function PaneTabBar({
     prevTabCountRef.current = tabCount;
   }, [tabCount, lastTabId]);
 
+  const serverControls = (
+    <>
+      {assignedPort && isServerRunning && !runScriptUrl && (
+        <button
+          type="button"
+          onClick={() => openUrl(`http://localhost:${assignedPort}`)}
+          className="inline-flex items-center gap-1.5 h-6 px-2 mr-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
+          title={`Open http://localhost:${assignedPort} in browser`}
+        >
+          <Globe size={12} />
+          localhost:{assignedPort}
+          <ArrowUpRight size={11} className="opacity-70" />
+        </button>
+      )}
+      {onToggleServer && runScriptName && (
+        <div className="flex items-center gap-1 mr-2 flex-shrink-0">
+          <AnimatePresence>
+            {isServerRunning && runScriptUrl && (
+              <motion.div
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: "auto" }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                <button
+                  type="button"
+                  onClick={() => openUrl(runScriptUrl)}
+                  className="inline-flex items-center gap-1.5 h-6 px-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
+                  title={`Open ${runScriptUrl} in browser`}
+                >
+                  <Globe size={12} />
+                  {runScriptUrl.replace(/^https?:\/\//, "")}
+                  <ArrowUpRight size={11} className="opacity-70" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <StartServerControl
+            worktreeId={worktreeId}
+            isServerRunning={!!isServerRunning}
+            runScriptName={runScriptName}
+            onToggleServer={onToggleServer}
+          />
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div
       ref={barRef}
@@ -558,10 +633,11 @@ function PaneTabBar({
           onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
         >
           <div
-            className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0"
+            ref={sessionScrollRef}
+            className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 relative"
           >
-            <SortableContext items={sessionIds} strategy={horizontalListSortingStrategy}>
-              {sessions.map((tab, i) => (
+            <SortableContext items={agentIds} strategy={horizontalListSortingStrategy}>
+              {agents.map((tab, i) => (
                 <SortableTab
                   key={tab.id}
                   tab={tab}
@@ -572,8 +648,8 @@ function PaneTabBar({
                   onClose={handleCloseTab}
                   onCloseOthers={handleCloseOthers}
                   onCloseToRight={handleCloseToRight}
-                  hasOthersToClose={sessions.length > 1}
-                  hasTabsToRightToClose={i < sessions.length - 1}
+                  hasOthersToClose={agents.length > 1}
+                  hasTabsToRightToClose={i < agents.length - 1}
                   onSplit={handleSplit}
                   onMoveToSibling={handleMoveToSibling}
                   isSplit={isSplit}
@@ -581,6 +657,35 @@ function PaneTabBar({
                 />
               ))}
             </SortableContext>
+            {!spilled && agents.length > 0 && terminals.length > 0 && (
+              <div className="w-px h-5 bg-border-subtle mx-1 flex-shrink-0" />
+            )}
+            {!spilled && (
+              <SortableContext items={terminalIds} strategy={horizontalListSortingStrategy}>
+                {terminals.map((tab, i) => (
+                  <SortableTab
+                    key={tab.id}
+                    tab={tab}
+                    isActive={tab.id === activeTabId}
+                    canClose={true}
+                    worktreeId={worktreeId}
+                    paneId={paneId}
+                    onClose={handleCloseTab}
+                    onCloseOthers={handleCloseOthers}
+                    onCloseToRight={handleCloseToRight}
+                    hasOthersToClose={terminals.length > 1}
+                    hasTabsToRightToClose={i < terminals.length - 1}
+                    onSplit={handleSplit}
+                    onMoveToSibling={handleMoveToSibling}
+                    isSplit={isSplit}
+                    isPreview={pane?.previewTabId === tab.id}
+                  />
+                ))}
+              </SortableContext>
+            )}
+            {clipped && (
+              <div className="pointer-events-none sticky right-0 top-0 h-full w-8 flex-shrink-0 -ml-8 bg-gradient-to-l from-bg-bar to-transparent" />
+            )}
           </div>
           <DragOverlay>
             {draggedTab ? (
@@ -630,51 +735,65 @@ function PaneTabBar({
         </DropdownMenu>
 
         <div className="flex-1" />
+        {!spilled && serverControls}
+      </div>
 
-        {assignedPort && isServerRunning && !runScriptUrl && (
-          <button
-            type="button"
-            onClick={() => openUrl(`http://localhost:${assignedPort}`)}
-            className="inline-flex items-center gap-1.5 h-6 px-2 mr-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
-            title={`Open http://localhost:${assignedPort} in browser`}
-          >
-            <Globe size={12} />
-            localhost:{assignedPort}
-            <ArrowUpRight size={11} className="opacity-70" />
-          </button>
-        )}
-
-        {onToggleServer && runScriptName && (
-          <div className="flex items-center gap-1 mr-2 flex-shrink-0">
-            <AnimatePresence>
-              {isServerRunning && runScriptUrl && (
-                <motion.div
-                  initial={{ opacity: 0, width: 0 }}
-                  animate={{ opacity: 1, width: "auto" }}
-                  exit={{ opacity: 0, width: 0 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => openUrl(runScriptUrl)}
-                    className="inline-flex items-center gap-1.5 h-6 px-2 rounded text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/20 hover:bg-accent-primary/15 hover:border-accent-primary/30 transition-colors cursor-pointer flex-shrink-0 whitespace-nowrap"
-                    title={`Open ${runScriptUrl} in browser`}
-                  >
-                    <Globe size={12} />
-                    {runScriptUrl.replace(/^https?:\/\//, "")}
-                    <ArrowUpRight size={11} className="opacity-70" />
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <StartServerControl
-              worktreeId={worktreeId}
-              isServerRunning={!!isServerRunning}
-              runScriptName={runScriptName}
-              onToggleServer={onToggleServer}
-            />
+      {/* ── Spilled terminal row — animates height 0↔auto via grid-rows ── */}
+      <div
+        className={[
+          "grid transition-[grid-template-rows] duration-150 ease-out",
+          spilled ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        ].join(" ")}
+      >
+        <div className="overflow-hidden min-h-0">
+          <div className="flex items-center w-full h-[30px] min-w-0 border-t border-border-subtle bg-bg-bar/90">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={({ active }) => handleDragStart(active.id as string)}
+              onDragEnd={handleDragEnd}
+              onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
+            >
+              <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 pl-2">
+                <SortableContext items={terminalIds} strategy={horizontalListSortingStrategy}>
+                  {terminals.map((tab, i) => (
+                    <SortableTab
+                      key={tab.id}
+                      tab={tab}
+                      isActive={tab.id === activeTabId}
+                      canClose={true}
+                      worktreeId={worktreeId}
+                      paneId={paneId}
+                      onClose={handleCloseTab}
+                      onCloseOthers={handleCloseOthers}
+                      onCloseToRight={handleCloseToRight}
+                      hasOthersToClose={terminals.length > 1}
+                      hasTabsToRightToClose={i < terminals.length - 1}
+                      onSplit={handleSplit}
+                      onMoveToSibling={handleMoveToSibling}
+                      isSplit={isSplit}
+                      isPreview={pane?.previewTabId === tab.id}
+                      compact
+                    />
+                  ))}
+                </SortableContext>
+              </div>
+              <DragOverlay>
+                {draggedTab ? (
+                  <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
+                    {!isAgentTab(draggedTab) && (() => {
+                      const Icon = TAB_ICONS[draggedTab.type];
+                      return <Icon size={14} />;
+                    })()}
+                    <span className="max-w-[240px] truncate">{effectiveTabLabel(draggedTab)}</span>
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+            <div className="flex-1" />
+            {serverControls}
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── Row 2: diffs — animates height 0↔auto via grid-rows ── */}
