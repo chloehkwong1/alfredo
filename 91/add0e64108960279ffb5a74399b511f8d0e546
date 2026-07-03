@@ -1,0 +1,20 @@
+src/hooks/useKeyboardShortcuts.ts
+  s_c0089e7450a603::t_c12754a0dbaed6 138-140
+  s_c0089e7450a603::t_011fb02b80a197 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "91add0e64108960279ffb5a74399b511f8d0e546",
+  "prompts": {},
+  "sessions": {
+    "s_c0089e7450a603": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d915ae2a-1126-45f9-b018-51fafc0e01e6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
