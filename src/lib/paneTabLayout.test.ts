@@ -74,7 +74,7 @@ describe("tabSwitchTarget", () => {
 });
 
 describe("partitionPaneTabs", () => {
-  it("splits into notes (single), sessions (agent/terminal/server), and diffs — preserving order", () => {
+  it("splits into notes (single), agents, terminals, and diffs — preserving order", () => {
     const tabs = [
       tab("n", "notes"),
       tab("a1", "claude"),

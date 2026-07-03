@@ -308,17 +308,21 @@ function SortableTab({
             Move to Other Pane
           </ContextMenuItem>
         )}
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onSelect={() => {
-            cancelledRef.current = false;
-            setDraft(tab.customLabel ?? "");
-            setRenaming(true);
-          }}
-        >
-          <Pencil size={14} />
-          Rename Tab…
-        </ContextMenuItem>
+        {tab.type !== "server" && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onSelect={() => {
+                cancelledRef.current = false;
+                setDraft(tab.customLabel ?? "");
+                setRenaming(true);
+              }}
+            >
+              <Pencil size={14} />
+              Rename Tab…
+            </ContextMenuItem>
+          </>
+        )}
         {(effectiveCanClose || hasOthersToClose || hasTabsToRightToClose) && (
           <>
             <ContextMenuSeparator />
@@ -432,18 +436,21 @@ function PaneTabBar({
   const sessionCount = agents.length + terminals.length;
   const [spilled, setSpilled] = useState(false);
   const sessionScrollRef = useRef<HTMLDivElement>(null);
+  const row1SpacerRef = useRef<HTMLDivElement>(null);
   const [clipped, setClipped] = useState(false);
 
   useEffect(() => {
     const el = sessionScrollRef.current;
     if (!el) return;
     const measure = () => {
-      setSpilled((prev) => shouldSpill(el.clientWidth, sessionCount, prev));
-      setClipped(el.scrollWidth > el.clientWidth + 1);
+      const availablePx = el.clientWidth + (row1SpacerRef.current?.clientWidth ?? 0);
+      setSpilled((prev) => shouldSpill(availablePx, sessionCount, prev));
+      setClipped(el.scrollWidth - el.scrollLeft - el.clientWidth > 1);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    if (row1SpacerRef.current) ro.observe(row1SpacerRef.current);
     el.addEventListener("scroll", measure, { passive: true });
     return () => {
       ro.disconnect();
@@ -789,7 +796,7 @@ function PaneTabBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex-1" />
+        <div ref={row1SpacerRef} className="flex-1" />
         {!showSpillRow && serverControls}
       </div>
 
