@@ -311,6 +311,7 @@ function SortableTab({
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() => {
+            cancelledRef.current = false;
             setDraft(tab.customLabel ?? "");
             setRenaming(true);
           }}
