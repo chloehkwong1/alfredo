@@ -55,7 +55,7 @@ import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
-import { partitionPaneTabs } from "../../lib/paneTabLayout";
+import { partitionPaneTabs, effectiveTabLabel } from "../../lib/paneTabLayout";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
   busy: { cls: "bg-status-busy", label: "Thinking" },
@@ -182,7 +182,7 @@ function SortableTab({
 
   const effectiveCanClose = canClose || tab.type === "diff";
 
-  const effectiveLabel = tab.dynamicLabel ?? tab.label;
+  const effectiveLabel = effectiveTabLabel(tab);
 
   return (
     <ContextMenu>
@@ -312,7 +312,7 @@ function PinnedTab({
   const setActivePaneId = useLayoutStore((s) => s.setActivePaneId);
   const setActiveTabId = useTabStore((s) => s.setActiveTabId);
   const Icon = TAB_ICONS[tab.type];
-  const effectiveLabel = tab.dynamicLabel ?? tab.label;
+  const effectiveLabel = effectiveTabLabel(tab);
 
   const activate = () => {
     setPaneActiveTab(worktreeId, paneId, tab.id);
@@ -588,7 +588,7 @@ function PaneTabBar({
                   const Icon = TAB_ICONS[draggedTab.type];
                   return <Icon size={14} />;
                 })()}
-                <span className="max-w-[240px] truncate">{draggedTab.dynamicLabel ?? draggedTab.label}</span>
+                <span className="max-w-[240px] truncate">{effectiveTabLabel(draggedTab)}</span>
               </div>
             ) : null}
           </DragOverlay>
@@ -723,7 +723,7 @@ function PaneTabBar({
                       const Icon = TAB_ICONS[draggedTab.type];
                       return <Icon size={14} />;
                     })()}
-                    <span className="max-w-[240px] truncate">{draggedTab.dynamicLabel ?? draggedTab.label}</span>
+                    <span className="max-w-[240px] truncate">{effectiveTabLabel(draggedTab)}</span>
                   </div>
                 ) : null}
               </DragOverlay>

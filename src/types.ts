@@ -454,6 +454,11 @@ export interface WorkspaceTab {
    * fall back to `label`.
    */
   dynamicLabel?: string | null;
+  /**
+   * User-set name from "Rename Tab". Outranks `dynamicLabel` until cleared
+   * (set back to undefined by committing an empty rename input).
+   */
+  customLabel?: string;
 }
 
 // ── App Config (multi-repo) ──────────────────────────────────────

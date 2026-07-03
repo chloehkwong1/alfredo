@@ -64,3 +64,10 @@ export function tabSwitchTarget(
   }
   return pinnedAgentTab(tabs, activeTabId, lastFocusedAgentTabId)?.id;
 }
+
+/** Display label precedence: user rename > live dynamic label > static label. */
+export function effectiveTabLabel(
+  tab: Pick<WorkspaceTab, "customLabel" | "dynamicLabel" | "label">,
+): string {
+  return tab.customLabel ?? tab.dynamicLabel ?? tab.label;
+}

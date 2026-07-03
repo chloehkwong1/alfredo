@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pinnedAgentTab, tabSwitchTarget, isSessionTab, partitionPaneTabs } from "./paneTabLayout";
+import { pinnedAgentTab, tabSwitchTarget, isSessionTab, partitionPaneTabs, effectiveTabLabel } from "./paneTabLayout";
 import type { WorkspaceTab, TabType } from "../types";
 
 function tab(id: string, type: TabType): WorkspaceTab {
@@ -95,5 +95,16 @@ describe("partitionPaneTabs", () => {
     expect(isSessionTab(tab("sv", "server"))).toBe(true);
     expect(isSessionTab(tab("d", "diff"))).toBe(false);
     expect(isSessionTab(tab("n", "notes"))).toBe(false);
+  });
+});
+
+describe("effectiveTabLabel", () => {
+  it("customLabel beats dynamicLabel beats label", () => {
+    expect(
+      effectiveTabLabel({ customLabel: "api fix", dynamicLabel: "✱ doing stuff", label: "Claude" }),
+    ).toBe("api fix");
+    expect(effectiveTabLabel({ dynamicLabel: "✱ doing stuff", label: "Claude" })).toBe("✱ doing stuff");
+    expect(effectiveTabLabel({ dynamicLabel: null, label: "Claude" })).toBe("Claude");
+    expect(effectiveTabLabel({ label: "Terminal" })).toBe("Terminal");
   });
 });
