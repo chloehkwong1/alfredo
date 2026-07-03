@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pinnedAgentTab, tabSwitchTarget, isSessionTab, partitionPaneTabs, effectiveTabLabel } from "./paneTabLayout";
+import { pinnedAgentTab, tabSwitchTarget, isSessionTab, partitionPaneTabs, displayCycleOrder, effectiveTabLabel } from "./paneTabLayout";
 import type { WorkspaceTab, TabType } from "../types";
 
 function tab(id: string, type: TabType): WorkspaceTab {
@@ -83,9 +83,10 @@ describe("partitionPaneTabs", () => {
       tab("sv", "server"),
       tab("d2", "diff"),
     ];
-    const { notes, sessions, diffs } = partitionPaneTabs(tabs);
+    const { notes, agents, terminals, diffs } = partitionPaneTabs(tabs);
     expect(notes?.id).toBe("n");
-    expect(sessions.map((t) => t.id)).toEqual(["a1", "sh", "sv"]);
+    expect(agents.map((t) => t.id)).toEqual(["a1"]);
+    expect(terminals.map((t) => t.id)).toEqual(["sh", "sv"]);
     expect(diffs.map((t) => t.id)).toEqual(["d1", "d2"]);
   });
 
@@ -95,6 +96,22 @@ describe("partitionPaneTabs", () => {
     expect(isSessionTab(tab("sv", "server"))).toBe(true);
     expect(isSessionTab(tab("d", "diff"))).toBe(false);
     expect(isSessionTab(tab("n", "notes"))).toBe(false);
+  });
+});
+
+describe("displayCycleOrder", () => {
+  it("orders agents, then terminals, then diffs; excludes notes; keeps tabIds order within groups", () => {
+    const tabs = [
+      tab("n", "notes"), tab("sh", "shell"), tab("a1", "claude"),
+      tab("d1", "diff"), tab("a2", "codex"), tab("sv", "server"),
+    ];
+    const tabIds = ["n", "sh", "a1", "d1", "a2", "sv"];
+    expect(displayCycleOrder(tabs, tabIds)).toEqual(["a1", "a2", "sh", "sv", "d1"]);
+  });
+
+  it("ignores tabIds with no matching tab", () => {
+    const tabs = [tab("a1", "claude")];
+    expect(displayCycleOrder(tabs, ["a1", "ghost"])).toEqual(["a1"]);
   });
 });
 

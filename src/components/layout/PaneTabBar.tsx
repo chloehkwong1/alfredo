@@ -374,7 +374,8 @@ function PaneTabBar({
     .map((id) => tabs.find((t) => t.id === id))
     .filter((t): t is WorkspaceTab => t != null);
 
-  const { notes, sessions, diffs } = partitionPaneTabs(paneTabs);
+  const { notes, agents, terminals, diffs } = partitionPaneTabs(paneTabs);
+  const sessions = [...agents, ...terminals];
   const showDiffRow = diffs.length > 0;
   const sessionIds = sessions.map((t) => t.id);
   const diffIds = diffs.map((t) => t.id);

@@ -25,18 +25,37 @@ export function isSessionTab(t: WorkspaceTab): boolean {
   return t.type !== "diff" && t.type !== "notes";
 }
 
-/** Split a pane's tabs into the leftmost Notes singleton, the session tabs
- *  (Row 1), and the diff tabs (Row 2), each preserving original order. */
+/** Terminal-style non-agent sessions: shells and the dev server. */
+export function isTerminalTab(t: WorkspaceTab): boolean {
+  return t.type === "shell" || t.type === "server";
+}
+
+/** Split a pane's tabs into the pinned Notes singleton, the agent segment,
+ *  the terminal segment (shells + server), and the diff tabs — each
+ *  preserving original order. */
 export function partitionPaneTabs(tabs: WorkspaceTab[]): {
   notes: WorkspaceTab | undefined;
-  sessions: WorkspaceTab[];
+  agents: WorkspaceTab[];
+  terminals: WorkspaceTab[];
   diffs: WorkspaceTab[];
 } {
   return {
     notes: tabs.find((t) => t.type === "notes"),
-    sessions: tabs.filter(isSessionTab),
+    agents: tabs.filter((t) => isAgentTab(t)),
+    terminals: tabs.filter(isTerminalTab),
     diffs: tabs.filter((t) => t.type === "diff"),
   };
+}
+
+/** Pane tab ids in visual order — agents, then terminals, then diffs.
+ *  Notes is excluded (pinned anchor, never part of cycling). */
+export function displayCycleOrder(tabs: WorkspaceTab[], tabIds: string[]): string[] {
+  const byId = new Map(tabs.map((t) => [t.id, t]));
+  const inPane = tabIds
+    .map((id) => byId.get(id))
+    .filter((t): t is WorkspaceTab => t != null);
+  const { agents, terminals, diffs } = partitionPaneTabs(inPane);
+  return [...agents, ...terminals, ...diffs].map((t) => t.id);
 }
 
 /**
