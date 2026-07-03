@@ -1,0 +1,30 @@
+src/lib/paneTabLayout.test.ts
+  s_c0089e7450a603::t_5ab3fa4691d513 100-110
+  s_c0089e7450a603::t_6a1c97ca542334 2
+src/types.ts
+  s_c0089e7450a603::t_dbf9b9af87c017 457-461
+src/components/layout/PaneTabBar.tsx
+  s_c0089e7450a603::t_6f52b53c1c3d1c 185
+  s_c0089e7450a603::t_6c10f8451dd1c7 58
+  s_c0089e7450a603::t_57ca9a49b28234 591
+  s_c0089e7450a603::t_1c2b89aefe8323 315
+  s_c0089e7450a603::t_76679bdd2f1d03 726
+src/lib/paneTabLayout.ts
+  s_c0089e7450a603::t_609cffa995ef90 67-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d87d963631278e42cfae2d863df870dd2721a8fc",
+  "prompts": {},
+  "sessions": {
+    "s_c0089e7450a603": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d915ae2a-1126-45f9-b018-51fafc0e01e6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
