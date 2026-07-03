@@ -67,11 +67,12 @@ italics; double-click it to pin.
 
 ### Renaming tabs
 
-Right-click any session or diff tab and choose **Rename Tab…** to give
-it a custom name. The label turns into an inline input — press Enter to
-commit, Esc to cancel. Committing an empty field clears the custom name
-and restores the live dynamic label. Custom names outrank the dynamic
-label (OSC title, process name, cwd) and survive app restarts. Notes
+Right-click any agent, terminal, or diff tab and choose **Rename Tab…**
+to give it a custom name. The label turns into an inline input — press
+Enter to commit, Esc to cancel. Committing an empty field clears the
+custom name and restores the live dynamic label. Custom names outrank
+the dynamic label (OSC title, process name, cwd) and survive app
+restarts. Notes and the dev-server tab keep their generated names and
 cannot be renamed.
 
 ### Keyboard
