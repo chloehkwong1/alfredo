@@ -12,6 +12,7 @@ import {
   Radio,
   Combine,
   NotebookPen,
+  Pencil,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -168,6 +169,21 @@ function SortableTab({
     opacity: isDragging ? 0.3 : 1,
   };
 
+  const updateTab = useTabStore((s) => s.updateTab);
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState("");
+  const cancelledRef = useRef(false);
+
+  function commitRename() {
+    if (!renaming || cancelledRef.current) {
+      cancelledRef.current = false;
+      return;
+    }
+    const trimmed = draft.trim();
+    updateTab(worktreeId, tab.id, { customLabel: trimmed === "" ? undefined : trimmed });
+    setRenaming(false);
+  }
+
   const Icon = TAB_ICONS[tab.type];
   const sessionStatus = useSessionStatusStore((s) => s.statuses[tab.id]);
   const staleBusy = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId)?.staleBusy);
@@ -213,7 +229,30 @@ function SortableTab({
           ].join(" ")}
         >
           {!isAgentTab(tab) && <Icon size={compact ? 12 : 14} />}
-          <span title={effectiveLabel} className={["max-w-[240px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{effectiveLabel}</span>
+          {renaming ? (
+            <input
+              autoFocus
+              value={draft}
+              placeholder={tab.dynamicLabel ?? tab.label}
+              onChange={(e) => setDraft(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") commitRename();
+                if (e.key === "Escape") {
+                  cancelledRef.current = true;
+                  setRenaming(false);
+                }
+              }}
+              onBlur={commitRename}
+              className="w-[140px] bg-bg-tertiary text-text-primary rounded px-1.5 py-0.5 outline-none border border-accent-primary/40"
+            />
+          ) : (
+            <span title={effectiveLabel} className={["max-w-[240px] truncate", isPreview ? "italic opacity-80" : ""].join(" ")}>{effectiveLabel}</span>
+          )}
           {statusDot && (
             <span
               aria-label={statusDot.label}
@@ -269,6 +308,16 @@ function SortableTab({
             Move to Other Pane
           </ContextMenuItem>
         )}
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onSelect={() => {
+            setDraft(tab.customLabel ?? "");
+            setRenaming(true);
+          }}
+        >
+          <Pencil size={14} />
+          Rename Tab…
+        </ContextMenuItem>
         {(effectiveCanClose || hasOthersToClose || hasTabsToRightToClose) && (
           <>
             <ContextMenuSeparator />
