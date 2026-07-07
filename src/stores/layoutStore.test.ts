@@ -733,5 +733,96 @@ describe("layoutStore", () => {
       s.addTabToPane(WT, paneId, "d2");
       expect(s.getPane(WT, paneId)?.collapsedRows?.diffs).toBe(false);
     });
+
+    it("removeTabFromPane preserves collapsedRows (remove a diff, terminals stay collapsed)", () => {
+      const s = useLayoutStore.getState();
+      s.toggleRowCollapsed(WT, paneId, "terminals");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.terminals).toBe(true);
+
+      // Remove the diff tab — terminals should still be collapsed
+      s.removeTabFromPane(WT, "d1");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.terminals).toBe(true);
+    });
+
+    it("splitPane preserves collapsedRows on the source pane", () => {
+      const s = useLayoutStore.getState();
+      s.toggleRowCollapsed(WT, paneId, "terminals");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.terminals).toBe(true);
+
+      // Split out the diff tab; source pane should keep its collapsedRows
+      s.splitPane(WT, paneId, "d1", "horizontal");
+
+      const layout = getState().layout[WT] as { type: "split"; children: [LayoutNode, LayoutNode] };
+      const leftPaneId = (layout.children[0] as { type: "leaf"; paneId: string }).paneId;
+      expect(s.getPane(WT, leftPaneId)?.collapsedRows?.terminals).toBe(true);
+    });
+
+    it("moveTabToSiblingPane preserves source collapsedRows and expands target row for the moved tab", () => {
+      const s = useLayoutStore.getState();
+
+      // Split so we have two panes
+      s.splitPane(WT, paneId, "d1", "horizontal");
+      const layout = getState().layout[WT] as { type: "split"; children: [LayoutNode, LayoutNode] };
+      const leftPaneId = (layout.children[0] as { type: "leaf"; paneId: string }).paneId;
+      const rightPaneId = (layout.children[1] as { type: "leaf"; paneId: string }).paneId;
+
+      // Collapse terminals on source (left) pane
+      s.toggleRowCollapsed(WT, leftPaneId, "terminals");
+      expect(s.getPane(WT, leftPaneId)?.collapsedRows?.terminals).toBe(true);
+
+      // Collapse terminals on target (right) pane
+      s.toggleRowCollapsed(WT, rightPaneId, "terminals");
+      expect(s.getPane(WT, rightPaneId)?.collapsedRows?.terminals).toBe(true);
+
+      // Move the shell tab (type "shell" → "terminals" row) from left to right
+      s.moveTabToSiblingPane(WT, leftPaneId, "sh");
+
+      // Source pane: terminals collapsed flag should survive
+      expect(s.getPane(WT, leftPaneId)?.collapsedRows?.terminals).toBe(true);
+      // Target pane: terminals must be expanded because "sh" (a terminal tab) is now active there
+      expect(s.getPane(WT, rightPaneId)?.collapsedRows?.terminals).toBe(false);
+    });
+
+    it("removeTabFromPane fallback activation expands the row of the newly-active tab", () => {
+      const s = useLayoutStore.getState();
+      // Pane has: a1 (agent, active), sh (shell → terminals row), d1 (diff)
+      // Collapse terminals row
+      s.toggleRowCollapsed(WT, paneId, "terminals");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.terminals).toBe(true);
+
+      // Make the shell tab active, then collapse terminals again so the
+      // fallback path (remove active tab → promote next) is exercised
+      s.setPaneActiveTab(WT, paneId, "sh");
+      // terminals expanded by setPaneActiveTab — re-collapse for the test
+      s.toggleRowCollapsed(WT, paneId, "terminals");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.terminals).toBe(true);
+
+      // Remove the active shell tab → fallback promotes a1 (agent, no row expansion needed)
+      // But we want the shell→agent case: make "a1" active, remove "a1" → "sh" becomes active
+      s.setPaneActiveTab(WT, paneId, "a1");
+      // Collapse terminals again (setPaneActiveTab on agent doesn't touch terminals)
+      // Currently collapsed: check
+      expect(s.getPane(WT, paneId)?.collapsedRows?.terminals).toBe(true);
+
+      // Remove "a1" — the fallback picks "sh" (first non-notes tab after filtering a1 out)
+      s.removeTabFromPane(WT, "a1");
+      // sh is now the active tab and is in the terminals row → must expand
+      expect(s.getPane(WT, paneId)?.activeTabId).toBe("sh");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.terminals).toBe(false);
+    });
+
+    it("openPreviewTab auto-expands the diffs row when diffs are collapsed", () => {
+      const s = useLayoutStore.getState();
+      s.toggleRowCollapsed(WT, paneId, "diffs");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.diffs).toBe(true);
+
+      // Seed a diff preview tab into tabStore
+      mockTabStoreState.tabs[WT] = [
+        ...mockTabStoreState.tabs[WT],
+        { id: "dp1", type: "diff" },
+      ];
+      s.openPreviewTab(WT, paneId, "dp1");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.diffs).toBe(false);
+    });
   });
 });

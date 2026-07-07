@@ -250,7 +250,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         ...s.panes,
         [worktreeId]: {
           ...worktreePanes,
-          [paneId]: { tabIds: newSourceTabIds, activeTabId: newSourceActiveTab, previewTabId: null },
+          [paneId]: { ...sourcePane, tabIds: newSourceTabIds, activeTabId: newSourceActiveTab, previewTabId: null },
           [newPaneId]: { tabIds: [tabId], activeTabId: tabId, previewTabId: null },
         },
       },
@@ -410,15 +410,22 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const newPreviewTabId =
       pane.previewTabId === tabId ? null : pane.previewTabId ?? null;
 
-    set((s) => ({
-      panes: {
-        ...s.panes,
-        [worktreeId]: {
-          ...worktreePanes,
-          [paneId]: { tabIds: newTabIds, activeTabId: newActiveTabId, previewTabId: newPreviewTabId },
+    const needsExpand = pane.activeTabId === tabId;
+    set((s) => {
+      const updatedPane = withRowExpanded(
+        { ...pane, tabIds: newTabIds, activeTabId: newActiveTabId, previewTabId: newPreviewTabId },
+        needsExpand ? collapsibleRowForTab(worktreeId, newActiveTabId) : null,
+      );
+      return {
+        panes: {
+          ...s.panes,
+          [worktreeId]: {
+            ...worktreePanes,
+            [paneId]: updatedPane,
+          },
         },
-      },
-    }));
+      };
+    });
   },
 
   moveTabToSiblingPane: (worktreeId, paneId, tabId) => {
@@ -446,12 +453,16 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
     if (newSourceTabIds.length === 0) {
       // Source pane is now empty — collapse the split
+      const updatedTarget = withRowExpanded(
+        { ...targetPane, tabIds: newTargetTabIds, activeTabId: tabId, previewTabId: targetPane.previewTabId ?? null },
+        collapsibleRowForTab(worktreeId, tabId),
+      );
       set((s) => ({
         panes: {
           ...s.panes,
           [worktreeId]: {
             ...worktreePanes,
-            [siblingPaneId]: { tabIds: newTargetTabIds, activeTabId: tabId, previewTabId: targetPane.previewTabId ?? null },
+            [siblingPaneId]: updatedTarget,
           },
         },
       }));
@@ -459,13 +470,17 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     } else {
       const newSourceActiveTab =
         sourcePane.activeTabId === tabId ? newSourceTabIds[0] : sourcePane.activeTabId;
+      const updatedTarget = withRowExpanded(
+        { ...targetPane, tabIds: newTargetTabIds, activeTabId: tabId, previewTabId: targetPane.previewTabId ?? null },
+        collapsibleRowForTab(worktreeId, tabId),
+      );
       set((s) => ({
         panes: {
           ...s.panes,
           [worktreeId]: {
             ...worktreePanes,
-            [paneId]: { tabIds: newSourceTabIds, activeTabId: newSourceActiveTab, previewTabId: newSourcePreviewTabId },
-            [siblingPaneId]: { tabIds: newTargetTabIds, activeTabId: tabId, previewTabId: targetPane.previewTabId ?? null },
+            [paneId]: { ...sourcePane, tabIds: newSourceTabIds, activeTabId: newSourceActiveTab, previewTabId: newSourcePreviewTabId },
+            [siblingPaneId]: updatedTarget,
           },
         },
         activePaneId: { ...s.activePaneId, [worktreeId]: siblingPaneId },
