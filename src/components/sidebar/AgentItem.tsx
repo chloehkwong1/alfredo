@@ -382,6 +382,8 @@ function AgentItemContent({
                     : worktree.monitorPending
                       ? <>Monitoring<ThinkingDots /></>
                       : <><ThinkingText /><ThinkingDots /></>)
+                // Keep ahead of getStatusText: a just-created worktree reports
+                // "Ready", which would otherwise mask the in-progress setup.
                 : worktree.setupInProgress
                   ? <>Setting up<ThinkingDots /></>
                   : getStatusText(effectiveStatus)}
