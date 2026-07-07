@@ -1,0 +1,29 @@
+src/stores/workspaceStore.test.ts
+  s_9e83f543c71a7f::t_b31d52d12f0da7 409-478
+src/stores/workspaceStore.ts
+  s_9e83f543c71a7f::t_b81daed99c5e81 189
+  s_9e83f543c71a7f::t_679e7f543a773d 60-63
+  s_9e83f543c71a7f::t_cf012eab79b07f 9-14
+  s_9e83f543c71a7f::t_1813f65e1a6bce 240-241,247-260
+  s_9e83f543c71a7f::t_bfc33be32757ea 219-238
+  s_9e83f543c71a7f::t_9421915c19e33b 242-246
+  s_9e83f543c71a7f::t_ced6f2201997b3 239
+src/hooks/useWorktreeSetup.ts
+  s_9e83f543c71a7f::t_e0512bace40a81 7,14-17,22-26,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d577886f8e2b0c55d0bea121d528114de2f3f191",
+  "prompts": {},
+  "sessions": {
+    "s_9e83f543c71a7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8ad4081-d78b-4771-b45f-354588ed4194",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
