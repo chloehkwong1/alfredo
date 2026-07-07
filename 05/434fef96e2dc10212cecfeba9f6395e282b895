@@ -1,0 +1,22 @@
+src/App.tsx
+  s_9e83f543c71a7f::t_675f7261e86336 8
+  s_9e83f543c71a7f::t_39dda90aeb4fa2 108
+src/hooks/useWorktreeSetup.ts
+  s_9e83f543c71a7f::t_e06fb08ae5219f 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "05434fef96e2dc10212cecfeba9f6395e282b895",
+  "prompts": {},
+  "sessions": {
+    "s_9e83f543c71a7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8ad4081-d78b-4771-b45f-354588ed4194",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
