@@ -1076,6 +1076,13 @@ fn shortstat_for_range(
     }
 }
 
+/// Composite worktree id used across the app: `"<repo_path>::<branch>"`.
+/// Single source of truth so the create-return, the setup-complete event, and
+/// list_worktrees cannot drift in format.
+pub fn worktree_id(repo_path: &str, branch: &str) -> String {
+    format!("{repo_path}::{branch}")
+}
+
 /// List worktrees using git2 for reads.
 /// When `base_path` is provided, only worktrees whose path is under that directory are returned.
 /// Skips diff stats for speed — call `get_diff_stats` separately for the active worktree.
@@ -1117,7 +1124,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
         let last_commit_epoch = get_last_commit_epoch(&wt_path);
 
         worktrees.push(Worktree {
-            id: format!("{repo_path}::{branch}"),
+            id: worktree_id(repo_path, &branch),
             name: name.to_string(),
             path: wt_path.to_string_lossy().to_string(),
             branch,

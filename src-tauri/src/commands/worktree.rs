@@ -75,6 +75,7 @@ fn is_stacked_branch(base_branch: &str, default_remote: &str, branch_name: &str)
 #[serde(rename_all = "camelCase")]
 struct WorktreeSetupComplete {
     worktree_id: String,
+    worktree_path: String,
     error: Option<String>,
 }
 
@@ -133,10 +134,13 @@ pub async fn create_worktree(
                     Ok(()) => None,
                     Err(e) => Some(e.to_string()),
                 };
-            let worktree_id = format!("{repo}::{branch}");
             let _ = app.emit(
                 "worktree:setup-complete",
-                WorktreeSetupComplete { worktree_id, error },
+                WorktreeSetupComplete {
+                    worktree_id: git_manager::worktree_id(&repo, &branch),
+                    worktree_path: path,
+                    error,
+                },
             );
         });
     }
@@ -165,7 +169,7 @@ pub async fn create_worktree(
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
 
     Ok(Worktree {
-        id: format!("{repo_path}::{branch_name}"),
+        id: git_manager::worktree_id(&repo_path, &branch_name),
         name: dir_name,
         path: path_str,
         branch: branch_name,
