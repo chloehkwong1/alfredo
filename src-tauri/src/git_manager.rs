@@ -1136,6 +1136,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             stack_children: vec![],
             stack_rebase_status: None,
             setup_script_error: None,
+            setup_in_progress: false,
             assigned_port: None,
         });
     }

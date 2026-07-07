@@ -156,6 +156,11 @@ pub struct Worktree {
     /// successfully; this surfaces script failure without failing the whole op.
     #[serde(default)]
     pub setup_script_error: Option<String>,
+    /// True while post-create setup scripts are still running in the background.
+    /// The worktree itself already exists and is usable; this drives the
+    /// sidebar "Setting up…" status until `worktree:setup-complete` fires.
+    #[serde(default)]
+    pub setup_in_progress: bool,
     /// Auto-assigned dev server port for this worktree.
     #[serde(default)]
     pub assigned_port: Option<u16>,

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 
 use crate::config_manager;
@@ -68,6 +68,16 @@ fn is_stacked_branch(base_branch: &str, default_remote: &str, branch_name: &str)
         && !base_branch.is_empty()
 }
 
+/// Payload for the `worktree:setup-complete` event emitted when a worktree's
+/// background setup scripts finish. `error` is `None` on success, or the
+/// script failure message on failure (surfaced by the existing error UI).
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorktreeSetupComplete {
+    worktree_id: String,
+    error: Option<String>,
+}
+
 /// Create a worktree with an explicit branch name and base.
 #[tauri::command]
 pub async fn create_worktree(
@@ -106,18 +116,30 @@ pub async fn create_worktree(
         .filter(|s| s.run_on == "create")
         .cloned()
         .collect();
-    // Setup script failure is non-fatal: the worktree itself already exists and
-    // is usable. We surface the error on the returned Worktree so the UI can
-    // show it without pretending the whole creation failed (which would leave
-    // an orphaned worktree on disk and block retries).
-    let setup_script_error = if create_scripts.is_empty() {
-        None
-    } else {
-        match config_manager::run_setup_scripts(&repo_path, &path_str, &create_scripts).await {
-            Ok(()) => None,
-            Err(e) => Some(e.to_string()),
-        }
-    };
+    // Setup scripts (npm/bundle install, codegen) are the slow part of spin-up.
+    // Run them off the critical path so the worktree is usable immediately:
+    // spawn a background task, and emit `worktree:setup-complete` when done.
+    // Failure is non-fatal — the worktree already exists — and is surfaced via
+    // the event's `error` field (the frontend shows the existing error UI).
+    let setup_in_progress = !create_scripts.is_empty();
+    if setup_in_progress {
+        let app = app.clone();
+        let repo = repo_path.clone();
+        let path = path_str.clone();
+        let branch = branch_name.clone();
+        tauri::async_runtime::spawn(async move {
+            let error =
+                match config_manager::run_setup_scripts(&repo, &path, &create_scripts).await {
+                    Ok(()) => None,
+                    Err(e) => Some(e.to_string()),
+                };
+            let worktree_id = format!("{repo}::{branch}");
+            let _ = app.emit(
+                "worktree:setup-complete",
+                WorktreeSetupComplete { worktree_id, error },
+            );
+        });
+    }
 
     // Use the sanitized directory name as the ID/name so it matches
     // what list_worktrees returns (git uses the dir name internally).
@@ -166,7 +188,8 @@ pub async fn create_worktree(
         stack_parent,
         stack_children: vec![],
         stack_rebase_status: None,
-        setup_script_error,
+        setup_script_error: None,
+        setup_in_progress,
         assigned_port,
     })
 }
@@ -387,6 +410,7 @@ pub async fn get_worktree_status(
         stack_children: vec![],
         stack_rebase_status: None,
         setup_script_error: None,
+        setup_in_progress: false,
         assigned_port: None,
     };
     if config.auto_assign_ports {
