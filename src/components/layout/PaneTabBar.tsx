@@ -437,10 +437,10 @@ function PaneTabBar({
 
   const collapsedRows = pane?.collapsedRows;
   const toggleRowCollapsed = useLayoutStore((s) => s.toggleRowCollapsed);
-  const showTerminalsRow = terminals.length > 0 && !collapsedRows?.terminals;
-  const showDiffRow = diffs.length > 0 && !collapsedRows?.diffs;
-  const terminalsStrip = terminals.length > 0 && !!collapsedRows?.terminals;
-  const diffsStrip = diffs.length > 0 && !!collapsedRows?.diffs;
+  const hasTerminals = terminals.length > 0;
+  const hasDiffs = diffs.length > 0;
+  const terminalsCollapsed = !!collapsedRows?.terminals;
+  const diffsCollapsed = !!collapsedRows?.diffs;
   const activeInTerminals = terminals.some((t) => t.id === activeTabId);
   const activeInDiffs = diffs.some((t) => t.id === activeTabId);
 
@@ -472,16 +472,18 @@ function PaneTabBar({
   const prevTabCountRef = useRef(0);
 
   const [bornPulse, setBornPulse] = useState(false);
-  const prevShowDiffRowRef = useRef(showDiffRow);
+  const prevHasDiffsRef = useRef(hasDiffs);
   useEffect(() => {
-    if (showDiffRow && !prevShowDiffRowRef.current) {
+    // Pulse only when the diffs row first appears (a diff opens), not when an
+    // already-present-but-collapsed row is expanded.
+    if (hasDiffs && !prevHasDiffsRef.current) {
       setBornPulse(true);
       const timer = setTimeout(() => setBornPulse(false), 600);
-      prevShowDiffRowRef.current = showDiffRow;
+      prevHasDiffsRef.current = hasDiffs;
       return () => clearTimeout(timer);
     }
-    prevShowDiffRowRef.current = showDiffRow;
-  }, [showDiffRow]);
+    prevHasDiffsRef.current = hasDiffs;
+  }, [hasDiffs]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -769,144 +771,142 @@ function PaneTabBar({
         </DropdownMenu>
 
         <div className="flex-1" />
+        {serverControls}
       </div>
 
-      {/* ── Row 2: terminals ── */}
+      {/* ── Row 2: terminals — collapses in place to [chevron │ count] ── */}
       <div
         className={[
           "grid transition-[grid-template-rows] duration-150 ease-out",
-          showTerminalsRow ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+          hasTerminals ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         ].join(" ")}
       >
         <div className="overflow-hidden min-h-0">
-          {showTerminalsRow && (
-            <div className="flex items-center w-full h-[30px] min-w-0 border-t border-border-subtle bg-bg-bar/90">
+          {hasTerminals && (
+            <div
+              className={[
+                "flex items-center w-full min-w-0 border-t border-border-subtle bg-bg-bar/90",
+                terminalsCollapsed ? "h-[22px]" : "h-[30px]",
+              ].join(" ")}
+            >
               <button
                 type="button"
-                aria-label="Collapse terminals row"
+                aria-label={terminalsCollapsed ? "Expand terminals row" : "Collapse terminals row"}
                 onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "terminals"); }}
                 className="h-full px-1.5 text-text-tertiary hover:text-text-secondary cursor-pointer flex items-center flex-shrink-0"
               >
-                <ChevronDown size={12} />
+                {terminalsCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
               </button>
               <div className="w-px h-4 bg-border-subtle mr-1 flex-shrink-0" />
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragStart={({ active }) => handleDragStart(active.id as string)}
-                onDragEnd={handleDragEnd}
-                onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
-              >
-                <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0">
-                  <SortableContext items={terminalIds} strategy={horizontalListSortingStrategy}>
-                    {terminals.map((tab, i) => (
-                      <SortableTab
-                        key={tab.id}
-                        tab={tab}
-                        isActive={tab.id === activeTabId}
-                        canClose={true}
-                        worktreeId={worktreeId}
-                        paneId={paneId}
-                        onClose={handleCloseTab}
-                        onCloseOthers={handleCloseOthers}
-                        onCloseToRight={handleCloseToRight}
-                        hasOthersToClose={terminals.length > 1}
-                        hasTabsToRightToClose={i < terminals.length - 1}
-                        onSplit={handleSplit}
-                        onMoveToSibling={handleMoveToSibling}
-                        isSplit={isSplit}
-                        isPreview={pane?.previewTabId === tab.id}
-                        compact
-                      />
-                    ))}
-                  </SortableContext>
-                </div>
-                <DragOverlay>
-                  {draggedTab ? (
-                    <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
-                      {!isAgentTab(draggedTab) && (() => {
-                        const Icon = TAB_ICONS[draggedTab.type];
-                        return <Icon size={14} />;
-                      })()}
-                      <span className="max-w-[240px] truncate">{effectiveTabLabel(draggedTab)}</span>
-                    </div>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
-              <div className="flex-1" />
-              {serverControls}
+              {terminalsCollapsed ? (
+                <button
+                  type="button"
+                  aria-label="Expand terminals row"
+                  onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "terminals"); }}
+                  className={[
+                    "inline-flex items-center gap-1 h-full px-1 text-xs cursor-pointer relative flex-shrink-0",
+                    activeInTerminals ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
+                  ].join(" ")}
+                >
+                  <Terminal size={12} />
+                  {terminals.length}
+                  {activeInTerminals && (
+                    <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-accent-primary rounded" />
+                  )}
+                </button>
+              ) : (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={({ active }) => handleDragStart(active.id as string)}
+                  onDragEnd={handleDragEnd}
+                  onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
+                >
+                  <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0">
+                    <SortableContext items={terminalIds} strategy={horizontalListSortingStrategy}>
+                      {terminals.map((tab, i) => (
+                        <SortableTab
+                          key={tab.id}
+                          tab={tab}
+                          isActive={tab.id === activeTabId}
+                          canClose={true}
+                          worktreeId={worktreeId}
+                          paneId={paneId}
+                          onClose={handleCloseTab}
+                          onCloseOthers={handleCloseOthers}
+                          onCloseToRight={handleCloseToRight}
+                          hasOthersToClose={terminals.length > 1}
+                          hasTabsToRightToClose={i < terminals.length - 1}
+                          onSplit={handleSplit}
+                          onMoveToSibling={handleMoveToSibling}
+                          isSplit={isSplit}
+                          isPreview={pane?.previewTabId === tab.id}
+                          compact
+                        />
+                      ))}
+                    </SortableContext>
+                  </div>
+                  <DragOverlay>
+                    {draggedTab ? (
+                      <div className="px-3 py-1.5 bg-bg-elevated text-text-primary text-sm font-medium rounded-md shadow-lg flex items-center gap-1.5 rotate-2">
+                        {!isAgentTab(draggedTab) && (() => {
+                          const Icon = TAB_ICONS[draggedTab.type];
+                          return <Icon size={14} />;
+                        })()}
+                        <span className="max-w-[240px] truncate">{effectiveTabLabel(draggedTab)}</span>
+                      </div>
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Summary strip: shown when terminals or diffs are collapsed ── */}
-      {(terminalsStrip || diffsStrip) && (
-        <div className="flex items-center w-full h-[22px] min-w-0 border-t border-border-subtle bg-bg-bar/90 gap-1 px-1">
-          {terminalsStrip && (
-            <button
-              type="button"
-              aria-label="Expand terminals row"
-              onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "terminals"); }}
-              className={[
-                "inline-flex items-center gap-1 h-[18px] px-1.5 rounded text-xs cursor-pointer relative",
-                activeInTerminals ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
-              ].join(" ")}
-            >
-              <ChevronRight size={11} />
-              <Terminal size={11} />
-              {terminals.length}
-              {onToggleServer && runScriptName && isServerRunning && (
-                <span className="inline-flex items-center gap-0.5 text-accent-primary">
-                  <Radio size={10} />
-                  {runScriptName}
-                </span>
-              )}
-              {activeInTerminals && (
-                <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-accent-primary rounded" />
-              )}
-            </button>
-          )}
-          {diffsStrip && (
-            <button
-              type="button"
-              aria-label="Expand diffs row"
-              onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "diffs"); }}
-              className={[
-                "inline-flex items-center gap-1 h-[18px] px-1.5 rounded text-xs cursor-pointer relative",
-                activeInDiffs ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
-              ].join(" ")}
-            >
-              <ChevronRight size={11} />
-              <GitCompareArrows size={11} />
-              {diffs.length}
-              {activeInDiffs && (
-                <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-accent-primary rounded" />
-              )}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── Row 3: diffs — animates height 0↔auto via grid-rows ── */}
+      {/* ── Row 3: diffs — collapses in place to [chevron │ count] ── */}
       <div
         className={[
           "grid transition-[grid-template-rows] duration-150 ease-out",
-          showDiffRow ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+          hasDiffs ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
           bornPulse ? "shadow-[inset_0_0_0_1px_var(--color-accent-primary)]" : "",
         ].join(" ")}
       >
         <div className="overflow-hidden min-h-0">
-          <div className="flex items-center w-full h-[30px] min-w-0 border-t border-border-subtle bg-bg-bar/90">
+          {hasDiffs && (
+          <div
+            className={[
+              "flex items-center w-full min-w-0 border-t border-border-subtle bg-bg-bar/90",
+              diffsCollapsed ? "h-[22px]" : "h-[30px]",
+            ].join(" ")}
+          >
             <button
               type="button"
-              aria-label="Collapse diffs row"
+              aria-label={diffsCollapsed ? "Expand diffs row" : "Collapse diffs row"}
               onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "diffs"); }}
               className="h-full px-1.5 text-text-tertiary hover:text-text-secondary cursor-pointer flex items-center flex-shrink-0"
             >
-              <ChevronDown size={12} />
+              {diffsCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
             </button>
             <div className="w-px h-4 bg-border-subtle mr-1 flex-shrink-0" />
+            {diffsCollapsed ? (
+              <button
+                type="button"
+                aria-label="Expand diffs row"
+                onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "diffs"); }}
+                className={[
+                  "inline-flex items-center gap-1 h-full px-1 text-xs cursor-pointer relative flex-shrink-0",
+                  activeInDiffs ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
+                ].join(" ")}
+              >
+                <GitCompareArrows size={12} />
+                {diffs.length}
+                {activeInDiffs && (
+                  <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-accent-primary rounded" />
+                )}
+              </button>
+            ) : (
+            <>
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -949,7 +949,7 @@ function PaneTabBar({
                 ) : null}
               </DragOverlay>
             </DndContext>
-            {/* far-right pinned control — mirrors the server controls on Row 1 */}
+            {/* far-right pinned control */}
             <div className="flex-1" />
             <div className="w-px h-5 bg-border-subtle flex-shrink-0" />
             <button
@@ -961,7 +961,10 @@ function PaneTabBar({
               <ListX size={13} />
               Close all
             </button>
+            </>
+            )}
           </div>
+          )}
         </div>
       </div>
     </div>
