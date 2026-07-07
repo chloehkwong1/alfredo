@@ -536,6 +536,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       deleteAfterDays: 0,
       runningServers: {},
       githubAuthErrors: new Set<string>(),
+      completedSetups: [],
     }),
 
   setRunningServer: (worktreeId, server) => set((state) => {

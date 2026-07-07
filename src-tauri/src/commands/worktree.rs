@@ -393,7 +393,7 @@ pub async fn get_worktree_status(
     let column = config_manager::get_column_override(&config, &wt_name)
         .unwrap_or(KanbanColumn::InProgress);
 
-    let id = format!("{repo_path}::{}", status.branch);
+    let id = git_manager::worktree_id(&repo_path, &status.branch);
     let mut wt = Worktree {
         id,
         name: wt_name.clone(),

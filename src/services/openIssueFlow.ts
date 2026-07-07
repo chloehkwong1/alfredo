@@ -193,6 +193,7 @@ export async function openIssueInRepo(
         const placeholder: Worktree = {
           id: worktreeId,
           name: branch,
+          // Empty path: setup-complete buffer's path-fallback match is a no-op (id-match only)
           path: "",
           branch,
           prStatus: null,
