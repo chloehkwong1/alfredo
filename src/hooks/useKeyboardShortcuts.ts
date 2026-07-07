@@ -136,7 +136,7 @@ export function useKeyboardShortcuts(
           if (pane && pane.tabIds.length > 1 && pane.activeTabId) {
             const wtTabs = useTabStore.getState().tabs[activeWorktreeId] ?? [];
             // Cycle in visual order — agents, terminals, diffs (Notes excluded)
-            // — so the keyboard walk matches the segmented bar.
+            // — so the keyboard walk matches the three-row visual order.
             const cycleIds = displayCycleOrder(wtTabs, pane.tabIds);
             const idx = cycleIds.indexOf(pane.activeTabId);
             if (idx !== -1) {

@@ -461,7 +461,7 @@ function PaneTabBar({
       ro.disconnect();
       el.removeEventListener("scroll", measure);
     };
-  }, []);
+  }, [agents.length]);
 
   const agentIds = agents.map((t) => t.id);
   const terminalIds = terminals.map((t) => t.id);
