@@ -1,0 +1,19 @@
+src/components/sidebar/AgentItem.tsx
+  s_9e83f543c71a7f::t_6cc25b3171370c 385-387
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "486bb75d48c04bd9f8e2513d7a66e9567acd7d45",
+  "prompts": {},
+  "sessions": {
+    "s_9e83f543c71a7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8ad4081-d78b-4771-b45f-354588ed4194",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
