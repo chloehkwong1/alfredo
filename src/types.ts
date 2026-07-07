@@ -88,6 +88,10 @@ export interface Worktree {
   stackRebaseStatus?: StackRebaseStatus | null;
   /** Setup script error — worktree was created successfully but post-create scripts failed. */
   setupScriptError?: string | null;
+  /** True while post-create setup scripts are still running in the background.
+   *  The worktree is already usable; the sidebar shows "Setting up…". Cleared
+   *  by the `worktree:setup-complete` event (see useWorktreeSetup). */
+  setupInProgress?: boolean;
   /** Auto-assigned dev server port. */
   assignedPort?: number | null;
   /** Frontend-only: true for synthetic "main-branch card" entries pinned by

@@ -154,6 +154,10 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         // Frontend-only: backend never persists setup script errors, so a
         // refresh would otherwise clobber an unacknowledged error.
         setupScriptError: old.setupScriptError,
+        // Same rationale as setupScriptError: listWorktrees reports false for
+        // in-flight background setup, so a focus/port refresh must not clobber
+        // the running flag. Only worktree:setup-complete clears it.
+        setupInProgress: old.setupInProgress,
       };
     }
     return wt;

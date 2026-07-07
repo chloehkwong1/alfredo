@@ -77,6 +77,21 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.runningAgents).toBe(3);
   });
 
+  it("preserves in-flight setupInProgress across a git refresh", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [makeWorktree({ setupInProgress: true })],
+    });
+
+    // Fresh git data never reports setup progress
+    store.getState().setWorktrees([
+      makeWorktree({ path: "/new/path", setupInProgress: false }),
+    ]);
+
+    const wt = store.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.setupInProgress).toBe(true);
+  });
+
   it("uses fresh stackParent/stackChildren/stackRebaseStatus when defined", () => {
     const store = useWorkspaceStore;
     store.setState({
