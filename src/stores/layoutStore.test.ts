@@ -824,5 +824,42 @@ describe("layoutStore", () => {
       s.openPreviewTab(WT, paneId, "dp1");
       expect(s.getPane(WT, paneId)?.collapsedRows?.diffs).toBe(false);
     });
+
+    it("splitPane auto-expands the source pane's fallback tab row", () => {
+      const s = useLayoutStore.getState();
+      // Fresh pane where removing the active tab falls back to a terminal tab.
+      mockTabStoreState.tabs[WT] = [
+        { id: "a1", type: "claude" },
+        { id: "sh", type: "shell" },
+      ];
+      s.initLayout(WT, ["a1", "sh"], "a1");
+      const pid = (getState().layout[WT] as { type: "leaf"; paneId: string }).paneId;
+      s.toggleRowCollapsed(WT, pid, "terminals");
+      expect(s.getPane(WT, pid)?.collapsedRows?.terminals).toBe(true);
+
+      // Split out the ACTIVE agent tab → source falls back to the shell, whose
+      // (collapsed) terminals row must auto-expand so the active tab is visible.
+      s.splitPane(WT, pid, "a1", "horizontal");
+      const layout = getState().layout[WT] as { type: "split"; children: [LayoutNode, LayoutNode] };
+      const leftId = (layout.children[0] as { type: "leaf"; paneId: string }).paneId;
+      expect(s.getPane(WT, leftId)?.activeTabId).toBe("sh");
+      expect(s.getPane(WT, leftId)?.collapsedRows?.terminals).toBe(false);
+    });
+
+    it("moveTabToSiblingPane auto-expands the source pane's fallback tab row", () => {
+      const s = useLayoutStore.getState();
+      // beforeEach seeded [a1, sh, d1] active a1. Split out d1 → left=[a1,sh].
+      s.splitPane(WT, paneId, "d1", "horizontal");
+      const layout = getState().layout[WT] as { type: "split"; children: [LayoutNode, LayoutNode] };
+      const leftId = (layout.children[0] as { type: "leaf"; paneId: string }).paneId;
+      s.toggleRowCollapsed(WT, leftId, "terminals");
+      expect(s.getPane(WT, leftId)?.collapsedRows?.terminals).toBe(true);
+
+      // Move the ACTIVE agent tab out of the source → it falls back to the
+      // shell, whose collapsed terminals row must auto-expand.
+      s.moveTabToSiblingPane(WT, leftId, "a1");
+      expect(s.getPane(WT, leftId)?.activeTabId).toBe("sh");
+      expect(s.getPane(WT, leftId)?.collapsedRows?.terminals).toBe(false);
+    });
   });
 });
