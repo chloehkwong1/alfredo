@@ -382,7 +382,9 @@ function AgentItemContent({
                     : worktree.monitorPending
                       ? <>Monitoring<ThinkingDots /></>
                       : <><ThinkingText /><ThinkingDots /></>)
-                : getStatusText(effectiveStatus)}
+                : worktree.setupInProgress
+                  ? <>Setting up<ThinkingDots /></>
+                  : getStatusText(effectiveStatus)}
             </span>
             {isServerRunning && <ServerIndicator port={serverPort} />}
             {!isServerRunning && assignedPort && (
