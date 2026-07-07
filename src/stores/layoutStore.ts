@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { LayoutNode, Pane } from "../types";
+import type { CollapsibleRow, LayoutNode, Pane } from "../types";
 import { isAgentTab } from "../types";
 import { useTabStore } from "./tabStore";
 
@@ -50,6 +50,7 @@ interface LayoutState {
   setPaneTabIds: (worktreeId: string, paneId: string, tabIds: string[]) => void;
   openPreviewTab: (worktreeId: string, paneId: string, tabId: string) => void;
   pinPreviewTab: (worktreeId: string, paneId: string) => void;
+  toggleRowCollapsed: (worktreeId: string, paneId: string, row: CollapsibleRow) => void;
 
   // ── Queries ──
   findPaneForTab: (worktreeId: string, tabId: string) => string | null;
@@ -58,6 +59,21 @@ interface LayoutState {
 
 function generatePaneId(): string {
   return `pane-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+/** The collapsible row a tab belongs to, or null (agents/notes are never collapsible). */
+function collapsibleRowForTab(worktreeId: string, tabId: string): CollapsibleRow | null {
+  const tab = useTabStore.getState().tabs[worktreeId]?.find((t) => t.id === tabId);
+  if (!tab) return null;
+  if (tab.type === "shell" || tab.type === "server") return "terminals";
+  if (tab.type === "diff") return "diffs";
+  return null;
+}
+
+/** Return a pane with `row` expanded, or the same pane if already expanded. */
+function withRowExpanded(pane: Pane, row: CollapsibleRow | null): Pane {
+  if (!row || !pane.collapsedRows?.[row]) return pane;
+  return { ...pane, collapsedRows: { ...pane.collapsedRows, [row]: false } };
 }
 
 function findSiblingPaneId(node: LayoutNode, paneId: string): string | null {
@@ -296,12 +312,16 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     set((s) => {
       const worktreePanes = s.panes[worktreeId];
       if (!worktreePanes?.[paneId]) return s;
+      const updatedPane = withRowExpanded(
+        { ...worktreePanes[paneId], activeTabId: tabId },
+        collapsibleRowForTab(worktreeId, tabId),
+      );
       return {
         panes: {
           ...s.panes,
           [worktreeId]: {
             ...worktreePanes,
-            [paneId]: { ...worktreePanes[paneId], activeTabId: tabId },
+            [paneId]: updatedPane,
           },
         },
         ...trackFocus(s, worktreeId, tabId),
@@ -316,16 +336,21 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const targetPaneId = worktreePanes[paneId] ? paneId : s.activePaneId[worktreeId];
       const pane = worktreePanes[targetPaneId];
       if (!pane) return s;
+      const updatedPane = withRowExpanded(
+        {
+          ...pane,
+          tabIds: [...pane.tabIds, tabId],
+          activeTabId: tabId,
+          previewTabId: pane.previewTabId ?? null,
+        },
+        collapsibleRowForTab(worktreeId, tabId),
+      );
       return {
         panes: {
           ...s.panes,
           [worktreeId]: {
             ...worktreePanes,
-            [targetPaneId]: {
-              tabIds: [...pane.tabIds, tabId],
-              activeTabId: tabId,
-              previewTabId: pane.previewTabId ?? null,
-            },
+            [targetPaneId]: updatedPane,
           },
         },
         ...trackFocus(s, worktreeId, tabId),
@@ -524,7 +549,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         ...s.panes,
         [worktreeId]: {
           ...worktreePanes,
-          [paneId]: { tabIds: newTabIds, activeTabId: tabId, previewTabId: tabId },
+          [paneId]: withRowExpanded(
+            { ...pane, tabIds: newTabIds, activeTabId: tabId, previewTabId: tabId },
+            collapsibleRowForTab(worktreeId, tabId),
+          ),
         },
       },
       ...trackFocus(s, worktreeId, tabId),
@@ -547,6 +575,19 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       };
     });
   },
+
+  toggleRowCollapsed: (worktreeId, paneId, row) =>
+    set((s) => {
+      const pane = s.panes[worktreeId]?.[paneId];
+      if (!pane) return s;
+      const next = {
+        ...pane,
+        collapsedRows: { ...pane.collapsedRows, [row]: !pane.collapsedRows?.[row] },
+      };
+      return {
+        panes: { ...s.panes, [worktreeId]: { ...s.panes[worktreeId], [paneId]: next } },
+      };
+    }),
 
   findPaneForTab: (worktreeId, tabId) => {
     const worktreePanes = get().panes[worktreeId];

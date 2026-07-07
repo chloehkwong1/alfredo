@@ -681,4 +681,57 @@ describe("layoutStore", () => {
       expect(getState().panes[W2]["pane-b"].tabIds).toEqual(["tab-2"]);
     });
   });
+
+  // ── collapsedRows ───────────────────────────────────────────────
+
+  describe("collapsedRows", () => {
+    const WT = "wt";
+    let paneId: string;
+
+    beforeEach(() => {
+      // Seed tabStore with an agent tab "a1", a shell tab "sh", and a diff tab "d1"
+      mockTabStoreState.tabs[WT] = [
+        { id: "a1", type: "claude" },
+        { id: "sh", type: "shell" },
+        { id: "d1", type: "diff" },
+      ];
+      useLayoutStore.getState().initLayout(WT, ["a1", "sh", "d1"], "a1");
+      const layout = getState().layout[WT];
+      paneId = (layout as { type: "leaf"; paneId: string }).paneId;
+    });
+
+    it("toggleRowCollapsed flips and clears the flag", () => {
+      const { toggleRowCollapsed, getPane } = useLayoutStore.getState();
+      toggleRowCollapsed(WT, paneId, "terminals");
+      expect(getPane(WT, paneId)?.collapsedRows?.terminals).toBe(true);
+      toggleRowCollapsed(WT, paneId, "terminals");
+      expect(getPane(WT, paneId)?.collapsedRows?.terminals).toBe(false);
+    });
+
+    it("setPaneActiveTab auto-expands the row containing the tab", () => {
+      const s = useLayoutStore.getState();
+      s.toggleRowCollapsed(WT, paneId, "terminals");
+      s.setPaneActiveTab(WT, paneId, "sh");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.terminals).toBe(false);
+    });
+
+    it("setPaneActiveTab on an agent leaves collapsed rows alone", () => {
+      const s = useLayoutStore.getState();
+      s.toggleRowCollapsed(WT, paneId, "diffs");
+      s.setPaneActiveTab(WT, paneId, "a1");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.diffs).toBe(true);
+    });
+
+    it("addTabToPane auto-expands the target row", () => {
+      const s = useLayoutStore.getState();
+      s.toggleRowCollapsed(WT, paneId, "diffs");
+      // Seed a new diff tab "d2" into tabStore before adding it to the pane
+      mockTabStoreState.tabs[WT] = [
+        ...mockTabStoreState.tabs[WT],
+        { id: "d2", type: "diff" },
+      ];
+      s.addTabToPane(WT, paneId, "d2");
+      expect(s.getPane(WT, paneId)?.collapsedRows?.diffs).toBe(false);
+    });
+  });
 });
