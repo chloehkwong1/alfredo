@@ -1,0 +1,21 @@
+src/components/layout/PaneTabBar.tsx
+  s_c0089e7450a603::t_1a640b5366c3af 464
+src/hooks/useKeyboardShortcuts.ts
+  s_c0089e7450a603::t_b21f99b025d731 139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "af9aac7a11eb781af9b1109ad371e0a6818b1bd0",
+  "prompts": {},
+  "sessions": {
+    "s_c0089e7450a603": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d915ae2a-1126-45f9-b018-51fafc0e01e6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
