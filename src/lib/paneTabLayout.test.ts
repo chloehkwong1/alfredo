@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pinnedAgentTab, tabSwitchTarget, isSessionTab, partitionPaneTabs, displayCycleOrder, effectiveTabLabel, shouldSpill } from "./paneTabLayout";
+import { pinnedAgentTab, tabSwitchTarget, isSessionTab, partitionPaneTabs, displayCycleOrder, effectiveTabLabel } from "./paneTabLayout";
 import type { WorkspaceTab, TabType } from "../types";
 
 function tab(id: string, type: TabType): WorkspaceTab {
@@ -126,19 +126,3 @@ describe("effectiveTabLabel", () => {
   });
 });
 
-describe("shouldSpill", () => {
-  it("not spilled: spills only below 140px per tab", () => {
-    expect(shouldSpill(840, 6, false)).toBe(false); // exactly 140 — stays merged
-    expect(shouldSpill(839, 6, false)).toBe(true);  // just under — spills
-  });
-
-  it("spilled: rejoins only at ≥170px per tab (hysteresis)", () => {
-    expect(shouldSpill(1019, 6, true)).toBe(true);  // ~169.8 — stays spilled
-    expect(shouldSpill(1020, 6, true)).toBe(false); // exactly 170 — rejoins
-  });
-
-  it("never spills with zero sessions", () => {
-    expect(shouldSpill(0, 0, false)).toBe(false);
-    expect(shouldSpill(0, 0, true)).toBe(false);
-  });
-});

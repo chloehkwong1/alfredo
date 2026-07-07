@@ -91,23 +91,3 @@ export function effectiveTabLabel(
   return tab.customLabel ?? tab.dynamicLabel ?? tab.label;
 }
 
-export const SPILL_PER_TAB_PX = 140;
-export const REJOIN_PER_TAB_PX = 170;
-
-/**
- * Decide whether the terminal segment lives on its own row. Hysteresis:
- * spill when a merged sessions row would give each tab < SPILL_PER_TAB_PX;
- * once spilled, rejoin only when a merged row would give ≥ REJOIN_PER_TAB_PX,
- * so one tab opening/closing near the boundary can't flap the row.
- * `availablePx` is the merged-row width available to tabs; `sessionCount`
- * is agents + terminals.
- */
-export function shouldSpill(
-  availablePx: number,
-  sessionCount: number,
-  currentlySpilled: boolean,
-): boolean {
-  if (sessionCount === 0) return false;
-  const perTab = availablePx / sessionCount;
-  return currentlySpilled ? perTab < REJOIN_PER_TAB_PX : perTab < SPILL_PER_TAB_PX;
-}
