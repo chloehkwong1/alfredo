@@ -789,6 +789,7 @@ function PaneTabBar({
               >
                 <ChevronDown size={12} />
               </button>
+              <div className="w-px h-4 bg-border-subtle mr-1 flex-shrink-0" />
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -905,6 +906,7 @@ function PaneTabBar({
             >
               <ChevronDown size={12} />
             </button>
+            <div className="w-px h-4 bg-border-subtle mr-1 flex-shrink-0" />
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
