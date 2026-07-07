@@ -13,6 +13,8 @@ import {
   Combine,
   NotebookPen,
   Pencil,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -56,7 +58,7 @@ import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentType } from "react";
-import { partitionPaneTabs, effectiveTabLabel, shouldSpill } from "../../lib/paneTabLayout";
+import { partitionPaneTabs, effectiveTabLabel } from "../../lib/paneTabLayout";
 
 const SESSION_STATUS_DOT: Partial<Record<AgentState | "stale", { cls: string; label: string; pulse?: boolean }>> = {
   busy: { cls: "bg-status-busy", label: "Thinking" },
@@ -431,37 +433,35 @@ function PaneTabBar({
     .filter((t): t is WorkspaceTab => t != null);
 
   const { notes, agents, terminals, diffs } = partitionPaneTabs(paneTabs);
-  const showDiffRow = diffs.length > 0;
+  const activeTabId = pane?.activeTabId;
 
-  const sessionCount = agents.length + terminals.length;
-  const [spilled, setSpilled] = useState(false);
+  const collapsedRows = pane?.collapsedRows;
+  const toggleRowCollapsed = useLayoutStore((s) => s.toggleRowCollapsed);
+  const showTerminalsRow = terminals.length > 0 && !collapsedRows?.terminals;
+  const showDiffRow = diffs.length > 0 && !collapsedRows?.diffs;
+  const terminalsStrip = terminals.length > 0 && !!collapsedRows?.terminals;
+  const diffsStrip = diffs.length > 0 && !!collapsedRows?.diffs;
+  const activeInTerminals = terminals.some((t) => t.id === activeTabId);
+  const activeInDiffs = diffs.some((t) => t.id === activeTabId);
+
   const sessionScrollRef = useRef<HTMLDivElement>(null);
-  const row1SpacerRef = useRef<HTMLDivElement>(null);
   const [clipped, setClipped] = useState(false);
 
   useEffect(() => {
     const el = sessionScrollRef.current;
     if (!el) return;
     const measure = () => {
-      const availablePx = el.clientWidth + (row1SpacerRef.current?.clientWidth ?? 0);
-      setSpilled((prev) => shouldSpill(availablePx, sessionCount, prev));
       setClipped(el.scrollWidth - el.scrollLeft - el.clientWidth > 1);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    if (row1SpacerRef.current) ro.observe(row1SpacerRef.current);
     el.addEventListener("scroll", measure, { passive: true });
     return () => {
       ro.disconnect();
       el.removeEventListener("scroll", measure);
     };
-  }, [sessionCount, spilled]);
-
-  // Agents alone can trip shouldSpill (it's count-only); with zero terminals
-  // there is no spill row to host the server controls, so both the row and
-  // the row-1 handoff gate on this flag rather than raw `spilled`.
-  const showSpillRow = spilled && terminals.length > 0;
+  }, []);
 
   const agentIds = agents.map((t) => t.id);
   const terminalIds = terminals.map((t) => t.id);
@@ -486,8 +486,6 @@ function PaneTabBar({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
-
-  const activeTabId = pane?.activeTabId;
 
   function handleCloseTab(e: React.MouseEvent | Event, tabId: string) {
     if ("stopPropagation" in e) e.stopPropagation();
@@ -719,32 +717,6 @@ function PaneTabBar({
                 />
               ))}
             </SortableContext>
-            {!spilled && agents.length > 0 && terminals.length > 0 && (
-              <div className="w-px h-5 bg-border-subtle mx-1 flex-shrink-0" />
-            )}
-            {!spilled && (
-              <SortableContext items={terminalIds} strategy={horizontalListSortingStrategy}>
-                {terminals.map((tab, i) => (
-                  <SortableTab
-                    key={tab.id}
-                    tab={tab}
-                    isActive={tab.id === activeTabId}
-                    canClose={true}
-                    worktreeId={worktreeId}
-                    paneId={paneId}
-                    onClose={handleCloseTab}
-                    onCloseOthers={handleCloseOthers}
-                    onCloseToRight={handleCloseToRight}
-                    hasOthersToClose={terminals.length > 1}
-                    hasTabsToRightToClose={i < terminals.length - 1}
-                    onSplit={handleSplit}
-                    onMoveToSibling={handleMoveToSibling}
-                    isSplit={isSplit}
-                    isPreview={pane?.previewTabId === tab.id}
-                  />
-                ))}
-              </SortableContext>
-            )}
             {clipped && (
               <div className="pointer-events-none sticky right-0 top-0 h-full w-8 flex-shrink-0 -ml-8 bg-gradient-to-l from-bg-bar to-transparent" />
             )}
@@ -796,20 +768,27 @@ function PaneTabBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div ref={row1SpacerRef} className="flex-1" />
-        {!showSpillRow && serverControls}
+        <div className="flex-1" />
       </div>
 
-      {/* ── Spilled terminal row — animates height 0↔auto via grid-rows ── */}
+      {/* ── Row 2: terminals ── */}
       <div
         className={[
           "grid transition-[grid-template-rows] duration-150 ease-out",
-          showSpillRow ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+          showTerminalsRow ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         ].join(" ")}
       >
         <div className="overflow-hidden min-h-0">
-          {showSpillRow && (
+          {showTerminalsRow && (
             <div className="flex items-center w-full h-[30px] min-w-0 border-t border-border-subtle bg-bg-bar/90">
+              <button
+                type="button"
+                aria-label="Collapse terminals row"
+                onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "terminals"); }}
+                className="h-full px-1.5 text-text-tertiary hover:text-text-secondary cursor-pointer flex items-center flex-shrink-0"
+              >
+                <ChevronDown size={12} />
+              </button>
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -817,7 +796,7 @@ function PaneTabBar({
                 onDragEnd={handleDragEnd}
                 onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
               >
-                <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 pl-2">
+                <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0">
                   <SortableContext items={terminalIds} strategy={horizontalListSortingStrategy}>
                     {terminals.map((tab, i) => (
                       <SortableTab
@@ -860,7 +839,55 @@ function PaneTabBar({
         </div>
       </div>
 
-      {/* ── Row 2: diffs — animates height 0↔auto via grid-rows ── */}
+      {/* ── Summary strip: shown when terminals or diffs are collapsed ── */}
+      {(terminalsStrip || diffsStrip) && (
+        <div className="flex items-center w-full h-[22px] min-w-0 border-t border-border-subtle bg-bg-bar/90 gap-1 px-1">
+          {terminalsStrip && (
+            <button
+              type="button"
+              aria-label="Expand terminals row"
+              onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "terminals"); }}
+              className={[
+                "inline-flex items-center gap-1 h-[18px] px-1.5 rounded text-xs cursor-pointer relative",
+                activeInTerminals ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
+              ].join(" ")}
+            >
+              <ChevronRight size={11} />
+              <Terminal size={11} />
+              {terminals.length}
+              {onToggleServer && runScriptName && isServerRunning && (
+                <span className="inline-flex items-center gap-0.5 text-accent-primary">
+                  <Radio size={10} />
+                  {runScriptName}
+                </span>
+              )}
+              {activeInTerminals && (
+                <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-accent-primary rounded" />
+              )}
+            </button>
+          )}
+          {diffsStrip && (
+            <button
+              type="button"
+              aria-label="Expand diffs row"
+              onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "diffs"); }}
+              className={[
+                "inline-flex items-center gap-1 h-[18px] px-1.5 rounded text-xs cursor-pointer relative",
+                activeInDiffs ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
+              ].join(" ")}
+            >
+              <ChevronRight size={11} />
+              <GitCompareArrows size={11} />
+              {diffs.length}
+              {activeInDiffs && (
+                <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-accent-primary rounded" />
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Row 3: diffs — animates height 0↔auto via grid-rows ── */}
       <div
         className={[
           "grid transition-[grid-template-rows] duration-150 ease-out",
@@ -869,7 +896,15 @@ function PaneTabBar({
         ].join(" ")}
       >
         <div className="overflow-hidden min-h-0">
-          <div className="flex items-center w-full h-9 min-w-0 border-t border-border-subtle bg-bg-bar/90">
+          <div className="flex items-center w-full h-[30px] min-w-0 border-t border-border-subtle bg-bg-bar/90">
+            <button
+              type="button"
+              aria-label="Collapse diffs row"
+              onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "diffs"); }}
+              className="h-full px-1.5 text-text-tertiary hover:text-text-secondary cursor-pointer flex items-center flex-shrink-0"
+            >
+              <ChevronDown size={12} />
+            </button>
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -877,7 +912,7 @@ function PaneTabBar({
               onDragEnd={handleDragEnd}
               onDragCancel={() => { setDragActiveId(null); setCrossPaneDrag(null); }}
             >
-              <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 pl-2">
+              <div className="flex items-center h-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0">
                 <SortableContext items={diffIds} strategy={horizontalListSortingStrategy}>
                   {diffs.map((tab, i) => (
                     <SortableTab
