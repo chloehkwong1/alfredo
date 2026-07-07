@@ -26,6 +26,7 @@ export function computeBadgeCount(input: BadgeCountInput): number {
       wt.staleBusy,
       effectiveSeen,
       wt.justCreated,
+      wt.setupInProgress,
     );
     if (NEEDS_YOU_STATES.has(status)) count += 1;
   }

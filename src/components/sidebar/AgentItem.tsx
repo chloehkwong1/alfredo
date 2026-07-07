@@ -235,7 +235,9 @@ export function computeEffectiveStatus(
   staleBusy: boolean | undefined,
   isSeen: boolean,
   justCreated?: boolean,
+  setupInProgress?: boolean,
 ): string {
+  if (setupInProgress) return "settingUp";
   if (justCreated) return "ready";
   const channelStatus = channelAlive === false && agentStatus !== "notRunning"
     ? "disconnected"
@@ -260,7 +262,7 @@ function useAgentItemState(worktree: Worktree) {
 
   // When manually marked unread, treat as unseen so the attention state re-activates
   const effectiveStatus = computeEffectiveStatus(
-    worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, effectiveSeen, worktree.justCreated,
+    worktree.agentStatus, worktree.channelAlive, worktree.staleBusy, effectiveSeen, worktree.justCreated, worktree.setupInProgress,
   );
   const shouldPulse = effectiveStatus === "waitingForInput";
   const serverPort = serverEntry?.port;
@@ -376,16 +378,14 @@ function AgentItemContent({
                       ? "text-status-error font-medium"
                       : mutedTextClass,
             ].join(" ")}>
-              {effectiveStatus === "busy"
-                ? (worktree.runningAgents && worktree.runningAgents > 0
-                    ? <>Running {worktree.runningAgents} agent{worktree.runningAgents === 1 ? "" : "s"}<ThinkingDots /></>
-                    : worktree.monitorPending
-                      ? <>Monitoring<ThinkingDots /></>
-                      : <><ThinkingText /><ThinkingDots /></>)
-                // Keep ahead of getStatusText: a just-created worktree reports
-                // "Ready", which would otherwise mask the in-progress setup.
-                : worktree.setupInProgress
-                  ? <>Setting up<ThinkingDots /></>
+              {effectiveStatus === "settingUp"
+                ? <>Setting up<ThinkingDots /></>
+                : effectiveStatus === "busy"
+                  ? (worktree.runningAgents && worktree.runningAgents > 0
+                      ? <>Running {worktree.runningAgents} agent{worktree.runningAgents === 1 ? "" : "s"}<ThinkingDots /></>
+                      : worktree.monitorPending
+                        ? <>Monitoring<ThinkingDots /></>
+                        : <><ThinkingText /><ThinkingDots /></>)
                   : getStatusText(effectiveStatus)}
             </span>
             {isServerRunning && <ServerIndicator port={serverPort} />}
