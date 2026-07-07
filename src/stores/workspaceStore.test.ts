@@ -406,6 +406,76 @@ describe("updateWorktree", () => {
   });
 });
 
+// ── markSetupComplete / setup-complete buffering ──────────────────
+
+describe("markSetupComplete / setup-complete buffering", () => {
+  it("clears setupInProgress immediately when the worktree is present", () => {
+    const store = useWorkspaceStore;
+    store.setState({ worktrees: [makeWorktree({ setupInProgress: true })] });
+
+    store.getState().markSetupComplete({ id: "wt-1", path: "/path/wt-1", error: null });
+
+    const wt = store.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.setupInProgress).toBe(false);
+    expect(wt.setupScriptError).toBeNull();
+  });
+
+  it("propagates the error when setup failed", () => {
+    const store = useWorkspaceStore;
+    store.setState({ worktrees: [makeWorktree({ setupInProgress: true })] });
+
+    store.getState().markSetupComplete({ id: "wt-1", path: "/path/wt-1", error: "boom" });
+
+    const wt = store.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.setupInProgress).toBe(false);
+    expect(wt.setupScriptError).toBe("boom");
+  });
+
+  it("buffers a completion that arrives before the worktree, applied on replaceWorktree", () => {
+    const store = useWorkspaceStore;
+    // Placeholder present; real worktree not yet swapped in.
+    store.setState({
+      worktrees: [makeWorktree({ id: "temp-1", name: "temp", creating: true })],
+    });
+
+    // Fast setup script emits before replaceWorktree runs — no worktree with the real id yet.
+    store.getState().markSetupComplete({ id: "wt-1", path: "/path/wt-1", error: null });
+    expect(store.getState().completedSetups).toHaveLength(1);
+
+    // Real worktree arrives carrying the backend's stale setupInProgress: true.
+    store.getState().replaceWorktree("temp-1", makeWorktree({ setupInProgress: true }));
+
+    const wt = store.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.setupInProgress).toBe(false);
+    expect(store.getState().completedSetups).toHaveLength(0);
+  });
+
+  it("matches a buffered completion by path when the id was rewritten", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [makeWorktree({ id: "temp-1", name: "temp", creating: true })],
+    });
+    // Event's id differs from the worktree's final id, but the path matches.
+    store.getState().markSetupComplete({ id: "stale-id", path: "/path/wt-1", error: null });
+
+    store.getState().replaceWorktree("temp-1", makeWorktree({ setupInProgress: true }));
+
+    const wt = store.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.setupInProgress).toBe(false);
+  });
+
+  it("leaves setupInProgress true on replaceWorktree when no completion buffered", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [makeWorktree({ id: "temp-1", name: "temp", creating: true })],
+    });
+    store.getState().replaceWorktree("temp-1", makeWorktree({ setupInProgress: true }));
+
+    const wt = store.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.setupInProgress).toBe(true);
+  });
+});
+
 // ── archiveWorktree / unarchiveWorktree ───────────────────────────
 
 describe("archiveWorktree / unarchiveWorktree", () => {

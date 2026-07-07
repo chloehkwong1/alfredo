@@ -6,6 +6,12 @@ import type {
   Worktree,
 } from "../types";
 
+interface SetupCompletion {
+  id: string;
+  path: string;
+  error: string | null;
+}
+
 interface WorkspaceState {
   worktrees: Worktree[];
   activeWorktreeId: string | null;
@@ -51,6 +57,10 @@ interface WorkspaceState {
   archiveWorktree: (id: string) => void;
   unarchiveWorktree: (id: string) => void;
   updateWorktree: (id: string, patch: Partial<Worktree>) => void;
+  /** Setup-complete events that arrived before their worktree was in the store
+   *  (fast setup scripts emit before replaceWorktree runs). Drained on insert. */
+  completedSetups: SetupCompletion[];
+  markSetupComplete: (completion: SetupCompletion) => void;
   setManualColumn: (id: string, column: KanbanColumn) => void;
   moveWorktreeToFront: (id: string) => void;
   reorderWorktrees: (reordered: Worktree[]) => void;
@@ -176,6 +186,7 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   worktrees: [],
+  completedSetups: [],
   activeWorktreeId: null,
   seenWorktrees: new Set<string>(),
   unreadWorktrees: new Set<string>(),
@@ -205,18 +216,48 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
 
   replaceWorktree: (tempId, realWorktree) =>
-    set((state) => ({
-      worktrees: state.worktrees
-        // Drop entries with the real id that snuck in via a concurrent listWorktrees refresh.
-        // Keep the placeholder we're about to replace; identify it by `creating` flag because
-        // tempId may equal realWorktree.id when the new branch's composite id matches.
-        .filter((wt) => wt.id !== realWorktree.id || (wt.id === tempId && wt.creating))
-        .map((wt) =>
-          wt.id === tempId && wt.creating
-            ? { ...realWorktree, creating: undefined, createError: undefined, justCreated: true }
-            : wt,
-        ),
-    })),
+    set((state) => {
+      const pending = state.completedSetups.find(
+        (c) => c.id === realWorktree.id || c.path === realWorktree.path,
+      );
+      const resolved = pending
+        ? { ...realWorktree, setupInProgress: false, setupScriptError: pending.error }
+        : realWorktree;
+      return {
+        completedSetups: pending
+          ? state.completedSetups.filter((c) => c !== pending)
+          : state.completedSetups,
+        worktrees: state.worktrees
+          .filter((wt) => wt.id !== resolved.id || (wt.id === tempId && wt.creating))
+          .map((wt) =>
+            wt.id === tempId && wt.creating
+              ? { ...resolved, creating: undefined, createError: undefined, justCreated: true }
+              : wt,
+          ),
+      };
+    }),
+
+  markSetupComplete: (completion) =>
+    set((state) => {
+      // Only match real (non-creating) worktrees — placeholders are awaiting
+      // replaceWorktree and the setup-complete event may have the placeholder's
+      // path, so we must not apply early against a still-creating entry.
+      const matches = (wt: Worktree) =>
+        !wt.creating && (wt.id === completion.id || wt.path === completion.path);
+      const target = state.worktrees.find(matches);
+      if (target) {
+        // Worktree already present — apply immediately, don't buffer.
+        return {
+          worktrees: state.worktrees.map((wt) =>
+            matches(wt)
+              ? { ...wt, setupInProgress: false, setupScriptError: completion.error }
+              : wt,
+          ),
+        };
+      }
+      // Fired before the worktree landed — buffer for the insert path to drain.
+      return { completedSetups: [...state.completedSetups, completion] };
+    }),
 
   failWorktree: (tempId, error) => {
     let matched = false;
