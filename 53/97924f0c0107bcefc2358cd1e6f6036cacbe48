@@ -1,0 +1,19 @@
+docs/features/pane-tab-bar.md
+  s_c0089e7450a603::t_2a3c46d09535f2 2-7,11-15,17-19,23,29-40,44-66,70,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5397924f0c0107bcefc2358cd1e6f6036cacbe48",
+  "prompts": {},
+  "sessions": {
+    "s_c0089e7450a603": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d915ae2a-1126-45f9-b018-51fafc0e01e6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
