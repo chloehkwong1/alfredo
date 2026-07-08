@@ -128,6 +128,17 @@ export async function writeToSession(sessionId: string, message: string): Promis
 }
 
 /**
+ * Fire the DOM focus-terminal event for a tab after the layout state renders.
+ * The matching TerminalView listener calls xterm.focus() so the caret lands in
+ * the tab's input. rAF lets the newly-mounted TerminalView register first.
+ */
+export function focusTerminalTab(tabId: string): void {
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new CustomEvent("focus-terminal", { detail: { tabId } }));
+  });
+}
+
+/**
  * Focus the most recently focused agent tab in the layout for a given worktree.
  */
 export function focusAgentTab(worktreeId: string): void {
@@ -138,8 +149,5 @@ export function focusAgentTab(worktreeId: string): void {
   if (paneId) {
     layout.setPaneActiveTab(worktreeId, paneId, agentTab.id);
   }
-  // Trigger DOM focus on the terminal after the layout state update renders
-  requestAnimationFrame(() => {
-    window.dispatchEvent(new CustomEvent("focus-terminal", { detail: { tabId: agentTab.id } }));
-  });
+  focusTerminalTab(agentTab.id);
 }

@@ -54,6 +54,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useSessionStatusStore } from "../../stores/sessionStatusStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
+import { focusTerminalTab } from "../../services/agentMessenger";
 import { isAgentTab } from "../../types";
 import type { AgentState, TabType, WorkspaceTab } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -217,6 +218,7 @@ function SortableTab({
             setPaneActiveTab(worktreeId, paneId, tab.id);
             setActivePaneId(worktreeId, paneId);
             setActiveTabId(worktreeId, tab.id);
+            focusTerminalTab(tab.id);
           }}
           onDoubleClick={() => {
             if (isPreview) {
@@ -376,6 +378,7 @@ function PinnedTab({
     setPaneActiveTab(worktreeId, paneId, tab.id);
     setActivePaneId(worktreeId, paneId);
     setActiveTabId(worktreeId, tab.id);
+    focusTerminalTab(tab.id);
   };
 
   return (
