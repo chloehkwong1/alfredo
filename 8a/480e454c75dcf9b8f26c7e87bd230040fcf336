@@ -1,0 +1,21 @@
+src/stores/workspaceStore.ts
+  s_397a2c1549594d::t_d197d954842232 287-291,294-296
+src/stores/workspaceStore.test.ts
+  s_397a2c1549594d::t_6f4889aaff4c61 477-500
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8a480e454c75dcf9b8f26c7e87bd230040fcf336",
+  "prompts": {},
+  "sessions": {
+    "s_397a2c1549594d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4d465c5-c96a-4a73-a007-88d77f42a0a4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
