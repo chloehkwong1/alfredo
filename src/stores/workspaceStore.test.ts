@@ -474,6 +474,30 @@ describe("markSetupComplete / setup-complete buffering", () => {
     const wt = store.getState().worktrees.find((w) => w.id === "wt-1")!;
     expect(wt.setupInProgress).toBe(true);
   });
+
+  it("drops a buffered completion when its worktree is removed, so a recreate isn't tainted", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [makeWorktree({ setupInProgress: true })],
+      completedSetups: [],
+    });
+    // Setup fails and is buffered while the worktree still looks like it's creating.
+    store.setState({ completedSetups: [{ id: "wt-1", path: "/path/wt-1", error: "boom" }] });
+
+    store.getState().removeWorktree("wt-1");
+    expect(store.getState().completedSetups).toHaveLength(0);
+
+    // Recreate the same branch (same path) — the stale completion is gone, so
+    // it can't drain onto the new worktree.
+    store.setState({
+      worktrees: [makeWorktree({ id: "temp-2", name: "temp", creating: true })],
+    });
+    store.getState().replaceWorktree("temp-2", makeWorktree({ setupInProgress: true }));
+
+    const wt = store.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.setupInProgress).toBe(true);
+    expect(wt.setupScriptError).toBeUndefined();
+  });
 });
 
 // ── archiveWorktree / unarchiveWorktree ───────────────────────────

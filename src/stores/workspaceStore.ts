@@ -284,8 +284,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       newUnread.delete(id);
       const newPinned = new Set(state.pinnedWorktrees);
       newPinned.delete(id);
+      // Drop any buffered setup completion for this worktree. completedSetups is
+      // drained by path in replaceWorktree, so a leftover entry from a deleted
+      // worktree would otherwise be applied to a later recreate of the same
+      // branch (same on-disk path).
+      const removed = state.worktrees.find((wt) => wt.id === id);
       return {
         worktrees: state.worktrees.filter((wt) => wt.id !== id),
+        completedSetups: state.completedSetups.filter(
+          (c) => c.id !== id && (!removed || c.path !== removed.path),
+        ),
         activeWorktreeId: state.activeWorktreeId === id ? null : state.activeWorktreeId,
         annotations: restAnnotations,
         seenWorktrees: newSeen,
