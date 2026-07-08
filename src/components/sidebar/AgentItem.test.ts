@@ -37,4 +37,16 @@ describe("computeEffectiveStatus", () => {
   it("returns stale over disconnected (channel alive + stale busy)", () => {
     expect(computeEffectiveStatus("busy", true, true, false)).toBe("stale");
   });
+
+  it("returns settingUp during background setup while no agent is running", () => {
+    expect(computeEffectiveStatus("notRunning", true, false, true, false, true)).toBe("settingUp");
+  });
+
+  it("surfaces waitingForInput over settingUp when an agent is live during setup", () => {
+    expect(computeEffectiveStatus("waitingForInput", true, false, true, false, true)).toBe("waitingForInput");
+  });
+
+  it("surfaces a busy agent over settingUp during background setup", () => {
+    expect(computeEffectiveStatus("busy", true, false, true, false, true)).toBe("busy");
+  });
 });
