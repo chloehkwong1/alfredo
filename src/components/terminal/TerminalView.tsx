@@ -88,6 +88,17 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     ) ?? [];
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
 
+  // This terminal is "active" when it's the active tab of the active pane in
+  // the active worktree — the one the user is actually looking at. Only the
+  // active terminal should grab keyboard focus on a worktree switch or window
+  // refocus (see the focus effect below).
+  const isActiveTerminal = useLayoutStore((s) => {
+    if (!activeWorktreeId || !tabId) return false;
+    const paneId = s.activePaneId[activeWorktreeId];
+    if (!paneId) return false;
+    return s.getPane(activeWorktreeId, paneId)?.activeTabId === tabId;
+  });
+
   const containerRef = useRef<HTMLDivElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const sessionKey = tabId ?? activeWorktreeId ?? "";
@@ -456,6 +467,25 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     });
     return () => { unlisten.then((fn) => fn()); };
   }, []);
+
+  // Keep the caret in the active terminal so the user can type immediately after
+  // switching worktrees (the target worktree's terminal mounts fresh) or after
+  // returning to Alfredo from another app (window regains focus). usePty focuses
+  // on attach, but its typing-guard can skip that on a worktree switch, and
+  // nothing re-focuses on app refocus — this covers both deterministically.
+  // Deps limit it to the three transitions that matter (become-active / mount /
+  // refocus). Only pull focus in when it isn't already on some control the user
+  // put it on — a sidebar/toolbar button, a dialog, the changes-panel search.
+  // The legit cases (fresh mount after a worktree switch, app refocus) leave
+  // focus on <body> or already inside this terminal; anything else we leave be.
+  useEffect(() => {
+    if (!isActiveTerminal || !ptyTerminal || !windowFocused) return;
+    const active = document.activeElement as HTMLElement | null;
+    const focusElsewhere =
+      !!active && active !== document.body && !ptyTerminal.element?.contains(active);
+    if (focusElsewhere) return;
+    ptyTerminal.focus();
+  }, [isActiveTerminal, ptyTerminal, windowFocused]);
 
   // Mark as seen when user is viewing a terminal that's idle or waiting.
   // Uses worktree.agentStatus from the store (not usePty's polled agentState)
