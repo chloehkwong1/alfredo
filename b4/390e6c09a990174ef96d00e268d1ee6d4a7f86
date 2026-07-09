@@ -1,0 +1,31 @@
+src/components/changes/CheckRunRow.tsx
+  s_087f1956887694::t_00f967a5f4c103 6,12-13,21-23
+  s_087f1956887694::t_7071a11ff8ce0e 44-45
+src/components/changes/checkRunStatus.ts
+  s_087f1956887694::t_de57930b96ec6d 1-2,9-10,12-20
+  s_087f1956887694::t_d76b1147aea916 3-8,11
+src-tauri/src/github_sync.rs
+  s_087f1956887694::t_81d8568b04d019 710-715,719,721-724
+  s_087f1956887694::t_52b5ab244d928f 55-60,62-66
+src/components/changes/PrPanel.tsx
+  s_087f1956887694::t_600b031d033e74 40-41
+  s_087f1956887694::t_2a66feb66198cb 16
+src/components/changes/checkRunStatus.test.ts
+  s_087f1956887694::t_06c87ec75c4806 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b4390e6c09a990174ef96d00e268d1ee6d4a7f86",
+  "prompts": {},
+  "sessions": {
+    "s_087f1956887694": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fdcec0b7-a2a0-4bbf-8a3c-d0227f62f460",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
