@@ -902,7 +902,7 @@ function PaneTabBar({
               title="Close all changes"
             >
               <ListX size={13} />
-              Close all
+              Close all changes
             </button>
           </div>
           )}
