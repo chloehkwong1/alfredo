@@ -13,8 +13,6 @@ import {
   Combine,
   NotebookPen,
   Pencil,
-  ChevronDown,
-  ChevronRight,
 } from "lucide-react";
 import { StartServerControl } from "../terminal/StartServerControl";
 import { AGENT_ICONS } from "../icons/agents";
@@ -415,6 +413,18 @@ function PinnedTab({
   );
 }
 
+// Static label for a secondary row (Terminals / Changes), rendered as a pill so
+// it reads as chrome, not a tab — no interaction, no misclick target. The Agents
+// row has no pill: it's the always-present primary row, so its tabs start at the
+// row's left edge.
+function RowLabelPill({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center h-[18px] px-2 ml-2 mr-3 rounded-full bg-white/[0.06] text-[9px] font-semibold uppercase tracking-wide text-text-tertiary flex-shrink-0 select-none">
+      {label}
+    </span>
+  );
+}
+
 function PaneTabBar({
   paneId,
   worktreeId,
@@ -438,14 +448,8 @@ function PaneTabBar({
   const { notes, agents, terminals, diffs } = partitionPaneTabs(paneTabs);
   const activeTabId = pane?.activeTabId;
 
-  const collapsedRows = pane?.collapsedRows;
-  const toggleRowCollapsed = useLayoutStore((s) => s.toggleRowCollapsed);
   const hasTerminals = terminals.length > 0;
   const hasDiffs = diffs.length > 0;
-  const terminalsCollapsed = !!collapsedRows?.terminals;
-  const diffsCollapsed = !!collapsedRows?.diffs;
-  const activeInTerminals = terminals.some((t) => t.id === activeTabId);
-  const activeInDiffs = diffs.some((t) => t.id === activeTabId);
 
   const sessionScrollRef = useRef<HTMLDivElement>(null);
   const [clipped, setClipped] = useState(false);
@@ -477,8 +481,7 @@ function PaneTabBar({
   const [bornPulse, setBornPulse] = useState(false);
   const prevHasDiffsRef = useRef(hasDiffs);
   useEffect(() => {
-    // Pulse only when the diffs row first appears (a diff opens), not when an
-    // already-present-but-collapsed row is expanded.
+    // Pulse only when the diffs row first appears (a diff opens).
     if (hasDiffs && !prevHasDiffsRef.current) {
       setBornPulse(true);
       const timer = setTimeout(() => setBornPulse(false), 600);
@@ -683,10 +686,10 @@ function PaneTabBar({
       ].join(" ")}
       onClick={() => setActivePaneId(worktreeId, paneId)}
     >
-      {/* ── Row 1: sessions ── */}
-      <div className="flex items-center w-full h-11 min-w-0">
+      {/* ── Row 1: agents (unlabeled — the always-present primary row) ── */}
+      <div className="flex items-center w-full h-11 min-w-0 pl-2">
         {notes && (
-          <div className="flex items-center h-full flex-shrink-0 border-r border-border-subtle">
+          <div className="flex items-center h-full flex-shrink-0">
             <PinnedTab tab={notes} isActive={notes.id === activeTabId} worktreeId={worktreeId} paneId={paneId} />
           </div>
         )}
@@ -777,7 +780,7 @@ function PaneTabBar({
         {serverControls}
       </div>
 
-      {/* ── Row 2: terminals — collapses in place to [chevron │ count] ── */}
+      {/* ── Row 2: terminals — labelled with a static pill; tabs scroll ── */}
       <div
         className={[
           "grid transition-[grid-template-rows] duration-150 ease-out",
@@ -786,39 +789,9 @@ function PaneTabBar({
       >
         <div className="overflow-hidden min-h-0">
           {hasTerminals && (
-            <div
-              className={[
-                "flex items-center w-full min-w-0 border-t border-border-subtle bg-bg-bar/90",
-                terminalsCollapsed ? "h-[22px]" : "h-[30px]",
-              ].join(" ")}
-            >
-              <button
-                type="button"
-                aria-label={terminalsCollapsed ? "Expand terminals row" : "Collapse terminals row"}
-                onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "terminals"); }}
-                className="h-full px-1.5 text-text-tertiary hover:text-text-secondary cursor-pointer flex items-center flex-shrink-0"
-              >
-                {terminalsCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-              </button>
-              <div className="w-px h-4 bg-border-subtle mr-1 flex-shrink-0" />
-              {terminalsCollapsed ? (
-                <button
-                  type="button"
-                  aria-label="Expand terminals row"
-                  onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "terminals"); }}
-                  className={[
-                    "inline-flex items-center gap-1 h-full px-1 text-xs cursor-pointer relative flex-shrink-0",
-                    activeInTerminals ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
-                  ].join(" ")}
-                >
-                  <Terminal size={12} />
-                  {terminals.length}
-                  {activeInTerminals && (
-                    <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-accent-primary rounded" />
-                  )}
-                </button>
-              ) : (
-                <DndContext
+            <div className="flex items-center w-full min-w-0 h-[30px] border-t border-border-subtle bg-bg-bar/90">
+              <RowLabelPill label="Terminals" />
+              <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragStart={({ active }) => handleDragStart(active.id as string)}
@@ -861,13 +834,12 @@ function PaneTabBar({
                     ) : null}
                   </DragOverlay>
                 </DndContext>
-              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Row 3: diffs — collapses in place to [chevron │ count] ── */}
+      {/* ── Row 3: diffs — labelled with a static pill; tabs scroll ── */}
       <div
         className={[
           "grid transition-[grid-template-rows] duration-150 ease-out",
@@ -877,39 +849,8 @@ function PaneTabBar({
       >
         <div className="overflow-hidden min-h-0">
           {hasDiffs && (
-          <div
-            className={[
-              "flex items-center w-full min-w-0 border-t border-border-subtle bg-bg-bar/90",
-              diffsCollapsed ? "h-[22px]" : "h-[30px]",
-            ].join(" ")}
-          >
-            <button
-              type="button"
-              aria-label={diffsCollapsed ? "Expand diffs row" : "Collapse diffs row"}
-              onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "diffs"); }}
-              className="h-full px-1.5 text-text-tertiary hover:text-text-secondary cursor-pointer flex items-center flex-shrink-0"
-            >
-              {diffsCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-            </button>
-            <div className="w-px h-4 bg-border-subtle mr-1 flex-shrink-0" />
-            {diffsCollapsed ? (
-              <button
-                type="button"
-                aria-label="Expand diffs row"
-                onClick={(e) => { e.stopPropagation(); toggleRowCollapsed(worktreeId, paneId, "diffs"); }}
-                className={[
-                  "inline-flex items-center gap-1 h-full px-1 text-xs cursor-pointer relative flex-shrink-0",
-                  activeInDiffs ? "text-text-primary" : "text-text-tertiary hover:text-text-secondary",
-                ].join(" ")}
-              >
-                <GitCompareArrows size={12} />
-                {diffs.length}
-                {activeInDiffs && (
-                  <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-accent-primary rounded" />
-                )}
-              </button>
-            ) : (
-            <>
+          <div className="flex items-center w-full min-w-0 h-[30px] border-t border-border-subtle bg-bg-bar/90">
+            <RowLabelPill label="Changes" />
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -954,7 +895,6 @@ function PaneTabBar({
             </DndContext>
             {/* far-right pinned control */}
             <div className="flex-1" />
-            <div className="w-px h-5 bg-border-subtle flex-shrink-0" />
             <button
               type="button"
               onClick={handleCloseAllDiffs}
@@ -964,8 +904,6 @@ function PaneTabBar({
               <ListX size={13} />
               Close all
             </button>
-            </>
-            )}
           </div>
           )}
         </div>

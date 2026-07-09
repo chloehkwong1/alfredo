@@ -373,14 +373,10 @@ export type LayoutNode =
       children: [LayoutNode, LayoutNode];
     };
 
-export type CollapsibleRow = "terminals" | "diffs";
-
 export interface Pane {
   tabIds: string[];
   activeTabId: string;
   previewTabId: string | null;
-  /** Secondary tab-bar rows folded to a summary strip. Absent = expanded. */
-  collapsedRows?: { terminals?: boolean; diffs?: boolean };
 }
 
 export interface CheckRun {

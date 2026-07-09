@@ -1,7 +1,6 @@
 import { create } from "zustand";
-import type { CollapsibleRow, LayoutNode, Pane } from "../types";
+import type { LayoutNode, Pane } from "../types";
 import { isAgentTab } from "../types";
-import { isTerminalTab } from "../lib/paneTabLayout";
 import { useTabStore } from "./tabStore";
 
 const MAX_SPLIT_DEPTH = 1;
@@ -51,7 +50,6 @@ interface LayoutState {
   setPaneTabIds: (worktreeId: string, paneId: string, tabIds: string[]) => void;
   openPreviewTab: (worktreeId: string, paneId: string, tabId: string) => void;
   pinPreviewTab: (worktreeId: string, paneId: string) => void;
-  toggleRowCollapsed: (worktreeId: string, paneId: string, row: CollapsibleRow) => void;
 
   // ── Queries ──
   findPaneForTab: (worktreeId: string, tabId: string) => string | null;
@@ -60,21 +58,6 @@ interface LayoutState {
 
 function generatePaneId(): string {
   return `pane-${crypto.randomUUID().slice(0, 8)}`;
-}
-
-/** The collapsible row a tab belongs to, or null (agents/notes are never collapsible). */
-function collapsibleRowForTab(worktreeId: string, tabId: string): CollapsibleRow | null {
-  const tab = useTabStore.getState().tabs[worktreeId]?.find((t) => t.id === tabId);
-  if (!tab) return null;
-  if (isTerminalTab(tab)) return "terminals";
-  if (tab.type === "diff") return "diffs";
-  return null;
-}
-
-/** Return a pane with `row` expanded, or the same pane if already expanded. */
-function withRowExpanded(pane: Pane, row: CollapsibleRow | null): Pane {
-  if (!row || !pane.collapsedRows?.[row]) return pane;
-  return { ...pane, collapsedRows: { ...pane.collapsedRows, [row]: false } };
 }
 
 function findSiblingPaneId(node: LayoutNode, paneId: string): string | null {
@@ -231,13 +214,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const newSourceActiveTab = sourceActiveChanged
       ? newSourceTabIds[0]
       : sourcePane.activeTabId;
-    // If the split moved the active tab out, the fallback active tab must be
-    // visible — expand its row if collapsed. If the active tab is unchanged,
-    // leave collapse state alone (active-in-collapsed is a legal state).
-    const updatedSource = withRowExpanded(
-      { ...sourcePane, tabIds: newSourceTabIds, activeTabId: newSourceActiveTab, previewTabId: null },
-      sourceActiveChanged ? collapsibleRowForTab(worktreeId, newSourceActiveTab) : null,
-    );
+    const updatedSource = {
+      ...sourcePane,
+      tabIds: newSourceTabIds,
+      activeTabId: newSourceActiveTab,
+      previewTabId: null,
+    };
 
     const splitNode: LayoutNode = {
       type: "split",
@@ -320,10 +302,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     set((s) => {
       const worktreePanes = s.panes[worktreeId];
       if (!worktreePanes?.[paneId]) return s;
-      const updatedPane = withRowExpanded(
-        { ...worktreePanes[paneId], activeTabId: tabId },
-        collapsibleRowForTab(worktreeId, tabId),
-      );
+      const updatedPane = { ...worktreePanes[paneId], activeTabId: tabId };
       return {
         panes: {
           ...s.panes,
@@ -344,15 +323,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const targetPaneId = worktreePanes[paneId] ? paneId : s.activePaneId[worktreeId];
       const pane = worktreePanes[targetPaneId];
       if (!pane) return s;
-      const updatedPane = withRowExpanded(
-        {
-          ...pane,
-          tabIds: [...pane.tabIds, tabId],
-          activeTabId: tabId,
-          previewTabId: pane.previewTabId ?? null,
-        },
-        collapsibleRowForTab(worktreeId, tabId),
-      );
+      const updatedPane = {
+        ...pane,
+        tabIds: [...pane.tabIds, tabId],
+        activeTabId: tabId,
+        previewTabId: pane.previewTabId ?? null,
+      };
       return {
         panes: {
           ...s.panes,
@@ -418,12 +394,13 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const newPreviewTabId =
       pane.previewTabId === tabId ? null : pane.previewTabId ?? null;
 
-    const needsExpand = pane.activeTabId === tabId;
     set((s) => {
-      const updatedPane = withRowExpanded(
-        { ...pane, tabIds: newTabIds, activeTabId: newActiveTabId, previewTabId: newPreviewTabId },
-        needsExpand ? collapsibleRowForTab(worktreeId, newActiveTabId) : null,
-      );
+      const updatedPane = {
+        ...pane,
+        tabIds: newTabIds,
+        activeTabId: newActiveTabId,
+        previewTabId: newPreviewTabId,
+      };
       return {
         panes: {
           ...s.panes,
@@ -459,12 +436,13 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const newSourcePreviewTabId =
       sourcePane.previewTabId === tabId ? null : sourcePane.previewTabId ?? null;
 
-    // The moved tab always becomes the target pane's active tab — expand its
-    // row there if collapsed. Identical in both branches, so compute once.
-    const updatedTarget = withRowExpanded(
-      { ...targetPane, tabIds: newTargetTabIds, activeTabId: tabId, previewTabId: targetPane.previewTabId ?? null },
-      collapsibleRowForTab(worktreeId, tabId),
-    );
+    // The moved tab always becomes the target pane's active tab.
+    const updatedTarget = {
+      ...targetPane,
+      tabIds: newTargetTabIds,
+      activeTabId: tabId,
+      previewTabId: targetPane.previewTabId ?? null,
+    };
 
     if (newSourceTabIds.length === 0) {
       // Source pane is now empty — collapse the split
@@ -483,12 +461,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       const newSourceActiveTab = sourceActiveChanged
         ? newSourceTabIds[0]
         : sourcePane.activeTabId;
-      // If moving the active tab out forced a fallback, expand the fallback's
-      // row so the source pane's active tab stays visible.
-      const updatedSource = withRowExpanded(
-        { ...sourcePane, tabIds: newSourceTabIds, activeTabId: newSourceActiveTab, previewTabId: newSourcePreviewTabId },
-        sourceActiveChanged ? collapsibleRowForTab(worktreeId, newSourceActiveTab) : null,
-      );
+      const updatedSource = {
+        ...sourcePane,
+        tabIds: newSourceTabIds,
+        activeTabId: newSourceActiveTab,
+        previewTabId: newSourcePreviewTabId,
+      };
       set((s) => ({
         panes: {
           ...s.panes,
@@ -579,10 +557,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         ...s.panes,
         [worktreeId]: {
           ...worktreePanes,
-          [paneId]: withRowExpanded(
-            { ...pane, tabIds: newTabIds, activeTabId: tabId, previewTabId: tabId },
-            collapsibleRowForTab(worktreeId, tabId),
-          ),
+          [paneId]: { ...pane, tabIds: newTabIds, activeTabId: tabId, previewTabId: tabId },
         },
       },
       ...trackFocus(s, worktreeId, tabId),
@@ -605,19 +580,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       };
     });
   },
-
-  toggleRowCollapsed: (worktreeId, paneId, row) =>
-    set((s) => {
-      const pane = s.panes[worktreeId]?.[paneId];
-      if (!pane) return s;
-      const next = {
-        ...pane,
-        collapsedRows: { ...pane.collapsedRows, [row]: !pane.collapsedRows?.[row] },
-      };
-      return {
-        panes: { ...s.panes, [worktreeId]: { ...s.panes[worktreeId], [paneId]: next } },
-      };
-    }),
 
   findPaneForTab: (worktreeId, tabId) => {
     const worktreePanes = get().panes[worktreeId];
