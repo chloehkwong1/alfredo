@@ -1,0 +1,37 @@
+src/components/layout/PaneTabBar.tsx
+  s_f6ff5ab6e90220::t_34d86121d01692 842
+  s_f6ff5ab6e90220::t_9c64185a6fe69d 689-690
+  s_f6ff5ab6e90220::t_094d80d7dd0f72 416-420,422-424
+  s_f6ff5ab6e90220::t_d8aa60350b6d69 421
+  s_f6ff5ab6e90220::t_e3b33371ca8b4f 792-794
+  s_f6ff5ab6e90220::t_ad4a19617c9dd0 484
+  s_f6ff5ab6e90220::t_111af123386125 852-853
+  s_f6ff5ab6e90220::t_57f45f180f86c4 692
+  s_f6ff5ab6e90220::t_d6c3e5516a5136 783
+  s_f6ff5ab6e90220::t_0847f0567aa9a1 425-427
+src/stores/layoutStore.ts
+  s_f6ff5ab6e90220::t_d3e82eb42c431a 464-469
+  s_f6ff5ab6e90220::t_9fc98d97b4e426 398-403
+  s_f6ff5ab6e90220::t_6a2b7a4de2fade 2
+  s_f6ff5ab6e90220::t_052ac1d4356b1f 305
+  s_f6ff5ab6e90220::t_0006dc0c9bd711 560
+  s_f6ff5ab6e90220::t_0e6e1f46d890d9 326-331
+  s_f6ff5ab6e90220::t_22460a3cfea46a 439-445
+  s_f6ff5ab6e90220::t_161e50724c30fe 217-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ee6ba55011c60f815099369257c1a0238c419ddf",
+  "prompts": {},
+  "sessions": {
+    "s_f6ff5ab6e90220": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef998a23-4345-411e-b41a-235a1d05aa2d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
