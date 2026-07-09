@@ -1,0 +1,22 @@
+src/components/terminal/TerminalView.tsx
+  s_18bc756c976931::t_9a5e21159f6c9c 98-99
+  s_18bc756c976931::t_cf3779b88a01f7 91-97,100-101
+  s_18bc756c976931::t_7400e4a3e00b4b 477-480,484-486
+  s_18bc756c976931::t_b29360379444f3 471-476,481-483,487-489
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "39c60206ab4cfc523d373cde13fb09d764277060",
+  "prompts": {},
+  "sessions": {
+    "s_18bc756c976931": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd8dcfa9-d32c-4b84-9adf-9cb0db95dac0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
