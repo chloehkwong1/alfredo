@@ -3,13 +3,14 @@ import { ExternalLink, RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { CheckRun } from "../../types";
 import { formatDuration } from "./formatRelativeTime";
+import { isCheckFailing, isCheckPassing, isCheckPending } from "./checkRunStatus";
 import { IconButton } from "../ui/IconButton";
 
 export function sortCheckRuns(checkRuns: CheckRun[]): CheckRun[] {
   return [...checkRuns].sort((a, b) => {
     const priority = (r: CheckRun) => {
-      if (r.status === "completed" && r.conclusion === "failure") return 0;
-      if (r.status !== "completed") return 1;
+      if (isCheckFailing(r)) return 0;
+      if (isCheckPending(r)) return 1;
       return 2;
     };
     return priority(a) - priority(b);
@@ -17,9 +18,9 @@ export function sortCheckRuns(checkRuns: CheckRun[]): CheckRun[] {
 }
 
 export function CheckRunSummary({ checkRuns }: { checkRuns: CheckRun[] }) {
-  const passed = checkRuns.filter((r) => r.status === "completed" && r.conclusion === "success").length;
-  const failing = checkRuns.filter((r) => r.status === "completed" && r.conclusion === "failure").length;
-  const pending = checkRuns.filter((r) => r.status !== "completed").length;
+  const passed = checkRuns.filter(isCheckPassing).length;
+  const failing = checkRuns.filter(isCheckFailing).length;
+  const pending = checkRuns.filter(isCheckPending).length;
 
   const parts: React.ReactNode[] = [];
   if (passed > 0) parts.push(<span key="passed" className="text-diff-added">{passed} passed</span>);
@@ -40,10 +41,8 @@ export function CheckRunSummary({ checkRuns }: { checkRuns: CheckRun[] }) {
 }
 
 export function CheckRunRow({ run }: { run: CheckRun }) {
-  const isCompleted = run.status === "completed";
-  const isSuccess = run.conclusion === "success" || run.conclusion === "skipped";
-  const isFailed = isCompleted && !isSuccess && run.conclusion !== null;
-  const isPending = !isCompleted;
+  const isFailed = isCheckFailing(run);
+  const isPending = isCheckPending(run);
 
   const dotColorClass = isFailed
     ? "text-diff-removed"

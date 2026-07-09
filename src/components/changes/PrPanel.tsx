@@ -13,6 +13,7 @@ import type { PrComment, PrReview, Worktree } from "../../types";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { PrDescription } from "./PrDescription";
 import { CheckRunRow, CheckRunSummary, sortCheckRuns } from "./CheckRunRow";
+import { isCheckFailing, isCheckPending } from "./checkRunStatus";
 import { ReviewRow } from "./ReviewRow";
 import { CommentCard } from "./CommentCard";
 
@@ -36,10 +37,8 @@ export function usePrBadgeCounts(worktreeId: string) {
     .map((login) => ({ reviewer: login, state: "REQUESTED", submittedAt: null }));
   const allReviews = [...reviews, ...requestedEntries];
 
-  const failingChecks = checkRuns.filter(
-    (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
-  ).length;
-  const pendingChecks = checkRuns.filter((r) => r.status !== "completed").length;
+  const failingChecks = checkRuns.filter(isCheckFailing).length;
+  const pendingChecks = checkRuns.filter(isCheckPending).length;
   const unresolvedComments = comments.filter((c) => !c.resolved).length;
   const approvals = reviews.filter((r) => r.state === "APPROVED").length;
 

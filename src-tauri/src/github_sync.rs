@@ -52,16 +52,18 @@ fn should_enrich(pr: &PrStatusWithColumn) -> bool {
 
 /// Whether a check run counts as failing for the PR "Checks pass" rollup.
 ///
-/// Mirrors GitHub's merge-blocking semantics: only conclusions that actually
-/// block a merge count. `cancelled` is the conclusion GitHub assigns when a
-/// workflow is cancelled or times out, and it blocks a merge — omitting it let
-/// the sidebar show "Checks pass" over a cancelled check (issue #52).
-/// `success`/`skipped`/`neutral`/`stale` do not block a merge and are not failing.
+/// Fail-safe inverse of GitHub's "successful" set: a required check satisfies
+/// branch protection only when its conclusion is `success`, `skipped`, or
+/// `neutral`. Any other completed conclusion — `failure`, `timed_out`,
+/// `action_required`, `cancelled` (issue #52), `stale`, or a conclusion GitHub
+/// adds in future — does not, so we count it as failing rather than silently
+/// showing "Checks pass". In-progress runs (not yet completed) are pending.
 fn check_run_is_failing(cr: &CheckRun) -> bool {
-    matches!(
-        cr.conclusion.as_deref(),
-        Some("failure") | Some("timed_out") | Some("action_required") | Some("cancelled")
-    )
+    cr.status == "completed"
+        && !matches!(
+            cr.conclusion.as_deref(),
+            Some("success") | Some("skipped") | Some("neutral") | None
+        )
 }
 
 /// Payload emitted on the `github:pr-update` Tauri event.
@@ -705,18 +707,21 @@ mod tests {
 
     #[test]
     fn test_check_run_is_failing_by_conclusion() {
-        // Merge-blocking conclusions count as failing.
-        assert!(check_run_is_failing(&check_run("completed", Some("failure"))));
-        assert!(check_run_is_failing(&check_run("completed", Some("timed_out"))));
-        assert!(check_run_is_failing(&check_run("completed", Some("action_required"))));
-        // A cancelled check — GitHub's conclusion when a workflow is cancelled
-        // or times out — blocks a merge and must count as failing (issue #52).
-        assert!(check_run_is_failing(&check_run("completed", Some("cancelled"))));
-        // Non-blocking conclusions do not count as failing.
+        // Only success / skipped / neutral satisfy a required check, so those
+        // are the only completed conclusions that are not failing.
         assert!(!check_run_is_failing(&check_run("completed", Some("success"))));
         assert!(!check_run_is_failing(&check_run("completed", Some("skipped"))));
         assert!(!check_run_is_failing(&check_run("completed", Some("neutral"))));
-        assert!(!check_run_is_failing(&check_run("completed", Some("stale"))));
+        // Every other completed conclusion blocks a merge and counts as failing.
+        assert!(check_run_is_failing(&check_run("completed", Some("failure"))));
+        assert!(check_run_is_failing(&check_run("completed", Some("timed_out"))));
+        assert!(check_run_is_failing(&check_run("completed", Some("action_required"))));
+        // cancelled — GitHub's conclusion for a cancelled/timed-out workflow (issue #52).
+        assert!(check_run_is_failing(&check_run("completed", Some("cancelled"))));
+        // stale needs a re-run and does not satisfy a required check.
+        assert!(check_run_is_failing(&check_run("completed", Some("stale"))));
+        // Fail-safe: an unknown/future conclusion counts as failing, not a silent pass.
+        assert!(check_run_is_failing(&check_run("completed", Some("some_new_conclusion"))));
         // In-progress runs (no conclusion yet) are pending, not failing.
         assert!(!check_run_is_failing(&check_run("in_progress", None)));
     }
