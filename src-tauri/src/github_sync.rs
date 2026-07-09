@@ -50,6 +50,20 @@ fn should_enrich(pr: &PrStatusWithColumn) -> bool {
     }
 }
 
+/// Whether a check run counts as failing for the PR "Checks pass" rollup.
+///
+/// Mirrors GitHub's merge-blocking semantics: only conclusions that actually
+/// block a merge count. `cancelled` is the conclusion GitHub assigns when a
+/// workflow is cancelled or times out, and it blocks a merge — omitting it let
+/// the sidebar show "Checks pass" over a cancelled check (issue #52).
+/// `success`/`skipped`/`neutral`/`stale` do not block a merge and are not failing.
+fn check_run_is_failing(cr: &CheckRun) -> bool {
+    matches!(
+        cr.conclusion.as_deref(),
+        Some("failure") | Some("timed_out") | Some("action_required") | Some("cancelled")
+    )
+}
+
 /// Payload emitted on the `github:pr-update` Tauri event.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -483,12 +497,7 @@ async fn poll_repo(
         }
 
         if let Ok(check_runs) = checks_result {
-            let failing = check_runs.iter().filter(|cr| {
-                matches!(
-                    cr.conclusion.as_deref(),
-                    Some("failure") | Some("timed_out") | Some("action_required")
-                )
-            }).count() as u32;
+            let failing = check_runs.iter().filter(|cr| check_run_is_failing(cr)).count() as u32;
             pr_with_col.failing_check_count = Some(failing);
             let pending = check_runs.iter().filter(|cr| {
                 cr.status != "completed"
@@ -679,7 +688,38 @@ pub async fn resolve_github_username() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::PrStatus;
+    use crate::types::{CheckRun, PrStatus};
+
+    fn check_run(status: &str, conclusion: Option<&str>) -> CheckRun {
+        CheckRun {
+            id: 1,
+            name: "ci".into(),
+            status: status.into(),
+            conclusion: conclusion.map(str::to_string),
+            html_url: String::new(),
+            started_at: None,
+            completed_at: None,
+            check_suite_id: None,
+        }
+    }
+
+    #[test]
+    fn test_check_run_is_failing_by_conclusion() {
+        // Merge-blocking conclusions count as failing.
+        assert!(check_run_is_failing(&check_run("completed", Some("failure"))));
+        assert!(check_run_is_failing(&check_run("completed", Some("timed_out"))));
+        assert!(check_run_is_failing(&check_run("completed", Some("action_required"))));
+        // A cancelled check — GitHub's conclusion when a workflow is cancelled
+        // or times out — blocks a merge and must count as failing (issue #52).
+        assert!(check_run_is_failing(&check_run("completed", Some("cancelled"))));
+        // Non-blocking conclusions do not count as failing.
+        assert!(!check_run_is_failing(&check_run("completed", Some("success"))));
+        assert!(!check_run_is_failing(&check_run("completed", Some("skipped"))));
+        assert!(!check_run_is_failing(&check_run("completed", Some("neutral"))));
+        assert!(!check_run_is_failing(&check_run("completed", Some("stale"))));
+        // In-progress runs (no conclusion yet) are pending, not failing.
+        assert!(!check_run_is_failing(&check_run("in_progress", None)));
+    }
 
     #[test]
     fn test_pr_status_with_column_draft() {
