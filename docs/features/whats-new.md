@@ -7,6 +7,36 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.19.0 — 2026-07-09**
+- **Open Linear issues straight in Alfredo** — "Open in Alfredo" on a
+  Linear issue spins up (or focuses) a worktree, drops the issue in as a
+  prompt for the agent, and lets you pick the base branch from the repo
+  picker. A centered progress overlay tracks the open, and it works even
+  when Alfredo was launched cold.
+- **Custom Claude launch flags** — set extra `claude` flags globally
+  (Settings → Agent) or per-repo, or launch a one-off custom command
+  from the new-tab menu. Alfredo keeps its notification wiring intact
+  either way.
+- **Worktrees open instantly** — create-time setup scripts now run in
+  the background. The worktree appears right away with a "Setting up…"
+  status and flips to ready when the script finishes, instead of
+  blocking on spin-up.
+- **Reworked tab bar** — rename any tab from its context menu, tabs sit
+  in a stable three-row layout (sessions / terminals / diffs), and
+  clicking an agent tab focuses its terminal.
+- **Clearer agent status** — the sidebar shows "Monitoring…" while an
+  agent runs a background monitor, self-heals stranded monitors, and no
+  longer fires duplicate "finished" notifications during background
+  subagent runs.
+- **Fable 5 and Sonnet 5** are now selectable models.
+- PR checks that were **cancelled, timed out, or went stale** now count
+  as failing instead of showing "Checks pass", and the PR panel and
+  sidebar agree on the count.
+- Various fixes: Cmd/Ctrl+C copies the terminal selection instead of
+  beeping; sessions survive restart more reliably (atomic resume writes,
+  trusted session restore, guarded worktree deletion); stacked-worktree
+  diffs no longer bleed in default-branch drift.
+
 **v0.18.0 — 2026-06-19**
 - **Two-row pane tab bar** — each pane now splits its tabs across two
   rows: your sessions (agents, terminals, dev server) on top, and a
@@ -105,18 +135,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   across remounts; annotation bubble no longer caps at 720px;
   Linear and GitHub share a bounded HTTP pool to prevent socket
   exhaustion.
-
-**v0.15.1 — 2026-05-13**
-- **No more "Too many open files" crashes** — heavy users with many
-  worktrees and open GitHub PRs were hitting the macOS file-descriptor
-  limit because every poll cycle built a fresh HTTP client with its own
-  unbounded connection pool. We now share one bounded pool across the
-  app, so socket usage stays flat regardless of how many repos or PRs
-  you have open.
-- **Token changes take effect without restart** — disconnecting GitHub
-  or rotating your token used to require quitting Alfredo. The token
-  cache now refreshes on every config save.
-- **File list in the Changes panel scrolls** when it overflows the
-  panel height (regression from v0.15.0).
 
 Check the releases page for older versions and full detail.
