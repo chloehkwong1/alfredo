@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "alfredo"
-version = "0.19.0-beta.1"
+version = "0.19.0"
 dependencies = [
  "axum",
  "block2",
