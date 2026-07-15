@@ -321,6 +321,7 @@ export class SessionManager implements SessionWriter {
       pasteDiagDrainChain: 0,
       pasteDiagLastLogAt: 0,
       staleHookNotifiedAt: 0,
+      lastRegistryBusyAt: 0,
     };
 
     // Wire up the Tauri channel — this keeps pumping events regardless of UI.
@@ -472,6 +473,7 @@ export class SessionManager implements SessionWriter {
       pasteDiagDrainChain: 0,
       pasteDiagLastLogAt: 0,
       staleHookNotifiedAt: 0,
+      lastRegistryBusyAt: 0,
     };
 
     this.sessions.set(sessionKey, session);
@@ -630,6 +632,7 @@ export class SessionManager implements SessionWriter {
       pasteDiagDrainChain: 0,
       pasteDiagLastLogAt: 0,
       staleHookNotifiedAt: 0,
+      lastRegistryBusyAt: 0,
     };
 
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);

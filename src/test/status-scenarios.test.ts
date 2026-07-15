@@ -160,6 +160,7 @@ function makeFakeSession(overrides: Partial<ManagedSession> = {}): ManagedSessio
     pasteDiagDrainChain: 0,
     pasteDiagLastLogAt: 0,
     staleHookNotifiedAt: 0,
+    lastRegistryBusyAt: 0,
     ...overrides,
   };
 }

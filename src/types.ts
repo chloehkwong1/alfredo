@@ -36,6 +36,21 @@ export type AgentState = "idle" | "busy" | "waitingForInput" | "notRunning";
 
 export type NotifyReason = "none" | "finished" | "error" | "input";
 
+/** Narrowed status values from Claude Code's session registry. */
+export type ClaudeRegistryStatus = "busy" | "idle" | "waiting";
+
+/** One session from `claude agents --json` (camelCase via serde rename). */
+export interface ClaudeRegistryEntry {
+  pid: number;
+  sessionId: string;
+  cwd: string;
+  kind: string;
+  /** "busy" | "idle" | "waiting" — kept as string so future CLI values can't throw. */
+  status: string;
+  /** Present only when status === "waiting", e.g. "permission prompt". */
+  waitingFor?: string;
+}
+
 // ── Worktree / Kanban ───────────────────────────────────────────
 
 export type StackRebaseStatus =

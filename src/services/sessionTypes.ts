@@ -147,4 +147,9 @@ export interface ManagedSession {
    *  Used to dedupe the debug notification — the reconciler runs every 500ms
    *  and the stale-hook condition stays true for the entire duration. */
   staleHookNotifiedAt: number;
+  /** Timestamp of the last registry poll that confirmed this session busy.
+   *  While recent (REGISTRY_BUSY_CONFIRM_TTL_MS), the staleBusy display flag
+   *  and the force-stale reconciler path are suppressed — the registry KNOWS
+   *  the session is busy, so "Unresponsive" would be a lie. */
+  lastRegistryBusyAt: number;
 }

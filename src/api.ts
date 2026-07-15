@@ -2,6 +2,7 @@ import { invoke, Channel } from "@tauri-apps/api/core";
 import type {
   AgentType,
   AppConfig,
+  ClaudeRegistryEntry,
   CommitInfo,
   DiffFile,
   EffectiveConfig,
@@ -534,6 +535,10 @@ export function loadSessionFile(
   worktreeId: string,
 ): Promise<string | null> {
   return invoke("load_session_file", { repoPath, worktreeId });
+}
+
+export function pollClaudeRegistry(): Promise<ClaudeRegistryEntry[]> {
+  return invoke<ClaudeRegistryEntry[]>("poll_claude_registry");
 }
 
 /** Eagerly persist one tab's discovered Claude session id (write-through, Rust-side). */

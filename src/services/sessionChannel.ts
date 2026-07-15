@@ -1,4 +1,4 @@
-import type { NotifyReason, Worktree } from "../types";
+import type { ClaudeRegistryEntry, ClaudeRegistryStatus, NotifyReason, Worktree } from "../types";
 import { sendNotification } from "../hooks/notificationUtils";
 import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
 import { createPtyChannel, getAppConfig } from "../api";
@@ -74,6 +74,22 @@ export const IDLE_DEBOUNCE_SUBAGENT_MS = 15_000;
  *  internal state settles after a turn, but the bare busy is not real work.
  *  A legitimate new turn would arrive as busy with a phase (e.g. toolStart). */
 export const TURN_END_GRACE_MS = 1000;
+
+/** How often the reconciler polls Claude Code's session registry
+ *  (`claude agents --json`, ~250ms measured). The registry is the first-party
+ *  ground truth each Claude session publishes about itself; live-verified
+ *  2026-07-15: it stays "busy" while background subagents run between turns
+ *  and "waiting" while parked on AskUserQuestion — exactly the states the
+ *  hook counters get wrong. See .claude/research/claude-agents-json-status-reconciler.md */
+export const REGISTRY_POLL_INTERVAL_MS = 15_000;
+/** Corrections require the hook channel to have been silent at least this
+ *  long. Fresh hooks are authoritative — the registry itself can lag a
+ *  transition by ~15s (measured), so racing it against live hooks would
+ *  produce flicker. Registry-busy confirmation is exempt (always safe). */
+export const REGISTRY_TRUST_HOOK_SILENCE_MS = 20_000;
+/** How long a registry busy-confirmation suppresses staleBusy: two poll
+ *  intervals plus slack, so one missed poll doesn't flap the display. */
+export const REGISTRY_BUSY_CONFIRM_TTL_MS = 35_000;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -338,6 +354,88 @@ export function hasWorkInFlight(
   session: Pick<ManagedSession, "workDepth" | "subagentDepth" | "monitorPending">,
 ): boolean {
   return session.workDepth > 0 || session.subagentDepth > 0 || session.monitorPending;
+}
+
+/** What a registry disagreement tells us to do. Application lives in
+ *  sessionManager.applyRegistrySnapshot; this stays pure for unit tests. */
+export type RegistryCorrection = "forceIdle" | "forceWaiting" | "confirmBusy";
+
+/**
+ * Join a registry entry to an Alfredo session. Claude sessionId (the tab's
+ * resumeSessionId, discovered by TerminalView's 5s loop) is exact and
+ * DEFINITIVE: when we know the id and the registry doesn't list it, that
+ * claude process is gone — falling back to cwd there would adopt a sibling
+ * tab's session and mis-correct. Unique-cwd is only the fallback for
+ * sessions whose discovery hasn't landed yet (e.g. background-opened
+ * worktrees with no mounted terminal). Ambiguous cwd (two claude tabs on
+ * one worktree) → null: never guess.
+ * Pure function — safe to unit test.
+ */
+export function matchRegistryEntry(
+  entries: ClaudeRegistryEntry[],
+  claudeSessionId: string | undefined,
+  worktreePath: string | undefined,
+): ClaudeRegistryEntry | null {
+  if (claudeSessionId) {
+    return entries.find((e) => e.sessionId === claudeSessionId) ?? null;
+  }
+  if (worktreePath) {
+    const byCwd = entries.filter((e) => e.cwd === worktreePath);
+    if (byCwd.length === 1) return byCwd[0];
+  }
+  return null;
+}
+
+/**
+ * Decide whether first-party registry status should correct this session.
+ *
+ *   registry busy               → confirmBusy (always safe; suppresses staleBusy)
+ *   registry idle + we show work → forceIdle  (registry stays busy while
+ *                                  background subagents run — verified — so
+ *                                  idle means ALL work is done)
+ *   registry waiting + we show
+ *   busy or idle                → forceWaiting (restores clobbered
+ *                                  AskUserQuestion/permission parking)
+ *
+ * All corrections except confirmBusy require ≥REGISTRY_TRUST_HOOK_SILENCE_MS
+ * of hook silence: hooks win while they're flowing. Deliberately NOT
+ * corrected: registry busy + we show idle (the registry lags busy→idle by
+ * up to ~15s after a turn ends, so that disagreement is usually the registry
+ * being stale, not us). Pure function — safe to unit test.
+ */
+export function applyRegistryCorrection(
+  session: Pick<
+    ManagedSession,
+    | "agentState"
+    | "hooksActive"
+    | "ptyExited"
+    | "lastHookAt"
+    | "workDepth"
+    | "subagentDepth"
+    | "monitorPending"
+    | "awaitingAnswer"
+  >,
+  registryStatus: ClaudeRegistryStatus,
+  now: number,
+): RegistryCorrection | null {
+  if (!session.hooksActive || session.ptyExited) return null;
+  if (registryStatus === "busy") {
+    return session.agentState === "busy" ? "confirmBusy" : null;
+  }
+  if (session.lastHookAt <= 0 || now - session.lastHookAt < REGISTRY_TRUST_HOOK_SILENCE_MS) {
+    return null;
+  }
+  if (registryStatus === "idle") {
+    const showingWork =
+      session.agentState === "busy"
+      || session.agentState === "waitingForInput"
+      || hasWorkInFlight(session)
+      || session.awaitingAnswer;
+    return showingWork ? "forceIdle" : null;
+  }
+  // registryStatus === "waiting"
+  if (session.agentState === "busy" || session.agentState === "idle") return "forceWaiting";
+  return null;
 }
 
 /**
