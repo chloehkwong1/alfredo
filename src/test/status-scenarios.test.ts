@@ -1,4 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+// Mock ../api so pollClaudeRegistry (fired by reconcileAll → maybePollRegistry)
+// returns an empty registry instead of hitting the undefined-resolving Tauri invoke stub.
+vi.mock("../api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api")>();
+  return {
+    ...actual,
+    pollClaudeRegistry: vi.fn(() => Promise.resolve([])),
+  };
+});
+
 import scenarios from "./status-scenarios.json";
 import type { StatusScenario } from "./status-scenarios";
 import type { AgentState } from "../types";
@@ -465,6 +476,100 @@ describe("SessionManager.reconcileAll", () => {
     expect(session.agentState).toBe("idle");
   });
 
+  // ── registryConfirmsBusy gate tests ──────────────────────────────
+  // F2: Three tests that lock in the registryConfirmsBusy gates added by F3.
+  // Test 3 (soft-rescue suppression) was written RED before F3 was applied,
+  // confirming it failed without the gate, then passed once F3 added
+  // `&& !registryConfirmsBusy` to the soft-rescue condition.
+
+  it("registryConfirmsBusy: suppresses force-stale (staleBusy stays false) when registry recently confirmed busy", () => {
+    // Session: hooks active but silent past STALE_HOOK_FORCE_MS (output still flowing).
+    // Without registryConfirmsBusy the force path would set staleBusy=true ("Unresponsive").
+    // With a fresh registry confirmation the force path is gated — staleBusy stays false.
+    const now = Date.now();
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      worktreeId: "repo::wt-reg-force",
+      hooksActive: true,
+      lastHookAt: now - (STALE_HOOK_FORCE_MS + 5_000), // silent past force threshold
+      lastOutputAt: now - 500,                          // output still flowing
+      workDepth: 0,
+      subagentDepth: 0,
+      monitorPending: false,
+      lastRegistryBusyAt: now - 1_000,                 // fresh registry confirmation (well within TTL)
+    });
+    (mgr as any).sessions.set("repo::wt-reg-force:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "repo::wt-reg-force", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    // Force-stale path suppressed by registryConfirmsBusy → staleBusy stays false.
+    expect(useWorkspaceStore.getState().worktrees[0].staleBusy).toBe(false);
+    expect(session.agentState).toBe("busy");
+  });
+
+  it("registryConfirmsBusy: allows force-stale when registry confirmation has expired (TTL elapsed)", () => {
+    // Same setup as above, but lastRegistryBusyAt is older than REGISTRY_BUSY_CONFIRM_TTL_MS (35s).
+    // Once the TTL expires the force path re-engages and marks staleBusy.
+    const now = Date.now();
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      worktreeId: "repo::wt-reg-ttl",
+      hooksActive: true,
+      lastHookAt: now - (STALE_HOOK_FORCE_MS + 5_000),
+      lastOutputAt: now - 500,
+      workDepth: 0,
+      subagentDepth: 0,
+      monitorPending: false,
+      lastRegistryBusyAt: now - (REGISTRY_BUSY_CONFIRM_TTL_MS + 5_000), // TTL expired
+    });
+    (mgr as any).sessions.set("repo::wt-reg-ttl:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "repo::wt-reg-ttl", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    // TTL expired → registryConfirmsBusy=false → force path fires → staleBusy=true.
+    expect(useWorkspaceStore.getState().worktrees[0].staleBusy).toBe(true);
+    expect(session.agentState).toBe("busy");
+  });
+
+  it("registryConfirmsBusy: suppresses soft rescue (session stays busy) when registry recently confirmed busy (F3 gate)", () => {
+    // RED before F3: the soft rescue fired idle even with a fresh registry confirmation.
+    // GREEN after F3: `&& !registryConfirmsBusy` added to the soft-rescue condition.
+    //
+    // Setup: hooks silent > STALE_HOOK_MS, output silent > STALE_OUTPUT_IDLE_MS,
+    // no work in flight — the soft path would normally fire idle. But registryConfirmsBusy
+    // is fresh, so the registry ground truth overrides the silence-based guess.
+    const now = Date.now();
+    const mgr = new SessionManager();
+    const session = makeFakeSession({
+      agentState: "busy",
+      worktreeId: "repo::wt-reg-soft",
+      hooksActive: true,
+      lastHookAt: now - 70_000,    // silent > STALE_HOOK_MS (60s)
+      lastOutputAt: now - 15_000,  // silent > STALE_OUTPUT_IDLE_MS (10s)
+      workDepth: 0,
+      subagentDepth: 0,
+      monitorPending: false,
+      lastRegistryBusyAt: now - 1_000, // fresh registry confirmation (well within TTL)
+    });
+    (mgr as any).sessions.set("repo::wt-reg-soft:main", session);
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "repo::wt-reg-soft", agentStatus: "busy", staleBusy: false } as any],
+    });
+
+    (mgr as any).reconcileAll();
+
+    // Soft rescue suppressed by registryConfirmsBusy → session remains busy.
+    expect(session.agentState).toBe("busy");
+  });
+
   it("end-to-end: long tool stays busy through stale window, then rescues after toolEnd+turnEnd", () => {
     const mgr = new SessionManager();
     const session = makeFakeSession({
@@ -717,7 +822,7 @@ describe("seenWorktrees ordering invariant", () => {
   });
 });
 
-import { applyHookToDepth, applySubagentDepth, applyMonitorPending, applyAwaitingAnswer, hasWorkInFlight } from "../services/sessionChannel";
+import { applyHookToDepth, applySubagentDepth, applyMonitorPending, applyAwaitingAnswer, hasWorkInFlight, REGISTRY_BUSY_CONFIRM_TTL_MS, STALE_HOOK_FORCE_MS } from "../services/sessionChannel";
 
 describe("applyHookToDepth", () => {
   it("increments on promptStart", () => {

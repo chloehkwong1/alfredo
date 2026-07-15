@@ -150,6 +150,7 @@ export class SessionManager implements SessionWriter {
         && now - session.lastHookAt > STALE_HOOK_MS
         && session.lastOutputAt > 0
         && now - session.lastOutputAt > STALE_OUTPUT_IDLE_MS
+        && !registryConfirmsBusy // registry ground truth says busy — don't guess idle from silence
       ) {
         const silentSec = Math.round((now - session.lastHookAt) / 1000);
         const wt = store.worktrees.find((w) => w.id === worktreeId);
@@ -322,6 +323,9 @@ export class SessionManager implements SessionWriter {
         session.monitorPending = false;
         session.awaitingAnswer = false;
         session.agentState = "idle";
+        // Setting hookDerivedState=idle also engages the detector's idle-mute
+        // (sessionChannel agentState handler), silencing the dead-channel escape
+        // hatch until the next real hook — lesser evil vs. the detector flicker loop.
         session.hookDerivedState = "idle";
         stateSourceMap.set(worktreeId, "registry");
         useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");

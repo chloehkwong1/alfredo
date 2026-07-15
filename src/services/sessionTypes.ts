@@ -150,6 +150,10 @@ export interface ManagedSession {
   /** Timestamp of the last registry poll that confirmed this session busy.
    *  While recent (REGISTRY_BUSY_CONFIRM_TTL_MS), the staleBusy display flag
    *  and the force-stale reconciler path are suppressed — the registry KNOWS
-   *  the session is busy, so "Unresponsive" would be a lie. */
+   *  the session is busy, so "Unresponsive" would be a lie. Note: a wedged
+   *  claude process whose last registry write was "busy" keeps confirming busy
+   *  on every poll, masking "Unresponsive" indefinitely (the CLI exposes no
+   *  statusUpdatedAt field to distinguish stale-busy from live-busy) — accepted
+   *  tradeoff; this is the trailhead for any future "Unresponsive never shows" report. */
   lastRegistryBusyAt: number;
 }

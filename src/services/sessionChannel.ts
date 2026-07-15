@@ -402,6 +402,14 @@ export function matchRegistryEntry(
  * corrected: registry busy + we show idle (the registry lags busy→idle by
  * up to ~15s after a turn ends, so that disagreement is usually the registry
  * being stale, not us). Pure function — safe to unit test.
+ *
+ * AC2 limitation: while a backgrounded subagent's busy hooks keep refreshing
+ * lastHookAt, the ≥20s hook-silence gate defers forceWaiting — so a clobbered
+ * AskUserQuestion display corrects only after background hook traffic goes quiet
+ * (a long-running background agent defers the correction for its entire run).
+ * Possible future refinement: allow forceWaiting when recent hooks were all
+ * display-suppressed busy hooks (awaitingAnswer=true + state=busy), since those
+ * don't represent real hook-channel authority over the waiting state.
  */
 export function applyRegistryCorrection(
   session: Pick<

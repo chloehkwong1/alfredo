@@ -84,6 +84,7 @@ pub async fn poll_claude_registry() -> Result<Vec<ClaudeRegistryEntry>> {
         std::time::Duration::from_secs(5),
         tokio::process::Command::new(&bin)
             .args(["agents", "--json"])
+            .kill_on_drop(true)
             .output(),
     )
     .await
