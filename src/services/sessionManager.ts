@@ -1,7 +1,9 @@
 import { FitAddon } from "@xterm/addon-fit";
 import FontFaceObserver from "fontfaceobserver";
 import type { AgentType, SessionType } from "../types";
-import { spawnPty, closePty, resizePty, reattachPty, getConfig, debugLog, getAssignedWorktreePort } from "../api";
+import type { ClaudeRegistryEntry } from "../types";
+import { spawnPty, closePty, resizePty, reattachPty, getConfig, debugLog, getAssignedWorktreePort, pollClaudeRegistry } from "../api";
+import { useTabStore } from "../stores/tabStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
@@ -19,9 +21,14 @@ import {
   STALE_HOOK_FORCE_MS,
   STALE_SUBAGENT_FORCE_MS,
   STALE_MONITOR_FORCE_MS,
+  REGISTRY_POLL_INTERVAL_MS,
+  REGISTRY_BUSY_CONFIRM_TTL_MS,
   createSessionChannel,
   fireDebugNotification,
   hasWorkInFlight,
+  stateSourceMap,
+  matchRegistryEntry,
+  applyRegistryCorrection,
   type SessionWriter,
 } from "./sessionChannel";
 
@@ -39,6 +46,14 @@ export class SessionManager implements SessionWriter {
   /** Incremented on each applyPreferences call so a slower-resolving font-load
    * from an older call can't stamp its fontFamily over a newer one. */
   private prefsSeq = 0;
+
+  /** Registry-poll bookkeeping. The poll is a backstop, not a hot path:
+   *  15s cadence, one in flight at a time, disabled for the app lifetime
+   *  after 3 consecutive failures (no binary / pre-registry CLI version). */
+  private lastRegistryPollAt = 0;
+  private registryPollInFlight = false;
+  private registryPollFailures = 0;
+  private registryPollDisabled = false;
 
   /** Start the global reconciler if not already running. Idempotent. */
   private startReconciler(): void {
@@ -61,6 +76,13 @@ export class SessionManager implements SessionWriter {
       if (!session.hooksActive) continue;
       if (session.ptyExited) continue;
       const worktreeId = session.worktreeId;
+
+      // A recent registry busy-confirmation means we KNOW the session is busy
+      // (first-party status), so neither the force-stale path nor the
+      // staleBusy display flag may claim "we don't know".
+      const registryConfirmsBusy =
+        session.lastRegistryBusyAt > 0
+        && now - session.lastRegistryBusyAt < REGISTRY_BUSY_CONFIRM_TTL_MS;
 
       // ── busy → idle reconciliation ──────────────────────────
       // ORDERING INVARIANT: the soft check (hook silence + output silence)
@@ -154,6 +176,7 @@ export class SessionManager implements SessionWriter {
         && !hasWorkInFlight(session)
         && session.lastHookAt > 0
         && now - session.lastHookAt > STALE_HOOK_FORCE_MS
+        && !registryConfirmsBusy
       ) {
         const current = store.worktrees.find((w) => w.id === worktreeId);
         if (current && !current.staleBusy) {
@@ -177,7 +200,8 @@ export class SessionManager implements SessionWriter {
       // when its own output goes silent, so it must show "Running N agents…"
       // / "Monitoring…", not "Unresponsive".
       const alive = !session.sessionId || now - session.lastHeartbeat < 6000;
-      const staleBusy = session.subagentDepth === 0
+      const staleBusy = !registryConfirmsBusy
+        && session.subagentDepth === 0
         && !session.monitorPending
         && computeStaleBusy(session.agentState, alive, session.lastOutputAt, now);
       const current = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
@@ -219,6 +243,100 @@ export class SessionManager implements SessionWriter {
       const pending = monitoringWts.has(wt.id);
       if ((wt.monitorPending ?? false) !== pending) {
         useWorkspaceStore.getState().updateWorktree(wt.id, { monitorPending: pending });
+      }
+    }
+
+    this.maybePollRegistry(now);
+  }
+
+  /** Kick off a registry poll when due. Fire-and-forget from the 500ms
+   *  reconcile tick — never blocks it. */
+  private maybePollRegistry(now: number): void {
+    if (this.registryPollDisabled || this.registryPollInFlight) return;
+    if (now - this.lastRegistryPollAt < REGISTRY_POLL_INTERVAL_MS) return;
+    let anyLive = false;
+    for (const s of this.sessions.values()) {
+      if (s.hooksActive && !s.ptyExited) { anyLive = true; break; }
+    }
+    if (!anyLive) return;
+    this.lastRegistryPollAt = now;
+    this.registryPollInFlight = true;
+    pollClaudeRegistry()
+      .then((entries) => {
+        this.registryPollFailures = 0;
+        this.applyRegistrySnapshot(entries, Date.now());
+      })
+      .catch((e) => {
+        this.registryPollFailures += 1;
+        if (this.registryPollFailures >= 3 && !this.registryPollDisabled) {
+          this.registryPollDisabled = true;
+          const msg = `[registry] polling disabled after 3 consecutive failures: ${e}`;
+          console.warn(msg);
+          debugLog(msg).catch(() => {});
+        }
+      })
+      .finally(() => {
+        this.registryPollInFlight = false;
+      });
+  }
+
+  /** @internal Exposed for tests — apply one polled registry snapshot.
+   *  Join order: claude sessionId (tab.resumeSessionId) → unique cwd → skip.
+   *  Corrections are silent by design (debug notification only, decided
+   *  2026-07-15): the real finish already notified — or was lost long ago. */
+  applyRegistrySnapshot(entries: ClaudeRegistryEntry[], now: number): void {
+    const worktrees = useWorkspaceStore.getState().worktrees;
+    for (const [sessionKey, session] of this.sessions.entries()) {
+      if (!session.hooksActive || session.ptyExited) continue;
+      const tab = useTabStore.getState().tabs[session.worktreeId]?.find((t) => t.id === sessionKey);
+      // The registry only describes Claude Code sessions. Skip tabs we know
+      // are a different agent (codex/gemini/shell) so a cwd-fallback join
+      // can't attach a claude entry to them. tab === undefined is the legacy
+      // bare-worktreeId claude session — allowed through.
+      if (tab && tab.type !== "claude") continue;
+      const wt = worktrees.find((w) => w.id === session.worktreeId);
+      const entry = matchRegistryEntry(entries, tab?.resumeSessionId, wt?.path);
+      if (!entry) continue;
+      const status = entry.status;
+      if (status !== "busy" && status !== "idle" && status !== "waiting") continue;
+      const correction = applyRegistryCorrection(session, status, now);
+      if (correction === null) continue;
+      const worktreeId = session.worktreeId;
+      if (correction === "confirmBusy") {
+        session.lastRegistryBusyAt = now;
+        continue;
+      }
+      // forceIdle / forceWaiting are authoritative transitions — cancel any
+      // pending debounced idle so it can't double-fire afterwards.
+      if (session.pendingIdleTimer !== null) {
+        clearTimeout(session.pendingIdleTimer);
+        session.pendingIdleTimer = null;
+      }
+      if (correction === "forceIdle") {
+        const msg = `[registry:${worktreeId}] ${session.agentState} → idle (registry idle; hooks silent ${now - session.lastHookAt}ms, depth=${session.workDepth}, subagents=${session.subagentDepth}, monitor=${session.monitorPending}, awaiting=${session.awaitingAnswer}, sessionKey=${sessionKey})`;
+        console.warn(msg);
+        debugLog(msg).catch(() => {});
+        fireDebugNotification(`${wt?.branch ?? worktreeId}: registry rescue → idle (was ${session.agentState})`);
+        session.workDepth = 0;
+        session.subagentDepth = 0;
+        session.monitorPending = false;
+        session.awaitingAnswer = false;
+        session.agentState = "idle";
+        session.hookDerivedState = "idle";
+        stateSourceMap.set(worktreeId, "registry");
+        useSessionStatusStore.getState().setSessionStatus(sessionKey, "idle");
+      } else {
+        // forceWaiting — display-only: counters stay untouched, and
+        // awaitingAnswer is NOT set (registry-sourced waiting has no
+        // parent-only resolution marker; mirrors the Notification-sourced
+        // waitingForInput precedent in sessionChannel).
+        const msg = `[registry:${worktreeId}] ${session.agentState} → waitingForInput (registry waiting/${entry.waitingFor ?? "?"}; hooks silent ${now - session.lastHookAt}ms, sessionKey=${sessionKey})`;
+        console.warn(msg);
+        debugLog(msg).catch(() => {});
+        session.agentState = "waitingForInput";
+        session.hookDerivedState = "waitingForInput";
+        stateSourceMap.set(worktreeId, "registry");
+        useSessionStatusStore.getState().setSessionStatus(sessionKey, "waitingForInput");
       }
     }
   }

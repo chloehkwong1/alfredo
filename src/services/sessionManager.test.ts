@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { shouldAcceptDetectorState } from "./sessionManager";
+import { shouldAcceptDetectorState, SessionManager } from "./sessionManager";
 import {
   applyRegistryCorrection,
   matchRegistryEntry,
   REGISTRY_TRUST_HOOK_SILENCE_MS,
 } from "./sessionChannel";
 import type { ClaudeRegistryEntry } from "../types";
+import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useTabStore } from "../stores/tabStore";
 
 describe("shouldAcceptDetectorState", () => {
   it("accepts detector events when hooks are not active", () => {
@@ -108,5 +110,102 @@ describe("applyRegistryCorrection", () => {
 
   it("never corrects an in-sync idle session", () => {
     expect(applyRegistryCorrection({ ...base, agentState: "idle" }, "idle", now)).toBeNull();
+  });
+});
+
+describe("applyRegistrySnapshot", () => {
+  it("rescues a stuck-busy session with stranded counters via cwd join", () => {
+    const manager = new SessionManager();
+    const s = manager.loadScrollbackOnly("wt-1", "wt-1", undefined, "/wt/a");
+    s.hooksActive = true;
+    s.agentState = "busy";
+    s.subagentDepth = 2;
+    s.monitorPending = true;
+    s.lastHookAt = Date.now() - 30_000;
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-1", path: "/wt/a", branch: "main", name: "a" } as any],
+    });
+    manager.applyRegistrySnapshot(
+      [{ pid: 9, sessionId: "sess-x", cwd: "/wt/a", kind: "interactive", status: "idle" }],
+      Date.now(),
+    );
+    expect(s.agentState).toBe("idle");
+    expect(s.subagentDepth).toBe(0);
+    expect(s.monitorPending).toBe(false);
+  });
+
+  it("restores clobbered waitingForInput when registry says waiting", () => {
+    const manager = new SessionManager();
+    const s = manager.loadScrollbackOnly("wt-2", "wt-2", undefined, "/wt/b");
+    s.hooksActive = true;
+    s.agentState = "busy";
+    s.lastHookAt = Date.now() - 30_000;
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-2", path: "/wt/b", branch: "main", name: "b" } as any],
+    });
+    manager.applyRegistrySnapshot(
+      [{ pid: 9, sessionId: "sess-y", cwd: "/wt/b", kind: "interactive", status: "waiting", waitingFor: "permission prompt" }],
+      Date.now(),
+    );
+    expect(s.agentState).toBe("waitingForInput");
+    expect(s.awaitingAnswer).toBe(false); // registry-sourced waiting must NOT pin the flag
+  });
+
+  it("stamps lastRegistryBusyAt on busy confirmation and touches nothing else", () => {
+    const manager = new SessionManager();
+    const s = manager.loadScrollbackOnly("wt-3", "wt-3", undefined, "/wt/c");
+    s.hooksActive = true;
+    s.agentState = "busy";
+    s.workDepth = 1;
+    s.lastHookAt = Date.now(); // hooks fresh — busy confirm is exempt from the silence gate
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-3", path: "/wt/c", branch: "main", name: "c" } as any],
+    });
+    const now = Date.now();
+    manager.applyRegistrySnapshot(
+      [{ pid: 9, sessionId: "sess-z", cwd: "/wt/c", kind: "interactive", status: "busy" }],
+      now,
+    );
+    expect(s.lastRegistryBusyAt).toBe(now);
+    expect(s.agentState).toBe("busy");
+    expect(s.workDepth).toBe(1);
+  });
+
+  it("never corrects a codex/gemini tab even when the cwd matches", () => {
+    const manager = new SessionManager();
+    const s = manager.loadScrollbackOnly("tab-codex", "wt-5", undefined, "/wt/e");
+    s.hooksActive = true;
+    s.agentState = "busy";
+    s.lastHookAt = Date.now() - 30_000;
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-5", path: "/wt/e", branch: "main", name: "e" } as any],
+    });
+    useTabStore.setState({
+      tabs: { "wt-5": [{ id: "tab-codex", type: "codex" } as any] },
+    });
+    manager.applyRegistrySnapshot(
+      [{ pid: 9, sessionId: "sess-c", cwd: "/wt/e", kind: "interactive", status: "idle" }],
+      Date.now(),
+    );
+    expect(s.agentState).toBe("busy"); // claude registry entry must not touch a codex tab
+  });
+
+  it("skips sessions the snapshot cannot unambiguously join", () => {
+    const manager = new SessionManager();
+    const s = manager.loadScrollbackOnly("wt-4", "wt-4", undefined, "/wt/d");
+    s.hooksActive = true;
+    s.agentState = "busy";
+    s.lastHookAt = Date.now() - 30_000;
+    useWorkspaceStore.setState({
+      worktrees: [{ id: "wt-4", path: "/wt/d", branch: "main", name: "d" } as any],
+    });
+    manager.applyRegistrySnapshot(
+      [
+        { pid: 1, sessionId: "s-1", cwd: "/wt/d", kind: "interactive", status: "idle" },
+        { pid: 2, sessionId: "s-2", cwd: "/wt/d", kind: "interactive", status: "idle" },
+      ],
+      Date.now(),
+    );
+    expect(s.agentState).toBe("busy"); // ambiguous cwd → no correction
   });
 });
