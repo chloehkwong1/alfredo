@@ -2,7 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import FontFaceObserver from "fontfaceobserver";
 import type { AgentType, SessionType } from "../types";
 import type { ClaudeRegistryEntry } from "../types";
-import { spawnPty, closePty, resizePty, reattachPty, getConfig, debugLog, getAssignedWorktreePort, pollClaudeRegistry } from "../api";
+import { spawnPty, closePty, resizePty, reattachPty, getConfig, debugLog, getAssignedWorktreePort, pollClaudeRegistry, listSessions } from "../api";
 import { useTabStore } from "../stores/tabStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
@@ -36,6 +36,36 @@ import {
 export type { ManagedSession } from "./sessionTypes";
 export { shouldAcceptDetectorState, stateSourceMap } from "./sessionChannel";
 
+// ── Orphan sweep ───────────────────────────────────────────────
+
+/** How often the reconciler checks for backend PTY sessions no tab claims. */
+export const ORPHAN_SWEEP_INTERVAL_MS = 30_000;
+
+/**
+ * Decide which backend sessions to close, with a two-strike rule: an
+ * unclaimed id is only closed if it was already unclaimed on the previous
+ * sweep. This protects in-flight spawns/reattaches (backend session exists
+ * for a moment before the frontend records its id) from being reaped.
+ *
+ * Unclaimed sessions accumulate after a webview reload: backend PTYs
+ * deliberately survive reloads for reattach, but only server tabs reattach —
+ * agent tabs restore scrollback-only and spawn a fresh PTY, abandoning the
+ * old one. Left unswept, each abandoned agent keeps its full MCP-server
+ * stack alive until fd exhaustion (EMFILE).
+ */
+export function computeOrphanSweep(
+  backendSessionIds: string[],
+  claimedIds: Set<string>,
+  prevCandidates: Set<string>,
+): { toClose: string[]; nextCandidates: Set<string> } {
+  const unclaimed = backendSessionIds.filter((id) => !claimedIds.has(id));
+  const toClose = unclaimed.filter((id) => prevCandidates.has(id));
+  // Ids being closed leave the candidate set — if closePty fails they'll
+  // re-earn both strikes rather than being hammered every sweep.
+  const nextCandidates = new Set(unclaimed.filter((id) => !prevCandidates.has(id)));
+  return { toClose, nextCandidates };
+}
+
 // ── SessionManager ─────────────────────────────────────────────
 
 export class SessionManager implements SessionWriter {
@@ -54,6 +84,11 @@ export class SessionManager implements SessionWriter {
   private registryPollInFlight = false;
   private registryPollFailures = 0;
   private registryPollDisabled = false;
+
+  /** Orphan-sweep bookkeeping — see computeOrphanSweep. */
+  private lastOrphanSweepAt = 0;
+  private orphanSweepInFlight = false;
+  private orphanCandidates = new Set<string>();
 
   /** Start the global reconciler if not already running. Idempotent. */
   private startReconciler(): void {
@@ -248,6 +283,44 @@ export class SessionManager implements SessionWriter {
     }
 
     this.maybePollRegistry(now);
+    this.maybeSweepOrphans(now);
+  }
+
+  /** Close backend PTY sessions that no ManagedSession claims. Fire-and-
+   *  forget from the 500ms reconcile tick — never blocks it. Two sweeps
+   *  (ORPHAN_SWEEP_INTERVAL_MS apart) must see an id unclaimed before it's
+   *  closed, so in-flight spawns and post-reload server reattaches (~3s via
+   *  useServer's reconcile loop) are never reaped. */
+  private maybeSweepOrphans(now: number): void {
+    if (this.orphanSweepInFlight) return;
+    if (now - this.lastOrphanSweepAt < ORPHAN_SWEEP_INTERVAL_MS) return;
+    this.lastOrphanSweepAt = now;
+    this.orphanSweepInFlight = true;
+    listSessions()
+      .then((backend) => {
+        const claimed = new Set<string>();
+        for (const s of this.sessions.values()) {
+          if (s.sessionId) claimed.add(s.sessionId);
+        }
+        const { toClose, nextCandidates } = computeOrphanSweep(
+          backend.map((s) => s.id),
+          claimed,
+          this.orphanCandidates,
+        );
+        this.orphanCandidates = nextCandidates;
+        for (const id of toClose) {
+          const msg = `[orphan-sweep] closing backend session ${id} — unclaimed for two sweeps (abandoned by a webview reload or dropped tab)`;
+          console.warn(msg);
+          debugLog(msg).catch(() => {});
+          closePty(id).catch((e) => console.warn(`[orphan-sweep] closePty(${id}) failed:`, e));
+        }
+      })
+      .catch(() => {
+        // listSessions failed — leave candidates untouched, retry next interval.
+      })
+      .finally(() => {
+        this.orphanSweepInFlight = false;
+      });
   }
 
   /** Kick off a registry poll when due. Fire-and-forget from the 500ms
@@ -600,6 +673,10 @@ export class SessionManager implements SessionWriter {
 
     this.sessions.set(sessionKey, session);
     useSessionStatusStore.getState().setSessionStatus(sessionKey, "notRunning");
+    // Start the reconciler even though this session has no PTY: after a
+    // webview reload the backend may hold abandoned PTYs that only the
+    // reconciler's orphan sweep will release.
+    this.startReconciler();
     return session;
   }
 

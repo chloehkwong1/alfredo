@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shouldAcceptDetectorState, SessionManager } from "./sessionManager";
+import { shouldAcceptDetectorState, SessionManager, computeOrphanSweep } from "./sessionManager";
 import {
   applyRegistryCorrection,
   matchRegistryEntry,
@@ -21,6 +21,59 @@ describe("shouldAcceptDetectorState", () => {
   it("falls back to detector when hooks have been silent for > 60s", () => {
     const stale = Date.now() - 61_000;
     expect(shouldAcceptDetectorState(true, stale)).toBe(true);
+  });
+});
+
+describe("computeOrphanSweep", () => {
+  it("does not close an unclaimed session on first sighting (strike one)", () => {
+    const { toClose, nextCandidates } = computeOrphanSweep(
+      ["a", "b"],
+      new Set(["b"]),
+      new Set(),
+    );
+    expect(toClose).toEqual([]);
+    expect([...nextCandidates]).toEqual(["a"]);
+  });
+
+  it("closes a session unclaimed on two consecutive sweeps", () => {
+    const { toClose, nextCandidates } = computeOrphanSweep(
+      ["a", "b"],
+      new Set(["b"]),
+      new Set(["a"]),
+    );
+    expect(toClose).toEqual(["a"]);
+    // Closed ids leave the candidate set — a failed close re-earns both strikes.
+    expect(nextCandidates.size).toBe(0);
+  });
+
+  it("clears a candidate that becomes claimed between sweeps (in-flight spawn/reattach)", () => {
+    // Strike one saw "srv" unclaimed; useServer reattached it before strike two.
+    const { toClose, nextCandidates } = computeOrphanSweep(
+      ["srv"],
+      new Set(["srv"]),
+      new Set(["srv"]),
+    );
+    expect(toClose).toEqual([]);
+    expect(nextCandidates.size).toBe(0);
+  });
+
+  it("drops candidates that disappeared from the backend (closed elsewhere)", () => {
+    const { toClose, nextCandidates } = computeOrphanSweep(
+      [],
+      new Set(),
+      new Set(["gone"]),
+    );
+    expect(toClose).toEqual([]);
+    expect(nextCandidates.size).toBe(0);
+  });
+
+  it("never closes claimed sessions", () => {
+    const { toClose } = computeOrphanSweep(
+      ["a", "b", "c"],
+      new Set(["a", "b", "c"]),
+      new Set(["a", "b", "c"]),
+    );
+    expect(toClose).toEqual([]);
   });
 });
 

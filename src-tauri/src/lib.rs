@@ -238,6 +238,13 @@ pub fn run() {
             eprintln!("[alfredo] state server listening on port {}", state_handle.port);
             app.manage(state_handle);
 
+            // Kill session process trees leaked by a prior run that didn't
+            // shut down cleanly (crash, Force Quit). Runs BEFORE the stale-
+            // hooks cleanup below: reaping removes the dead sessions' pid
+            // files, so the cleanup no longer treats them as live and strips
+            // their hooks in the same boot.
+            pty_manager::reap_orphan_sessions();
+
             // Strip any stale Alfredo hooks left behind by a prior run that
             // didn't shut down cleanly (crash, force-quit). Without this, old
             // hook entries sit in .claude/settings.local.json and fire curl
@@ -428,9 +435,13 @@ pub fn run() {
                 }
             }
             RunEvent::Exit => {
-                // Remove Alfredo hooks from all worktrees so standalone
-                // Claude Code sessions don't inherit stale hook config.
                 if let Some(manager) = app.try_state::<PtyManager>() {
+                    // Kill every session's process tree first — otherwise the
+                    // child agents (and their MCP-server stacks) outlive the
+                    // app and leak fds until EMFILE. Then remove Alfredo hooks
+                    // from all worktrees so standalone Claude Code sessions
+                    // don't inherit stale hook config.
+                    manager.shutdown_all();
                     manager.cleanup_all_hooks();
                 }
             }

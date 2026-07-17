@@ -28,6 +28,12 @@ pub enum OscEvent {
 /// than this are silently discarded to bound memory usage per session.
 const OSC_MAX_PAYLOAD: usize = 256;
 
+/// Grace period between SIGTERM and SIGKILL when closing a session. Parked
+/// Claude Code processes routinely ignore SIGTERM (observed live: 38/38
+/// survived a 3s grace), so SIGKILL is the reliable path — the grace exists
+/// for well-behaved children like dev servers in shell sessions.
+const KILL_GRACE: Duration = Duration::from_secs(3);
+
 /// Byte-stream state machine that extracts OSC 0/1/2 title and OSC 7 CWD
 /// sequences from PTY output. Tolerant of sequences split across chunks.
 #[derive(Debug)]
@@ -812,6 +818,13 @@ impl PtyManager {
                 stop_flag.store(true, Ordering::Relaxed);
                 if let Some(pid) = pid {
                     unsafe { libc::kill(-(pid as i32), libc::SIGTERM); }
+                    // Same SIGKILL fallback as the full-teardown path below —
+                    // parked claude processes ignore SIGTERM, so without this
+                    // the session (and its MCP-server group) leaks.
+                    thread::spawn(move || {
+                        thread::sleep(KILL_GRACE);
+                        unsafe { libc::kill(-(pid as i32), libc::SIGKILL); }
+                    });
                 }
                 return Ok(());
             }
@@ -841,7 +854,7 @@ impl PtyManager {
         // Tauri command thread (child.wait() can stall).
         thread::spawn(move || {
             if let Some(pid) = pid {
-                thread::sleep(Duration::from_millis(200));
+                thread::sleep(KILL_GRACE);
                 // Force-kill any survivors.
                 unsafe { libc::kill(-(pid as i32), libc::SIGKILL); }
             }
@@ -849,6 +862,43 @@ impl PtyManager {
         });
 
         Ok(())
+    }
+
+    /// Terminate every live session's process tree. Called on app exit —
+    /// without this, child agents (and their MCP-server stacks) outlive the
+    /// app and leak file descriptors until EMFILE.
+    ///
+    /// Synchronous by design: `close()`'s detached SIGKILL threads would die
+    /// with the exiting process before their grace elapsed. One shared 500ms
+    /// grace (parked claudes ignore SIGTERM anyway), then SIGKILL all groups.
+    /// Session map entries are left in place — `cleanup_all_hooks` still
+    /// needs them to enumerate worktree paths.
+    pub fn shutdown_all(&self) {
+        let pids: Vec<i32> = {
+            let sessions = match self.sessions.read() {
+                Ok(s) => s,
+                Err(_) => return,
+            };
+            sessions
+                .values()
+                .filter_map(|arc| {
+                    let s = arc.lock().ok()?;
+                    s.stop_flag.store(true, Ordering::Relaxed);
+                    s.child.process_id().map(|p| p as i32)
+                })
+                .collect()
+        };
+        if pids.is_empty() {
+            return;
+        }
+        eprintln!("[pty] shutdown_all: terminating {} session(s)", pids.len());
+        for pid in &pids {
+            unsafe { libc::kill(-pid, libc::SIGTERM); }
+        }
+        thread::sleep(Duration::from_millis(500));
+        for pid in &pids {
+            unsafe { libc::kill(-pid, libc::SIGKILL); }
+        }
     }
 
     /// Remove Alfredo hooks from all active sessions' worktree directories.
@@ -992,6 +1042,101 @@ fn cleanup_hooks_for_path(
     if let Err(e) = remove_codex_hooks_config(path) {
         eprintln!("[alfredo] {phase} codex hooks failed for {path}: {e}");
     }
+}
+
+/// What the boot reaper should do with a scanned session pid file.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum OrphanAction {
+    /// Pid is dead (or recycled by an unrelated process) — session is gone,
+    /// delete its /tmp files.
+    RemoveFiles,
+    /// Pid is a session process whose owning Alfredo died (reparented to
+    /// launchd) — kill its process tree and delete its /tmp files.
+    KillTreeAndRemoveFiles,
+    /// Pid belongs to a live parent (a sibling Alfredo instance) — leave it.
+    Skip,
+}
+
+/// Pure decision logic for `reap_orphan_sessions`, split out for tests.
+/// `ppid == Some(1)` means the process was reparented to launchd, i.e. the
+/// Alfredo that spawned it is gone. A failed ppid lookup (`None`) skips —
+/// never kill on incomplete evidence.
+fn classify_orphan(alive: bool, is_session_comm: bool, ppid: Option<i32>) -> OrphanAction {
+    if !alive || !is_session_comm {
+        return OrphanAction::RemoveFiles;
+    }
+    match ppid {
+        Some(1) => OrphanAction::KillTreeAndRemoveFiles,
+        _ => OrphanAction::Skip,
+    }
+}
+
+/// Reap session processes leaked by a previous Alfredo run that didn't shut
+/// down cleanly (crash, Force Quit, SIGKILL — none of which run
+/// `shutdown_all`). Walks the per-session pid files written at spawn: a live
+/// session pid whose parent is launchd lost its Alfredo, so nothing will
+/// ever close it — kill the whole process group (agent + MCP servers) and
+/// delete its files. Dead/recycled pids just get their files deleted.
+/// Sessions owned by live sibling Alfredo instances are left alone.
+pub fn reap_orphan_sessions() {
+    let entries = match std::fs::read_dir("/tmp") {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        let Some(name) = entry_path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let Some(session_id) = name
+            .strip_prefix("alfredo-claude-")
+            .and_then(|s| s.strip_suffix(".pid"))
+        else {
+            continue;
+        };
+        let Ok(pid_str) = std::fs::read_to_string(&entry_path) else {
+            continue;
+        };
+        let Ok(pid) = pid_str.trim().parse::<i32>() else {
+            continue;
+        };
+        let alive = unsafe { libc::kill(pid, 0) } == 0;
+        let is_session = alive && is_alfredo_session_pid(pid);
+        let ppid = if is_session { process_ppid(pid) } else { None };
+        match classify_orphan(alive, is_session, ppid) {
+            OrphanAction::Skip => {}
+            OrphanAction::RemoveFiles => remove_session_tmp_files(session_id),
+            OrphanAction::KillTreeAndRemoveFiles => {
+                eprintln!(
+                    "[pty] boot reaper: killing orphaned session {session_id} (pid {pid}, parent gone)"
+                );
+                unsafe { libc::kill(-pid, libc::SIGTERM); }
+                std::thread::spawn(move || {
+                    std::thread::sleep(KILL_GRACE);
+                    unsafe { libc::kill(-pid, libc::SIGKILL); }
+                });
+                remove_session_tmp_files(session_id);
+            }
+        }
+    }
+}
+
+/// Parent pid via `ps`, or `None` if the lookup fails.
+fn process_ppid(pid: i32) -> Option<i32> {
+    let out = std::process::Command::new("ps")
+        .args(["-o", "ppid=", "-p", &pid.to_string()])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    std::str::from_utf8(&out.stdout).ok()?.trim().parse().ok()
+}
+
+/// Delete a session's /tmp pid + worktree-sidecar files.
+fn remove_session_tmp_files(session_id: &str) {
+    let _ = std::fs::remove_file(format!("/tmp/alfredo-claude-{session_id}.pid"));
+    let _ = std::fs::remove_file(format!("/tmp/alfredo-claude-{session_id}.worktree"));
 }
 
 /// Scan `/tmp/alfredo-claude-*.pid` files. For each pid that is still alive,
@@ -1644,6 +1789,39 @@ mod tests {
         assert!(!is_leaked_outer_session_var("ANTHROPIC_API_KEY"));
         assert!(!is_leaked_outer_session_var("PATH"));
         assert!(!is_leaked_outer_session_var("HOME"));
+    }
+
+    #[test]
+    fn classify_orphan_dead_pid_removes_files() {
+        assert_eq!(classify_orphan(false, false, None), OrphanAction::RemoveFiles);
+    }
+
+    #[test]
+    fn classify_orphan_recycled_pid_removes_files_without_killing() {
+        // Alive pid whose comm no longer looks like a session process —
+        // the OS recycled the pid. Never kill; the session is gone.
+        assert_eq!(classify_orphan(true, false, Some(1)), OrphanAction::RemoveFiles);
+    }
+
+    #[test]
+    fn classify_orphan_reparented_session_is_killed() {
+        // Live session process whose parent is launchd → its Alfredo died.
+        assert_eq!(
+            classify_orphan(true, true, Some(1)),
+            OrphanAction::KillTreeAndRemoveFiles
+        );
+    }
+
+    #[test]
+    fn classify_orphan_live_parent_is_skipped() {
+        // A sibling Alfredo instance still owns this session.
+        assert_eq!(classify_orphan(true, true, Some(42223)), OrphanAction::Skip);
+    }
+
+    #[test]
+    fn classify_orphan_unknown_ppid_is_skipped() {
+        // ppid lookup failed — never kill on incomplete evidence.
+        assert_eq!(classify_orphan(true, true, None), OrphanAction::Skip);
     }
 
     /// Verify that the manager can spawn, list, and close a simple session.
