@@ -14,9 +14,10 @@ use crate::types::AppError;
 type Result<T> = std::result::Result<T, AppError>;
 
 /// One session from `claude agents --json`. Unknown fields (name, startedAt,
-/// jobId, …) are ignored; missing fields default so a single odd entry can't
-/// fail the whole poll. Entries without a sessionId or status are dropped in
-/// parse_agents_json.
+/// jobId, …) are ignored; missing fields default, and parse_agents_json
+/// deserializes per-entry so a single malformed entry (null field, wrong
+/// type) is dropped without failing the whole poll. Entries without a
+/// sessionId or status are dropped there too.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeRegistryEntry {
@@ -35,45 +36,56 @@ pub struct ClaudeRegistryEntry {
 }
 
 /// Parse the raw stdout of `claude agents --json`. Pure — unit-tested below.
+/// Lenient per entry: the array must parse, but individual entries that fail
+/// to deserialize (null fields, wrong types from a future CLI) are dropped
+/// rather than failing the snapshot — a hard error here feeds the frontend's
+/// consecutive-failure backoff and would mute the backstop over one odd entry.
 pub fn parse_agents_json(raw: &str) -> Result<Vec<ClaudeRegistryEntry>> {
-    let entries: Vec<ClaudeRegistryEntry> = serde_json::from_str(raw)
+    let values: Vec<serde_json::Value> = serde_json::from_str(raw)
         .map_err(|e| AppError::Config(format!("claude agents --json parse error: {e}")))?;
-    Ok(entries
+    let total = values.len();
+    let entries: Vec<ClaudeRegistryEntry> = values
         .into_iter()
-        .filter(|e| !e.session_id.is_empty() && !e.status.is_empty())
-        .collect())
+        .filter_map(|v| serde_json::from_value(v).ok())
+        .filter(|e: &ClaudeRegistryEntry| !e.session_id.is_empty() && !e.status.is_empty())
+        .collect();
+    if entries.len() < total {
+        eprintln!(
+            "[registry] dropped {}/{total} malformed or incomplete agent entries",
+            total - entries.len(),
+        );
+    }
+    Ok(entries)
 }
 
-/// Resolve the `claude` binary once and cache it. GUI apps launched from the
-/// Dock do NOT inherit the shell PATH, so a bare Command::new("claude") would
-/// fail — try the standard install location first, then fall back to a login
-/// shell `command -v` (mirrors how the PTY finds it via the user's shell).
+/// Resolve the `claude` binary. GUI apps launched from the Dock do NOT
+/// inherit the shell PATH, so a bare Command::new("claude") would fail —
+/// search the same augmented PATH the PTY uses to spawn agents (standard
+/// install dirs + the user's login-shell PATH, whatever their shell).
+/// Only successful resolutions are cached: a miss retries on the next poll,
+/// so installing claude while Alfredo runs recovers without a restart.
 fn resolve_claude_binary() -> Option<String> {
-    static CLAUDE_BIN: OnceLock<Option<String>> = OnceLock::new();
-    CLAUDE_BIN
-        .get_or_init(|| {
-            if let Some(home) = std::env::var_os("HOME") {
-                let p = std::path::Path::new(&home).join(".local/bin/claude");
-                if p.exists() {
-                    return Some(p.to_string_lossy().into_owned());
-                }
-            }
-            let out = std::process::Command::new("/bin/zsh")
-                .args(["-lc", "command -v claude"])
-                .output()
-                .ok()?;
-            if !out.status.success() {
-                return None;
-            }
-            let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if path.is_empty() { None } else { Some(path) }
-        })
-        .clone()
+    static CLAUDE_BIN: OnceLock<String> = OnceLock::new();
+    if let Some(hit) = CLAUDE_BIN.get() {
+        return Some(hit.clone());
+    }
+    let found = find_in_path_string(&crate::platform::augmented_path(), "claude")?;
+    Some(CLAUDE_BIN.get_or_init(|| found).clone())
+}
+
+/// First `<dir>/<name>` regular file across a colon-separated PATH string.
+fn find_in_path_string(path: &str, name: &str) -> Option<String> {
+    path.split(':')
+        .filter(|dir| !dir.is_empty())
+        .map(|dir| std::path::Path::new(dir).join(name))
+        .find(|cand| cand.is_file())
+        .map(|cand| cand.to_string_lossy().into_owned())
 }
 
 /// Run `claude agents --json` and return the parsed session entries.
-/// Fails fast (5s timeout) — the frontend disables polling after repeated
-/// failures (missing binary, pre-registry CLI version).
+/// Fails fast (5s timeout) — the frontend backs off exponentially on
+/// consecutive failures (missing binary, pre-registry CLI version, load
+/// spikes) and recovers on the first success.
 #[tauri::command]
 pub async fn poll_claude_registry() -> Result<Vec<ClaudeRegistryEntry>> {
     let bin = tokio::task::spawn_blocking(resolve_claude_binary)
@@ -142,5 +154,35 @@ mod tests {
     fn rejects_malformed_json() {
         assert!(parse_agents_json("not json").is_err());
         assert!(parse_agents_json(r#"{"pid":1}"#).is_err()); // object, not array
+    }
+
+    #[test]
+    fn drops_malformed_entries_without_failing_the_snapshot() {
+        // One entry with a null string field and one with a wrong-typed pid
+        // must not take down the healthy entries around them.
+        let raw = r#"[
+          {"pid":1,"cwd":null,"sessionId":"s-1","status":"busy"},
+          {"pid":"not-a-number","cwd":"/b","sessionId":"s-2","status":"idle"},
+          {"pid":3,"cwd":"/c","sessionId":"s-3","status":"busy"}
+        ]"#;
+        let entries = parse_agents_json(raw).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].session_id, "s-3");
+    }
+
+    #[test]
+    fn find_in_path_string_walks_dirs_in_order() {
+        let dir = std::env::temp_dir().join(format!("alfredo-test-path-{}", std::process::id()));
+        let sub = dir.join("bin");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("claude"), "#!/bin/sh\n").unwrap();
+        let path = format!("/nonexistent-dir:{}", sub.display());
+        assert_eq!(
+            find_in_path_string(&path, "claude"),
+            Some(sub.join("claude").to_string_lossy().into_owned()),
+        );
+        assert_eq!(find_in_path_string(&path, "missing-binary"), None);
+        assert_eq!(find_in_path_string("", "claude"), None);
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

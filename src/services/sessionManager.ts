@@ -41,6 +41,24 @@ export { shouldAcceptDetectorState, stateSourceMap } from "./sessionChannel";
 /** How often the reconciler checks for backend PTY sessions no tab claims. */
 export const ORPHAN_SWEEP_INTERVAL_MS = 30_000;
 
+/** Registry-poll backoff ceiling. Failures are usually transient (load
+ *  spike pushing `claude agents --json` past its 5s timeout, wake-from-sleep
+ *  burst) — but can be permanent (no binary, pre-registry CLI). Exponential
+ *  backoff serves both: transient failures recover on the next success,
+ *  permanent ones settle into one cheap failed spawn per 10 minutes. A
+ *  lifetime disable (the previous design) conflated the two and silently
+ *  turned the backstop off until app restart. */
+export const REGISTRY_POLL_BACKOFF_MAX_MS = 10 * 60_000;
+
+/** Poll interval given the consecutive-failure count: 15s doubling to the
+ *  10-minute ceiling. Pure — unit-tested. */
+export function registryPollDelay(consecutiveFailures: number): number {
+  return Math.min(
+    REGISTRY_POLL_INTERVAL_MS * 2 ** Math.min(consecutiveFailures, 10),
+    REGISTRY_POLL_BACKOFF_MAX_MS,
+  );
+}
+
 /** The slice of a backend Session the sweep decision needs. */
 export interface SweepBackendSession {
   id: string;
@@ -115,12 +133,11 @@ export class SessionManager implements SessionWriter {
   private prefsSeq = 0;
 
   /** Registry-poll bookkeeping. The poll is a backstop, not a hot path:
-   *  15s cadence, one in flight at a time, disabled for the app lifetime
-   *  after 3 consecutive failures (no binary / pre-registry CLI version). */
+   *  15s cadence, one in flight at a time, backing off exponentially (to a
+   *  10-minute ceiling) on consecutive failures — see registryPollDelay. */
   private lastRegistryPollAt = 0;
   private registryPollInFlight = false;
   private registryPollFailures = 0;
-  private registryPollDisabled = false;
 
   /** Orphan-sweep bookkeeping — see computeOrphanSweep. */
   private lastOrphanSweepAt = 0;
@@ -389,8 +406,8 @@ export class SessionManager implements SessionWriter {
   /** Kick off a registry poll when due. Fire-and-forget from the 500ms
    *  reconcile tick — never blocks it. */
   private maybePollRegistry(now: number): void {
-    if (this.registryPollDisabled || this.registryPollInFlight) return;
-    if (now - this.lastRegistryPollAt < REGISTRY_POLL_INTERVAL_MS) return;
+    if (this.registryPollInFlight) return;
+    if (now - this.lastRegistryPollAt < registryPollDelay(this.registryPollFailures)) return;
     let anyLive = false;
     for (const s of this.sessions.values()) {
       if (s.hooksActive && !s.ptyExited) { anyLive = true; break; }
@@ -400,14 +417,18 @@ export class SessionManager implements SessionWriter {
     this.registryPollInFlight = true;
     pollClaudeRegistry()
       .then((entries) => {
+        if (this.registryPollFailures >= 3) {
+          const msg = "[registry] polling recovered after backoff";
+          console.warn(msg);
+          debugLog(msg).catch(() => {});
+        }
         this.registryPollFailures = 0;
         this.applyRegistrySnapshot(entries, Date.now());
       })
       .catch((e) => {
         this.registryPollFailures += 1;
-        if (this.registryPollFailures >= 3 && !this.registryPollDisabled) {
-          this.registryPollDisabled = true;
-          const msg = `[registry] polling disabled after 3 consecutive failures: ${e}`;
+        if (this.registryPollFailures === 3) {
+          const msg = `[registry] 3 consecutive poll failures, backing off (up to ${REGISTRY_POLL_BACKOFF_MAX_MS / 60_000}min): ${e}`;
           console.warn(msg);
           debugLog(msg).catch(() => {});
         }

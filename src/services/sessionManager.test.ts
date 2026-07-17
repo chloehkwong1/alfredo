@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { shouldAcceptDetectorState, SessionManager, computeOrphanSweep, type SweepBackendSession } from "./sessionManager";
+import {
+  shouldAcceptDetectorState,
+  SessionManager,
+  computeOrphanSweep,
+  registryPollDelay,
+  REGISTRY_POLL_BACKOFF_MAX_MS,
+  type SweepBackendSession,
+} from "./sessionManager";
+import { REGISTRY_POLL_INTERVAL_MS } from "./sessionChannel";
 import {
   applyRegistryCorrection,
   matchRegistryEntry,
@@ -135,6 +143,24 @@ describe("computeOrphanSweep", () => {
     );
     expect(toClose).toEqual([]);
     expect(deferred).toEqual(["a"]);
+  });
+});
+
+describe("registryPollDelay", () => {
+  it("polls at the base interval while healthy", () => {
+    expect(registryPollDelay(0)).toBe(REGISTRY_POLL_INTERVAL_MS);
+  });
+
+  it("doubles per consecutive failure", () => {
+    expect(registryPollDelay(1)).toBe(REGISTRY_POLL_INTERVAL_MS * 2);
+    expect(registryPollDelay(2)).toBe(REGISTRY_POLL_INTERVAL_MS * 4);
+    expect(registryPollDelay(3)).toBe(REGISTRY_POLL_INTERVAL_MS * 8);
+  });
+
+  it("caps at the ceiling and never disables permanently", () => {
+    expect(registryPollDelay(6)).toBe(REGISTRY_POLL_BACKOFF_MAX_MS);
+    expect(registryPollDelay(100)).toBe(REGISTRY_POLL_BACKOFF_MAX_MS);
+    expect(Number.isFinite(registryPollDelay(10_000))).toBe(true);
   });
 });
 
