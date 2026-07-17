@@ -28,11 +28,15 @@ pub enum OscEvent {
 /// than this are silently discarded to bound memory usage per session.
 const OSC_MAX_PAYLOAD: usize = 256;
 
-/// Grace period between SIGTERM and SIGKILL when closing a session. Parked
-/// Claude Code processes routinely ignore SIGTERM (observed live: 38/38
-/// survived a 3s grace), so SIGKILL is the reliable path — the grace exists
-/// for well-behaved children like dev servers in shell sessions.
+/// Grace period between SIGTERM and SIGKILL when closing a shell/server
+/// session — dev servers deserve a real chance to shut down cleanly.
 const KILL_GRACE: Duration = Duration::from_secs(3);
+
+/// Grace for agent sessions. Parked Claude Code processes routinely ignore
+/// SIGTERM (observed live: 38/38 survived a 3s grace), so a long grace buys
+/// nothing and widens the window where a closed-but-alive agent races
+/// worktree deletion. Keep it short; SIGKILL is the reliable path.
+const AGENT_KILL_GRACE: Duration = Duration::from_millis(500);
 
 /// Byte-stream state machine that extracts OSC 0/1/2 title and OSC 7 CWD
 /// sequences from PTY output. Tolerant of sequences split across chunks.
@@ -182,6 +186,14 @@ fn parse_osc7_path(payload: &str) -> Option<String> {
     Some(rest[slash..].to_string())
 }
 
+/// SIGTERM→SIGKILL grace for a session's type — see KILL_GRACE / AGENT_KILL_GRACE.
+fn grace_for(session_type: &SessionType) -> Duration {
+    match session_type {
+        SessionType::Agent => AGENT_KILL_GRACE,
+        _ => KILL_GRACE,
+    }
+}
+
 /// Swappable channel handle. `None` means the frontend disconnected (e.g. page reload).
 type SwappableChannel = Arc<RwLock<Option<Channel<PtyEvent>>>>;
 
@@ -236,13 +248,48 @@ pub struct SpawnConfig {
 /// Manages all PTY sessions. Stored as Tauri managed state.
 pub struct PtyManager {
     sessions: Arc<RwLock<HashMap<String, Arc<Mutex<PtySession>>>>>,
+    /// Pids inside their SIGTERM→SIGKILL grace window. `close()` removes the
+    /// session from `sessions` immediately, so without this list an app quit
+    /// during the grace (close tab → ⌘Q) would let `shutdown_all` miss the
+    /// pid and leak a SIGTERM-ignoring agent tree. Entries are removed once
+    /// the delayed SIGKILL has fired, so the list never holds a pid long
+    /// enough for the OS to recycle it.
+    dying: Arc<Mutex<Vec<i32>>>,
 }
 
 impl PtyManager {
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
+            dying: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    /// SIGTERM a session's process group now and schedule the SIGKILL
+    /// fallback after `grace` on a detached thread, tracking the pid in
+    /// `dying` for the duration so `shutdown_all` can cover the window.
+    /// `child` (when the caller owns it) is reaped after the SIGKILL.
+    fn kill_group_with_grace(
+        &self,
+        pid: i32,
+        grace: Duration,
+        child: Option<Box<dyn Child + Send + Sync>>,
+    ) {
+        unsafe { libc::kill(-pid, libc::SIGTERM); }
+        if let Ok(mut d) = self.dying.lock() {
+            d.push(pid);
+        }
+        let dying = Arc::clone(&self.dying);
+        thread::spawn(move || {
+            thread::sleep(grace);
+            unsafe { libc::kill(-pid, libc::SIGKILL); }
+            if let Some(mut child) = child {
+                let _ = child.wait();
+            }
+            if let Ok(mut d) = dying.lock() {
+                d.retain(|p| *p != pid);
+            }
+        });
     }
 
     /// Generate a session ID that can be pre-registered with the state server
@@ -804,9 +851,9 @@ impl PtyManager {
                 // will see the stop flag and exit, which closes the remaining
                 // resources when the last Arc drops.
                 eprintln!("[pty] close: Arc still shared, doing partial teardown for {session_id}");
-                let (stop_flag, pid) = {
+                let (stop_flag, pid, session_type) = {
                     let s = arc.lock().map_err(|_| AppError::Pty("session lock poisoned".into()))?;
-                    (Arc::clone(&s.stop_flag), s.child.process_id())
+                    (Arc::clone(&s.stop_flag), s.child.process_id(), s.session_type.clone())
                 };
                 // Session lock dropped here.
 
@@ -817,14 +864,7 @@ impl PtyManager {
                 // via cleanup_stale_hooks_in_paths.
                 stop_flag.store(true, Ordering::Relaxed);
                 if let Some(pid) = pid {
-                    unsafe { libc::kill(-(pid as i32), libc::SIGTERM); }
-                    // Same SIGKILL fallback as the full-teardown path below —
-                    // parked claude processes ignore SIGTERM, so without this
-                    // the session (and its MCP-server group) leaks.
-                    thread::spawn(move || {
-                        thread::sleep(KILL_GRACE);
-                        unsafe { libc::kill(-(pid as i32), libc::SIGKILL); }
-                    });
+                    self.kill_group_with_grace(pid as i32, grace_for(&session_type), None);
                 }
                 return Ok(());
             }
@@ -836,30 +876,25 @@ impl PtyManager {
         // Signal the reader thread to stop before killing the child.
         session.stop_flag.store(true, Ordering::Relaxed);
 
-        // Send SIGTERM to the entire process group so child processes (e.g. dev
-        // servers launched inside the shell) are terminated too, not just the
-        // shell. The shell called setsid() so its PID == PGID.
-        let pid = session.child.process_id();
-        if let Some(pid) = pid {
-            unsafe { libc::kill(-(pid as i32), libc::SIGTERM); }
-        } else {
-            let _ = session.child.kill();
-        }
-
         // Drop the PTY master fd — this unblocks any reader thread stuck in
         // read() and signals hangup to the child.
         drop(session.master);
 
-        // Reap the process tree in a background thread so we never block the
-        // Tauri command thread (child.wait() can stall).
-        thread::spawn(move || {
-            if let Some(pid) = pid {
-                thread::sleep(KILL_GRACE);
-                // Force-kill any survivors.
-                unsafe { libc::kill(-(pid as i32), libc::SIGKILL); }
+        // SIGTERM the entire process group so child processes (dev servers,
+        // MCP servers) are terminated too, not just the direct child — it
+        // called setsid() so its PID == PGID. SIGKILL follows after a grace,
+        // and the child is reaped, on a detached thread so we never block
+        // the Tauri command thread (child.wait() can stall).
+        match session.child.process_id() {
+            Some(pid) => {
+                let grace = grace_for(&session.session_type);
+                self.kill_group_with_grace(pid as i32, grace, Some(session.child));
             }
-            let _ = session.child.wait();
-        });
+            None => {
+                let _ = session.child.kill();
+                let _ = session.child.wait();
+            }
+        }
 
         Ok(())
     }
@@ -888,10 +923,21 @@ impl PtyManager {
                 })
                 .collect()
         };
+        // Pids mid-grace from a recent close(): their detached SIGKILL threads
+        // die with this process, so deliver the SIGKILL now (they already got
+        // their SIGTERM). ESRCH for already-dead groups is harmless.
+        let dying: Vec<i32> = self.dying.lock().map(|d| d.clone()).unwrap_or_default();
+        for pid in &dying {
+            unsafe { libc::kill(-pid, libc::SIGKILL); }
+        }
         if pids.is_empty() {
             return;
         }
-        eprintln!("[pty] shutdown_all: terminating {} session(s)", pids.len());
+        eprintln!(
+            "[pty] shutdown_all: terminating {} session(s) ({} mid-grace)",
+            pids.len(),
+            dying.len(),
+        );
         for pid in &pids {
             unsafe { libc::kill(-pid, libc::SIGTERM); }
         }
@@ -996,6 +1042,7 @@ impl PtyManager {
             result.push(Session {
                 id: id.clone(),
                 worktree_id: session.worktree_id.clone(),
+                worktree_path: session.worktree_path.clone(),
                 command: session.command.clone(),
                 status,
                 session_type: session.session_type.clone(),
@@ -1047,26 +1094,63 @@ fn cleanup_hooks_for_path(
 /// What the boot reaper should do with a scanned session pid file.
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum OrphanAction {
-    /// Pid is dead (or recycled by an unrelated process) — session is gone,
-    /// delete its /tmp files.
+    /// Session is gone (dead/recycled pid, or an orphaned bare shell not
+    /// worth the pid-reuse kill risk) — delete its /tmp files.
     RemoveFiles,
-    /// Pid is a session process whose owning Alfredo died (reparented to
+    /// Pid is an agent process whose owning Alfredo died (reparented to
     /// launchd) — kill its process tree and delete its /tmp files.
     KillTreeAndRemoveFiles,
     /// Pid belongs to a live parent (a sibling Alfredo instance) — leave it.
     Skip,
 }
 
+/// Coarse classification of a session pid's command name.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SessionCommKind {
+    /// claude / codex / gemini — an agent with an MCP-server stack.
+    Agent,
+    /// A shell (zsh/bash/fish/…) — Alfredo shell/server sessions exec these,
+    /// but so does half the machine, making pid-reuse collisions plausible.
+    Shell,
+    /// Anything else — a session pid can't look like this; it was recycled.
+    Other,
+}
+
+fn session_comm_kind(comm: &str) -> SessionCommKind {
+    if comm.is_empty() {
+        return SessionCommKind::Other;
+    }
+    if is_shell_process(comm) {
+        return SessionCommKind::Shell;
+    }
+    let basename = std::path::Path::new(comm.trim_start_matches('-'))
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(comm);
+    match basename {
+        "claude" | "codex" | "gemini" => SessionCommKind::Agent,
+        _ => SessionCommKind::Other,
+    }
+}
+
 /// Pure decision logic for `reap_orphan_sessions`, split out for tests.
 /// `ppid == Some(1)` means the process was reparented to launchd, i.e. the
 /// Alfredo that spawned it is gone. A failed ppid lookup (`None`) skips —
 /// never kill on incomplete evidence.
-fn classify_orphan(alive: bool, is_session_comm: bool, ppid: Option<i32>) -> OrphanAction {
-    if !alive || !is_session_comm {
+///
+/// Only Agent comms are ever killed. A launchd-parented shell matching a
+/// stale pid file is as likely to be a recycled pid now owned by an
+/// unrelated user process (a LaunchAgent script, say) as it is to be our
+/// orphaned shell — and killing a stranger's process group is far worse
+/// than leaking a bare shell, which holds no MCP stack. Its files are
+/// removed either way; the leaked shell (if it is ours) dies with logout.
+fn classify_orphan(alive: bool, comm: SessionCommKind, ppid: Option<i32>) -> OrphanAction {
+    if !alive || comm == SessionCommKind::Other {
         return OrphanAction::RemoveFiles;
     }
-    match ppid {
-        Some(1) => OrphanAction::KillTreeAndRemoveFiles,
+    match (comm, ppid) {
+        (SessionCommKind::Agent, Some(1)) => OrphanAction::KillTreeAndRemoveFiles,
+        (SessionCommKind::Shell, Some(1)) => OrphanAction::RemoveFiles,
         _ => OrphanAction::Skip,
     }
 }
@@ -1101,9 +1185,9 @@ pub fn reap_orphan_sessions() {
             continue;
         };
         let alive = unsafe { libc::kill(pid, 0) } == 0;
-        let is_session = alive && is_alfredo_session_pid(pid);
-        let ppid = if is_session { process_ppid(pid) } else { None };
-        match classify_orphan(alive, is_session, ppid) {
+        let comm = if alive { session_pid_comm_kind(pid) } else { SessionCommKind::Other };
+        let ppid = if comm != SessionCommKind::Other { process_ppid(pid) } else { None };
+        match classify_orphan(alive, comm, ppid) {
             OrphanAction::Skip => {}
             OrphanAction::RemoveFiles => remove_session_tmp_files(session_id),
             OrphanAction::KillTreeAndRemoveFiles => {
@@ -1119,6 +1203,22 @@ pub fn reap_orphan_sessions() {
             }
         }
     }
+}
+
+/// Comm-kind of a live pid via `ps`. Lookup failure → Other (treated as a
+/// recycled pid: files removed, process untouched).
+fn session_pid_comm_kind(pid: i32) -> SessionCommKind {
+    let Ok(out) = std::process::Command::new("ps")
+        .args(["-o", "comm=", "-p", &pid.to_string()])
+        .output()
+    else {
+        return SessionCommKind::Other;
+    };
+    if !out.status.success() {
+        return SessionCommKind::Other;
+    }
+    let comm = std::str::from_utf8(&out.stdout).unwrap_or("").trim();
+    session_comm_kind(comm)
 }
 
 /// Parent pid via `ps`, or `None` if the lookup fails.
@@ -1618,17 +1718,7 @@ fn tilde_abbrev(path: &str) -> String {
 /// (`claude`, `codex`, `gemini`). Anything else is treated as a recycled
 /// pid for the purposes of sidecar-based hook protection.
 fn is_alfredo_session_comm(comm: &str) -> bool {
-    if comm.is_empty() {
-        return false;
-    }
-    if is_shell_process(comm) {
-        return true;
-    }
-    let basename = std::path::Path::new(comm.trim_start_matches('-'))
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or(comm);
-    matches!(basename, "claude" | "codex" | "gemini")
+    session_comm_kind(comm) != SessionCommKind::Other
 }
 
 /// True if `pid` is alive and looks like an alfredo PTY session's child.
@@ -1793,35 +1883,69 @@ mod tests {
 
     #[test]
     fn classify_orphan_dead_pid_removes_files() {
-        assert_eq!(classify_orphan(false, false, None), OrphanAction::RemoveFiles);
+        assert_eq!(
+            classify_orphan(false, SessionCommKind::Other, None),
+            OrphanAction::RemoveFiles
+        );
     }
 
     #[test]
     fn classify_orphan_recycled_pid_removes_files_without_killing() {
         // Alive pid whose comm no longer looks like a session process —
         // the OS recycled the pid. Never kill; the session is gone.
-        assert_eq!(classify_orphan(true, false, Some(1)), OrphanAction::RemoveFiles);
+        assert_eq!(
+            classify_orphan(true, SessionCommKind::Other, Some(1)),
+            OrphanAction::RemoveFiles
+        );
     }
 
     #[test]
-    fn classify_orphan_reparented_session_is_killed() {
-        // Live session process whose parent is launchd → its Alfredo died.
+    fn classify_orphan_reparented_agent_is_killed() {
+        // Live agent process whose parent is launchd → its Alfredo died.
         assert_eq!(
-            classify_orphan(true, true, Some(1)),
+            classify_orphan(true, SessionCommKind::Agent, Some(1)),
             OrphanAction::KillTreeAndRemoveFiles
+        );
+    }
+
+    #[test]
+    fn classify_orphan_reparented_shell_is_never_killed() {
+        // A launchd-parented zsh matching a stale pid file could equally be
+        // an unrelated LaunchAgent script on a recycled pid — remove the
+        // files but leave the process alone.
+        assert_eq!(
+            classify_orphan(true, SessionCommKind::Shell, Some(1)),
+            OrphanAction::RemoveFiles
         );
     }
 
     #[test]
     fn classify_orphan_live_parent_is_skipped() {
         // A sibling Alfredo instance still owns this session.
-        assert_eq!(classify_orphan(true, true, Some(42223)), OrphanAction::Skip);
+        assert_eq!(
+            classify_orphan(true, SessionCommKind::Agent, Some(42223)),
+            OrphanAction::Skip
+        );
+        assert_eq!(
+            classify_orphan(true, SessionCommKind::Shell, Some(42223)),
+            OrphanAction::Skip
+        );
     }
 
     #[test]
     fn classify_orphan_unknown_ppid_is_skipped() {
         // ppid lookup failed — never kill on incomplete evidence.
-        assert_eq!(classify_orphan(true, true, None), OrphanAction::Skip);
+        assert_eq!(classify_orphan(true, SessionCommKind::Agent, None), OrphanAction::Skip);
+    }
+
+    #[test]
+    fn session_comm_kind_classifies_agents_shells_and_strangers() {
+        assert_eq!(session_comm_kind("claude"), SessionCommKind::Agent);
+        assert_eq!(session_comm_kind("/usr/local/bin/codex"), SessionCommKind::Agent);
+        assert_eq!(session_comm_kind("-zsh"), SessionCommKind::Shell);
+        assert_eq!(session_comm_kind("/bin/bash"), SessionCommKind::Shell);
+        assert_eq!(session_comm_kind("node"), SessionCommKind::Other);
+        assert_eq!(session_comm_kind(""), SessionCommKind::Other);
     }
 
     /// Verify that the manager can spawn, list, and close a simple session.

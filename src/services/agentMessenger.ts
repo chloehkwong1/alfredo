@@ -114,8 +114,11 @@ export async function ensureAgentSession(
     config?.worktreeOverrides?.[branch ?? ""],
   );
   const args = buildClaudeArgs(resolved);
+  // "agent" sessionType (not the backend's "shell" default): the orphan
+  // sweep and close() grace both branch on it, and background-opened claude
+  // sessions are exactly the kind that must get the busy-gate.
   return sessionManager.getOrSpawn(
-    sessionKey, worktreeId, worktreePath, "claude", undefined, args, undefined, spawnBaseline,
+    sessionKey, worktreeId, worktreePath, "claude", undefined, args, "agent", spawnBaseline,
   );
 }
 

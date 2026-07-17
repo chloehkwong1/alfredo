@@ -5,6 +5,9 @@ export type SessionType = "agent" | "server" | "shell";
 export interface Session {
   id: string;
   worktreeId: string;
+  /** Worktree filesystem path — used by the orphan sweep to join against
+   *  claude-registry entries (by cwd) before closing an unclaimed session. */
+  worktreePath: string;
   command: string;
   status: SessionStatus;
   sessionType: SessionType;

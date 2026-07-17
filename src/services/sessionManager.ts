@@ -41,6 +41,23 @@ export { shouldAcceptDetectorState, stateSourceMap } from "./sessionChannel";
 /** How often the reconciler checks for backend PTY sessions no tab claims. */
 export const ORPHAN_SWEEP_INTERVAL_MS = 30_000;
 
+/** The slice of a backend Session the sweep decision needs. */
+export interface SweepBackendSession {
+  id: string;
+  sessionType: SessionType;
+  worktreePath: string;
+  command: string;
+}
+
+/** Agent-shaped sessions get the registry busy-gate. The command-basename
+ *  fallback covers sessions spawned without an explicit sessionType (e.g.
+ *  historical background-opened claude tabs typed as "shell"). */
+function isAgentBackendSession(s: SweepBackendSession): boolean {
+  if (s.sessionType === "agent") return true;
+  const base = s.command.split("/").pop() ?? s.command;
+  return base === "claude" || base === "codex" || base === "gemini" || base === "aider";
+}
+
 /**
  * Decide which backend sessions to close, with a two-strike rule: an
  * unclaimed id is only closed if it was already unclaimed on the previous
@@ -52,18 +69,38 @@ export const ORPHAN_SWEEP_INTERVAL_MS = 30_000;
  * agent tabs restore scrollback-only and spawn a fresh PTY, abandoning the
  * old one. Left unswept, each abandoned agent keeps its full MCP-server
  * stack alive until fd exhaustion (EMFILE).
+ *
+ * Busy-gate: an abandoned agent may still be mid-task (the reload happened
+ * while it worked); killing it would lose in-flight work that previously ran
+ * to completion. `busyAgentCwds` is the set of cwds where the claude
+ * registry reports a busy agent — agent sessions in those worktrees are
+ * deferred, keeping their strike, and get closed on the first sweep after
+ * the registry shows them quiet. `null` means the registry was unavailable:
+ * defer every agent close (never kill blind) but still close shells/servers.
  */
 export function computeOrphanSweep(
-  backendSessionIds: string[],
+  backend: SweepBackendSession[],
   claimedIds: Set<string>,
   prevCandidates: Set<string>,
-): { toClose: string[]; nextCandidates: Set<string> } {
-  const unclaimed = backendSessionIds.filter((id) => !claimedIds.has(id));
-  const toClose = unclaimed.filter((id) => prevCandidates.has(id));
-  // Ids being closed leave the candidate set — if closePty fails they'll
-  // re-earn both strikes rather than being hammered every sweep.
-  const nextCandidates = new Set(unclaimed.filter((id) => !prevCandidates.has(id)));
-  return { toClose, nextCandidates };
+  busyAgentCwds: Set<string> | null,
+): { toClose: string[]; deferred: string[]; nextCandidates: Set<string> } {
+  const unclaimed = backend.filter((s) => !claimedIds.has(s.id));
+  const isDeferred = (s: SweepBackendSession) =>
+    isAgentBackendSession(s) && (busyAgentCwds === null || busyAgentCwds.has(s.worktreePath));
+  const toClose = unclaimed
+    .filter((s) => prevCandidates.has(s.id) && !isDeferred(s))
+    .map((s) => s.id);
+  const deferred = unclaimed
+    .filter((s) => prevCandidates.has(s.id) && isDeferred(s))
+    .map((s) => s.id);
+  // Deferred ids keep their strike (closed on the first quiet sweep); ids
+  // being closed leave the candidate set — if closePty fails they'll re-earn
+  // both strikes rather than being hammered every sweep.
+  const closing = new Set(toClose);
+  const nextCandidates = new Set(
+    unclaimed.map((s) => s.id).filter((id) => !closing.has(id)),
+  );
+  return { toClose, deferred, nextCandidates };
 }
 
 // ── SessionManager ─────────────────────────────────────────────
@@ -290,24 +327,50 @@ export class SessionManager implements SessionWriter {
    *  forget from the 500ms reconcile tick — never blocks it. Two sweeps
    *  (ORPHAN_SWEEP_INTERVAL_MS apart) must see an id unclaimed before it's
    *  closed, so in-flight spawns and post-reload server reattaches (~3s via
-   *  useServer's reconcile loop) are never reaped. */
+   *  useServer's reconcile loop) are never reaped — and agent sessions are
+   *  additionally deferred while the claude registry reports a busy agent
+   *  in their worktree (see computeOrphanSweep). */
   private maybeSweepOrphans(now: number): void {
     if (this.orphanSweepInFlight) return;
     if (now - this.lastOrphanSweepAt < ORPHAN_SWEEP_INTERVAL_MS) return;
     this.lastOrphanSweepAt = now;
     this.orphanSweepInFlight = true;
     listSessions()
-      .then((backend) => {
+      .then(async (backend) => {
         const claimed = new Set<string>();
         for (const s of this.sessions.values()) {
           if (s.sessionId) claimed.add(s.sessionId);
         }
-        const { toClose, nextCandidates } = computeOrphanSweep(
-          backend.map((s) => s.id),
+        // The registry poll is only needed when an agent session has reached
+        // strike two — the only case where the busy-gate changes the outcome.
+        const needRegistry = backend.some(
+          (s) => !claimed.has(s.id) && this.orphanCandidates.has(s.id) && isAgentBackendSession(s),
+        );
+        let busyAgentCwds: Set<string> | null = new Set();
+        if (needRegistry) {
+          try {
+            const entries = await pollClaudeRegistry();
+            busyAgentCwds = new Set(
+              entries.filter((e) => e.status === "busy").map((e) => e.cwd),
+            );
+          } catch {
+            // Registry unavailable (no binary / old CLI) — never kill an
+            // agent blind. Shells/servers are still swept below.
+            busyAgentCwds = null;
+          }
+        }
+        const { toClose, deferred, nextCandidates } = computeOrphanSweep(
+          backend,
           claimed,
           this.orphanCandidates,
+          busyAgentCwds,
         );
         this.orphanCandidates = nextCandidates;
+        for (const id of deferred) {
+          const msg = `[orphan-sweep] deferring unclaimed agent session ${id} — ${busyAgentCwds === null ? "registry unavailable" : "registry reports busy in its worktree"}`;
+          console.warn(msg);
+          debugLog(msg).catch(() => {});
+        }
         for (const id of toClose) {
           const msg = `[orphan-sweep] closing backend session ${id} — unclaimed for two sweeps (abandoned by a webview reload or dropped tab)`;
           console.warn(msg);

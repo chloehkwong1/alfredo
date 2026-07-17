@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shouldAcceptDetectorState, SessionManager, computeOrphanSweep } from "./sessionManager";
+import { shouldAcceptDetectorState, SessionManager, computeOrphanSweep, type SweepBackendSession } from "./sessionManager";
 import {
   applyRegistryCorrection,
   matchRegistryEntry,
@@ -25,11 +25,20 @@ describe("shouldAcceptDetectorState", () => {
 });
 
 describe("computeOrphanSweep", () => {
+  const shell = (id: string, over: Partial<SweepBackendSession> = {}): SweepBackendSession => ({
+    id, sessionType: "shell", worktreePath: `/wt/${id}`, command: "/bin/zsh", ...over,
+  });
+  const agent = (id: string, over: Partial<SweepBackendSession> = {}): SweepBackendSession => ({
+    id, sessionType: "agent", worktreePath: `/wt/${id}`, command: "claude", ...over,
+  });
+  const quiet = new Set<string>(); // registry reachable, nothing busy
+
   it("does not close an unclaimed session on first sighting (strike one)", () => {
     const { toClose, nextCandidates } = computeOrphanSweep(
-      ["a", "b"],
+      [shell("a"), shell("b")],
       new Set(["b"]),
       new Set(),
+      quiet,
     );
     expect(toClose).toEqual([]);
     expect([...nextCandidates]).toEqual(["a"]);
@@ -37,9 +46,10 @@ describe("computeOrphanSweep", () => {
 
   it("closes a session unclaimed on two consecutive sweeps", () => {
     const { toClose, nextCandidates } = computeOrphanSweep(
-      ["a", "b"],
+      [shell("a"), shell("b")],
       new Set(["b"]),
       new Set(["a"]),
+      quiet,
     );
     expect(toClose).toEqual(["a"]);
     // Closed ids leave the candidate set — a failed close re-earns both strikes.
@@ -49,9 +59,10 @@ describe("computeOrphanSweep", () => {
   it("clears a candidate that becomes claimed between sweeps (in-flight spawn/reattach)", () => {
     // Strike one saw "srv" unclaimed; useServer reattached it before strike two.
     const { toClose, nextCandidates } = computeOrphanSweep(
-      ["srv"],
+      [shell("srv", { sessionType: "server" })],
       new Set(["srv"]),
       new Set(["srv"]),
+      quiet,
     );
     expect(toClose).toEqual([]);
     expect(nextCandidates.size).toBe(0);
@@ -62,6 +73,7 @@ describe("computeOrphanSweep", () => {
       [],
       new Set(),
       new Set(["gone"]),
+      quiet,
     );
     expect(toClose).toEqual([]);
     expect(nextCandidates.size).toBe(0);
@@ -69,11 +81,60 @@ describe("computeOrphanSweep", () => {
 
   it("never closes claimed sessions", () => {
     const { toClose } = computeOrphanSweep(
-      ["a", "b", "c"],
+      [shell("a"), agent("b"), shell("c")],
       new Set(["a", "b", "c"]),
       new Set(["a", "b", "c"]),
+      quiet,
     );
     expect(toClose).toEqual([]);
+  });
+
+  it("defers an agent whose worktree has a busy registry entry, keeping its strike", () => {
+    const { toClose, deferred, nextCandidates } = computeOrphanSweep(
+      [agent("a")],
+      new Set(),
+      new Set(["a"]),
+      new Set(["/wt/a"]),
+    );
+    expect(toClose).toEqual([]);
+    expect(deferred).toEqual(["a"]);
+    // Strike persists: the first quiet sweep closes it without re-earning.
+    expect([...nextCandidates]).toEqual(["a"]);
+  });
+
+  it("closes a deferred agent once the registry shows its worktree quiet", () => {
+    const { toClose } = computeOrphanSweep(
+      [agent("a")],
+      new Set(),
+      new Set(["a"]),
+      quiet,
+    );
+    expect(toClose).toEqual(["a"]);
+  });
+
+  it("defers all agent closes when the registry is unavailable, but still closes shells", () => {
+    const { toClose, deferred } = computeOrphanSweep(
+      [agent("a"), shell("b")],
+      new Set(),
+      new Set(["a", "b"]),
+      null,
+    );
+    expect(toClose).toEqual(["b"]);
+    expect(deferred).toEqual(["a"]);
+  });
+
+  it("applies the busy-gate to shell-typed sessions running an agent command", () => {
+    // Background-opened claude tabs were historically spawned without an
+    // explicit sessionType and land as "shell" backend-side.
+    const mislabeled = shell("a", { command: "claude" });
+    const { toClose, deferred } = computeOrphanSweep(
+      [mislabeled],
+      new Set(),
+      new Set(["a"]),
+      new Set(["/wt/a"]),
+    );
+    expect(toClose).toEqual([]);
+    expect(deferred).toEqual(["a"]);
   });
 });
 

@@ -16,6 +16,10 @@ pub enum SessionType {
 pub struct Session {
     pub id: String,
     pub worktree_id: String,
+    /// Filesystem path of the worktree — lets the frontend orphan sweep join
+    /// an unclaimed session against `claude agents --json` entries (by cwd)
+    /// to avoid killing a still-busy agent.
+    pub worktree_path: String,
     pub command: String,
     pub status: SessionStatus,
     pub session_type: SessionType,
