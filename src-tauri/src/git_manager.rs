@@ -798,6 +798,75 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
     Ok(())
 }
 
+/// Remove a single commit from the current branch's history by replaying the
+/// commits after it onto its parent (`git rebase --onto <hash>^ <hash>`).
+/// Dirty-tree-safe via the same wip-stash machinery as `rebase_onto`. On
+/// conflict the rebase is aborted and history is left untouched.
+#[allow(dead_code)] // wired up as a Tauri command in a follow-up task
+pub async fn drop_commit(worktree_path: &str, commit_hash: &str) -> Result<(), AppError> {
+    // Hashes come from our own commit list, but validate anyway so a malformed
+    // value can never be parsed as a flag by git.
+    if commit_hash.len() < 7
+        || commit_hash.len() > 40
+        || !commit_hash.chars().all(|c| c.is_ascii_hexdigit())
+    {
+        return Err(AppError::Git(format!("invalid commit hash: {commit_hash:?}")));
+    }
+
+    let wip_marker = wip_stash(worktree_path).await?;
+
+    // Every exit path after this point must unwip if we created a wip commit.
+    let drop_result: Result<(), AppError> = async {
+        let onto = format!("{commit_hash}^");
+        let rebase = git_command()
+            .args(["rebase", "--onto", &onto, commit_hash])
+            .current_dir(worktree_path)
+            .output()
+            .await
+            .map_err(|e| AppError::Git(format!("failed to spawn git rebase: {e}")))?;
+        if !rebase.status.success() {
+            let stderr = String::from_utf8_lossy(&rebase.stderr).to_string();
+            let _ = git_command()
+                .args(["rebase", "--abort"])
+                .current_dir(worktree_path)
+                .output()
+                .await;
+            return Err(AppError::Git(format!(
+                "Couldn't drop the commit cleanly — a later commit depends on it. \
+                 Nothing was changed. (git: {stderr})"
+            )));
+        }
+        Ok(())
+    }
+    .await;
+
+    let unwip_result: Result<(), AppError> = match wip_marker.as_ref() {
+        Some(marker) => unwip(worktree_path, marker).await,
+        None => Ok(()),
+    };
+
+    drop_result?;
+    unwip_result?;
+    Ok(())
+}
+
+/// Whether a commit is reachable from any remote-tracking branch — i.e.
+/// dropping it rewrites history that has already been pushed.
+#[allow(dead_code)] // wired up as a Tauri command in a follow-up task
+pub async fn is_commit_pushed(worktree_path: &str, commit_hash: &str) -> Result<bool, AppError> {
+    let out = git_command()
+        .args(["branch", "-r", "--contains", commit_hash])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git branch -r: {e}")))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(AppError::Git(format!("git branch -r --contains failed: {stderr}")));
+    }
+    Ok(!out.stdout.is_empty())
+}
+
 /// Uncommitted work in a worktree that a delete would destroy irreversibly.
 ///
 /// `untracked` is the crucial one: untracked files (e.g. `/research` output in
@@ -1291,6 +1360,133 @@ mod tests {
             .output()
             .expect("git initial commit");
         dir
+    }
+
+    fn init_drop_test_repo() -> TempDir {
+        let dir = init_test_repo();
+        let path = dir.path();
+        for (k, v) in [("user.name", "Test"), ("user.email", "test@test.com")] {
+            StdCommand::new("git")
+                .args(["config", k, v])
+                .current_dir(path)
+                .output()
+                .expect("git config");
+        }
+        dir
+    }
+
+    fn commit_file(path: &std::path::Path, file: &str, content: &str, msg: &str) -> String {
+        std::fs::write(path.join(file), content).expect("write file");
+        StdCommand::new("git").args(["add", "-A"]).current_dir(path).output().expect("git add");
+        StdCommand::new("git")
+            .args(["commit", "--no-gpg-sign", "-m", msg])
+            .current_dir(path)
+            .output()
+            .expect("git commit");
+        let out = StdCommand::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(path)
+            .output()
+            .expect("git rev-parse");
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    fn log_subjects(path: &std::path::Path) -> Vec<String> {
+        let out = StdCommand::new("git")
+            .args(["log", "--pretty=%s"])
+            .current_dir(path)
+            .output()
+            .expect("git log");
+        String::from_utf8_lossy(&out.stdout).lines().map(str::to_string).collect()
+    }
+
+    #[tokio::test]
+    async fn drop_commit_removes_middle_commit_and_keeps_later_ones() {
+        let dir = init_drop_test_repo();
+        let path = dir.path();
+        commit_file(path, "a.txt", "a", "add a");
+        let b_sha = commit_file(path, "b.txt", "b", "add b");
+        commit_file(path, "c.txt", "c", "add c");
+
+        drop_commit(path.to_str().unwrap(), &b_sha).await.expect("drop should succeed");
+
+        let subjects = log_subjects(path);
+        assert!(!subjects.contains(&"add b".to_string()), "dropped commit still present: {subjects:?}");
+        assert!(subjects.contains(&"add c".to_string()), "later commit lost: {subjects:?}");
+        assert!(!path.join("b.txt").exists(), "b.txt should be gone after drop");
+        assert!(path.join("c.txt").exists(), "c.txt should survive");
+    }
+
+    #[tokio::test]
+    async fn drop_commit_preserves_uncommitted_changes() {
+        let dir = init_drop_test_repo();
+        let path = dir.path();
+        let a_sha = commit_file(path, "a.txt", "a", "add a");
+        commit_file(path, "b.txt", "b", "add b");
+        std::fs::write(path.join("dirty.txt"), "uncommitted").expect("write dirty file");
+
+        drop_commit(path.to_str().unwrap(), &a_sha).await.expect("drop should succeed");
+
+        assert_eq!(
+            std::fs::read_to_string(path.join("dirty.txt")).unwrap(),
+            "uncommitted",
+            "uncommitted file must survive the drop"
+        );
+        let subjects = log_subjects(path);
+        assert!(!subjects.iter().any(|s| s.contains("--wip--")), "wip commit leaked into history: {subjects:?}");
+    }
+
+    #[tokio::test]
+    async fn drop_commit_conflict_aborts_and_leaves_history_intact() {
+        let dir = init_drop_test_repo();
+        let path = dir.path();
+        let a_sha = commit_file(path, "f.txt", "version-a", "edit f (a)");
+        commit_file(path, "f.txt", "version-b", "edit f (b)");
+
+        let err = drop_commit(path.to_str().unwrap(), &a_sha).await
+            .expect_err("dropping a commit a later commit depends on must fail");
+        assert!(err.to_string().contains("Couldn't drop"), "got: {err}");
+
+        let subjects = log_subjects(path);
+        assert!(subjects.contains(&"edit f (a)".to_string()), "history rewritten after abort: {subjects:?}");
+        assert!(subjects.contains(&"edit f (b)".to_string()), "history rewritten after abort: {subjects:?}");
+        assert!(!path.join(".git").join("rebase-merge").exists(), "rebase left in progress");
+    }
+
+    #[tokio::test]
+    async fn drop_commit_rejects_malformed_hash() {
+        let dir = init_drop_test_repo();
+        let err = drop_commit(dir.path().to_str().unwrap(), "--exec=touch pwned").await
+            .expect_err("malformed hash must be rejected");
+        assert!(err.to_string().contains("invalid commit hash"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn is_commit_pushed_false_without_remote_true_after_push() {
+        let dir = init_drop_test_repo();
+        let path = dir.path();
+        let sha = commit_file(path, "a.txt", "a", "add a");
+
+        assert!(!is_commit_pushed(path.to_str().unwrap(), &sha).await.unwrap());
+
+        let remote = TempDir::new().expect("remote dir");
+        StdCommand::new("git")
+            .args(["init", "--bare"])
+            .current_dir(remote.path())
+            .output()
+            .expect("git init --bare");
+        StdCommand::new("git")
+            .args(["remote", "add", "origin", remote.path().to_str().unwrap()])
+            .current_dir(path)
+            .output()
+            .expect("git remote add");
+        StdCommand::new("git")
+            .args(["push", "origin", "main"])
+            .current_dir(path)
+            .output()
+            .expect("git push");
+
+        assert!(is_commit_pushed(path.to_str().unwrap(), &sha).await.unwrap());
     }
 
     #[test]
