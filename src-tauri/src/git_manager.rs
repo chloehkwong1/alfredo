@@ -798,6 +798,19 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
     Ok(())
 }
 
+/// Reject anything that isn't a plausible git object hash before it reaches a
+/// `git` argument position — a value beginning with `-` would otherwise be
+/// parsed as a flag rather than a revision.
+fn validate_commit_hash(commit_hash: &str) -> Result<(), AppError> {
+    if commit_hash.len() < 7
+        || commit_hash.len() > 40
+        || !commit_hash.chars().all(|c| c.is_ascii_hexdigit())
+    {
+        return Err(AppError::Git(format!("invalid commit hash: {commit_hash:?}")));
+    }
+    Ok(())
+}
+
 /// Remove a single commit from the current branch's history by replaying the
 /// commits after it onto its parent (`git rebase --onto <hash>^ <hash>`).
 /// Dirty-tree-safe via the same wip-stash machinery as `rebase_onto`. On
@@ -805,12 +818,7 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
 pub async fn drop_commit(worktree_path: &str, commit_hash: &str) -> Result<(), AppError> {
     // Hashes come from our own commit list, but validate anyway so a malformed
     // value can never be parsed as a flag by git.
-    if commit_hash.len() < 7
-        || commit_hash.len() > 40
-        || !commit_hash.chars().all(|c| c.is_ascii_hexdigit())
-    {
-        return Err(AppError::Git(format!("invalid commit hash: {commit_hash:?}")));
-    }
+    validate_commit_hash(commit_hash)?;
 
     let wip_marker = wip_stash(worktree_path).await?;
 
@@ -852,6 +860,8 @@ pub async fn drop_commit(worktree_path: &str, commit_hash: &str) -> Result<(), A
 /// Whether a commit is reachable from any remote-tracking branch — i.e.
 /// dropping it rewrites history that has already been pushed.
 pub async fn is_commit_pushed(worktree_path: &str, commit_hash: &str) -> Result<bool, AppError> {
+    validate_commit_hash(commit_hash)?;
+
     let out = git_command()
         .args(["branch", "-r", "--contains", commit_hash])
         .current_dir(worktree_path)
@@ -1449,6 +1459,30 @@ mod tests {
         assert!(subjects.contains(&"edit f (a)".to_string()), "history rewritten after abort: {subjects:?}");
         assert!(subjects.contains(&"edit f (b)".to_string()), "history rewritten after abort: {subjects:?}");
         assert!(!path.join(".git").join("rebase-merge").exists(), "rebase left in progress");
+    }
+
+    #[tokio::test]
+    async fn drop_commit_dirty_conflict_aborts_and_restores_uncommitted() {
+        let dir = init_drop_test_repo();
+        let path = dir.path();
+        let a_sha = commit_file(path, "f.txt", "version-a", "edit f (a)");
+        commit_file(path, "f.txt", "version-b", "edit f (b)");
+        std::fs::write(path.join("dirty.txt"), "uncommitted").expect("write dirty file");
+
+        let err = drop_commit(path.to_str().unwrap(), &a_sha).await
+            .expect_err("dropping a commit a later commit depends on must fail");
+        assert!(err.to_string().contains("Couldn't drop"), "got: {err}");
+
+        let subjects = log_subjects(path);
+        assert!(subjects.contains(&"edit f (a)".to_string()), "history rewritten after abort: {subjects:?}");
+        assert!(subjects.contains(&"edit f (b)".to_string()), "history rewritten after abort: {subjects:?}");
+        assert!(!path.join(".git").join("rebase-merge").exists(), "rebase left in progress");
+        assert_eq!(
+            std::fs::read_to_string(path.join("dirty.txt")).unwrap(),
+            "uncommitted",
+            "uncommitted file must survive the aborted drop"
+        );
+        assert!(!subjects.iter().any(|s| s.contains("--wip--")), "wip commit leaked into history: {subjects:?}");
     }
 
     #[tokio::test]
