@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Copy, ExternalLink, MessageCircle, Undo2 } from "lucide-react";
+import { ChevronDown, Copy, ExternalLink, MessageCircle, Trash2, Undo2 } from "lucide-react";
 import type { DiffFile, CommitInfo, PrComment } from "../../types";
 import { formatRelativeTime } from "./formatRelativeTime";
 import { formatAuthor as formatAuthorShared } from "./formatAuthor";
@@ -26,6 +26,7 @@ interface FileSidebarProps {
   prComments?: PrComment[];
   onDoubleClickFile?: (path: string) => void;
   onDoubleClickCommit?: (index: number) => void;
+  onDropCommit?: (commit: CommitInfo) => void;
   worktreePath?: string;
   defaultBranchName?: string | null;
   error?: string | null;
@@ -193,6 +194,7 @@ function FileSidebar({
   prComments = [],
   onDoubleClickFile,
   onDoubleClickCommit,
+  onDropCommit,
   worktreePath,
   defaultBranchName,
   error,
@@ -363,37 +365,51 @@ function FileSidebar({
             const commitNumber = originalIndex + 1;
 
             return (
-              <button
-                key={commit.hash}
-                ref={displayIndex === 0 ? firstCommitRef : undefined}
-                onClick={() => onSelectCommit(originalIndex)}
-                onDoubleClick={() => onDoubleClickCommit?.(originalIndex)}
-                className={[
-                  "w-full px-2.5 py-2 text-left border-l-2",
-                  "hover:bg-bg-hover transition-colors",
-                  isSelected
-                    ? "bg-bg-hover border-accent-primary"
-                    : "border-transparent",
-                ].join(" ")}
-              >
-                <div className="text-[13px] leading-snug text-text-primary font-medium">
-                  <span className="text-[11px] text-text-tertiary font-mono mr-1.5">#{commitNumber}</span>
-                  {subject}
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[11px] font-mono text-text-tertiary">
-                    {commit.shortHash}
-                  </span>
-                  <span className="text-[11px] text-text-tertiary">·</span>
-                  <span className={`text-[11px] ${author.className}`}>
-                    {author.text}
-                  </span>
-                  <span className="text-[11px] text-text-tertiary">·</span>
-                  <span className="text-[11px] text-text-tertiary">
-                    {formatRelativeTime(commit.timestamp)}
-                  </span>
-                </div>
-              </button>
+              <ContextMenu key={commit.hash}>
+                <ContextMenuTrigger asChild>
+                  <button
+                    ref={displayIndex === 0 ? firstCommitRef : undefined}
+                    onClick={() => onSelectCommit(originalIndex)}
+                    onDoubleClick={() => onDoubleClickCommit?.(originalIndex)}
+                    className={[
+                      "w-full px-2.5 py-2 text-left border-l-2",
+                      "hover:bg-bg-hover transition-colors",
+                      isSelected
+                        ? "bg-bg-hover border-accent-primary"
+                        : "border-transparent",
+                    ].join(" ")}
+                  >
+                    <div className="text-[13px] leading-snug text-text-primary font-medium">
+                      <span className="text-[11px] text-text-tertiary font-mono mr-1.5">#{commitNumber}</span>
+                      {subject}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[11px] font-mono text-text-tertiary">
+                        {commit.shortHash}
+                      </span>
+                      <span className="text-[11px] text-text-tertiary">·</span>
+                      <span className={`text-[11px] ${author.className}`}>
+                        {author.text}
+                      </span>
+                      <span className="text-[11px] text-text-tertiary">·</span>
+                      <span className="text-[11px] text-text-tertiary">
+                        {formatRelativeTime(commit.timestamp)}
+                      </span>
+                    </div>
+                  </button>
+                </ContextMenuTrigger>
+                {onDropCommit && (
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      className="text-red-400 data-[highlighted]:text-red-300"
+                      onSelect={() => onDropCommit(commit)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Drop Commit…
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                )}
+              </ContextMenu>
             );
           })}
 

@@ -91,7 +91,7 @@ export function useChangesData(
     fetchLocal();
     const interval = setInterval(fetchLocal, 10_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [repoPath, baseBranch, mergeCommitSha, skipCommitted, clampDrift]);
+  }, [repoPath, baseBranch, mergeCommitSha, skipCommitted, clampDrift, refreshKey]);
 
   // Build combined commit list for index lookups
   const allCommits = useMemo(

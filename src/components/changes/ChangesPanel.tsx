@@ -13,11 +13,11 @@ import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { useChangesData } from "../../hooks/useChangesData";
 import { useGitUser } from "../../hooks/useGitUser";
-import { discardFile, discardAllUncommitted, getAheadBehindOrigin, getCommitsBehindMain, gitPublishBranch, gitPullRebase, gitPush, rebaseWorktree } from "../../api";
+import { discardFile, discardAllUncommitted, dropCommit, getAheadBehindOrigin, getCommitsBehindMain, gitPublishBranch, gitPullRebase, gitPush, isCommitPushed, rebaseWorktree } from "../../api";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { shouldShowSimplifiedMainView } from "../../lib/cardViewMode";
 import type { ViewMode } from "./FileSidebar";
-import type { PrComment } from "../../types";
+import type { CommitInfo, PrComment } from "../../types";
 
 const EMPTY_COMMENTS: PrComment[] = [];
 
@@ -402,6 +402,35 @@ function WorkspacePanel({
     }
   }, [repoPath, uncommittedFiles, refetchUncommitted]);
 
+  // ── Drop-commit state ──────────────────────────────────────
+  const [dropTarget, setDropTarget] = useState<{ commit: CommitInfo; pushed: boolean | null } | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
+  const dropConfirmRef = useRef<HTMLButtonElement>(null);
+
+  const handleDropCommit = useCallback((commit: CommitInfo) => {
+    setDropError(null);
+    setDropTarget({ commit, pushed: null });
+    // Pushed-check is best-effort: on failure the warning simply stays hidden.
+    isCommitPushed(repoPath, commit.hash)
+      .then((pushed) => {
+        setDropTarget((cur) => (cur?.commit.hash === commit.hash ? { ...cur, pushed } : cur));
+      })
+      .catch(() => {});
+  }, [repoPath]);
+
+  const handleConfirmDrop = useCallback(async () => {
+    if (!dropTarget) return;
+    try {
+      await dropCommit(repoPath, dropTarget.commit.hash);
+      setSelectedCommitIndex(null);
+      setActiveFilePath(null);
+      refetchUncommitted();
+      setDropTarget(null);
+    } catch (err) {
+      setDropError(String(err));
+    }
+  }, [dropTarget, repoPath, refetchUncommitted]);
+
   const allCommits = useMemo(
     () => [...commits, ...upstreamCommits],
     [commits, upstreamCommits],
@@ -578,6 +607,7 @@ function WorkspacePanel({
             prComments={prComments}
             onDoubleClickFile={() => lifecycleManager.pinCurrentPreview(worktreeId)}
             onDoubleClickCommit={() => lifecycleManager.pinCurrentPreview(worktreeId)}
+            onDropCommit={handleDropCommit}
             worktreePath={worktree?.path}
             defaultBranchName={defaultBranch}
             error={error}
@@ -649,6 +679,37 @@ function WorkspacePanel({
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowDiscardAllDialog(false)}>Cancel</Button>
             <Button ref={discardAllConfirmRef} variant="danger" onClick={handleConfirmDiscardAll}>Discard All</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Drop commit confirmation dialog */}
+      <Dialog open={dropTarget !== null} onOpenChange={(open) => { if (!open) { setDropTarget(null); setDropError(null); } }}>
+        <DialogContent
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            dropConfirmRef.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Drop commit?</DialogTitle>
+            <DialogDescription>
+              This removes <code className="font-mono text-[12px]">{dropTarget?.commit.shortHash}</code>{" "}
+              "{dropTarget?.commit.message.split("\n")[0] ?? ""}" from the branch history. Later commits are
+              replayed on top; if one depends on it, nothing is changed.
+            </DialogDescription>
+            {dropTarget?.pushed && (
+              <DialogDescription className="text-red-400">
+                This commit is already on origin — dropping it rewrites pushed history and will require a force-push.
+              </DialogDescription>
+            )}
+            {dropError && (
+              <DialogDescription className="text-red-400">{dropError}</DialogDescription>
+            )}
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setDropTarget(null); setDropError(null); }}>Cancel</Button>
+            <Button ref={dropConfirmRef} variant="danger" onClick={handleConfirmDrop}>Drop Commit</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
