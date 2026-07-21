@@ -80,27 +80,24 @@ function ThinkingDots() {
 }
 
 function InlineLabelInput({
-  initialValue,
+  placeholder,
   onCommit,
   onCancel,
   className,
 }: {
-  initialValue: string;
+  placeholder: string;
   onCommit: (value: string) => void;
   onCancel: () => void;
   className?: string;
 }) {
-  const [value, setValue] = useState(initialValue);
+  const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   // Guard so Enter (which blurs the input) doesn't trigger both Enter-commit
   // and blur-commit back-to-back.
   const committedRef = useRef(false);
 
   useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.focus();
-    el.select();
+    inputRef.current?.focus();
   }, []);
 
   const commit = () => {
@@ -114,6 +111,7 @@ function InlineLabelInput({
       ref={inputRef}
       type="text"
       value={value}
+      placeholder={placeholder}
       onChange={(e) => setValue(e.target.value)}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -131,7 +129,7 @@ function InlineLabelInput({
       }}
       onBlur={commit}
       className={[
-        "bg-bg-elevated border border-accent-primary/50 rounded px-1 py-0 outline-none",
+        "bg-bg-elevated border border-accent-primary/50 rounded px-1 py-0 outline-none placeholder:text-text-tertiary",
         className ?? "",
       ].join(" ")}
     />
@@ -324,7 +322,7 @@ function AgentItemContent({
         <div className="flex items-center gap-2">
           {isEditing ? (
             <InlineLabelInput
-              initialValue={displayLabel}
+              placeholder={displayLabel}
               onCommit={onCommitEdit}
               onCancel={onCancelEdit}
               className={[
@@ -646,6 +644,9 @@ const AgentItem = memo(function AgentItem({
   const [createFromOpen, setCreateFromOpen] = useState(false);
   const [changeBaseOpen, setChangeBaseOpen] = useState(false);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
+  // When Rename is picked from the context menu, Radix restores focus to the
+  // trigger row on close, stealing it from the freshly mounted label input.
+  const renameViaMenuRef = useRef(false);
   const displayLabel = worktreeDisplayLabel(worktree, label);
   const handleStartEdit = () => setIsEditingLabel(true);
   const handleCancelEdit = () => setIsEditingLabel(false);
@@ -653,8 +654,10 @@ const AgentItem = memo(function AgentItem({
     setIsEditingLabel(false);
     if (!onRename) return;
     const trimmed = next.trim();
-    const branchName = worktreeDisplayLabel(worktree, null);
-    if (trimmed === "" || trimmed === branchName) {
+    // The input starts empty, so an empty commit means "left untouched" — keep
+    // the current label. Typing the branch name resets a custom label instead.
+    if (trimmed === "") return;
+    if (trimmed === worktreeDisplayLabel(worktree, null)) {
       if (label != null) onRename(worktree.path, null);
       return;
     }
@@ -820,7 +823,14 @@ const AgentItem = memo(function AgentItem({
           </button>
           )}
         </ContextMenuTrigger>
-        <ContextMenuContent>
+        <ContextMenuContent
+          onCloseAutoFocus={(e) => {
+            if (renameViaMenuRef.current) {
+              renameViaMenuRef.current = false;
+              e.preventDefault();
+            }
+          }}
+        >
           <ContextMenuSub>
             <ContextMenuSubTrigger>
               <ExternalLink className="h-4 w-4" />
@@ -861,7 +871,12 @@ const AgentItem = memo(function AgentItem({
             <Copy className="h-4 w-4" />
             Copy Branch Name
           </ContextMenuItem>
-          <ContextMenuItem onSelect={handleStartEdit}>
+          <ContextMenuItem
+            onSelect={() => {
+              renameViaMenuRef.current = true;
+              handleStartEdit();
+            }}
+          >
             <Pencil className="h-4 w-4" />
             Rename
           </ContextMenuItem>
