@@ -1,0 +1,24 @@
+src/components/changes/DiffFileHeader.tsx
+  s_c883bfe51f11e6::t_54bca42b3fccac 17-18
+  s_c883bfe51f11e6::t_4201980126ed7c 84-95
+  s_c883bfe51f11e6::t_f72bf46e94e9a0 1,4
+  s_c883bfe51f11e6::t_17dee9ddec365e 43
+src/components/changes/DiffFileCard.tsx
+  s_c883bfe51f11e6::t_2efa988c92d919 301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "ee947b3676c30bf112f71d9c40628bd43029bc0f",
+  "prompts": {},
+  "sessions": {
+    "s_c883bfe51f11e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1c981e6-aa69-4e98-abe9-a68f0d2fd56f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
