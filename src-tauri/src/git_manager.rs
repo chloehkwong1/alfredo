@@ -652,6 +652,92 @@ pub fn ahead_behind_vs_upstream(worktree_path: &str) -> Result<Option<(u32, u32)
     Ok(Some((ahead, behind)))
 }
 
+/// `git wip`: stash uncommitted + untracked changes as a throwaway commit so
+/// a history-rewriting operation runs on a clean tree. Tags the commit message
+/// with the pre-wip HEAD SHA so we can unambiguously identify it later — even
+/// after a rebase replays it onto a new base (where its own SHA changes but
+/// the message is preserved). Returns the marker if the tree was dirty.
+async fn wip_stash(worktree_path: &str) -> Result<Option<String>, AppError> {
+    let status = git_command()
+        .args(["status", "--porcelain"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git status: {e}")))?;
+    if status.stdout.is_empty() {
+        return Ok(None);
+    }
+
+    let pre_wip_head = git_command()
+        .args(["rev-parse", "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git rev-parse: {e}")))?;
+    if !pre_wip_head.status.success() {
+        let stderr = String::from_utf8_lossy(&pre_wip_head.stderr);
+        return Err(AppError::Git(format!("git rev-parse HEAD failed: {stderr}")));
+    }
+    let pre_sha = String::from_utf8_lossy(&pre_wip_head.stdout).trim().to_string();
+    let marker = format!("alfredo-wip:{pre_sha}");
+    let message = format!("--wip-- [skip ci] {marker}");
+
+    let add = git_command()
+        .args(["add", "-A"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git add: {e}")))?;
+    if !add.status.success() {
+        let stderr = String::from_utf8_lossy(&add.stderr);
+        return Err(AppError::Git(format!("git add -A failed: {stderr}")));
+    }
+
+    let wip_commit = git_command()
+        .args(["commit", "--no-verify", "--no-gpg-sign", "-m", &message])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git commit (wip): {e}")))?;
+    if !wip_commit.status.success() {
+        let stderr = String::from_utf8_lossy(&wip_commit.stderr);
+        return Err(AppError::Git(format!("git wip failed: {stderr}")));
+    }
+    Ok(Some(marker))
+}
+
+/// `git unwip`: if HEAD's subject contains our unique marker, the tip is still
+/// our wip commit (possibly replayed onto a new base — its parent is then the
+/// new base, so `reset --mixed HEAD~1` correctly restores the working tree
+/// with the wip content as uncommitted changes again).
+async fn unwip(worktree_path: &str, marker: &str) -> Result<(), AppError> {
+    let head_subject = git_command()
+        .args(["log", "-1", "--pretty=%s"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git log: {e}")))?;
+    let subject = String::from_utf8_lossy(&head_subject.stdout);
+    if !subject.contains(marker) {
+        return Err(AppError::Git(format!(
+            "wip commit not at HEAD after rewrite — expected marker '{marker}', got '{}'. \
+             Leaving state untouched; inspect the worktree manually.",
+            subject.trim()
+        )));
+    }
+    let reset = git_command()
+        .args(["reset", "--mixed", "HEAD~1"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git reset (unwip): {e}")))?;
+    if !reset.status.success() {
+        let stderr = String::from_utf8_lossy(&reset.stderr);
+        return Err(AppError::Git(format!("git unwip failed: {stderr}")));
+    }
+    Ok(())
+}
+
 /// Rebase the current branch onto a target branch (or the default remote branch if None).
 /// Fetches origin first, then runs `git rebase origin/<target>`.
 /// Returns Ok(()) on success, or an error with stderr on failure.
@@ -677,58 +763,7 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
         return Err(AppError::Git(format!("git fetch failed: {stderr}")));
     }
 
-    // `git wip`: stash uncommitted + untracked changes as a throwaway commit so
-    // the rebase runs on a clean tree. Tag the commit message with the pre-wip HEAD
-    // SHA so we can unambiguously identify it later — even after the rebase replays
-    // it onto a new base (where its own SHA changes but the message is preserved).
-    let status = git_command()
-        .args(["status", "--porcelain"])
-        .current_dir(worktree_path)
-        .output()
-        .await
-        .map_err(|e| AppError::Git(format!("failed to spawn git status: {e}")))?;
-    let dirty = !status.stdout.is_empty();
-
-    let wip_marker: Option<String> = if dirty {
-        let pre_wip_head = git_command()
-            .args(["rev-parse", "HEAD"])
-            .current_dir(worktree_path)
-            .output()
-            .await
-            .map_err(|e| AppError::Git(format!("failed to spawn git rev-parse: {e}")))?;
-        if !pre_wip_head.status.success() {
-            let stderr = String::from_utf8_lossy(&pre_wip_head.stderr);
-            return Err(AppError::Git(format!("git rev-parse HEAD failed: {stderr}")));
-        }
-        let pre_sha = String::from_utf8_lossy(&pre_wip_head.stdout).trim().to_string();
-        let marker = format!("alfredo-wip:{pre_sha}");
-        let message = format!("--wip-- [skip ci] {marker}");
-
-        let add = git_command()
-            .args(["add", "-A"])
-            .current_dir(worktree_path)
-            .output()
-            .await
-            .map_err(|e| AppError::Git(format!("failed to spawn git add: {e}")))?;
-        if !add.status.success() {
-            let stderr = String::from_utf8_lossy(&add.stderr);
-            return Err(AppError::Git(format!("git add -A failed: {stderr}")));
-        }
-
-        let wip_commit = git_command()
-            .args(["commit", "--no-verify", "--no-gpg-sign", "-m", &message])
-            .current_dir(worktree_path)
-            .output()
-            .await
-            .map_err(|e| AppError::Git(format!("failed to spawn git commit (wip): {e}")))?;
-        if !wip_commit.status.success() {
-            let stderr = String::from_utf8_lossy(&wip_commit.stderr);
-            return Err(AppError::Git(format!("git wip failed: {stderr}")));
-        }
-        Some(marker)
-    } else {
-        None
-    };
+    let wip_marker = wip_stash(worktree_path).await?;
 
     // From here on, every exit path must run unwip if we created a wip commit.
     // Capture the rebase outcome instead of early-returning.
@@ -752,41 +787,9 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
     }
     .await;
 
-    // `git unwip`: if HEAD's subject contains our unique marker, the tip is still
-    // our wip commit (possibly replayed onto the new base — its parent is then the
-    // new base, so `reset --mixed HEAD~1` correctly restores the working tree on
-    // top of the rebased base with the wip content as uncommitted changes again).
-    let unwip_result: Result<(), AppError> = if let Some(marker) = wip_marker.as_ref() {
-        async {
-            let head_subject = git_command()
-                .args(["log", "-1", "--pretty=%s"])
-                .current_dir(worktree_path)
-                .output()
-                .await
-                .map_err(|e| AppError::Git(format!("failed to spawn git log: {e}")))?;
-            let subject = String::from_utf8_lossy(&head_subject.stdout);
-            if !subject.contains(marker) {
-                return Err(AppError::Git(format!(
-                    "wip commit not at HEAD after rebase — expected marker '{marker}', got '{}'. \
-                     Leaving state untouched; inspect the worktree manually.",
-                    subject.trim()
-                )));
-            }
-            let unwip = git_command()
-                .args(["reset", "--mixed", "HEAD~1"])
-                .current_dir(worktree_path)
-                .output()
-                .await
-                .map_err(|e| AppError::Git(format!("failed to spawn git reset (unwip): {e}")))?;
-            if !unwip.status.success() {
-                let stderr = String::from_utf8_lossy(&unwip.stderr);
-                return Err(AppError::Git(format!("git unwip failed: {stderr}")));
-            }
-            Ok(())
-        }
-        .await
-    } else {
-        Ok(())
+    let unwip_result: Result<(), AppError> = match wip_marker.as_ref() {
+        Some(marker) => unwip(worktree_path, marker).await,
+        None => Ok(()),
     };
 
     // Surface the rebase error first if there was one; otherwise surface any unwip error.
