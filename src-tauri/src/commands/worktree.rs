@@ -462,6 +462,18 @@ pub async fn rebase_worktree(
     git_manager::rebase_onto(&worktree_path, stack_parent.as_deref()).await
 }
 
+/// Drop a single commit from a worktree's branch history (dirty-tree-safe).
+#[tauri::command]
+pub async fn drop_commit(worktree_path: String, commit_hash: String) -> Result<()> {
+    git_manager::drop_commit(&worktree_path, &commit_hash).await
+}
+
+/// Whether a commit already exists on any remote-tracking branch.
+#[tauri::command]
+pub async fn is_commit_pushed(worktree_path: String, commit_hash: String) -> Result<bool> {
+    git_manager::is_commit_pushed(&worktree_path, &commit_hash).await
+}
+
 /// Set or clear the stack parent for a worktree.
 #[tauri::command]
 pub async fn set_stack_parent(

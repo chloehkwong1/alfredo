@@ -802,7 +802,6 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
 /// commits after it onto its parent (`git rebase --onto <hash>^ <hash>`).
 /// Dirty-tree-safe via the same wip-stash machinery as `rebase_onto`. On
 /// conflict the rebase is aborted and history is left untouched.
-#[allow(dead_code)] // wired up as a Tauri command in a follow-up task
 pub async fn drop_commit(worktree_path: &str, commit_hash: &str) -> Result<(), AppError> {
     // Hashes come from our own commit list, but validate anyway so a malformed
     // value can never be parsed as a flag by git.
@@ -852,7 +851,6 @@ pub async fn drop_commit(worktree_path: &str, commit_hash: &str) -> Result<(), A
 
 /// Whether a commit is reachable from any remote-tracking branch — i.e.
 /// dropping it rewrites history that has already been pushed.
-#[allow(dead_code)] // wired up as a Tauri command in a follow-up task
 pub async fn is_commit_pushed(worktree_path: &str, commit_hash: &str) -> Result<bool, AppError> {
     let out = git_command()
         .args(["branch", "-r", "--contains", commit_hash])

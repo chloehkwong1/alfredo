@@ -497,6 +497,20 @@ export function discardAllUncommitted(
   return invoke("discard_all_uncommitted", { repoPath, files });
 }
 
+export function dropCommit(
+  worktreePath: string,
+  commitHash: string,
+): Promise<void> {
+  return invoke("drop_commit", { worktreePath, commitHash });
+}
+
+export function isCommitPushed(
+  worktreePath: string,
+  commitHash: string,
+): Promise<boolean> {
+  return invoke("is_commit_pushed", { worktreePath, commitHash });
+}
+
 // ── Repo ───────────────────────────────────────────────────────
 
 export function validateGitRepo(path: string): Promise<boolean> {

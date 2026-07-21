@@ -311,6 +311,8 @@ pub fn run() {
             worktree::get_commits_behind_main,
             worktree::get_ahead_behind_origin,
             worktree::rebase_worktree,
+            worktree::drop_commit,
+            worktree::is_commit_pushed,
             worktree::set_stack_parent,
             worktree::claim_worktree_port,
             worktree::release_worktree_port,
