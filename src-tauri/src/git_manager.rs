@@ -719,11 +719,16 @@ async fn unwip(worktree_path: &str, marker: &str) -> Result<(), AppError> {
         .map_err(|e| AppError::Git(format!("failed to spawn git log: {e}")))?;
     let subject = String::from_utf8_lossy(&head_subject.stdout);
     if !subject.contains(marker) {
-        return Err(AppError::Git(format!(
-            "wip commit not at HEAD after rewrite — expected marker '{marker}', got '{}'. \
-             Leaving state untouched; inspect the worktree manually.",
-            subject.trim()
-        )));
+        // The wip commit isn't at HEAD. `unwip` only runs once the rebase step
+        // has settled, and a failed rebase is always aborted first (which
+        // restores the wip to HEAD, so the marker would still match here) — and
+        // its error is surfaced ahead of unwip's by the caller regardless. So a
+        // missing marker means the rebase SUCCEEDED and git dropped the wip
+        // because its entire diff was already present on the new base ("patch
+        // contents already upstream" / replayed to empty). The content is
+        // therefore already in the working tree; there is nothing to restore, so
+        // this is a benign no-op, not a failure.
+        return Ok(());
     }
     let reset = git_command()
         .args(["reset", "--mixed", "HEAD~1"])
@@ -1519,6 +1524,86 @@ mod tests {
             .expect("git push");
 
         assert!(is_commit_pushed(path.to_str().unwrap(), &sha).await.unwrap());
+    }
+
+    /// Regression: when the entire uncommitted change set is already present on
+    /// the rebase target, the replayed wip commit becomes a no-op and git drops
+    /// it ("patch contents already upstream"). `unwip` must treat that benign
+    /// case as success — the content is already in the tree — rather than
+    /// erroring out and stranding the user. See `unwip`.
+    #[tokio::test]
+    async fn rebase_onto_absorbs_already_upstream_wip_without_error() {
+        let dir = init_drop_test_repo();
+        let path = dir.path();
+
+        // Give the base repo an origin and publish main.
+        let remote = TempDir::new().expect("remote dir");
+        StdCommand::new("git")
+            .args(["init", "--bare"])
+            .current_dir(remote.path())
+            .output()
+            .expect("git init --bare");
+        StdCommand::new("git")
+            .args(["remote", "add", "origin", remote.path().to_str().unwrap()])
+            .current_dir(path)
+            .output()
+            .expect("git remote add");
+        StdCommand::new("git")
+            .args(["push", "origin", "main"])
+            .current_dir(path)
+            .output()
+            .expect("git push main");
+
+        // A second clone advances origin/main with a commit adding dup.txt.
+        let other = TempDir::new().expect("other clone dir");
+        StdCommand::new("git")
+            .args(["clone", remote.path().to_str().unwrap(), other.path().to_str().unwrap()])
+            .output()
+            .expect("git clone");
+        for (k, v) in [("user.name", "Other"), ("user.email", "other@test.com")] {
+            StdCommand::new("git")
+                .args(["config", k, v])
+                .current_dir(other.path())
+                .output()
+                .expect("git config");
+        }
+        commit_file(other.path(), "dup.txt", "dupc\n", "upstream adds dup.txt");
+        StdCommand::new("git")
+            .args(["push", "origin", "main"])
+            .current_dir(other.path())
+            .output()
+            .expect("git push dup");
+
+        // Base repo: a local commit, plus an uncommitted change identical to what
+        // upstream just committed — so the wip is an already-applied duplicate.
+        commit_file(path, "local.txt", "local", "local work");
+        std::fs::write(path.join("dup.txt"), "dupc\n").expect("write uncommitted dup");
+
+        rebase_onto(path.to_str().unwrap(), Some("main"))
+            .await
+            .expect("rebase should succeed even when the wip is absorbed upstream");
+
+        // The uncommitted change is now upstream, so the tree is clean...
+        let status = StdCommand::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(path)
+            .output()
+            .expect("git status");
+        assert!(
+            status.stdout.is_empty(),
+            "tree should be clean after the wip is absorbed, got: {}",
+            String::from_utf8_lossy(&status.stdout)
+        );
+        // ...the content survived...
+        assert_eq!(std::fs::read_to_string(path.join("dup.txt")).unwrap(), "dupc\n");
+        // ...the local commit survived, and no wip commit leaked into history.
+        let subjects = log_subjects(path);
+        assert!(subjects.contains(&"local work".to_string()), "local commit lost: {subjects:?}");
+        assert!(
+            subjects.contains(&"upstream adds dup.txt".to_string()),
+            "upstream commit missing: {subjects:?}"
+        );
+        assert!(!subjects.iter().any(|s| s.contains("--wip--")), "wip commit leaked: {subjects:?}");
     }
 
     #[test]
