@@ -298,6 +298,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
           file={file}
           expanded={expanded}
           onToggleExpanded={onToggleExpanded}
+          repoPath={repoPath}
           onDiscardFile={onDiscardFile}
           fileViewMode={supportsRendered ? fileViewMode : undefined}
           onChangeFileViewMode={supportsRendered ? setFileViewMode : undefined}

@@ -1,6 +1,7 @@
-import { Check, ChevronDown, ChevronRight, Copy, Eye, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, ExternalLink, Eye, Trash2 } from "lucide-react";
 import type { DiffFile, FileViewMode } from "../../types";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
+import { openPathInEditor } from "../../services/openExternal";
 
 // Experiment flag: set `alfredo:no-sticky-diff` to "1" to drop sticky positioning
 // while debugging WebKit compositing-layer corruption in the diff view.
@@ -13,6 +14,8 @@ interface DiffFileHeaderProps {
   file: DiffFile;
   expanded: boolean;
   onToggleExpanded: (path: string) => void;
+  /** Absolute repo path, used to open the file in the configured editor. */
+  repoPath: string;
   onDiscardFile?: (path: string, status: string) => void;
   /** When set, renders a Diff/Rendered toggle (used for `.md` files). */
   fileViewMode?: FileViewMode;
@@ -37,6 +40,7 @@ function DiffFileHeader({
   file,
   expanded,
   onToggleExpanded,
+  repoPath,
   onDiscardFile,
   fileViewMode,
   onChangeFileViewMode,
@@ -77,6 +81,18 @@ function DiffFileHeader({
       >
         {copied ? <Check size={13} className="text-diff-added" /> : <Copy size={13} />}
       </button>
+      {file.status !== "deleted" && (
+        <button
+          className="flex-shrink-0 opacity-0 group-hover/header:opacity-100 p-0.5 rounded text-text-tertiary hover:text-text-primary transition-all"
+          onClick={(e) => {
+            e.stopPropagation();
+            openPathInEditor(`${repoPath}/${file.path}`);
+          }}
+          title="Open in editor"
+        >
+          <ExternalLink size={13} />
+        </button>
+      )}
       {(file.additions > 0 || file.deletions > 0) && (
         <span className="flex items-center gap-1.5 flex-shrink-0 text-[11px] font-mono">
           {file.additions > 0 && (
