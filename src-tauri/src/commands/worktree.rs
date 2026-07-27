@@ -9,7 +9,7 @@ use crate::git_manager::git_command;
 use crate::git_manager::get_diff_stats;
 use crate::github_manager::{self, GithubManager};
 use crate::linear_manager;
-use crate::types::{AgentState, AppError, KanbanColumn, PortClaimResult, PortHolder, TakePortResult, Worktree, WorktreeSource};
+use crate::types::{AgentState, AppError, KanbanColumn, PortClaimResult, PortHolder, SetupScript, TakePortResult, Worktree, WorktreeSource};
 
 type Result<T> = std::result::Result<T, AppError>;
 
@@ -79,6 +79,52 @@ struct WorktreeSetupComplete {
     error: Option<String>,
 }
 
+/// Shared create/adopt provisioning: `.claude` git excludes, seeded default
+/// slash commands, and background `run_on == "create"` setup scripts emitting
+/// `worktree:setup-complete` when done. Returns whether scripts are running.
+async fn provision_worktree(
+    app: &AppHandle,
+    repo_path: &str,
+    worktree_path: &str,
+    worktree_id: String,
+    create_scripts: Vec<SetupScript>,
+) -> bool {
+    // Ensure .claude/CLAUDE.local.md and .claude/settings.local.json are in git
+    // excludes so they don't show as uncommitted changes in the UI.
+    ensure_claude_excludes(repo_path).await;
+
+    // Seed the worktree with default slash commands. Non-fatal on failure.
+    write_default_slash_commands(worktree_path).await;
+
+    // Setup scripts (npm/bundle install, codegen) are the slow part of spin-up.
+    // Run them off the critical path so the worktree is usable immediately:
+    // spawn a background task, and emit `worktree:setup-complete` when done.
+    // Failure is non-fatal — the worktree already exists — and is surfaced via
+    // the event's `error` field (the frontend shows the existing error UI).
+    let setup_in_progress = !create_scripts.is_empty();
+    if setup_in_progress {
+        let app = app.clone();
+        let repo = repo_path.to_string();
+        let path = worktree_path.to_string();
+        tauri::async_runtime::spawn(async move {
+            let error = match config_manager::run_setup_scripts(&repo, &path, &create_scripts).await
+            {
+                Ok(()) => None,
+                Err(e) => Some(e.to_string()),
+            };
+            let _ = app.emit(
+                "worktree:setup-complete",
+                WorktreeSetupComplete {
+                    worktree_id,
+                    worktree_path: path,
+                    error,
+                },
+            );
+        });
+    }
+    setup_in_progress
+}
+
 /// Create a worktree with an explicit branch name and base.
 #[tauri::command]
 pub async fn create_worktree(
@@ -100,14 +146,7 @@ pub async fn create_worktree(
     let worktree_path =
         git_manager::create_worktree(&repo_path, &branch_name, &base_branch, base_path).await?;
 
-    // Ensure .claude/CLAUDE.local.md and .claude/settings.local.json are in git
-    // excludes so they don't show as uncommitted changes in the UI.
-    ensure_claude_excludes(&repo_path).await;
-
     let path_str = worktree_path.to_string_lossy().to_string();
-
-    // Seed the new worktree with default slash commands. Non-fatal on failure.
-    write_default_slash_commands(&path_str).await;
 
     let create_scripts: Vec<_> = effective
         .setup_scripts
@@ -117,33 +156,14 @@ pub async fn create_worktree(
         .filter(|s| s.run_on == "create")
         .cloned()
         .collect();
-    // Setup scripts (npm/bundle install, codegen) are the slow part of spin-up.
-    // Run them off the critical path so the worktree is usable immediately:
-    // spawn a background task, and emit `worktree:setup-complete` when done.
-    // Failure is non-fatal — the worktree already exists — and is surfaced via
-    // the event's `error` field (the frontend shows the existing error UI).
-    let setup_in_progress = !create_scripts.is_empty();
-    if setup_in_progress {
-        let app = app.clone();
-        let repo = repo_path.clone();
-        let path = path_str.clone();
-        let branch = branch_name.clone();
-        tauri::async_runtime::spawn(async move {
-            let error =
-                match config_manager::run_setup_scripts(&repo, &path, &create_scripts).await {
-                    Ok(()) => None,
-                    Err(e) => Some(e.to_string()),
-                };
-            let _ = app.emit(
-                "worktree:setup-complete",
-                WorktreeSetupComplete {
-                    worktree_id: git_manager::worktree_id(&repo, &branch),
-                    worktree_path: path,
-                    error,
-                },
-            );
-        });
-    }
+    let setup_in_progress = provision_worktree(
+        &app,
+        &repo_path,
+        &path_str,
+        git_manager::worktree_id(&repo_path, &branch_name),
+        create_scripts,
+    )
+    .await;
 
     // Use the sanitized directory name as the ID/name so it matches
     // what list_worktrees returns (git uses the dir name internally).
@@ -196,6 +216,32 @@ pub async fn create_worktree(
         setup_in_progress,
         assigned_port,
     })
+}
+
+/// Provision a worktree Alfredo didn't create (found on disk by the frontend
+/// discovery poll): same tail as `create_worktree` — seeded slash commands,
+/// `.claude` excludes, and create-time setup scripts. Returns true when setup
+/// scripts are running in the background (frontend shows "Setting up…").
+#[tauri::command]
+pub async fn adopt_worktree(
+    app: AppHandle,
+    repo_path: String,
+    worktree_path: String,
+    worktree_id: String,
+) -> Result<bool> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let effective = config_manager::load_effective_config(&app_data_dir, &repo_path)
+        .await?
+        .effective;
+    let create_scripts: Vec<_> = effective
+        .setup_scripts
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .filter(|s| s.run_on == "create")
+        .cloned()
+        .collect();
+    Ok(provision_worktree(&app, &repo_path, &worktree_path, worktree_id, create_scripts).await)
 }
 
 /// Delete a worktree by name.

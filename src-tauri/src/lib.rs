@@ -304,6 +304,7 @@ pub fn run() {
             worktree::worktree_dirty_state,
             worktree::list_worktrees,
             worktree::count_worktrees,
+            worktree::adopt_worktree,
             worktree::get_worktree_diff_stats,
             worktree::get_worktree_status,
             worktree::set_worktree_column,

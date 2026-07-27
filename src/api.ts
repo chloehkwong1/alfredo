@@ -199,6 +199,14 @@ export function countWorktrees(repoPath: string): Promise<number> {
   return invoke("count_worktrees", { repoPath });
 }
 
+export function adoptWorktree(
+  repoPath: string,
+  worktreePath: string,
+  worktreeId: string,
+): Promise<boolean> {
+  return invoke("adopt_worktree", { repoPath, worktreePath, worktreeId });
+}
+
 export function getWorktreeDiffStats(
   worktreePath: string,
   stackParent?: string | null,
