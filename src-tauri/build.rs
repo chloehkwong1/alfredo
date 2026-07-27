@@ -1,8 +1,14 @@
 fn main() {
     // Load .env from project root so env!() macros can read secrets at compile time
+    // CI has no .env — it passes LINEAR_* through the process env instead, so a
+    // missing/unreadable file is only a warning here, not an error.
     let env_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.env");
     if env_path.exists() {
         let Ok(contents) = std::fs::read_to_string(&env_path) else {
+            println!(
+                "cargo:warning=failed to read {} — LINEAR_* will not be baked into this build",
+                env_path.display()
+            );
             tauri_build::build();
             return;
         };
@@ -16,6 +22,11 @@ fn main() {
             }
         }
         println!("cargo:rerun-if-changed={}", env_path.display());
+    } else if std::env::var("LINEAR_CLIENT_ID").is_err() {
+        println!(
+            "cargo:warning={} not found and LINEAR_CLIENT_ID unset — Linear OAuth will be dead in this build",
+            env_path.display()
+        );
     }
 
     tauri_build::build()
