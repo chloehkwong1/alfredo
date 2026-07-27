@@ -1,0 +1,26 @@
+src/hooks/useSessionRestore.ts
+  s_8c7148f082478f::t_4fba53b037adac 581-591
+src/hooks/useWorktreeDiscovery.ts
+  s_8c7148f082478f::t_d10648a2c91425 18-26,30-31,37-38,42-45
+  s_8c7148f082478f::t_8c87a6077ce356 81-82
+src/hooks/useWorktreeDiscovery.test.ts
+  s_8c7148f082478f::t_3aaee06c91a649 45-47
+  s_8c7148f082478f::t_a35eb420e0adff 6-10,16-20,26-30,35-39,42-44,48,51-76,81,92-94,96
+  s_8c7148f082478f::t_a6a568eb42a52f 77-80,82-91,95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9694f07689797bdf1b654fb89eabd0b8ee1e9983",
+  "prompts": {},
+  "sessions": {
+    "s_8c7148f082478f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c15d15da-eb72-4f44-b202-df9fea8f6183",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
