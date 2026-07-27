@@ -1,0 +1,70 @@
+src-tauri/src/commands/mod.rs
+  s_fe4bd30a93f1d4::t_a535b0611b2b5f 10
+src/components/commandPalette/useCommandRegistry.ts
+  s_fe4bd30a93f1d4::t_379b865c9e35bf 176,188,200
+  s_fe4bd30a93f1d4::t_00c97a15305e65 32
+src/components/ui/OpenInDropdown.tsx
+  s_fe4bd30a93f1d4::t_379b865c9e35bf 41
+  s_fe4bd30a93f1d4::t_00c97a15305e65 12
+src/services/terminalFactory.test.ts
+  s_fe4bd30a93f1d4::t_daade4605e062b 4-10,45,48,155,174
+  s_4d443f2131db4a::t_5b25f8ba0c9e3e 239
+src/lib/clipboard.ts
+  s_fe4bd30a93f1d4::t_feeeb3485b49ef 2-14,19-21
+  s_fe4bd30a93f1d4::t_c3df61c1f4d747 15-18
+  s_fe4bd30a93f1d4::t_b5c1ccabcba0f4 1
+src/components/sidebar/AgentItem.tsx
+  s_fe4bd30a93f1d4::t_00c97a15305e65 34
+  s_fe4bd30a93f1d4::t_379b865c9e35bf 508,570,870
+src/components/shared/SectionErrorBoundary.tsx
+  s_fe4bd30a93f1d4::t_00c97a15305e65 2
+  s_fe4bd30a93f1d4::t_379b865c9e35bf 52
+src-tauri/Cargo.toml
+  s_fe4bd30a93f1d4::t_a535b0611b2b5f 58
+src/api.ts
+  s_fe4bd30a93f1d4::t_3f3d59524f05ef 695-700
+src-tauri/src/lib.rs
+  s_fe4bd30a93f1d4::t_a535b0611b2b5f 272
+  s_fe4bd30a93f1d4::t_e9b36721002f12 76
+src/services/terminalFactory.ts
+  s_fe4bd30a93f1d4::t_00c97a15305e65 8
+  s_fe4bd30a93f1d4::t_379b865c9e35bf 280,339
+src/components/changes/FileSidebar.tsx
+  s_fe4bd30a93f1d4::t_00c97a15305e65 8
+  s_fe4bd30a93f1d4::t_379b865c9e35bf 209
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_fe4bd30a93f1d4::t_00c97a15305e65 52
+  s_fe4bd30a93f1d4::t_379b865c9e35bf 635
+src/components/changes/ChangesPanel.tsx
+  s_fe4bd30a93f1d4::t_379b865c9e35bf 66,222
+  s_fe4bd30a93f1d4::t_00c97a15305e65 21
+src/hooks/useCopyToClipboard.ts
+  s_fe4bd30a93f1d4::t_00c97a15305e65 2
+  s_fe4bd30a93f1d4::t_379b865c9e35bf 10
+src-tauri/src/commands/clipboard.rs
+  s_fe4bd30a93f1d4::t_cbb5a525e842dd 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "29bc0e4afe2144412dae0c922e17029569087e2d",
+  "prompts": {},
+  "sessions": {
+    "s_4d443f2131db4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "044c7c30-dc9c-4d4e-a3de-96bb3827a25c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_fe4bd30a93f1d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8ab699d-d709-4422-8b20-0bebada186dd",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
