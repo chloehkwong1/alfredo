@@ -27,6 +27,7 @@ import { tabSwitchTarget } from "../../lib/paneTabLayout";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useDensity } from "../../hooks/useDensity";
 import { useSessionRestore } from "../../hooks/useSessionRestore";
+import { useWorktreeDiscovery } from "../../hooks/useWorktreeDiscovery";
 import { useServer, useStaleServerCleanup, useServerReconciliation } from "../../hooks/useServer";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useUpdater } from "../../hooks/useUpdater";
@@ -156,6 +157,7 @@ function AppShell() {
 
   // Extracted hooks
   useSessionRestore(repoPath, selectedRepos, repos, config?.showMainCardRepos ?? []);
+  useWorktreeDiscovery(repoPath, selectedRepos, repos);
   const { runScript, isServerRunningHere, handleToggleServer } = useServer(activeWorktreeId);
   useStaleServerCleanup();
   useServerReconciliation();

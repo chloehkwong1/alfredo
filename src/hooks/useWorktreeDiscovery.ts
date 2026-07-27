@@ -1,3 +1,15 @@
+import { useEffect, useRef } from "react";
+import { adoptWorktree, countWorktrees, listWorktrees } from "../api";
+import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useTabStore } from "../stores/tabStore";
+import { useLayoutStore } from "../stores/layoutStore";
+import type { RepoEntry } from "../types";
+
+const POLL_MS = 10_000;
+/** Every Nth tick reconciles via a full listing even when counts match —
+ *  covers a same-tick add+delete, which leaves the count unchanged. */
+const FULL_RECONCILE_EVERY = 6;
+
 export interface DiscoveryInput {
   /** Baseline ids from a previous tick; undefined until the first successful
    *  listing for this repo (the baseline tick must adopt nothing — at startup
@@ -19,4 +31,117 @@ export function computeDiscovery({ known, freshIds }: DiscoveryInput): Discovery
     return { adoptIds: [], nextKnown };
   }
   return { adoptIds: freshIds.filter((id) => !known.has(id)), nextKnown };
+}
+
+async function pollRepo(
+  repo: string,
+  knownIds: Map<string, Set<string>>,
+  fullTick: boolean,
+): Promise<void> {
+  const ws = useWorkspaceStore.getState();
+  // Restore gate: inserting before useSessionRestore's phase 1 completes
+  // would mount terminals without resume ids (see useSessionRestore.ts:359).
+  if (!ws.restoredRepos.has(repo)) return;
+  const storeWts = ws.worktrees.filter((wt) => wt.repoPath === repo && !wt.isBranchMode);
+  // A creation is mid-flight: its worktree hits disk before create_worktree
+  // returns, and adopting it here would run setup twice. Skip the whole tick
+  // (baselining it as "known" now would also permanently skip adoption).
+  if (storeWts.some((wt) => wt.creating)) return;
+
+  try {
+    if (!fullTick && knownIds.has(repo)) {
+      const diskCount = await countWorktrees(repo);
+      // createError placeholders exist only in the store, never on disk.
+      const storeCount = storeWts.filter((wt) => !wt.createError).length;
+      if (diskCount === storeCount) return;
+    }
+
+    const fresh = await listWorktrees(repo);
+    // Re-check after the awaits: a create may have started meanwhile.
+    if (
+      useWorkspaceStore.getState().worktrees.some((wt) => wt.repoPath === repo && wt.creating)
+    ) {
+      return;
+    }
+
+    const decision = computeDiscovery({
+      known: knownIds.get(repo),
+      freshIds: fresh.map((wt) => wt.id),
+    });
+    // Record before any async adoption work so a slow adopt_worktree can't be
+    // re-triggered by the next tick.
+    knownIds.set(repo, decision.nextKnown);
+    useWorkspaceStore.getState().setWorktreesForRepo(repo, fresh);
+
+    for (const id of decision.adoptIds) {
+      const wt = fresh.find((w) => w.id === id);
+      if (!wt) continue;
+      // Brand-new worktree: no persisted session exists, so fresh default
+      // tabs + layout are correct (mirrors useSessionRestore's insert path).
+      useTabStore.getState().ensureDefaultTabs(id);
+      if (!useLayoutStore.getState().layout[id]) {
+        const tabs = useTabStore.getState().tabs[id] ?? [];
+        const activeTabId = useTabStore.getState().activeTabId[id] ?? "";
+        useLayoutStore.getState().initLayout(id, tabs.map((t) => t.id), activeTabId);
+      }
+      // Unread badge announces the arrival in the sidebar.
+      useWorkspaceStore.getState().markWorktreeUnread(id);
+      adoptWorktree(repo, wt.path, id)
+        .then((setupInProgress) => {
+          if (setupInProgress) {
+            useWorkspaceStore.getState().updateWorktree(id, { setupInProgress: true });
+          }
+        })
+        .catch((e) => console.warn(`[worktree-discovery] adopt failed for ${wt.path}:`, e));
+    }
+  } catch (e) {
+    // Poll failures are non-fatal; the next tick is the retry.
+    console.warn(`[worktree-discovery] poll failed for ${repo}:`, e);
+  }
+}
+
+/**
+ * Detects worktrees created or deleted outside Alfredo (e.g. Claude running
+ * `git worktree add`) and reconciles the sidebar: cheap count check every
+ * POLL_MS per selected worktree-mode repo, full list reconcile on mismatch
+ * or every FULL_RECONCILE_EVERY-th tick. New worktrees are adopted — default
+ * tabs, unread badge, and create-time provisioning via adopt_worktree.
+ */
+export function useWorktreeDiscovery(
+  repoPath: string | null,
+  selectedRepos: string[],
+  repos: RepoEntry[],
+) {
+  // Baselines survive effect re-runs (repo toggles) deliberately: a reselected
+  // repo's worktrees are already known and must not be re-adopted.
+  const knownIds = useRef(new Map<string, Set<string>>());
+  const tickCount = useRef(0);
+  const inFlight = useRef(false);
+
+  const selectedReposKey = selectedRepos.join(",");
+  const repoModeKey = repos.map((r) => `${r.path}:${r.mode}`).join(",");
+
+  useEffect(() => {
+    if (!repoPath) return;
+    const interval = setInterval(async () => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      tickCount.current += 1;
+      const fullTick = tickCount.current % FULL_RECONCILE_EVERY === 0;
+      try {
+        const reposToPoll = selectedRepos.length > 0 ? selectedRepos : [repoPath];
+        const modeMap = new Map(repos.map((r) => [r.path, r.mode]));
+        for (const repo of reposToPoll) {
+          if (modeMap.get(repo) === "branch") continue;
+          await pollRepo(repo, knownIds.current, fullTick);
+        }
+      } finally {
+        inFlight.current = false;
+      }
+    }, POLL_MS);
+    return () => clearInterval(interval);
+    // selectedRepos/repos are read via their stable keys; the closure values
+    // are from the same render as the keys, so this is not stale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repoPath, selectedReposKey, repoModeKey]);
 }
