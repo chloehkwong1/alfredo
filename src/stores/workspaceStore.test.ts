@@ -692,4 +692,13 @@ describe("restoredRepos", () => {
     store.getState().clearStore();
     expect(store.getState().restoredRepos.has("/repo")).toBe(false);
   });
+
+  it("unmarkRepoRestored closes the gate for one repo only", () => {
+    const store = useWorkspaceStore;
+    store.getState().markRepoRestored("/repo-a");
+    store.getState().markRepoRestored("/repo-b");
+    store.getState().unmarkRepoRestored("/repo-a");
+    expect(store.getState().restoredRepos.has("/repo-a")).toBe(false);
+    expect(store.getState().restoredRepos.has("/repo-b")).toBe(true);
+  });
 });

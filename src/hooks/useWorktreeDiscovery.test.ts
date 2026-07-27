@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeDiscovery } from "./useWorktreeDiscovery";
+import { computeDiscovery, computeRemovals } from "./useWorktreeDiscovery";
 
 describe("computeDiscovery", () => {
   it("baseline tick (no known set) adopts nothing and records all ids", () => {
@@ -93,5 +93,28 @@ describe("computeDiscovery", () => {
       knownPaths: new Set(),
     });
     expect(afterRecreate.adoptIds).toEqual(["repo::main"]);
+  });
+});
+
+describe("computeRemovals", () => {
+  const freshIds = new Set(["repo::kept"]);
+
+  it("removes store worktrees missing from the fresh listing", () => {
+    const removals = computeRemovals(
+      [{ id: "repo::kept" }, { id: "repo::gone" }],
+      freshIds,
+    );
+    expect(removals).toEqual(["repo::gone"]);
+  });
+
+  it("never removes creating or createError placeholders (store-only, not on disk)", () => {
+    const removals = computeRemovals(
+      [
+        { id: "repo::spinning", creating: true },
+        { id: "repo::failed", createError: "boom" },
+      ],
+      freshIds,
+    );
+    expect(removals).toEqual([]);
   });
 });

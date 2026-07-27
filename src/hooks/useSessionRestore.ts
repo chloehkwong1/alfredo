@@ -286,6 +286,11 @@ export function useSessionRestore(
     for (const loadedRepo of loadedRepoPaths) {
       if (!reposToLoadSet.has(loadedRepo)) {
         clearWorktreesForRepo(loadedRepo);
+        // Close the discovery gate with the wipe: if the repo is reselected,
+        // the poll must stay quiet until this effect re-marks it after
+        // restore, or it would insert worktrees ahead of session hydration
+        // (the spawn-without-resume race this gate exists to prevent).
+        useWorkspaceStore.getState().unmarkRepoRestored(loadedRepo);
         wiped.push(loadedRepo);
       }
     }

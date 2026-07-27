@@ -49,6 +49,9 @@ interface WorkspaceState {
    *  worktrees ahead of tab/session hydration. */
   restoredRepos: Set<string>;
   markRepoRestored: (repoPath: string) => void;
+  /** Close the discovery gate for a deselected repo so a reselect can't be
+   *  polled before its restore re-runs. */
+  unmarkRepoRestored: (repoPath: string) => void;
 
   addWorktree: (worktree: Worktree) => void;
   replaceWorktree: (tempId: string, realWorktree: Worktree) => void;
@@ -219,6 +222,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   restoredRepos: new Set<string>(),
   markRepoRestored: (repoPath) =>
     set((state) => ({ restoredRepos: new Set(state.restoredRepos).add(repoPath) })),
+  unmarkRepoRestored: (repoPath) =>
+    set((state) => {
+      const next = new Set(state.restoredRepos);
+      next.delete(repoPath);
+      return { restoredRepos: next };
+    }),
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
