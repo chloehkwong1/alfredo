@@ -73,7 +73,7 @@ fn should_offer_version(version: &str, receive_beta: bool) -> bool {
     receive_beta || !version.contains('-')
 }
 
-use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, claude_registry, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -269,6 +269,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Audio
             audio::play_sound,
+            clipboard::set_clipboard_text,
             // Dock badge (macOS/Linux)
             dock_badge::set_dock_badge,
             // Debug logging bridge (frontend → alfredo.log)

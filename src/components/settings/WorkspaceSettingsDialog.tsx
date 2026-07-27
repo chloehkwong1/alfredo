@@ -49,6 +49,7 @@ import {
   repoBadgeLabel,
   repoInitials,
 } from "../sidebar/RepoSelector";
+import { copyText } from "../../lib/clipboard";
 
 type WorkspaceTab = "general" | "scripts" | "ports";
 type ScriptKind = "setup" | "run" | "archive";
@@ -631,7 +632,7 @@ function WorkspaceSettingsDialog({
   }, [currentRepoPath]);
 
   const copySchemaUrl = useCallback(() => {
-    void navigator.clipboard.writeText(SCHEMA_URL).then(() => {
+    void copyText(SCHEMA_URL).then(() => {
       setSchemaCopied(true);
       setTimeout(() => setSchemaCopied(false), 1500);
     });

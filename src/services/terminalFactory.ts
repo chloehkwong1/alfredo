@@ -5,6 +5,7 @@ import { openUrl, openPath } from "@tauri-apps/plugin-opener";
 import { homeDir } from "@tauri-apps/api/path";
 import { writePty } from "../api";
 import { loadTerminalPreferences } from "./terminalPreferences";
+import { copyText } from "../lib/clipboard";
 
 // Resolved lazily on first `~/...` click and cached. Avoids an IPC call at
 // module load (which fires in test environments where Tauri isn't running).
@@ -276,7 +277,7 @@ export function handleTerminalKeyEvent(terminal: Terminal, event: KeyboardEvent)
   if (event.metaKey && !event.shiftKey && (event.key === "c" || event.key === "C")) {
     if (event.type === "keydown") {
       const sel = terminal.getSelection();
-      if (sel) navigator.clipboard.writeText(sel).catch(console.error);
+      if (sel) copyText(sel).catch(console.error);
       event.preventDefault();
     }
     return false;
@@ -335,7 +336,7 @@ export function registerSelectToCopy(terminal: Terminal): void {
           } catch {
             return;
           }
-          if (sel) navigator.clipboard.writeText(sel).catch(console.error);
+          if (sel) copyText(sel).catch(console.error);
         });
       },
       { once: true },

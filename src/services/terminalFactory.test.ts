@@ -1,6 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Terminal } from "@xterm/xterm";
 import { registerSelectToCopy, handleTerminalKeyEvent } from "./terminalFactory";
+import { copyText } from "../lib/clipboard";
+
+// Copy goes through the native-pasteboard helper (not navigator.clipboard),
+// so tests assert against the mocked module.
+vi.mock("../lib/clipboard", () => ({
+  copyText: vi.fn(() => Promise.resolve()),
+}));
 
 interface FakeTerminal {
   element: HTMLElement;
@@ -35,13 +42,10 @@ async function flushMicrotasks() {
 }
 
 describe("registerSelectToCopy", () => {
-  let writeText: ReturnType<typeof vi.fn>;
+  const writeText = vi.mocked(copyText);
 
   beforeEach(() => {
-    writeText = vi.fn(() => Promise.resolve());
-    Object.assign(navigator, {
-      clipboard: { writeText },
-    });
+    writeText.mockClear();
     document.body.innerHTML = "";
   });
 
@@ -148,7 +152,7 @@ describe("registerSelectToCopy", () => {
 });
 
 describe("handleTerminalKeyEvent", () => {
-  let writeText: ReturnType<typeof vi.fn>;
+  const writeText = vi.mocked(copyText);
   let input: ReturnType<typeof vi.fn>;
 
   function fakeTerminal(selection = "") {
@@ -167,8 +171,7 @@ describe("handleTerminalKeyEvent", () => {
   }
 
   beforeEach(() => {
-    writeText = vi.fn(() => Promise.resolve());
-    Object.assign(navigator, { clipboard: { writeText } });
+    writeText.mockClear();
   });
 
   it("copies the selection and suppresses the default on Cmd+C keydown", () => {
@@ -233,3 +236,4 @@ describe("handleTerminalKeyEvent", () => {
     expect(handleTerminalKeyEvent(term, event)).toBe(true);
   });
 });
+

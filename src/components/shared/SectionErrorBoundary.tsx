@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { copyText } from "../../lib/clipboard";
 
 interface Props {
   children: ReactNode;
@@ -48,7 +49,7 @@ export class SectionErrorBoundary extends Component<Props, State> {
 
   private handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(this.getReportText());
+      await copyText(this.getReportText());
       this.setState({ copied: true });
       if (this.copyTimeout) clearTimeout(this.copyTimeout);
       this.copyTimeout = setTimeout(() => this.setState({ copied: false }), 2000);

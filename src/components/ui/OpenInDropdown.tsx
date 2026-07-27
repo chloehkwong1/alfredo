@@ -9,6 +9,7 @@ import {
 } from "./DropdownMenu";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp, type InstalledApp } from "../../api";
+import { copyText } from "../../lib/clipboard";
 
 export const CATEGORY_ICON: Record<string, typeof FolderOpen> = {
   "file-manager": FolderOpen,
@@ -37,7 +38,7 @@ export function OpenInDropdown({ worktreePath, linearTicketUrl }: OpenInDropdown
 
   const handleCopy = useCallback(() => {
     if (!worktreePath) return;
-    navigator.clipboard.writeText(worktreePath).catch(console.error);
+    copyText(worktreePath).catch(console.error);
   }, [worktreePath]);
 
   // Group apps by category, maintaining original order

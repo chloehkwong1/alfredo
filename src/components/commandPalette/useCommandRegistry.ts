@@ -29,6 +29,7 @@ import { rerunFailedChecks, fixFailingChecks } from "../../services/prActions";
 import { openPathInEditor, openPathInTerminal } from "../../services/openExternal";
 import { getAgentSessionInfo } from "../../services/agentMessenger";
 import type { Worktree, CheckRun, RepoEntry } from "../../types";
+import { copyText } from "../../lib/clipboard";
 
 const EMPTY_CHECK_RUNS: CheckRun[] = [];
 
@@ -172,7 +173,7 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       icon: Copy,
       action: () => {
         if (activeWorktree) {
-          navigator.clipboard.writeText(activeWorktree.branch);
+          void copyText(activeWorktree.branch);
         }
       },
       enabled: () => !!activeWorktree,
@@ -184,7 +185,7 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       icon: Copy,
       action: () => {
         if (activeWorktree?.prStatus) {
-          navigator.clipboard.writeText(activeWorktree.prStatus.url);
+          void copyText(activeWorktree.prStatus.url);
         }
       },
       enabled: () => !!activeWorktree?.prStatus,
@@ -196,7 +197,7 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       icon: Copy,
       action: () => {
         if (activeWorktree) {
-          navigator.clipboard.writeText(activeWorktree.path);
+          void copyText(activeWorktree.path);
         }
       },
       enabled: () => !!activeWorktree,

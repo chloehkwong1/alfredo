@@ -5,6 +5,7 @@ import { formatRelativeTime } from "./formatRelativeTime";
 import { formatAuthor as formatAuthorShared } from "./formatAuthor";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from "../ui/ContextMenu";
 import { openPathInEditor } from "../../services/openExternal";
+import { copyText } from "../../lib/clipboard";
 
 
 type ViewMode = "changes" | "commits";
@@ -205,7 +206,7 @@ function FileSidebar({
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const handleCopyPath = useCallback((path: string) => {
-    navigator.clipboard.writeText(path).catch(console.error);
+    copyText(path).catch(console.error);
     setCopiedPath(path);
     clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setCopiedPath(null), 1500);

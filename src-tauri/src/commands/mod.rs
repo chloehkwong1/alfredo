@@ -7,6 +7,7 @@ pub mod dock_badge;
 pub mod external_tools;
 pub mod branch;
 pub mod checks;
+pub mod clipboard;
 pub mod claude_registry;
 pub mod config;
 pub mod diff;

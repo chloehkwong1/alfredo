@@ -31,6 +31,7 @@ import { PrSummary, hasPrStats, formatDiffStat, PrStatsRow } from "./PrStatsRow"
 import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { ChangeBaseBranchDialog } from "./ChangeBaseBranchDialog";
 import { columnIcon, columnLabel, COLUMN_ORDER } from "./StatusGroup";
+import { copyText } from "../../lib/clipboard";
 
 const THINKING_VERBS = [
   "Thinking…",
@@ -504,7 +505,7 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(error);
+      await copyText(error);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (e) {
@@ -566,7 +567,7 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(error);
+      await copyText(error);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (e) {
@@ -866,7 +867,7 @@ const AgentItem = memo(function AgentItem({
             {isUnread ? "Mark as Read" : "Mark as Unread"}
           </ContextMenuItem>
           <ContextMenuItem
-            onSelect={() => navigator.clipboard.writeText(worktree.branch || worktree.name).catch(console.error)}
+            onSelect={() => copyText(worktree.branch || worktree.name).catch(console.error)}
           >
             <Copy className="h-4 w-4" />
             Copy Branch Name

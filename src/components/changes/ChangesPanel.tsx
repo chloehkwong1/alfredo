@@ -18,6 +18,7 @@ import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { shouldShowSimplifiedMainView } from "../../lib/cardViewMode";
 import type { ViewMode } from "./FileSidebar";
 import type { CommitInfo, PrComment } from "../../types";
+import { copyText } from "../../lib/clipboard";
 
 const EMPTY_COMMENTS: PrComment[] = [];
 
@@ -62,7 +63,7 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
   const handleCopyError = async () => {
     if (!error) return;
     try {
-      await navigator.clipboard.writeText(error);
+      await copyText(error);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (e) {
@@ -218,7 +219,7 @@ function OriginSyncBanner({
   const handleCopyError = async () => {
     if (!error) return;
     try {
-      await navigator.clipboard.writeText(error.msg);
+      await copyText(error.msg);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (e) {

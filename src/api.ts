@@ -692,6 +692,12 @@ export function playSound(id: string): Promise<void> {
   return invoke("play_sound", { id });
 }
 
+// ── Clipboard ───────────────────────────────────────────────────
+
+export function setClipboardText(text: string): Promise<void> {
+  return invoke("set_clipboard_text", { text });
+}
+
 // ── Notifications ───────────────────────────────────────────────
 
 export function sendAppNotification(title: string, body: string, sound?: string): Promise<void> {
