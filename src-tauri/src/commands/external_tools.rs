@@ -20,17 +20,19 @@ fn editor_command(
         "vscode" => Ok(("code".into(), vec!["--goto".into(), with_line])),
         "cursor" => Ok(("cursor".into(), vec!["--goto".into(), with_line])),
         "zed" => Ok(("zed".into(), vec![with_line])),
-        "vim" => {
-            let mut args = Vec::new();
-            if let Some(l) = line {
-                args.push(format!("+{l}"));
-            }
-            args.push(path.into());
-            Ok(("nvim".into(), args))
-        }
+        // A terminal editor can't be spawned headless from a GUI process —
+        // the nvim would run with no TTY, invisibly. Error so the frontend
+        // falls back to the OS default app.
+        "vim" => Err(AppError::Config(
+            "Vim runs in a terminal and can't be launched from a link; falling back to the OS default app".into(),
+        )),
         "custom" => {
             let cmd = custom_path
                 .ok_or_else(|| AppError::Config("Custom editor path not set".into()))?;
+            // Bare path only: the custom CLI's goto syntax is unknowable
+            // (`path:line`, `+line`, `-l line`, …), and a wrong guess makes
+            // the editor fail to open the file at all. Losing the line beats
+            // losing the open.
             Ok((cmd.into(), vec![path.into()]))
         }
         _ => Err(AppError::Config(format!("Unknown editor: {editor}"))),
@@ -64,6 +66,21 @@ pub fn open_in_editor(
     let p = std::path::Path::new(&path);
     if !p.exists() {
         return Err(AppError::Config(format!("Path does not exist: {path}")));
+    }
+
+    // Directories are never editor targets: `code --goto /dir` opens a whole
+    // new workspace window. Preserve the pre-editor-links behavior (Finder /
+    // file manager) for directory links.
+    if p.is_dir() {
+        #[cfg(target_os = "macos")]
+        let opener = "open";
+        #[cfg(not(target_os = "macos"))]
+        let opener = "xdg-open";
+        Command::new(opener)
+            .arg(&path)
+            .spawn()
+            .map_err(|e| AppError::Config(format!("Failed to open directory: {e}")))?;
+        return Ok(());
     }
 
     let (cmd, args) = editor_command(&editor, &path, custom_path.as_deref(), line, col)?;
