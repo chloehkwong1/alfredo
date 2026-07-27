@@ -1,0 +1,35 @@
+src/hooks/useWorktreeDiscovery.ts
+  s_8c7148f082478f::t_ae08ad5dcf532e 6
+  s_8c7148f082478f::t_30d68400f271a9 82-84,91,107-113,120,123-130
+  s_8c7148f082478f::t_8f6fe85c899fd7 49-62
+  s_8c7148f082478f::t_98ec15909f9fdb 67
+  s_8c7148f082478f::t_965c37a7f884d1 114-119,121-122
+  s_8c7148f082478f::t_0ed59b3ba27a99 146-151,154-155,158-161
+  s_8c7148f082478f::t_9300ca8c94e9b2 192-197,207,209,215-218
+src/hooks/useSessionRestore.ts
+  s_8c7148f082478f::t_fa2120de4ee4a7 289-293
+src/stores/workspaceStore.test.ts
+  s_8c7148f082478f::t_fd07a5a6780815 695-703
+src/stores/workspaceStore.ts
+  s_8c7148f082478f::t_04f23eb81d7215 225-230
+  s_8c7148f082478f::t_1f12b63bf5ec6b 52-54
+src/hooks/useWorktreeDiscovery.test.ts
+  s_8c7148f082478f::t_f90ae48ad303ea 98-120
+  s_8c7148f082478f::t_3e5af1f34a93ee 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "99dfcb2f5c30b273fd02a89a7ee8e4d71b3ef9b7",
+  "prompts": {},
+  "sessions": {
+    "s_8c7148f082478f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c15d15da-eb72-4f44-b202-df9fea8f6183",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
