@@ -1,8 +1,8 @@
 import { getAppConfig, openInEditor, openInTerminal } from "../api";
 
-export async function openPathInEditor(path: string): Promise<void> {
+export async function openPathInEditor(path: string, line?: number, col?: number): Promise<void> {
   const cfg = await getAppConfig();
-  await openInEditor(path, cfg.preferredEditor, cfg.customEditorPath ?? undefined);
+  await openInEditor(path, cfg.preferredEditor, cfg.customEditorPath ?? undefined, line, col);
 }
 
 export async function openPathInTerminal(path: string): Promise<void> {

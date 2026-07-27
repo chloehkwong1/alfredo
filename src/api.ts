@@ -674,8 +674,16 @@ export function openInEditor(
   path: string,
   editor: string,
   customPath?: string,
+  line?: number,
+  col?: number,
 ): Promise<void> {
-  return invoke("open_in_editor", { path, editor, customPath: customPath ?? null });
+  return invoke("open_in_editor", {
+    path,
+    editor,
+    customPath: customPath ?? null,
+    line: line ?? null,
+    col: col ?? null,
+  });
 }
 
 export function openInTerminal(

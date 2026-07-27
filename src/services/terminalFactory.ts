@@ -5,6 +5,7 @@ import { openUrl, openPath } from "@tauri-apps/plugin-opener";
 import { homeDir } from "@tauri-apps/api/path";
 import { writePty } from "../api";
 import { loadTerminalPreferences } from "./terminalPreferences";
+import { openPathInEditor } from "./openExternal";
 import { copyText } from "../lib/clipboard";
 
 // Resolved lazily on first `~/...` click and cached. Avoids an IPC call at
@@ -20,6 +21,31 @@ function ensureHomeDir(): Promise<string> {
 
 const TRAILING_PUNCT = /[.,;!?)\]}]$/;
 
+// Files better served by their dedicated macOS app (spreadsheets, previews,
+// media) than by the code editor. Everything NOT listed goes to the editor —
+// an allowlist of code extensions would punt unknown text files back to the
+// OS default app, which is the Xcode-opens-.rb problem all over again.
+const OS_DEFAULT_APP_EXTS = new Set([
+  "csv", "tsv", "xls", "xlsx", "numbers",
+  "doc", "docx", "pages", "ppt", "pptx", "key",
+  "pdf", "png", "jpg", "jpeg", "gif", "webp", "heic", "icns", "ico",
+  "mp4", "mov", "webm", "mp3", "wav", "aiff",
+  "zip", "tar", "gz", "tgz", "dmg", "sketch", "fig",
+]);
+
+export function opensInOsDefaultApp(path: string): boolean {
+  const ext = /\.(\w+)$/.exec(path)?.[1]?.toLowerCase();
+  return ext !== undefined && OS_DEFAULT_APP_EXTS.has(ext);
+}
+
+/** Split a trailing `:line[:col]` off a clicked path so it can be forwarded
+ *  to the preferred editor's goto support. */
+export function splitLineSuffix(uri: string): { path: string; line?: number; col?: number } {
+  const m = /:(\d+)(?::(\d+))?$/.exec(uri);
+  if (!m) return { path: uri };
+  return { path: uri.slice(0, m.index), line: Number(m[1]), col: m[2] ? Number(m[2]) : undefined };
+}
+
 // ── Clickable-text matchers ────────────────────────────────────
 // Each pattern is run independently; overlapping matches are resolved by
 // preferring the earliest start, then the longest match.
@@ -32,9 +58,9 @@ const LINK_PATTERNS: Array<{ kind: LinkKind; re: RegExp }> = [
   // trailing optional `:line[:col]` is handled by stripping in activate.
   { kind: "path",      re: /(?<=^|[\s=(),'"])(?:~|\/)[^\s"'<>`{}|()[\]]+/g },
   // Relative path: at least one `/` and a final `.ext`, so bare words and
-  // bare dirs don't match. Requires a session cwd to resolve against; gated
-  // in findLinks below.
-  { kind: "relpath",   re: /(?<=^|[\s=(),'"])(?:\.{1,2}\/)?(?:[\w.-]+\/)+[\w.-]+\.\w+/g },
+  // bare dirs don't match. Optional `:line[:col]` suffix is forwarded to the
+  // editor. Requires a session cwd to resolve against; gated in findLinks below.
+  { kind: "relpath",   re: /(?<=^|[\s=(),'"])(?:\.{1,2}\/)?(?:[\w.-]+\/)+[\w.-]+\.\w+(?::\d+(?::\d+)?)?/g },
 ];
 
 interface RawMatch { start: number; end: number; text: string; kind: LinkKind; }
@@ -77,16 +103,25 @@ async function activateLink(uri: string, kind: LinkKind, cwd?: string): Promise<
       await openUrl(/^https?:\/\//i.test(uri) ? uri : `http://${uri}`);
     } else if (kind === "relpath") {
       if (!cwd) return;
-      const cleaned = uri.replace(/:\d+(?::\d+)?$/, "");
-      await openPath(`${cwd.replace(/\/$/, "")}/${cleaned}`);
+      const { path, line, col } = splitLineSuffix(uri);
+      const abs = `${cwd.replace(/\/$/, "")}/${path}`;
+      if (opensInOsDefaultApp(path)) {
+        await openPath(abs);
+      } else {
+        await openPathInEditor(abs, line, col);
+      }
     } else {
-      const cleaned = uri.replace(/:\d+(?::\d+)?$/, "");
+      const { path: cleaned, line, col } = splitLineSuffix(uri);
       let path = cleaned;
       if (path.startsWith("~/")) {
         const home = await ensureHomeDir();
         path = home + cleaned.slice(1);
       }
-      await openPath(path);
+      if (opensInOsDefaultApp(path)) {
+        await openPath(path);
+      } else {
+        await openPathInEditor(path, line, col);
+      }
     }
   } catch (err) {
     console.error("activateLink failed", { uri, kind }, err);
@@ -197,8 +232,10 @@ export function stripClearScrollback(bytes: Uint8Array): Uint8Array {
  * - Kitty keyboard protocol support (Shift+Enter for newline in Claude Code)
  * - Cmd+Click activation for URLs, emails, localhost, absolute / `~/` file
  *   paths, and (when `cwd` is supplied) relative paths resolved against the
- *   session's worktree path. The link provider joins wrapped continuation
- *   rows so long links spanning multiple rows resolve as one match.
+ *   session's worktree path. File paths open in the preferred editor
+ *   (Settings → editor), forwarding any `:line[:col]` suffix. The link
+ *   provider joins wrapped continuation rows so long links spanning multiple
+ *   rows resolve as one match.
  *
  * Kitty protocol: xterm.js doesn't natively support the kitty keyboard
  * protocol. Claude Code queries for support via `CSI ? u` — we intercept

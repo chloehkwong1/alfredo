@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Terminal } from "@xterm/xterm";
-import { registerSelectToCopy, handleTerminalKeyEvent } from "./terminalFactory";
+import { registerSelectToCopy, handleTerminalKeyEvent, splitLineSuffix, opensInOsDefaultApp } from "./terminalFactory";
 import { copyText } from "../lib/clipboard";
 
 // Copy goes through the native-pasteboard helper (not navigator.clipboard),
@@ -237,3 +237,38 @@ describe("handleTerminalKeyEvent", () => {
   });
 });
 
+describe("splitLineSuffix", () => {
+  it("splits a :line suffix off a path", () => {
+    expect(splitLineSuffix("app/services/foo.rb:162")).toEqual({
+      path: "app/services/foo.rb",
+      line: 162,
+      col: undefined,
+    });
+  });
+
+  it("splits a :line:col suffix off a path", () => {
+    expect(splitLineSuffix("/abs/path/foo.ts:12:34")).toEqual({
+      path: "/abs/path/foo.ts",
+      line: 12,
+      col: 34,
+    });
+  });
+
+  it("returns the path unchanged when there is no suffix", () => {
+    expect(splitLineSuffix("app/services/foo.rb")).toEqual({ path: "app/services/foo.rb" });
+  });
+});
+
+describe("opensInOsDefaultApp", () => {
+  it("routes data/preview files to the OS default app", () => {
+    expect(opensInOsDefaultApp("reports/export.csv")).toBe(true);
+    expect(opensInOsDefaultApp("/abs/diagram.PNG")).toBe(true);
+    expect(opensInOsDefaultApp("docs/spec.pdf")).toBe(true);
+  });
+
+  it("keeps code and unknown extensions in the editor", () => {
+    expect(opensInOsDefaultApp("app/services/foo.rb")).toBe(false);
+    expect(opensInOsDefaultApp("schema.prisma")).toBe(false);
+    expect(opensInOsDefaultApp("no_extension")).toBe(false);
+  });
+});
