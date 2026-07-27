@@ -578,8 +578,17 @@ export function useSessionRestore(
 
         // Discovery-poll gate: only after restore has populated this repo may
         // useWorktreeDiscovery diff the store against disk. Marked outside the
-        // wts.length guard so 0-worktree repos are still polled.
-        useWorkspaceStore.getState().markRepoRestored(repo);
+        // wts.length guard so 0-worktree repos are still polled — but only on
+        // an actual success. `result === null` means withRetry exhausted its
+        // retries (listWorktrees kept failing): the store was never
+        // populated, so arming the gate here would let discovery diff a
+        // stale/empty store against disk and adopt every real worktree as
+        // "new". Leaving the repo unmarked keeps it unpolled — the same safe
+        // behavior as before this repo was ever restored — until a later
+        // restore attempt succeeds.
+        if (result !== null) {
+          useWorkspaceStore.getState().markRepoRestored(repo);
+        }
       }).catch(e => {
         console.warn(`[AppShell] Failed to list worktrees for ${repo}:`, e);
       });

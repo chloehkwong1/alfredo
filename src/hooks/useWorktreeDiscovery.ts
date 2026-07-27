@@ -15,22 +15,34 @@ export interface DiscoveryInput {
    *  listing for this repo (the baseline tick must adopt nothing — at startup
    *  every existing worktree would otherwise look "new" and get re-set-up). */
   known: Set<string> | undefined;
-  freshIds: string[];
+  freshWorktrees: Array<{ id: string; path: string }>;
+  /** Paths of this repo's real (non-isBranchMode) worktrees already in the
+   *  store, captured before this tick's setWorktreesForRepo runs. Worktree
+   *  ids are `{repo_path}::{branch}` (see git_manager.rs worktree_id), so a
+   *  `git checkout -b` inside an existing worktree changes its id while the
+   *  path stays put — that must not read as an external creation. Requiring
+   *  path novelty (in addition to id novelty) is what tells a branch switch
+   *  apart from a real `git worktree add`. */
+  knownPaths: Set<string>;
 }
 
 export interface DiscoveryDecision {
-  /** Ids that appeared since the baseline — externally created, to adopt. */
+  /** Ids that appeared since the baseline at a genuinely new path —
+   *  externally created, to adopt. */
   adoptIds: string[];
   /** The baseline to record for the next tick. */
   nextKnown: Set<string>;
 }
 
-export function computeDiscovery({ known, freshIds }: DiscoveryInput): DiscoveryDecision {
-  const nextKnown = new Set(freshIds);
+export function computeDiscovery({ known, freshWorktrees, knownPaths }: DiscoveryInput): DiscoveryDecision {
+  const nextKnown = new Set(freshWorktrees.map((wt) => wt.id));
   if (!known) {
     return { adoptIds: [], nextKnown };
   }
-  return { adoptIds: freshIds.filter((id) => !known.has(id)), nextKnown };
+  const adoptIds = freshWorktrees
+    .filter((wt) => !known.has(wt.id) && !knownPaths.has(wt.path))
+    .map((wt) => wt.id);
+  return { adoptIds, nextKnown };
 }
 
 async function pollRepo(
@@ -66,7 +78,8 @@ async function pollRepo(
 
     const decision = computeDiscovery({
       known: knownIds.get(repo),
-      freshIds: fresh.map((wt) => wt.id),
+      freshWorktrees: fresh.map((wt) => ({ id: wt.id, path: wt.path })),
+      knownPaths: new Set(storeWts.map((wt) => wt.path)),
     });
     // Record before any async adoption work so a slow adopt_worktree can't be
     // re-triggered by the next tick.
