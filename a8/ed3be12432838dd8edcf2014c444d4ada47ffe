@@ -1,0 +1,22 @@
+src/services/openExternal.ts
+  s_8c7148f082478f::t_4ee740dc5cd318 1,6-16
+src-tauri/src/commands/external_tools.rs
+  s_8c7148f082478f::t_6b2be662fe4e4c 71-85
+  s_8c7148f082478f::t_10bdd596cee544 23-28,32-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a8ed3be12432838dd8edcf2014c444d4ada47ffe",
+  "prompts": {},
+  "sessions": {
+    "s_8c7148f082478f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c15d15da-eb72-4f44-b202-df9fea8f6183",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
