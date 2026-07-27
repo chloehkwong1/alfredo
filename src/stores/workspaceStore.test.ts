@@ -680,3 +680,16 @@ describe("setActiveWorktree", () => {
     expect(store.getState().activeWorktreeId).toBeNull();
   });
 });
+
+// ── restoredRepos (discovery-poll gate) ───────────────────────────
+
+describe("restoredRepos", () => {
+  it("marks repos restored and resets on clearStore", () => {
+    const store = useWorkspaceStore;
+    expect(store.getState().restoredRepos.has("/repo")).toBe(false);
+    store.getState().markRepoRestored("/repo");
+    expect(store.getState().restoredRepos.has("/repo")).toBe(true);
+    store.getState().clearStore();
+    expect(store.getState().restoredRepos.has("/repo")).toBe(false);
+  });
+});

@@ -44,6 +44,11 @@ interface WorkspaceState {
   githubAuthErrors: Set<string>;
   setGithubAuthError: (repoPath: string) => void;
   clearGithubAuthError: (repoPath: string) => void;
+  /** Repos whose initial session restore has completed (phase 2 done).
+   *  Gates useWorktreeDiscovery — polling before restore would insert
+   *  worktrees ahead of tab/session hydration. */
+  restoredRepos: Set<string>;
+  markRepoRestored: (repoPath: string) => void;
 
   addWorktree: (worktree: Worktree) => void;
   replaceWorktree: (tempId: string, realWorktree: Worktree) => void;
@@ -211,6 +216,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       next.delete(repoPath);
       return { githubAuthErrors: next };
     }),
+  restoredRepos: new Set<string>(),
+  markRepoRestored: (repoPath) =>
+    set((state) => ({ restoredRepos: new Set(state.restoredRepos).add(repoPath) })),
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -545,6 +553,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       runningServers: {},
       githubAuthErrors: new Set<string>(),
       completedSetups: [],
+      restoredRepos: new Set<string>(),
     }),
 
   setRunningServer: (worktreeId, server) => set((state) => {

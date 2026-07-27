@@ -575,6 +575,11 @@ export function useSessionRestore(
               .catch(e => console.warn(`[AppShell] Failed to load diff stats for ${wt.path}:`, e));
           }
         }
+
+        // Discovery-poll gate: only after restore has populated this repo may
+        // useWorktreeDiscovery diff the store against disk. Marked outside the
+        // wts.length guard so 0-worktree repos are still polled.
+        useWorkspaceStore.getState().markRepoRestored(repo);
       }).catch(e => {
         console.warn(`[AppShell] Failed to list worktrees for ${repo}:`, e);
       });
