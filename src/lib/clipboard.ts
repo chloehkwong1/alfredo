@@ -3,10 +3,10 @@ import { debugLog, setClipboardText } from "../api";
 /**
  * Copy text to the system clipboard via the native pasteboard.
  *
- * `navigator.clipboard.writeText` corrupts non-ASCII text (é → √©) when the
- * app is Dock-launched: with no locale in the environment, the WKWebView write
- * path re-decodes the UTF-8 payload as MacRoman. The Rust command writes an
- * explicit NSString instead. Falls back to `navigator.clipboard` where the
+ * On Dock-launched (locale-less) builds, WKWebView re-decodes UTF-8 as
+ * MacRoman for both `navigator.clipboard.writeText` and string `invoke` args
+ * (é → √©), so the text travels to the Rust command as a byte array — see
+ * setClipboardText in api.ts. Falls back to `navigator.clipboard` where the
  * native command is unavailable (non-macOS builds, tests).
  */
 export async function copyText(text: string): Promise<void> {

@@ -711,7 +711,10 @@ export function playSound(id: string): Promise<void> {
 // ── Clipboard ───────────────────────────────────────────────────
 
 export function setClipboardText(text: string): Promise<void> {
-  return invoke("set_clipboard_text", { text });
+  // Encode to bytes: string IPC args get UTF-8→MacRoman mojibaked by WKWebView
+  // on Dock-launched (locale-less) builds; byte arrays cross as JSON numbers
+  // and are immune. See set_clipboard_text in commands/clipboard.rs.
+  return invoke("set_clipboard_text", { bytes: Array.from(new TextEncoder().encode(text)) });
 }
 
 // ── Notifications ───────────────────────────────────────────────

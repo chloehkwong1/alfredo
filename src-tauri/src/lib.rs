@@ -106,6 +106,17 @@ fn dispatch_open_issue<R: tauri::Runtime>(
 }
 
 pub fn run() {
+    // Dock/Finder launches have no locale in the environment, and WKWebView
+    // falls back to MacRoman as the default C-string encoding — which mojibakes
+    // any non-ASCII string crossing the JS→Rust IPC boundary (fetch bodies on
+    // the ipc:// protocol get re-decoded as MacRoman inside WebKit). Terminal
+    // launches never hit this because the shell exports LANG. Pin a UTF-8
+    // locale before the webview (and its XPC children) spawn; respect an
+    // existing user locale.
+    if std::env::var_os("LANG").is_none() {
+        std::env::set_var("LANG", "en_US.UTF-8");
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             use tauri::Manager;

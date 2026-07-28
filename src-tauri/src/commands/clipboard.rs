@@ -2,15 +2,17 @@ use crate::types::AppError;
 
 /// Write text to the system clipboard from native code.
 ///
-/// The WebView's `navigator.clipboard.writeText` corrupts non-ASCII text when
-/// the app is launched without a locale in its environment (i.e. from the
-/// Dock): the UTF-8 payload gets re-decoded with the MacRoman default
-/// C-string encoding somewhere in the WKWebView write path, so "é" lands on
-/// the pasteboard as "√©". Writing an explicit NSString via NSPasteboard is
-/// locale-independent. The frontend falls back to `navigator.clipboard` on
-/// platforms where this returns an error.
+/// The text arrives as raw UTF-8 bytes rather than a JSON string: on
+/// Dock-launched (locale-less) builds, WKWebView re-decodes string IPC
+/// payloads with the MacRoman default C-string encoding somewhere between the
+/// frontend `fetch` body and the native request, so "—" lands here as "‚Äî".
+/// Byte arrays serialize as JSON numbers — pure ASCII on the wire — and are
+/// immune. Same pattern as `write_pty`. The frontend falls back to
+/// `navigator.clipboard` on platforms where this returns an error.
 #[tauri::command]
-pub async fn set_clipboard_text(text: String) -> Result<(), AppError> {
+pub async fn set_clipboard_text(bytes: Vec<u8>) -> Result<(), AppError> {
+    let text = String::from_utf8(bytes)
+        .map_err(|e| AppError::Config(format!("clipboard payload is not valid UTF-8: {e}")))?;
     #[cfg(target_os = "macos")]
     {
         use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString};
