@@ -1774,6 +1774,113 @@ mod tests {
         assert_eq!(merge_base(root, "a", "b").await.unwrap(), base);
     }
 
+    #[tokio::test]
+    async fn has_upstream_true_with_tracking_branch_false_without() {
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+
+        let remote = TempDir::new().expect("remote dir");
+        StdCommand::new("git")
+            .args(["init", "--bare"])
+            .current_dir(remote.path())
+            .output()
+            .expect("git init --bare");
+        run_git(root, &["remote", "add", "origin", remote.path().to_str().unwrap()]);
+        run_git(root, &["push", "-u", "origin", "main"]);
+
+        assert!(has_upstream(root).await, "main should have an upstream after push -u");
+
+        run_git(root, &["checkout", "-b", "no-upstream"]);
+        assert!(!has_upstream(root).await, "a fresh local branch should have no upstream");
+    }
+
+    #[tokio::test]
+    async fn rebase_onto_sha_preserves_uncommitted_changes() {
+        // Same rewritten-parent scenario as rebase_onto_sha_survives_parent_rewrite,
+        // but the child worktree is dirty when the rebase runs. wip-stash/unwip must
+        // round-trip the uncommitted change untouched (present, but still uncommitted).
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+        run_git(root, &["checkout", "-b", "parent"]);
+        std::fs::write(dir.path().join("p.txt"), "p1").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "p1"]);
+        std::fs::write(dir.path().join("p.txt"), "p2").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "p2"]);
+        let old_parent_tip = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "-b", "child"]);
+        std::fs::write(dir.path().join("c.txt"), "c1").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "c1"]);
+        run_git(root, &["checkout", "parent"]);
+        std::fs::write(dir.path().join("p.txt"), "p2-rewritten").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "--amend", "-m", "p2 rewritten"]);
+        let new_parent_tip = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "child"]);
+
+        // Dirty the child worktree with an uncommitted, untracked file.
+        std::fs::write(dir.path().join("dirty.txt"), "uncommitted").unwrap();
+
+        rebase_onto_sha(root, &new_parent_tip, &old_parent_tip, true)
+            .await
+            .expect("rebase --onto must succeed with a dirty tree");
+
+        // Rebase correctness unaffected by the wip wrapping.
+        let out = std::process::Command::new("git")
+            .args(["rev-list", "--count", &format!("{new_parent_tip}..HEAD")])
+            .current_dir(root).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "1");
+
+        // Uncommitted change is restored: present in the tree, not committed.
+        assert_eq!(std::fs::read_to_string(dir.path().join("dirty.txt")).unwrap(), "uncommitted");
+        let status = std::process::Command::new("git").args(["status", "--porcelain"])
+            .current_dir(root).output().unwrap();
+        let status_str = String::from_utf8_lossy(&status.stdout);
+        assert!(status_str.contains("dirty.txt"), "dirty.txt should still be uncommitted, got status: {status_str}");
+        let subjects = std::process::Command::new("git").args(["log", "--pretty=%s"])
+            .current_dir(root).output().unwrap();
+        assert!(
+            !String::from_utf8_lossy(&subjects.stdout).contains("--wip--"),
+            "wip commit leaked into history"
+        );
+    }
+
+    #[tokio::test]
+    async fn rebase_onto_sha_conflict_leaves_rebase_in_place_when_abort_on_failure_false() {
+        // Genuine conflict, but abort_on_failure=false: the conflicted rebase must
+        // be left in place for manual/agent resolution, not aborted.
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+        run_git(root, &["checkout", "-b", "parent"]);
+        std::fs::write(dir.path().join("s.txt"), "base").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "p1"]);
+        let old_parent_tip = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "-b", "child"]);
+        std::fs::write(dir.path().join("s.txt"), "child-edit").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "c1"]);
+        run_git(root, &["checkout", "parent"]);
+        std::fs::write(dir.path().join("s.txt"), "parent-edit").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "p2"]);
+        let new_parent_tip = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "child"]);
+
+        let err = rebase_onto_sha(root, &new_parent_tip, &old_parent_tip, false)
+            .await
+            .expect_err("conflicting rebase must fail");
+        assert!(err.to_string().contains("left in place"), "got: {err}");
+
+        let rebase_merge = dir.path().join(".git").join("rebase-merge");
+        let rebase_apply = dir.path().join(".git").join("rebase-apply");
+        assert!(
+            rebase_merge.exists() || rebase_apply.exists(),
+            "conflicted rebase should be left in place, not aborted"
+        );
+        let status = std::process::Command::new("git").args(["status", "--porcelain"])
+            .current_dir(root).output().unwrap();
+        assert!(!status.stdout.is_empty(), "conflict should be visible in git status");
+
+        // Clean up so the tempdir teardown isn't left mid-rebase.
+        std::process::Command::new("git").args(["rebase", "--abort"]).current_dir(root).output().unwrap();
+    }
+
     #[test]
     fn validate_branch_name_accepts_valid() {
         for name in [
