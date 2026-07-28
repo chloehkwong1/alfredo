@@ -803,6 +803,90 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
     Ok(())
 }
 
+/// `#[allow(dead_code)]` because these primitives are consumed by the
+/// restacking logic added in a later stacked-PR task; keeping them here
+/// alongside `rebase_onto` avoids churn there.
+///
+/// Rebase the current branch's commits since `baseline_sha` onto `target_sha`:
+/// `git rebase --onto <target> <baseline>`. Replays only the child's own commits,
+/// so it survives parent history rewrites and squash-merged parents.
+/// `abort_on_failure: false` leaves a conflicted rebase in place (agent handoff path).
+#[allow(dead_code)]
+pub async fn rebase_onto_sha(
+    worktree_path: &str,
+    target_sha: &str,
+    baseline_sha: &str,
+    abort_on_failure: bool,
+) -> Result<(), AppError> {
+    validate_commit_hash(target_sha)?;
+    validate_commit_hash(baseline_sha)?;
+
+    let wip_marker = wip_stash(worktree_path).await?;
+
+    let rebase_result: Result<(), AppError> = async {
+        let rebase = git_command()
+            .args(["rebase", "--onto", target_sha, baseline_sha])
+            .current_dir(worktree_path)
+            .output()
+            .await
+            .map_err(|e| AppError::Git(format!("failed to spawn git rebase: {e}")))?;
+        if !rebase.status.success() {
+            let stderr = String::from_utf8_lossy(&rebase.stderr).to_string();
+            if abort_on_failure {
+                let _ = git_command()
+                    .args(["rebase", "--abort"])
+                    .current_dir(worktree_path)
+                    .output()
+                    .await;
+                return Err(AppError::Git(format!("rebase --onto failed (aborted): {stderr}")));
+            }
+            return Err(AppError::Git(format!("rebase --onto failed (left in place): {stderr}")));
+        }
+        Ok(())
+    }
+    .await;
+
+    // Mirror rebase_onto's invariant: always unwip when we successfully finished or
+    // aborted; skip only when we intentionally left a conflicted rebase in place.
+    let left_in_place = rebase_result.is_err() && !abort_on_failure;
+    let unwip_result: Result<(), AppError> = match (wip_marker.as_ref(), left_in_place) {
+        (Some(marker), false) => unwip(worktree_path, marker).await,
+        _ => Ok(()),
+    };
+
+    rebase_result?;
+    unwip_result?;
+    Ok(())
+}
+
+/// `git merge-base <a> <b>` — used as the baseline fallback for pre-existing stacks.
+#[allow(dead_code)]
+pub async fn merge_base(worktree_path: &str, a: &str, b: &str) -> Result<String, AppError> {
+    let output = git_command()
+        .args(["merge-base", a, b])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git merge-base: {e}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Git(format!("git merge-base failed: {stderr}")));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+/// True when the current branch has an upstream tracking ref.
+#[allow(dead_code)]
+pub async fn has_upstream(worktree_path: &str) -> bool {
+    git_command()
+        .args(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
 /// Reject anything that isn't a plausible git object hash before it reaches a
 /// `git` argument position — a value beginning with `-` would otherwise be
 /// parsed as a flag rather than a revision.
@@ -1604,6 +1688,90 @@ mod tests {
             "upstream commit missing: {subjects:?}"
         );
         assert!(!subjects.iter().any(|s| s.contains("--wip--")), "wip commit leaked: {subjects:?}");
+    }
+
+    fn run_git(dir: &str, args: &[&str]) {
+        let out = std::process::Command::new("git").args(args).current_dir(dir).output().unwrap();
+        assert!(out.status.success(), "git {args:?} failed: {}", String::from_utf8_lossy(&out.stderr));
+    }
+    fn rev_parse(dir: &str, r: &str) -> String {
+        let out = std::process::Command::new("git").args(["rev-parse", r]).current_dir(dir).output().unwrap();
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    #[tokio::test]
+    async fn rebase_onto_sha_survives_parent_rewrite() {
+        // repo: main ── p1 ── p2 (parent)   child: p2 ── c1
+        // parent then amends p2 → p2' (history rewrite).
+        // Plain rebase would replay p2 onto p2' and conflict; --onto replays only c1.
+        let dir = init_test_repo(); // main with one commit
+        let root = dir.path().to_str().unwrap();
+        run_git(root, &["checkout", "-b", "parent"]);
+        std::fs::write(dir.path().join("p.txt"), "p1").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "p1"]);
+        std::fs::write(dir.path().join("p.txt"), "p2").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "p2"]);
+        let old_parent_tip = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "-b", "child"]);
+        std::fs::write(dir.path().join("c.txt"), "c1").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "c1"]);
+        // rewrite parent: amend p2 with different content
+        run_git(root, &["checkout", "parent"]);
+        std::fs::write(dir.path().join("p.txt"), "p2-rewritten").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "--amend", "-m", "p2 rewritten"]);
+        let new_parent_tip = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "child"]);
+
+        rebase_onto_sha(root, &new_parent_tip, &old_parent_tip, true).await.expect("rebase --onto must succeed where plain rebase conflicts");
+
+        // child has exactly one commit on top of the rewritten parent
+        let out = std::process::Command::new("git")
+            .args(["rev-list", "--count", &format!("{new_parent_tip}..HEAD")])
+            .current_dir(root).output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "1");
+        assert!(std::fs::read_to_string(dir.path().join("p.txt")).unwrap().contains("rewritten"));
+    }
+
+    #[tokio::test]
+    async fn rebase_onto_sha_conflict_aborts_and_restores() {
+        // child edits the same line the rewritten parent edits → genuine conflict.
+        // With abort_on_failure=true the worktree must come back clean on the old tip.
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+        run_git(root, &["checkout", "-b", "parent"]);
+        std::fs::write(dir.path().join("s.txt"), "base").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "p1"]);
+        let old_parent_tip = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "-b", "child"]);
+        std::fs::write(dir.path().join("s.txt"), "child-edit").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "c1"]);
+        let child_tip_before = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "parent"]);
+        std::fs::write(dir.path().join("s.txt"), "parent-edit").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "p2"]);
+        let new_parent_tip = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "child"]);
+
+        let err = rebase_onto_sha(root, &new_parent_tip, &old_parent_tip, true).await;
+        assert!(err.is_err());
+        assert_eq!(rev_parse(root, "HEAD"), child_tip_before, "aborted rebase must restore the tip");
+        let status = std::process::Command::new("git").args(["status", "--porcelain"])
+            .current_dir(root).output().unwrap();
+        assert!(status.stdout.is_empty(), "worktree must be clean after abort");
+    }
+
+    #[tokio::test]
+    async fn merge_base_returns_fork_point() {
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+        let base = rev_parse(root, "HEAD");
+        run_git(root, &["checkout", "-b", "a"]);
+        std::fs::write(dir.path().join("a.txt"), "a").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "a"]);
+        run_git(root, &["checkout", "-b", "b", &base]);
+        std::fs::write(dir.path().join("b.txt"), "b").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "b"]);
+        assert_eq!(merge_base(root, "a", "b").await.unwrap(), base);
     }
 
     #[test]
