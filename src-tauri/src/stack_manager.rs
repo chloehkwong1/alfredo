@@ -24,14 +24,12 @@ struct StackStatusPayload {
 /// `restack_child` by comparing its persisted baseline against the parent's
 /// current tip.
 pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_paths: &[String]) {
-    // One registry snapshot per poll: cwd → status. Unavailable registry (no
-    // claude binary, timeout) degrades to clean-tree-only gating — restacks
-    // must not be blocked forever by a missing CLI.
-    let registry: HashMap<String, String> =
-        match crate::commands::claude_registry::poll_claude_registry().await {
-            Ok(entries) => entries.into_iter().map(|e| (e.cwd, e.status)).collect(),
-            Err(_) => HashMap::new(),
-        };
+    // One registry snapshot per poll, fetched lazily on first actual need (most
+    // polls touch zero stacked repos, so the common case pays no subprocess
+    // spawn). Unavailable registry (no claude binary, timeout) degrades to
+    // clean-tree-only gating — restacks must not be blocked forever by a
+    // missing CLI.
+    let mut registry: Option<HashMap<String, String>> = None;
 
     for repo_path in repo_paths {
         // Task 13: detect stale parents (merged into main) first
@@ -74,17 +72,20 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
 
             // Quiet gate: skip while the parent's checkout is dirty or its agent is busy.
             if let Some(parent_path) = checkouts.get(parent_branch) {
-                if registry.get(parent_path).map(String::as_str) == Some("busy") {
+                if registry.is_none() {
+                    registry = Some(
+                        match crate::commands::claude_registry::poll_claude_registry().await {
+                            Ok(entries) => entries.into_iter().map(|e| (e.cwd, e.status)).collect(),
+                            Err(_) => HashMap::new(),
+                        },
+                    );
+                }
+                let busy = registry.as_ref().and_then(|r| r.get(parent_path)).map(String::as_str)
+                    == Some("busy");
+                if busy {
                     continue;
                 }
-                let parent_dirty = git_command()
-                    .args(["status", "--porcelain"])
-                    .current_dir(parent_path)
-                    .output()
-                    .await
-                    .map(|o| !o.stdout.is_empty())
-                    .unwrap_or(false);
-                if parent_dirty {
+                if worktree_is_dirty(parent_path, false).await {
                     continue;
                 }
             }
@@ -158,13 +159,17 @@ pub async fn check_merged_parents(
 
         let mut config_changed = false;
         for (child_name, _merged_parent) in &affected {
-            // Minimal adaptation to the new restack_child signature (Task 4 concern,
-            // to be fixed properly in Task 5): restack_child resolves the parent
-            // branch from `stack_parent_overrides`, which at this point still holds
-            // the *merged* (likely-deleted) parent — the override below only clears
-            // it afterward. If the merged branch ref is gone, restack_child can't
-            // resolve a tip and no-ops instead of rebasing onto the default branch.
-            let _ = restack_child(app_handle, app_data_dir, repo_path, child_name).await;
+            // Deferred: `restack_child` resolves its parent from
+            // `stack_parent_overrides`, which at this point still holds the
+            // *merged* branch (cleared only below) — if that branch still exists
+            // locally, calling it here would rebase onto the wrong target and
+            // force-push a bad baseline. Task 5 introduces a
+            // `restack_onto_default`-style primitive that targets `default_short`
+            // directly; until then we only retarget the PR base and clear the
+            // stale override.
+            eprintln!(
+                "[stack_manager] {child_name}: parent merged onto {default_short} — auto-restack deferred (Task 5)"
+            );
 
             // Update the child's PR base branch to the default branch
             if let Some((ref owner, ref repo)) = owner_repo {
@@ -394,15 +399,27 @@ pub async fn restack_child(
     }
 
     match run_restack(app_handle, &worktree_path, worktree_name, &parent_tip, &baseline).await {
-        Ok(()) => {
+        // Only a real rebase moves the child's history onto `parent_tip` — only
+        // that outcome may advance the persisted baseline. A dirty-skip performs
+        // no rebase at all, so persisting here would make every later poll
+        // short-circuit `UpToDate` forever and desync the baseline from HEAD.
+        Ok(RestackOutcome::Rebased) => {
             config_manager::set_stack_baseline(&mut config, worktree_name, &parent_tip);
             if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &config).await {
                 eprintln!("[stack_manager] failed to persist baseline for {worktree_name}: {e}");
             }
             Ok(())
         }
+        Ok(RestackOutcome::SkippedDirty) => Ok(()),
         Err(e) => Err(e),
     }
+}
+
+/// Outcome of `run_restack`'s attempt, distinct from a bare `Result<(), _>` so
+/// callers can gate baseline persistence on an actual rebase having happened.
+enum RestackOutcome {
+    Rebased,
+    SkippedDirty,
 }
 
 /// Shared restack sequence (Tasks 5/7 reuse this verbatim): dirty-check, rebase
@@ -414,18 +431,13 @@ async fn run_restack(
     worktree_name: &str,
     target_tip: &str,
     baseline: &str,
-) -> Result<(), String> {
-    // Dirty child → visible skip, not a silent eprintln.
-    let dirty = git_command()
-        .args(["status", "--porcelain"])
-        .current_dir(worktree_path)
-        .output()
-        .await
-        .map(|o| !o.stdout.is_empty())
-        .unwrap_or(true);
-    if dirty {
+) -> Result<RestackOutcome, String> {
+    // Dirty child → visible skip, not a silent eprintln. Unknown status
+    // (spawn failure) defaults to "dirty": skip rather than risk rebasing an
+    // uncertain tree.
+    if worktree_is_dirty(worktree_path, true).await {
         emit_status(app_handle, worktree_name, StackRebaseStatus::SkippedDirty);
-        return Ok(());
+        return Ok(RestackOutcome::SkippedDirty);
     }
 
     emit_status(app_handle, worktree_name, StackRebaseStatus::Rebasing);
@@ -443,7 +455,7 @@ async fn run_restack(
                     emit_status(app_handle, worktree_name, StackRebaseStatus::PushFailed);
                 }
             }
-            Ok(())
+            Ok(RestackOutcome::Rebased)
         }
         Err(e) => {
             eprintln!("[stack_manager] restack failed for {worktree_name}: {e}");
@@ -452,6 +464,21 @@ async fn run_restack(
             Err(e.to_string())
         }
     }
+}
+
+/// True when `git status --porcelain` reports any changes. `default_if_unknown`
+/// is the fail-safe when the check itself errors (spawn failure): callers that
+/// need "don't rebase on an uncertain tree" pass `true`; callers that use this
+/// only as a soft gating heuristic (don't block forever on a transient error)
+/// pass `false`.
+async fn worktree_is_dirty(worktree_path: &str, default_if_unknown: bool) -> bool {
+    git_command()
+        .args(["status", "--porcelain"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(default_if_unknown)
 }
 
 fn emit_status(app_handle: &AppHandle, worktree_name: &str, status: StackRebaseStatus) {
@@ -575,5 +602,45 @@ mod tests {
         let overrides = map(&[("wt-a", "feat/b"), ("wt-b", "feat/a")]);
         let name_to_branch = map(&[("wt-a", "feat/a"), ("wt-b", "feat/b")]);
         assert!(restack_order(&overrides, &name_to_branch).is_empty());
+    }
+
+    // `worktree_is_dirty` is the discriminator `run_restack` gates
+    // `RestackOutcome::Rebased` vs `SkippedDirty` on — and `restack_child` only
+    // persists a new baseline for `Rebased`. These cover the actual
+    // state-corruption case from the review: a dirty child must be detected as
+    // dirty so its baseline is never silently advanced without a real rebase.
+    use std::process::Command as StdCommand;
+    use tempfile::TempDir;
+
+    fn init_test_repo() -> TempDir {
+        let dir = TempDir::new().expect("create temp dir");
+        let path = dir.path();
+        StdCommand::new("git")
+            .args(["init", "-b", "main"])
+            .current_dir(path)
+            .output()
+            .expect("git init");
+        StdCommand::new("git")
+            .args([
+                "-c", "user.name=Test", "-c", "user.email=test@test.com",
+                "commit", "--allow-empty", "-m", "init",
+            ])
+            .current_dir(path)
+            .output()
+            .expect("git initial commit");
+        dir
+    }
+
+    #[tokio::test]
+    async fn worktree_is_dirty_false_for_clean_tree() {
+        let dir = init_test_repo();
+        assert!(!worktree_is_dirty(dir.path().to_str().expect("utf8 path"), true).await);
+    }
+
+    #[tokio::test]
+    async fn worktree_is_dirty_true_for_uncommitted_changes() {
+        let dir = init_test_repo();
+        std::fs::write(dir.path().join("uncommitted.txt"), "wip").expect("write file");
+        assert!(worktree_is_dirty(dir.path().to_str().expect("utf8 path"), false).await);
     }
 }
