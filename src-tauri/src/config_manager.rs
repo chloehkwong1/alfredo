@@ -63,6 +63,8 @@ struct ConfigFile {
     #[serde(default)]
     pub stack_parent_overrides: HashMap<String, String>,
     #[serde(default)]
+    pub stack_baselines: HashMap<String, String>,
+    #[serde(default)]
     pub archive_script: Option<String>,
     #[serde(default)]
     pub linear_tickets: HashMap<String, LinearTicketRef>,
@@ -193,6 +195,7 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
             worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
+            stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
             port_assignments: HashMap::new(),
@@ -244,6 +247,7 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
         worktree_overrides: file.worktree_overrides,
         run_script: file.run_script,
         stack_parent_overrides: file.stack_parent_overrides,
+        stack_baselines: file.stack_baselines,
         archive_script: file.archive_script,
         linear_tickets: file.linear_tickets,
         port_assignments: file.port_assignments,
@@ -378,6 +382,7 @@ async fn write_personal_config_file(
         worktree_overrides: config.worktree_overrides.clone(),
         run_script: config.run_script.clone(),
         stack_parent_overrides: config.stack_parent_overrides.clone(),
+        stack_baselines: config.stack_baselines.clone(),
         archive_script: config.archive_script.clone(),
         linear_tickets: config.linear_tickets.clone(),
         port_assignments: config.port_assignments.clone(),
@@ -486,6 +491,24 @@ pub fn set_stack_parent(config: &mut AppConfig, worktree_name: &str, parent_bran
 
 pub fn clear_stack_parent(config: &mut AppConfig, worktree_name: &str) {
     config.stack_parent_overrides.remove(worktree_name);
+}
+
+/// `#[allow(dead_code)]` because these accessors are consumed by the
+/// restacking logic added in a later stacked-PR task; keeping them here
+/// alongside the `stack_baselines` field avoids churn there.
+#[allow(dead_code)]
+pub fn get_stack_baseline(config: &AppConfig, worktree_name: &str) -> Option<String> {
+    config.stack_baselines.get(worktree_name).cloned()
+}
+
+#[allow(dead_code)]
+pub fn set_stack_baseline(config: &mut AppConfig, worktree_name: &str, sha: &str) {
+    config.stack_baselines.insert(worktree_name.to_string(), sha.to_string());
+}
+
+#[allow(dead_code)]
+pub fn clear_stack_baseline(config: &mut AppConfig, worktree_name: &str) {
+    config.stack_baselines.remove(worktree_name);
 }
 
 pub fn get_linear_ticket(config: &AppConfig, worktree_name: &str) -> Option<LinearTicketRef> {
@@ -692,6 +715,7 @@ mod tests {
             worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
+            stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
             port_assignments: HashMap::new(),
@@ -854,6 +878,7 @@ mod tests {
             claude_defaults: None,
             worktree_overrides: None,
             stack_parent_overrides: HashMap::new(),
+            stack_baselines: HashMap::new(),
             archive_script: Some("".into()),
             linear_tickets: HashMap::new(),
             port_assignments: HashMap::new(),
@@ -1058,6 +1083,7 @@ mod tests {
                 ..Default::default()
             }),
             stack_parent_overrides: HashMap::new(),
+            stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
             port_assignments: HashMap::new(),
@@ -1135,6 +1161,7 @@ mod tests {
             worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
+            stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
             port_assignments: HashMap::new(),
@@ -1157,6 +1184,60 @@ mod tests {
             Some("/proceed_with_ticket {{identifier}}")
         );
         assert!(reloaded.linear_auto_submit);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stack_baselines_round_trip() -> Result<(), Box<dyn std::error::Error>> {
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        let mut config = AppConfig {
+            repo_path: repo_path.to_string(),
+            setup_scripts: None,
+            github_token: None,
+            linear_api_key: None,
+            branch_mode: false,
+            column_overrides: HashMap::new(),
+            theme: None,
+            notifications: None,
+            worktree_base_path: None,
+            claude_defaults: None,
+            worktree_overrides: None,
+            run_script: None,
+            stack_parent_overrides: HashMap::new(),
+            stack_baselines: HashMap::new(),
+            archive_script: None,
+            linear_tickets: HashMap::new(),
+            port_assignments: HashMap::new(),
+            auto_assign_ports: false,
+            port_env_var: None,
+            port_range_start: None,
+            port_range_end: None,
+            linear_prompt_template: None,
+            linear_auto_submit: false,
+        };
+        set_stack_parent(&mut config, "feat-child", "feat/parent");
+        set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
+
+        // Bypass keychain (unreliable under test parallelism) and write the
+        // config JSON directly, mirroring `roundtrips_linear_prompt_fields`.
+        write_personal_config_file(app_data.path(), repo_path, &config).await?;
+
+        let loaded = load_personal_config(app_data.path(), repo_path).await?;
+        assert_eq!(
+            get_stack_baseline(&loaded, "feat-child").as_deref(),
+            Some("abc123abc123abc123abc123abc123abc123abcd")
+        );
+        assert_eq!(
+            loaded.stack_parent_overrides.get("feat-child").map(String::as_str),
+            Some("feat/parent")
+        );
+
+        clear_stack_baseline(&mut config, "feat-child");
+        assert!(get_stack_baseline(&config, "feat-child").is_none());
+
         Ok(())
     }
 

@@ -445,6 +445,11 @@ pub struct AppConfig {
     /// Maps worktree name → parent branch name for stacked branches.
     #[serde(default)]
     pub stack_parent_overrides: HashMap<String, String>,
+    /// worktree dir name → SHA of the parent tip this child was last restacked onto.
+    /// Drives `git rebase --onto <parent-tip> <baseline>` so only the child's own
+    /// commits replay. Missing entry → merge-base fallback at restack time.
+    #[serde(default)]
+    pub stack_baselines: HashMap<String, String>,
     #[serde(default)]
     pub archive_script: Option<String>,
     /// Maps worktree name → Linear ticket reference for worktrees created from a Linear ticket.
