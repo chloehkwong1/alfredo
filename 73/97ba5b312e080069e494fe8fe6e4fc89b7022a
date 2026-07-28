@@ -1,0 +1,25 @@
+src-tauri/src/lib.rs
+  s_939f7c48f100f0::t_d60a3e739d6c4f 109-119
+src/api.ts
+  s_939f7c48f100f0::t_531a2156a40539 714-717
+src/lib/clipboard.ts
+  s_939f7c48f100f0::t_e89915335ebcd3 6-9
+src-tauri/src/commands/clipboard.rs
+  s_939f7c48f100f0::t_36186080e80d88 5-11,13-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "7397ba5b312e080069e494fe8fe6e4fc89b7022a",
+  "prompts": {},
+  "sessions": {
+    "s_939f7c48f100f0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7fcd11c2-e959-4409-8c24-19f054407832",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
