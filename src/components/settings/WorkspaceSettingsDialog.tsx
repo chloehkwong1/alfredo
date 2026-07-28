@@ -873,6 +873,30 @@ function WorkspaceSettingsDialog({
                     {repoExtraFlagsError ?? "Extra flags for new Claude tabs in this repo. Overrides the global default."}
                   </p>
                 </div>
+
+                {/* Linear prompt */}
+                <div className="mb-[18px]">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">Linear prompt</div>
+                  <textarea
+                    spellCheck={false}
+                    className={[inputClass.replace("h-8", ""), "font-mono h-24 py-2 resize-none leading-relaxed"].join(" ")}
+                    placeholder={"Work on Linear issue {{identifier}}:\n\nSuggested branch name: {{branch}}\n\n# {{title}}\n\n{{description}}"}
+                    value={config.linearPromptTemplate ?? ""}
+                    onChange={(e) => updateConfig({ linearPromptTemplate: e.target.value || null })}
+                  />
+                  <p className="text-xs text-text-tertiary mt-[5px]">
+                    Pasted into Claude when opening a Linear issue in this repo. Variables:{" "}
+                    {"{{identifier}}, {{title}}, {{description}}, {{branch}}, {{url}}"}. Leave empty for the default format.
+                  </p>
+                  <label className="flex items-center gap-2 mt-2 text-[13px] text-text-primary cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.linearAutoSubmit ?? false}
+                      onChange={(e) => updateConfig({ linearAutoSubmit: e.target.checked })}
+                    />
+                    Submit prompt automatically
+                  </label>
+                </div>
               </div>
             )}
 
