@@ -1146,7 +1146,10 @@ mod tests {
             linear_auto_submit: true,
         };
 
-        let _ = save_config(app_data.path(), repo_path, &config).await;
+        // Bypass keychain (which is unreliable under test parallelism) and write
+        // the config JSON directly. Tests that ConfigFile serde correctly
+        // round-trips the new fields without depending on OS keychain access.
+        write_personal_config_file(app_data.path(), repo_path, &config).await?;
 
         let reloaded = load_effective_config(app_data.path(), repo_path).await?.effective;
         assert_eq!(
