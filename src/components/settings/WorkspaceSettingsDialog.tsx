@@ -50,6 +50,7 @@ import {
   repoInitials,
 } from "../sidebar/RepoSelector";
 import { copyText } from "../../lib/clipboard";
+import { DEFAULT_TEMPLATE } from "../../services/linearPrompt";
 
 type WorkspaceTab = "general" | "scripts" | "ports";
 type ScriptKind = "setup" | "run" | "archive";
@@ -363,6 +364,11 @@ function WorkspaceSettingsDialog({
   const [appConfig, setAppConfig] = useState<GlobalAppConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // True when getConfig failed and `config` holds the minimal seeded fallback.
+  // Saving that fallback would silently wipe every personal field for the repo
+  // (template, auto-submit, scripts, tokens …), so the save path is disabled
+  // until a successful load clears the flag.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [currentRepoPath, setCurrentRepoPath] = useState(
     defaultRepoPath ?? repoPath,
@@ -410,8 +416,12 @@ function WorkspaceSettingsDialog({
       .then((c) => {
         setConfig(c);
         setDirty(false);
+        setLoadFailed(false);
       })
       .catch(() => {
+        // Seed a display-only fallback so the dialog renders, but flag the
+        // failure — persisting this object would wipe the repo's saved config.
+        setLoadFailed(true);
         setConfig({
           repoPath: currentRepoPath,
           setupScripts: [],
@@ -442,7 +452,10 @@ function WorkspaceSettingsDialog({
     const refresh = () => {
       if (dirtyRef.current) return;
       getConfig(currentRepoPath)
-        .then((c) => setConfig(c))
+        .then((c) => {
+          setConfig(c);
+          setLoadFailed(false);
+        })
         .catch(() => {});
     };
     window.addEventListener("focus", refresh);
@@ -551,7 +564,7 @@ function WorkspaceSettingsDialog({
   }, [currentRepoPath, currentMode]);
 
   const handleSave = useCallback(async () => {
-    if (!config) return;
+    if (!config || loadFailed) return;
     setSaving(true);
     setSaveError(null);
     try {
@@ -588,7 +601,7 @@ function WorkspaceSettingsDialog({
     } finally {
       setSaving(false);
     }
-  }, [config, appConfig, currentRepoPath, displayNameDraft, shortLabelDraft, repoDisplayNames, repoShortLabels, onSetRepoDisplayName, onSetRepoShortLabel, onOpenChange]);
+  }, [config, loadFailed, appConfig, currentRepoPath, displayNameDraft, shortLabelDraft, repoDisplayNames, repoShortLabels, onSetRepoDisplayName, onSetRepoShortLabel, onOpenChange]);
 
   const currentColorId = resolveColorId(repoColors[currentRepoPath]);
   const previewColor = (currentColorId ? REPO_COLOR_PALETTE.find((c) => c.id === currentColorId) : undefined) ?? REPO_COLOR_PALETTE[0];
@@ -880,7 +893,7 @@ function WorkspaceSettingsDialog({
                   <textarea
                     spellCheck={false}
                     className={[inputClass.replace("h-8", ""), "font-mono h-24 py-2 resize-none leading-relaxed"].join(" ")}
-                    placeholder={"Work on Linear issue {{identifier}}:\n\nSuggested branch name: {{branch}}\n\n# {{title}}\n\n{{description}}"}
+                    placeholder={DEFAULT_TEMPLATE}
                     value={config.linearPromptTemplate ?? ""}
                     onChange={(e) => updateConfig({ linearPromptTemplate: e.target.value || null })}
                   />
@@ -1144,7 +1157,14 @@ function WorkspaceSettingsDialog({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {saveError && (
+            {loadFailed ? (
+              <span
+                className="text-xs text-status-error truncate flex-1 min-w-0 text-right"
+                title="Settings failed to load — close and reopen before saving."
+              >
+                Settings failed to load — close and reopen before saving.
+              </span>
+            ) : saveError && (
               <span
                 className="text-xs text-status-error truncate flex-1 min-w-0 text-right"
                 title={saveError}
@@ -1155,7 +1175,7 @@ function WorkspaceSettingsDialog({
             <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={!dirty || saving || repoExtraFlagsError != null}>
+            <Button type="submit" size="sm" disabled={!dirty || saving || loadFailed || repoExtraFlagsError != null}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </div>

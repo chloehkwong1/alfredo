@@ -20,6 +20,7 @@ describe("buildPasteMessage", () => {
         template: "/proceed_with_ticket {{identifier}} on {{branch}}\n{{title}}\n{{description}}\n{{url}}",
         ticket,
         fallbackPrompt: "unused",
+        fallbackDescription: "unused",
         branch: "chloe/eng-412",
         issueId: "ENG-412",
       }),
@@ -30,31 +31,66 @@ describe("buildPasteMessage", () => {
 
   it("leaves unknown {{tokens}} untouched", () => {
     expect(
-      buildPasteMessage({ template: "{{identifier}} {{nope}}", ticket, fallbackPrompt: "", branch: "b", issueId: null }),
+      buildPasteMessage({
+        template: "{{identifier}} {{nope}}",
+        ticket,
+        fallbackPrompt: "",
+        fallbackDescription: "",
+        branch: "b",
+        issueId: null,
+      }),
     ).toBe("ENG-412 {{nope}}");
   });
 
-  it("renders offline fallback vars when the ticket fetch failed", () => {
+  it("renders offline fallback vars (stripped description) when the ticket fetch failed", () => {
     expect(
       buildPasteMessage({
         template: "{{identifier}}|{{title}}|{{description}}|{{branch}}|{{url}}",
         ticket: null,
-        fallbackPrompt: "raw url prompt body",
+        fallbackPrompt: "Work on Linear issue ENG-412:\n\nSuggested branch name: chloe/eng-412\n\nraw url prompt body",
+        fallbackDescription: "raw url prompt body",
         branch: "chloe/eng-412",
         issueId: "ENG-412",
       }),
     ).toBe("ENG-412||raw url prompt body|chloe/eng-412|");
   });
 
+  it("falls back to fallbackDescription when the fetched ticket's description is empty", () => {
+    expect(
+      buildPasteMessage({
+        template: "{{description}}",
+        ticket: { ...ticket, description: "" },
+        fallbackPrompt: "unused",
+        fallbackDescription: "body from the deep link",
+        branch: "b",
+        issueId: "ENG-412",
+      }),
+    ).toBe("body from the deep link");
+  });
+
   it("renders an empty identifier when neither ticket nor issueId is known", () => {
     expect(
-      buildPasteMessage({ template: "[{{identifier}}]", ticket: null, fallbackPrompt: "", branch: "b", issueId: null }),
+      buildPasteMessage({
+        template: "[{{identifier}}]",
+        ticket: null,
+        fallbackPrompt: "",
+        fallbackDescription: "",
+        branch: "b",
+        issueId: null,
+      }),
     ).toBe("[]");
   });
 
   it("falls back to the built-in format when the template is unset", () => {
     expect(
-      buildPasteMessage({ template: null, ticket, fallbackPrompt: "unused", branch: "chloe/eng-412", issueId: "ENG-412" }),
+      buildPasteMessage({
+        template: null,
+        ticket,
+        fallbackPrompt: "unused",
+        fallbackDescription: "unused",
+        branch: "chloe/eng-412",
+        issueId: "ENG-412",
+      }),
     ).toBe(
       [
         "Work on Linear issue ENG-412:",
@@ -70,7 +106,14 @@ describe("buildPasteMessage", () => {
 
   it("treats a whitespace-only template as unset", () => {
     expect(
-      buildPasteMessage({ template: "  \n ", ticket: null, fallbackPrompt: "the url prompt", branch: "b", issueId: null }),
+      buildPasteMessage({
+        template: "  \n ",
+        ticket: null,
+        fallbackPrompt: "the url prompt",
+        fallbackDescription: "the url prompt",
+        branch: "b",
+        issueId: null,
+      }),
     ).toBe("the url prompt");
   });
 
@@ -80,6 +123,7 @@ describe("buildPasteMessage", () => {
         template: undefined,
         ticket: { ...ticket, description: null },
         fallbackPrompt: "the url prompt",
+        fallbackDescription: "stripped body",
         branch: "b",
         issueId: null,
       }),

@@ -64,23 +64,61 @@ export function prepareOpenIssue(req: OpenIssueRequest): OpenIssuePayload {
 }
 
 /**
+ * Strip the "Work on … / Suggested branch name: …" preamble from a deep-link
+ * prompt, leaving the issue body. Used as the `{{description}}` fallback when
+ * the ticket fetch failed — a template's description slot should get the body,
+ * not the whole synthesized header.
+ */
+function deriveFallbackDescription(prompt: string): string {
+  const lines = prompt.split("\n");
+  const headerIdx = lines.findIndex((l) => ISSUE_HEADER_RE.test(l));
+  if (headerIdx !== -1) lines.splice(headerIdx, 1);
+  const branchIdx = lines.findIndex((l) => BRANCH_RE.test(l));
+  if (branchIdx !== -1) lines.splice(branchIdx, 1);
+  while (lines.length && lines[0].trim() === "") lines.shift();
+  return lines.join("\n");
+}
+
+/**
  * Wait until a freshly-spawned agent's boot output has settled, so a pasted
  * prompt lands in the input box instead of colliding with the still-rendering
- * boot banner. Resolves once output has been quiet for `quietMs`, or after
- * `timeoutMs` (paste anyway rather than hang).
+ * boot banner. Returns true once output has been quiet for `quietMs` with the
+ * agent in a non-busy state; returns false after `timeoutMs` — callers paste
+ * anyway rather than hang, but the auto-submit gate must see a real ready.
  */
 async function waitForAgentReady(
   session: { lastOutputAt: number; agentState: string },
   { quietMs = 1200, timeoutMs = 20000 }: { quietMs?: number; timeoutMs?: number } = {},
-): Promise<void> {
+): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const booted = session.lastOutputAt > 0;
     const settled = Date.now() - session.lastOutputAt > quietMs;
     const notBusy = session.agentState !== "busy" && session.agentState !== "notRunning";
-    if (booted && settled && notBusy) return;
+    if (booted && settled && notBusy) return true;
     await new Promise((r) => setTimeout(r, 150));
   }
+  return false;
+}
+
+/**
+ * Wait until the paste's echo has stopped advancing the terminal: quiet for
+ * `quietMs` measured from the paste itself or the last output byte, whichever
+ * is later, hard-capped at `capMs`. A multi-KB paste can still be mid-ingestion
+ * after any fixed delay, and an Enter landing mid-ingestion splits the text
+ * into a partial submit. Returns false when the cap elapsed without a quiet
+ * window — callers must then skip the submit rather than risk the split.
+ */
+async function waitForPasteEchoSettle(
+  session: { lastOutputAt: number },
+  { quietMs = 250, capMs = 2000 }: { quietMs?: number; capMs?: number } = {},
+): Promise<boolean> {
+  const pastedAt = Date.now();
+  while (Date.now() - pastedAt < capMs) {
+    if (Date.now() - Math.max(session.lastOutputAt, pastedAt) >= quietMs) return true;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return false;
 }
 
 /**
@@ -162,6 +200,12 @@ export async function openIssueInRepo(
   // paste. Failure falls through to the default prompt — never block the flow.
   const configPromise = getConfig(repoPath).catch(() => null);
 
+  // True only when THIS invocation created the worktree (and therefore its
+  // session is freshly spawned with an empty input box). Re-opens of existing
+  // worktrees may target a session holding the user's half-typed draft, so
+  // auto-submit is restricted to fresh creates.
+  let createdWorktree = false;
+
   try {
     if (!useWorkspaceStore.getState().worktrees.some((wt) => wt.id === worktreeId)) {
       // The store isn't ground truth on cold start (hydration may still be
@@ -207,6 +251,7 @@ export async function openIssueInRepo(
             base,
           });
           useWorkspaceStore.getState().replaceWorktree(worktreeId, real);
+          createdWorktree = true;
           try {
             useTabStore.getState().ensureDefaultTabs(real.id);
           } catch (e) {
@@ -253,7 +298,7 @@ export async function openIssueInRepo(
     }
 
     if (!session?.sessionId) return;
-    await waitForAgentReady(session);
+    const ready = await waitForAgentReady(session);
 
     // Prefer the full fetched issue; fall back to the URL prompt (may be Linear-
     // truncated) if the lookup failed. A configured per-repo template overrides
@@ -266,17 +311,44 @@ export async function openIssueInRepo(
         template: repoConfig?.linearPromptTemplate,
         ticket,
         fallbackPrompt: prompt,
+        fallbackDescription: deriveFallbackDescription(prompt),
         branch,
         issueId,
       }),
     );
 
-    // Opt-in hands-off mode: press Enter for the user. The paste above is a
-    // single PTY write but the TUI ingests it asynchronously — give it a beat
-    // so the Enter lands after the text, not inside it.
+    // Opt-in hands-off mode: press Enter for the user — but only when every
+    // safety gate holds. Pasting is harmless; submitting is not, so any doubt
+    // downgrades to paste-only with a log of the first failing gate.
     if (repoConfig?.linearAutoSubmit) {
-      await new Promise((r) => setTimeout(r, 300));
-      await writeToSession(session.sessionId, "\r");
+      const skipReason =
+        // Fresh worktree ⇒ freshly-spawned session ⇒ no half-typed user draft
+        // in the input that Enter would submit as part of the prompt.
+        !createdWorktree
+          ? "existing worktree (session input may hold a user draft)"
+          // waitForAgentReady timing out means we never observed a settled,
+          // non-busy agent — Enter could land on a trust dialog or mid-boot.
+          : !ready
+            ? "agent never settled before the ready timeout"
+            // Degraded input: only the possibly-Linear-truncated URL prompt was
+            // pasted. Never go hands-off on it.
+            : !ticket
+              ? "ticket fetch failed (pasted prompt may be truncated)"
+              : null;
+      if (skipReason) {
+        console.info(`[linear] auto-submit skipped: ${skipReason}`);
+      } else if (!(await waitForPasteEchoSettle(session))) {
+        // The paste's echo never went quiet — Enter now could split the text.
+        console.info("[linear] auto-submit skipped: paste echo never settled");
+      } else if (session.agentState !== "idle") {
+        // Submit-time state must be affirmatively safe: "idle" is the only
+        // AgentState meaning "awaiting a new message". waitingForInput means a
+        // parked question/trust dialog whose default Enter would accept;
+        // busy/notRunning mean the input isn't ours to submit.
+        console.info(`[linear] auto-submit skipped: agent state is "${session.agentState}", not idle`);
+      } else {
+        await writeToSession(session.sessionId, "\r");
+      }
     }
 
     // StatusBar chip — reuse the ticket we already fetched (no second lookup).
