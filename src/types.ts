@@ -261,6 +261,12 @@ export interface AppConfig {
    *  as "not configured" on the backend. */
   portRangeStart?: number | null;
   portRangeEnd?: number | null;
+  /** Personal template pasted into Claude when opening a Linear issue.
+   *  Variables: {{identifier}}, {{title}}, {{description}}, {{branch}},
+   *  {{url}}. Empty/absent = built-in format. */
+  linearPromptTemplate?: string | null;
+  /** Press Enter after pasting the Linear prompt. Default false. */
+  linearAutoSubmit?: boolean;
 }
 
 export interface RepoSharedConfig {

@@ -5,6 +5,7 @@ import { useToastStore } from "../stores/toastStore";
 import { useOpenIssueProgress } from "../stores/openIssueProgressStore";
 import { ensureAgentSession, getAgentSessionInfo, writeToSession, focusAgentTab } from "./agentMessenger";
 import { sessionManager } from "./sessionManager";
+import { buildPasteMessage } from "./linearPrompt";
 import type { OpenIssueRequest } from "./linearOpenIssue";
 import type { Worktree, LinearTicket } from "../types";
 
@@ -123,24 +124,6 @@ async function waitForWorktreeInStore(
     await new Promise((r) => setTimeout(r, 150));
   }
   return false;
-}
-
-/**
- * Build the full prompt from a fetched ticket. Linear truncates `{{prompt}}` in
- * the Custom-link URL for long issues (it appends "[Truncated …]"), so we paste
- * the API's complete title + description instead, under the same "Work on … /
- * Suggested branch name: …" header Linear's template uses.
- */
-function buildIssuePrompt(ticket: LinearTicket, branch: string): string {
-  return [
-    `Work on Linear issue ${ticket.identifier}:`,
-    "",
-    `Suggested branch name: ${branch}`,
-    "",
-    `# ${ticket.title}`,
-    "",
-    ticket.description ?? "",
-  ].join("\n");
 }
 
 /**
@@ -272,7 +255,7 @@ export async function openIssueInRepo(
     const ticket = await ticketPromise;
     await writeToSession(
       session.sessionId,
-      ticket?.description ? buildIssuePrompt(ticket, branch) : prompt,
+      buildPasteMessage({ template: null, ticket, fallbackPrompt: prompt, branch, issueId }),
     );
 
     // StatusBar chip — reuse the ticket we already fetched (no second lookup).
