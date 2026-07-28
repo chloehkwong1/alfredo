@@ -159,17 +159,15 @@ pub async fn check_merged_parents(
 
         let mut config_changed = false;
         for (child_name, _merged_parent) in &affected {
-            // Deferred: `restack_child` resolves its parent from
-            // `stack_parent_overrides`, which at this point still holds the
-            // *merged* branch (cleared only below) — if that branch still exists
-            // locally, calling it here would rebase onto the wrong target and
-            // force-push a bad baseline. Task 5 introduces a
-            // `restack_onto_default`-style primitive that targets `default_short`
-            // directly; until then we only retarget the PR base and clear the
-            // stale override.
-            eprintln!(
-                "[stack_manager] {child_name}: parent merged onto {default_short} — auto-restack deferred (Task 5)"
-            );
+            // `restack_child` resolves its parent from `stack_parent_overrides`,
+            // which at this point still holds the *merged* branch (cleared only
+            // below) — so it can't be reused here. `restack_onto_default`
+            // targets `default_short` directly instead.
+            if let Err(e) = restack_onto_default(
+                app_handle, app_data_dir, repo_path, child_name, &default_short,
+            ).await {
+                eprintln!("[stack_manager] merged-parent restack failed for {child_name}: {e}");
+            }
 
             // Update the child's PR base branch to the default branch
             if let Some((ref owner, ref repo)) = owner_repo {
@@ -193,8 +191,10 @@ pub async fn check_merged_parents(
             // Emit parent-merged event
             let _ = app_handle.emit("stack:parent-merged", child_name.clone());
 
-            // Clear the stack parent from config
-            config.stack_parent_overrides.remove(child_name);
+            // Clear the stack parent + baseline from config — the stack
+            // relationship is dissolved now that the child sits on the default branch.
+            config_manager::clear_stack_parent(&mut config, child_name);
+            config_manager::clear_stack_baseline(&mut config, child_name);
             config_changed = true;
         }
 
@@ -285,11 +285,14 @@ pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Resul
     };
 
     for parent_branch in &unique_parents {
-        let ancestor_ref = format!("origin/{parent_branch}");
+        // Local-first resolution (matches `branch_tip`): a parent branch that's
+        // been merged and deleted upstream but still exists locally must still
+        // be detected, and a stale `origin/` ref would otherwise miss it.
+        let Some(ancestor_sha) = branch_tip(repo_path, parent_branch).await else { continue };
 
         // `git merge-base --is-ancestor <ancestor> <descendant>` exits 0 if ancestor, 1 if not
         let result = git_command()
-            .args(["merge-base", "--is-ancestor", &ancestor_ref, &default_branch])
+            .args(["merge-base", "--is-ancestor", &ancestor_sha, &default_branch])
             .current_dir(repo_path)
             .output()
             .await;
@@ -304,10 +307,20 @@ pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Resul
         return Ok(());
     }
 
-    // Remove any child→parent mapping where the parent is stale
+    // Remove any child→parent mapping where the parent is stale, and clear
+    // those children's baselines too — the stack relationship is dissolved.
+    let removed: Vec<String> = config
+        .stack_parent_overrides
+        .iter()
+        .filter(|(_, parent)| stale_parents.contains(parent))
+        .map(|(child, _)| child.clone())
+        .collect();
     config
         .stack_parent_overrides
         .retain(|_, parent| !stale_parents.contains(parent));
+    for child in &removed {
+        config_manager::clear_stack_baseline(&mut config, child);
+    }
 
     config_manager::save_config(app_data_dir, repo_path, &config)
         .await
@@ -463,6 +476,44 @@ async fn run_restack(
             emit_status(app_handle, worktree_name, StackRebaseStatus::Conflict);
             Err(e.to_string())
         }
+    }
+}
+
+/// Rebase a child onto the default branch after its parent merged/dissolved.
+/// Same baseline mechanics as `restack_child`, but the target is the default
+/// branch's tip rather than the recorded parent, and on success the stack
+/// relationship is over — the caller clears the parent + baseline entries.
+async fn restack_onto_default(
+    app_handle: &AppHandle,
+    app_data_dir: &Path,
+    repo_path: &str,
+    worktree_name: &str,
+    default_short: &str,
+) -> Result<(), String> {
+    let config = config_manager::load_personal_config(app_data_dir, repo_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    let worktree_path = resolve_worktree_path(repo_path, worktree_name, &config);
+    if !std::path::Path::new(&worktree_path).exists() {
+        return Err(format!("worktree path does not exist: {worktree_path}"));
+    }
+    let Some(target_tip) = branch_tip(repo_path, default_short).await else {
+        return Err(format!("could not resolve tip of {default_short}"));
+    };
+    let baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
+        Some(sha) => sha,
+        None => git_manager::merge_base(&worktree_path, "HEAD", &target_tip)
+            .await
+            .map_err(|e| e.to_string())?,
+    };
+
+    match run_restack(app_handle, &worktree_path, worktree_name, &target_tip, &baseline).await {
+        // Either outcome is a plain Ok here: a real rebase dissolves the stack
+        // relationship (caller clears parent+baseline, no new baseline to
+        // persist), and a dirty-skip already emitted SkippedDirty inside
+        // `run_restack` — nothing left for this caller to do.
+        Ok(RestackOutcome::Rebased | RestackOutcome::SkippedDirty) => Ok(()),
+        Err(e) => Err(e),
     }
 }
 
@@ -642,5 +693,83 @@ mod tests {
         let dir = init_test_repo();
         std::fs::write(dir.path().join("uncommitted.txt"), "wip").expect("write file");
         assert!(worktree_is_dirty(dir.path().to_str().expect("utf8 path"), false).await);
+    }
+
+    // Step 3's dissolution path: once a stack parent has been merged into the
+    // default branch (manually, outside the PR-merge event), `detect_stale_parents`
+    // must clear both the parent override and the baseline for its children —
+    // leaving either behind would let a later poll try to restack against a
+    // branch that no longer represents a real stack relationship.
+    #[tokio::test]
+    async fn detect_stale_parents_clears_parent_and_baseline_once_merged(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+
+        StdCommand::new("git")
+            .args(["checkout", "-b", "feat/parent"])
+            .current_dir(repo_path)
+            .output()?;
+        StdCommand::new("git")
+            .args([
+                "-c", "user.name=Test", "-c", "user.email=test@test.com",
+                "commit", "--allow-empty", "-m", "parent work",
+            ])
+            .current_dir(repo_path)
+            .output()?;
+        StdCommand::new("git").args(["checkout", "main"]).current_dir(repo_path).output()?;
+        StdCommand::new("git")
+            .args(["merge", "--ff-only", "feat/parent"])
+            .current_dir(repo_path)
+            .output()?;
+        // No real `origin` remote in this fixture — synthesize the
+        // remote-tracking ref `resolve_default_remote_branch`'s fallback probes for.
+        StdCommand::new("git")
+            .args(["update-ref", "refs/remotes/origin/main", "refs/heads/main"])
+            .current_dir(repo_path)
+            .output()?;
+
+        let app_data = TempDir::new()?;
+        let mut config = crate::types::AppConfig {
+            repo_path: repo_path.to_string(),
+            setup_scripts: None,
+            github_token: None,
+            linear_api_key: None,
+            branch_mode: false,
+            column_overrides: HashMap::new(),
+            theme: None,
+            notifications: None,
+            worktree_base_path: None,
+            claude_defaults: None,
+            worktree_overrides: None,
+            run_script: None,
+            stack_parent_overrides: HashMap::new(),
+            stack_baselines: HashMap::new(),
+            archive_script: None,
+            linear_tickets: HashMap::new(),
+            port_assignments: HashMap::new(),
+            auto_assign_ports: false,
+            port_env_var: None,
+            port_range_start: None,
+            port_range_end: None,
+            linear_prompt_template: None,
+            linear_auto_submit: false,
+        };
+        config_manager::set_stack_parent(&mut config, "feat-child", "feat/parent");
+        config_manager::set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
+        config_manager::save_config(app_data.path(), repo_path, &config).await?;
+
+        detect_stale_parents(app_data.path(), repo_path).await?;
+
+        let reloaded = config_manager::load_personal_config(app_data.path(), repo_path).await?;
+        assert!(
+            reloaded.stack_parent_overrides.get("feat-child").is_none(),
+            "merged parent override should be cleared"
+        );
+        assert!(
+            config_manager::get_stack_baseline(&reloaded, "feat-child").is_none(),
+            "baseline should be cleared alongside the parent override"
+        );
+        Ok(())
     }
 }
