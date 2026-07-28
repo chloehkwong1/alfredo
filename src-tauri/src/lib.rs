@@ -77,7 +77,6 @@ use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
-use stack_manager::StackState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 /// Funnel an inbound open-issue request (argv or `alfredo://` deep link) into
@@ -143,7 +142,6 @@ pub fn run() {
             repo_paths: std::sync::Mutex::new(Vec::new()),
             active_branches: std::sync::Mutex::new(std::collections::HashSet::new()),
         })
-        .manage(StackState::new())
         .manage(commands::worktree::PortConfigLock::default())
         .manage(commands::session::ResumeSidecarLock::default())
         .manage(commands::linear_launch::PendingOpenIssue::default())

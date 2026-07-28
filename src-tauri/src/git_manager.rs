@@ -803,15 +803,10 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
     Ok(())
 }
 
-/// `#[allow(dead_code)]` because these primitives are consumed by the
-/// restacking logic added in a later stacked-PR task; keeping them here
-/// alongside `rebase_onto` avoids churn there.
-///
 /// Rebase the current branch's commits since `baseline_sha` onto `target_sha`:
 /// `git rebase --onto <target> <baseline>`. Replays only the child's own commits,
 /// so it survives parent history rewrites and squash-merged parents.
 /// `abort_on_failure: false` leaves a conflicted rebase in place (agent handoff path).
-#[allow(dead_code)]
 pub async fn rebase_onto_sha(
     worktree_path: &str,
     target_sha: &str,
@@ -860,7 +855,6 @@ pub async fn rebase_onto_sha(
 }
 
 /// `git merge-base <a> <b>` — used as the baseline fallback for pre-existing stacks.
-#[allow(dead_code)]
 pub async fn merge_base(worktree_path: &str, a: &str, b: &str) -> Result<String, AppError> {
     let output = git_command()
         .args(["merge-base", a, b])
@@ -876,7 +870,6 @@ pub async fn merge_base(worktree_path: &str, a: &str, b: &str) -> Result<String,
 }
 
 /// True when the current branch has an upstream tracking ref.
-#[allow(dead_code)]
 pub async fn has_upstream(worktree_path: &str) -> bool {
     git_command()
         .args(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])

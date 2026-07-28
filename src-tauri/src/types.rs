@@ -122,6 +122,8 @@ pub enum StackRebaseStatus {
     Behind { count: u32 },
     Rebasing,
     Conflict,
+    SkippedDirty,
+    PushFailed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

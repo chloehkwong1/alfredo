@@ -493,19 +493,16 @@ pub fn clear_stack_parent(config: &mut AppConfig, worktree_name: &str) {
     config.stack_parent_overrides.remove(worktree_name);
 }
 
-/// `#[allow(dead_code)]` because these accessors are consumed by the
-/// restacking logic added in a later stacked-PR task; keeping them here
-/// alongside the `stack_baselines` field avoids churn there.
-#[allow(dead_code)]
 pub fn get_stack_baseline(config: &AppConfig, worktree_name: &str) -> Option<String> {
     config.stack_baselines.get(worktree_name).cloned()
 }
 
-#[allow(dead_code)]
 pub fn set_stack_baseline(config: &mut AppConfig, worktree_name: &str, sha: &str) {
     config.stack_baselines.insert(worktree_name.to_string(), sha.to_string());
 }
 
+/// `#[allow(dead_code)]` because clearing a baseline is only needed by the
+/// merged-parent / manual-retry paths added in a later stacked-PR task.
 #[allow(dead_code)]
 pub fn clear_stack_baseline(config: &mut AppConfig, worktree_name: &str) {
     config.stack_baselines.remove(worktree_name);

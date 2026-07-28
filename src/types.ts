@@ -60,7 +60,9 @@ export type StackRebaseStatus =
   | { kind: "upToDate" }
   | { kind: "behind"; count: number }
   | { kind: "rebasing" }
-  | { kind: "conflict" };
+  | { kind: "conflict" }
+  | { kind: "skippedDirty" }
+  | { kind: "pushFailed" };
 
 export interface Worktree {
   id: string;

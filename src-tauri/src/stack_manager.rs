@@ -1,29 +1,12 @@
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Mutex;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 use crate::config_manager;
 use crate::git_manager;
 use crate::git_manager::git_command;
 use crate::types::{StackRebaseStatus};
-
-// ── State ────────────────────────────────────────────────────────
-
-/// Tracks last-known HEAD SHAs for parent branches so we only rebase when something changed.
-pub struct StackState {
-    /// Maps "repo_path::branch_name" → last known HEAD SHA.
-    pub parent_heads: Mutex<HashMap<String, String>>,
-}
-
-impl StackState {
-    pub fn new() -> Self {
-        Self {
-            parent_heads: Mutex::new(HashMap::new()),
-        }
-    }
-}
 
 // ── Event payloads ───────────────────────────────────────────────
 
@@ -36,8 +19,20 @@ struct StackStatusPayload {
 
 // ── Public entry points ──────────────────────────────────────────
 
-/// Called at the end of each sync poll. Detects parent HEAD changes and rebases children.
+/// Called at the end of each sync poll. Baseline-tracked (no in-memory SHA
+/// cache — restart-safe): "parent moved" is decided per child inside
+/// `restack_child` by comparing its persisted baseline against the parent's
+/// current tip.
 pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_paths: &[String]) {
+    // One registry snapshot per poll: cwd → status. Unavailable registry (no
+    // claude binary, timeout) degrades to clean-tree-only gating — restacks
+    // must not be blocked forever by a missing CLI.
+    let registry: HashMap<String, String> =
+        match crate::commands::claude_registry::poll_claude_registry().await {
+            Ok(entries) => entries.into_iter().map(|e| (e.cwd, e.status)).collect(),
+            Err(_) => HashMap::new(),
+        };
+
     for repo_path in repo_paths {
         // Task 13: detect stale parents (merged into main) first
         if let Err(e) = detect_stale_parents(app_data_dir, repo_path).await {
@@ -51,61 +46,50 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
                 continue;
             }
         };
-
         if config.stack_parent_overrides.is_empty() {
             continue;
         }
 
-        // Collect unique parent branches and map each to its children.
-        // children_by_parent: parent_branch → Vec<worktree_name>
-        let mut children_by_parent: HashMap<String, Vec<String>> = HashMap::new();
-        for (child_name, parent_branch) in &config.stack_parent_overrides {
-            // Skip self-references (historically corrupted data).
-            // child_name is the worktree dir name (branch with / → -),
-            // parent_branch is the raw branch name.
-            if *child_name == parent_branch.replace('/', "-") {
+        let checkouts = checkout_paths(repo_path).await;
+        let name_to_branch: HashMap<String, String> = checkouts
+            .iter()
+            .filter_map(|(branch, path)| {
+                std::path::Path::new(path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| (n.to_string(), branch.clone()))
+            })
+            .collect();
+
+        // Full-repo dependency order; a mid-cascade parent's new tip is picked up
+        // because restack_child re-resolves the parent tip per child.
+        for child_name in restack_order(&config.stack_parent_overrides, &name_to_branch) {
+            let Some(parent_branch) = config.stack_parent_overrides.get(&child_name) else {
+                continue;
+            };
+            // Self-reference guard (historically corrupted data).
+            if child_name == parent_branch.replace('/', "-") {
                 continue;
             }
-            children_by_parent
-                .entry(parent_branch.clone())
-                .or_default()
-                .push(child_name.clone());
-        }
 
-        // For each parent, check if its remote HEAD has changed.
-        for (parent_branch, children) in &children_by_parent {
-            let current_head = match get_branch_head(repo_path, parent_branch).await {
-                Some(h) => h,
-                None => {
-                    eprintln!("[stack_manager] could not resolve HEAD for origin/{parent_branch}");
+            // Quiet gate: skip while the parent's checkout is dirty or its agent is busy.
+            if let Some(parent_path) = checkouts.get(parent_branch) {
+                if registry.get(parent_path).map(String::as_str) == Some("busy") {
                     continue;
                 }
-            };
-
-            let cache_key = format!("{repo_path}::{parent_branch}");
-            let last_head: Option<String> = app_handle
-                .try_state::<StackState>()
-                .and_then(|s| s.parent_heads.lock().ok().map(|m| m.get(&cache_key).cloned()))
-                .flatten();
-
-            // Update cached HEAD
-            if let Some(state) = app_handle.try_state::<StackState>() {
-                if let Ok(mut heads) = state.parent_heads.lock() {
-                    heads.insert(cache_key, current_head.clone());
+                let parent_dirty = git_command()
+                    .args(["status", "--porcelain"])
+                    .current_dir(parent_path)
+                    .output()
+                    .await
+                    .map(|o| !o.stdout.is_empty())
+                    .unwrap_or(false);
+                if parent_dirty {
+                    continue;
                 }
             }
-
-            // Only rebase if HEAD actually changed (or was unknown)
-            if last_head.as_deref() == Some(current_head.as_str()) {
-                continue;
-            }
-
-            // Sort children topologically so parents-in-stack come before their children.
-            let sorted = topological_sort(children, &config.stack_parent_overrides);
-
-            for child_name in &sorted {
-                rebase_child(child_name, repo_path, parent_branch, app_handle, app_data_dir, config.worktree_base_path.as_deref()).await;
-            }
+            // (restack_child no-ops with UpToDate when baseline == parent tip.)
+            let _ = restack_child(app_handle, app_data_dir, repo_path, &child_name).await;
         }
     }
 }
@@ -174,8 +158,13 @@ pub async fn check_merged_parents(
 
         let mut config_changed = false;
         for (child_name, _merged_parent) in &affected {
-            // Rebase child onto the default branch instead
-            rebase_child(child_name, repo_path, &default_short, app_handle, app_data_dir, config.worktree_base_path.as_deref()).await;
+            // Minimal adaptation to the new restack_child signature (Task 4 concern,
+            // to be fixed properly in Task 5): restack_child resolves the parent
+            // branch from `stack_parent_overrides`, which at this point still holds
+            // the *merged* (likely-deleted) parent — the override below only clears
+            // it afterward. If the merged branch ref is gone, restack_child can't
+            // resolve a tip and no-ops instead of rebasing onto the default branch.
+            let _ = restack_child(app_handle, app_data_dir, repo_path, child_name).await;
 
             // Update the child's PR base branch to the default branch
             if let Some((ref owner, ref repo)) = owner_repo {
@@ -324,21 +313,22 @@ pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Resul
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-/// Get the current SHA for `origin/<branch>` in the given repo.
-async fn get_branch_head(repo_path: &str, branch: &str) -> Option<String> {
-    let refspec = format!("origin/{branch}");
-    let output = git_command()
-        .args(["rev-parse", &refspec])
-        .current_dir(repo_path)
-        .output()
-        .await
-        .ok()?;
-
-    if output.status.success() {
-        Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
-    } else {
-        None
+/// Tip SHA for a branch: local ref first (works for unpushed parents; the local
+/// tip is what children actually stack on), remote-tracking ref as fallback.
+async fn branch_tip(repo_path: &str, branch: &str) -> Option<String> {
+    for refspec in [format!("refs/heads/{branch}"), format!("origin/{branch}")] {
+        if let Ok(output) = git_command()
+            .args(["rev-parse", "--verify", "--quiet", &refspec])
+            .current_dir(repo_path)
+            .output()
+            .await
+        {
+            if output.status.success() {
+                return Some(String::from_utf8_lossy(&output.stdout).trim().to_string());
+            }
+        }
     }
+    None
 }
 
 /// Resolve the filesystem path for a worktree given its name and the repo config.
@@ -357,98 +347,233 @@ fn resolve_worktree_path(repo_path: &str, worktree_name: &str, config: &crate::t
     base.join(worktree_name).to_string_lossy().to_string()
 }
 
-/// Rebase a child worktree onto `parent_branch`. Emits success or conflict events.
-/// `worktree_base_path` — if the caller already knows the base path, pass it to skip a
-/// redundant config file read. Pass `None` to have it resolved from config.
-async fn rebase_child(
-    worktree_name: &str,
-    repo_path: &str,
-    parent_branch: &str,
+/// The single restack path. Emits status events; returns Err only for
+/// conflicts/system failures the caller may want to surface.
+pub async fn restack_child(
     app_handle: &AppHandle,
     app_data_dir: &Path,
-    worktree_base_path: Option<&str>,
-) {
-    let worktree_path = if let Some(base) = worktree_base_path {
-        std::path::Path::new(base).join(worktree_name).to_string_lossy().to_string()
-    } else {
-        let config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("[stack_manager] load_personal_config for rebase_child: {e}");
-                return;
-            }
-        };
-        resolve_worktree_path(repo_path, worktree_name, &config)
+    repo_path: &str,
+    worktree_name: &str,
+) -> Result<(), String> {
+    let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    let Some(parent_branch) = config_manager::get_stack_parent(&config, worktree_name) else {
+        return Err(format!("{worktree_name} has no stack parent"));
     };
 
+    let checkouts = checkout_paths(repo_path).await;
+    // The child's own checkout path: match by dir name (worktree names are branch with / → -).
+    let worktree_path = checkouts
+        .iter()
+        .find(|(_, path)| {
+            std::path::Path::new(path).file_name().and_then(|n| n.to_str()) == Some(worktree_name)
+        })
+        .map(|(_, path)| path.clone())
+        .unwrap_or_else(|| resolve_worktree_path(repo_path, worktree_name, &config));
+
     if !std::path::Path::new(&worktree_path).exists() {
-        eprintln!("[stack_manager] worktree path does not exist: {worktree_path}");
-        return;
+        return Err(format!("worktree path does not exist: {worktree_path}"));
     }
 
-    // Check for dirty working tree
-    let dirty_check = git_command()
+    let Some(parent_tip) = branch_tip(repo_path, &parent_branch).await else {
+        return Err(format!("could not resolve tip of {parent_branch}"));
+    };
+
+    // Baseline: persisted, else one-time merge-base fallback (pre-existing stacks).
+    let baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
+        Some(sha) => sha,
+        None => git_manager::merge_base(&worktree_path, "HEAD", &parent_tip)
+            .await
+            .map_err(|e| e.to_string())?,
+    };
+
+    if baseline == parent_tip {
+        emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+        return Ok(());
+    }
+
+    match run_restack(app_handle, &worktree_path, worktree_name, &parent_tip, &baseline).await {
+        Ok(()) => {
+            config_manager::set_stack_baseline(&mut config, worktree_name, &parent_tip);
+            if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &config).await {
+                eprintln!("[stack_manager] failed to persist baseline for {worktree_name}: {e}");
+            }
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Shared restack sequence (Tasks 5/7 reuse this verbatim): dirty-check, rebase
+/// `--onto`, and — on success — auto-push with lease when an upstream exists.
+/// Baseline resolution/persistence is the caller's job since it varies per caller.
+async fn run_restack(
+    app_handle: &AppHandle,
+    worktree_path: &str,
+    worktree_name: &str,
+    target_tip: &str,
+    baseline: &str,
+) -> Result<(), String> {
+    // Dirty child → visible skip, not a silent eprintln.
+    let dirty = git_command()
         .args(["status", "--porcelain"])
-        .current_dir(&worktree_path)
+        .current_dir(worktree_path)
         .output()
-        .await;
-
-    match dirty_check {
-        Ok(output) if !output.stdout.is_empty() => {
-            eprintln!("[stack_manager] skipping rebase of {worktree_name}: dirty working tree");
-            return;
-        }
-        Err(e) => {
-            eprintln!("[stack_manager] failed to check dirty status for {worktree_name}: {e}");
-            return;
-        }
-        _ => {}
+        .await
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(true);
+    if dirty {
+        emit_status(app_handle, worktree_name, StackRebaseStatus::SkippedDirty);
+        return Ok(());
     }
 
-    match git_manager::rebase_onto(&worktree_path, Some(parent_branch)).await {
+    emit_status(app_handle, worktree_name, StackRebaseStatus::Rebasing);
+
+    match git_manager::rebase_onto_sha(worktree_path, target_tip, baseline, true).await {
         Ok(()) => {
             let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
+
+            if git_manager::has_upstream(worktree_path).await {
+                if let Err(e) =
+                    crate::commands::git_ops::git_push_force_with_lease(worktree_path.to_string())
+                        .await
+                {
+                    eprintln!("[stack_manager] lease push failed for {worktree_name}: {e}");
+                    emit_status(app_handle, worktree_name, StackRebaseStatus::PushFailed);
+                }
+            }
+            Ok(())
         }
         Err(e) => {
-            eprintln!("[stack_manager] rebase failed for {worktree_name}: {e}");
+            eprintln!("[stack_manager] restack failed for {worktree_name}: {e}");
             let _ = app_handle.emit("stack:rebase-conflict", worktree_name.to_string());
+            emit_status(app_handle, worktree_name, StackRebaseStatus::Conflict);
+            Err(e.to_string())
         }
     }
 }
 
-/// Sort children topologically so that if child A depends on child B (B is A's parent),
-/// B comes before A. Uses the branch names stored in `all_parents` to identify siblings.
-///
-/// `children` – the worktree names to sort (all share the same immediate parent branch).
-/// `all_parents` – the full stack_parent_overrides map (worktree_name → parent branch).
-fn topological_sort(
-    children: &[String],
-    all_parents: &HashMap<String, String>,
-) -> Vec<String> {
-    // Build a set of branch names that correspond to children in this batch.
-    // We don't have branch→name mapping here, so we use names as a proxy.
-    // Any child whose stack_parent is the *name* of another child in the batch
-    // depends on that child and must come after it.
-    let child_names: std::collections::HashSet<&str> =
-        children.iter().map(String::as_str).collect();
+fn emit_status(app_handle: &AppHandle, worktree_name: &str, status: StackRebaseStatus) {
+    let _ = app_handle.emit(
+        "stack:status-update",
+        StackStatusPayload { worktree_name: worktree_name.to_string(), status },
+    );
+}
 
-    let mut first: Vec<String> = Vec::new();
-    let mut rest: Vec<String> = Vec::new();
-
-    for child in children {
-        // If this child's parent branch matches another child's *name*, defer it.
-        let depends_on_sibling = all_parents
-            .get(child)
-            .map(|p| child_names.contains(p.as_str()))
-            .unwrap_or(false);
-
-        if depends_on_sibling {
-            rest.push(child.clone());
-        } else {
-            first.push(child.clone());
+/// branch name → checkout path for every worktree of the repo (incl. the main checkout).
+pub async fn checkout_paths(repo_path: &str) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    let Ok(output) = git_command()
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(repo_path)
+        .output()
+        .await
+    else {
+        return out;
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut current_path: Option<String> = None;
+    for line in text.lines() {
+        if let Some(p) = line.strip_prefix("worktree ") {
+            current_path = Some(p.to_string());
+        } else if let Some(b) = line.strip_prefix("branch refs/heads/") {
+            if let Some(p) = current_path.take() {
+                out.insert(b.to_string(), p);
+            }
+        } else if line.is_empty() {
+            current_path = None;
         }
     }
+    out
+}
 
-    first.extend(rest);
-    first
+/// Kahn's algorithm over child→parent edges. Returns every stacked worktree name
+/// with parents before children; members of cycles are dropped (logged).
+fn restack_order(
+    overrides: &HashMap<String, String>,
+    name_to_branch: &HashMap<String, String>,
+) -> Vec<String> {
+    use std::collections::BTreeMap;
+    // branch → worktree name (only for names we know the branch of)
+    let branch_to_name: HashMap<&str, &str> = name_to_branch
+        .iter()
+        .map(|(n, b)| (b.as_str(), n.as_str()))
+        .collect();
+
+    // child name → parent name, only when the parent is itself a stacked-or-known worktree
+    let mut depends_on: BTreeMap<&str, Option<&str>> = BTreeMap::new();
+    for (child, parent_branch) in overrides {
+        let parent_name = branch_to_name.get(parent_branch.as_str()).copied()
+            .filter(|p| overrides.contains_key(*p)); // only in-graph parents create edges
+        depends_on.insert(child.as_str(), parent_name);
+    }
+
+    let mut order: Vec<String> = Vec::new();
+    let mut placed: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    loop {
+        let mut progressed = false;
+        for (child, parent) in &depends_on {
+            if placed.contains(child) {
+                continue;
+            }
+            let ready = match parent {
+                None => true,
+                Some(p) => placed.contains(p),
+            };
+            if ready {
+                order.push((*child).to_string());
+                placed.insert(child);
+                progressed = true;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    let dropped: Vec<&&str> = depends_on.keys().filter(|k| !placed.contains(**k)).collect();
+    if !dropped.is_empty() {
+        eprintln!("[stack_manager] dropping cyclic stack members from restack order: {dropped:?}");
+    }
+    order
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs.iter().map(|(a, b)| ((*a).to_string(), (*b).to_string())).collect()
+    }
+
+    #[test]
+    fn restack_order_sorts_three_level_stack() {
+        // grandchild → child → parent; branch names contain '/' so dir names differ.
+        let overrides = map(&[
+            ("feat-c", "feat/b"), // worktree feat-c is stacked on branch feat/b
+            ("feat-b", "feat/a"),
+        ]);
+        let name_to_branch = map(&[("feat-c", "feat/c"), ("feat-b", "feat/b"), ("feat-a", "feat/a")]);
+        let order = restack_order(&overrides, &name_to_branch);
+        assert_eq!(order, vec!["feat-b".to_string(), "feat-c".to_string()]);
+    }
+
+    #[test]
+    fn restack_order_handles_independent_stacks_and_forks() {
+        // two children on one parent + an unrelated child; children of the same
+        // parent keep deterministic (sorted) order.
+        let overrides = map(&[("wt-x", "feat/a"), ("wt-y", "feat/a"), ("wt-z", "other/root")]);
+        let name_to_branch = map(&[("wt-x", "feat/x"), ("wt-y", "feat/y"), ("wt-z", "feat/z")]);
+        let order = restack_order(&overrides, &name_to_branch);
+        assert_eq!(order.len(), 3);
+        let (ix, iy) = (order.iter().position(|n| n == "wt-x").unwrap(), order.iter().position(|n| n == "wt-y").unwrap());
+        assert!(ix < iy, "same-parent children sort deterministically");
+    }
+
+    #[test]
+    fn restack_order_drops_cycles() {
+        let overrides = map(&[("wt-a", "feat/b"), ("wt-b", "feat/a")]);
+        let name_to_branch = map(&[("wt-a", "feat/a"), ("wt-b", "feat/b")]);
+        assert!(restack_order(&overrides, &name_to_branch).is_empty());
+    }
 }
