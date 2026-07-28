@@ -1,4 +1,4 @@
-import { createWorktreeFrom, getDefaultBranch, listWorktrees, searchLinearIssues, setWorktreeLinearTicket } from "../api";
+import { createWorktreeFrom, getConfig, getDefaultBranch, listWorktrees, searchLinearIssues, setWorktreeLinearTicket } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useToastStore } from "../stores/toastStore";
@@ -157,6 +157,11 @@ export async function openIssueInRepo(
         .catch(() => null)
     : Promise.resolve(null);
 
+  // Per-repo personal config (linearPromptTemplate / linearAutoSubmit),
+  // fetched in parallel with the ticket so it adds no latency before the
+  // paste. Failure falls through to the default prompt — never block the flow.
+  const configPromise = getConfig(repoPath).catch(() => null);
+
   try {
     if (!useWorkspaceStore.getState().worktrees.some((wt) => wt.id === worktreeId)) {
       // The store isn't ground truth on cold start (hydration may still be
@@ -251,12 +256,28 @@ export async function openIssueInRepo(
     await waitForAgentReady(session);
 
     // Prefer the full fetched issue; fall back to the URL prompt (may be Linear-
-    // truncated) if the lookup failed.
+    // truncated) if the lookup failed. A configured per-repo template overrides
+    // the built-in format entirely.
     const ticket = await ticketPromise;
+    const repoConfig = await configPromise;
     await writeToSession(
       session.sessionId,
-      buildPasteMessage({ template: null, ticket, fallbackPrompt: prompt, branch, issueId }),
+      buildPasteMessage({
+        template: repoConfig?.linearPromptTemplate,
+        ticket,
+        fallbackPrompt: prompt,
+        branch,
+        issueId,
+      }),
     );
+
+    // Opt-in hands-off mode: press Enter for the user. The paste above is a
+    // single PTY write but the TUI ingests it asynchronously — give it a beat
+    // so the Enter lands after the text, not inside it.
+    if (repoConfig?.linearAutoSubmit) {
+      await new Promise((r) => setTimeout(r, 300));
+      await writeToSession(session.sessionId, "\r");
+    }
 
     // StatusBar chip — reuse the ticket we already fetched (no second lookup).
     if (ticket) {
