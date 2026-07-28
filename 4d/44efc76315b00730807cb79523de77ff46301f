@@ -1,0 +1,43 @@
+src/services/openIssueFlow.ts
+  s_c4e29aa6df8cf7::t_3bc64b8a2d51d3 301,314,320-322,324-351
+  s_c4e29aa6df8cf7::t_f60945fc952c63 203-208
+  s_c4e29aa6df8cf7::t_4fdc42e285dbda 254
+  s_c4e29aa6df8cf7::t_e83b3f7c9bf2d8 66-81,85-87,92,98,101-121
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_c4e29aa6df8cf7::t_be2402d1bc5a9b 367-371
+  s_c4e29aa6df8cf7::t_d6a80ed24ec7ee 896
+  s_c4e29aa6df8cf7::t_0bc07ed8bda9af 1160-1167,1178
+  s_c4e29aa6df8cf7::t_d1800a728fbcbc 53
+  s_c4e29aa6df8cf7::t_f976d37289a04f 419,422-424
+  s_c4e29aa6df8cf7::t_361929d1094879 567
+  s_c4e29aa6df8cf7::t_c46b12e7c1dd7a 455-458
+  s_c4e29aa6df8cf7::t_8d43046a8c8b9c 604
+src/services/linearPrompt.test.ts
+  s_c4e29aa6df8cf7::t_cba41692c1f786 23,34-41,45,50-51,58-70,73-80,86-93,109-116,126
+src/services/linearPrompt.ts
+  s_a19deaf81bfa66::t_b68cf0f9ff5e95 12-19,34-41,49-51,57,61,66-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4d44efc76315b00730807cb79523de77ff46301f",
+  "prompts": {},
+  "sessions": {
+    "s_a19deaf81bfa66": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-acf2bb91fb7c95cfb",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_c4e29aa6df8cf7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b28d5d-fbfd-41da-975c-e39074bac3d4",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
