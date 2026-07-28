@@ -1,0 +1,26 @@
+src/services/linearPrompt.ts
+  s_c4e29aa6df8cf7::t_a54fd82096e395 1-62
+src/services/linearPrompt.test.ts
+  s_c4e29aa6df8cf7::t_fcd0dca8091349 1-88
+src/types.ts
+  s_c4e29aa6df8cf7::t_672c7e99e72236 264-269
+src/services/openIssueFlow.ts
+  s_c4e29aa6df8cf7::t_92a707e9a38120 258
+  s_c4e29aa6df8cf7::t_7618e6028b3b48 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "40d4f60114f973857ec77b19e05b1320c139b8a5",
+  "prompts": {},
+  "sessions": {
+    "s_c4e29aa6df8cf7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b28d5d-fbfd-41da-975c-e39074bac3d4",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
