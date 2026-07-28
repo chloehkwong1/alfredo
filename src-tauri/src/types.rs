@@ -467,6 +467,14 @@ pub struct AppConfig {
     /// Inclusive upper bound. See `port_range_start`.
     #[serde(default)]
     pub port_range_end: Option<u16>,
+    /// Personal template pasted into Claude when a worktree is opened from a
+    /// Linear issue. Supports {{identifier}}, {{title}}, {{description}},
+    /// {{branch}}, {{url}}. None/empty means the built-in format.
+    #[serde(default)]
+    pub linear_prompt_template: Option<String>,
+    /// Press Enter after pasting the Linear prompt.
+    #[serde(default)]
+    pub linear_auto_submit: bool,
 }
 
 /// Persisted Linear ticket metadata for a worktree. Survives app restart so the

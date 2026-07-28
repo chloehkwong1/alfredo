@@ -76,6 +76,10 @@ struct ConfigFile {
     pub port_range_start: Option<u16>,
     #[serde(default)]
     pub port_range_end: Option<u16>,
+    #[serde(default)]
+    pub linear_prompt_template: Option<String>,
+    #[serde(default)]
+    pub linear_auto_submit: bool,
 }
 
 /// Signature of a JSON-double-encoded command: every `"` is preceded by `\`
@@ -196,6 +200,8 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
             port_env_var: None,
             port_range_start: None,
             port_range_end: None,
+            linear_prompt_template: None,
+            linear_auto_submit: false,
         };
         coerce_repo_shared_defaults(&mut config);
         return Ok(config);
@@ -245,6 +251,8 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
         port_env_var: file.port_env_var,
         port_range_start: file.port_range_start,
         port_range_end: file.port_range_end,
+        linear_prompt_template: file.linear_prompt_template,
+        linear_auto_submit: file.linear_auto_submit,
     };
     coerce_repo_shared_defaults(&mut config);
     if heal_overescaped_scripts(&mut config, repo_path) {
@@ -377,6 +385,8 @@ async fn write_personal_config_file(
         port_env_var: config.port_env_var.clone(),
         port_range_start: config.port_range_start,
         port_range_end: config.port_range_end,
+        linear_prompt_template: config.linear_prompt_template.clone(),
+        linear_auto_submit: config.linear_auto_submit,
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -689,6 +699,8 @@ mod tests {
             port_env_var: None,
             port_range_start: None,
             port_range_end: None,
+            linear_prompt_template: None,
+            linear_auto_submit: false,
         };
         config
             .column_overrides
@@ -849,6 +861,8 @@ mod tests {
             port_env_var: Some("".into()),
             port_range_start: Some(0),
             port_range_end: Some(0),
+            linear_prompt_template: None,
+            linear_auto_submit: false,
         };
         coerce_repo_shared_defaults(&mut config);
         assert!(config.setup_scripts.is_none());
@@ -1051,6 +1065,8 @@ mod tests {
             port_env_var: None,
             port_range_start: Some(3000),
             port_range_end: Some(3005),
+            linear_prompt_template: None,
+            linear_auto_submit: false,
         };
 
         // save_config may fail on keychain in test env; we only care about JSON.
@@ -1096,6 +1112,48 @@ mod tests {
         let value2: serde_json::Value = serde_json::from_str(&raw2)?;
         assert_eq!(value2["runScript"]["command"], "different");
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn roundtrips_linear_prompt_fields() -> Result<(), Box<dyn std::error::Error>> {
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        let config = AppConfig {
+            repo_path: repo_path.to_string(),
+            setup_scripts: None,
+            github_token: None,
+            linear_api_key: None,
+            branch_mode: false,
+            column_overrides: HashMap::new(),
+            theme: None,
+            notifications: None,
+            worktree_base_path: None,
+            claude_defaults: None,
+            worktree_overrides: None,
+            run_script: None,
+            stack_parent_overrides: HashMap::new(),
+            archive_script: None,
+            linear_tickets: HashMap::new(),
+            port_assignments: HashMap::new(),
+            auto_assign_ports: false,
+            port_env_var: None,
+            port_range_start: None,
+            port_range_end: None,
+            linear_prompt_template: Some("/proceed_with_ticket {{identifier}}".to_string()),
+            linear_auto_submit: true,
+        };
+
+        let _ = save_config(app_data.path(), repo_path, &config).await;
+
+        let reloaded = load_effective_config(app_data.path(), repo_path).await?.effective;
+        assert_eq!(
+            reloaded.linear_prompt_template.as_deref(),
+            Some("/proceed_with_ticket {{identifier}}")
+        );
+        assert!(reloaded.linear_auto_submit);
         Ok(())
     }
 
