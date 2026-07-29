@@ -277,6 +277,12 @@ pub async fn delete_worktree(
     // Same rationale for the column override: a persisted auto-Done (or manual
     // placement) must not rehydrate onto a future worktree that reuses the name.
     config_manager::clear_column_override(&mut config, &worktree_name);
+    // And for the stack relationship: a surviving parent override would make the
+    // next worktree of this name a phantom stack child, and a surviving baseline
+    // would be its `--onto` floor. The in-process memos go too, or a recreated
+    // worktree inherits a conflict badge and a suppressed rebase.
+    config_manager::clear_stack_entry(&mut config, &worktree_name);
+    crate::stack_manager::forget_stack_memos(&repo_path, &worktree_name);
     let _ = config_manager::save_config(&app_data_dir, &repo_path, &config).await;
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path.as_deref()).await
 }
