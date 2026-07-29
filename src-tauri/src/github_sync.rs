@@ -713,19 +713,115 @@ fn render_stack_section(chain: &[(u64, String, bool)], current_pr: u64) -> Strin
 /// Idempotently replace the delimited stack section within `body` with
 /// `section`. Appends (with two leading newlines) when markers are absent;
 /// an empty `section` removes the block entirely.
+///
+/// Corruption-safe: only a *single* well-ordered START/END pair is treated
+/// as "replace between markers". Any other marker state — an orphan START,
+/// an orphan END, END appearing before START, or duplicated stray markers —
+/// is repaired first (marker lines stripped, blank-line runs collapsed),
+/// then the fresh section is appended. This converges in one edit and is
+/// a fixed point thereafter, so a corrupted body can never grow unboundedly
+/// under repeated polling.
 fn splice_stack_section(body: &str, section: &str) -> String {
-    match (body.find(STACK_START), body.find(STACK_END)) {
-        (Some(start), Some(end)) if end >= start => {
+    let starts: Vec<usize> = body.match_indices(STACK_START).map(|(i, _)| i).collect();
+    let ends: Vec<usize> = body.match_indices(STACK_END).map(|(i, _)| i).collect();
+    match (starts.as_slice(), ends.as_slice()) {
+        ([start], [end]) if end > start => {
             let after = &body[end + STACK_END.len()..];
             if section.is_empty() {
-                format!("{}{}", body[..start].trim_end_matches('\n'), after)
+                format!("{}{}", body[..*start].trim_end_matches('\n'), after)
             } else {
-                format!("{}{}{}", &body[..start], section, after)
+                format!("{}{}{}", &body[..*start], section, after)
             }
         }
-        _ if section.is_empty() => body.to_string(),
-        _ => format!("{}\n\n{}", body.trim_end(), section),
+        ([], []) => {
+            if section.is_empty() {
+                body.to_string()
+            } else {
+                format!("{}\n\n{}", body.trim_end(), section)
+            }
+        }
+        _ => repair_and_append_stack_section(body, section),
     }
+}
+
+/// Strip every line containing either marker string, collapse the resulting
+/// blank-line runs down to at most one blank line, then append the fresh
+/// section (or leave the block absent if `section` is empty). The text
+/// between orphaned markers can't be reliably attributed to "before" or
+/// "after" the stack block, so it is left in place — only the marker lines
+/// themselves are removed.
+fn repair_and_append_stack_section(body: &str, section: &str) -> String {
+    let stripped: String = body
+        .lines()
+        .filter(|line| !line.contains(STACK_START) && !line.contains(STACK_END))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let collapsed = collapse_blank_line_runs(&stripped);
+    if section.is_empty() {
+        collapsed.trim_end().to_string()
+    } else {
+        format!("{}\n\n{}", collapsed.trim_end(), section)
+    }
+}
+
+/// Collapse runs of 3+ consecutive newlines down to 2 (i.e. at most one
+/// blank line between text blocks).
+fn collapse_blank_line_runs(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut newline_run = 0usize;
+    for ch in s.chars() {
+        if ch == '\n' {
+            newline_run += 1;
+            if newline_run <= 2 {
+                out.push(ch);
+            }
+        } else {
+            newline_run = 0;
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Assemble a stack chain root→tip as branch names, starting from `pr_branch`.
+/// Walks root-ward via `stack_parent_overrides` (worktree name = branch with
+/// `/` → `-`), reverses to root-first order, then extends tip-ward by
+/// reverse-looking-up children whose parent is the current tip.
+///
+/// Guards both walks with a visited set so a cycle in `stack_parent_overrides`
+/// (e.g. A's parent is B and B's parent is A) breaks immediately instead of
+/// duplicating a branch in the returned chain.
+fn assemble_chain(
+    stack_parent_overrides: &std::collections::HashMap<String, String>,
+    name_to_branch: &std::collections::HashMap<String, String>,
+    pr_branch: &str,
+) -> Vec<String> {
+    let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+    visited.insert(pr_branch.to_string());
+
+    // Walk to the root.
+    let mut chain_branches: Vec<String> = vec![pr_branch.to_string()];
+    let mut cursor = pr_branch.replace('/', "-");
+    while let Some(parent_branch) = stack_parent_overrides.get(&cursor) {
+        if !visited.insert(parent_branch.clone()) {
+            break; // cycle: this branch is already in the chain
+        }
+        chain_branches.push(parent_branch.clone());
+        cursor = parent_branch.replace('/', "-");
+    }
+    chain_branches.reverse(); // root→…→this PR
+
+    // Extend tip-ward: children whose parent is this PR's branch, transitively.
+    let mut tipward = pr_branch.to_string();
+    while let Some((child_name, _)) = stack_parent_overrides.iter().find(|(_, p)| **p == tipward) {
+        let Some(child_branch) = name_to_branch.get(child_name) else { break };
+        if !visited.insert(child_branch.clone()) {
+            break; // cycle: this branch is already in the chain
+        }
+        chain_branches.push(child_branch.clone());
+        tipward = child_branch.clone();
+    }
+    chain_branches
 }
 
 /// Keep a delimited "Stack" section in every stacked PR's description in sync.
@@ -762,10 +858,15 @@ async fn sync_pr_stack_sections(
             .map(String::as_str)
             .collect();
         let name_to_parent = &config.stack_parent_overrides;
+        // worktree name → branch, for resolving tip-ward children in assemble_chain.
+        let name_to_branch: std::collections::HashMap<String, String> = all_prs
+            .iter()
+            .filter(|p| p.repo_path == *repo_path)
+            .map(|p| (p.branch.replace('/', "-"), p.branch.clone()))
+            .collect();
         // Chain assembly keyed on branches from the PR list: every non-merged PR
         // that is stacked (has a parent) or is a stack root (is someone's parent)
-        // gets a section. Walk up via stack_parent_overrides (worktree name =
-        // branch with / → -), then extend tip-ward via reverse lookups.
+        // gets a section.
         for pr in all_prs.iter().filter(|p| p.repo_path == *repo_path && !p.merged) {
             let wt_name = pr.branch.replace('/', "-");
             let is_stacked = name_to_parent.contains_key(&wt_name);
@@ -773,25 +874,7 @@ async fn sync_pr_stack_sections(
             if !is_stacked && !is_parent {
                 continue;
             }
-            // Walk to the root.
-            let mut chain_branches: Vec<String> = vec![pr.branch.clone()];
-            let mut cursor = wt_name.clone();
-            for _ in 0..name_to_parent.len() {
-                let Some(parent_branch) = name_to_parent.get(&cursor) else { break };
-                chain_branches.push(parent_branch.clone());
-                cursor = parent_branch.replace('/', "-");
-            }
-            chain_branches.reverse(); // root→…→this PR
-            // Extend tip-ward: children whose parent is this PR's branch, transitively.
-            let mut tipward = pr.branch.clone();
-            for _ in 0..name_to_parent.len() {
-                let Some((child_name, _)) = name_to_parent.iter().find(|(_, p)| **p == tipward) else { break };
-                let Some(child_pr) = all_prs.iter().find(|p| {
-                    p.repo_path == *repo_path && p.branch.replace('/', "-") == *child_name
-                }) else { break };
-                chain_branches.push(child_pr.branch.clone());
-                tipward = child_pr.branch.clone();
-            }
+            let chain_branches = assemble_chain(name_to_parent, &name_to_branch, &pr.branch);
 
             let chain: Vec<(u64, String, bool)> = chain_branches
                 .iter()
@@ -800,7 +883,8 @@ async fn sync_pr_stack_sections(
             if chain.len() < 2 {
                 continue; // no stack worth announcing
             }
-            if pr.author.as_deref() != Some(me.as_str()) {
+            let is_author = pr.author.as_deref().is_some_and(|a| a.eq_ignore_ascii_case(&me));
+            if !is_author {
                 continue;
             }
 
@@ -994,5 +1078,78 @@ mod tests {
         assert!(s.contains("**#42 `feat/auth-ui` ← this PR**"));
         assert!(s.starts_with("<!-- alfredo-stack-start -->"));
         assert!(s.trim_end().ends_with("<!-- alfredo-stack-end -->"));
+    }
+
+    /// Critical repro: an orphan END marker (human deleted the START comment)
+    /// used to make the append arm fire on every poll — the leftmost END stayed
+    /// before the freshly appended START forever, so `new_body != body` held
+    /// unboundedly and `gh pr edit` ran without limit. One `splice_stack_section`
+    /// call must now repair it into a single valid pair, and a repeat call with
+    /// the same section must be a no-op fixed point.
+    #[test]
+    fn splice_repairs_orphan_end_without_unbounded_growth() {
+        let body = "Notes.\n\n<!-- alfredo-stack-end -->\nMore notes.";
+        let section = "<!-- alfredo-stack-start -->\nS\n<!-- alfredo-stack-end -->";
+
+        let fixed = splice_stack_section(body, section);
+        assert!(fixed.contains("Notes.") && fixed.contains("More notes."));
+        assert!(fixed.contains("S"));
+        assert_eq!(fixed.matches("alfredo-stack-start").count(), 1);
+        assert_eq!(fixed.matches("alfredo-stack-end").count(), 1);
+
+        // Fixed point: a second splice with the same section changes nothing further.
+        let fixed_again = splice_stack_section(&fixed, section);
+        assert_eq!(fixed_again, fixed);
+    }
+
+    #[test]
+    fn splice_repairs_orphan_start() {
+        let body = "Notes.\n\n<!-- alfredo-stack-start -->\nOLD\nMore notes.";
+        let section = "<!-- alfredo-stack-start -->\nS\n<!-- alfredo-stack-end -->";
+
+        let fixed = splice_stack_section(body, section);
+        assert!(fixed.contains("Notes.") && fixed.contains("More notes."));
+        assert_eq!(fixed.matches("alfredo-stack-start").count(), 1);
+        assert_eq!(fixed.matches("alfredo-stack-end").count(), 1);
+
+        let fixed_again = splice_stack_section(&fixed, section);
+        assert_eq!(fixed_again, fixed);
+    }
+
+    #[test]
+    fn splice_repairs_end_before_start() {
+        let body = "<!-- alfredo-stack-end -->\nNotes.\n<!-- alfredo-stack-start -->\nOLD";
+        let section = "<!-- alfredo-stack-start -->\nS\n<!-- alfredo-stack-end -->";
+
+        let fixed = splice_stack_section(body, section);
+        assert!(fixed.contains("Notes."));
+        assert_eq!(fixed.matches("alfredo-stack-start").count(), 1);
+        assert_eq!(fixed.matches("alfredo-stack-end").count(), 1);
+
+        let fixed_again = splice_stack_section(&fixed, section);
+        assert_eq!(fixed_again, fixed);
+    }
+
+    fn branch_map(pairs: &[(&str, &str)]) -> std::collections::HashMap<String, String> {
+        pairs.iter().map(|(a, b)| ((*a).to_string(), (*b).to_string())).collect()
+    }
+
+    #[test]
+    fn assemble_chain_walks_root_ward_and_tip_ward() {
+        let overrides = branch_map(&[("feat-b", "feat/a"), ("feat-c", "feat/b")]);
+        let name_to_branch = branch_map(&[("feat-a", "feat/a"), ("feat-b", "feat/b"), ("feat-c", "feat/c")]);
+        let chain = assemble_chain(&overrides, &name_to_branch, "feat/b");
+        assert_eq!(chain, vec!["feat/a".to_string(), "feat/b".to_string(), "feat/c".to_string()]);
+    }
+
+    #[test]
+    fn assemble_chain_breaks_cycle_without_duplicating_members() {
+        // 2-cycle: feat-a's parent is feat/b, feat-b's parent is feat/a.
+        let overrides = branch_map(&[("feat-a", "feat/b"), ("feat-b", "feat/a")]);
+        let name_to_branch = branch_map(&[("feat-a", "feat/a"), ("feat-b", "feat/b")]);
+        let chain = assemble_chain(&overrides, &name_to_branch, "feat/a");
+
+        let mut seen = std::collections::HashSet::new();
+        assert!(chain.iter().all(|b| seen.insert(b.clone())), "chain has duplicate members: {chain:?}");
     }
 }
