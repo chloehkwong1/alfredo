@@ -44,3 +44,18 @@ respected and won't be overwritten on the next sync.
 Review comments can be sent straight into the agent session as context
 via the inline actions on each comment card, so you can ask Claude or
 Codex to address feedback without copy-pasting.
+
+## Stack section on PRs you author
+
+For a PR opened on a stacked branch, Alfredo keeps a **Stack** section
+pinned in the PR description — bottom-to-top branch list, with
+"(merged)" on any that have already landed and **← this PR** marking
+the one you're looking at. It resyncs automatically as the stack
+changes, so a reviewer can see the whole chain from any PR in it.
+
+Merging the bottom PR retargets its children onto the default branch
+and dissolves the stack relationship automatically. One gap: if a stack
+parent is merged manually outside of GitHub (no PR event to react to)
+while its worktree is still open, Alfredo can't tell it landed and
+won't auto-dissolve — detach it yourself via **Change base branch...**
+once you notice.

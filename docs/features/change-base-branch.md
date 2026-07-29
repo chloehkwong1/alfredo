@@ -18,9 +18,13 @@ To change it, right-click a worktree in the sidebar and pick
   Picking the default branch detaches the worktree from its stack
   parent and treats it as a regular branch again.
 
-Changing the base **does not rebase** — it only updates the rebase
-target and the behind-count. Use the **Rebase onto …** context-menu
-item (or the rebase banner) once the new base is set.
+Changing the base **migrates the branch immediately**: Alfredo replays
+only this worktree's own commits onto the new base with
+`git rebase --onto`, so history that came along from the old parent
+doesn't tag along too. If the rebase hits conflicts it aborts safely —
+the branch is left exactly as it was, and both the old and new base
+stay visible so you can sort things out and reopen **Change base
+branch...** to retry.
 
 Once a worktree has a non-default parent, its sidebar row shows a
 small **parent-branch link** next to the branch name. Clicking it
