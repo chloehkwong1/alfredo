@@ -1,0 +1,21 @@
+src/lib/stackChain.test.ts
+  s_65c465c7497b08::t_85cd21d914e418 1-63
+src/lib/stackChain.ts
+  s_65c465c7497b08::t_4ef4c71c4979b0 1-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "0e2de8b3e292641d5033d5d731ba5e2d1a4cf3f9",
+  "prompts": {},
+  "sessions": {
+    "s_65c465c7497b08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ab4bfe7231e0b5d78",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
