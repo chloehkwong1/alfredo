@@ -626,10 +626,9 @@ const AgentItem = memo(function AgentItem({
   const [createFromOpen, setCreateFromOpen] = useState(false);
   const [changeBaseOpen, setChangeBaseOpen] = useState(false);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
-  // Consumed by the stack map popover (Task 12) — not rendered yet. Read via
-  // the row's data-stack-map-open attribute in the meantime so the value
-  // isn't flagged as unused (noUnusedLocals) ahead of Task 12 wiring it up.
-  const [stackMapOpen, setStackMapOpen] = useState(false);
+  // Consumed by the stack map popover (Task 12) — not rendered yet, so the
+  // read binding is elided (Task 12 re-adds it when the popover reads it).
+  const [, setStackMapOpen] = useState(false);
   // When Rename is picked from the context menu, Radix restores focus to the
   // trigger row on close, stealing it from the freshly mounted label input.
   const renameViaMenuRef = useRef(false);
@@ -787,7 +786,7 @@ const AgentItem = memo(function AgentItem({
           {isEditingLabel ? (
             // While editing, render a div so the nested <input> is valid HTML
             // and dnd-kit listeners / row onClick are suspended.
-            <div ref={setNodeRef} style={rowStyle} className={rowClassName} data-stack-map-open={stackMapOpen || undefined}>
+            <div ref={setNodeRef} style={rowStyle} className={rowClassName}>
               {rowContent}
             </div>
           ) : (
@@ -799,7 +798,6 @@ const AgentItem = memo(function AgentItem({
             {...listeners}
             style={rowStyle}
             className={rowClassName}
-            data-stack-map-open={stackMapOpen || undefined}
           >
             {rowContent}
             {worktree.column === "done" && !worktree.archived && onArchive && (
