@@ -60,4 +60,19 @@ describe("computeStackChain", () => {
     const n = wt({ id: "n", branch: "feat/n", stackParent: "feat/m" });
     expect(() => computeStackChain([m, n], "m")).not.toThrow();
   });
+
+  it("prefers the fork path containing the queried member and falls back to first child", () => {
+    const root = wt({ id: "r", branch: "feat/root" });
+    const left = wt({ id: "l", branch: "feat/left", stackParent: "feat/root" });
+    const right = wt({ id: "rt", branch: "feat/right", stackParent: "feat/root" });
+    const rightChild = wt({ id: "rc", branch: "feat/right-child", stackParent: "feat/right" });
+    // Queried from the right tip: the chain follows the fork containing self.
+    const fromRight = computeStackChain([root, left, right, rightChild], "rc");
+    expect(fromRight!.memberIds).toEqual(["r", "rt", "rc"]);
+    expect(fromRight!.position).toBe(3);
+    // Queried from the root: no self-path below the fork → deterministic first child (sorted: feat/left).
+    const fromRoot = computeStackChain([root, left, right, rightChild], "r");
+    expect(fromRoot!.memberIds).toEqual(["r", "l"]);
+    expect(fromRoot!.position).toBe(1);
+  });
 });
