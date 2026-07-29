@@ -105,6 +105,42 @@ pub fn forget_stack_memos(repo_path: &str, worktree_name: &str) {
     clear_sticky_status(repo_path, worktree_name);
 }
 
+// ── Busy-agent gating ────────────────────────────────────────────
+//
+// Every path that rewrites a worktree's history — restack, merged-parent
+// dissolution, stale-parent dissolution — consults the Claude registry first.
+// The snapshot is taken lazily and reused for a whole poll, so a poll that
+// touches no stacked repo pays nothing.
+
+/// Populate `slot` on first use. An unavailable registry (no `claude` binary,
+/// timeout, parse failure) becomes an empty map rather than an error: gating
+/// degrades open to the dirty-tree checks the restack paths already do, because
+/// a missing CLI must not block restacks forever.
+async fn ensure_registry(slot: &mut Option<HashMap<String, String>>) {
+    if slot.is_none() {
+        *slot = Some(match crate::commands::claude_registry::poll_claude_registry().await {
+            Ok(entries) => entries.into_iter().map(|e| (e.cwd, e.status)).collect(),
+            Err(_) => HashMap::new(),
+        });
+    }
+}
+
+/// Whether an agent is actively working in this checkout. Unknown ⇒ not busy.
+fn path_is_busy(registry: Option<&HashMap<String, String>>, path: &str) -> bool {
+    registry.and_then(|r| r.get(path)).map(String::as_str) == Some("busy")
+}
+
+/// A worktree's checkout path from a `checkout_paths` map, matched on dir name
+/// (worktree names are the branch with `/` → `-`).
+fn checkout_path_for<'a>(
+    checkouts: &'a HashMap<String, String>,
+    worktree_name: &str,
+) -> Option<&'a String> {
+    checkouts.values().find(|path| {
+        std::path::Path::new(path).file_name().and_then(|n| n.to_str()) == Some(worktree_name)
+    })
+}
+
 // ── Public entry points ──────────────────────────────────────────
 
 /// Called at the end of each sync poll. Baseline-tracked (no in-memory SHA
@@ -120,8 +156,11 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
     let mut registry: Option<HashMap<String, String>> = None;
 
     for repo_path in repo_paths {
-        // Task 13: detect stale parents (merged into main) first
-        if let Err(e) = detect_stale_parents(app_handle, app_data_dir, repo_path).await {
+        // Task 13: detect stale parents (merged into main) first. Shares this
+        // poll's registry slot so the two paths never poll `claude` twice.
+        if let Err(e) =
+            detect_stale_parents(app_handle, app_data_dir, repo_path, &mut registry).await
+        {
             eprintln!("[stack_manager] detect_stale_parents failed for {repo_path}: {e}");
         }
 
@@ -138,17 +177,8 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
 
         // First repo with stacked worktrees pays for the snapshot; the rest reuse
         // it. Repos with no stack config returned above without spawning anything.
-        if registry.is_none() {
-            registry = Some(match crate::commands::claude_registry::poll_claude_registry().await {
-                Ok(entries) => entries.into_iter().map(|e| (e.cwd, e.status)).collect(),
-                Err(_) => HashMap::new(),
-            });
-        }
-        let agent_busy = |path: &str| {
-            registry
-                .as_ref()
-                .is_some_and(|r| r.get(path).map(String::as_str) == Some("busy"))
-        };
+        ensure_registry(&mut registry).await;
+        let agent_busy = |path: &str| path_is_busy(registry.as_ref(), path);
 
         let checkouts = checkout_paths(repo_path).await;
         let name_to_branch: HashMap<String, String> = checkouts
@@ -216,6 +246,10 @@ pub async fn check_merged_parents(
     repo_paths: &[String],
     prs: &[crate::github_sync::PrStatusWithColumn],
 ) {
+    // Same lazy-once semantics as `check_and_rebase`, scoped to this call: only a
+    // repo that actually has a merged parent to dissolve pays for the snapshot.
+    let mut registry: Option<HashMap<String, String>> = None;
+
     for repo_path in repo_paths {
         let mut config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
             Ok(c) => c,
@@ -270,8 +304,25 @@ pub async fn check_merged_parents(
             }
         };
 
+        // A dissolution is pending for this repo, so the snapshot is now worth
+        // its subprocess. Also needed for the busy gate below.
+        ensure_registry(&mut registry).await;
+        let checkouts = checkout_paths(repo_path).await;
+
         let mut config_changed = false;
         for (child_name, _merged_parent) in &affected {
+            // Dissolving rebases and force-pushes the child, so it gets the same
+            // quiet gate as a routine restack: never rewrite history under a
+            // running agent. The parent stays merged, so this retries next poll.
+            if let Some(child_path) = checkout_path_for(&checkouts, child_name) {
+                if path_is_busy(registry.as_ref(), child_path) {
+                    eprintln!(
+                        "[stack_manager] merged-parent restack deferred for {child_name}: agent busy"
+                    );
+                    continue;
+                }
+            }
+
             // `restack_child` resolves its parent from `stack_parent_overrides`,
             // which at this point still holds the *merged* branch (cleared only
             // below) — so it can't be reused here. `restack_onto_default`
@@ -451,11 +502,24 @@ pub async fn restack_repo(app_handle: &AppHandle, app_data_dir: &Path, repo_path
 ///    `check_merged_parents`, which has a real merged-PR signal rather than a guess.
 /// 2. **A remote-tracking ref exists.** Never pushed ⇒ cannot have been merged.
 /// 3. **That ref is an ancestor of the default branch.**
+///
+/// Fails closed on an empty `checkouts` map: any repo reaching here has at least
+/// its own main checkout, so empty means `git worktree list` failed — and taking
+/// condition 1 as "no parent has a checkout" would silently turn the guard off
+/// on a path that dissolves stacks. Nothing is stale until we can see again.
 async fn stale_parent_branches(
     repo_path: &str,
     overrides: &HashMap<String, String>,
     checkouts: &HashMap<String, String>,
 ) -> Vec<String> {
+    if checkouts.is_empty() {
+        eprintln!(
+            "[stack_manager] skipping stale-parent scan for {repo_path}: no checkouts listed \
+             (git worktree list failed?) — the liveness guard would be blind"
+        );
+        return Vec::new();
+    }
+
     let default_branch = tokio::task::spawn_blocking({
         let rp = repo_path.to_string();
         move || git_manager::resolve_default_remote_branch(&rp)
@@ -504,6 +568,7 @@ pub async fn detect_stale_parents(
     app_handle: &AppHandle,
     app_data_dir: &Path,
     repo_path: &str,
+    registry: &mut Option<HashMap<String, String>>,
 ) -> Result<(), String> {
     let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
@@ -536,8 +601,23 @@ pub async fn detect_stale_parents(
         .map(|(child, _)| child.clone())
         .collect();
 
+    // Only now that a dissolution is actually pending is the registry worth
+    // polling — the vast majority of calls return above.
+    ensure_registry(registry).await;
+
     let mut dissolved: Vec<String> = Vec::new();
     for child_name in &affected {
+        // Dissolving runs a rebase and a force-push, so it gets the same quiet
+        // gate as a routine restack: never rewrite history under a running agent.
+        if let Some(child_path) = checkout_path_for(&checkouts, child_name) {
+            if path_is_busy(registry.as_ref(), child_path) {
+                eprintln!(
+                    "[stack_manager] stale-parent restack deferred for {child_name}: agent busy"
+                );
+                continue;
+            }
+        }
+
         match restack_onto_default(app_handle, app_data_dir, repo_path, child_name, &default_short)
             .await
         {
@@ -1287,6 +1367,21 @@ mod tests {
             stale_parent_branches(repo_path, &overrides, &checkout_paths(repo_path).await).await;
 
         assert_eq!(stale, vec!["feat/parent".to_string()]);
+    }
+
+    // Fail closed: an empty checkouts map means `git worktree list` failed, not
+    // that no parent has a worktree. Reading it the second way would turn the
+    // liveness guard off exactly when we can least justify a destructive guess —
+    // same fixture as the positive case, so the SHAs alone would flag it.
+    #[tokio::test]
+    async fn stale_parent_branches_bails_when_no_checkouts_listed() {
+        let repo = merged_pushed_parent_repo(false);
+        let repo_path = repo.path().to_str().expect("utf8 path");
+        let overrides = map(&[("feat-child", "feat/parent")]);
+
+        let stale = stale_parent_branches(repo_path, &overrides, &HashMap::new()).await;
+
+        assert!(stale.is_empty(), "an unreadable worktree list must dissolve nothing");
     }
 
     // Liveness guard: identical SHAs to the test above, but the parent still has
