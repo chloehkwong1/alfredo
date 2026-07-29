@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::{LazyLock, Mutex};
 
 use tauri::{AppHandle, Emitter};
 
@@ -15,6 +16,74 @@ use crate::types::{StackRebaseStatus};
 struct StackStatusPayload {
     worktree_name: String,
     status: StackRebaseStatus,
+}
+
+// ── In-process memos ─────────────────────────────────────────────
+//
+// Both maps are keyed `<repo_path>::<worktree_name>` and deliberately live only
+// for the process lifetime: a restart is cheap and retrying once after one is
+// the desired behaviour.
+
+/// Worktree → the parent tip that last conflicted for it. The background poll
+/// consults this to avoid re-running a doomed rebase (and its status churn)
+/// every 60s while the user has not touched anything. Any manual restack, or
+/// the parent moving to a new tip, invalidates the entry.
+static CONFLICT_MEMO: LazyLock<Mutex<HashMap<String, String>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Worktree → a status that must survive `compute_stack_statuses` recomputing
+/// UpToDate/Behind later in the same poll. `PushFailed` and `SkippedDirty` are
+/// both facts about the last restack attempt, not about commit counts, so the
+/// recomputed status would otherwise silently erase them within milliseconds.
+static STICKY_STATUS: LazyLock<Mutex<HashMap<String, StackRebaseStatus>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn memo_key(repo_path: &str, worktree_name: &str) -> String {
+    format!("{repo_path}::{worktree_name}")
+}
+
+/// True when `parent_tip` is exactly the tip that already conflicted for this
+/// worktree. A different tip means the situation changed: the entry is dropped
+/// and the caller retries.
+fn conflict_memo_should_skip(repo_path: &str, worktree_name: &str, parent_tip: &str) -> bool {
+    let key = memo_key(repo_path, worktree_name);
+    let Ok(mut memo) = CONFLICT_MEMO.lock() else { return false };
+    match memo.get(&key) {
+        Some(tip) if tip == parent_tip => true,
+        Some(_) => {
+            memo.remove(&key);
+            false
+        }
+        None => false,
+    }
+}
+
+fn record_conflict(repo_path: &str, worktree_name: &str, parent_tip: &str) {
+    if let Ok(mut memo) = CONFLICT_MEMO.lock() {
+        memo.insert(memo_key(repo_path, worktree_name), parent_tip.to_string());
+    }
+}
+
+fn clear_conflict_memo(repo_path: &str, worktree_name: &str) {
+    if let Ok(mut memo) = CONFLICT_MEMO.lock() {
+        memo.remove(&memo_key(repo_path, worktree_name));
+    }
+}
+
+fn set_sticky_status(repo_path: &str, worktree_name: &str, status: StackRebaseStatus) {
+    if let Ok(mut map) = STICKY_STATUS.lock() {
+        map.insert(memo_key(repo_path, worktree_name), status);
+    }
+}
+
+fn clear_sticky_status(repo_path: &str, worktree_name: &str) {
+    if let Ok(mut map) = STICKY_STATUS.lock() {
+        map.remove(&memo_key(repo_path, worktree_name));
+    }
+}
+
+fn sticky_status(repo_path: &str, worktree_name: &str) -> Option<StackRebaseStatus> {
+    STICKY_STATUS.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
 }
 
 // ── Public entry points ──────────────────────────────────────────
@@ -48,6 +117,20 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
             continue;
         }
 
+        // First repo with stacked worktrees pays for the snapshot; the rest reuse
+        // it. Repos with no stack config returned above without spawning anything.
+        if registry.is_none() {
+            registry = Some(match crate::commands::claude_registry::poll_claude_registry().await {
+                Ok(entries) => entries.into_iter().map(|e| (e.cwd, e.status)).collect(),
+                Err(_) => HashMap::new(),
+            });
+        }
+        let agent_busy = |path: &str| {
+            registry
+                .as_ref()
+                .is_some_and(|r| r.get(path).map(String::as_str) == Some("busy"))
+        };
+
         let checkouts = checkout_paths(repo_path).await;
         let name_to_branch: HashMap<String, String> = checkouts
             .iter()
@@ -56,6 +139,17 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
                     .file_name()
                     .and_then(|n| n.to_str())
                     .map(|n| (n.to_string(), branch.clone()))
+            })
+            .collect();
+        // Worktree dir name → its checkout path, the same dir-name match
+        // `restack_child` uses to find a child's own tree.
+        let name_to_path: HashMap<String, String> = checkouts
+            .values()
+            .filter_map(|path| {
+                std::path::Path::new(path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| (n.to_string(), path.clone()))
             })
             .collect();
 
@@ -72,25 +166,25 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
 
             // Quiet gate: skip while the parent's checkout is dirty or its agent is busy.
             if let Some(parent_path) = checkouts.get(parent_branch) {
-                if registry.is_none() {
-                    registry = Some(
-                        match crate::commands::claude_registry::poll_claude_registry().await {
-                            Ok(entries) => entries.into_iter().map(|e| (e.cwd, e.status)).collect(),
-                            Err(_) => HashMap::new(),
-                        },
-                    );
-                }
-                let busy = registry.as_ref().and_then(|r| r.get(parent_path)).map(String::as_str)
-                    == Some("busy");
-                if busy {
+                if agent_busy(parent_path) {
                     continue;
                 }
                 if worktree_is_dirty(parent_path, false).await {
                     continue;
                 }
             }
+
+            // Same gate for the child itself: rewriting history under a running
+            // agent is exactly as disruptive as doing it under a running parent.
+            // (Its dirty-tree case is already handled inside `run_restack`.)
+            if let Some(child_path) = name_to_path.get(&child_name) {
+                if agent_busy(child_path) {
+                    continue;
+                }
+            }
+
             // (restack_child no-ops with UpToDate when baseline == parent tip.)
-            let _ = restack_child(app_handle, app_data_dir, repo_path, &child_name).await;
+            let _ = restack_child_inner(app_handle, app_data_dir, repo_path, &child_name, true).await;
         }
     }
 }
@@ -163,10 +257,40 @@ pub async fn check_merged_parents(
             // which at this point still holds the *merged* branch (cleared only
             // below) — so it can't be reused here. `restack_onto_default`
             // targets `default_short` directly instead.
-            if let Err(e) = restack_onto_default(
+            let outcome = restack_onto_default(
                 app_handle, app_data_dir, repo_path, child_name, &default_short,
-            ).await {
-                eprintln!("[stack_manager] merged-parent restack failed for {child_name}: {e}");
+            ).await;
+
+            match outcome {
+                // Rebased: the child now sits on the default branch, so the stack
+                // relationship really is over.
+                Ok(RestackOutcome::Rebased) => {}
+                // Nothing was rebased — the child is still stacked on the merged
+                // parent's commits. Retargeting the PR and dropping the config
+                // here would strand it with a base it never got rebased onto.
+                // The parent stays merged, so this child reappears in `affected`
+                // on the next poll and dissolves once the tree is clean.
+                Ok(RestackOutcome::SkippedDirty) => {
+                    eprintln!(
+                        "[stack_manager] merged-parent restack deferred for {child_name}: worktree dirty"
+                    );
+                    continue;
+                }
+                // Same reasoning: git was never asked to rebase (missing
+                // worktree, unresolvable default tip, config read failure), so
+                // nothing moved and nothing may be dissolved.
+                Err(DissolveFailure::NotAttempted(e)) => {
+                    eprintln!(
+                        "[stack_manager] merged-parent restack deferred for {child_name}: {e}"
+                    );
+                    continue;
+                }
+                // A rebase was attempted and hit conflicts (already aborted).
+                // Deliberate: retarget + dissolve anyway so the child isn't left
+                // pointing at a merged branch. Recovery is manual.
+                Err(DissolveFailure::Conflicted(e)) => {
+                    eprintln!("[stack_manager] merged-parent restack failed for {child_name}: {e}");
+                }
             }
 
             // Update the child's PR base branch to the default branch
@@ -193,8 +317,7 @@ pub async fn check_merged_parents(
 
             // Clear the stack parent + baseline from config — the stack
             // relationship is dissolved now that the child sits on the default branch.
-            config_manager::clear_stack_parent(&mut config, child_name);
-            config_manager::clear_stack_baseline(&mut config, child_name);
+            config_manager::clear_stack_entry(&mut config, child_name);
             config_changed = true;
         }
 
@@ -208,6 +331,11 @@ pub async fn check_merged_parents(
 
 /// Called at the end of each poll. Computes commits-behind for all stacked worktrees
 /// and emits `stack:status-update` events.
+///
+/// Runs immediately after `check_and_rebase` in the same poll, so a commit-count
+/// status would overwrite whatever that just reported. Statuses describing the
+/// last *attempt* (`PushFailed`, `SkippedDirty`) are therefore re-emitted from
+/// the sticky map instead of the computed one until a later attempt clears them.
 pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path, repo_paths: &[String]) {
     for repo_path in repo_paths {
         let config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
@@ -226,19 +354,24 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
                 continue;
             }
 
-            let wt_path = worktree_path.clone();
-            let parent = parent_branch.clone();
-            let count = tokio::task::spawn_blocking(move || {
-                git_manager::commits_behind(&wt_path, Some(&parent))
-            })
-            .await
-            .ok()
-            .and_then(std::result::Result::ok);
+            let status = match sticky_status(repo_path, worktree_name) {
+                Some(sticky) => sticky,
+                None => {
+                    let wt_path = worktree_path.clone();
+                    let parent = parent_branch.clone();
+                    let count = tokio::task::spawn_blocking(move || {
+                        git_manager::commits_behind(&wt_path, Some(&parent))
+                    })
+                    .await
+                    .ok()
+                    .and_then(std::result::Result::ok);
 
-            let status = match count {
-                Some(0) => StackRebaseStatus::UpToDate,
-                Some(n) => StackRebaseStatus::Behind { count: n },
-                None => continue,
+                    match count {
+                        Some(0) => StackRebaseStatus::UpToDate,
+                        Some(n) => StackRebaseStatus::Behind { count: n },
+                        None => continue,
+                    }
+                }
             };
 
             let payload = StackStatusPayload {
@@ -317,10 +450,15 @@ pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Resul
     };
 
     for parent_branch in &unique_parents {
-        // Local-first resolution (matches `branch_tip`): a parent branch that's
-        // been merged and deleted upstream but still exists locally must still
-        // be detected, and a stale `origin/` ref would otherwise miss it.
-        let Some(ancestor_sha) = branch_tip(repo_path, parent_branch).await else { continue };
+        // Remote-tracking resolution ONLY here — deliberately not the local-first
+        // `branch_tip` the restack paths use. A freshly created stack parent has
+        // zero commits, so its *local* tip is still the default branch's tip and
+        // `--is-ancestor` reports it as merged, dissolving a brand-new stack on
+        // the very first poll. No `origin/<parent>` ref means the parent was
+        // never pushed, which means it cannot have been merged — skip it. A
+        // parent merged and then deleted upstream is caught by the PR-merged
+        // path in `check_merged_parents`, not here.
+        let Some(ancestor_sha) = remote_branch_tip(repo_path, parent_branch).await else { continue };
 
         // `git merge-base --is-ancestor <ancestor> <descendant>` exits 0 if ancestor, 1 if not
         let result = git_command()
@@ -365,20 +503,48 @@ pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Resul
 
 /// Tip SHA for a branch: local ref first (works for unpushed parents; the local
 /// tip is what children actually stack on), remote-tracking ref as fallback.
+///
+/// With no local ref the branch only exists on the remote (a parent pushed from
+/// another machine, or a worktree that was removed locally), and whatever
+/// `origin/<branch>` holds may be arbitrarily old — the old `rebase_onto` path
+/// fetched before rebasing, so restacking against a stale ref would silently
+/// no-op as UpToDate. Fetch first in that case only; a present local ref is
+/// authoritative and costs no network.
 async fn branch_tip(repo_path: &str, branch: &str) -> Option<String> {
-    for refspec in [format!("refs/heads/{branch}"), format!("origin/{branch}")] {
-        if let Ok(output) = git_command()
-            .args(["rev-parse", "--verify", "--quiet", &refspec])
-            .current_dir(repo_path)
-            .output()
-            .await
-        {
-            if output.status.success() {
-                return Some(String::from_utf8_lossy(&output.stdout).trim().to_string());
-            }
-        }
+    if let Some(sha) = rev_parse(repo_path, &format!("refs/heads/{branch}")).await {
+        return Some(sha);
     }
-    None
+
+    // Best-effort: offline/auth-broken remotes must not block the restack, they
+    // just leave the cached ref in place. `kill_on_drop` so a hung fetch is
+    // reaped when the timeout fires rather than orphaning a `git fetch` child.
+    let fetch = git_command()
+        .args(["fetch", "origin", branch, "--quiet", "--no-auto-maintenance"])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .current_dir(repo_path)
+        .kill_on_drop(true)
+        .output();
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(10), fetch).await;
+
+    rev_parse(repo_path, &format!("origin/{branch}")).await
+}
+
+/// Tip SHA of a branch's remote-tracking ref, without touching the local ref.
+async fn remote_branch_tip(repo_path: &str, branch: &str) -> Option<String> {
+    rev_parse(repo_path, &format!("origin/{branch}")).await
+}
+
+async fn rev_parse(repo_path: &str, refspec: &str) -> Option<String> {
+    let output = git_command()
+        .args(["rev-parse", "--verify", "--quiet", refspec])
+        .current_dir(repo_path)
+        .output()
+        .await
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 /// Resolve the filesystem path for a worktree given its name and the repo config.
@@ -397,30 +563,60 @@ fn resolve_worktree_path(repo_path: &str, worktree_name: &str, config: &crate::t
     base.join(worktree_name).to_string_lossy().to_string()
 }
 
-/// The single restack path. Emits status events; returns Err only for
+/// The checkout path of a worktree: ask git first (matching on dir name, since
+/// worktree names are the branch with `/` → `-`), and only fall back to the
+/// `worktree_base_path` convention when git doesn't know it. The fallback alone
+/// misses externally created worktrees, which live wherever the user put them.
+async fn worktree_checkout_path(
+    repo_path: &str,
+    worktree_name: &str,
+    config: &crate::types::AppConfig,
+) -> String {
+    checkout_paths(repo_path)
+        .await
+        .into_iter()
+        .find(|(_, path)| {
+            std::path::Path::new(path).file_name().and_then(|n| n.to_str()) == Some(worktree_name)
+        })
+        .map(|(_, path)| path)
+        .unwrap_or_else(|| resolve_worktree_path(repo_path, worktree_name, config))
+}
+
+/// The single restack path, as invoked by the user ("Restack now", or the
+/// repo-wide cascade). Emits status events; returns Err only for
 /// conflicts/system failures the caller may want to surface.
+///
+/// Explicit user action always retries, so any memoised conflict is discarded
+/// first — that memo exists purely to stop the background poll from re-running
+/// a rebase it already knows will fail.
 pub async fn restack_child(
     app_handle: &AppHandle,
     app_data_dir: &Path,
     repo_path: &str,
     worktree_name: &str,
 ) -> Result<(), String> {
-    let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
+    clear_conflict_memo(repo_path, worktree_name);
+    restack_child_inner(app_handle, app_data_dir, repo_path, worktree_name, false).await
+}
+
+/// `auto = true` marks the 60s background poll: it skips children whose current
+/// parent tip is already memoised as conflicting and records new conflicts.
+/// Manual callers pass `false` and always attempt the rebase.
+async fn restack_child_inner(
+    app_handle: &AppHandle,
+    app_data_dir: &Path,
+    repo_path: &str,
+    worktree_name: &str,
+    auto: bool,
+) -> Result<(), String> {
+    let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
     let Some(parent_branch) = config_manager::get_stack_parent(&config, worktree_name) else {
         return Err(format!("{worktree_name} has no stack parent"));
     };
 
-    let checkouts = checkout_paths(repo_path).await;
-    // The child's own checkout path: match by dir name (worktree names are branch with / → -).
-    let worktree_path = checkouts
-        .iter()
-        .find(|(_, path)| {
-            std::path::Path::new(path).file_name().and_then(|n| n.to_str()) == Some(worktree_name)
-        })
-        .map(|(_, path)| path.clone())
-        .unwrap_or_else(|| resolve_worktree_path(repo_path, worktree_name, &config));
+    let worktree_path = worktree_checkout_path(repo_path, worktree_name, &config).await;
 
     if !std::path::Path::new(&worktree_path).exists() {
         return Err(format!("worktree path does not exist: {worktree_path}"));
@@ -429,6 +625,14 @@ pub async fn restack_child(
     let Some(parent_tip) = branch_tip(repo_path, &parent_branch).await else {
         return Err(format!("could not resolve tip of {parent_branch}"));
     };
+
+    // A conflict against this exact parent tip will conflict again identically;
+    // retrying it every poll only churns Rebasing→Conflict events. Checked even
+    // when `auto` is false so a moved parent tip invalidates the memo.
+    let memoised_conflict = conflict_memo_should_skip(repo_path, worktree_name, &parent_tip);
+    if auto && memoised_conflict {
+        return Ok(());
+    }
 
     // Baseline: persisted, else one-time merge-base fallback (pre-existing stacks).
     let baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
@@ -439,16 +643,36 @@ pub async fn restack_child(
     };
 
     if baseline == parent_tip {
-        emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+        // No rebase is pending, so a "deferred because the tree was dirty" note
+        // is obsolete and would otherwise stick forever (nothing below runs to
+        // clear it). A `PushFailed` is NOT obsolete — the local branch being up
+        // to date is exactly the state in which a stale remote goes unnoticed —
+        // so it survives until a push succeeds or a new attempt starts.
+        match sticky_status(repo_path, worktree_name) {
+            Some(StackRebaseStatus::SkippedDirty) | None => {
+                clear_sticky_status(repo_path, worktree_name);
+                emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+            }
+            // Emitting UpToDate here would flicker it in and out every poll,
+            // since `compute_stack_statuses` re-emits the sticky one moments later.
+            Some(_) => {}
+        }
         return Ok(());
     }
 
-    match run_restack(app_handle, &worktree_path, worktree_name, &parent_tip, &baseline).await {
+    match run_restack(app_handle, repo_path, &worktree_path, worktree_name, &parent_tip, &baseline).await {
         // Only a real rebase moves the child's history onto `parent_tip` — only
         // that outcome may advance the persisted baseline. A dirty-skip performs
         // no rebase at all, so persisting here would make every later poll
         // short-circuit `UpToDate` forever and desync the baseline from HEAD.
         Ok(RestackOutcome::Rebased) => {
+            // Reload rather than reuse the snapshot taken before the rebase: the
+            // rebase + push above take seconds, and any config write that landed
+            // meanwhile (port claim, column drag, a sibling's baseline) would be
+            // clobbered by saving the stale copy.
+            let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
+                .await
+                .map_err(|e| e.to_string())?;
             config_manager::set_stack_baseline(&mut config, worktree_name, &parent_tip);
             if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &config).await {
                 eprintln!("[stack_manager] failed to persist baseline for {worktree_name}: {e}");
@@ -456,7 +680,12 @@ pub async fn restack_child(
             Ok(())
         }
         Ok(RestackOutcome::SkippedDirty) => Ok(()),
-        Err(e) => Err(e),
+        Err(e) => {
+            if auto {
+                record_conflict(repo_path, worktree_name, &parent_tip);
+            }
+            Err(e)
+        }
     }
 }
 
@@ -472,15 +701,20 @@ enum RestackOutcome {
 /// Baseline resolution/persistence is the caller's job since it varies per caller.
 async fn run_restack(
     app_handle: &AppHandle,
+    repo_path: &str,
     worktree_path: &str,
     worktree_name: &str,
     target_tip: &str,
     baseline: &str,
 ) -> Result<RestackOutcome, String> {
+    // A fresh attempt supersedes whatever the last one reported.
+    clear_sticky_status(repo_path, worktree_name);
+
     // Dirty child → visible skip, not a silent eprintln. Unknown status
     // (spawn failure) defaults to "dirty": skip rather than risk rebasing an
     // uncertain tree.
     if worktree_is_dirty(worktree_path, true).await {
+        set_sticky_status(repo_path, worktree_name, StackRebaseStatus::SkippedDirty);
         emit_status(app_handle, worktree_name, StackRebaseStatus::SkippedDirty);
         return Ok(RestackOutcome::SkippedDirty);
     }
@@ -490,7 +724,7 @@ async fn run_restack(
     match git_manager::rebase_onto_sha(worktree_path, target_tip, baseline, true).await {
         Ok(()) => {
             let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
-            push_with_lease_or_flag(app_handle, worktree_path, worktree_name).await;
+            push_with_lease_or_flag(app_handle, repo_path, worktree_path, worktree_name).await;
             Ok(RestackOutcome::Rebased)
         }
         Err(e) => {
@@ -506,60 +740,94 @@ async fn run_restack(
 /// `PushFailed` rather than propagating — the rebase already succeeded
 /// locally, so a push failure is surfaced as a status, not an error. Shared by
 /// `run_restack` and `change_base`, whose success paths both do this.
-async fn push_with_lease_or_flag(app_handle: &AppHandle, worktree_path: &str, worktree_name: &str) {
+///
+/// A failure is also recorded as sticky, because `compute_stack_statuses` runs
+/// moments later in the same poll and would otherwise replace it with the
+/// commit-count status of a branch that is, locally, perfectly up to date.
+async fn push_with_lease_or_flag(
+    app_handle: &AppHandle,
+    repo_path: &str,
+    worktree_path: &str,
+    worktree_name: &str,
+) {
     if git_manager::has_upstream(worktree_path).await {
         if let Err(e) =
             crate::commands::git_ops::git_push_force_with_lease(worktree_path.to_string()).await
         {
             eprintln!("[stack_manager] lease push failed for {worktree_name}: {e}");
+            set_sticky_status(repo_path, worktree_name, StackRebaseStatus::PushFailed);
             emit_status(app_handle, worktree_name, StackRebaseStatus::PushFailed);
+            return;
         }
     }
+    // Pushed cleanly (or nothing to push) — drop any earlier failure.
+    clear_sticky_status(repo_path, worktree_name);
+}
+
+/// Why a merged-parent dissolution produced no rebased child. The distinction is
+/// load-bearing: only `Conflicted` — a rebase that actually ran — still dissolves
+/// the stack (deliberate; recovery is manual). Everything else must leave the
+/// relationship standing so a later poll retries.
+enum DissolveFailure {
+    /// Preconditions failed; git was never asked to rebase anything.
+    NotAttempted(String),
+    /// Rebase ran, hit conflicts, and was aborted.
+    Conflicted(String),
 }
 
 /// Rebase a child onto the default branch after its parent merged/dissolved.
 /// Same baseline mechanics as `restack_child`, but the target is the default
-/// branch's tip rather than the recorded parent, and on success the stack
-/// relationship is over — the caller clears the parent + baseline entries.
+/// branch's tip rather than the recorded parent.
+///
+/// Returns the outcome rather than a bare `Ok`: only `Rebased` means the child
+/// actually sits on the default branch now, and only then may the caller
+/// dissolve the stack relationship.
 async fn restack_onto_default(
     app_handle: &AppHandle,
     app_data_dir: &Path,
     repo_path: &str,
     worktree_name: &str,
     default_short: &str,
-) -> Result<(), String> {
+) -> Result<RestackOutcome, DissolveFailure> {
     let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
-        .map_err(|e| e.to_string())?;
-    let worktree_path = resolve_worktree_path(repo_path, worktree_name, &config);
+        .map_err(|e| DissolveFailure::NotAttempted(e.to_string()))?;
+    let worktree_path = worktree_checkout_path(repo_path, worktree_name, &config).await;
     if !std::path::Path::new(&worktree_path).exists() {
-        return Err(format!("worktree path does not exist: {worktree_path}"));
+        return Err(DissolveFailure::NotAttempted(format!(
+            "worktree path does not exist: {worktree_path}"
+        )));
     }
     let Some(target_tip) = branch_tip(repo_path, default_short).await else {
-        return Err(format!("could not resolve tip of {default_short}"));
+        return Err(DissolveFailure::NotAttempted(format!(
+            "could not resolve tip of {default_short}"
+        )));
     };
     let baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
         Some(sha) => sha,
         None => git_manager::merge_base(&worktree_path, "HEAD", &target_tip)
             .await
-            .map_err(|e| e.to_string())?,
+            .map_err(|e| DissolveFailure::NotAttempted(e.to_string()))?,
     };
 
-    match run_restack(app_handle, &worktree_path, worktree_name, &target_tip, &baseline).await {
-        // Either outcome is a plain Ok here: a real rebase dissolves the stack
-        // relationship (caller clears parent+baseline, no new baseline to
-        // persist), and a dirty-skip already emitted SkippedDirty inside
-        // `run_restack` — nothing left for this caller to do.
-        Ok(RestackOutcome::Rebased | RestackOutcome::SkippedDirty) => Ok(()),
-        Err(e) => Err(e),
-    }
+    run_restack(app_handle, repo_path, &worktree_path, worktree_name, &target_tip, &baseline)
+        .await
+        .map_err(DissolveFailure::Conflicted)
 }
 
 /// Re-parent with migration: rebase the child's own commits onto the new base
 /// NOW (`--onto <new-tip> <old-baseline>`), then persist parent + baseline.
-/// `new_parent = None` re-bases onto the default branch and clears the stack entry.
-/// On conflict: rebase aborted, metadata still updated (Restack now retries),
-/// error returned for the dialog to surface.
+///
+/// Metadata ordering differs by case, because "what does the user retry with?"
+/// differs by case:
+///
+/// - `Some(new_parent)` — the new parent is persisted BEFORE the rebase, so a
+///   conflicted migration still leaves a stack relationship for "Restack now"
+///   to retry against. Error returned for the dialog to surface.
+/// - `None` (re-base onto the default branch) — the parent is cleared only once
+///   the rebase actually succeeds. Clearing it up front would dissolve the stack
+///   on a conflict, taking the stack UI and every retry path with it, while the
+///   branch itself was left untouched by the aborted rebase.
 ///
 /// Deliberately does NOT route through `run_restack`: this is an explicit user
 /// action, not a background poll, so there is no dirty-skip — `rebase_onto_sha`
@@ -573,10 +841,15 @@ pub async fn change_base(
     worktree_name: &str,
     new_parent: Option<&str>,
 ) -> Result<(), String> {
+    // Explicit user action: always retry, never honour a memoised conflict, and
+    // supersede whatever the last background attempt reported.
+    clear_conflict_memo(repo_path, worktree_name);
+    clear_sticky_status(repo_path, worktree_name);
+
     let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
-    let worktree_path = resolve_worktree_path(repo_path, worktree_name, &config);
+    let worktree_path = worktree_checkout_path(repo_path, worktree_name, &config).await;
     if !std::path::Path::new(&worktree_path).exists() {
         return Err(format!("worktree path does not exist: {worktree_path}"));
     }
@@ -613,18 +886,29 @@ pub async fn change_base(
         }
     };
 
-    // Persist metadata FIRST so a conflicted migration still leaves the new
-    // parent in place for "Restack now" to retry against.
-    match new_parent {
-        Some(p) => config_manager::set_stack_parent(&mut config, worktree_name, p),
-        None => config_manager::clear_stack_parent(&mut config, worktree_name),
+    // Re-parenting persists the new parent FIRST (see the doc comment); the
+    // baseline only advances on rebase success, so the old one stays put for
+    // retries. Dissolving (`None`) writes nothing until the rebase succeeds.
+    if let Some(p) = new_parent {
+        config_manager::set_stack_parent(&mut config, worktree_name, p);
+        config_manager::save_config(app_data_dir, repo_path, &config)
+            .await
+            .map_err(|e| e.to_string())?;
     }
-    // Baseline only advances on rebase success; keep the old one for retries.
-    config_manager::save_config(app_data_dir, repo_path, &config)
-        .await
-        .map_err(|e| e.to_string())?;
 
     if old_baseline == target_tip {
+        // Nothing to replay — the branch already starts at the target tip. For a
+        // dissolve that IS the whole migration, so the entry goes now; leaving
+        // the baseline behind would seed the next stack with a stale `--onto` floor.
+        if new_parent.is_none() {
+            let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
+                .await
+                .map_err(|e| e.to_string())?;
+            config_manager::clear_stack_entry(&mut config, worktree_name);
+            config_manager::save_config(app_data_dir, repo_path, &config)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
         emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
         return Ok(());
     }
@@ -637,15 +921,19 @@ pub async fn change_base(
                 .map_err(|e| e.to_string())?;
             match new_parent {
                 Some(_) => config_manager::set_stack_baseline(&mut config, worktree_name, &target_tip),
-                None => config_manager::clear_stack_baseline(&mut config, worktree_name),
+                // The migration landed — only now is the stack relationship over.
+                None => config_manager::clear_stack_entry(&mut config, worktree_name),
             }
             config_manager::save_config(app_data_dir, repo_path, &config)
                 .await
                 .map_err(|e| e.to_string())?;
             let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
-            push_with_lease_or_flag(app_handle, &worktree_path, worktree_name).await;
+            push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name).await;
             Ok(())
         }
+        // Aborted, branch unchanged. Nothing is written here: a re-parent kept the
+        // new parent it persisted above, and a dissolve still has its old parent,
+        // so both remain visible in the stack UI and retryable.
         Err(e) => {
             let _ = app_handle.emit("stack:rebase-conflict", worktree_name.to_string());
             emit_status(app_handle, worktree_name, StackRebaseStatus::Conflict);
@@ -860,14 +1148,41 @@ mod tests {
             .current_dir(repo_path)
             .output()?;
         // No real `origin` remote in this fixture — synthesize the
-        // remote-tracking ref `resolve_default_remote_branch`'s fallback probes for.
+        // remote-tracking refs. `origin/main` is what
+        // `resolve_default_remote_branch`'s fallback probes for; `origin/feat/parent`
+        // is what makes the parent a *pushed* branch, the only kind
+        // `detect_stale_parents` will consider (see the unpushed-parent test).
         StdCommand::new("git")
             .args(["update-ref", "refs/remotes/origin/main", "refs/heads/main"])
             .current_dir(repo_path)
             .output()?;
+        StdCommand::new("git")
+            .args(["update-ref", "refs/remotes/origin/feat/parent", "refs/heads/feat/parent"])
+            .current_dir(repo_path)
+            .output()?;
 
         let app_data = TempDir::new()?;
-        let mut config = crate::types::AppConfig {
+        let mut config = test_config(repo_path);
+        config_manager::set_stack_parent(&mut config, "feat-child", "feat/parent");
+        config_manager::set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
+        config_manager::save_config(app_data.path(), repo_path, &config).await?;
+
+        detect_stale_parents(app_data.path(), repo_path).await?;
+
+        let reloaded = config_manager::load_personal_config(app_data.path(), repo_path).await?;
+        assert!(
+            reloaded.stack_parent_overrides.get("feat-child").is_none(),
+            "merged parent override should be cleared"
+        );
+        assert!(
+            config_manager::get_stack_baseline(&reloaded, "feat-child").is_none(),
+            "baseline should be cleared alongside the parent override"
+        );
+        Ok(())
+    }
+
+    fn test_config(repo_path: &str) -> crate::types::AppConfig {
+        crate::types::AppConfig {
             repo_path: repo_path.to_string(),
             setup_scripts: None,
             github_token: None,
@@ -891,7 +1206,32 @@ mod tests {
             port_range_end: None,
             linear_prompt_template: None,
             linear_auto_submit: false,
-        };
+        }
+    }
+
+    // The brand-new-stack regression: a parent worktree created seconds ago has
+    // zero commits of its own, so its LOCAL tip is still exactly main's tip and
+    // `merge-base --is-ancestor` reports it as merged. Resolving the parent
+    // through `origin/<parent>` instead means an unpushed branch is simply not a
+    // candidate, and the stack survives its first poll.
+    #[tokio::test]
+    async fn detect_stale_parents_ignores_unpushed_parent(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+
+        // Zero-commit branch off main: local tip == main tip, never pushed.
+        StdCommand::new("git")
+            .args(["branch", "feat/parent", "main"])
+            .current_dir(repo_path)
+            .output()?;
+        StdCommand::new("git")
+            .args(["update-ref", "refs/remotes/origin/main", "refs/heads/main"])
+            .current_dir(repo_path)
+            .output()?;
+
+        let app_data = TempDir::new()?;
+        let mut config = test_config(repo_path);
         config_manager::set_stack_parent(&mut config, "feat-child", "feat/parent");
         config_manager::set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
         config_manager::save_config(app_data.path(), repo_path, &config).await?;
@@ -899,14 +1239,88 @@ mod tests {
         detect_stale_parents(app_data.path(), repo_path).await?;
 
         let reloaded = config_manager::load_personal_config(app_data.path(), repo_path).await?;
-        assert!(
-            reloaded.stack_parent_overrides.get("feat-child").is_none(),
-            "merged parent override should be cleared"
+        assert_eq!(
+            reloaded.stack_parent_overrides.get("feat-child").map(String::as_str),
+            Some("feat/parent"),
+            "an unpushed parent cannot have been merged — the stack must survive"
         );
         assert!(
-            config_manager::get_stack_baseline(&reloaded, "feat-child").is_none(),
-            "baseline should be cleared alongside the parent override"
+            config_manager::get_stack_baseline(&reloaded, "feat-child").is_some(),
+            "baseline must survive alongside the parent override"
         );
         Ok(())
+    }
+
+    // Externally created worktrees live wherever the user put them, not under
+    // `worktree_base_path` — `git worktree list` is the only source that knows.
+    #[tokio::test]
+    async fn worktree_checkout_path_finds_external_worktree(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+        let elsewhere = TempDir::new()?;
+        let external = elsewhere.path().join("feat-child");
+
+        StdCommand::new("git")
+            .args(["worktree", "add", "-b", "feat/child", &external.to_string_lossy(), "main"])
+            .current_dir(repo_path)
+            .output()?;
+
+        let config = test_config(repo_path);
+        let found = worktree_checkout_path(repo_path, "feat-child", &config).await;
+        assert_eq!(
+            std::fs::canonicalize(&found)?,
+            std::fs::canonicalize(&external)?,
+            "should resolve via `git worktree list`, not the base-path convention"
+        );
+
+        // The convention fallback still answers for names git doesn't know.
+        let unknown = worktree_checkout_path(repo_path, "not-a-worktree", &config).await;
+        assert_eq!(unknown, resolve_worktree_path(repo_path, "not-a-worktree", &config));
+        Ok(())
+    }
+
+    // The memo must be tip-scoped: the same tip is a guaranteed repeat conflict,
+    // a moved tip is a genuinely new situation and has to be retried.
+    #[test]
+    fn conflict_memo_skips_only_the_tip_that_failed() {
+        let repo = "/tmp/memo-test-repo";
+        let name = "memo-child";
+        clear_conflict_memo(repo, name);
+
+        assert!(!conflict_memo_should_skip(repo, name, "aaa"), "no memo → attempt");
+
+        record_conflict(repo, name, "aaa");
+        assert!(conflict_memo_should_skip(repo, name, "aaa"), "same tip → skip");
+
+        assert!(!conflict_memo_should_skip(repo, name, "bbb"), "moved tip → attempt");
+        assert!(
+            !conflict_memo_should_skip(repo, name, "aaa"),
+            "the moved tip invalidated the memo entirely"
+        );
+
+        record_conflict(repo, name, "ccc");
+        clear_conflict_memo(repo, name);
+        assert!(!conflict_memo_should_skip(repo, name, "ccc"), "manual retry clears the memo");
+    }
+
+    // `compute_stack_statuses` runs milliseconds after a restack in the same
+    // poll; without the sticky entry it would recompute PushFailed away.
+    #[test]
+    fn sticky_status_round_trips_and_clears() {
+        let repo = "/tmp/sticky-test-repo";
+        let name = "sticky-child";
+        clear_sticky_status(repo, name);
+
+        assert!(sticky_status(repo, name).is_none());
+
+        set_sticky_status(repo, name, StackRebaseStatus::PushFailed);
+        assert_eq!(sticky_status(repo, name), Some(StackRebaseStatus::PushFailed));
+
+        set_sticky_status(repo, name, StackRebaseStatus::SkippedDirty);
+        assert_eq!(sticky_status(repo, name), Some(StackRebaseStatus::SkippedDirty));
+
+        clear_sticky_status(repo, name);
+        assert!(sticky_status(repo, name).is_none(), "a new attempt supersedes the last one");
     }
 }
