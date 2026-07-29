@@ -501,11 +501,17 @@ pub fn set_stack_baseline(config: &mut AppConfig, worktree_name: &str, sha: &str
     config.stack_baselines.insert(worktree_name.to_string(), sha.to_string());
 }
 
-/// `#[allow(dead_code)]` because clearing a baseline is only needed by the
-/// merged-parent / manual-retry paths added in a later stacked-PR task.
-#[allow(dead_code)]
 pub fn clear_stack_baseline(config: &mut AppConfig, worktree_name: &str) {
     config.stack_baselines.remove(worktree_name);
+}
+
+/// Dissolve a worktree's stack relationship: drop both the parent override and
+/// the restack baseline. The two always die together — a baseline left behind
+/// after a detach is picked up as the `--onto` floor by the next stack the
+/// worktree joins, replaying commits from an unrelated SHA.
+pub fn clear_stack_entry(config: &mut AppConfig, worktree_name: &str) {
+    clear_stack_parent(config, worktree_name);
+    clear_stack_baseline(config, worktree_name);
 }
 
 pub fn get_linear_ticket(config: &AppConfig, worktree_name: &str) -> Option<LinearTicketRef> {
@@ -1235,6 +1241,63 @@ mod tests {
         clear_stack_baseline(&mut config, "feat-child");
         assert!(get_stack_baseline(&config, "feat-child").is_none());
 
+        Ok(())
+    }
+
+    /// Detaching a worktree from its stack (and the dissolve paths in
+    /// `stack_manager`) run no rebase, so a baseline left behind would be picked
+    /// up as the `--onto` floor by whatever stack the worktree joins next —
+    /// replaying its commits from an unrelated SHA. Both entries must go.
+    #[tokio::test]
+    async fn clear_stack_entry_drops_parent_and_baseline(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        let mut config = AppConfig {
+            repo_path: repo_path.to_string(),
+            setup_scripts: None,
+            github_token: None,
+            linear_api_key: None,
+            branch_mode: false,
+            column_overrides: HashMap::new(),
+            theme: None,
+            notifications: None,
+            worktree_base_path: None,
+            claude_defaults: None,
+            worktree_overrides: None,
+            run_script: None,
+            stack_parent_overrides: HashMap::new(),
+            stack_baselines: HashMap::new(),
+            archive_script: None,
+            linear_tickets: HashMap::new(),
+            port_assignments: HashMap::new(),
+            auto_assign_ports: false,
+            port_env_var: None,
+            port_range_start: None,
+            port_range_end: None,
+            linear_prompt_template: None,
+            linear_auto_submit: false,
+        };
+        set_stack_parent(&mut config, "feat-child", "feat/parent");
+        set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
+        // A sibling's entries must be untouched by the detach.
+        set_stack_parent(&mut config, "feat-other", "feat/parent");
+        set_stack_baseline(&mut config, "feat-other", "def456def456def456def456def456def456defa");
+
+        clear_stack_entry(&mut config, "feat-child");
+
+        write_personal_config_file(app_data.path(), repo_path, &config).await?;
+        let loaded = load_personal_config(app_data.path(), repo_path).await?;
+
+        assert!(loaded.stack_parent_overrides.get("feat-child").is_none());
+        assert!(get_stack_baseline(&loaded, "feat-child").is_none());
+        assert_eq!(
+            loaded.stack_parent_overrides.get("feat-other").map(String::as_str),
+            Some("feat/parent")
+        );
+        assert!(get_stack_baseline(&loaded, "feat-other").is_some());
         Ok(())
     }
 

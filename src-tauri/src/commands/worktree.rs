@@ -535,7 +535,9 @@ pub async fn is_commit_pushed(worktree_path: String, commit_hash: String) -> Res
     git_manager::is_commit_pushed(&worktree_path, &commit_hash).await
 }
 
-/// Set or clear the stack parent for a worktree.
+/// Set or clear the stack parent for a worktree. Detaching (`None`) also drops
+/// the restack baseline — no rebase happens here, so a surviving baseline would
+/// become a stale `--onto` floor for whatever stack this worktree joins next.
 #[tauri::command]
 pub async fn set_stack_parent(
     app: AppHandle,
@@ -547,7 +549,7 @@ pub async fn set_stack_parent(
     let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     match parent_branch {
         Some(parent) => config_manager::set_stack_parent(&mut config, &worktree_name, &parent),
-        None => config_manager::clear_stack_parent(&mut config, &worktree_name),
+        None => config_manager::clear_stack_entry(&mut config, &worktree_name),
     }
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
