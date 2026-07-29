@@ -1,0 +1,19 @@
+src-tauri/src/commands/worktree.rs
+  s_9868f6ee284472::t_6cd73ba2946692 180-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c543359e1880a4dc5331cbeaacc86939954b1aa5",
+  "prompts": {},
+  "sessions": {
+    "s_9868f6ee284472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a2a4a203f5ff43c6d",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
