@@ -875,6 +875,44 @@ enum RestackOutcome {
     SkippedDirty,
 }
 
+/// Detects a `git rebase` already in progress in `worktree_path`, via `git
+/// rev-parse --git-path rebase-merge`/`rebase-apply` rather than joining
+/// `<worktree_path>/.git/rebase-merge` by hand: in a linked worktree `.git` is
+/// a *file* (a gitdir pointer), and the real `rebase-merge`/`rebase-apply`
+/// state lives under the main checkout's `.git/worktrees/<name>/`, not under
+/// the worktree path itself. `--git-path` resolves that indirection for us
+/// (and returns an absolute path when it does, though a relative one is
+/// handled too).
+async fn rebase_in_progress(worktree_path: &str) -> bool {
+    for marker in ["rebase-merge", "rebase-apply"] {
+        let Ok(output) = git_command()
+            .args(["rev-parse", "--git-path", marker])
+            .current_dir(worktree_path)
+            .output()
+            .await
+        else {
+            continue;
+        };
+        if !output.status.success() {
+            continue;
+        }
+        let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if raw.is_empty() {
+            continue;
+        }
+        let path = std::path::Path::new(&raw);
+        let resolved = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::path::Path::new(worktree_path).join(path)
+        };
+        if resolved.exists() {
+            return true;
+        }
+    }
+    false
+}
+
 /// Shared restack sequence (Tasks 5/7 reuse this verbatim): dirty-check, rebase
 /// `--onto`, and — on success — auto-push with lease when an upstream exists.
 /// Baseline resolution/persistence is the caller's job since it varies per caller.
@@ -886,6 +924,22 @@ async fn run_restack(
     target_tip: &str,
     baseline: &str,
 ) -> Result<RestackOutcome, String> {
+    // Checked BEFORE the sticky-clear/dirty-check below, and deliberately
+    // returns early without touching sticky status or emitting anything: a
+    // rebase already in progress here means `begin_conflict_handoff` left
+    // conflict markers for the worktree's Claude session to resolve via
+    // `git rebase --continue`. If this fell through to the ordinary
+    // clear-then-dirty-check sequence below, the sticky `Conflict` status that
+    // sent the user to that handoff would get silently overwritten with
+    // `SkippedDirty` the moment a poll catches the worktree between
+    // busy-registry ticks — hiding the popover's resolve/retry buttons for the
+    // entire resolution. Leaving sticky status untouched here lets
+    // `compute_stack_statuses` keep re-emitting `Conflict` until the agent's
+    // `rebase --continue` actually finishes it (or the rebase is aborted).
+    if rebase_in_progress(worktree_path).await {
+        return Ok(RestackOutcome::SkippedDirty);
+    }
+
     // A fresh attempt supersedes whatever the last one reported.
     clear_sticky_status(repo_path, worktree_name);
 
@@ -1566,6 +1620,82 @@ mod tests {
         // The convention fallback still answers for names git doesn't know.
         let unknown = worktree_checkout_path(repo_path, "not-a-worktree", &config).await;
         assert_eq!(unknown, resolve_worktree_path(repo_path, "not-a-worktree", &config));
+        Ok(())
+    }
+
+    // `run_restack` needs an `AppHandle` this test module has no fixture for,
+    // so this exercises `rebase_in_progress` directly — the detection helper
+    // that guards it — against a real *linked* worktree with a genuinely
+    // conflicted, left-in-place rebase. The linked-worktree shape is the one
+    // that matters: `.git` there is a file (a gitdir pointer), so a naive
+    // `<worktree_path>/.git/rebase-merge` join would never find the state,
+    // which actually lives under the main checkout's `.git/worktrees/<name>/`.
+    // Mirrors the fixture in
+    // `git_manager::rebase_onto_sha_conflict_leaves_rebase_in_place_when_abort_on_failure_false`,
+    // one level up (linked worktree instead of the repo root).
+    #[tokio::test]
+    async fn rebase_in_progress_detects_conflicted_rebase_in_linked_worktree(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+
+        StdCommand::new("git").args(["checkout", "-b", "parent"]).current_dir(repo_path).output()?;
+        std::fs::write(repo.path().join("s.txt"), "base")?;
+        StdCommand::new("git").args(["add", "."]).current_dir(repo_path).output()?;
+        StdCommand::new("git")
+            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "-m", "p1"])
+            .current_dir(repo_path)
+            .output()?;
+        let old_parent_tip = StdCommand::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(repo_path)
+            .output()?;
+        let old_parent_tip = String::from_utf8_lossy(&old_parent_tip.stdout).trim().to_string();
+
+        let elsewhere = TempDir::new()?;
+        let child_path = elsewhere.path().join("child");
+        StdCommand::new("git")
+            .args(["worktree", "add", "-b", "child", &child_path.to_string_lossy(), "parent"])
+            .current_dir(repo_path)
+            .output()?;
+        let child_path_str = child_path.to_str().expect("utf8 path");
+        std::fs::write(child_path.join("s.txt"), "child-edit")?;
+        StdCommand::new("git").args(["add", "."]).current_dir(child_path_str).output()?;
+        StdCommand::new("git")
+            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "-m", "c1"])
+            .current_dir(child_path_str)
+            .output()?;
+
+        StdCommand::new("git").args(["checkout", "parent"]).current_dir(repo_path).output()?;
+        std::fs::write(repo.path().join("s.txt"), "parent-edit")?;
+        StdCommand::new("git").args(["add", "."]).current_dir(repo_path).output()?;
+        StdCommand::new("git")
+            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "-m", "p2"])
+            .current_dir(repo_path)
+            .output()?;
+        let new_parent_tip = StdCommand::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(repo_path)
+            .output()?;
+        let new_parent_tip = String::from_utf8_lossy(&new_parent_tip.stdout).trim().to_string();
+
+        assert!(!rebase_in_progress(child_path_str).await, "no rebase attempted yet");
+
+        git_manager::rebase_onto_sha(child_path_str, &new_parent_tip, &old_parent_tip, false)
+            .await
+            .expect_err("conflicting rebase must fail");
+
+        assert!(
+            rebase_in_progress(child_path_str).await,
+            "a conflicted rebase left in place must be detected"
+        );
+
+        StdCommand::new("git").args(["rebase", "--abort"]).current_dir(child_path_str).output()?;
+        assert!(
+            !rebase_in_progress(child_path_str).await,
+            "aborting the rebase must clear the in-progress state"
+        );
+
         Ok(())
     }
 

@@ -43,6 +43,9 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
       const prompt = await prepareConflictHandoff(conflicted.repoPath, conflicted.name);
       if (prompt === "__no_conflict__") return;
       const session = await ensureAgentSession(conflicted.id, conflicted.repoPath, conflicted.branch);
+      if (!session?.sessionId) {
+        throw new Error("worktree has no live agent session — reopen its terminal first");
+      }
       await writeToSession(session.sessionId, `${prompt}\n`);
       setActiveWorktree(conflicted.id);
       focusAgentTab(conflicted.id);
