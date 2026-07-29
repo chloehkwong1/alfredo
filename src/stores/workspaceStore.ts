@@ -52,6 +52,10 @@ interface WorkspaceState {
   /** Close the discovery gate for a deselected repo so a reselect can't be
    *  polled before its restore re-runs. */
   unmarkRepoRestored: (repoPath: string) => void;
+  /** Root worktree id of the stack currently hover-peeked in the sidebar, or
+   *  null. Ephemeral UI state — not persisted, reset per session. */
+  peekedStackRootId: string | null;
+  setPeekedStackRoot: (rootId: string | null) => void;
 
   addWorktree: (worktree: Worktree) => void;
   replaceWorktree: (tempId: string, realWorktree: Worktree) => void;
@@ -228,6 +232,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       next.delete(repoPath);
       return { restoredRepos: next };
     }),
+  peekedStackRootId: null,
+  setPeekedStackRoot: (rootId) => set({ peekedStackRootId: rootId }),
 
   addWorktree: (worktree) =>
     set((state) => ({ worktrees: [...state.worktrees, worktree] })),
@@ -563,6 +569,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       githubAuthErrors: new Set<string>(),
       completedSetups: [],
       restoredRepos: new Set<string>(),
+      peekedStackRootId: null,
     }),
 
   setRunningServer: (worktreeId, server) => set((state) => {

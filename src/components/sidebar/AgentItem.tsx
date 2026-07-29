@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useMemo, useRef, memo } from "react";
 import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw, ArrowRightLeft, ArrowUpRight, Settings, Pencil } from "lucide-react";
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
@@ -32,6 +32,8 @@ import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { ChangeBaseBranchDialog } from "./ChangeBaseBranchDialog";
 import { columnIcon, columnLabel, COLUMN_ORDER } from "./StatusGroup";
 import { copyText } from "../../lib/clipboard";
+import { StackGlyph } from "./StackGlyph";
+import { computeStackChain, type StackChain } from "../../lib/stackChain";
 
 const THINKING_VERBS = [
   "Thinking…",
@@ -295,7 +297,8 @@ interface AgentItemContentProps {
   onCancelEdit: () => void;
   repoIndex?: number;
   showRepoTag?: boolean;
-  hasParentWorktree?: boolean;
+  stackChain?: StackChain | null;
+  onOpenStackMap?: () => void;
 }
 
 function getDotColor(status: AgentState | string): string {
@@ -305,7 +308,7 @@ function getDotColor(status: AgentState | string): string {
 function AgentItemContent({
   worktree, effectiveStatus, isSelected, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
-  repoIndex = 0, showRepoTag = false, hasParentWorktree = false,
+  repoIndex = 0, showRepoTag = false, stackChain = null, onOpenStackMap = () => {},
 }: AgentItemContentProps) {
   const mutedTextClass = isSelected ? "text-text-secondary" : "text-text-tertiary";
   return (
@@ -424,35 +427,13 @@ function AgentItemContent({
             )}
           </span>
         </div>
-        {/* Stack indicator */}
-        {worktree.stackParent && (
-          <div className={`flex items-center gap-1 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
-            <span className="flex-shrink-0">on</span>
-            <span className="truncate" title={worktree.stackParent}>
-              {worktree.stackParent}
+        {/* Stack indicator: glyph + position + current status */}
+        {stackChain && (
+          <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
+            <StackGlyph worktree={worktree} chain={stackChain} onOpenMap={onOpenStackMap} />
+            <span className="truncate" title={worktree.stackParent ?? undefined}>
+              {worktree.stackParent ? `on ${worktree.stackParent}` : "stack root"}
             </span>
-            {hasParentWorktree && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const parent = useWorkspaceStore.getState().worktrees.find(
-                    (wt) => wt.branch === worktree.stackParent
-                  );
-                  if (parent) {
-                    useWorkspaceStore.getState().setActiveWorktree(parent.id);
-                  }
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-                className="flex-shrink-0 p-0.5 -m-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-white/5 transition-colors cursor-pointer"
-                aria-label={`Go to parent branch ${worktree.stackParent}`}
-                title={`Go to parent branch ${worktree.stackParent}`}
-              >
-                <ArrowUpRight className="h-3 w-3" />
-              </button>
-            )}
             {worktree.stackRebaseStatus?.kind === "behind" && (
               <span className="flex-shrink-0">· {worktree.stackRebaseStatus.count} behind</span>
             )}
@@ -468,12 +449,6 @@ function AgentItemContent({
             {worktree.stackRebaseStatus?.kind === "pushFailed" && (
               <span className="flex-shrink-0 text-status-error">· restacked, push failed</span>
             )}
-          </div>
-        )}
-        {/* Stack children indicator */}
-        {worktree.stackChildren && worktree.stackChildren.length > 0 && (
-          <div className="flex items-center gap-1 mt-1 text-[10px] text-accent-primary">
-            <span>↓ {worktree.stackChildren.length} stacked</span>
           </div>
         )}
         {/* Line 4: PR stats row — separated by border */}
@@ -651,6 +626,10 @@ const AgentItem = memo(function AgentItem({
   const [createFromOpen, setCreateFromOpen] = useState(false);
   const [changeBaseOpen, setChangeBaseOpen] = useState(false);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
+  // Consumed by the stack map popover (Task 12) — not rendered yet. Read via
+  // the row's data-stack-map-open attribute in the meantime so the value
+  // isn't flagged as unused (noUnusedLocals) ahead of Task 12 wiring it up.
+  const [stackMapOpen, setStackMapOpen] = useState(false);
   // When Rename is picked from the context menu, Radix restores focus to the
   // trigger row on close, stealing it from the freshly mounted label input.
   const renameViaMenuRef = useRef(false);
@@ -690,6 +669,13 @@ const AgentItem = memo(function AgentItem({
       useWorkspaceStore.getState().setActiveWorktree(parentWorktreeId);
     }
   };
+  const allWorktrees = useWorkspaceStore((s) => s.worktrees);
+  const peekedStackRootId = useWorkspaceStore((s) => s.peekedStackRootId);
+  const stackChain = useMemo(
+    () => computeStackChain(allWorktrees, worktree.id),
+    [allWorktrees, worktree.id],
+  );
+  const isPeeked = stackChain != null && peekedStackRootId === stackChain.rootId;
 
   const installedApps = useInstalledApps();
 
@@ -762,6 +748,7 @@ const AgentItem = memo(function AgentItem({
         isDimmed && !isSelected
           ? "opacity-45 hover:opacity-70"
           : "",
+        isPeeked ? "shadow-[inset_3px_0_0] shadow-accent-primary/70 bg-white/[0.03]" : "",
       ].join(" ");
   const rowStyle = { transform: CSS.Transform.toString(transform), transition };
   const rowContent = isDragging ? (
@@ -788,7 +775,8 @@ const AgentItem = memo(function AgentItem({
       onCancelEdit={handleCancelEdit}
       repoIndex={repoIndex}
       showRepoTag={showRepoTag}
-      hasParentWorktree={hasParentWorktree}
+      stackChain={stackChain}
+      onOpenStackMap={() => setStackMapOpen(true)}
     />
   );
 
@@ -799,7 +787,7 @@ const AgentItem = memo(function AgentItem({
           {isEditingLabel ? (
             // While editing, render a div so the nested <input> is valid HTML
             // and dnd-kit listeners / row onClick are suspended.
-            <div ref={setNodeRef} style={rowStyle} className={rowClassName}>
+            <div ref={setNodeRef} style={rowStyle} className={rowClassName} data-stack-map-open={stackMapOpen || undefined}>
               {rowContent}
             </div>
           ) : (
@@ -811,6 +799,7 @@ const AgentItem = memo(function AgentItem({
             {...listeners}
             style={rowStyle}
             className={rowClassName}
+            data-stack-map-open={stackMapOpen || undefined}
           >
             {rowContent}
             {worktree.column === "done" && !worktree.archived && onArchive && (
