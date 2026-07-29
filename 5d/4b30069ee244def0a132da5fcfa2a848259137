@@ -1,0 +1,21 @@
+src/components/sidebar/AgentItem.tsx
+  s_abb981dfc5f89a::t_c8df4b5cbd07eb 8,465-470,709-713,934
+src/components/sidebar/ChangeBaseBranchDialog.tsx
+  s_abb981dfc5f89a::t_f6557a68ec3028 11,83,152,173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5d4b30069ee244def0a132da5fcfa2a848259137",
+  "prompts": {},
+  "sessions": {
+    "s_abb981dfc5f89a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ac7e497821ebcde28",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
