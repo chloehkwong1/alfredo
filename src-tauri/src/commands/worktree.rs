@@ -549,7 +549,12 @@ pub async fn set_stack_parent(
     let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     match parent_branch {
         Some(parent) => config_manager::set_stack_parent(&mut config, &worktree_name, &parent),
-        None => config_manager::clear_stack_entry(&mut config, &worktree_name),
+        None => {
+            config_manager::clear_stack_entry(&mut config, &worktree_name);
+            // Nothing polls a detached worktree, so a remembered conflict would
+            // follow it into whatever stack it joins next.
+            crate::stack_manager::forget_stack_memos(&repo_path, &worktree_name);
+        }
     }
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())

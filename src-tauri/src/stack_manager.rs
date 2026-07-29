@@ -86,6 +86,16 @@ fn sticky_status(repo_path: &str, worktree_name: &str) -> Option<StackRebaseStat
     STICKY_STATUS.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
 }
 
+/// Drop everything this module remembers about a worktree. Called from every
+/// path that dissolves or detaches a stack: with no `stack_parent_overrides`
+/// entry left, nothing would ever clear these again, and a worktree that
+/// re-joins a stack (or a new worktree reusing the name) would inherit a
+/// conflict badge and a rebase suppression it never earned.
+pub fn forget_stack_memos(repo_path: &str, worktree_name: &str) {
+    clear_conflict_memo(repo_path, worktree_name);
+    clear_sticky_status(repo_path, worktree_name);
+}
+
 // ── Public entry points ──────────────────────────────────────────
 
 /// Called at the end of each sync poll. Baseline-tracked (no in-memory SHA
@@ -318,6 +328,7 @@ pub async fn check_merged_parents(
             // Clear the stack parent + baseline from config — the stack
             // relationship is dissolved now that the child sits on the default branch.
             config_manager::clear_stack_entry(&mut config, child_name);
+            forget_stack_memos(repo_path, child_name);
             config_changed = true;
         }
 
@@ -490,6 +501,7 @@ pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Resul
         .retain(|_, parent| !stale_parents.contains(parent));
     for child in &removed {
         config_manager::clear_stack_baseline(&mut config, child);
+        forget_stack_memos(repo_path, child);
     }
 
     config_manager::save_config(app_data_dir, repo_path, &config)
@@ -643,13 +655,14 @@ async fn restack_child_inner(
     };
 
     if baseline == parent_tip {
-        // No rebase is pending, so a "deferred because the tree was dirty" note
-        // is obsolete and would otherwise stick forever (nothing below runs to
-        // clear it). A `PushFailed` is NOT obsolete — the local branch being up
-        // to date is exactly the state in which a stale remote goes unnoticed —
-        // so it survives until a push succeeds or a new attempt starts.
+        // No rebase is pending, so notes about a rebase that didn't happen —
+        // "deferred because the tree was dirty", "the last one conflicted" — are
+        // obsolete, and nothing below would ever clear them. A `PushFailed` is
+        // NOT obsolete: the local branch being up to date is exactly the state in
+        // which a stale remote goes unnoticed, so it survives until a push
+        // succeeds or a new attempt starts.
         match sticky_status(repo_path, worktree_name) {
-            Some(StackRebaseStatus::SkippedDirty) | None => {
+            Some(StackRebaseStatus::SkippedDirty | StackRebaseStatus::Conflict) | None => {
                 clear_sticky_status(repo_path, worktree_name);
                 emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
             }
@@ -730,6 +743,7 @@ async fn run_restack(
         Err(e) => {
             eprintln!("[stack_manager] restack failed for {worktree_name}: {e}");
             let _ = app_handle.emit("stack:rebase-conflict", worktree_name.to_string());
+            set_sticky_status(repo_path, worktree_name, StackRebaseStatus::Conflict);
             emit_status(app_handle, worktree_name, StackRebaseStatus::Conflict);
             Err(e.to_string())
         }
@@ -908,6 +922,7 @@ pub async fn change_base(
             config_manager::save_config(app_data_dir, repo_path, &config)
                 .await
                 .map_err(|e| e.to_string())?;
+            forget_stack_memos(repo_path, worktree_name);
         }
         emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
         return Ok(());
@@ -929,6 +944,13 @@ pub async fn change_base(
                 .map_err(|e| e.to_string())?;
             let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
             push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name).await;
+            // Dissolved: no `stack_parent_overrides` entry survives, so
+            // `compute_stack_statuses` will never visit this worktree again and
+            // any sticky entry (including a `PushFailed` just set above) would
+            // outlive every path that could clear it.
+            if new_parent.is_none() {
+                forget_stack_memos(repo_path, worktree_name);
+            }
             Ok(())
         }
         // Aborted, branch unchanged. Nothing is written here: a re-parent kept the
@@ -936,6 +958,7 @@ pub async fn change_base(
         // so both remain visible in the stack UI and retryable.
         Err(e) => {
             let _ = app_handle.emit("stack:rebase-conflict", worktree_name.to_string());
+            set_sticky_status(repo_path, worktree_name, StackRebaseStatus::Conflict);
             emit_status(app_handle, worktree_name, StackRebaseStatus::Conflict);
             Err(format!("re-base migration hit conflicts (aborted; branch unchanged): {e}"))
         }
@@ -1167,12 +1190,24 @@ mod tests {
         config_manager::set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
         config_manager::save_config(app_data.path(), repo_path, &config).await?;
 
+        // Stand in for a child that conflicted before its parent was merged.
+        record_conflict(repo_path, "feat-child", "deadbeef");
+        set_sticky_status(repo_path, "feat-child", StackRebaseStatus::Conflict);
+
         detect_stale_parents(app_data.path(), repo_path).await?;
 
         let reloaded = config_manager::load_personal_config(app_data.path(), repo_path).await?;
         assert!(
             reloaded.stack_parent_overrides.get("feat-child").is_none(),
             "merged parent override should be cleared"
+        );
+        assert!(
+            sticky_status(repo_path, "feat-child").is_none(),
+            "a dissolved stack must not leave a conflict badge behind"
+        );
+        assert!(
+            !conflict_memo_should_skip(repo_path, "feat-child", "deadbeef"),
+            "a dissolved stack must not keep suppressing rebases"
         );
         assert!(
             config_manager::get_stack_baseline(&reloaded, "feat-child").is_none(),
@@ -1320,7 +1355,34 @@ mod tests {
         set_sticky_status(repo, name, StackRebaseStatus::SkippedDirty);
         assert_eq!(sticky_status(repo, name), Some(StackRebaseStatus::SkippedDirty));
 
+        // Conflict is the one the user acts on. With the conflict memo
+        // suppressing the retry, it is emitted exactly once — so if it isn't
+        // sticky, `compute_stack_statuses` erases the badge moments later and
+        // the conflict becomes invisible.
+        set_sticky_status(repo, name, StackRebaseStatus::Conflict);
+        assert_eq!(sticky_status(repo, name), Some(StackRebaseStatus::Conflict));
+
         clear_sticky_status(repo, name);
         assert!(sticky_status(repo, name).is_none(), "a new attempt supersedes the last one");
+    }
+
+    // Dissolution removes the `stack_parent_overrides` entry, so no later poll
+    // would ever visit this worktree to clear its memos. A name that re-joins a
+    // stack must not inherit a conflict badge or a suppressed rebase.
+    #[test]
+    fn forget_stack_memos_clears_conflict_and_sticky_together() {
+        let repo = "/tmp/forget-test-repo";
+        let name = "forget-child";
+
+        record_conflict(repo, name, "aaa");
+        set_sticky_status(repo, name, StackRebaseStatus::Conflict);
+
+        forget_stack_memos(repo, name);
+
+        assert!(sticky_status(repo, name).is_none(), "sticky status must not outlive the stack");
+        assert!(
+            !conflict_memo_should_skip(repo, name, "aaa"),
+            "a dissolved worktree must not keep suppressing rebases"
+        );
     }
 }
