@@ -883,7 +883,11 @@ pub async fn has_upstream(worktree_path: &str) -> bool {
 /// Reject anything that isn't a plausible git object hash before it reaches a
 /// `git` argument position — a value beginning with `-` would otherwise be
 /// parsed as a flag rather than a revision.
-fn validate_commit_hash(commit_hash: &str) -> Result<(), AppError> {
+///
+/// `pub(crate)` so callers can pre-validate and classify a bad revision as their
+/// own "never attempted" case, rather than only learning about it from
+/// `rebase_onto_sha`'s error — which is indistinguishable from a real conflict.
+pub(crate) fn validate_commit_hash(commit_hash: &str) -> Result<(), AppError> {
     if commit_hash.len() < 7
         || commit_hash.len() > 40
         || !commit_hash.chars().all(|c| c.is_ascii_hexdigit())

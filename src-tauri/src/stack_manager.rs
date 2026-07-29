@@ -38,8 +38,17 @@ static CONFLICT_MEMO: LazyLock<Mutex<HashMap<String, String>>> =
 static STICKY_STATUS: LazyLock<Mutex<HashMap<String, StackRebaseStatus>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// The single key builder for both maps (and therefore for `forget_stack_memos`).
+/// The repo path is canonicalized so `/Users/x/repo`, `/Users/x/repo/` and a
+/// symlinked route to the same directory can't split one worktree across two
+/// entries — which would strand a memo nothing ever clears. Canonicalization
+/// failure (path deleted mid-flight) falls back to the raw string: a slightly
+/// worse key beats losing the entry.
 fn memo_key(repo_path: &str, worktree_name: &str) -> String {
-    format!("{repo_path}::{worktree_name}")
+    let repo = std::fs::canonicalize(repo_path)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| repo_path.to_string());
+    format!("{repo}::{worktree_name}")
 }
 
 /// True when `parent_tip` is exactly the tip that already conflicted for this
@@ -112,7 +121,7 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
 
     for repo_path in repo_paths {
         // Task 13: detect stale parents (merged into main) first
-        if let Err(e) = detect_stale_parents(app_data_dir, repo_path).await {
+        if let Err(e) = detect_stale_parents(app_handle, app_data_dir, repo_path).await {
             eprintln!("[stack_manager] detect_stale_parents failed for {repo_path}: {e}");
         }
 
@@ -428,47 +437,45 @@ pub async fn restack_repo(app_handle: &AppHandle, app_data_dir: &Path, repo_path
 
 // ── Task 13 ──────────────────────────────────────────────────────
 
-/// Detects stack parents that have been merged into the default branch via manual rebase/merge
-/// (not caught by the PR-merge path). Clears them from config.
-pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Result<(), String> {
-    let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if config.stack_parent_overrides.is_empty() {
-        return Ok(());
-    }
-
-    // Get the default branch ref for this repo
+/// Stack parents that look merged into the default branch by manual rebase/merge
+/// — the case the PR-merge path can't see because there's no merged PR event.
+///
+/// This is a heuristic, and it dissolves stacks, so it is deliberately narrow.
+/// A parent qualifies only when all three hold:
+///
+/// 1. **No local checkout.** A parent with a live worktree means the user is
+///    still working there, whatever the SHAs say. This is the backstop for the
+///    residual of the zero-commit case (a parent pushed before any commits is an
+///    ancestor of main by definition) and for any future SHA-shaped surprise.
+///    Genuinely merged parents that still have a worktree open are handled by
+///    `check_merged_parents`, which has a real merged-PR signal rather than a guess.
+/// 2. **A remote-tracking ref exists.** Never pushed ⇒ cannot have been merged.
+/// 3. **That ref is an ancestor of the default branch.**
+async fn stale_parent_branches(
+    repo_path: &str,
+    overrides: &HashMap<String, String>,
+    checkouts: &HashMap<String, String>,
+) -> Vec<String> {
     let default_branch = tokio::task::spawn_blocking({
         let rp = repo_path.to_string();
         move || git_manager::resolve_default_remote_branch(&rp)
     })
     .await
-    .map_err(|e| e.to_string())?;
+    .unwrap_or_else(|_| "origin/main".to_string());
 
-    let mut stale_parents: Vec<String> = Vec::new();
-
-    // Collect unique parents
     let unique_parents: Vec<String> = {
         let mut seen = std::collections::HashSet::new();
-        config
-            .stack_parent_overrides
-            .values()
-            .filter(|p| seen.insert((*p).clone()))
-            .cloned()
-            .collect()
+        overrides.values().filter(|p| seen.insert((*p).clone())).cloned().collect()
     };
 
+    let mut stale: Vec<String> = Vec::new();
     for parent_branch in &unique_parents {
+        if checkouts.contains_key(parent_branch) {
+            continue;
+        }
         // Remote-tracking resolution ONLY here — deliberately not the local-first
-        // `branch_tip` the restack paths use. A freshly created stack parent has
-        // zero commits, so its *local* tip is still the default branch's tip and
-        // `--is-ancestor` reports it as merged, dissolving a brand-new stack on
-        // the very first poll. No `origin/<parent>` ref means the parent was
-        // never pushed, which means it cannot have been merged — skip it. A
-        // parent merged and then deleted upstream is caught by the PR-merged
-        // path in `check_merged_parents`, not here.
+        // `branch_tip` the restack paths use, whose local tip for a zero-commit
+        // parent is still the default branch's tip.
         let Some(ancestor_sha) = remote_branch_tip(repo_path, parent_branch).await else { continue };
 
         // `git merge-base --is-ancestor <ancestor> <descendant>` exits 0 if ancestor, 1 if not
@@ -478,32 +485,97 @@ pub async fn detect_stale_parents(app_data_dir: &Path, repo_path: &str) -> Resul
             .output()
             .await;
 
-        let is_ancestor = result.map(|o| o.status.success()).unwrap_or(false);
-        if is_ancestor {
-            stale_parents.push(parent_branch.clone());
+        if result.map(|o| o.status.success()).unwrap_or(false) {
+            stale.push(parent_branch.clone());
         }
     }
+    stale
+}
 
+/// Dissolve stacks whose parent was merged into the default branch outside the
+/// PR-merge path. Mirrors `check_merged_parents`: each affected child is rebased
+/// onto the default branch first, and the stack config is cleared only when that
+/// rebase actually ran. Dropping the config without moving the child would strand
+/// it on a merged parent's commits with no relationship left to retry.
+///
+/// PR retargeting is deliberately NOT done here — this path has no PR signal;
+/// that stays `check_merged_parents`' job.
+pub async fn detect_stale_parents(
+    app_handle: &AppHandle,
+    app_data_dir: &Path,
+    repo_path: &str,
+) -> Result<(), String> {
+    let config = config_manager::load_personal_config(app_data_dir, repo_path)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if config.stack_parent_overrides.is_empty() {
+        return Ok(());
+    }
+
+    let checkouts = checkout_paths(repo_path).await;
+    let stale_parents =
+        stale_parent_branches(repo_path, &config.stack_parent_overrides, &checkouts).await;
     if stale_parents.is_empty() {
         return Ok(());
     }
 
-    // Remove any child→parent mapping where the parent is stale, and clear
-    // those children's baselines too — the stack relationship is dissolved.
-    let removed: Vec<String> = config
+    let default_remote = tokio::task::spawn_blocking({
+        let rp = repo_path.to_string();
+        move || git_manager::resolve_default_remote_branch(&rp)
+    })
+    .await
+    .unwrap_or_else(|_| "origin/main".to_string());
+    let default_short =
+        default_remote.strip_prefix("origin/").unwrap_or(&default_remote).to_string();
+
+    let affected: Vec<String> = config
         .stack_parent_overrides
         .iter()
         .filter(|(_, parent)| stale_parents.contains(parent))
         .map(|(child, _)| child.clone())
         .collect();
-    config
-        .stack_parent_overrides
-        .retain(|_, parent| !stale_parents.contains(parent));
-    for child in &removed {
-        config_manager::clear_stack_baseline(&mut config, child);
-        forget_stack_memos(repo_path, child);
+
+    let mut dissolved: Vec<String> = Vec::new();
+    for child_name in &affected {
+        match restack_onto_default(app_handle, app_data_dir, repo_path, child_name, &default_short)
+            .await
+        {
+            // Child sits on the default branch now — the relationship is over.
+            Ok(RestackOutcome::Rebased) => {}
+            // Nothing moved. The parent stays stale, so this retries next poll.
+            Ok(RestackOutcome::SkippedDirty) => {
+                eprintln!(
+                    "[stack_manager] stale-parent restack deferred for {child_name}: worktree dirty"
+                );
+                continue;
+            }
+            Err(DissolveFailure::NotAttempted(e)) => {
+                eprintln!("[stack_manager] stale-parent restack deferred for {child_name}: {e}");
+                continue;
+            }
+            // Rebase ran and conflicted (already aborted). Same deliberate ruling
+            // as the merged-parent path: dissolve anyway rather than leave the
+            // child pointing at a branch that's already in main. Recovery is manual.
+            Err(DissolveFailure::Conflicted(e)) => {
+                eprintln!("[stack_manager] stale-parent restack failed for {child_name}: {e}");
+            }
+        }
+        dissolved.push(child_name.clone());
     }
 
+    if dissolved.is_empty() {
+        return Ok(());
+    }
+
+    // Reload: the restacks above each took seconds and wrote config themselves.
+    let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    for child in &dissolved {
+        config_manager::clear_stack_entry(&mut config, child);
+        forget_stack_memos(repo_path, child);
+    }
     config_manager::save_config(app_data_dir, repo_path, &config)
         .await
         .map_err(|e| e.to_string())?;
@@ -666,6 +738,20 @@ async fn restack_child_inner(
                 clear_sticky_status(repo_path, worktree_name);
                 emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
             }
+            // "Restack now" on a branch with nothing to rebase is the recovery
+            // action for a failed push: retry the push itself rather than
+            // no-oping. `push_with_lease_or_flag` clears the sticky entry when
+            // the push lands (or there's no upstream) and re-arms it when it
+            // doesn't, so the badge tracks reality either way — including the
+            // case where the user pushed from a terminal and this converges to a
+            // successful no-op. Poll-driven calls skip it: silently retrying a
+            // failing push every 60s is network churn with no new information.
+            Some(StackRebaseStatus::PushFailed) if !auto => {
+                push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name).await;
+                if sticky_status(repo_path, worktree_name).is_none() {
+                    emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+                }
+            }
             // Emitting UpToDate here would flicker it in and out every poll,
             // since `compute_stack_statuses` re-emits the sticky one moments later.
             Some(_) => {}
@@ -823,6 +909,15 @@ async fn restack_onto_default(
             .await
             .map_err(|e| DissolveFailure::NotAttempted(e.to_string()))?,
     };
+
+    // `rebase_onto_sha` validates both revisions itself, but it does so *inside*
+    // the call whose failure this function reports as `Conflicted` — so a
+    // corrupted baseline in config would read as "the user has merge conflicts"
+    // and dissolve the stack. Validate first so it lands in `NotAttempted`.
+    for sha in [&target_tip, &baseline] {
+        git_manager::validate_commit_hash(sha)
+            .map_err(|e| DissolveFailure::NotAttempted(e.to_string()))?;
+    }
 
     run_restack(app_handle, repo_path, &worktree_path, worktree_name, &target_tip, &baseline)
         .await
@@ -1143,77 +1238,76 @@ mod tests {
         assert!(worktree_is_dirty(dir.path().to_str().expect("utf8 path"), false).await);
     }
 
-    // Step 3's dissolution path: once a stack parent has been merged into the
-    // default branch (manually, outside the PR-merge event), `detect_stale_parents`
-    // must clear both the parent override and the baseline for its children —
-    // leaving either behind would let a later poll try to restack against a
-    // branch that no longer represents a real stack relationship.
-    #[tokio::test]
-    async fn detect_stale_parents_clears_parent_and_baseline_once_merged(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    /// Build a repo whose `feat/parent` has been merged into main and pushed:
+    /// the one shape `stale_parent_branches` is allowed to flag. `checkout_parent`
+    /// leaves the repo checked out on `feat/parent` (so it has a live checkout)
+    /// instead of on main.
+    fn merged_pushed_parent_repo(checkout_parent: bool) -> TempDir {
         let repo = init_test_repo();
         let repo_path = repo.path().to_str().expect("utf8 path");
 
-        StdCommand::new("git")
-            .args(["checkout", "-b", "feat/parent"])
-            .current_dir(repo_path)
-            .output()?;
-        StdCommand::new("git")
-            .args([
+        for args in [
+            vec!["checkout", "-b", "feat/parent"],
+            vec![
                 "-c", "user.name=Test", "-c", "user.email=test@test.com",
                 "commit", "--allow-empty", "-m", "parent work",
-            ])
-            .current_dir(repo_path)
-            .output()?;
-        StdCommand::new("git").args(["checkout", "main"]).current_dir(repo_path).output()?;
-        StdCommand::new("git")
-            .args(["merge", "--ff-only", "feat/parent"])
-            .current_dir(repo_path)
-            .output()?;
-        // No real `origin` remote in this fixture — synthesize the
-        // remote-tracking refs. `origin/main` is what
-        // `resolve_default_remote_branch`'s fallback probes for; `origin/feat/parent`
-        // is what makes the parent a *pushed* branch, the only kind
-        // `detect_stale_parents` will consider (see the unpushed-parent test).
-        StdCommand::new("git")
-            .args(["update-ref", "refs/remotes/origin/main", "refs/heads/main"])
-            .current_dir(repo_path)
-            .output()?;
-        StdCommand::new("git")
-            .args(["update-ref", "refs/remotes/origin/feat/parent", "refs/heads/feat/parent"])
-            .current_dir(repo_path)
-            .output()?;
+            ],
+            vec!["checkout", "main"],
+            vec!["merge", "--ff-only", "feat/parent"],
+            // No real `origin` remote in this fixture — synthesize the
+            // remote-tracking refs. `origin/main` is what
+            // `resolve_default_remote_branch`'s fallback probes for;
+            // `origin/feat/parent` is what makes the parent a *pushed* branch.
+            vec!["update-ref", "refs/remotes/origin/main", "refs/heads/main"],
+            vec!["update-ref", "refs/remotes/origin/feat/parent", "refs/heads/feat/parent"],
+        ] {
+            StdCommand::new("git").args(&args).current_dir(repo_path).output().expect("git");
+        }
 
-        let app_data = TempDir::new()?;
-        let mut config = test_config(repo_path);
-        config_manager::set_stack_parent(&mut config, "feat-child", "feat/parent");
-        config_manager::set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
-        config_manager::save_config(app_data.path(), repo_path, &config).await?;
+        if checkout_parent {
+            StdCommand::new("git")
+                .args(["checkout", "feat/parent"])
+                .current_dir(repo_path)
+                .output()
+                .expect("git checkout");
+        }
+        repo
+    }
 
-        // Stand in for a child that conflicted before its parent was merged.
-        record_conflict(repo_path, "feat-child", "deadbeef");
-        set_sticky_status(repo_path, "feat-child", StackRebaseStatus::Conflict);
+    // The heuristic's positive case: pushed, merged into main, and no worktree
+    // still sitting on it. This is the only shape allowed to dissolve a stack
+    // without a merged-PR event.
+    #[tokio::test]
+    async fn stale_parent_branches_flags_merged_pushed_parent() {
+        let repo = merged_pushed_parent_repo(false);
+        let repo_path = repo.path().to_str().expect("utf8 path");
+        let overrides = map(&[("feat-child", "feat/parent")]);
 
-        detect_stale_parents(app_data.path(), repo_path).await?;
+        let stale =
+            stale_parent_branches(repo_path, &overrides, &checkout_paths(repo_path).await).await;
 
-        let reloaded = config_manager::load_personal_config(app_data.path(), repo_path).await?;
+        assert_eq!(stale, vec!["feat/parent".to_string()]);
+    }
+
+    // Liveness guard: identical SHAs to the test above, but the parent still has
+    // a checkout. A live worktree means the user is still working there, and no
+    // SHA heuristic gets to overrule that — `check_merged_parents` handles the
+    // genuinely-merged-with-worktree-open case, where a real PR event says so.
+    #[tokio::test]
+    async fn stale_parent_branches_spares_parent_with_live_checkout() {
+        let repo = merged_pushed_parent_repo(true);
+        let repo_path = repo.path().to_str().expect("utf8 path");
+        let overrides = map(&[("feat-child", "feat/parent")]);
+
+        let checkouts = checkout_paths(repo_path).await;
+        assert!(checkouts.contains_key("feat/parent"), "fixture must have the parent checked out");
+
+        let stale = stale_parent_branches(repo_path, &overrides, &checkouts).await;
+
         assert!(
-            reloaded.stack_parent_overrides.get("feat-child").is_none(),
-            "merged parent override should be cleared"
+            stale.is_empty(),
+            "a parent with a live checkout must never be auto-dissolved by the heuristic"
         );
-        assert!(
-            sticky_status(repo_path, "feat-child").is_none(),
-            "a dissolved stack must not leave a conflict badge behind"
-        );
-        assert!(
-            !conflict_memo_should_skip(repo_path, "feat-child", "deadbeef"),
-            "a dissolved stack must not keep suppressing rebases"
-        );
-        assert!(
-            config_manager::get_stack_baseline(&reloaded, "feat-child").is_none(),
-            "baseline should be cleared alongside the parent override"
-        );
-        Ok(())
     }
 
     fn test_config(repo_path: &str) -> crate::types::AppConfig {
@@ -1250,7 +1344,7 @@ mod tests {
     // through `origin/<parent>` instead means an unpushed branch is simply not a
     // candidate, and the stack survives its first poll.
     #[tokio::test]
-    async fn detect_stale_parents_ignores_unpushed_parent(
+    async fn stale_parent_branches_ignores_unpushed_parent(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let repo = init_test_repo();
         let repo_path = repo.path().to_str().expect("utf8 path");
@@ -1265,23 +1359,13 @@ mod tests {
             .current_dir(repo_path)
             .output()?;
 
-        let app_data = TempDir::new()?;
-        let mut config = test_config(repo_path);
-        config_manager::set_stack_parent(&mut config, "feat-child", "feat/parent");
-        config_manager::set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
-        config_manager::save_config(app_data.path(), repo_path, &config).await?;
+        let overrides = map(&[("feat-child", "feat/parent")]);
+        let stale =
+            stale_parent_branches(repo_path, &overrides, &checkout_paths(repo_path).await).await;
 
-        detect_stale_parents(app_data.path(), repo_path).await?;
-
-        let reloaded = config_manager::load_personal_config(app_data.path(), repo_path).await?;
-        assert_eq!(
-            reloaded.stack_parent_overrides.get("feat-child").map(String::as_str),
-            Some("feat/parent"),
-            "an unpushed parent cannot have been merged — the stack must survive"
-        );
         assert!(
-            config_manager::get_stack_baseline(&reloaded, "feat-child").is_some(),
-            "baseline must survive alongside the parent override"
+            stale.is_empty(),
+            "an unpushed parent cannot have been merged — the stack must survive"
         );
         Ok(())
     }
