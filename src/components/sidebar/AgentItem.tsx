@@ -33,6 +33,7 @@ import { ChangeBaseBranchDialog } from "./ChangeBaseBranchDialog";
 import { columnIcon, columnLabel, COLUMN_ORDER } from "./StatusGroup";
 import { copyText } from "../../lib/clipboard";
 import { StackGlyph } from "./StackGlyph";
+import { StackMapPopover } from "./StackMapPopover";
 import { computeStackChain, type StackChain } from "../../lib/stackChain";
 
 const THINKING_VERBS = [
@@ -626,9 +627,8 @@ const AgentItem = memo(function AgentItem({
   const [createFromOpen, setCreateFromOpen] = useState(false);
   const [changeBaseOpen, setChangeBaseOpen] = useState(false);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
-  // Consumed by the stack map popover (Task 12) — not rendered yet, so the
-  // read binding is elided (Task 12 re-adds it when the popover reads it).
-  const [, setStackMapOpen] = useState(false);
+  const [stackMapOpen, setStackMapOpen] = useState(false);
+  const rowContainerRef = useRef<HTMLDivElement>(null);
   // When Rename is picked from the context menu, Radix restores focus to the
   // trigger row on close, stealing it from the freshly mounted label input.
   const renameViaMenuRef = useRef(false);
@@ -675,6 +675,27 @@ const AgentItem = memo(function AgentItem({
     [allWorktrees, worktree.id],
   );
   const isPeeked = stackChain != null && peekedStackRootId === stackChain.rootId;
+
+  // Close the stack map popover on outside click or Escape. The popover's own
+  // root stops propagation for interactions inside it, so a document-level
+  // listener only ever sees genuine outside clicks.
+  useEffect(() => {
+    if (!stackMapOpen) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (rowContainerRef.current && !rowContainerRef.current.contains(e.target as Node)) {
+        setStackMapOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setStackMapOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [stackMapOpen]);
 
   const installedApps = useInstalledApps();
 
@@ -780,7 +801,7 @@ const AgentItem = memo(function AgentItem({
   );
 
   return (
-    <>
+    <div ref={rowContainerRef} className="relative">
       <ContextMenu>
         <ContextMenuTrigger asChild>
           {isEditingLabel ? (
@@ -960,6 +981,17 @@ const AgentItem = memo(function AgentItem({
         </ContextMenuContent>
       </ContextMenu>
 
+      {stackMapOpen && stackChain && (
+        <div className="absolute z-50 top-full left-3.5 mt-1">
+          <StackMapPopover
+            anchorWorktree={worktree}
+            chain={stackChain}
+            defaultBranch={defaultBranch}
+            onClose={() => setStackMapOpen(false)}
+          />
+        </div>
+      )}
+
       <DeleteWorktreeConfirm
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
@@ -980,7 +1012,7 @@ const AgentItem = memo(function AgentItem({
         onOpenChange={setChangeBaseOpen}
         worktree={worktree}
       />
-    </>
+    </div>
   );
 });
 
