@@ -597,10 +597,15 @@ pub async fn fetch_upstream_throttled(repo_path: &str, force: bool) {
 }
 
 /// Count how many commits the current branch is ahead/behind its upstream tracking ref.
-/// Returns `Ok(None)` only when no upstream is configured (rev-parse fails); a
-/// rev-list failure with a configured upstream bubbles up as `Err` so the UI
-/// doesn't misread a transient git failure as "no upstream → Publish". A
-/// detached HEAD (mid-rebase, mid-merge, mid-bisect) also bubbles as `Err`
+/// Returns `Ok(None)` when no upstream is configured (rev-parse fails) or when
+/// the upstream is a *different* branch — worktree branches inherit tracking
+/// from their start point (see `has_matching_upstream`), and counting against
+/// origin/main turns "unpublished" into a bogus behind-main figure whose Pull
+/// CTA would rebase the branch onto main. Both read as "unpublished → Publish"
+/// in the UI, and Publish (`git push -u`) repairs the upstream. A rev-list
+/// failure with a matching upstream bubbles up as `Err` so the UI doesn't
+/// misread a transient git failure as "no upstream → Publish". A detached
+/// HEAD (mid-rebase, mid-merge, mid-bisect) also bubbles as `Err`
 /// — frontend keeps the prior counts and the "Publish" CTA never appears
 /// during a conflict resolution.
 pub fn ahead_behind_vs_upstream(worktree_path: &str) -> Result<Option<(u32, u32)>, AppError> {
@@ -625,6 +630,17 @@ pub fn ahead_behind_vs_upstream(worktree_path: &str) -> Result<Option<(u32, u32)
         .map_err(|e| AppError::Git(format!("failed to spawn git rev-parse: {e}")))?;
     if !upstream.status.success() {
         return Ok(None); // no upstream set
+    }
+
+    let head_ref = String::from_utf8_lossy(&symbolic.stdout).trim().to_string();
+    let branch = head_ref.strip_prefix("refs/heads/").unwrap_or(&head_ref);
+    let merge = git_command_sync()
+        .args(["config", &format!("branch.{branch}.merge")])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git config: {e}")))?;
+    if !merge.status.success() || String::from_utf8_lossy(&merge.stdout).trim() != head_ref {
+        return Ok(None); // upstream is a different branch — treat as unpublished
     }
 
     let counts = git_command_sync()
@@ -869,8 +885,38 @@ pub async fn merge_base(worktree_path: &str, a: &str, b: &str) -> Result<String,
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// True when the current branch has an upstream tracking ref.
-pub async fn has_upstream(worktree_path: &str) -> bool {
+/// True when the current branch's upstream is its *own* branch on a remote —
+/// `branch.<name>.merge` names the branch itself and the tracking ref
+/// resolves. A bare "has an upstream" check is not enough: worktree branches
+/// inherit tracking from their start point (`git worktree add -b X <dir>
+/// origin/main` leaves X tracking origin/main), which makes an unpublished
+/// branch look published and sends a bare `git push --force-with-lease` into
+/// push.default=simple's name-mismatch refusal.
+pub async fn has_matching_upstream(worktree_path: &str) -> bool {
+    let head = match git_command()
+        .args(["symbolic-ref", "--quiet", "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+    {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        _ => return false, // detached HEAD or spawn failure
+    };
+    let Some(branch) = head.strip_prefix("refs/heads/") else {
+        return false;
+    };
+    let merge_matches = git_command()
+        .args(["config", &format!("branch.{branch}.merge")])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).trim() == head)
+        .unwrap_or(false);
+    if !merge_matches {
+        return false;
+    }
+    // The merge config can outlive the remote branch (deleted after merge);
+    // only a resolvable tracking ref means there is something to lease against.
     git_command()
         .args(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])
         .current_dir(worktree_path)
@@ -1772,7 +1818,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn has_upstream_true_with_tracking_branch_false_without() {
+    async fn has_matching_upstream_requires_the_branchs_own_remote_ref() {
         let dir = init_test_repo();
         let root = dir.path().to_str().unwrap();
 
@@ -1785,10 +1831,61 @@ mod tests {
         run_git(root, &["remote", "add", "origin", remote.path().to_str().unwrap()]);
         run_git(root, &["push", "-u", "origin", "main"]);
 
-        assert!(has_upstream(root).await, "main should have an upstream after push -u");
+        assert!(has_matching_upstream(root).await, "main should match after push -u");
 
         run_git(root, &["checkout", "-b", "no-upstream"]);
-        assert!(!has_upstream(root).await, "a fresh local branch should have no upstream");
+        assert!(!has_matching_upstream(root).await, "a fresh local branch should have no upstream");
+
+        // The worktree-creation shape: branch started from origin/main inherits
+        // origin/main as upstream. An upstream *exists* — but it is not this
+        // branch's remote copy, so it must not count as published.
+        run_git(root, &["branch", "--set-upstream-to=origin/main"]);
+        let upstream = StdCommand::new("git")
+            .args(["rev-parse", "--abbrev-ref", "@{upstream}"])
+            .current_dir(root)
+            .output()
+            .expect("git rev-parse");
+        assert!(upstream.status.success(), "setup must produce a resolvable upstream");
+        assert!(
+            !has_matching_upstream(root).await,
+            "an upstream inherited from the start point is not the branch's own"
+        );
+
+        run_git(root, &["push", "-u", "origin", "no-upstream"]);
+        assert!(has_matching_upstream(root).await, "push -u repairs the upstream");
+    }
+
+    #[tokio::test]
+    async fn ahead_behind_treats_mismatched_upstream_as_unpublished() {
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+
+        let remote = TempDir::new().expect("remote dir");
+        StdCommand::new("git")
+            .args(["init", "--bare"])
+            .current_dir(remote.path())
+            .output()
+            .expect("git init --bare");
+        run_git(root, &["remote", "add", "origin", remote.path().to_str().unwrap()]);
+        run_git(root, &["push", "-u", "origin", "main"]);
+
+        run_git(root, &["checkout", "-b", "child"]);
+        run_git(root, &["branch", "--set-upstream-to=origin/main"]);
+        std::fs::write(dir.path().join("c.txt"), "c").unwrap();
+        run_git(root, &["add", "."]); run_git(root, &["commit", "-m", "c1"]);
+
+        assert_eq!(
+            ahead_behind_vs_upstream(root).unwrap(),
+            None,
+            "a branch tracking origin/main is unpublished, not '1 ahead of main'"
+        );
+
+        run_git(root, &["push", "-u", "origin", "child"]);
+        assert_eq!(
+            ahead_behind_vs_upstream(root).unwrap(),
+            Some((0, 0)),
+            "a matching upstream counts normally"
+        );
     }
 
     #[tokio::test]

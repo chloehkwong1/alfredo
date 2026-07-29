@@ -986,10 +986,13 @@ async fn run_restack(
     }
 }
 
-/// Push with `--force-with-lease` when an upstream exists; on failure, emit
-/// `PushFailed` rather than propagating — the rebase already succeeded
-/// locally, so a push failure is surfaced as a status, not an error. Shared by
-/// `run_restack` and `change_base`, whose success paths both do this.
+/// Push with `--force-with-lease` when the branch has been published (an
+/// upstream matching its own name — an upstream inherited from the start
+/// point, like origin/main, means unpublished and there is nothing to keep in
+/// sync); on failure, emit `PushFailed` rather than propagating — the rebase
+/// already succeeded locally, so a push failure is surfaced as a status, not
+/// an error. Shared by `run_restack` and `change_base`, whose success paths
+/// both do this.
 ///
 /// A failure is also recorded as sticky, because `compute_stack_statuses` runs
 /// moments later in the same poll and would otherwise replace it with the
@@ -1000,7 +1003,7 @@ async fn push_with_lease_or_flag(
     worktree_path: &str,
     worktree_name: &str,
 ) {
-    if git_manager::has_upstream(worktree_path).await {
+    if git_manager::has_matching_upstream(worktree_path).await {
         if let Err(e) =
             crate::commands::git_ops::git_push_force_with_lease(worktree_path.to_string()).await
         {
