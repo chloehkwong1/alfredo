@@ -361,6 +361,9 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     // Auto-sync PR base branches for stacked worktrees
     sync_pr_base_branches(&app_data_dir, &repo_paths, &all_prs).await;
 
+    // Task 14: keep the "Stack" navigation section in stacked PR bodies in sync
+    sync_pr_stack_sections(&app_data_dir, &repo_paths, &all_prs).await;
+
     // Task 11: check for merged parents and auto-clear stack parent config
     crate::stack_manager::check_merged_parents(app_handle, &app_data_dir, &repo_paths, &all_prs).await;
 
@@ -687,6 +690,146 @@ pub async fn resolve_github_username() -> Option<String> {
         .clone()
 }
 
+const STACK_START: &str = "<!-- alfredo-stack-start -->";
+const STACK_END: &str = "<!-- alfredo-stack-end -->";
+
+/// Render the delimited "Stack" navigation section for a PR body.
+/// `chain` is root→tip `(pr_number, branch, merged)`; `current_pr` is
+/// highlighted with a bold "← this PR" marker.
+fn render_stack_section(chain: &[(u64, String, bool)], current_pr: u64) -> String {
+    let mut lines = vec![STACK_START.to_string(), "**Stack** (bottom → top):".to_string()];
+    for (number, branch, merged) in chain {
+        let suffix = if *merged { " (merged)" } else { "" };
+        if *number == current_pr {
+            lines.push(format!("- **#{number} `{branch}` ← this PR**"));
+        } else {
+            lines.push(format!("- #{number} `{branch}`{suffix}"));
+        }
+    }
+    lines.push(STACK_END.to_string());
+    lines.join("\n")
+}
+
+/// Idempotently replace the delimited stack section within `body` with
+/// `section`. Appends (with two leading newlines) when markers are absent;
+/// an empty `section` removes the block entirely.
+fn splice_stack_section(body: &str, section: &str) -> String {
+    match (body.find(STACK_START), body.find(STACK_END)) {
+        (Some(start), Some(end)) if end >= start => {
+            let after = &body[end + STACK_END.len()..];
+            if section.is_empty() {
+                format!("{}{}", body[..start].trim_end_matches('\n'), after)
+            } else {
+                format!("{}{}{}", &body[..start], section, after)
+            }
+        }
+        _ if section.is_empty() => body.to_string(),
+        _ => format!("{}\n\n{}", body.trim_end(), section),
+    }
+}
+
+/// Keep a delimited "Stack" section in every stacked PR's description in sync.
+/// Only PRs authored by the current gh user are touched.
+async fn sync_pr_stack_sections(
+    app_data_dir: &std::path::Path,
+    repo_paths: &[String],
+    all_prs: &[PrStatusWithColumn],
+) {
+    let Some(me) = resolve_github_username().await else { return };
+    for repo_path in repo_paths {
+        let Ok(config) = config_manager::load_personal_config(app_data_dir, repo_path).await else {
+            continue;
+        };
+        if config.stack_parent_overrides.is_empty() {
+            continue;
+        }
+        let Ok((owner, repo)) = crate::github_manager::resolve_owner_repo(repo_path).await else {
+            continue;
+        };
+
+        // branch → PR for this repo (merged PRs included: they render as "(merged)").
+        let pr_by_branch: std::collections::HashMap<&str, &PrStatusWithColumn> = all_prs
+            .iter()
+            .filter(|p| p.repo_path == *repo_path)
+            .map(|p| (p.branch.as_str(), p))
+            .collect();
+
+        // Build each stack chain root→tip as (number, branch, merged), one chain
+        // per tip (a worktree that is nobody's parent).
+        let parents: std::collections::HashSet<&str> = config
+            .stack_parent_overrides
+            .values()
+            .map(String::as_str)
+            .collect();
+        let name_to_parent = &config.stack_parent_overrides;
+        // Chain assembly keyed on branches from the PR list: every non-merged PR
+        // that is stacked (has a parent) or is a stack root (is someone's parent)
+        // gets a section. Walk up via stack_parent_overrides (worktree name =
+        // branch with / → -), then extend tip-ward via reverse lookups.
+        for pr in all_prs.iter().filter(|p| p.repo_path == *repo_path && !p.merged) {
+            let wt_name = pr.branch.replace('/', "-");
+            let is_stacked = name_to_parent.contains_key(&wt_name);
+            let is_parent = parents.contains(pr.branch.as_str());
+            if !is_stacked && !is_parent {
+                continue;
+            }
+            // Walk to the root.
+            let mut chain_branches: Vec<String> = vec![pr.branch.clone()];
+            let mut cursor = wt_name.clone();
+            for _ in 0..name_to_parent.len() {
+                let Some(parent_branch) = name_to_parent.get(&cursor) else { break };
+                chain_branches.push(parent_branch.clone());
+                cursor = parent_branch.replace('/', "-");
+            }
+            chain_branches.reverse(); // root→…→this PR
+            // Extend tip-ward: children whose parent is this PR's branch, transitively.
+            let mut tipward = pr.branch.clone();
+            for _ in 0..name_to_parent.len() {
+                let Some((child_name, _)) = name_to_parent.iter().find(|(_, p)| **p == tipward) else { break };
+                let Some(child_pr) = all_prs.iter().find(|p| {
+                    p.repo_path == *repo_path && p.branch.replace('/', "-") == *child_name
+                }) else { break };
+                chain_branches.push(child_pr.branch.clone());
+                tipward = child_pr.branch.clone();
+            }
+
+            let chain: Vec<(u64, String, bool)> = chain_branches
+                .iter()
+                .filter_map(|b| pr_by_branch.get(b.as_str()).map(|p| (p.number, b.clone(), p.merged)))
+                .collect();
+            if chain.len() < 2 {
+                continue; // no stack worth announcing
+            }
+            if pr.author.as_deref() != Some(me.as_str()) {
+                continue;
+            }
+
+            let section = render_stack_section(&chain, pr.number);
+            let body = pr.body.clone().unwrap_or_default();
+            let new_body = splice_stack_section(&body, &section);
+            if new_body == body {
+                continue;
+            }
+            let output = gh_command()
+                .args([
+                    "pr", "edit", &pr.number.to_string(),
+                    "--repo", &format!("{owner}/{repo}"),
+                    "--body", &new_body,
+                ])
+                .output()
+                .await;
+            match output {
+                Ok(o) if o.status.success() => {}
+                Ok(o) => eprintln!(
+                    "[github_sync] stack-section edit failed for #{}: {}",
+                    pr.number, String::from_utf8_lossy(&o.stderr)
+                ),
+                Err(e) => eprintln!("[github_sync] stack-section edit spawn failed: {e}"),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -816,5 +959,40 @@ mod tests {
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "done");
+    }
+
+    #[test]
+    fn splice_appends_when_no_markers() {
+        let out = splice_stack_section("Original body.", "<!-- alfredo-stack-start -->\nS\n<!-- alfredo-stack-end -->");
+        assert!(out.starts_with("Original body."));
+        assert!(out.contains("alfredo-stack-start"));
+    }
+
+    #[test]
+    fn splice_replaces_between_markers_idempotently() {
+        let body = "Top\n\n<!-- alfredo-stack-start -->\nOLD\n<!-- alfredo-stack-end -->\n\nBottom";
+        let section = "<!-- alfredo-stack-start -->\nNEW\n<!-- alfredo-stack-end -->";
+        let out = splice_stack_section(body, section);
+        assert!(out.contains("NEW") && !out.contains("OLD"));
+        assert!(out.contains("Top") && out.contains("Bottom"));
+        assert_eq!(splice_stack_section(&out, section), out);
+    }
+
+    #[test]
+    fn splice_empty_section_removes_block() {
+        let body = "Top\n\n<!-- alfredo-stack-start -->\nOLD\n<!-- alfredo-stack-end -->";
+        let out = splice_stack_section(body, "");
+        assert!(!out.contains("alfredo-stack"));
+        assert!(out.contains("Top"));
+    }
+
+    #[test]
+    fn render_marks_current_and_merged() {
+        let chain = vec![(41, "feat/auth-api".to_string(), true), (42, "feat/auth-ui".to_string(), false)];
+        let s = render_stack_section(&chain, 42);
+        assert!(s.contains("#41 `feat/auth-api` (merged)"));
+        assert!(s.contains("**#42 `feat/auth-ui` ← this PR**"));
+        assert!(s.starts_with("<!-- alfredo-stack-start -->"));
+        assert!(s.trim_end().ends_with("<!-- alfredo-stack-end -->"));
     }
 }
