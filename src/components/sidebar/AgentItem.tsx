@@ -5,7 +5,7 @@ import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy,
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn, releasePortFor } from "../../api";
+import { rebaseWorktree, restackNow, setStackParent, runSetupScripts, setWorktreeColumn, releasePortFor } from "../../api";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp } from "../../api";
@@ -462,6 +462,12 @@ function AgentItemContent({
             {worktree.stackRebaseStatus?.kind === "conflict" && (
               <span className="flex-shrink-0 text-status-error">· conflict</span>
             )}
+            {worktree.stackRebaseStatus?.kind === "skippedDirty" && (
+              <span className="flex-shrink-0">· uncommitted changes — restack paused</span>
+            )}
+            {worktree.stackRebaseStatus?.kind === "pushFailed" && (
+              <span className="flex-shrink-0 text-status-error">· restacked, push failed</span>
+            )}
           </div>
         )}
         {/* Stack children indicator */}
@@ -700,7 +706,11 @@ const AgentItem = memo(function AgentItem({
 
   const handleRebase = async () => {
     try {
-      await rebaseWorktree(worktree.path, worktree.stackParent);
+      if (worktree.stackParent) {
+        await restackNow(worktree.repoPath, worktree.name);
+      } else {
+        await rebaseWorktree(worktree.path, null);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("Rebase failed:", msg);
@@ -921,7 +931,7 @@ const AgentItem = memo(function AgentItem({
           <ContextMenuItem onSelect={handleRebase}>
             <GitBranch className="h-4 w-4" />
             {worktree.stackParent
-              ? `Rebase onto ${worktree.stackParent}`
+              ? "Restack now"
               : `Rebase onto ${defaultBranch ?? "base branch"}`}
           </ContextMenuItem>
           <ContextMenuItem onSelect={() => setCreateFromOpen(true)}>

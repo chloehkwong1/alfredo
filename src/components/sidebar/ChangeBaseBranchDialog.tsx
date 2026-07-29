@@ -8,7 +8,7 @@ import {
   DialogDescription,
 } from "../ui/Dialog";
 import { Input } from "../ui/Input";
-import { listBranches, setStackParent, getDefaultBranch, getCommitsBehindMain, getWorktreeDiffStats } from "../../api";
+import { listBranches, changeStackBase, getDefaultBranch, getCommitsBehindMain, getWorktreeDiffStats } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { Worktree } from "../../types";
 
@@ -80,7 +80,7 @@ function ChangeBaseBranchDialog({ open, onOpenChange, worktree }: ChangeBaseBran
     const nextParent = branch === defaultBranch ? null : branch;
     const prevParent = worktree.stackParent ?? null;
     try {
-      await setStackParent(worktree.repoPath, worktree.name, nextParent);
+      await changeStackBase(worktree.repoPath, worktree.name, nextParent);
 
       // Optimistically update child + both parents' stackChildren so the
       // sidebar reflects the new shape without waiting for the next
@@ -149,7 +149,7 @@ function ChangeBaseBranchDialog({ open, onOpenChange, worktree }: ChangeBaseBran
     }
   };
 
-  // Block close while a write is in flight, so the in-flight setStackParent
+  // Block close while a write is in flight, so the in-flight changeStackBase
   // can't resolve after the dialog state has been thrown away.
   const handleOpenChange = (next: boolean) => {
     if (!next && saving !== null) return;
@@ -170,7 +170,7 @@ function ChangeBaseBranchDialog({ open, onOpenChange, worktree }: ChangeBaseBran
             <span className="text-text-secondary font-medium">
               {currentBase ?? "resolving…"}
             </span>
-            . Changing this updates the rebase target and behind-count; it does not rebase the branch.
+            . Changing this rebases the branch's own commits onto the new base immediately (conflicts abort safely), then keeps it restacked automatically.
           </DialogDescription>
         </DialogHeader>
 
