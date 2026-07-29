@@ -1,0 +1,19 @@
+src-tauri/src/stack_manager.rs
+  s_41f00ea4995d4b::t_c946f853eaeb4b 108-143,159-163,180-181,249-252,307-311,314-325,505-509,515-522,571,604-607,610-620,1372-1386
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "3ba811ec3804fe0036ca9eb8aa664ea87cfecca2",
+  "prompts": {},
+  "sessions": {
+    "s_41f00ea4995d4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ac0f486d72e97645f",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
