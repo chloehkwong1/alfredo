@@ -1,0 +1,25 @@
+docs/features/rebasing-and-stacks.md
+  s_3a998e812b38fc::t_4b147d1f60afc6 2-4,7-12,14-24,26-34
+docs/features/pull-requests.md
+  s_3a998e812b38fc::t_2cb3f73bf3426d 47-61
+docs/features/change-base-branch.md
+  s_3a998e812b38fc::t_92ab0a9cc77474 21-27
+docs/features/stack-map.md
+  s_3a998e812b38fc::t_64f97b20a36423 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "cfeab033733cd6d66a9abe8822832b8ecfcc7685",
+  "prompts": {},
+  "sessions": {
+    "s_3a998e812b38fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf688b65-7560-4483-af9a-8a59bcd46dee",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
