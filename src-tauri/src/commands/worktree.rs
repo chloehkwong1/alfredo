@@ -177,6 +177,21 @@ pub async fn create_worktree(
     let stack_parent = if is_stacked {
         let parent = base_branch.strip_prefix("origin/").unwrap_or(&base_branch);
         config_manager::set_stack_parent(&mut config, &dir_name, parent);
+
+        // Record the restack baseline: the parent tip the new branch was cut from.
+        // `HEAD^{}` of the fresh worktree == the base tip at creation time.
+        if let Ok(output) = git_command()
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&worktree_path)
+            .output()
+            .await
+        {
+            if output.status.success() {
+                let base_sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                config_manager::set_stack_baseline(&mut config, &dir_name, &base_sha);
+            }
+        }
+
         Some(parent.to_string())
     } else {
         None
