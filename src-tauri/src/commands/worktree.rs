@@ -609,6 +609,21 @@ pub async fn change_stack_base(
         .map_err(AppError::Git)
 }
 
+/// Leave a failing restack's conflict in the worktree and return the
+/// resolution prompt for the worktree's agent, or the sentinel
+/// `"__no_conflict__"` if the rebase actually succeeded (nothing to hand off).
+#[tauri::command]
+pub async fn prepare_conflict_handoff(
+    app: AppHandle,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<String> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    crate::stack_manager::begin_conflict_handoff(&app, &app_data_dir, &repo_path, &worktree_name)
+        .await
+        .map_err(AppError::Git)
+}
+
 /// Manually override a worktree's kanban column (e.g. drag to "Blocked").
 #[tauri::command]
 pub async fn set_worktree_column(

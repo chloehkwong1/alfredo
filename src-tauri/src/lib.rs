@@ -328,6 +328,7 @@ pub fn run() {
             worktree::restack_now,
             worktree::restack_stack,
             worktree::change_stack_base,
+            worktree::prepare_conflict_handoff,
             worktree::claim_worktree_port,
             worktree::release_worktree_port,
             worktree::take_worktree_port,

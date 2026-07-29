@@ -1,6 +1,7 @@
 import { GitBranch, RefreshCw } from "lucide-react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { restackStack } from "../../api";
+import { restackStack, restackNow, prepareConflictHandoff } from "../../api";
+import { ensureAgentSession, writeToSession, focusAgentTab } from "../../services/agentMessenger";
 import type { StackChain } from "../../lib/stackChain";
 import type { Worktree, StackRebaseStatus } from "../../types";
 
@@ -33,6 +34,29 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
   const members = chain.memberIds
     .map((id) => worktrees.find((w) => w.id === id))
     .filter((w): w is Worktree => Boolean(w));
+  const conflicted = members.find((m) => m.stackRebaseStatus?.kind === "conflict");
+
+  const handleHaveClaudeResolve = async () => {
+    if (!conflicted) return;
+    onClose();
+    try {
+      const prompt = await prepareConflictHandoff(conflicted.repoPath, conflicted.name);
+      if (prompt === "__no_conflict__") return;
+      const session = await ensureAgentSession(conflicted.id, conflicted.repoPath, conflicted.branch);
+      await writeToSession(session.sessionId, `${prompt}\n`);
+      setActiveWorktree(conflicted.id);
+      focusAgentTab(conflicted.id);
+    } catch (e) {
+      console.error("Conflict handoff failed:", e);
+      new Notification("Alfredo", { body: `Handoff failed: ${e instanceof Error ? e.message : e}` });
+    }
+  };
+
+  const handleRetryRestack = async () => {
+    if (!conflicted) return;
+    onClose();
+    await restackNow(conflicted.repoPath, conflicted.name).catch(console.error);
+  };
 
   const handleRestackStack = async () => {
     onClose();
@@ -75,6 +99,24 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
       <div className="px-3 pt-1.5 mt-1 border-t border-border-subtle text-[11px] text-text-tertiary">
         ↳ {defaultBranch ?? "main"}
       </div>
+      {conflicted && (
+        <div className="px-2 pt-2 flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={handleHaveClaudeResolve}
+            className="w-full flex items-center justify-center gap-1.5 rounded border border-accent-primary/40 bg-accent-muted/30 py-1 text-[11px] text-accent-primary hover:bg-accent-muted"
+          >
+            ✳ Have Claude resolve
+          </button>
+          <button
+            type="button"
+            onClick={handleRetryRestack}
+            className="w-full flex items-center justify-center gap-1.5 rounded border border-border-default py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
+          >
+            <RefreshCw className="h-3 w-3" /> Retry restack
+          </button>
+        </div>
+      )}
       <div className="px-2 pt-2">
         <button
           type="button"

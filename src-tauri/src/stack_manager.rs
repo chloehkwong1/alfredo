@@ -1140,6 +1140,81 @@ pub async fn change_base(
     }
 }
 
+/// Re-run the failing restack WITHOUT aborting, leaving the conflict in the
+/// worktree for an agent to resolve. Returns the resolution prompt, or the
+/// sentinel `"__no_conflict__"` if the rebase succeeded after all (e.g. the
+/// user already fixed the parent and this is a retry).
+///
+/// Deliberately does NOT route through `run_restack`: `rebase_onto_sha` is
+/// called here with `abort_on_failure: false` so a genuine conflict is left in
+/// the tree instead of aborted — exactly what `run_restack` must never do.
+///
+/// No new conflict-memo entry is recorded on the conflict path (unlike the
+/// background poll's `record_conflict`): that memo exists purely to stop the
+/// *poll* from re-attempting a rebase it already knows is doomed, and nothing
+/// here needs suppressing — the poll's own dirty-check inside `run_restack`
+/// already refuses to touch a worktree mid-conflicted-rebase, since a
+/// conflicted `git status --porcelain` is never empty (see
+/// `worktree_is_dirty`, and `rebase_onto_sha`'s own test coverage for the
+/// left-in-place case). The sticky `Conflict` status that got the user to this
+/// action is also left untouched: it's still true.
+pub async fn begin_conflict_handoff(
+    app_handle: &AppHandle,
+    app_data_dir: &Path,
+    repo_path: &str,
+    worktree_name: &str,
+) -> Result<String, String> {
+    let config = config_manager::load_personal_config(app_data_dir, repo_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    let Some(parent_branch) = config_manager::get_stack_parent(&config, worktree_name) else {
+        return Err(format!("{worktree_name} has no stack parent"));
+    };
+    let worktree_path = worktree_checkout_path(repo_path, worktree_name, &config).await;
+    let Some(parent_tip) = branch_tip(repo_path, &parent_branch).await else {
+        return Err(format!("could not resolve tip of {parent_branch}"));
+    };
+    let baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
+        Some(sha) => sha,
+        None => git_manager::merge_base(&worktree_path, "HEAD", &parent_tip)
+            .await
+            .map_err(|e| e.to_string())?,
+    };
+
+    match git_manager::rebase_onto_sha(&worktree_path, &parent_tip, &baseline, false).await {
+        Ok(()) => {
+            // No conflict after all. Persist baseline like a normal successful
+            // restack, and clear this worktree's conflict bookkeeping —
+            // mirroring what a successful `restack_child`/`run_restack` does —
+            // since the rebase completed and the baseline now advances past
+            // whatever the sticky Conflict/memo were about.
+            clear_conflict_memo(repo_path, worktree_name);
+            clear_sticky_status(repo_path, worktree_name);
+            let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
+                .await
+                .map_err(|e| e.to_string())?;
+            config_manager::set_stack_baseline(&mut config, worktree_name, &parent_tip);
+            let _ = config_manager::save_config(app_data_dir, repo_path, &config).await;
+            let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
+            Ok("__no_conflict__".to_string())
+        }
+        Err(_) => {
+            // Left in place: do not clear the sticky Conflict (still true), and
+            // do not record a conflict-memo entry (see doc comment above).
+            let short_parent = &parent_tip[..12.min(parent_tip.len())];
+            Ok(format!(
+                "A `git rebase --onto {short_parent} <baseline>` restacking this branch onto \
+                 `{parent_branch}` stopped on conflicts, which are now in the working tree. \
+                 Resolve every conflict preserving the intent of BOTH sides, then run \
+                 `git add -A && git rebase --continue` (repeat if further commits conflict) \
+                 until the rebase completes. Do NOT push — Alfredo handles pushing. \
+                 Do NOT run `git rebase --abort` unless the conflicts are genuinely unresolvable, \
+                 and say so clearly if you do."
+            ))
+        }
+    }
+}
+
 /// True when `git status --porcelain` reports any changes. `default_if_unknown`
 /// is the fail-safe when the check itself errors (spawn failure): callers that
 /// need "don't rebase on an uncertain tree" pass `true`; callers that use this

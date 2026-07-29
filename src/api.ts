@@ -207,6 +207,10 @@ export function changeStackBase(
   return invoke("change_stack_base", { repoPath, worktreeName, newParent });
 }
 
+export function prepareConflictHandoff(repoPath: string, worktreeName: string): Promise<string> {
+  return invoke("prepare_conflict_handoff", { repoPath, worktreeName });
+}
+
 export function listWorktrees(repoPath: string): Promise<Worktree[]> {
   return invoke("list_worktrees", { repoPath });
 }
