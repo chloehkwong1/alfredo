@@ -250,6 +250,38 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
     }
 }
 
+/// Run the full dependency-ordered cascade for one repo (used by the
+/// restack_stack command; same body as the per-repo loop in check_and_rebase
+/// but without the quiet gate — the user explicitly asked).
+pub async fn restack_repo(app_handle: &AppHandle, app_data_dir: &Path, repo_path: &str) -> Result<(), String> {
+    let config = config_manager::load_personal_config(app_data_dir, repo_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    if config.stack_parent_overrides.is_empty() {
+        return Ok(());
+    }
+    let checkouts = checkout_paths(repo_path).await;
+    let name_to_branch: HashMap<String, String> = checkouts
+        .iter()
+        .filter_map(|(branch, path)| {
+            std::path::Path::new(path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| (n.to_string(), branch.clone()))
+        })
+        .collect();
+    let mut first_err: Option<String> = None;
+    for child in restack_order(&config.stack_parent_overrides, &name_to_branch) {
+        if let Err(e) = restack_child(app_handle, app_data_dir, repo_path, &child).await {
+            first_err.get_or_insert(e);
+        }
+    }
+    match first_err {
+        None => Ok(()),
+        Some(e) => Err(e),
+    }
+}
+
 // ── Task 13 ──────────────────────────────────────────────────────
 
 /// Detects stack parents that have been merged into the default branch via manual rebase/merge
@@ -458,16 +490,7 @@ async fn run_restack(
     match git_manager::rebase_onto_sha(worktree_path, target_tip, baseline, true).await {
         Ok(()) => {
             let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
-
-            if git_manager::has_upstream(worktree_path).await {
-                if let Err(e) =
-                    crate::commands::git_ops::git_push_force_with_lease(worktree_path.to_string())
-                        .await
-                {
-                    eprintln!("[stack_manager] lease push failed for {worktree_name}: {e}");
-                    emit_status(app_handle, worktree_name, StackRebaseStatus::PushFailed);
-                }
-            }
+            push_with_lease_or_flag(app_handle, worktree_path, worktree_name).await;
             Ok(RestackOutcome::Rebased)
         }
         Err(e) => {
@@ -475,6 +498,21 @@ async fn run_restack(
             let _ = app_handle.emit("stack:rebase-conflict", worktree_name.to_string());
             emit_status(app_handle, worktree_name, StackRebaseStatus::Conflict);
             Err(e.to_string())
+        }
+    }
+}
+
+/// Push with `--force-with-lease` when an upstream exists; on failure, emit
+/// `PushFailed` rather than propagating — the rebase already succeeded
+/// locally, so a push failure is surfaced as a status, not an error. Shared by
+/// `run_restack` and `change_base`, whose success paths both do this.
+async fn push_with_lease_or_flag(app_handle: &AppHandle, worktree_path: &str, worktree_name: &str) {
+    if git_manager::has_upstream(worktree_path).await {
+        if let Err(e) =
+            crate::commands::git_ops::git_push_force_with_lease(worktree_path.to_string()).await
+        {
+            eprintln!("[stack_manager] lease push failed for {worktree_name}: {e}");
+            emit_status(app_handle, worktree_name, StackRebaseStatus::PushFailed);
         }
     }
 }
@@ -514,6 +552,105 @@ async fn restack_onto_default(
         // `run_restack` — nothing left for this caller to do.
         Ok(RestackOutcome::Rebased | RestackOutcome::SkippedDirty) => Ok(()),
         Err(e) => Err(e),
+    }
+}
+
+/// Re-parent with migration: rebase the child's own commits onto the new base
+/// NOW (`--onto <new-tip> <old-baseline>`), then persist parent + baseline.
+/// `new_parent = None` re-bases onto the default branch and clears the stack entry.
+/// On conflict: rebase aborted, metadata still updated (Restack now retries),
+/// error returned for the dialog to surface.
+///
+/// Deliberately does NOT route through `run_restack`: this is an explicit user
+/// action, not a background poll, so there is no dirty-skip — `rebase_onto_sha`
+/// wip-stashes any uncommitted changes instead. It shares only the lease-push
+/// tail (`push_with_lease_or_flag`) with `run_restack`; the surrounding
+/// persist-then-emit ordering is bespoke to this caller.
+pub async fn change_base(
+    app_handle: &AppHandle,
+    app_data_dir: &Path,
+    repo_path: &str,
+    worktree_name: &str,
+    new_parent: Option<&str>,
+) -> Result<(), String> {
+    let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    let worktree_path = resolve_worktree_path(repo_path, worktree_name, &config);
+    if !std::path::Path::new(&worktree_path).exists() {
+        return Err(format!("worktree path does not exist: {worktree_path}"));
+    }
+
+    let target_branch: String = match new_parent {
+        Some(p) => p.to_string(),
+        None => {
+            let rp = repo_path.to_string();
+            let default_remote = tokio::task::spawn_blocking(move || {
+                git_manager::resolve_default_remote_branch(&rp)
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+            default_remote.strip_prefix("origin/").unwrap_or(&default_remote).to_string()
+        }
+    };
+    let Some(target_tip) = branch_tip(repo_path, &target_branch).await else {
+        return Err(format!("could not resolve tip of {target_branch}"));
+    };
+
+    // Old baseline: persisted; else merge-base against the OLD parent (or default) —
+    // this is what makes retroactive re-parenting replay only the child's commits.
+    let old_baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
+        Some(sha) => sha,
+        None => {
+            let old_parent = config_manager::get_stack_parent(&config, worktree_name);
+            let old_ref: String = match old_parent {
+                Some(p) => branch_tip(repo_path, &p).await.unwrap_or_else(|| target_tip.clone()),
+                None => target_tip.clone(),
+            };
+            git_manager::merge_base(&worktree_path, "HEAD", &old_ref)
+                .await
+                .map_err(|e| e.to_string())?
+        }
+    };
+
+    // Persist metadata FIRST so a conflicted migration still leaves the new
+    // parent in place for "Restack now" to retry against.
+    match new_parent {
+        Some(p) => config_manager::set_stack_parent(&mut config, worktree_name, p),
+        None => config_manager::clear_stack_parent(&mut config, worktree_name),
+    }
+    // Baseline only advances on rebase success; keep the old one for retries.
+    config_manager::save_config(app_data_dir, repo_path, &config)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if old_baseline == target_tip {
+        emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+        return Ok(());
+    }
+
+    emit_status(app_handle, worktree_name, StackRebaseStatus::Rebasing);
+    match git_manager::rebase_onto_sha(&worktree_path, &target_tip, &old_baseline, true).await {
+        Ok(()) => {
+            let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
+                .await
+                .map_err(|e| e.to_string())?;
+            match new_parent {
+                Some(_) => config_manager::set_stack_baseline(&mut config, worktree_name, &target_tip),
+                None => config_manager::clear_stack_baseline(&mut config, worktree_name),
+            }
+            config_manager::save_config(app_data_dir, repo_path, &config)
+                .await
+                .map_err(|e| e.to_string())?;
+            let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
+            push_with_lease_or_flag(app_handle, &worktree_path, worktree_name).await;
+            Ok(())
+        }
+        Err(e) => {
+            let _ = app_handle.emit("stack:rebase-conflict", worktree_name.to_string());
+            emit_status(app_handle, worktree_name, StackRebaseStatus::Conflict);
+            Err(format!("re-base migration hit conflicts (aborted; branch unchanged): {e}"))
+        }
     }
 }
 

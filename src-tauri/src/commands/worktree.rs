@@ -553,6 +553,49 @@ pub async fn set_stack_parent(
     Ok(())
 }
 
+/// Restack a single worktree onto its stack parent now.
+#[tauri::command]
+pub async fn restack_now(
+    app: AppHandle,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<()> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    crate::stack_manager::restack_child(&app, &app_data_dir, &repo_path, &worktree_name)
+        .await
+        .map_err(AppError::Git)
+}
+
+/// Restack every stacked worktree of the repo in dependency order.
+/// `worktree_name` is accepted for future scoping/API stability and to anchor
+/// error messages — the cascade itself is repo-wide.
+#[tauri::command]
+pub async fn restack_stack(
+    app: AppHandle,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<()> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    crate::stack_manager::restack_repo(&app, &app_data_dir, &repo_path)
+        .await
+        .map_err(|e| AppError::Git(format!("restack stack (from {worktree_name}): {e}")))
+}
+
+/// Migrate a worktree's stack base: rebase its own commits onto the new parent
+/// (or the default branch when `new_parent` is None) and persist the change.
+#[tauri::command]
+pub async fn change_stack_base(
+    app: AppHandle,
+    repo_path: String,
+    worktree_name: String,
+    new_parent: Option<String>,
+) -> Result<()> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    crate::stack_manager::change_base(&app, &app_data_dir, &repo_path, &worktree_name, new_parent.as_deref())
+        .await
+        .map_err(AppError::Git)
+}
+
 /// Manually override a worktree's kanban column (e.g. drag to "Blocked").
 #[tauri::command]
 pub async fn set_worktree_column(

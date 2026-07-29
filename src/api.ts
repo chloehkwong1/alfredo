@@ -191,6 +191,22 @@ export function setStackParent(
   return invoke("set_stack_parent", { repoPath, worktreeName, parentBranch });
 }
 
+export function restackNow(repoPath: string, worktreeName: string): Promise<void> {
+  return invoke("restack_now", { repoPath, worktreeName });
+}
+
+export function restackStack(repoPath: string, worktreeName: string): Promise<void> {
+  return invoke("restack_stack", { repoPath, worktreeName });
+}
+
+export function changeStackBase(
+  repoPath: string,
+  worktreeName: string,
+  newParent: string | null,
+): Promise<void> {
+  return invoke("change_stack_base", { repoPath, worktreeName, newParent });
+}
+
 export function listWorktrees(repoPath: string): Promise<Worktree[]> {
   return invoke("list_worktrees", { repoPath });
 }
