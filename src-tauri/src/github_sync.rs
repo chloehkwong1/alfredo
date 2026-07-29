@@ -791,6 +791,12 @@ fn collapse_blank_line_runs(s: &str) -> String {
 /// Guards both walks with a visited set so a cycle in `stack_parent_overrides`
 /// (e.g. A's parent is B and B's parent is A) breaks immediately instead of
 /// duplicating a branch in the returned chain.
+///
+/// At a fork (one parent, several children) the tip-ward walk follows the
+/// lexicographically smallest child branch, mirroring `stackChain.ts`'s
+/// `localeCompare` sort so both surfaces render the same linear chain. Picking
+/// by `HashMap` iteration order instead would return a different child from
+/// poll to poll and rewrite every PR body in the chain each time.
 fn assemble_chain(
     stack_parent_overrides: &std::collections::HashMap<String, String>,
     name_to_branch: &std::collections::HashMap<String, String>,
@@ -812,20 +818,38 @@ fn assemble_chain(
     chain_branches.reverse(); // root→…→this PR
 
     // Extend tip-ward: children whose parent is this PR's branch, transitively.
+    // Children whose branch can't be resolved are dropped rather than ending the
+    // walk, so an unknown worktree can't hide a resolvable sibling.
     let mut tipward = pr_branch.to_string();
-    while let Some((child_name, _)) = stack_parent_overrides.iter().find(|(_, p)| **p == tipward) {
-        let Some(child_branch) = name_to_branch.get(child_name) else { break };
+    while let Some(child_branch) = stack_parent_overrides
+        .iter()
+        .filter(|(_, parent)| **parent == tipward)
+        .filter_map(|(child_name, _)| name_to_branch.get(child_name))
+        .min()
+        .cloned()
+    {
         if !visited.insert(child_branch.clone()) {
             break; // cycle: this branch is already in the chain
         }
         chain_branches.push(child_branch.clone());
-        tipward = child_branch.clone();
+        tipward = child_branch;
     }
     chain_branches
 }
 
-/// Keep a delimited "Stack" section in every stacked PR's description in sync.
-/// Only PRs authored by the current gh user are touched.
+/// True when a PR body still carries an Alfredo stack block — or a stray half
+/// of one, which `splice_stack_section` repairs away for free. Drives both the
+/// cheap repo-level skip and the per-PR "this section must be removed" branch.
+fn has_stack_section(body: Option<&str>) -> bool {
+    body.is_some_and(|b| b.contains(STACK_START) || b.contains(STACK_END))
+}
+
+/// Keep a delimited "Stack" section in every stacked PR's description in sync,
+/// in BOTH directions: PRs that qualify get the current chain spliced in, and
+/// PRs that no longer qualify (chain shrank below 2 after merges, or the stack
+/// was dissolved entirely) get their stale section spliced out. Only non-merged
+/// PRs authored by the current gh user are touched — a merged PR keeps the
+/// section it had when it landed.
 async fn sync_pr_stack_sections(
     app_data_dir: &std::path::Path,
     repo_paths: &[String],
@@ -836,7 +860,14 @@ async fn sync_pr_stack_sections(
         let Ok(config) = config_manager::load_personal_config(app_data_dir, repo_path).await else {
             continue;
         };
-        if config.stack_parent_overrides.is_empty() {
+        // A repo with no stack config is only skippable once no PR of its own is
+        // still carrying a section: dissolving a stack empties the overrides, and
+        // skipping on that alone is what used to strand those sections forever.
+        if config.stack_parent_overrides.is_empty()
+            && !all_prs
+                .iter()
+                .any(|p| p.repo_path == *repo_path && !p.merged && has_stack_section(p.body.as_deref()))
+        {
             continue;
         }
         let Ok((owner, repo)) = crate::github_manager::resolve_owner_repo(repo_path).await else {
@@ -866,30 +897,41 @@ async fn sync_pr_stack_sections(
             .collect();
         // Chain assembly keyed on branches from the PR list: every non-merged PR
         // that is stacked (has a parent) or is a stack root (is someone's parent)
-        // gets a section.
+        // gets a section; every other one gets any section it still carries
+        // removed.
         for pr in all_prs.iter().filter(|p| p.repo_path == *repo_path && !p.merged) {
-            let wt_name = pr.branch.replace('/', "-");
-            let is_stacked = name_to_parent.contains_key(&wt_name);
-            let is_parent = parents.contains(pr.branch.as_str());
-            if !is_stacked && !is_parent {
-                continue;
-            }
-            let chain_branches = assemble_chain(name_to_parent, &name_to_branch, &pr.branch);
-
-            let chain: Vec<(u64, String, bool)> = chain_branches
-                .iter()
-                .filter_map(|b| pr_by_branch.get(b.as_str()).map(|p| (p.number, b.clone(), p.merged)))
-                .collect();
-            if chain.len() < 2 {
-                continue; // no stack worth announcing
-            }
+            // Author gate first: it applies to removals exactly as it does to
+            // writes — never edit someone else's PR body in either direction.
             let is_author = pr.author.as_deref().is_some_and(|a| a.eq_ignore_ascii_case(&me));
             if !is_author {
                 continue;
             }
 
-            let section = render_stack_section(&chain, pr.number);
+            let wt_name = pr.branch.replace('/', "-");
+            let is_stacked = name_to_parent.contains_key(&wt_name);
+            let is_parent = parents.contains(pr.branch.as_str());
+            let chain: Vec<(u64, String, bool)> = if is_stacked || is_parent {
+                assemble_chain(name_to_parent, &name_to_branch, &pr.branch)
+                    .iter()
+                    .filter_map(|b| pr_by_branch.get(b.as_str()).map(|p| (p.number, b.clone(), p.merged)))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
             let body = pr.body.clone().unwrap_or_default();
+            // A chain of fewer than 2 members is no stack worth announcing. That
+            // is the removal trigger as much as the skip trigger: an empty
+            // section makes `splice_stack_section` delete the block. Nothing to
+            // add and nothing to delete ⇒ this PR is left alone entirely.
+            let section = if chain.len() < 2 {
+                if !has_stack_section(Some(&body)) {
+                    continue;
+                }
+                String::new()
+            } else {
+                render_stack_section(&chain, pr.number)
+            };
             let new_body = splice_stack_section(&body, &section);
             if new_body == body {
                 continue;
@@ -1140,6 +1182,66 @@ mod tests {
         let name_to_branch = branch_map(&[("feat-a", "feat/a"), ("feat-b", "feat/b"), ("feat-c", "feat/c")]);
         let chain = assemble_chain(&overrides, &name_to_branch, "feat/b");
         assert_eq!(chain, vec!["feat/a".to_string(), "feat/b".to_string(), "feat/c".to_string()]);
+    }
+
+    /// A fork (two children of the same parent) must resolve to the same linear
+    /// chain on every call: `HashMap` iteration order used to decide it, which
+    /// rewrote every PR body in the chain from poll to poll. Lexicographically
+    /// smallest child wins, mirroring `stackChain.ts`'s sort.
+    #[test]
+    fn assemble_chain_picks_smallest_child_at_a_fork_deterministically() {
+        let name_to_branch =
+            branch_map(&[("feat-a", "feat/a"), ("feat-x", "feat/x"), ("feat-y", "feat/y")]);
+        let expected = vec!["feat/a".to_string(), "feat/x".to_string()];
+        for _ in 0..32 {
+            // Rebuilt (not cloned) each iteration: a clone reuses the original's
+            // hasher state, so only a fresh map exercises a fresh iteration order.
+            let overrides = branch_map(&[("feat-y", "feat/a"), ("feat-x", "feat/a")]);
+            assert_eq!(assemble_chain(&overrides, &name_to_branch, "feat/a"), expected);
+        }
+    }
+
+    /// The walk keeps going past a fork: smallest child at the fork, then that
+    /// child's own child, all still deterministic.
+    #[test]
+    fn assemble_chain_continues_past_a_fork() {
+        let name_to_branch = branch_map(&[
+            ("feat-a", "feat/a"),
+            ("feat-b", "feat/b"),
+            ("feat-c", "feat/c"),
+            ("feat-d", "feat/d"),
+        ]);
+        let expected = vec!["feat/a".to_string(), "feat/b".to_string(), "feat/d".to_string()];
+        for _ in 0..32 {
+            let overrides =
+                branch_map(&[("feat-c", "feat/a"), ("feat-b", "feat/a"), ("feat-d", "feat/b")]);
+            assert_eq!(assemble_chain(&overrides, &name_to_branch, "feat/a"), expected);
+        }
+    }
+
+    #[test]
+    fn has_stack_section_detects_full_and_orphaned_blocks() {
+        assert!(has_stack_section(Some(
+            "Top\n<!-- alfredo-stack-start -->\nS\n<!-- alfredo-stack-end -->"
+        )));
+        // Orphan halves count: splice repairs them away with an empty section.
+        assert!(has_stack_section(Some("Top\n<!-- alfredo-stack-end -->")));
+        assert!(has_stack_section(Some("<!-- alfredo-stack-start -->\nS")));
+        assert!(!has_stack_section(Some("Just a normal body.")));
+        assert!(!has_stack_section(None));
+    }
+
+    /// A PR that dropped out of its stack must have the stale block spliced out
+    /// — the removal branch feeds `splice_stack_section` an empty section.
+    #[test]
+    fn stale_section_is_removed_and_is_a_fixed_point() {
+        let body = "Top\n\n<!-- alfredo-stack-start -->\n**Stack** (bottom → top):\n- #1 `feat/a`\n<!-- alfredo-stack-end -->\n\nBottom";
+        assert!(has_stack_section(Some(body)));
+        let removed = splice_stack_section(body, "");
+        assert!(!has_stack_section(Some(&removed)));
+        assert!(removed.contains("Top") && removed.contains("Bottom"));
+        // The no-op guard then keeps later polls from re-editing it.
+        assert_eq!(splice_stack_section(&removed, ""), removed);
     }
 
     #[test]

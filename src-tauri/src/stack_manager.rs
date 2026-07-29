@@ -251,7 +251,7 @@ pub async fn check_merged_parents(
     let mut registry: Option<HashMap<String, String>> = None;
 
     for repo_path in repo_paths {
-        let mut config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
+        let config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("[stack_manager] load_personal_config failed for {repo_path}: {e}");
@@ -309,7 +309,7 @@ pub async fn check_merged_parents(
         ensure_registry(&mut registry).await;
         let checkouts = checkout_paths(repo_path).await;
 
-        let mut config_changed = false;
+        let mut dissolved: Vec<String> = Vec::new();
         for (child_name, _merged_parent) in &affected {
             // Dissolving rebases and force-pushes the child, so it gets the same
             // quiet gate as a routine restack: never rewrite history under a
@@ -385,17 +385,33 @@ pub async fn check_merged_parents(
             // Emit parent-merged event
             let _ = app_handle.emit("stack:parent-merged", child_name.clone());
 
-            // Clear the stack parent + baseline from config — the stack
-            // relationship is dissolved now that the child sits on the default branch.
-            config_manager::clear_stack_entry(&mut config, child_name);
-            forget_stack_memos(repo_path, child_name);
-            config_changed = true;
+            // The stack relationship is dissolved now that the child sits on the
+            // default branch; the config write itself is batched below.
+            dissolved.push(child_name.clone());
         }
 
-        if config_changed {
-            if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &config).await {
-                eprintln!("[stack_manager] failed to save config after clearing merged parents: {e}");
+        if dissolved.is_empty() {
+            continue;
+        }
+
+        // Reload rather than save the snapshot taken at the top of this repo's
+        // iteration: each `restack_onto_default` above ran a rebase + push
+        // (seconds) and wrote config itself, so the stale copy would clobber any
+        // baseline, port claim or column change that landed meanwhile. Same
+        // pattern as `detect_stale_parents`/`restack_child_inner`.
+        let mut config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("[stack_manager] reload before clearing merged parents failed for {repo_path}: {e}");
+                continue;
             }
+        };
+        for child_name in &dissolved {
+            config_manager::clear_stack_entry(&mut config, child_name);
+            forget_stack_memos(repo_path, child_name);
+        }
+        if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &config).await {
+            eprintln!("[stack_manager] failed to save config after clearing merged parents: {e}");
         }
     }
 }
@@ -1064,9 +1080,10 @@ async fn restack_onto_default(
 /// Metadata ordering differs by case, because "what does the user retry with?"
 /// differs by case:
 ///
-/// - `Some(new_parent)` — the new parent is persisted BEFORE the rebase, so a
-///   conflicted migration still leaves a stack relationship for "Restack now"
-///   to retry against. Error returned for the dialog to surface.
+/// - `Some(new_parent)` — the new parent AND the old baseline are persisted
+///   BEFORE the rebase, so a conflicted migration still leaves a stack
+///   relationship for "Restack now" to retry against, with the same `--onto`
+///   floor this attempt used. Error returned for the dialog to surface.
 /// - `None` (re-base onto the default branch) — the parent is cleared only once
 ///   the rebase actually succeeds. Clearing it up front would dissolve the stack
 ///   on a conflict, taking the stack UI and every retry path with it, while the
@@ -1129,11 +1146,21 @@ pub async fn change_base(
         }
     };
 
-    // Re-parenting persists the new parent FIRST (see the doc comment); the
-    // baseline only advances on rebase success, so the old one stays put for
-    // retries. Dissolving (`None`) writes nothing until the rebase succeeds.
+    // Re-parenting persists the new parent FIRST (see the doc comment), and
+    // pins `old_baseline` alongside it. Pinning matters for the stack that had
+    // no persisted baseline: `old_baseline` was just derived by merge-base
+    // against the OLD parent, and once the new parent is written that
+    // computation is unreproducible — a retry after a conflict would merge-base
+    // against the NEW parent and replay the old parent's commits on top of
+    // themselves. Writing it here makes the retry's `--onto <new-tip>
+    // <old-baseline>` identical to this attempt's. On success the block below
+    // overwrites it with `target_tip`. Dissolving (`None`) deliberately writes
+    // nothing until the rebase succeeds: clearing or pinning up front would
+    // dissolve the stack UI (and every retry path) on a conflict that left the
+    // branch untouched.
     if let Some(p) = new_parent {
         config_manager::set_stack_parent(&mut config, worktree_name, p);
+        config_manager::set_stack_baseline(&mut config, worktree_name, &old_baseline);
         config_manager::save_config(app_data_dir, repo_path, &config)
             .await
             .map_err(|e| e.to_string())?;
@@ -1183,8 +1210,8 @@ pub async fn change_base(
             Ok(())
         }
         // Aborted, branch unchanged. Nothing is written here: a re-parent kept the
-        // new parent it persisted above, and a dissolve still has its old parent,
-        // so both remain visible in the stack UI and retryable.
+        // new parent and pinned baseline it persisted above, and a dissolve still
+        // has its old parent, so both remain visible in the stack UI and retryable.
         Err(e) => {
             let _ = app_handle.emit("stack:rebase-conflict", worktree_name.to_string());
             set_sticky_status(repo_path, worktree_name, StackRebaseStatus::Conflict);
@@ -1203,15 +1230,28 @@ pub async fn change_base(
 /// called here with `abort_on_failure: false` so a genuine conflict is left in
 /// the tree instead of aborted — exactly what `run_restack` must never do.
 ///
-/// No new conflict-memo entry is recorded on the conflict path (unlike the
-/// background poll's `record_conflict`): that memo exists purely to stop the
-/// *poll* from re-attempting a rebase it already knows is doomed, and nothing
-/// here needs suppressing — the poll's own dirty-check inside `run_restack`
-/// already refuses to touch a worktree mid-conflicted-rebase, since a
-/// conflicted `git status --porcelain` is never empty (see
-/// `worktree_is_dirty`, and `rebase_onto_sha`'s own test coverage for the
-/// left-in-place case). The sticky `Conflict` status that got the user to this
-/// action is also left untouched: it's still true.
+/// The conflict path does not record a new conflict-memo entry, and actively
+/// *clears* any existing one. No new entry is needed because that memo exists
+/// purely to stop the *poll* from re-attempting a rebase it already knows is
+/// doomed, and nothing here needs suppressing — the poll's own guards inside
+/// `run_restack` (`rebase_in_progress` first, then the dirty-check) already
+/// refuse to touch a worktree mid-conflicted-rebase, since a conflicted
+/// `git status --porcelain` is never empty (see `worktree_is_dirty`, and
+/// `rebase_onto_sha`'s own test coverage for the left-in-place case).
+///
+/// Clearing the *old* entry is what keeps the handoff from being a dead end.
+/// The background poll that first hit this conflict memoised the parent tip;
+/// once the agent finishes `git rebase --continue`, the branch is already on
+/// that tip but the persisted baseline still isn't — and a live memo for the
+/// same tip would make every future auto-restack return early, so the baseline
+/// would never advance and the promised push would never happen. Dropping the
+/// memo here means the first poll after the resolution re-attempts, converges,
+/// and pushes. It is safe to drop while the rebase is still in flight because
+/// `rebase_in_progress` — not the memo — is what protects the in-flight
+/// resolution.
+///
+/// The sticky `Conflict` status that got the user to this action is left
+/// untouched: it's still true.
 pub async fn begin_conflict_handoff(
     app_handle: &AppHandle,
     app_data_dir: &Path,
@@ -1254,7 +1294,12 @@ pub async fn begin_conflict_handoff(
         }
         Err(_) => {
             // Left in place: do not clear the sticky Conflict (still true), and
-            // do not record a conflict-memo entry (see doc comment above).
+            // do not record a conflict-memo entry. Any memo the background poll
+            // recorded for this parent tip IS dropped — the agent is about to
+            // finish the rebase, and a live memo would suppress the follow-up
+            // auto-restack that advances the baseline and pushes (see doc
+            // comment above; `rebase_in_progress` guards the in-flight resolve).
+            clear_conflict_memo(repo_path, worktree_name);
             let short_parent = &parent_tip[..12.min(parent_tip.len())];
             Ok(format!(
                 "A `git rebase --onto {short_parent} <baseline>` restacking this branch onto \
