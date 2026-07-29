@@ -1,0 +1,19 @@
+src/lib/stackChain.test.ts
+  s_65c465c7497b08::t_d7d669a576831f 63-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ef9ef6b95364781c4e3c9afc4ef82cb2b06de990",
+  "prompts": {},
+  "sessions": {
+    "s_65c465c7497b08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ab4bfe7231e0b5d78",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
