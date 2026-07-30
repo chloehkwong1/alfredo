@@ -1,0 +1,21 @@
+src/services/openIssueFlow.ts
+  s_4d0ebce9f820a8::t_6253cf7e9e36db 346,349,355,358
+  s_4d0ebce9f820a8::t_6d4f69a417aa5a 324-330
+  s_4d0ebce9f820a8::t_a36521daf31198 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "422768c10f9e43e5dfac482ba2332285920e42db",
+  "prompts": {},
+  "sessions": {
+    "s_4d0ebce9f820a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "df86e331-e52d-4ff9-8ba7-2f288e66a034",
+        "model": "claude-fable-5"
+      },
+      "human_author": null
+    }
+  }
+}
