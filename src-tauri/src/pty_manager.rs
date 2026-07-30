@@ -1702,6 +1702,10 @@ fn tilde_abbrev(path: &str) -> String {
     let Ok(home) = std::env::var("HOME") else {
         return path.to_string();
     };
+    tilde_abbrev_in(path, &home)
+}
+
+fn tilde_abbrev_in(path: &str, home: &str) -> String {
     if path == home {
         return "~".to_string();
     }
@@ -2170,17 +2174,17 @@ mod tests {
 
     #[test]
     fn tilde_abbrev_under_home() {
-        std::env::set_var("HOME", "/Users/chloe");
-        assert_eq!(tilde_abbrev("/Users/chloe/alfredo"), "~/alfredo");
-        assert_eq!(tilde_abbrev("/Users/chloe"), "~");
-        assert_eq!(tilde_abbrev("/Users/chloe/dev/alfredo/src"), "~/dev/alfredo/src");
+        // Never set_var("HOME") here: it mutates process-wide state and races
+        // with the keychain tests, which resolve their secrets path from $HOME.
+        assert_eq!(tilde_abbrev_in("/Users/chloe/alfredo", "/Users/chloe"), "~/alfredo");
+        assert_eq!(tilde_abbrev_in("/Users/chloe", "/Users/chloe"), "~");
+        assert_eq!(tilde_abbrev_in("/Users/chloe/dev/alfredo/src", "/Users/chloe"), "~/dev/alfredo/src");
     }
 
     #[test]
     fn tilde_abbrev_outside_home() {
-        std::env::set_var("HOME", "/Users/chloe");
-        assert_eq!(tilde_abbrev("/tmp"), "/tmp");
-        assert_eq!(tilde_abbrev("/Users/someone-else/proj"), "/Users/someone-else/proj");
+        assert_eq!(tilde_abbrev_in("/tmp", "/Users/chloe"), "/tmp");
+        assert_eq!(tilde_abbrev_in("/Users/someone-else/proj", "/Users/chloe"), "/Users/someone-else/proj");
     }
 
     #[test]

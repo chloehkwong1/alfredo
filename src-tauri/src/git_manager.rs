@@ -1641,7 +1641,7 @@ mod tests {
 
         let remote = TempDir::new().expect("remote dir");
         StdCommand::new("git")
-            .args(["init", "--bare"])
+            .args(["init", "--bare", "-b", "main"])
             .current_dir(remote.path())
             .output()
             .expect("git init --bare");
@@ -1672,7 +1672,7 @@ mod tests {
         // Give the base repo an origin and publish main.
         let remote = TempDir::new().expect("remote dir");
         StdCommand::new("git")
-            .args(["init", "--bare"])
+            .args(["init", "--bare", "-b", "main"])
             .current_dir(remote.path())
             .output()
             .expect("git init --bare");
@@ -1830,7 +1830,7 @@ mod tests {
 
         let remote = TempDir::new().expect("remote dir");
         StdCommand::new("git")
-            .args(["init", "--bare"])
+            .args(["init", "--bare", "-b", "main"])
             .current_dir(remote.path())
             .output()
             .expect("git init --bare");
@@ -1868,7 +1868,7 @@ mod tests {
 
         let remote = TempDir::new().expect("remote dir");
         StdCommand::new("git")
-            .args(["init", "--bare"])
+            .args(["init", "--bare", "-b", "main"])
             .current_dir(remote.path())
             .output()
             .expect("git init --bare");
