@@ -29,7 +29,7 @@ portable-pty = "0.9"
 # Homebrew's dylib. A local `tauri build` otherwise links /opt/homebrew's
 # libgit2, which macOS refuses to load under library validation ("different
 # Team IDs"), crashing the app on launch.
-git2 = { version = "0.20", features = ["vendored-libgit2"] }
+git2 = { version = "0.21", features = ["vendored-libgit2"] }
 octocrab = { version = "0.41", default-features = false, features = ["default-client", "follow-redirect", "retry", "timeout", "tracing", "opentls"] }
 openssl = { version = "0.10", features = ["vendored"] }
 tokio = { version = "1", features = ["full"] }

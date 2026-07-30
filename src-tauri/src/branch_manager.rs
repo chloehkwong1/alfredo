@@ -27,7 +27,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
     let active_branch = repo
         .head()
         .ok()
-        .and_then(|h| h.shorthand().map(std::string::ToString::to_string));
+        .and_then(|h| h.shorthand().ok().map(std::string::ToString::to_string));
 
     let mut worktrees = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -46,7 +46,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
             .get()
             .peel_to_commit()
             .ok()
-            .map(|c| (Some(c.time().seconds() * 1000), c.author().name().map(String::from)))
+            .map(|c| (Some(c.time().seconds() * 1000), c.author().name().ok().map(String::from)))
             .unwrap_or((None, None));
 
         seen.insert(name.clone());
@@ -82,7 +82,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
     let remote_names: Vec<String> = repo
         .remotes()
         .ok()
-        .map(|r| r.iter().flatten().map(String::from).collect())
+        .map(|r| r.iter().filter_map(|n| n.ok().flatten()).map(String::from).collect())
         .unwrap_or_default();
 
     let remote_branches = repo
@@ -124,7 +124,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
             .get()
             .peel_to_commit()
             .ok()
-            .map(|c| (Some(c.time().seconds() * 1000), c.author().name().map(String::from)))
+            .map(|c| (Some(c.time().seconds() * 1000), c.author().name().ok().map(String::from)))
             .unwrap_or((None, None));
 
         worktrees.push(Worktree {

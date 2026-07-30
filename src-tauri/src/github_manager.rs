@@ -1112,6 +1112,8 @@ pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), App
             .map_err(|_| AppError::Github("no origin remote found".into()))?;
         let url = remote
             .url()
+            .ok()
+            .filter(|u| !u.is_empty())
             .ok_or_else(|| AppError::Github("origin has no URL".into()))?
             .to_string();
         Ok(url)

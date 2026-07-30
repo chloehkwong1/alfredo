@@ -1317,7 +1317,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
     let mut worktrees = Vec::new();
 
     for name in worktree_names.iter() {
-        let Some(name) = name else { continue };
+        let Ok(Some(name)) = name else { continue };
 
         let wt = match repo.find_worktree(name) {
             Ok(wt) => wt,
@@ -1385,7 +1385,7 @@ pub fn count_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<usize
 
     let mut count = 0usize;
     for name in worktree_names.iter() {
-        let Some(name) = name else { continue };
+        let Ok(Some(name)) = name else { continue };
         let Ok(wt) = repo.find_worktree(name) else { continue };
         let wt_path = wt.path().to_path_buf();
         if let Some(ref base) = base_filter {
@@ -1442,7 +1442,7 @@ fn get_branch_for_path(path: &Path) -> Option<String> {
 /// then falls back to the worktree directory name rather than `"HEAD"`.
 fn resolve_worktree_branch(repo: &Repository) -> Option<String> {
     if let Ok(head) = repo.head() {
-        if let Some(name) = head.shorthand() {
+        if let Ok(name) = head.shorthand() {
             // A branch literally named "HEAD" is forbidden by git, so this
             // reliably means a detached HEAD rather than a real branch.
             if name != "HEAD" {

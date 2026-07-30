@@ -731,7 +731,7 @@ async fn resolve_default_branch_from_github(repo_path: &str) -> std::result::Res
 fn resolve_origin_head(repo: &git2::Repository) -> Result<Option<String>> {
     if let Ok(reference) = repo.find_reference("refs/remotes/origin/HEAD") {
         if let Ok(resolved) = reference.resolve() {
-            if let Some(name) = resolved.name() {
+            if let Ok(name) = resolved.name() {
                 if let Some(short) = name.strip_prefix("refs/remotes/origin/") {
                     return Ok(Some(short.to_string()));
                 }
@@ -1963,7 +1963,7 @@ mod tests {
         for oid in &commits {
             let commit = repo.find_commit(*oid).unwrap();
             assert!(!commit.message().unwrap_or("").is_empty());
-            assert!(commit.author().name().is_some());
+            assert!(commit.author().name().is_ok());
             assert!(commit.time().seconds() > 0);
         }
     }
