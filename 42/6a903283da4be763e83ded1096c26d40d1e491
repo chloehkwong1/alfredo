@@ -1,0 +1,32 @@
+designs/kit.css
+  s_8aa5faaae32ec1::t_2b5e4a8d6e0151 27
+src/components/sidebar/AgentItem.tsx
+  s_8aa5faaae32ec1::t_c46ce538386bf0 315-318
+  s_8aa5faaae32ec1::t_71aeff98ff31b7 311
+  s_8aa5faaae32ec1::t_a6dc42c8932b16 512
+src/components/sidebar/PrStatsRow.tsx
+  s_8aa5faaae32ec1::t_6f0f07a60f014d 74,119,129,135
+src/styles/theme.css
+  s_8aa5faaae32ec1::t_ad3e59ce249df5 18
+src/styles/themes.css
+  s_8aa5faaae32ec1::t_a887c46ab0cfc3 17
+  s_8aa5faaae32ec1::t_8639997ea9d4f1 28-34,36-37
+  s_8aa5faaae32ec1::t_81747cef8edf0d 88,141,194,247,300,353
+  s_8aa5faaae32ec1::t_92defcbf037a60 60-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "426a903283da4be763e83ded1096c26d40d1e491",
+  "prompts": {},
+  "sessions": {
+    "s_8aa5faaae32ec1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f871553-72d5-4df8-8977-4511948e77c7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
