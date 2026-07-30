@@ -1,0 +1,28 @@
+src/components/sidebar/Sidebar.tsx
+  s_3047b4aa7487c9::t_e04edaf2bf860f 498
+  s_52e638c7b522cb::t_5af28c3be7e745 625
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "0408171bd74c47e42ac7c9ef055799e8fa05309e",
+  "prompts": {},
+  "sessions": {
+    "s_3047b4aa7487c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c74330c2-aa0d-40a0-bba9-c822cb643109",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_52e638c7b522cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59d36ba4-cef0-473c-bdc2-aa8b7b3e6257",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
