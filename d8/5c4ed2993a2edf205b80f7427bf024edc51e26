@@ -1,0 +1,33 @@
+src-tauri/Cargo.toml
+  s_b5ea5fe1a5fcbd::t_aa10709d68163f 32
+src-tauri/src/github_manager.rs
+  s_b5ea5fe1a5fcbd::t_23d2aaeb10ce6a 1115-1116
+src-tauri/src/branch_manager.rs
+  s_b5ea5fe1a5fcbd::t_020085cb746970 30
+  s_b5ea5fe1a5fcbd::t_da0e9d628e8093 85
+  s_b5ea5fe1a5fcbd::t_467f4eb1d4631d 49,127
+src-tauri/src/commands/diff.rs
+  s_b5ea5fe1a5fcbd::t_e4e13171ae2960 1966
+  s_b5ea5fe1a5fcbd::t_1e9684030d7f7a 734
+src-tauri/src/git_manager.rs
+  s_b5ea5fe1a5fcbd::t_3956779892d084 1445
+  s_b5ea5fe1a5fcbd::t_c411e9f662351b 1320,1388
+src-tauri/Cargo.lock
+  s_b5ea5fe1a5fcbd::t_ee72232c289052 1845,1847,2653,2655,2902,3818,3820,3824,4000,4002,4399,5743,5745
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d85c4ed2993a2edf205b80f7427bf024edc51e26",
+  "prompts": {},
+  "sessions": {
+    "s_b5ea5fe1a5fcbd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fecec623-99b9-4631-927d-e2bae073c8fc",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
