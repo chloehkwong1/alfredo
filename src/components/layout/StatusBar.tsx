@@ -20,14 +20,14 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
   return (
     <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-b border-border-subtle text-xs text-text-tertiary flex-shrink-0">
       {/* Left side */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
         <button
           type="button"
           onClick={() => copy(worktree.branch)}
           title={worktree.branch}
           className="group flex items-center gap-1 font-medium text-text-secondary min-w-0 hover:text-text-primary transition-colors"
         >
-          <span className="truncate max-w-[360px]" style={{ direction: "rtl" }}>
+          <span className="truncate" style={{ direction: "rtl" }}>
             <bdi dir="ltr">{worktree.branch}</bdi>
           </span>
           {copied
@@ -44,7 +44,7 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         {worktree.linearTicketIdentifier && worktree.linearTicketUrl && (
           <button
             type="button"
