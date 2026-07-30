@@ -238,11 +238,18 @@ pub async fn create_worktree(
     }
 
     // Try creating with a new branch first; if the branch already exists,
-    // fall back to using the existing branch.
+    // fall back to using the existing branch. `--no-track` stops git's
+    // branch.autoSetupMerge from recording the startpoint (origin/<base>) as
+    // the new branch's upstream — a never-pushed branch claiming it tracks
+    // origin/main misleads every tool that derives the base or publish state
+    // from the upstream (push.default=simple refusals, "behind origin/main"
+    // banners, skills rebasing onto main). The honest state is no upstream
+    // until the branch is genuinely published with `push -u`.
     let output = git_command()
         .args([
             "worktree",
             "add",
+            "--no-track",
             "-b",
             branch_name,
             worktree_dir.to_str().unwrap_or_default(),
@@ -894,10 +901,13 @@ pub async fn merge_base(worktree_path: &str, a: &str, b: &str) -> Result<String,
 /// True when the current branch's upstream is its *own* branch on a remote —
 /// `branch.<name>.merge` names the branch itself and the tracking ref
 /// resolves. A bare "has an upstream" check is not enough: worktree branches
-/// inherit tracking from their start point (`git worktree add -b X <dir>
-/// origin/main` leaves X tracking origin/main), which makes an unpublished
-/// branch look published and sends a bare `git push --force-with-lease` into
-/// push.default=simple's name-mismatch refusal.
+/// used to inherit tracking from their start point (`git worktree add -b X
+/// <dir> origin/main` leaves X tracking origin/main), which makes an
+/// unpublished branch look published and sends a bare `git push
+/// --force-with-lease` into push.default=simple's name-mismatch refusal.
+/// `create_worktree` now passes `--no-track`, but branches created before
+/// that fix — or outside Alfredo — still carry inherited upstreams, so this
+/// guard stays.
 pub async fn has_matching_upstream(worktree_path: &str) -> bool {
     let head = match git_command()
         .args(["symbolic-ref", "--quiet", "HEAD"])
@@ -1856,6 +1866,47 @@ mod tests {
 
         run_git(root, &["push", "-u", "origin", "no-upstream"]);
         assert!(has_matching_upstream(root).await, "push -u repairs the upstream");
+    }
+
+    #[tokio::test]
+    async fn create_worktree_from_remote_base_sets_no_upstream() {
+        // A branch started from origin/<base> must NOT inherit origin/<base>
+        // as its upstream: a never-pushed branch claiming it tracks
+        // origin/main misleads every tool that derives publish state or the
+        // base branch from the upstream (bare force-push refusals, "behind
+        // origin/main" banners, skills rebasing onto main).
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().unwrap();
+
+        let remote = TempDir::new().expect("remote dir");
+        StdCommand::new("git")
+            .args(["init", "--bare", "-b", "main"])
+            .current_dir(remote.path())
+            .output()
+            .expect("git init --bare");
+        run_git(repo_path, &["remote", "add", "origin", remote.path().to_str().unwrap()]);
+        run_git(repo_path, &["push", "-u", "origin", "main"]);
+
+        let base_dir = TempDir::new().expect("create base temp dir");
+        let base_path = base_dir.path().to_str().unwrap();
+        let wt_path = create_worktree(repo_path, "stacked-child", "origin/main", Some(base_path))
+            .await
+            .expect("create_worktree should succeed");
+
+        // Startpoint took effect…
+        let wt = wt_path.to_str().unwrap();
+        assert_eq!(rev_parse(wt, "HEAD"), rev_parse(repo_path, "origin/main"));
+        // …but no upstream was recorded.
+        let merge_cfg = git_in(&wt_path, &["config", "branch.stacked-child.merge"]);
+        assert!(
+            !merge_cfg.status.success(),
+            "new branch must not inherit its startpoint as upstream, got {:?}",
+            String::from_utf8_lossy(&merge_cfg.stdout)
+        );
+
+        delete_worktree(repo_path, "stacked-child", true, Some(base_path))
+            .await
+            .expect("delete should succeed");
     }
 
     #[tokio::test]
