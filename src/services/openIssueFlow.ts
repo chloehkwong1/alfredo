@@ -1,4 +1,4 @@
-import { createWorktreeFrom, getConfig, getDefaultBranch, listWorktrees, searchLinearIssues, setWorktreeLinearTicket } from "../api";
+import { createWorktreeFrom, debugLog, getConfig, getDefaultBranch, listWorktrees, searchLinearIssues, setWorktreeLinearTicket } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useToastStore } from "../stores/toastStore";
@@ -321,6 +321,13 @@ export async function openIssueInRepo(
     // safety gate holds. Pasting is harmless; submitting is not, so any doubt
     // downgrades to paste-only with a log of the first failing gate.
     if (repoConfig?.linearAutoSubmit) {
+      // Mirror every auto-submit outcome into alfredo.log: on an installed
+      // build the webview console is unreachable, and a silently-skipped
+      // submit is otherwise indistinguishable from a broken flow.
+      const note = (msg: string) => {
+        console.info(msg);
+        void debugLog(msg).catch(() => {});
+      };
       const skipReason =
         // Fresh worktree ⇒ freshly-spawned session ⇒ no half-typed user draft
         // in the input that Enter would submit as part of the prompt.
@@ -336,18 +343,19 @@ export async function openIssueInRepo(
               ? "ticket fetch failed (pasted prompt may be truncated)"
               : null;
       if (skipReason) {
-        console.info(`[linear] auto-submit skipped: ${skipReason}`);
+        note(`[linear] auto-submit skipped: ${skipReason}`);
       } else if (!(await waitForPasteEchoSettle(session))) {
         // The paste's echo never went quiet — Enter now could split the text.
-        console.info("[linear] auto-submit skipped: paste echo never settled");
+        note("[linear] auto-submit skipped: paste echo never settled");
       } else if (session.agentState !== "idle") {
         // Submit-time state must be affirmatively safe: "idle" is the only
         // AgentState meaning "awaiting a new message". waitingForInput means a
         // parked question/trust dialog whose default Enter would accept;
         // busy/notRunning mean the input isn't ours to submit.
-        console.info(`[linear] auto-submit skipped: agent state is "${session.agentState}", not idle`);
+        note(`[linear] auto-submit skipped: agent state is "${session.agentState}", not idle`);
       } else {
         await writeToSession(session.sessionId, "\r");
+        note(`[linear] auto-submit: Enter sent to session ${session.sessionId} (worktree ${worktreeId})`);
       }
     }
 
