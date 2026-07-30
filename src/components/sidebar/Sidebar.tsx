@@ -495,7 +495,7 @@ function Sidebar({
           aria-label="Add a repo"
           title="Add a repo (⌘⇧R)"
           onClick={onAddRepo}
-          className="flex items-center justify-center px-2 rounded-[var(--radius-md)] border border-border-subtle bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+          className="flex items-center justify-center px-2 rounded-[var(--radius-md)] border border-border-default bg-bg-elevated hover:bg-bg-hover text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -622,7 +622,7 @@ function Sidebar({
                 <button
                   type="button"
                   data-tour-id="create-worktree"
-                  className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] border border-dashed border-accent-primary/25 text-accent-primary/70 text-sm font-medium hover:bg-accent-muted hover:border-accent-primary/40 hover:text-accent-primary transition-all cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] border border-accent-primary/40 bg-accent-primary/10 text-accent-primary text-sm font-medium hover:bg-accent-muted hover:border-accent-primary/60 transition-all cursor-pointer"
                   onClick={() => setCreateWorktreeOpen(true)}
                 >
                   <Plus className="h-4 w-4" />
