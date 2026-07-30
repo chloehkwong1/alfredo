@@ -10,7 +10,6 @@ export interface StackMember {
 
 export interface StackChain {
   /** DFS order, root first — the stack map renders this top-down. */
-  memberIds: string[];
   members: StackMember[];
   /** `self`'s depth from the root (root = 1); siblings legitimately share it. */
   position: number;
@@ -33,9 +32,14 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
   const self = worktrees.find((w) => w.id === worktreeId);
   if (!self) return null;
 
-  const byBranch = new Map(worktrees.map((w) => [w.branch, w]));
+  // The store's list spans every repo; stack edges resolve by bare branch
+  // name, so an unscoped walk folds same-named branches from other repos
+  // into the tree.
+  const repoWorktrees = worktrees.filter((w) => w.repoPath === self.repoPath);
+
+  const byBranch = new Map(repoWorktrees.map((w) => [w.branch, w]));
   const childrenOf = new Map<string, Worktree[]>();
-  for (const w of worktrees) {
+  for (const w of repoWorktrees) {
     if (!w.stackParent) continue;
     const list = childrenOf.get(w.stackParent) ?? [];
     list.push(w);
@@ -74,7 +78,6 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
   const selfMember = members.find((m) => m.id === self.id);
   if (!selfMember) return null;
   return {
-    memberIds: members.map((m) => m.id),
     members,
     position: selfMember.depth,
     total: members.length,

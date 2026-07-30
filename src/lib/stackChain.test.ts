@@ -30,7 +30,7 @@ describe("computeStackChain", () => {
   it("orders members root→tip and positions the queried member", () => {
     const chain = computeStackChain([c, a, b, lone], "b");
     expect(chain).not.toBeNull();
-    expect(chain!.memberIds).toEqual(["a", "b", "c"]);
+    expect(chain!.members.map((m) => m.id)).toEqual(["a", "b", "c"]);
     expect(chain!.position).toBe(2);
     expect(chain!.total).toBe(3);
     expect(chain!.rootId).toBe("a");
@@ -40,7 +40,7 @@ describe("computeStackChain", () => {
 
   it("includes the root even though the root itself has no stackParent", () => {
     const chain = computeStackChain([a, b], "a");
-    expect(chain!.memberIds).toEqual(["a", "b"]);
+    expect(chain!.members.map((m) => m.id)).toEqual(["a", "b"]);
     expect(chain!.position).toBe(1);
   });
 
@@ -54,7 +54,7 @@ describe("computeStackChain", () => {
     const orphan = wt({ id: "o", branch: "feat/o", stackParent: "gone/branch" });
     const child = wt({ id: "p", branch: "feat/p", stackParent: "feat/o" });
     const chain = computeStackChain([orphan, child], "p");
-    expect(chain!.memberIds).toEqual(["o", "p"]);
+    expect(chain!.members.map((m) => m.id)).toEqual(["o", "p"]);
   });
 
   it("does not loop on cyclic data", () => {
@@ -71,16 +71,31 @@ describe("computeStackChain", () => {
     const all = [root, left, right, rightChild];
     // Every member sees the same tree: DFS root-first, children branch-sorted.
     const fromRight = computeStackChain(all, "rc");
-    expect(fromRight!.memberIds).toEqual(["r", "l", "rt", "rc"]);
+    expect(fromRight!.members.map((m) => m.id)).toEqual(["r", "l", "rt", "rc"]);
     expect(fromRight!.position).toBe(3);
     expect(fromRight!.total).toBe(4);
     expect(fromRight!.forked).toBe(true);
     const fromRoot = computeStackChain(all, "r");
-    expect(fromRoot!.memberIds).toEqual(["r", "l", "rt", "rc"]);
+    expect(fromRoot!.members.map((m) => m.id)).toEqual(["r", "l", "rt", "rc"]);
     expect(fromRoot!.position).toBe(1);
     // Siblings share a depth — the chip shows the same honest "2/4" for both.
     expect(computeStackChain(all, "l")!.position).toBe(2);
     expect(computeStackChain(all, "rt")!.position).toBe(2);
+  });
+
+  it("ignores same-named branches from other repos", () => {
+    const root = wt({ id: "r", branch: "feat/root" });
+    const child = wt({ id: "ch", branch: "feat/child", stackParent: "feat/root" });
+    // Another repo reuses both branch names and stacks on "feat/root" there.
+    const otherRoot = wt({ id: "or", branch: "feat/root", repoPath: "/tmp/other" });
+    const otherChild = wt({ id: "oc", branch: "feat/other-child", stackParent: "feat/root", repoPath: "/tmp/other" });
+    const chain = computeStackChain([root, child, otherRoot, otherChild], "r")!;
+    expect(chain.members.map((m) => m.id)).toEqual(["r", "ch"]);
+    expect(chain.total).toBe(2);
+    expect(chain.forked).toBe(false);
+    // The other repo's stack resolves independently.
+    const other = computeStackChain([root, child, otherRoot, otherChild], "oc")!;
+    expect(other.members.map((m) => m.id)).toEqual(["or", "oc"]);
   });
 
   it("computes file-tree guide prefixes across a fork", () => {
@@ -89,7 +104,7 @@ describe("computeStackChain", () => {
     const leftChild = wt({ id: "lc", branch: "feat/left-child", stackParent: "feat/left" });
     const right = wt({ id: "rt", branch: "feat/right", stackParent: "feat/root" });
     const chain = computeStackChain([root, left, leftChild, right], "r")!;
-    expect(chain.memberIds).toEqual(["r", "l", "lc", "rt"]);
+    expect(chain.members.map((m) => m.id)).toEqual(["r", "l", "lc", "rt"]);
     expect(chain.members.map((m) => m.prefix)).toEqual(["└", "  ├", "  │ └", "  └"]);
     expect(chain.members.map((m) => m.depth)).toEqual([1, 2, 3, 2]);
   });
