@@ -308,11 +308,14 @@ function getDotColor(status: AgentState | string): string {
 }
 
 function AgentItemContent({
-  worktree, effectiveStatus, isSelected, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
+  worktree, effectiveStatus, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
   repoIndex = 0, showRepoTag = false, stackChain = null, onOpenStackMap = () => {},
 }: AgentItemContentProps) {
-  const mutedTextClass = isSelected ? "text-text-secondary" : "text-text-tertiary";
+  // Secondary, not tertiary: these lines (status, PR title, timestamp, stack
+  // position) are the card's information payload, and tertiary only clears
+  // WCAG AA by a hair. Tertiary is reserved for decorative/hover-revealed text.
+  const mutedTextClass = "text-text-secondary";
   return (
     <>
       <span
@@ -506,7 +509,7 @@ function CreatingItem({ worktree }: { worktree: Worktree }) {
             {worktree.branch || worktree.name}
           </span>
         </div>
-        <div className="text-xs text-text-tertiary mt-1">Setting up…</div>
+        <div className="text-xs text-text-secondary mt-1">Setting up…</div>
       </div>
     </div>
   );

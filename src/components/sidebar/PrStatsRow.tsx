@@ -71,7 +71,7 @@ export function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
   if (closed) {
     return (
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="flex items-center gap-1 text-xs text-text-tertiary">
+        <span className="flex items-center gap-1 text-xs text-text-secondary">
           <GitPullRequestClosed size={12} />
           Cancelled
         </span>
@@ -116,7 +116,7 @@ export function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
         </span>
       )}
       {reviewDecision === "review_requested" && (
-        <span className="flex items-center gap-1 text-xs text-text-tertiary">
+        <span className="flex items-center gap-1 text-xs text-text-secondary">
           <UserPlus size={12} />
           {prSummary.requestedReviewers && prSummary.requestedReviewers.length > 0
             ? prSummary.requestedReviewers.length === 1
@@ -126,13 +126,13 @@ export function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
         </span>
       )}
       {reviewDecision === "review_required" && (
-        <span className="flex items-center gap-1 text-xs text-text-tertiary">
+        <span className="flex items-center gap-1 text-xs text-text-secondary">
           <Clock size={12} />
           Needs reviewer
         </span>
       )}
       {unresolvedCommentCount != null && unresolvedCommentCount > 0 && (
-        <span className="flex items-center gap-1 text-xs text-text-tertiary">
+        <span className="flex items-center gap-1 text-xs text-text-secondary">
           <MessageCircle size={12} />
           {unresolvedCommentCount}
         </span>

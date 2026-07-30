@@ -14,7 +14,7 @@ html[data-theme="light"] {
 
   --text-primary: #1c1917;
   --text-secondary: #57534e;
-  --text-tertiary: #a8a29e;
+  --text-tertiary: #6f6862;
   --text-on-accent: #ffffff;
 
   --border-default: #d6d3d1;
@@ -25,13 +25,16 @@ html[data-theme="light"] {
   --accent-secondary: #6d28d9;
   --accent-muted: rgba(124, 58, 237, 0.12);
 
-  --status-idle: #22c55e;
-  --status-busy: #f59e0b;
-  --status-waiting: #3b82f6;
-  --status-error: #ef4444;
+  /* Status colours double as 12px label text (PrStatsRow, status line), so
+     they must clear 4.5:1 on the light backgrounds — hence the 600/700 weights
+     rather than the 500s the dark themes use. */
+  --status-idle: #15803d;
+  --status-busy: #b45309;
+  --status-waiting: #2563eb;
+  --status-error: #dc2626;
 
-  --diff-added: #16a34a;
-  --diff-removed: #ef4444;
+  --diff-added: #15803d;
+  --diff-removed: #dc2626;
 
   --danger: #ef4444;
   --danger-hover: #dc2626;
@@ -54,7 +57,22 @@ html[data-theme="light"] {
   --bg-sidebar: #eeeeec;
   --bg-bar: #f0efed;
   --border-subtle: rgba(0, 0, 0, 0.06);
-  --color-pr-comment: #3b82f6;
+  --color-pr-comment: #2563eb;
+
+  /* Chip palette needs light-mode overrides: the :root chip text colours are
+     400-weight pastels tuned for dark backgrounds (1.6–2.3:1 on this sidebar). */
+  --chip-violet-bg:    rgba(124, 58, 237, 0.10);
+  --chip-violet-text:  #7c3aed;
+  --chip-teal-bg:      rgba(15, 118, 110, 0.10);
+  --chip-teal-text:    #0f766e;
+  --chip-fuchsia-bg:   rgba(162, 28, 175, 0.10);
+  --chip-fuchsia-text: #a21caf;
+  --chip-coral-bg:     rgba(190, 18, 60, 0.10);
+  --chip-coral-text:   #be123c;
+  --chip-ochre-bg:     rgba(138, 90, 6, 0.12);
+  --chip-ochre-text:   #8a5a06;
+  --chip-slate-bg:     rgba(71, 85, 105, 0.12);
+  --chip-slate-text:   #475569;
 }
 
 /* ── Synthwave ───────────────────────────────────── */
@@ -67,7 +85,7 @@ html[data-theme="synthwave"] {
 
   --text-primary: #f0e6ff;
   --text-secondary: #b794e6;
-  --text-tertiary: #7c5aad;
+  --text-tertiary: #9a82c9;
   --text-on-accent: #ffffff;
 
   --border-default: #3a2260;
@@ -120,7 +138,7 @@ html[data-theme="catppuccin"] {
 
   --text-primary: #cdd6f4;
   --text-secondary: #a6adc8;
-  --text-tertiary: #6c7086;
+  --text-tertiary: #9399b2;
   --text-on-accent: #1e1e2e;
 
   --border-default: #45475a;
@@ -173,7 +191,7 @@ html[data-theme="sunset"] {
 
   --text-primary: #f5e6f0;
   --text-secondary: #c9a0bc;
-  --text-tertiary: #8a6280;
+  --text-tertiary: #aa84a0;
   --text-on-accent: #ffffff;
 
   --border-default: #442e46;
@@ -226,7 +244,7 @@ html[data-theme="tokyo-night"] {
 
   --text-primary: #c0caf5;
   --text-secondary: #9aa5ce;
-  --text-tertiary: #565f89;
+  --text-tertiary: #828bb8;
   --text-on-accent: #1a1b26;
 
   --border-default: #3b3f54;
@@ -279,7 +297,7 @@ html[data-theme="solarized"] {
 
   --text-primary: #fdf6e3;
   --text-secondary: #93a1a1;
-  --text-tertiary: #657b83;
+  --text-tertiary: #8ea0a3;
   --text-on-accent: #fdf6e3;
 
   --border-default: #1a5768;
@@ -332,7 +350,7 @@ html[data-theme="honeycomb"] {
 
   --text-primary: #f5f0e6;
   --text-secondary: #b5a88e;
-  --text-tertiary: #7d7260;
+  --text-tertiary: #978b79;
   --text-on-accent: #1c1a17;
 
   --border-default: #3a362e;
