@@ -348,8 +348,13 @@ function WorkspacePanel({
   // Mirror the rebase banner's mergeable gate AND exclude branch-mode synthetics:
   // those share the repo root path so push/pull would operate on whatever the
   // repo's HEAD is, not the branch shown in the sidebar — a "push the wrong
-  // branch" footgun. Also exclude pinned-main cards (no meaningful tracking branch).
-  const showOriginSyncBanner = !!worktree?.branch && !worktree.isBranchMode && !worktree.isPinnedMainCard && mergeable !== false;
+  // branch" footgun. Also exclude pinned-main cards (no meaningful tracking branch)
+  // and stacked children: after a restack, diverging from origin is the expected
+  // state and the fix is the stack's force-with-lease push — the banner's
+  // pull --rebase would replay the child onto its stale pre-rebase origin tip,
+  // silently undoing the restack. (Stack roots keep the banner: their history
+  // is never rewritten by the restack loop, so pull/push behave normally.)
+  const showOriginSyncBanner = !!worktree?.branch && !worktree.isBranchMode && !worktree.isPinnedMainCard && !worktree.stackParent && mergeable !== false;
 
   // Map panel tab to data-fetching view mode — force "changes" when tabs are hidden
   const dataViewMode: ViewMode = isBranchModeDefault ? "changes" : (panelTab === "commits" ? "commits" : "changes");

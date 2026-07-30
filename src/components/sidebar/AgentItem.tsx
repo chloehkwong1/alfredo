@@ -433,7 +433,9 @@ function AgentItemContent({
           <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
             <StackGlyph worktree={worktree} chain={stackChain} onOpenMap={onOpenStackMap} />
             <span className="truncate" title={worktree.stackParent ?? undefined}>
-              {worktree.stackParent ? `on ${worktree.stackParent}` : "stack root"}
+              {worktree.stackParent
+                ? `on ${worktree.stackParent}`
+                : `root · ${stackChain.total - 1} stacked on top`}
             </span>
             {worktree.stackRebaseStatus?.kind === "behind" && (
               <span className="flex-shrink-0">· {worktree.stackRebaseStatus.count} behind</span>
