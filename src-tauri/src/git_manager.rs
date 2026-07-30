@@ -1500,17 +1500,9 @@ mod tests {
             .current_dir(path)
             .output()
             .expect("git init");
-        StdCommand::new("git")
-            .args(["-c", "user.name=Test", "-c", "user.email=test@test.com", "commit", "--allow-empty", "-m", "init"])
-            .current_dir(path)
-            .output()
-            .expect("git initial commit");
-        dir
-    }
-
-    fn init_drop_test_repo() -> TempDir {
-        let dir = init_test_repo();
-        let path = dir.path();
+        // Repo-local identity: CI runners have no global gitconfig and git's
+        // ident auto-detection fails there, so bare `git commit` in tests
+        // needs this to be deterministic.
         for (k, v) in [("user.name", "Test"), ("user.email", "test@test.com")] {
             StdCommand::new("git")
                 .args(["config", k, v])
@@ -1518,6 +1510,11 @@ mod tests {
                 .output()
                 .expect("git config");
         }
+        StdCommand::new("git")
+            .args(["commit", "--allow-empty", "-m", "init"])
+            .current_dir(path)
+            .output()
+            .expect("git initial commit");
         dir
     }
 
@@ -1548,7 +1545,7 @@ mod tests {
 
     #[tokio::test]
     async fn drop_commit_removes_middle_commit_and_keeps_later_ones() {
-        let dir = init_drop_test_repo();
+        let dir = init_test_repo();
         let path = dir.path();
         commit_file(path, "a.txt", "a", "add a");
         let b_sha = commit_file(path, "b.txt", "b", "add b");
@@ -1565,7 +1562,7 @@ mod tests {
 
     #[tokio::test]
     async fn drop_commit_preserves_uncommitted_changes() {
-        let dir = init_drop_test_repo();
+        let dir = init_test_repo();
         let path = dir.path();
         let a_sha = commit_file(path, "a.txt", "a", "add a");
         commit_file(path, "b.txt", "b", "add b");
@@ -1584,7 +1581,7 @@ mod tests {
 
     #[tokio::test]
     async fn drop_commit_conflict_aborts_and_leaves_history_intact() {
-        let dir = init_drop_test_repo();
+        let dir = init_test_repo();
         let path = dir.path();
         let a_sha = commit_file(path, "f.txt", "version-a", "edit f (a)");
         commit_file(path, "f.txt", "version-b", "edit f (b)");
@@ -1601,7 +1598,7 @@ mod tests {
 
     #[tokio::test]
     async fn drop_commit_dirty_conflict_aborts_and_restores_uncommitted() {
-        let dir = init_drop_test_repo();
+        let dir = init_test_repo();
         let path = dir.path();
         let a_sha = commit_file(path, "f.txt", "version-a", "edit f (a)");
         commit_file(path, "f.txt", "version-b", "edit f (b)");
@@ -1625,7 +1622,7 @@ mod tests {
 
     #[tokio::test]
     async fn drop_commit_rejects_malformed_hash() {
-        let dir = init_drop_test_repo();
+        let dir = init_test_repo();
         let err = drop_commit(dir.path().to_str().unwrap(), "--exec=touch pwned").await
             .expect_err("malformed hash must be rejected");
         assert!(err.to_string().contains("invalid commit hash"), "got: {err}");
@@ -1633,7 +1630,7 @@ mod tests {
 
     #[tokio::test]
     async fn is_commit_pushed_false_without_remote_true_after_push() {
-        let dir = init_drop_test_repo();
+        let dir = init_test_repo();
         let path = dir.path();
         let sha = commit_file(path, "a.txt", "a", "add a");
 
@@ -1666,7 +1663,7 @@ mod tests {
     /// erroring out and stranding the user. See `unwip`.
     #[tokio::test]
     async fn rebase_onto_absorbs_already_upstream_wip_without_error() {
-        let dir = init_drop_test_repo();
+        let dir = init_test_repo();
         let path = dir.path();
 
         // Give the base repo an origin and publish main.
