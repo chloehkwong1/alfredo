@@ -436,7 +436,7 @@ function AgentItemContent({
             <span className="truncate" title={worktree.stackParent ?? undefined}>
               {worktree.stackParent
                 ? `on ${worktree.stackParent}`
-                : `root · ${stackChain.total - 1} stacked on top`}
+                : `${stackChain.total - 1} stacked on top`}
             </span>
             {worktree.stackRebaseStatus?.kind === "behind" && (
               <span className="flex-shrink-0">· {worktree.stackRebaseStatus.count} behind</span>

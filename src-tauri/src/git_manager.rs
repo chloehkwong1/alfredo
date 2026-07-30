@@ -501,6 +501,19 @@ pub fn resolve_default_remote_branch(repo_or_worktree_path: &str) -> String {
 /// then falls back to the default remote branch.
 fn resolve_diff_base(worktree_path: &str, stack_parent: Option<&str>) -> String {
     if let Some(parent) = stack_parent {
+        // Local-first for stack parents: the parent branch has a live worktree
+        // checkout and restacks target its local tip, so origin/<parent> lags
+        // whenever the parent was rebased but its push hasn't landed. Counting
+        // or diffing against the stale remote in that window shows the parent's
+        // rebased-away commits as "behind"/inflated stats. Remote remains the
+        // fallback for stale config pointing at a deleted local branch.
+        let local_check = git_command_sync()
+            .args(["rev-parse", "--verify", &format!("refs/heads/{parent}")])
+            .current_dir(worktree_path)
+            .output();
+        if local_check.map(|o| o.status.success()).unwrap_or(false) {
+            return parent.to_string();
+        }
         let remote_ref = format!("origin/{parent}");
         let check = git_command_sync()
             .args(["rev-parse", "--verify", &format!("refs/remotes/{remote_ref}")])
@@ -508,13 +521,6 @@ fn resolve_diff_base(worktree_path: &str, stack_parent: Option<&str>) -> String 
             .output();
         if check.map(|o| o.status.success()).unwrap_or(false) {
             return remote_ref;
-        }
-        let local_check = git_command_sync()
-            .args(["rev-parse", "--verify", parent])
-            .current_dir(worktree_path)
-            .output();
-        if local_check.map(|o| o.status.success()).unwrap_or(false) {
-            return parent.to_string();
         }
     }
     resolve_default_remote_branch(worktree_path)
@@ -1067,8 +1073,8 @@ pub async fn worktree_dirty_state(worktree_path: &str) -> Result<WorktreeDirtySt
 /// which is what users expect the badge to represent — the scope of work on the branch.
 /// Uses git CLI instead of git2, which has known issues with worktree diff accuracy.
 pub fn get_diff_stats(worktree_path: &str, stack_parent: Option<&str>) -> Result<(u32, u32), AppError> {
-    // Use the resolved diff base — tries origin/<parent>, then local <parent>, then default branch.
-    // Avoids stale local refs which would cause wildly inflated diff stats.
+    // Use the resolved diff base — local <parent> first (live checkout, restack
+    // target), then origin/<parent>, then default branch.
     let diff_base = resolve_diff_base(worktree_path, stack_parent);
 
     // Fetch the remote ref so the merge-base is fresh. Without this, a stale

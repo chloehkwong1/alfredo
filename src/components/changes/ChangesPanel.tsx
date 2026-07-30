@@ -13,7 +13,7 @@ import { usePrStore } from "../../stores/prStore";
 import { lifecycleManager } from "../../services/lifecycleManager";
 import { useChangesData } from "../../hooks/useChangesData";
 import { useGitUser } from "../../hooks/useGitUser";
-import { discardFile, discardAllUncommitted, dropCommit, getAheadBehindOrigin, getCommitsBehindMain, gitPublishBranch, gitPullRebase, gitPush, isCommitPushed, rebaseWorktree } from "../../api";
+import { discardFile, discardAllUncommitted, dropCommit, getAheadBehindOrigin, getCommitsBehindMain, gitPublishBranch, gitPullRebase, gitPush, isCommitPushed, rebaseWorktree, restackNow } from "../../api";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { shouldShowSimplifiedMainView } from "../../lib/cardViewMode";
 import type { ViewMode } from "./FileSidebar";
@@ -23,7 +23,7 @@ import { copyText } from "../../lib/clipboard";
 const EMPTY_COMMENTS: PrComment[] = [];
 
 
-function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: string; worktreePath: string; stackParent?: string | null }) {
+function RebaseBanner({ repoPath, worktreePath, worktreeName, stackParent }: { repoPath: string; worktreePath: string; worktreeName: string; stackParent?: string | null }) {
   const [behindCount, setBehindCount] = useState<number | null>(null);
   const baseBranchName = useDefaultBranch(repoPath, stackParent);
   const [loading, setLoading] = useState(false);
@@ -49,7 +49,17 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
     setLoading(true);
     setError(null);
     try {
-      await rebaseWorktree(worktreePath, stackParent);
+      if (stackParent) {
+        // Stacked children must go through the restack path: it rebases from
+        // the persisted baseline onto the parent's *local* tip and updates the
+        // baseline + push state. A plain `git rebase origin/<parent>` here
+        // would target a possibly-stale remote ref, can replay duplicate
+        // parent commits after a parent rewrite, and leaves the baseline
+        // stale for the next auto-restack.
+        await restackNow(repoPath, worktreeName);
+      } else {
+        await rebaseWorktree(worktreePath, null);
+      }
       setBehindCount(0);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -90,13 +100,15 @@ function RebaseBanner({ repoPath, worktreePath, stackParent }: { repoPath: strin
           disabled={loading}
           className="text-2xs px-2 py-0.5 h-auto bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 disabled:opacity-50 font-medium shrink-0"
         >
-          {loading ? "Rebasing…" : "Rebase"}
+          {stackParent
+            ? (loading ? "Restacking…" : "Restack")
+            : (loading ? "Rebasing…" : "Rebase")}
         </Button>
       </div>
       {error && (
         <div className="px-2.5 pb-1.5 border-t border-red-400/20">
           <div className="flex items-center justify-between gap-2 pt-1.5">
-            <span className="text-red-400 text-2xs font-semibold">Rebase failed</span>
+            <span className="text-red-400 text-2xs font-semibold">{stackParent ? "Restack failed" : "Rebase failed"}</span>
             <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
@@ -643,7 +655,7 @@ function WorkspacePanel({
       )}
 
       {showOriginSyncBanner && <OriginSyncBanner worktreePath={worktree!.path} repoPath={repoPath} branch={worktree!.branch} />}
-      {showRebaseBanner && <RebaseBanner repoPath={repoPath} worktreePath={worktree!.path} stackParent={worktree!.stackParent} />}
+      {showRebaseBanner && <RebaseBanner repoPath={repoPath} worktreePath={worktree!.path} worktreeName={worktree!.name} stackParent={worktree!.stackParent} />}
 
       {/* Discard confirmation dialog */}
       <Dialog open={discardTarget !== null} onOpenChange={(open) => { if (!open) setDiscardTarget(null); }}>
