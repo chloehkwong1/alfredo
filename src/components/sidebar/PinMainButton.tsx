@@ -114,9 +114,9 @@ function PinMainButton({
         title="Show a main-branch card in the sidebar for a repo — a persistent lane for general prompts."
         className={[
           "w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5",
-          "rounded-[var(--radius-md)] border border-dashed border-border-subtle",
-          "bg-transparent text-text-tertiary text-[11px] font-medium",
-          "hover:bg-bg-hover hover:text-text-secondary hover:border-border-default",
+          "rounded-[var(--radius-md)] border border-dashed border-border-default",
+          "bg-transparent text-text-secondary text-[11px] font-medium",
+          "hover:bg-bg-hover hover:text-text-primary hover:border-border-hover",
           "transition-colors cursor-pointer",
         ].join(" ")}
       >

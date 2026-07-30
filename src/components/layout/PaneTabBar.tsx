@@ -138,6 +138,7 @@ function SortableTab({
   isSplit,
   isPreview,
   compact = false,
+  secondary = false,
 }: {
   tab: WorkspaceTab;
   isActive: boolean;
@@ -154,6 +155,7 @@ function SortableTab({
   isSplit: boolean;
   isPreview: boolean;
   compact?: boolean;
+  secondary?: boolean;
 }) {
   const {
     attributes,
@@ -225,9 +227,15 @@ function SortableTab({
           }}
           className={[
             `group h-full ${compact ? "px-2 text-xs" : "px-3 text-sm"} font-medium transition-colors cursor-pointer flex items-center gap-1.5 relative`,
+            // Secondary rows (Terminals/Changes): render each tab as a bounded cell so the
+            // click target is legible at rest — separator, floor width, hover wash, and a
+            // contrast bump that reserves text-tertiary for the (now fill-less) row labels.
+            secondary ? "min-w-[64px] border-l border-border-subtle hover:bg-hover-wash" : "",
             isActive
               ? "text-text-primary"
-              : "text-text-tertiary hover:text-text-secondary",
+              : secondary
+                ? "text-text-secondary hover:text-text-primary"
+                : "text-text-tertiary hover:text-text-secondary",
           ].join(" ")}
         >
           {!isAgentTab(tab) && <Icon size={compact ? 12 : 14} />}
@@ -413,13 +421,13 @@ function PinnedTab({
   );
 }
 
-// Static label for a secondary row (Terminals / Changes), rendered as a pill so
-// it reads as chrome, not a tab — no interaction, no misclick target. The Agents
-// row has no pill: it's the always-present primary row, so its tabs start at the
-// row's left edge.
+// Static label for a secondary row (Terminals / Changes). Plain, fill-less uppercase
+// text so it reads as a section label, not a button — a filled pill here out-competed
+// the real (fill-less) tabs for attention and drew misclicks. The Agents row has no
+// label: it's the always-present primary row, so its tabs start at the row's left edge.
 function RowLabelPill({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center h-[18px] px-2 ml-2 mr-3 rounded-full bg-white/[0.06] text-[9px] font-semibold uppercase tracking-wide text-text-tertiary flex-shrink-0 select-none">
+    <span className="inline-flex items-center h-full pl-3 pr-2.5 text-[9px] font-semibold uppercase tracking-wider text-text-tertiary opacity-70 flex-shrink-0 select-none">
       {label}
     </span>
   );
@@ -818,6 +826,7 @@ function PaneTabBar({
                           isSplit={isSplit}
                           isPreview={pane?.previewTabId === tab.id}
                           compact
+                          secondary
                         />
                       ))}
                     </SortableContext>
@@ -877,6 +886,7 @@ function PaneTabBar({
                       onMoveToSibling={handleMoveToSibling}
                       isSplit={isSplit}
                       isPreview={pane?.previewTabId === tab.id}
+                      secondary
                     />
                   ))}
                 </SortableContext>
