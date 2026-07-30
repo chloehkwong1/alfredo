@@ -1097,6 +1097,32 @@ async fn restack_onto_default(
 /// wip-stashes any uncommitted changes instead. It shares only the lease-push
 /// tail (`push_with_lease_or_flag`) with `run_restack`; the surrounding
 /// persist-then-emit ordering is bespoke to this caller.
+/// Where an adopted (previously unstacked) branch's own commits start: its
+/// merge-base with the repo's *default* branch, since that is what an
+/// unstacked branch was cut from. Merge-basing against the NEW parent instead
+/// reaches further back — to where the stack itself forked from the default
+/// branch — so the adoption rebase replays every default-branch commit the
+/// stack's base predates, and patch-id dedupe silently grafts the novel ones
+/// onto the child as author-preserving copies. Falls back to the new parent's
+/// tip only when the default branch can't be resolved (e.g. no remote).
+async fn adoption_baseline(
+    repo_path: &str,
+    worktree_path: &str,
+    target_tip: &str,
+) -> Result<String, String> {
+    let rp = repo_path.to_string();
+    let default_remote =
+        tokio::task::spawn_blocking(move || git_manager::resolve_default_remote_branch(&rp))
+            .await
+            .map_err(|e| e.to_string())?;
+    match git_manager::merge_base(worktree_path, "HEAD", &default_remote).await {
+        Ok(sha) => Ok(sha),
+        Err(_) => git_manager::merge_base(worktree_path, "HEAD", target_tip)
+            .await
+            .map_err(|e| e.to_string()),
+    }
+}
+
 pub async fn change_base(
     app_handle: &AppHandle,
     app_data_dir: &Path,
@@ -1133,20 +1159,20 @@ pub async fn change_base(
         return Err(format!("could not resolve tip of {target_branch}"));
     };
 
-    // Old baseline: persisted; else merge-base against the OLD parent (or default) —
-    // this is what makes retroactive re-parenting replay only the child's commits.
+    // Old baseline: persisted; else merge-base against the OLD parent (or the
+    // default branch when adopting an unstacked branch) — this is what makes
+    // retroactive re-parenting replay only the child's commits.
     let old_baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
         Some(sha) => sha,
-        None => {
-            let old_parent = config_manager::get_stack_parent(&config, worktree_name);
-            let old_ref: String = match old_parent {
-                Some(p) => branch_tip(repo_path, &p).await.unwrap_or_else(|| target_tip.clone()),
-                None => target_tip.clone(),
-            };
-            git_manager::merge_base(&worktree_path, "HEAD", &old_ref)
-                .await
-                .map_err(|e| e.to_string())?
-        }
+        None => match config_manager::get_stack_parent(&config, worktree_name) {
+            Some(p) => {
+                let old_ref = branch_tip(repo_path, &p).await.unwrap_or_else(|| target_tip.clone());
+                git_manager::merge_base(&worktree_path, "HEAD", &old_ref)
+                    .await
+                    .map_err(|e| e.to_string())?
+            }
+            None => adoption_baseline(repo_path, &worktree_path, &target_tip).await?,
+        },
     };
 
     // Re-parenting persists the new parent FIRST (see the doc comment), and
@@ -1529,6 +1555,79 @@ mod tests {
                 .expect("git checkout");
         }
         repo
+    }
+
+    // The live-incident shape (Mills-script graft): a stack parent cut from old
+    // main, main advances with a novel commit, then a branch cut from the NEW
+    // main tip is adopted into the stack. Its own commits start at its fork
+    // from the default branch (= its HEAD here — zero own commits), NOT at the
+    // stack's older fork point; merge-basing against the new parent returns
+    // the latter and drags the novel main commit through the adoption rebase.
+    #[tokio::test]
+    async fn adoption_baseline_is_default_branch_fork_point_not_stack_fork_point() {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+        let git = |args: &[&str]| {
+            let out = StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(repo_path)
+                .output()
+                .expect("git");
+            assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+
+        git(&["checkout", "-b", "feat/parent"]);
+        git(&["commit", "--allow-empty", "-m", "parent work"]);
+        let parent_tip = git(&["rev-parse", "HEAD"]);
+        git(&["checkout", "main"]);
+        git(&["commit", "--allow-empty", "-m", "novel main commit (Jack's script)"]);
+        let main_tip = git(&["rev-parse", "HEAD"]);
+        // No real remote — synthesize origin/main, which is what
+        // `resolve_default_remote_branch`'s fallback probes for.
+        git(&["update-ref", "refs/remotes/origin/main", "refs/heads/main"]);
+        git(&["checkout", "-b", "feat/child"]);
+
+        let baseline = adoption_baseline(repo_path, repo_path, &parent_tip)
+            .await
+            .expect("adoption_baseline");
+
+        assert_eq!(baseline, main_tip, "baseline must be the child's fork from main");
+        // Regression guard: the old derivation (merge-base vs the new parent)
+        // lands on the stack's fork point instead, before the novel commit.
+        let stack_fork = git_manager::merge_base(repo_path, "HEAD", &parent_tip).await.unwrap();
+        assert_ne!(baseline, stack_fork);
+    }
+
+    // Fallback: with no resolvable default branch, adopting must still work —
+    // degrade to the old merge-base-vs-new-parent rather than erroring.
+    #[tokio::test]
+    async fn adoption_baseline_falls_back_to_parent_merge_base_without_remote() {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+        let git = |args: &[&str]| {
+            let out = StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(repo_path)
+                .output()
+                .expect("git");
+            assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+
+        let fork = git(&["rev-parse", "HEAD"]);
+        git(&["checkout", "-b", "feat/parent"]);
+        git(&["commit", "--allow-empty", "-m", "parent work"]);
+        let parent_tip = git(&["rev-parse", "HEAD"]);
+        git(&["checkout", "-b", "feat/child", &fork]);
+
+        let baseline = adoption_baseline(repo_path, repo_path, &parent_tip)
+            .await
+            .expect("adoption_baseline");
+
+        assert_eq!(baseline, fork);
     }
 
     // The heuristic's positive case: pushed, merged into main, and no worktree
