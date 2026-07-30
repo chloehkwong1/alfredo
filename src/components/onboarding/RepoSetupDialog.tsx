@@ -4,7 +4,6 @@ import { listen } from "@tauri-apps/api/event";
 import {
   FolderOpen,
   Check,
-  Github,
   Loader2,
   ChevronLeft,
   Palette,
@@ -12,6 +11,7 @@ import {
   PlayCircle,
   Archive as ArchiveIcon,
 } from "lucide-react";
+import { GithubIcon } from "../icons/github";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
@@ -538,7 +538,7 @@ function RepoSetupDialog({
             <div className="px-4 py-3.5 border border-border-subtle rounded-lg">
               <div className="flex items-center gap-3 mb-3">
                 <div className="h-7 w-7 rounded-md bg-[rgba(255,255,255,0.03)] flex items-center justify-center shrink-0">
-                  <Github className="h-3.5 w-3.5 text-text-tertiary" />
+                  <GithubIcon className="h-3.5 w-3.5 text-text-tertiary" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-caption font-medium text-text-primary">Connect GitHub</div>
@@ -575,7 +575,7 @@ function RepoSetupDialog({
               ) : (
                 <div className="space-y-1.5">
                   <Button variant="secondary" size="sm" onClick={startGithubAuth}>
-                    <Github className="h-3.5 w-3.5 mr-1.5" />
+                    <GithubIcon className="h-3.5 w-3.5 mr-1.5" />
                     Connect to GitHub
                   </Button>
                   <p className="text-micro text-text-tertiary">

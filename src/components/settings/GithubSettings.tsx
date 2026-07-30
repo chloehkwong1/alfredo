@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Github, Loader2, Terminal } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Terminal } from "lucide-react";
+import { GithubIcon } from "../icons/github";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { listen } from "@tauri-apps/api/event";
@@ -183,7 +184,7 @@ function GithubSettings({
               </p>
             </div>
             <Button variant="secondary" size="sm" onClick={checkStatus}>
-              <Github className="h-3.5 w-3.5 mr-1.5" />
+              <GithubIcon className="h-3.5 w-3.5 mr-1.5" />
               Re-check
             </Button>
             {error && <p className="text-xs text-red-400">{error}</p>}
