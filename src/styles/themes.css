@@ -5,23 +5,23 @@
  */
 
 /* ── Light ───────────────────────────────────────────
-   "Paper": worktrees are opaque white cards with hairline dark rings,
-   sitting on a recessed stone sidebar. Surface separation comes from the
-   sidebar being a full step darker than the panes (1.22:1), not from
-   white-alpha tints, which are invisible on light backgrounds. */
+   Follows the mainstream light-mode convention (GitHub canvas-subtle
+   #f6f8fa, Notion sidebar #f7f6f3): pure-white content, a near-white
+   warm-tinted sidebar, and cards that separate via borders — not
+   background steps, and never white-alpha tints (invisible on light). */
 html[data-theme="light"] {
-  --bg-primary: #fafaf9;
-  --bg-secondary: #f3f2f0;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f6f4;
   --bg-elevated: #ffffff;
-  --bg-hover: #dbd8d4;
-  --bg-active: #d0cdc8;
+  --bg-hover: #eceae6;
+  --bg-active: #e3e1dc;
 
   --text-primary: #1c1917;
   --text-secondary: #524e49;
   --text-tertiary: #665f5a;
   --text-on-accent: #ffffff;
 
-  --border-default: #cfccc7;
+  --border-default: #d6d3ce;
   --border-hover: #a8a29e;
   --border-focus: #7c3aed;
 
@@ -59,28 +59,29 @@ html[data-theme="light"] {
   --search-match: rgba(202, 138, 4, 0.35);
   --search-match-active: rgba(234, 88, 12, 0.5);
 
-  --bg-sidebar: #e6e4e0;
-  --bg-bar: #efedeb;
-  --border-subtle: rgba(28, 25, 23, 0.08);
+  --bg-sidebar: #f6f5f2;
+  --bg-bar: #faf9f7;
+  --border-subtle: rgba(28, 25, 23, 0.09);
   --color-pr-comment: #1d4ed8;
 
   /* Surfaces: opaque cards + dark washes (inverse of the dark themes).
-     Selection is deliberately neutral — a deeper stone fill + stronger
-     ring, no accent tint. */
+     With a near-white sidebar the ring, not the fill, separates cards
+     (GitHub-style). Selection is deliberately neutral — a deeper stone
+     fill + stronger ring, no accent tint. */
   --card-bg: #ffffff;
-  --card-hover: #f6f5f3;
-  --card-selected: #eceae6;
-  --card-ring: rgba(28, 25, 23, 0.08);
-  --card-ring-selected: rgba(28, 25, 23, 0.28);
-  --surface-wash: rgba(28, 25, 23, 0.045);
+  --card-hover: #f7f6f3;
+  --card-selected: #e8e6e1;
+  --card-ring: rgba(28, 25, 23, 0.13);
+  --card-ring-selected: rgba(28, 25, 23, 0.3);
+  --surface-wash: rgba(28, 25, 23, 0.05);
   --hover-wash: rgba(28, 25, 23, 0.05);
-  --group-rule: rgba(28, 25, 23, 0.16);
+  --group-rule: rgba(28, 25, 23, 0.14);
 
   /* Accent button reads as a white card with violet text — no purple
      wash on the warm stone sidebar. */
   --accent-soft: #ffffff;
   --accent-soft-hover: #f6f5f3;
-  --accent-edge: rgba(28, 25, 23, 0.15);
+  --accent-edge: rgba(28, 25, 23, 0.16);
   --accent-edge-hover: rgba(28, 25, 23, 0.25);
 
   /* Chip palette needs light-mode overrides: the :root chip text colours are
@@ -88,7 +89,7 @@ html[data-theme="light"] {
   --chip-violet-bg:    rgba(124, 58, 237, 0.10);
   --chip-violet-text:  #7c3aed;
   --chip-teal-bg:      rgba(15, 118, 110, 0.10);
-  --chip-teal-text:    #0f766e;
+  --chip-teal-text:    #0d6a62;
   --chip-fuchsia-bg:   rgba(162, 28, 175, 0.10);
   --chip-fuchsia-text: #a21caf;
   --chip-coral-bg:     rgba(190, 18, 60, 0.10);
