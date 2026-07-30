@@ -4,20 +4,24 @@
  * Each theme below overrides all tokens via data-theme attribute.
  */
 
-/* ── Light ───────────────────────────────────────── */
+/* ── Light ───────────────────────────────────────────
+   "Paper": worktrees are opaque white cards with hairline dark rings,
+   sitting on a recessed stone sidebar. Surface separation comes from the
+   sidebar being a full step darker than the panes (1.22:1), not from
+   white-alpha tints, which are invisible on light backgrounds. */
 html[data-theme="light"] {
   --bg-primary: #fafaf9;
-  --bg-secondary: #f5f5f4;
+  --bg-secondary: #f3f2f0;
   --bg-elevated: #ffffff;
-  --bg-hover: #e7e5e4;
-  --bg-active: #d6d3d1;
+  --bg-hover: #dbd8d4;
+  --bg-active: #d0cdc8;
 
   --text-primary: #1c1917;
-  --text-secondary: #57534e;
-  --text-tertiary: #6f6862;
+  --text-secondary: #524e49;
+  --text-tertiary: #665f5a;
   --text-on-accent: #ffffff;
 
-  --border-default: #d6d3d1;
+  --border-default: #cfccc7;
   --border-hover: #a8a29e;
   --border-focus: #7c3aed;
 
@@ -26,15 +30,16 @@ html[data-theme="light"] {
   --accent-muted: rgba(124, 58, 237, 0.12);
 
   /* Status colours double as 12px label text (PrStatsRow, status line), so
-     they must clear 4.5:1 on the light backgrounds — hence the 600/700 weights
-     rather than the 500s the dark themes use. */
-  --status-idle: #15803d;
-  --status-busy: #b45309;
-  --status-waiting: #2563eb;
-  --status-error: #dc2626;
+     they must clear 4.5:1 on every surface text sits on — including the
+     card-selected fill, which is why these are 800 weights, not the 500s
+     the dark themes use. */
+  --status-idle: #166534;
+  --status-busy: #92400e;
+  --status-waiting: #1d4ed8;
+  --status-error: #b91c1c;
 
-  --diff-added: #15803d;
-  --diff-removed: #dc2626;
+  --diff-added: #166534;
+  --diff-removed: #b91c1c;
 
   --danger: #ef4444;
   --danger-hover: #dc2626;
@@ -54,10 +59,29 @@ html[data-theme="light"] {
   --search-match: rgba(202, 138, 4, 0.35);
   --search-match-active: rgba(234, 88, 12, 0.5);
 
-  --bg-sidebar: #eeeeec;
-  --bg-bar: #f0efed;
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --color-pr-comment: #2563eb;
+  --bg-sidebar: #e6e4e0;
+  --bg-bar: #efedeb;
+  --border-subtle: rgba(28, 25, 23, 0.08);
+  --color-pr-comment: #1d4ed8;
+
+  /* Surfaces: opaque cards + dark washes (inverse of the dark themes).
+     Selection is deliberately neutral — a deeper stone fill + stronger
+     ring, no accent tint. */
+  --card-bg: #ffffff;
+  --card-hover: #f6f5f3;
+  --card-selected: #eceae6;
+  --card-ring: rgba(28, 25, 23, 0.08);
+  --card-ring-selected: rgba(28, 25, 23, 0.28);
+  --surface-wash: rgba(28, 25, 23, 0.045);
+  --hover-wash: rgba(28, 25, 23, 0.05);
+  --group-rule: rgba(28, 25, 23, 0.16);
+
+  /* Accent button reads as a white card with violet text — no purple
+     wash on the warm stone sidebar. */
+  --accent-soft: #ffffff;
+  --accent-soft-hover: #f6f5f3;
+  --accent-edge: rgba(28, 25, 23, 0.15);
+  --accent-edge-hover: rgba(28, 25, 23, 0.25);
 
   /* Chip palette needs light-mode overrides: the :root chip text colours are
      400-weight pastels tuned for dark backgrounds (1.6–2.3:1 on this sidebar). */

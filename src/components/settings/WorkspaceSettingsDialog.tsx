@@ -227,7 +227,7 @@ function ScriptCard({
   return (
     <div className="bg-bg-primary border border-border-default rounded-[var(--radius-md)] overflow-hidden mb-3.5">
       <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border-default">
-        <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-white/[0.04]">
+        <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-surface-wash">
           <Icon className="w-3.5 h-3.5" />
         </span>
         <div className="min-w-0 flex-1">
@@ -255,7 +255,7 @@ function ScriptCard({
         </div>
       </div>
       {showEmpty ? (
-        <div className="px-3.5 py-3 text-xs text-text-tertiary bg-white/[0.015]">
+        <div className="px-3.5 py-3 text-xs text-text-tertiary bg-surface-wash">
           Not configured.{" "}
           <button
             type="button"

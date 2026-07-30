@@ -786,7 +786,7 @@ function RepoSetupDialog({
             {/* Setup script */}
             <div className="bg-bg-primary border border-border-default rounded-[var(--radius-md)] overflow-hidden">
               <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border-default">
-                <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-white/[0.04]">
+                <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-surface-wash">
                   <Play className="w-3.5 h-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -806,7 +806,7 @@ function RepoSetupDialog({
             {/* Run script */}
             <div className="bg-bg-primary border border-border-default rounded-[var(--radius-md)] overflow-hidden">
               <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border-default">
-                <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-white/[0.04]">
+                <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-surface-wash">
                   <PlayCircle className="w-3.5 h-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -826,7 +826,7 @@ function RepoSetupDialog({
             {/* Archive script */}
             <div className="bg-bg-primary border border-border-default rounded-[var(--radius-md)] overflow-hidden">
               <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border-default">
-                <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-white/[0.04]">
+                <span className="w-6 h-6 rounded-md inline-flex items-center justify-center text-text-secondary flex-shrink-0 bg-surface-wash">
                   <ArchiveIcon className="w-3.5 h-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">

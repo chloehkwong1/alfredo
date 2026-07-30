@@ -78,6 +78,29 @@
   /* ── Subtle border (replaces heavy borders) ─── */
   --border-subtle: rgba(255, 255, 255, 0.06);
 
+  /* ── Surfaces (cards, washes) ─────────────────────
+     Sidebar cards and subtle fills. Dark themes tint upward with white
+     alphas; light themes must invert to opaque fills + dark alphas, so
+     components use these tokens, never raw white/N utilities. card-hover
+     and card-selected alias bg-hover/bg-active so the other dark themes
+     inherit their own values via :root fallback. */
+  --card-bg: rgba(255, 255, 255, 0.035);
+  --card-hover: var(--bg-hover);
+  --card-selected: var(--bg-active);
+  --card-ring: rgba(255, 255, 255, 0.06);
+  --card-ring-selected: rgba(255, 255, 255, 0.12);
+  --surface-wash: rgba(255, 255, 255, 0.04);
+  --hover-wash: rgba(255, 255, 255, 0.05);
+  --group-rule: rgba(255, 255, 255, 0.2);
+
+  /* Accent-branded button surface (New worktree). Dark themes wash the
+     accent under the label; light themes use a plain card fill instead —
+     accent tints read badly on light warm backgrounds. */
+  --accent-soft: rgba(147, 51, 234, 0.1);
+  --accent-soft-hover: rgba(147, 51, 234, 0.15);
+  --accent-edge: rgba(147, 51, 234, 0.4);
+  --accent-edge-hover: rgba(147, 51, 234, 0.6);
+
   /* ── PR comment accent ───────────────────────── */
   --color-pr-comment: #60a5fa;
 

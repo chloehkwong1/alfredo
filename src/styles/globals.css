@@ -180,6 +180,20 @@
   /* Subtle border */
   --color-border-subtle: var(--border-subtle);
 
+  /* Surfaces (cards, washes) */
+  --color-card: var(--card-bg);
+  --color-card-hover: var(--card-hover);
+  --color-card-selected: var(--card-selected);
+  --color-card-ring: var(--card-ring);
+  --color-card-ring-selected: var(--card-ring-selected);
+  --color-surface-wash: var(--surface-wash);
+  --color-hover-wash: var(--hover-wash);
+  --color-group-rule: var(--group-rule);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-hover: var(--accent-soft-hover);
+  --color-accent-edge: var(--accent-edge);
+  --color-accent-edge-hover: var(--accent-edge-hover);
+
   /* Spacing */
   --spacing-xs: var(--space-xs);
   --spacing-sm: var(--space-sm);

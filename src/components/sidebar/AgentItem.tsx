@@ -501,7 +501,7 @@ function StackMapFrame({ anchorRef, frameRef, children }: {
 
 function CreatingItem({ worktree }: { worktree: Worktree }) {
   return (
-    <div className="w-full text-left py-2 px-3 flex items-start gap-2 rounded-md bg-white/[0.035] ring-1 ring-inset ring-white/[0.06] opacity-55 pointer-events-none">
+    <div className="w-full text-left py-2 px-3 flex items-start gap-2 rounded-md bg-card ring-1 ring-inset ring-card-ring opacity-55 pointer-events-none">
       <Loader className="mt-1 h-[8px] w-[8px] flex-shrink-0 animate-spin text-text-tertiary" size={8} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -532,7 +532,7 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
   };
 
   return (
-    <div className="w-full text-left py-2 px-3 flex items-start gap-2 rounded-md bg-white/[0.035] ring-1 ring-inset ring-white/[0.06] border-l-[3px] border-l-status-error">
+    <div className="w-full text-left py-2 px-3 flex items-start gap-2 rounded-md bg-card ring-1 ring-inset ring-card-ring border-l-[3px] border-l-status-error">
       <span className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-status-error" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -560,7 +560,7 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
                 className={`text-2xs px-2 py-0.5 rounded border inline-flex items-center gap-1 cursor-pointer transition-colors ${
                   copied
                     ? "text-status-idle border-status-idle/30"
-                    : "text-text-secondary border-border-subtle hover:bg-white/5 hover:text-text-primary hover:border-border-hover"
+                    : "text-text-secondary border-border-subtle hover:bg-hover-wash hover:text-text-primary hover:border-border-hover"
                 }`}
               >
                 {copied ? <Check size={10} /> : <Copy size={10} />}
@@ -607,7 +607,7 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
   };
 
   return (
-    <div className="w-full text-left py-2 px-3 flex items-start gap-2 rounded-md bg-white/[0.035] ring-1 ring-inset ring-white/[0.06] border-l-[3px] border-l-status-error">
+    <div className="w-full text-left py-2 px-3 flex items-start gap-2 rounded-md bg-card ring-1 ring-inset ring-card-ring border-l-[3px] border-l-status-error">
       <span className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-status-error" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -634,7 +634,7 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
             className={`text-2xs px-2 py-0.5 rounded border inline-flex items-center gap-1 cursor-pointer transition-colors ${
               copied
                 ? "text-status-idle border-status-idle/30"
-                : "text-text-secondary border-border-subtle hover:bg-white/5 hover:text-text-primary hover:border-border-hover"
+                : "text-text-secondary border-border-subtle hover:bg-hover-wash hover:text-text-primary hover:border-border-hover"
             }`}
           >
             {copied ? <Check size={10} /> : <Copy size={10} />}
@@ -644,7 +644,7 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
             type="button"
             onClick={handleRerun}
             disabled={rerunning}
-            className="text-2xs px-2 py-0.5 rounded border border-border-subtle text-text-secondary hover:bg-white/5 hover:text-text-primary hover:border-border-hover inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+            className="text-2xs px-2 py-0.5 rounded border border-border-subtle text-text-secondary hover:bg-hover-wash hover:text-text-primary hover:border-border-hover inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
           >
             <RefreshCw size={10} className={rerunning ? "animate-spin" : ""} />
             {rerunning ? "Running…" : "Re-run setup"}
@@ -803,12 +803,12 @@ const AgentItem = memo(function AgentItem({
         isEditingLabel ? "cursor-default" : "cursor-grab",
         getBorderClass(effectiveStatus, isUnread),
         isSelected
-          ? "bg-bg-active ring-1 ring-inset ring-white/[0.12]"
-          : "bg-white/[0.035] ring-1 ring-inset ring-white/[0.06] hover:bg-bg-hover",
+          ? "bg-card-selected ring-1 ring-inset ring-card-ring-selected"
+          : "bg-card ring-1 ring-inset ring-card-ring hover:bg-card-hover",
         isDimmed && !isSelected
           ? "opacity-45 hover:opacity-70"
           : "",
-        isPeeked ? "shadow-[inset_3px_0_0] shadow-accent-primary/70 bg-white/[0.03]" : "",
+        isPeeked ? "shadow-[inset_3px_0_0] shadow-accent-primary/70 bg-card" : "",
       ].join(" ");
   const rowStyle = { transform: CSS.Transform.toString(transform), transition };
   const rowContent = isDragging ? (
@@ -872,7 +872,7 @@ const AgentItem = memo(function AgentItem({
                 onPointerDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary cursor-pointer flex-shrink-0"
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-hover-wash text-text-tertiary hover:text-text-primary cursor-pointer flex-shrink-0"
                 aria-label="Archive worktree"
                 title="Archive"
               >

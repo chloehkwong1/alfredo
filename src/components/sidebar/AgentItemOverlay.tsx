@@ -14,8 +14,8 @@ function AgentItemOverlay({ worktree, width, label }: AgentItemOverlayProps) {
   return (
     <div
       className={[
-        "w-full text-left py-2 px-3.5 flex items-start gap-2",
-        "bg-bg-elevated shadow-xl cursor-grabbing",
+        "w-full text-left py-2 px-3 flex items-start gap-2 rounded-md",
+        "bg-bg-elevated ring-1 ring-inset ring-card-ring shadow-xl cursor-grabbing",
         getBorderClass(effectiveStatus, isUnread),
       ].join(" ")}
       style={width ? { width } : undefined}

@@ -407,7 +407,7 @@ function RailIcon({
     >
       {icon}
       {count > 0 && (
-        <span className="absolute -top-1 -right-1 flex items-center justify-center text-[9px] font-semibold leading-none min-w-[14px] px-1 py-px rounded-sm bg-white/5 text-text-tertiary">
+        <span className="absolute -top-1 -right-1 flex items-center justify-center text-[9px] font-semibold leading-none min-w-[14px] px-1 py-px rounded-sm bg-surface-wash text-text-tertiary">
           {count > 99 ? "99+" : count}
         </span>
       )}

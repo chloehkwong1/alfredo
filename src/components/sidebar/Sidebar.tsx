@@ -622,7 +622,7 @@ function Sidebar({
                 <button
                   type="button"
                   data-tour-id="create-worktree"
-                  className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] border border-accent-primary/40 bg-accent-primary/10 text-accent-primary text-sm font-medium hover:bg-accent-muted hover:border-accent-primary/60 transition-all cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 h-9 rounded-[var(--radius-md)] border border-accent-edge bg-accent-soft text-accent-primary text-sm font-medium hover:bg-accent-soft-hover hover:border-accent-edge-hover transition-all cursor-pointer"
                   onClick={() => setCreateWorktreeOpen(true)}
                 >
                   <Plus className="h-4 w-4" />

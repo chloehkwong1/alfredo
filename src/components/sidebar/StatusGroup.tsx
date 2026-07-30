@@ -143,7 +143,7 @@ function StatusGroup({
             {label}
           </span>
         </button>
-        <span className="flex-1 h-[1.5px] bg-gradient-to-r from-white/20 to-transparent mx-3" />
+        <span className="flex-1 h-[1.5px] bg-gradient-to-r from-group-rule to-transparent mx-3" />
         {column === "done" && worktrees.length > 0 && onArchiveAll && (
           <button
             type="button"
@@ -189,7 +189,7 @@ function StatusGroup({
               return (
             <SortableContext items={sorted.map((wt) => wt.id)} strategy={verticalListSortingStrategy}>
                 {sorted.map((wt) => (
-                  <div key={wt.id}>
+                  <div key={wt.id} className="px-2 pb-1.5">
                     <AgentItem
                       worktree={wt}
                       isSelected={wt.id === activeWorktreeId}

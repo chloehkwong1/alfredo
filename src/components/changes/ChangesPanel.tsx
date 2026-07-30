@@ -116,7 +116,7 @@ function RebaseBanner({ repoPath, worktreePath, worktreeName, stackParent }: { r
                 className={`text-2xs px-1.5 py-0.5 rounded border inline-flex items-center gap-1 cursor-pointer transition-colors ${
                   copied
                     ? "text-status-idle border-status-idle/30"
-                    : "text-text-secondary border-border-subtle hover:bg-white/5 hover:text-text-primary hover:border-border-hover"
+                    : "text-text-secondary border-border-subtle hover:bg-hover-wash hover:text-text-primary hover:border-border-hover"
                 }`}
               >
                 {copied ? <Check size={9} /> : <Copy size={9} />}
@@ -299,7 +299,7 @@ function OriginSyncBanner({
                 className={`text-2xs px-1.5 py-0.5 rounded border inline-flex items-center gap-1 cursor-pointer transition-colors ${
                   copied
                     ? "text-status-idle border-status-idle/30"
-                    : "text-text-secondary border-border-subtle hover:bg-white/5 hover:text-text-primary hover:border-border-hover"
+                    : "text-text-secondary border-border-subtle hover:bg-hover-wash hover:text-text-primary hover:border-border-hover"
                 }`}
               >
                 {copied ? <Check size={9} /> : <Copy size={9} />}
@@ -553,7 +553,7 @@ function WorkspacePanel({
                   "ml-1.5 text-[9px] font-semibold px-1.5 py-px rounded-sm",
                   panelTab === "changes"
                     ? "bg-accent-primary/20 text-accent-primary"
-                    : "bg-white/5 text-text-tertiary",
+                    : "bg-surface-wash text-text-tertiary",
                 ].join(" ")}
               >
                 {fileCount}
@@ -577,7 +577,7 @@ function WorkspacePanel({
                   "ml-1.5 text-[9px] font-semibold px-1.5 py-px rounded-sm",
                   panelTab === "commits"
                     ? "bg-accent-primary/20 text-accent-primary"
-                    : "bg-white/5 text-text-tertiary",
+                    : "bg-surface-wash text-text-tertiary",
                 ].join(" ")}
               >
                 {commits.length}
