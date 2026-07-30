@@ -1,0 +1,21 @@
+designs/kit.css
+  s_8aa5faaae32ec1::t_76e250f6a2b3e3 45-48
+src/styles/theme.css
+  s_8aa5faaae32ec1::t_de99cd93759c09 97-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "259344c8fdbc825643904dd179b9556fa2099eb6",
+  "prompts": {},
+  "sessions": {
+    "s_8aa5faaae32ec1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f871553-72d5-4df8-8977-4511948e77c7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}

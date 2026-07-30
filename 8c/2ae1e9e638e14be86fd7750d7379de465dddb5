@@ -1,0 +1,56 @@
+src/components/changes/ChangesPanel.tsx
+  s_8aa5faaae32ec1::t_fca84c0a67c894 119,302,556,580
+src/styles/theme.css
+  s_8aa5faaae32ec1::t_f268fc4cfbb09a 96-103
+  s_8aa5faaae32ec1::t_d2156a8d9888c5 81-95
+src/components/sidebar/StatusGroup.tsx
+  s_3047b4aa7487c9::t_d3ec6421dae18e 192
+  s_8aa5faaae32ec1::t_fca84c0a67c894 146
+src/components/sidebar/Sidebar.tsx
+  s_8aa5faaae32ec1::t_d1342e5fad2d4f 625
+src/styles/themes.css
+  s_8aa5faaae32ec1::t_ebf87e79551a2c 62-77
+  s_8aa5faaae32ec1::t_675605aff93294 79-84
+  s_8aa5faaae32ec1::t_60d3cd092ce97d 7-11,14,16-17,20-21,24,33-39,41-42
+  s_8aa5faaae32ec1::t_44f81595d0ef37 78
+src/components/sidebar/AgentItem.tsx
+  s_8aa5faaae32ec1::t_fca84c0a67c894 504,535,563,610,637,647,806-807,811,875
+src/styles/globals.css
+  s_8aa5faaae32ec1::t_d43b719098c738 192-195
+  s_8aa5faaae32ec1::t_3fb3fc8d18b2e9 183-191,196
+src/components/onboarding/RepoSetupDialog.tsx
+  s_8aa5faaae32ec1::t_fca84c0a67c894 789,809,829
+designs/kit.css
+  s_8aa5faaae32ec1::t_b0c785b71943c2 36-49
+src/components/sidebar/AgentItemOverlay.tsx
+  s_3047b4aa7487c9::t_0dcc2d32ae1b2b 17
+  s_8aa5faaae32ec1::t_fca84c0a67c894 18
+src/components/changes/PrPanel.tsx
+  s_8aa5faaae32ec1::t_fca84c0a67c894 410
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_8aa5faaae32ec1::t_fca84c0a67c894 230,258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "8c2ae1e9e638e14be86fd7750d7379de465dddb5",
+  "prompts": {},
+  "sessions": {
+    "s_3047b4aa7487c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c74330c2-aa0d-40a0-bba9-c822cb643109",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_8aa5faaae32ec1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f871553-72d5-4df8-8977-4511948e77c7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
