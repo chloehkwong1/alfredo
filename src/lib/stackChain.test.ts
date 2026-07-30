@@ -34,6 +34,8 @@ describe("computeStackChain", () => {
     expect(chain!.position).toBe(2);
     expect(chain!.total).toBe(3);
     expect(chain!.rootId).toBe("a");
+    expect(chain!.forked).toBe(false);
+    expect(chain!.members.map((m) => m.prefix)).toEqual(["└", "  └", "    └"]);
   });
 
   it("includes the root even though the root itself has no stackParent", () => {
@@ -61,18 +63,34 @@ describe("computeStackChain", () => {
     expect(() => computeStackChain([m, n], "m")).not.toThrow();
   });
 
-  it("prefers the fork path containing the queried member and falls back to first child", () => {
+  it("includes the whole tree on a fork, with position = depth", () => {
     const root = wt({ id: "r", branch: "feat/root" });
     const left = wt({ id: "l", branch: "feat/left", stackParent: "feat/root" });
     const right = wt({ id: "rt", branch: "feat/right", stackParent: "feat/root" });
     const rightChild = wt({ id: "rc", branch: "feat/right-child", stackParent: "feat/right" });
-    // Queried from the right tip: the chain follows the fork containing self.
-    const fromRight = computeStackChain([root, left, right, rightChild], "rc");
-    expect(fromRight!.memberIds).toEqual(["r", "rt", "rc"]);
+    const all = [root, left, right, rightChild];
+    // Every member sees the same tree: DFS root-first, children branch-sorted.
+    const fromRight = computeStackChain(all, "rc");
+    expect(fromRight!.memberIds).toEqual(["r", "l", "rt", "rc"]);
     expect(fromRight!.position).toBe(3);
-    // Queried from the root: no self-path below the fork → deterministic first child (sorted: feat/left).
-    const fromRoot = computeStackChain([root, left, right, rightChild], "r");
-    expect(fromRoot!.memberIds).toEqual(["r", "l"]);
+    expect(fromRight!.total).toBe(4);
+    expect(fromRight!.forked).toBe(true);
+    const fromRoot = computeStackChain(all, "r");
+    expect(fromRoot!.memberIds).toEqual(["r", "l", "rt", "rc"]);
     expect(fromRoot!.position).toBe(1);
+    // Siblings share a depth — the chip shows the same honest "2/4" for both.
+    expect(computeStackChain(all, "l")!.position).toBe(2);
+    expect(computeStackChain(all, "rt")!.position).toBe(2);
+  });
+
+  it("computes file-tree guide prefixes across a fork", () => {
+    const root = wt({ id: "r", branch: "feat/root" });
+    const left = wt({ id: "l", branch: "feat/left", stackParent: "feat/root" });
+    const leftChild = wt({ id: "lc", branch: "feat/left-child", stackParent: "feat/left" });
+    const right = wt({ id: "rt", branch: "feat/right", stackParent: "feat/root" });
+    const chain = computeStackChain([root, left, leftChild, right], "r")!;
+    expect(chain.memberIds).toEqual(["r", "l", "lc", "rt"]);
+    expect(chain.members.map((m) => m.prefix)).toEqual(["└", "  ├", "  │ └", "  └"]);
+    expect(chain.members.map((m) => m.depth)).toEqual([1, 2, 3, 2]);
   });
 });

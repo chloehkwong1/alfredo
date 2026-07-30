@@ -1,19 +1,33 @@
 import type { Worktree } from "../types";
 
+export interface StackMember {
+  id: string;
+  /** Distance from the stack root; root = 1. Siblings share a depth. */
+  depth: number;
+  /** File-tree guide for the stack map, e.g. "    │ └". */
+  prefix: string;
+}
+
 export interface StackChain {
+  /** DFS order, root first — the stack map renders this top-down. */
   memberIds: string[];
+  members: StackMember[];
+  /** `self`'s depth from the root (root = 1); siblings legitimately share it. */
   position: number;
+  /** Every branch in the stack tree, all forks included. */
   total: number;
   rootId: string;
+  /** True when any branch in the stack has ≥2 children stacked on it. */
+  forked: boolean;
   needsAttention: boolean;
 }
 
 const ATTENTION_KINDS = new Set(["conflict", "skippedDirty", "pushFailed", "behind", "rebasing"]);
 
 /**
- * Resolve the full stack chain containing `worktreeId`, ordered root→tip.
- * `stackParent` stores a *branch name*; edges resolve via each worktree's own
- * `branch`. Null when the worktree is not part of any stack.
+ * Resolve the full stack tree containing `worktreeId`. `stackParent` stores a
+ * *branch name*; edges resolve via each worktree's own `branch`. Null when the
+ * worktree is not part of any stack.
  */
 export function computeStackChain(worktrees: Worktree[], worktreeId: string): StackChain | null {
   const self = worktrees.find((w) => w.id === worktreeId);
@@ -41,45 +55,33 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
     root = parent;
   }
 
-  // Walk down from the root. Linear chains only (first child per level, sorted
-  // for determinism) — forks render as separate linear chains from each fork tip.
-  const memberIds: string[] = [];
-  const members: Worktree[] = [];
-  let cursor: Worktree | undefined = root;
+  // DFS over the whole tree (cycle-guarded), children sorted for determinism,
+  // collecting depth and file-tree guide prefixes for the stack map.
+  const members: StackMember[] = [];
+  const memberWts: Worktree[] = [];
   const visited = new Set<string>();
-  while (cursor && !visited.has(cursor.id) && memberIds.length <= worktrees.length) {
-    visited.add(cursor.id);
-    memberIds.push(cursor.id);
-    members.push(cursor);
-    const kids = (childrenOf.get(cursor.branch) ?? []).slice().sort((x, y) => x.branch.localeCompare(y.branch));
-    // Prefer the child on the path to `self`, else the first child.
-    cursor = kids.find((k) => pathContains(k, self, byBranch, worktrees.length)) ?? kids[0];
-  }
+  const walk = (node: Worktree, depth: number, ancestorGuides: string, isLast: boolean) => {
+    if (visited.has(node.id)) return;
+    visited.add(node.id);
+    members.push({ id: node.id, depth, prefix: ancestorGuides + (isLast ? "└" : "├") });
+    memberWts.push(node);
+    const kids = (childrenOf.get(node.branch) ?? []).slice().sort((x, y) => x.branch.localeCompare(y.branch));
+    const childGuides = ancestorGuides + (isLast ? "  " : "│ ");
+    kids.forEach((kid, i) => walk(kid, depth + 1, childGuides, i === kids.length - 1));
+  };
+  walk(root, 1, "", true);
 
-  const position = memberIds.indexOf(self.id) + 1;
-  if (position === 0) return null;
+  const selfMember = members.find((m) => m.id === self.id);
+  if (!selfMember) return null;
   return {
-    memberIds,
-    position,
-    total: memberIds.length,
+    memberIds: members.map((m) => m.id),
+    members,
+    position: selfMember.depth,
+    total: members.length,
     rootId: root.id,
-    needsAttention: members.some(
+    forked: memberWts.some((w) => (childrenOf.get(w.branch)?.length ?? 0) > 1),
+    needsAttention: memberWts.some(
       (m) => m.stackRebaseStatus != null && ATTENTION_KINDS.has(m.stackRebaseStatus.kind),
     ),
   };
-}
-
-/** True when following `self`'s parent links reaches `candidate`. */
-function pathContains(
-  candidate: Worktree,
-  self: Worktree,
-  byBranch: Map<string, Worktree>,
-  maxHops: number,
-): boolean {
-  let cursor: Worktree | undefined = self;
-  for (let hops = 0; hops <= maxHops && cursor; hops++) {
-    if (cursor.id === candidate.id) return true;
-    cursor = cursor.stackParent ? byBranch.get(cursor.stackParent) : undefined;
-  }
-  return false;
 }

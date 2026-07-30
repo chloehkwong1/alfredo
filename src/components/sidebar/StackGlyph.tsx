@@ -1,4 +1,4 @@
-import { Layers } from "lucide-react";
+import { GitFork, Layers } from "lucide-react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { StackChain } from "../../lib/stackChain";
 import type { Worktree } from "../../types";
@@ -18,6 +18,9 @@ function StackGlyph({ worktree, chain, onOpenMap }: StackGlyphProps) {
   // Roots carry the whole stack — give them a filled chip so "other branches
   // depend on this one" is visible at a glance; children stay muted.
   const isRoot = !worktree.stackParent;
+  // Forked stacks swap the layers icon for a fork: position is a depth (shared
+  // by siblings), and the map is where the tree shape lives.
+  const Icon = chain.forked ? GitFork : Layers;
   return (
     <button
       type="button"
@@ -47,7 +50,7 @@ function StackGlyph({ worktree, chain, onOpenMap }: StackGlyphProps) {
         + (chain.needsAttention ? " — a branch in this stack needs attention, click for details" : "")
       }
     >
-      <Layers className={`h-3 w-3 ${rebasing ? "animate-spin" : ""}`} />
+      <Icon className={`h-3 w-3 ${rebasing ? "animate-spin" : ""}`} />
       {isRoot ? "root" : `${chain.position}/${chain.total}`}
       {chain.needsAttention && (
         <span className="absolute -top-1 -right-1 text-[10px] font-bold text-amber-400">!</span>

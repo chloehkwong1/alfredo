@@ -1,4 +1,4 @@
-import { GitBranch, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { restackStack, restackNow, prepareConflictHandoff } from "../../api";
 import { ensureAgentSession, writeToSession, focusAgentTab } from "../../services/agentMessenger";
@@ -23,18 +23,18 @@ function stateText(s: StackRebaseStatus | null | undefined): string {
   }
 }
 
-/** Popover opened from `StackGlyph` — rail view of the whole stack chain
- *  (newest/tip first, base branch pinned at the bottom). Click-to-jump per
- *  member, plus a footer action to restack the whole chain. Lives inside a
- *  dnd-kit sortable row — every handler stops propagation so drag listeners
- *  and the row's own onClick never fire. */
+/** Popover opened from `StackGlyph` — tree view of the whole stack (base
+ *  branch pinned at the top, root→tips reading downward like a file tree, so
+ *  forks stay legible). Click-to-jump per member, plus a footer action to
+ *  restack the whole tree. Lives inside a dnd-kit sortable row — every handler
+ *  stops propagation so drag listeners and the row's own onClick never fire. */
 function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: StackMapPopoverProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
-  const members = chain.memberIds
-    .map((id) => worktrees.find((w) => w.id === id))
-    .filter((w): w is Worktree => Boolean(w));
-  const conflicted = members.find((m) => m.stackRebaseStatus?.kind === "conflict");
+  const rows = chain.members
+    .map((member) => ({ member, worktree: worktrees.find((w) => w.id === member.id) }))
+    .filter((r): r is { member: (typeof chain.members)[number]; worktree: Worktree } => Boolean(r.worktree));
+  const conflicted = rows.map((r) => r.worktree).find((m) => m.stackRebaseStatus?.kind === "conflict");
 
   const handleHaveClaudeResolve = async () => {
     if (!conflicted) return;
@@ -73,7 +73,7 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
 
   return (
     <div
-      className="w-64 rounded-md border border-border-default bg-bg-primary shadow-lg py-2"
+      className="w-72 rounded-md border border-border-default bg-bg-primary shadow-lg py-2"
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -82,7 +82,10 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
       <div className="px-3 pb-1.5 text-[10px] uppercase tracking-wider text-text-tertiary">
         Stack · {chain.total} branches
       </div>
-      {[...members].reverse().map((m) => (
+      <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-tertiary">
+        ↳ {defaultBranch ?? "main"}
+      </div>
+      {rows.map(({ member, worktree: m }) => (
         <button
           key={m.id}
           type="button"
@@ -92,16 +95,15 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
             m.id === anchorWorktree.id ? "bg-accent-muted/40" : "hover:bg-bg-hover",
           ].join(" ")}
         >
-          <GitBranch className="h-3 w-3 flex-shrink-0 opacity-50" />
+          <span className="flex-shrink-0 font-mono text-[11px] leading-none whitespace-pre text-text-tertiary opacity-60">
+            {member.prefix}
+          </span>
           <span className="truncate flex-1">{m.branch}</span>
           <span className={`flex-shrink-0 text-[10px] ${m.stackRebaseStatus?.kind === "conflict" || m.stackRebaseStatus?.kind === "pushFailed" ? "text-status-error" : "text-text-tertiary"}`}>
             {m.id === anchorWorktree.id ? "← here" : stateText(m.stackRebaseStatus)}
           </span>
         </button>
       ))}
-      <div className="px-3 pt-1.5 mt-1 border-t border-border-subtle text-[11px] text-text-tertiary">
-        ↳ {defaultBranch ?? "main"}
-      </div>
       {conflicted && (
         <div className="px-2 pt-2 flex flex-col gap-1">
           <button
