@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useEffect, useMemo, useRef, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, memo } from "react";
+import { createPortal } from "react-dom";
 import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw, ArrowRightLeft, ArrowUpRight, Settings, Pencil } from "lucide-react";
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
@@ -332,7 +333,7 @@ function AgentItemContent({
               onCancel={onCancelEdit}
               className={[
                 "text-sm min-w-0 flex-1",
-                isSelected ? "text-text-primary" : "text-text-secondary",
+                "text-text-primary",
                 needsAttention(effectiveStatus) ? "font-semibold" : "font-normal",
               ].join(" ")}
             />
@@ -345,7 +346,7 @@ function AgentItemContent({
               }}
               className={[
                 "text-sm truncate",
-                isSelected ? "text-text-primary" : "text-text-secondary",
+                "text-text-primary",
                 needsAttention(effectiveStatus)
                   ? "font-semibold"
                   : "font-normal",
@@ -465,9 +466,39 @@ function AgentItemContent({
   );
 }
 
+/** Fixed-position frame for the stack map popover, portaled to <body> so the
+ *  status group's overflow-hidden collapse wrapper (StatusGroup) and the
+ *  sidebar scroll container can't clip it. Opens below the anchor row,
+ *  flipping above when the popover would spill past the viewport bottom.
+ *  Hidden until the first measure so the flip never flashes. */
+function StackMapFrame({ anchorRef, frameRef, children }: {
+  anchorRef: React.RefObject<HTMLDivElement | null>;
+  frameRef: React.RefObject<HTMLDivElement | null>;
+  children: React.ReactNode;
+}) {
+  const [style, setStyle] = useState<React.CSSProperties>({ position: "fixed", visibility: "hidden" });
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    const frame = frameRef.current;
+    if (!anchor || !frame) return;
+    const rect = anchor.getBoundingClientRect();
+    const height = frame.offsetHeight;
+    const margin = 8;
+    const fitsBelow = rect.bottom + 4 + height + margin <= window.innerHeight;
+    const top = fitsBelow || rect.top - height - 4 < margin
+      ? rect.bottom + 4
+      : rect.top - height - 4;
+    setStyle({ position: "fixed", top, left: rect.left + 14, zIndex: 50 });
+  }, [anchorRef, frameRef]);
+  return createPortal(
+    <div ref={frameRef} style={style}>{children}</div>,
+    document.body,
+  );
+}
+
 function CreatingItem({ worktree }: { worktree: Worktree }) {
   return (
-    <div className="w-full text-left py-2 px-3.5 flex items-start gap-2 opacity-55 pointer-events-none">
+    <div className="w-full text-left py-2 px-3 flex items-start gap-2 rounded-md bg-white/[0.035] ring-1 ring-inset ring-white/[0.06] opacity-55 pointer-events-none">
       <Loader className="mt-1 h-[8px] w-[8px] flex-shrink-0 animate-spin text-text-tertiary" size={8} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -498,7 +529,7 @@ function CreateErrorItem({ worktree }: { worktree: Worktree }) {
   };
 
   return (
-    <div className="w-full text-left py-2 px-3.5 flex items-start gap-2 border-l-[3px] border-l-status-error">
+    <div className="w-full text-left py-2 px-3 flex items-start gap-2 rounded-md bg-white/[0.035] ring-1 ring-inset ring-white/[0.06] border-l-[3px] border-l-status-error">
       <span className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-status-error" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -573,7 +604,7 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
   };
 
   return (
-    <div className="w-full text-left py-2 px-3.5 flex items-start gap-2 border-l-[3px] border-l-status-error">
+    <div className="w-full text-left py-2 px-3 flex items-start gap-2 rounded-md bg-white/[0.035] ring-1 ring-inset ring-white/[0.06] border-l-[3px] border-l-status-error">
       <span className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-status-error" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -631,6 +662,9 @@ const AgentItem = memo(function AgentItem({
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [stackMapOpen, setStackMapOpen] = useState(false);
   const rowContainerRef = useRef<HTMLDivElement>(null);
+  // The stack map lives in a portal (see StackMapFrame), so outside-click
+  // detection must check it separately from the row.
+  const stackMapFrameRef = useRef<HTMLDivElement>(null);
   // When Rename is picked from the context menu, Radix restores focus to the
   // trigger row on close, stealing it from the freshly mounted label input.
   const renameViaMenuRef = useRef(false);
@@ -684,9 +718,10 @@ const AgentItem = memo(function AgentItem({
   useEffect(() => {
     if (!stackMapOpen) return;
     const handlePointerDown = (e: MouseEvent) => {
-      if (rowContainerRef.current && !rowContainerRef.current.contains(e.target as Node)) {
-        setStackMapOpen(false);
-      }
+      const target = e.target as Node;
+      const inRow = rowContainerRef.current?.contains(target) ?? false;
+      const inPopover = stackMapFrameRef.current?.contains(target) ?? false;
+      if (!inRow && !inPopover) setStackMapOpen(false);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setStackMapOpen(false);
@@ -757,16 +792,16 @@ const AgentItem = memo(function AgentItem({
   };
 
   const rowClassName = isDragging
-    ? "w-full pointer-events-none mx-3.5 my-1 rounded-md border border-dashed border-accent-primary/30 bg-accent-muted/[0.04]"
+    ? "w-full pointer-events-none rounded-md border border-dashed border-accent-primary/30 bg-accent-muted/[0.04]"
     : [
-        "w-full text-left py-2 px-3.5 flex items-start gap-2",
+        "w-full text-left py-2 px-3 flex items-start gap-2 rounded-md",
         "transition-all duration-[var(--transition-fast)]",
         "group",
         isEditingLabel ? "cursor-default" : "cursor-grab",
         getBorderClass(effectiveStatus, isUnread),
         isSelected
-          ? "bg-bg-active"
-          : "hover:bg-bg-hover",
+          ? "bg-bg-active ring-1 ring-inset ring-white/[0.12]"
+          : "bg-white/[0.035] ring-1 ring-inset ring-white/[0.06] hover:bg-bg-hover",
         isDimmed && !isSelected
           ? "opacity-45 hover:opacity-70"
           : "",
@@ -984,14 +1019,14 @@ const AgentItem = memo(function AgentItem({
       </ContextMenu>
 
       {stackMapOpen && stackChain && (
-        <div className="absolute z-50 top-full left-3.5 mt-1">
+        <StackMapFrame anchorRef={rowContainerRef} frameRef={stackMapFrameRef}>
           <StackMapPopover
             anchorWorktree={worktree}
             chain={stackChain}
             defaultBranch={defaultBranch}
             onClose={() => setStackMapOpen(false)}
           />
-        </div>
+        </StackMapFrame>
       )}
 
       <DeleteWorktreeConfirm
