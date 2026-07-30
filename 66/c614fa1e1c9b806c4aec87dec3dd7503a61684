@@ -1,0 +1,21 @@
+src/components/layout/StatusBar.tsx
+  s_ad8eb6f3282d79::t_9f59d274b0ac62 47
+  s_ad8eb6f3282d79::t_7dae064ee3674d 23
+  s_ad8eb6f3282d79::t_4a4a8c52a19a4c 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "66c614fa1e1c9b806c4aec87dec3dd7503a61684",
+  "prompts": {},
+  "sessions": {
+    "s_ad8eb6f3282d79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4da961c3-5b66-45a4-ba6e-b8e46a5171e6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
