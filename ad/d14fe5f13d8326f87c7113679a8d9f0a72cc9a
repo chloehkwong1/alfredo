@@ -1,0 +1,26 @@
+src/components/icons/github.tsx
+  s_b5ea5fe1a5fcbd::t_eee47d38b6a925 11
+  s_b5ea5fe1a5fcbd::t_01f1775fdfd343 1-10,12-25
+src/components/onboarding/RepoSetupDialog.tsx
+  s_b5ea5fe1a5fcbd::t_4efe30053a39fc 14
+  s_b5ea5fe1a5fcbd::t_da1e221e388f1c 541,578
+src/components/settings/GithubSettings.tsx
+  s_b5ea5fe1a5fcbd::t_9382e6b73d96f1 2-3
+  s_b5ea5fe1a5fcbd::t_46053460e28325 187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "add14fe5f13d8326f87c7113679a8d9f0a72cc9a",
+  "prompts": {},
+  "sessions": {
+    "s_b5ea5fe1a5fcbd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fecec623-99b9-4631-927d-e2bae073c8fc",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
