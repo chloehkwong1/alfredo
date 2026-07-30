@@ -94,12 +94,14 @@
   --group-rule: rgba(255, 255, 255, 0.2);
 
   /* Accent-branded button surface (New worktree). Dark themes wash the
-     accent under the label; light themes use a plain card fill instead —
-     accent tints read badly on light warm backgrounds. */
-  --accent-soft: rgba(147, 51, 234, 0.1);
-  --accent-soft-hover: rgba(147, 51, 234, 0.15);
-  --accent-edge: rgba(147, 51, 234, 0.4);
-  --accent-edge-hover: rgba(147, 51, 234, 0.6);
+     theme's own accent under the label (color-mix so non-purple accents —
+     honeycomb yellow, synthwave pink — stay coherent); light themes use a
+     plain card fill instead — accent tints read badly on light warm
+     backgrounds. */
+  --accent-soft: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  --accent-soft-hover: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  --accent-edge: color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  --accent-edge-hover: color-mix(in srgb, var(--accent-primary) 60%, transparent);
 
   /* ── PR comment accent ───────────────────────── */
   --color-pr-comment: #60a5fa;

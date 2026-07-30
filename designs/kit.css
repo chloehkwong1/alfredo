@@ -42,10 +42,10 @@
   --surface-wash: rgba(255, 255, 255, 0.04);
   --hover-wash: rgba(255, 255, 255, 0.05);
   --group-rule: rgba(255, 255, 255, 0.2);
-  --accent-soft: rgba(147, 51, 234, 0.1);
-  --accent-soft-hover: rgba(147, 51, 234, 0.15);
-  --accent-edge: rgba(147, 51, 234, 0.4);
-  --accent-edge-hover: rgba(147, 51, 234, 0.6);
+  --accent-soft: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  --accent-soft-hover: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  --accent-edge: color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  --accent-edge-hover: color-mix(in srgb, var(--accent-primary) 60%, transparent);
 
   /* ── Accent ──────────────────────────────────── */
   --accent-primary: #9333ea;
