@@ -51,11 +51,14 @@ static STICKY_STATUS: LazyLock<Mutex<HashMap<String, StackRebaseStatus>>> =
 /// entries — which would strand a memo nothing ever clears. Canonicalization
 /// failure (path deleted mid-flight) falls back to the raw string: a slightly
 /// worse key beats losing the entry.
-fn memo_key(repo_path: &str, worktree_name: &str) -> String {
-    let repo = std::fs::canonicalize(repo_path)
+fn canonicalized_repo(repo_path: &str) -> String {
+    std::fs::canonicalize(repo_path)
         .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|_| repo_path.to_string());
-    format!("{repo}::{worktree_name}")
+        .unwrap_or_else(|_| repo_path.to_string())
+}
+
+fn memo_key(repo_path: &str, worktree_name: &str) -> String {
+    format!("{}::{worktree_name}", canonicalized_repo(repo_path))
 }
 
 /// True when `parent_tip` is exactly the tip that already conflicted for this
@@ -125,6 +128,36 @@ fn clear_pending_action(repo_path: &str, worktree_name: &str) {
 #[cfg(test)]
 fn pending_action(repo_path: &str, worktree_name: &str) -> Option<StackPendingAction> {
     PENDING_ACTION.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
+}
+
+/// Child worktree names with a pending action recorded for this repo, derived
+/// from the same canonicalized prefix `memo_key` uses. Backs the end-of-poll
+/// sweep in `check_merged_parents`: it needs to enumerate what the map
+/// remembers for a repo, not just look up one worktree at a time.
+fn pending_children_for_repo(repo_path: &str) -> Vec<String> {
+    let prefix = format!("{}::", canonicalized_repo(repo_path));
+    let Ok(map) = PENDING_ACTION.lock() else { return Vec::new() };
+    map.keys().filter_map(|k| k.strip_prefix(&prefix).map(str::to_string)).collect()
+}
+
+/// Clear any pending action for this repo whose child is not in this poll's
+/// `affected` set, and return the cleared children so the caller can emit the
+/// frontend clear (kept out of this function so it stays testable without an
+/// `AppHandle`).
+///
+/// Exists because a child can drop out of `affected` for reasons that have
+/// nothing to do with its dissolve completing: the PR sync only keeps open
+/// PRs plus the ~30 most-recently-updated closed ones, so a child that stays
+/// blocked (dirty tree or busy agent) long enough sees its merged parent's PR
+/// age off that page. Nothing else ever revisits that child — its pending
+/// entry, backend map and frontend banner both, would otherwise leak until
+/// restart while a "waiting for uncommitted changes…" banner lies forever.
+fn sweep_stale_pending(repo_path: &str, affected: &[String]) -> Vec<String> {
+    pending_children_for_repo(repo_path)
+        .into_iter()
+        .filter(|child| !affected.contains(child))
+        .inspect(|child| clear_pending_action(repo_path, child))
+        .collect()
 }
 
 /// Drop everything this module remembers about a worktree. Called from every
@@ -284,20 +317,12 @@ pub async fn check_merged_parents(
             }
         };
 
-        if config.stack_parent_overrides.is_empty() {
-            continue;
-        }
-
         // Find merged PRs that belong to this repo
         let merged_branches: Vec<String> = prs
             .iter()
             .filter(|pr| pr.repo_path == *repo_path && pr.merged)
             .map(|pr| pr.branch.clone())
             .collect();
-
-        if merged_branches.is_empty() {
-            continue;
-        }
 
         // Find entries in stack_parent_overrides whose parent value is a merged branch
         let affected: Vec<(String, String)> = config
@@ -306,6 +331,24 @@ pub async fn check_merged_parents(
             .filter(|(_, parent)| merged_branches.contains(parent))
             .map(|(child, parent)| (child.clone(), parent.clone()))
             .collect();
+
+        // Sweep before any of the continues below, and regardless of whether
+        // this poll has overrides/merged branches/affected children at all: a
+        // child can drop out of `affected` (merged PR aged out of the sync
+        // window, overrides cleared) independently of any of those being
+        // empty, and none of those cases may leak its pending entry.
+        let affected_children: Vec<String> = affected.iter().map(|(child, _)| child.clone()).collect();
+        for child in sweep_stale_pending(repo_path, &affected_children) {
+            emit_pending(app_handle, &child, None);
+        }
+
+        if config.stack_parent_overrides.is_empty() {
+            continue;
+        }
+
+        if merged_branches.is_empty() {
+            continue;
+        }
 
         if affected.is_empty() {
             continue;
@@ -1498,6 +1541,13 @@ pub async fn change_base(
             forget_stack_memos(repo_path, worktree_name);
         }
         emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+        // No rebase runs on this path, so `stack:rebase-complete` (which the
+        // frontend also uses to clear `stackPending`) never fires. This is an
+        // explicit user action superseding any background attempt, so any
+        // pending merged-parent banner for this worktree is stale now —
+        // clear it explicitly rather than leaving it to a later poll.
+        clear_pending_action(repo_path, worktree_name);
+        emit_pending(app_handle, worktree_name, None);
         return Ok(());
     }
 
@@ -2607,6 +2657,39 @@ mod tests {
         set_pending_action(repo, name, p2);
         forget_stack_memos(repo, name);
         assert_eq!(pending_action(repo, name), None);
+    }
+
+    // A child can drop out of `affected` for reasons unrelated to its dissolve
+    // completing (its merged parent's PR aged off the sync window's ~30-closed
+    // window). The sweep must clear exactly the entries that fell out, and
+    // leave anything still affected this poll untouched.
+    #[test]
+    fn sweep_stale_pending_clears_only_children_missing_from_affected() {
+        // Distinct key from other tests — the map is process-global.
+        let repo = "/tmp/alfredo-test-sweep";
+        let still_affected = "wt-still-affected";
+        let aged_out = "wt-aged-out";
+
+        let pending = StackPendingAction {
+            merged_parent: "chloe/feature-root".into(),
+            blocked_by: StackPendingBlocker::Dirty,
+        };
+        set_pending_action(repo, still_affected, pending.clone());
+        set_pending_action(repo, aged_out, pending.clone());
+
+        let cleared = sweep_stale_pending(repo, &[still_affected.to_string()]);
+
+        assert_eq!(cleared, vec![aged_out.to_string()]);
+        assert_eq!(
+            pending_action(repo, still_affected),
+            Some(pending),
+            "still-affected child must survive the sweep"
+        );
+        assert_eq!(
+            pending_action(repo, aged_out),
+            None,
+            "a child no longer in `affected` must have its pending entry cleared"
+        );
     }
 
     /// Commit a real file (not `--allow-empty`): these fixtures get rebased,
