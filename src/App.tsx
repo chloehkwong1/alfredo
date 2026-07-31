@@ -1,11 +1,13 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { HelpSearch } from "./components/askAlfredo/HelpSearch";
+import { WhatsNewDialog } from "./components/onboarding/WhatsNewDialog";
 import { Toaster } from "./components/ui/Toaster";
 import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
 import { useWorktreeSetup } from "./hooks/useWorktreeSetup";
+import { useWhatsNew } from "./hooks/useWhatsNew";
 import { applyPersistedZoom } from "./services/uiZoom";
 import { debugLog } from "./api";
 import { useAppConfigStore } from "./stores/appConfigStore";
@@ -107,6 +109,7 @@ function AppInner() {
   useGithubSync();
   useWorktreeSetup();
   const [askOpen, setAskOpen] = useState(false);
+  const whatsNew = useWhatsNew();
   useEffect(() => {
     const handler = () => setAskOpen((v) => !v);
     window.addEventListener("alfredo:toggle-ask", handler);
@@ -174,6 +177,11 @@ function AppInner() {
           setAskOpen(false);
           window.dispatchEvent(new CustomEvent("alfredo:close-ask"));
         }}
+      />
+      <WhatsNewDialog
+        entries={whatsNew.entries}
+        open={whatsNew.open}
+        onDismiss={whatsNew.dismiss}
       />
       <Toaster />
     </TooltipProvider>
