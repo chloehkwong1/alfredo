@@ -1900,9 +1900,14 @@ mod tests {
     }
 
     /// Repo shaped like a real stack: root `feat/root` cut from main, child
-    /// `feat/child` on top of it, and `origin/main` advanced past the fork.
-    /// Returns (repo, root_worktree_path, expected_target_tip).
-    fn stack_with_advanced_main() -> (TempDir, String, String) {
+    /// `feat/child` on top of it, `origin/main` advanced past the fork, and
+    /// local `main` advanced *again* past that WITHOUT being mirrored into
+    /// `origin/main`. The unmirrored local commit exists so a test can prove
+    /// the sync target is the remote-tracking ref and not local `main` — with
+    /// the two kept in lockstep, `target_tip == origin/main` would pass
+    /// identically whether the code read either ref.
+    /// Returns (repo, root_worktree_path, origin_main_sha, local_main_sha).
+    fn stack_with_advanced_main() -> (TempDir, String, String, String) {
         let repo = init_test_repo();
         let repo_path = repo.path().to_str().expect("utf8 path").to_string();
 
@@ -1911,16 +1916,21 @@ mod tests {
         run_git(&repo_path, &["commit", "--allow-empty", "-m", "root work"]);
         run_git(&repo_path, &["checkout", "main"]);
         run_git(&repo_path, &["commit", "--allow-empty", "-m", "someone landed on main"]);
-        let main_tip = run_git(&repo_path, &["rev-parse", "HEAD"]);
+        let origin_main_sha = run_git(&repo_path, &["rev-parse", "HEAD"]);
         run_git(&repo_path, &["update-ref", "refs/remotes/origin/main", "refs/heads/main"]);
+        // Diverge local main further, deliberately NOT mirrored into
+        // origin/main — the unpushed-local-main window this feature must not
+        // target.
+        run_git(&repo_path, &["commit", "--allow-empty", "-m", "unpushed local main commit"]);
+        let local_main_sha = run_git(&repo_path, &["rev-parse", "HEAD"]);
         run_git(&repo_path, &["checkout", "feat/root"]);
 
-        (repo, repo_path.clone(), main_tip)
+        (repo, repo_path.clone(), origin_main_sha, local_main_sha)
     }
 
     #[tokio::test]
     async fn plan_root_sync_targets_origin_default_from_a_child_anchor() {
-        let (_repo, repo_path, main_tip) = stack_with_advanced_main();
+        let (_repo, repo_path, origin_main_sha, local_main_sha) = stack_with_advanced_main();
         // The child is anchored on the root's branch; only the child has an entry.
         let overrides = map(&[("feat-child", "feat/root")]);
         let checkouts = map(&[("feat/root", &repo_path), ("feat/child", "/nonexistent/feat-child")]);
@@ -1933,8 +1943,12 @@ mod tests {
             RootSyncPlan::Rebase { root_name, root_path, target_tip, baseline } => {
                 // checkout dir name for the root is the temp dir's own name
                 assert!(root_path == repo_path, "root path must be the root's checkout");
-                assert_eq!(target_tip, main_tip, "must target origin/main, not local refs");
-                assert_ne!(baseline, main_tip, "root has its own commit to replay");
+                assert_eq!(target_tip, origin_main_sha, "must target origin/main, not local refs");
+                assert_ne!(
+                    target_tip, local_main_sha,
+                    "must not read the diverged local main ref"
+                );
+                assert_ne!(baseline, origin_main_sha, "root has its own commit to replay");
                 assert!(!root_name.is_empty());
             }
             RootSyncPlan::Skip(reason) => panic!("expected a rebase, got skip: {reason}"),
@@ -1976,7 +1990,7 @@ mod tests {
 
     #[tokio::test]
     async fn plan_root_sync_skips_when_the_root_has_no_checkout() {
-        let (_repo, repo_path, _tip) = stack_with_advanced_main();
+        let (_repo, repo_path, _origin_main_sha, _local_main_sha) = stack_with_advanced_main();
         let overrides = map(&[("feat-child", "feat/root")]);
         // feat/root absent from the checkout list — removed locally.
         let checkouts = map(&[("feat/child", "/nonexistent/feat-child")]);
