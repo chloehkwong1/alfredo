@@ -116,6 +116,9 @@ export interface Worktree {
   stackChildren?: string[];
   stackRebaseStatus?: StackRebaseStatus | null;
   stackPending?: StackPendingAction | null;
+  /** Last background stack action that touched this worktree ("restacked",
+   *  "moved onto main"). Event-fed, in-memory only — gone on app restart. */
+  lastStackAction?: { action: string; at: number } | null;
   /** Setup script error — worktree was created successfully but post-create scripts failed. */
   setupScriptError?: string | null;
   /** True while post-create setup scripts are still running in the background.

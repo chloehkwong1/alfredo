@@ -107,6 +107,19 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.stackPending).toEqual({ mergedParent: "chloe/root-branch", blockedBy: "dirty" });
   });
 
+  it("preserves event-fed lastStackAction across a git refresh", () => {
+    useWorkspaceStore.setState({
+      worktrees: [
+        makeWorktree({ lastStackAction: { action: "moved onto main", at: 1234 } }),
+      ],
+    });
+    useWorkspaceStore.getState().setWorktrees([
+      makeWorktree({ path: "/new/path" }),
+    ]);
+    const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.lastStackAction).toEqual({ action: "moved onto main", at: 1234 });
+  });
+
   it("uses fresh stackParent/stackChildren/stackRebaseStatus when defined", () => {
     const store = useWorkspaceStore;
     store.setState({

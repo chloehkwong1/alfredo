@@ -138,6 +138,8 @@ export function useGithubSync() {
       if (wt) {
         useWorkspaceStore.getState().updateWorktree(wt.id, {
           stackRebaseStatus: { kind: "upToDate" },
+          stackPending: null,
+          lastStackAction: { action: "restacked", at: Date.now() },
         });
       }
       dismissConflictToast(worktreeName);
@@ -188,6 +190,7 @@ export function useGithubSync() {
         useWorkspaceStore.getState().updateWorktree(wt.id, {
           stackParent: null,
           stackPending: null,
+          lastStackAction: { action: "moved onto main", at: Date.now() },
         });
       }
     });

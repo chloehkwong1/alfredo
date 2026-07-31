@@ -191,6 +191,7 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         stackRebaseStatus: wt.stackRebaseStatus ?? old.stackRebaseStatus,
         // Event-fed like stackRebaseStatus; listWorktrees never returns it.
         stackPending: old.stackPending,
+        lastStackAction: old.lastStackAction,
         // Frontend-only: backend never persists setup script errors, so a
         // refresh would otherwise clobber an unacknowledged error.
         setupScriptError: old.setupScriptError,
