@@ -1,0 +1,33 @@
+src/components/layout/UpdateBanner.tsx
+  s_5979517e0c9fce::t_5e3c5bd57d7d57 99
+src/hooks/useWhatsNew.ts
+  s_5979517e0c9fce::t_17120508e705a8 71-83
+  s_5979517e0c9fce::t_944b55183157aa 112-114,124-126
+  s_5979517e0c9fce::t_0e165baf94bafd 4
+  s_5979517e0c9fce::t_1db83038e335a7 144-146
+src/components/onboarding/WhatsNewDialog.tsx
+  s_5979517e0c9fce::t_f0768b7cc8fe47 13
+  s_5979517e0c9fce::t_dc1bad2c4c43d1 53
+  s_5979517e0c9fce::t_64db94d73bb92c 45-49
+src-tauri/src/ask_alfredo/whats_new.rs
+  s_5979517e0c9fce::t_f5c2c8cb61efe9 76-81
+  s_5979517e0c9fce::t_44ecca7eac59b5 195-211
+  s_5979517e0c9fce::t_fc44fb02faf32b 241-247,255-260
+  s_5979517e0c9fce::t_cae7ed5209b8d3 194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "7b645585e565e27d98443fac65164afaa7d5a031",
+  "prompts": {},
+  "sessions": {
+    "s_5979517e0c9fce": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ce95c773-6726-4a2e-89ba-8f38fece550f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
