@@ -50,6 +50,11 @@ describe("computeStackChain", () => {
     expect(computeStackChain([a, b, c], "a")!.needsAttention).toBe(false);
   });
 
+  it("flags attention when any member has a pending stack action", () => {
+    const bb = { ...b, stackPending: { mergedParent: "feat/a", blockedBy: "agentBusy" as const } };
+    expect(computeStackChain([a, bb, c], "a")!.needsAttention).toBe(true);
+  });
+
   it("survives a dangling parent (branch deleted) by rooting at the orphan", () => {
     const orphan = wt({ id: "o", branch: "feat/o", stackParent: "gone/branch" });
     const child = wt({ id: "p", branch: "feat/p", stackParent: "feat/o" });

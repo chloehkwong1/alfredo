@@ -91,7 +91,9 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
     rootId: root.id,
     forked: memberWts.some((w) => (childrenOf.get(w.branch)?.length ?? 0) > 1),
     needsAttention: memberWts.some(
-      (m) => m.stackRebaseStatus != null && ATTENTION_KINDS.has(m.stackRebaseStatus.kind),
+      (m) =>
+        (m.stackRebaseStatus != null && ATTENTION_KINDS.has(m.stackRebaseStatus.kind)) ||
+        m.stackPending != null,
     ),
   };
 }
