@@ -318,6 +318,8 @@ pub fn run() {
             worktree::get_worktree_status,
             worktree::set_worktree_column,
             worktree::clear_worktree_column,
+            worktree::set_worktree_orders,
+            worktree::get_worktree_order,
             worktree::set_worktree_linear_ticket,
             worktree::get_commits_behind_main,
             worktree::get_ahead_behind_origin,

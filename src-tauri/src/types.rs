@@ -170,9 +170,14 @@ pub struct Worktree {
     /// Auto-assigned dev server port for this worktree.
     #[serde(default)]
     pub assigned_port: Option<u16>,
+    /// Epoch milliseconds when the worktree was created, sourced from the
+    /// birthtime of the `<gitdir>/worktrees/<name>` metadata directory.
+    /// `None` for branch-mode entries and on filesystems without birthtime.
+    #[serde(default)]
+    pub created_at_epoch: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum KanbanColumn {
     ToDo,
@@ -482,6 +487,11 @@ pub struct AppConfig {
     /// Press Enter after pasting the Linear prompt.
     #[serde(default)]
     pub linear_auto_submit: bool,
+    /// Per-column manual display order of worktree names in the sidebar.
+    /// Personal layer only — never lifted into `alfredo.json`. Saves are
+    /// wholesale replacements, so stale names are pruned on the next save.
+    #[serde(default)]
+    pub worktree_order: HashMap<KanbanColumn, Vec<String>>,
 }
 
 /// Persisted Linear ticket metadata for a worktree. Survives app restart so the

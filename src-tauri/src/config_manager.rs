@@ -82,6 +82,8 @@ struct ConfigFile {
     pub linear_prompt_template: Option<String>,
     #[serde(default)]
     pub linear_auto_submit: bool,
+    #[serde(default)]
+    pub worktree_order: HashMap<KanbanColumn, Vec<String>>,
 }
 
 /// Signature of a JSON-double-encoded command: every `"` is preceded by `\`
@@ -205,6 +207,7 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
             port_range_end: None,
             linear_prompt_template: None,
             linear_auto_submit: false,
+            worktree_order: HashMap::new(),
         };
         coerce_repo_shared_defaults(&mut config);
         return Ok(config);
@@ -257,6 +260,7 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
         port_range_end: file.port_range_end,
         linear_prompt_template: file.linear_prompt_template,
         linear_auto_submit: file.linear_auto_submit,
+        worktree_order: file.worktree_order,
     };
     coerce_repo_shared_defaults(&mut config);
     if heal_overescaped_scripts(&mut config, repo_path) {
@@ -392,6 +396,7 @@ async fn write_personal_config_file(
         port_range_end: config.port_range_end,
         linear_prompt_template: config.linear_prompt_template.clone(),
         linear_auto_submit: config.linear_auto_submit,
+        worktree_order: config.worktree_order.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -479,6 +484,23 @@ pub fn set_column_override(
 /// worktree deletion so a reused name does not inherit it.
 pub fn clear_column_override(config: &mut AppConfig, worktree_name: &str) {
     config.column_overrides.remove(worktree_name);
+}
+
+/// Wholesale-replace the persisted manual display order for one kanban column.
+/// The frontend sends the full list each time, so stale names are pruned on
+/// every save by construction.
+pub fn set_worktree_order(config: &mut AppConfig, column: KanbanColumn, names: Vec<String>) {
+    config.worktree_order.insert(column, names);
+}
+
+/// Remove a worktree name from every column's manual order, dropping columns
+/// whose list becomes empty. Called on worktree deletion so a future worktree
+/// reusing the name does not inherit the deleted card's ordering slot.
+pub fn prune_worktree_order_name(config: &mut AppConfig, worktree_name: &str) {
+    for names in config.worktree_order.values_mut() {
+        names.retain(|n| n != worktree_name);
+    }
+    config.worktree_order.retain(|_, names| !names.is_empty());
 }
 
 pub fn get_stack_parent(config: &AppConfig, worktree_name: &str) -> Option<String> {
@@ -659,6 +681,78 @@ mod tests {
     }
 
     #[test]
+    fn set_worktree_order_replaces_only_named_column() {
+        let mut config = AppConfig {
+            repo_path: "/repo".into(),
+            ..Default::default()
+        };
+        set_worktree_order(
+            &mut config,
+            KanbanColumn::InProgress,
+            vec!["feat-a".into(), "feat-b".into()],
+        );
+        set_worktree_order(&mut config, KanbanColumn::Done, vec!["feat-z".into()]);
+
+        // Wholesale replacement: stale names ("feat-a") vanish, new order wins.
+        set_worktree_order(
+            &mut config,
+            KanbanColumn::InProgress,
+            vec!["feat-b".into(), "feat-c".into()],
+        );
+
+        assert_eq!(
+            config.worktree_order.get(&KanbanColumn::InProgress),
+            Some(&vec!["feat-b".to_string(), "feat-c".to_string()])
+        );
+        // Other columns untouched.
+        assert_eq!(
+            config.worktree_order.get(&KanbanColumn::Done),
+            Some(&vec!["feat-z".to_string()])
+        );
+    }
+
+    #[test]
+    fn prune_worktree_order_name_removes_name_everywhere_and_drops_empty_lists() {
+        let mut config = AppConfig {
+            repo_path: "/repo".into(),
+            ..Default::default()
+        };
+        set_worktree_order(
+            &mut config,
+            KanbanColumn::InProgress,
+            vec!["feat-a".into(), "feat-b".into()],
+        );
+        set_worktree_order(&mut config, KanbanColumn::Done, vec!["feat-a".into()]);
+
+        prune_worktree_order_name(&mut config, "feat-a");
+
+        // Pruned from every column; other names untouched.
+        assert_eq!(
+            config.worktree_order.get(&KanbanColumn::InProgress),
+            Some(&vec!["feat-b".to_string()])
+        );
+        // A list emptied by the prune is dropped entirely.
+        assert!(!config.worktree_order.contains_key(&KanbanColumn::Done));
+        // Pruning an absent name is a no-op (no panic).
+        prune_worktree_order_name(&mut config, "never-existed");
+    }
+
+    #[test]
+    fn worktree_order_enum_keyed_map_round_trips_as_json() {
+        let mut order: HashMap<KanbanColumn, Vec<String>> = HashMap::new();
+        order.insert(KanbanColumn::InProgress, vec!["feat-a".into(), "feat-b".into()]);
+        order.insert(KanbanColumn::DraftPr, vec!["feat-c".into()]);
+
+        let json = serde_json::to_string(&order).unwrap();
+        // Unit variants serialize as camelCase string keys.
+        assert!(json.contains("\"inProgress\""), "camelCase key: {json}");
+        assert!(json.contains("\"draftPr\""), "camelCase key: {json}");
+
+        let back: HashMap<KanbanColumn, Vec<String>> = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, order);
+    }
+
+    #[test]
     fn test_prune_orphan_ports_removes_only_absent_worktrees() {
         let mut config = AppConfig {
             repo_path: "/repo".into(),
@@ -728,6 +822,7 @@ mod tests {
             port_range_end: None,
             linear_prompt_template: None,
             linear_auto_submit: false,
+            worktree_order: HashMap::new(),
         };
         config
             .column_overrides
@@ -891,6 +986,7 @@ mod tests {
             port_range_end: Some(0),
             linear_prompt_template: None,
             linear_auto_submit: false,
+            worktree_order: HashMap::new(),
         };
         coerce_repo_shared_defaults(&mut config);
         assert!(config.setup_scripts.is_none());
@@ -1096,6 +1192,7 @@ mod tests {
             port_range_end: Some(3005),
             linear_prompt_template: None,
             linear_auto_submit: false,
+            worktree_order: HashMap::new(),
         };
 
         // save_config may fail on keychain in test env; we only care about JSON.
@@ -1174,6 +1271,7 @@ mod tests {
             port_range_end: None,
             linear_prompt_template: Some("/proceed_with_ticket {{identifier}}".to_string()),
             linear_auto_submit: true,
+            worktree_order: HashMap::new(),
         };
 
         // Bypass keychain (which is unreliable under test parallelism) and write
@@ -1220,6 +1318,7 @@ mod tests {
             port_range_end: None,
             linear_prompt_template: None,
             linear_auto_submit: false,
+            worktree_order: HashMap::new(),
         };
         set_stack_parent(&mut config, "feat-child", "feat/parent");
         set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
@@ -1279,6 +1378,7 @@ mod tests {
             port_range_end: None,
             linear_prompt_template: None,
             linear_auto_submit: false,
+            worktree_order: HashMap::new(),
         };
         set_stack_parent(&mut config, "feat-child", "feat/parent");
         set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");

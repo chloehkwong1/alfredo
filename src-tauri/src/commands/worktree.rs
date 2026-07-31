@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -30,23 +31,24 @@ const DEFAULT_DIFF_SUMMARY_CMD: &str = include_str!("../assets/slash_commands/di
 #[tauri::command]
 pub async fn create_worktree_from(
     app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
     repo_path: String,
     source: WorktreeSource,
 ) -> Result<Worktree> {
     match source {
         WorktreeSource::NewBranch { name, base } => {
             git_manager::validate_branch_name(&name)?;
-            create_worktree(app, repo_path, name, base).await
+            create_worktree(app, port_lock, repo_path, name, base).await
         }
         WorktreeSource::ExistingBranch { name, new_name } => {
             match new_name {
                 // Custom name: create a new branch from the existing one
                 Some(new) => {
                     git_manager::validate_branch_name(&new)?;
-                    create_worktree(app, repo_path, new, name).await
+                    create_worktree(app, port_lock, repo_path, new, name).await
                 }
                 // No custom name: check out the existing branch as-is
-                None => create_worktree(app, repo_path, name.clone(), name).await,
+                None => create_worktree(app, port_lock, repo_path, name.clone(), name).await,
             }
         }
         WorktreeSource::PullRequest { number } => {
@@ -129,19 +131,26 @@ async fn provision_worktree(
 #[tauri::command]
 pub async fn create_worktree(
     app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
     repo_path: String,
     branch_name: String,
     base_branch: String,
 ) -> Result<Worktree> {
     let app_data_dir = resolve_app_data_dir(&app)?;
     // Setup scripts are repo-shared (live in alfredo.json after migration), so
-    // read them via the effective config. The mutation+save below operates on
-    // the personal layer to avoid persisting inherited values back as overrides.
+    // read them via the effective config. The stack mutation+save further down
+    // operates on the personal layer to avoid persisting inherited values back
+    // as overrides.
     let effective = config_manager::load_effective_config(&app_data_dir, &repo_path)
         .await?
         .effective;
-    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
-    let base_path = config.worktree_base_path.as_deref();
+    // Read-only snapshot of the personal layer — only `worktree_base_path` and
+    // `branch_mode` are consumed. The mutable load→mutate→save happens *after*
+    // the long-running git work, under port_lock, so a concurrent config write
+    // (drag reorder, port claim, column move) landing while git runs isn't
+    // silently reverted by a stale wholesale save.
+    let config_snapshot = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    let base_path = config_snapshot.worktree_base_path.as_deref();
 
     let worktree_path =
         git_manager::create_worktree(&repo_path, &branch_name, &base_branch, base_path).await?;
@@ -176,10 +185,10 @@ pub async fn create_worktree(
 
     let stack_parent = if is_stacked {
         let parent = base_branch.strip_prefix("origin/").unwrap_or(&base_branch);
-        config_manager::set_stack_parent(&mut config, &dir_name, parent);
 
         // Record the restack baseline: the parent tip the new branch was cut from.
         // `HEAD^{}` of the fresh worktree == the base tip at creation time.
+        let mut base_sha: Option<String> = None;
         if let Ok(output) = git_command()
             .args(["rev-parse", "HEAD"])
             .current_dir(&worktree_path)
@@ -187,12 +196,11 @@ pub async fn create_worktree(
             .await
         {
             if output.status.success() {
-                let base_sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                config_manager::set_stack_baseline(&mut config, &dir_name, &base_sha);
+                base_sha = Some(String::from_utf8_lossy(&output.stdout).trim().to_string());
             }
         }
 
-        Some(parent.to_string())
+        Some((parent.to_string(), base_sha))
     } else {
         None
     };
@@ -201,7 +209,26 @@ pub async fn create_worktree(
     // not eagerly on creation. See claim_worktree_port.
     let assigned_port: Option<u16> = None;
 
-    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    // Persist stack metadata in a short load→mutate→save window under
+    // port_lock, with a fresh config — never hold the lock (or a stale config)
+    // across the git operations above. Non-stacked creation mutates nothing,
+    // so it skips the save entirely.
+    if let Some((parent, base_sha)) = &stack_parent {
+        let _guard = port_lock.0.lock().await;
+        let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+        config_manager::set_stack_parent(&mut config, &dir_name, parent);
+        if let Some(sha) = base_sha {
+            config_manager::set_stack_baseline(&mut config, &dir_name, sha);
+        }
+        config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    }
+    let stack_parent = stack_parent.map(|(parent, _)| parent);
+
+    // Populate creation time now so the fresh card sorts correctly before the
+    // first list_worktrees refresh.
+    let created_at_epoch = git2::Repository::open(&repo_path)
+        .ok()
+        .and_then(|repo| git_manager::worktree_created_at_epoch(&repo, &dir_name));
 
     Ok(Worktree {
         id: git_manager::worktree_id(&repo_path, &branch_name),
@@ -212,7 +239,7 @@ pub async fn create_worktree(
         pr_status: None,
         agent_status: AgentState::NotRunning,
         column: KanbanColumn::InProgress,
-        is_branch_mode: config.branch_mode,
+        is_branch_mode: config_snapshot.branch_mode,
         additions: None,
         deletions: None,
         last_commit_epoch: Some(
@@ -230,6 +257,7 @@ pub async fn create_worktree(
         setup_script_error: None,
         setup_in_progress,
         assigned_port,
+        created_at_epoch,
     })
 }
 
@@ -263,27 +291,38 @@ pub async fn adopt_worktree(
 #[tauri::command]
 pub async fn delete_worktree(
     app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
     repo_path: String,
     worktree_name: String,
     force: bool,
 ) -> Result<()> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
-    let base_path = config.worktree_base_path.clone();
-    // Drop any persisted Linear ticket reference regardless of whether the git
-    // deletion succeeds. Leaving a stale entry behind risks it rehydrating onto
-    // an unrelated worktree that later reuses the same name.
-    config.linear_tickets.remove(&worktree_name);
-    // Same rationale for the column override: a persisted auto-Done (or manual
-    // placement) must not rehydrate onto a future worktree that reuses the name.
-    config_manager::clear_column_override(&mut config, &worktree_name);
-    // And for the stack relationship: a surviving parent override would make the
-    // next worktree of this name a phantom stack child, and a surviving baseline
-    // would be its `--onto` floor. The in-process memos go too, or a recreated
-    // worktree inherits a conflict badge and a suppressed rebase.
-    config_manager::clear_stack_entry(&mut config, &worktree_name);
-    crate::stack_manager::forget_stack_memos(&repo_path, &worktree_name);
-    let _ = config_manager::save_config(&app_data_dir, &repo_path, &config).await;
+    // Hold port_lock across the short load→mutate→save window (dropped before
+    // the git deletion) so this wholesale save can't clobber a concurrent
+    // reorder/port/column write.
+    let base_path = {
+        let _guard = port_lock.0.lock().await;
+        let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+        let base_path = config.worktree_base_path.clone();
+        // Drop any persisted Linear ticket reference regardless of whether the git
+        // deletion succeeds. Leaving a stale entry behind risks it rehydrating onto
+        // an unrelated worktree that later reuses the same name.
+        config.linear_tickets.remove(&worktree_name);
+        // Same rationale for the column override: a persisted auto-Done (or manual
+        // placement) must not rehydrate onto a future worktree that reuses the name.
+        config_manager::clear_column_override(&mut config, &worktree_name);
+        // And the manual ordering slot: a worktree recreated under a previously
+        // used branch name must not inherit the deleted card's position.
+        config_manager::prune_worktree_order_name(&mut config, &worktree_name);
+        // And for the stack relationship: a surviving parent override would make the
+        // next worktree of this name a phantom stack child, and a surviving baseline
+        // would be its `--onto` floor. The in-process memos go too, or a recreated
+        // worktree inherits a conflict badge and a suppressed rebase.
+        config_manager::clear_stack_entry(&mut config, &worktree_name);
+        crate::stack_manager::forget_stack_memos(&repo_path, &worktree_name);
+        let _ = config_manager::save_config(&app_data_dir, &repo_path, &config).await;
+        base_path
+    };
     git_manager::delete_worktree(&repo_path, &worktree_name, force, base_path.as_deref()).await
 }
 
@@ -483,6 +522,7 @@ pub async fn get_worktree_status(
         setup_script_error: None,
         setup_in_progress: false,
         assigned_port: None,
+        created_at_epoch: None, // Will be populated by list_worktrees on next refresh
     };
     if config.auto_assign_ports {
         wt.assigned_port = config_manager::get_assigned_port(&config, &wt_name);
@@ -643,6 +683,45 @@ pub async fn set_worktree_column(
     config_manager::set_column_override(&mut config, &worktree_name, column);
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
+}
+
+/// Persist the manual display order of worktree names for the given kanban
+/// columns in one write. Each column's list is wholesale-replaced with exactly
+/// what the frontend sends, so stale names are pruned on every save. A single
+/// drag can touch several columns — batching them keeps it to one whole-config
+/// write instead of one per column.
+#[tauri::command]
+pub async fn set_worktree_orders(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+    orders: HashMap<KanbanColumn, Vec<String>>,
+) -> Result<()> {
+    // Mirror set_worktree_column: hold port_lock to serialize the whole-config
+    // save against concurrent port claims/releases.
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    for (column, names) in orders {
+        config_manager::set_worktree_order(&mut config, column, names);
+    }
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    Ok(())
+}
+
+/// Read the persisted manual worktree order for every column. Reads the
+/// personal layer only — deliberately not `load_effective_config`, whose
+/// one-time migration can *write* an alfredo.json into the repo; startup
+/// hydration calls this for every known repo, opened or not. No lock: pure
+/// read, matching `count_worktrees` / `get_worktree_status`.
+#[tauri::command]
+pub async fn get_worktree_order(
+    app: AppHandle,
+    repo_path: String,
+) -> Result<HashMap<KanbanColumn, Vec<String>>> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    Ok(config.worktree_order)
 }
 
 /// Drop a worktree's persisted column override, reverting it to the auto-derived
@@ -891,7 +970,7 @@ async fn create_worktree_from_linear(app: &AppHandle, repo_path: String, issue_i
         Some(b) if !b.is_empty() => b,
         _ => crate::commands::diff::get_default_branch(repo_path.clone()).await?,
     };
-    let mut worktree = create_worktree(app.clone(), repo_path.clone(), branch_name.clone(), base_branch).await?;
+    let mut worktree = create_worktree(app.clone(), app.state::<PortConfigLock>(), repo_path.clone(), branch_name.clone(), base_branch).await?;
 
     // 4b. Attach Linear ticket metadata so the frontend can link back
     worktree.linear_ticket_url = Some(ticket.url.clone());
@@ -1038,7 +1117,7 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
     }
 
     // 6. Create the worktree from the PR's head branch, using the PR's base for stack detection
-    create_worktree(app.clone(), repo_path, branch_name, base).await
+    create_worktree(app.clone(), app.state::<PortConfigLock>(), repo_path, branch_name, base).await
 }
 
 /// Resolve `app_data_dir` from an `AppHandle`.

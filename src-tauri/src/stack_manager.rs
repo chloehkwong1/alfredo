@@ -1771,6 +1771,7 @@ mod tests {
             port_range_end: None,
             linear_prompt_template: None,
             linear_auto_submit: false,
+            worktree_order: HashMap::new(),
         }
     }
 

@@ -1311,6 +1311,19 @@ pub fn worktree_id(repo_path: &str, branch: &str) -> String {
     format!("{repo_path}::{branch}")
 }
 
+/// Creation time of a worktree as epoch milliseconds, read from the birthtime
+/// of the `<gitdir>/worktrees/<name>` metadata directory. Returns `None` on
+/// filesystems without birthtime support — no error surfaced.
+pub fn worktree_created_at_epoch(repo: &Repository, name: &str) -> Option<i64> {
+    let meta_dir = repo.path().join("worktrees").join(name);
+    std::fs::metadata(meta_dir)
+        .and_then(|m| m.created())
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_millis() as i64)
+}
+
 /// List worktrees using git2 for reads.
 /// When `base_path` is provided, only worktrees whose path is under that directory are returned.
 /// Skips diff stats for speed — call `get_diff_stats` separately for the active worktree.
@@ -1373,6 +1386,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             setup_script_error: None,
             setup_in_progress: false,
             assigned_port: None,
+            created_at_epoch: worktree_created_at_epoch(&repo, name),
         });
     }
 
