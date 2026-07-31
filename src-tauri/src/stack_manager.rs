@@ -535,6 +535,15 @@ async fn sync_stack_root(
 /// children — roots need the same recovery, just reached through the sync
 /// button instead of "Restack now" since roots have no restack command.
 async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: &ResolvedRoot) {
+    // Nothing is healable mid-rebase, and the `PushFailed` arm is actively
+    // harmful there: a paused rebase leaves HEAD detached, so
+    // `has_matching_upstream` reports no upstream, `push_with_lease_or_flag`
+    // skips the push and clears the sticky entry anyway, and the badge would
+    // flip to "synced" while the remote is still stale.
+    if rebase_in_progress(&root.path).await {
+        return;
+    }
+
     match sticky_status(repo_path, &root.name) {
         Some(StackRebaseStatus::PushFailed) => {
             push_with_lease_or_flag(app_handle, repo_path, &root.path, &root.name).await;
@@ -545,7 +554,7 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
         // An unresolved conflict or a dirty tree must keep its badge — only
         // clear when the rebase is genuinely finished and the tree is clean.
         Some(StackRebaseStatus::Conflict | StackRebaseStatus::SkippedDirty) => {
-            if !rebase_in_progress(&root.path).await && !worktree_is_dirty(&root.path, true).await {
+            if !worktree_is_dirty(&root.path, true).await {
                 clear_sticky_status(repo_path, &root.name);
                 emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
             }
