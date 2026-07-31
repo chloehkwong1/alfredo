@@ -1426,7 +1426,6 @@ pub async fn checkout_paths(repo_path: &str) -> HashMap<String, String> {
 /// `None` means "don't sync anything": either a parent branch has no local
 /// checkout (nothing to rebase, and guessing a different root would rewrite the
 /// wrong branch) or the chain cycles.
-#[allow(dead_code)]
 fn stack_root_name(
     overrides: &HashMap<String, String>,
     name_to_branch: &HashMap<String, String>,
@@ -1451,6 +1450,77 @@ fn stack_root_name(
         }
         current = parent_name;
     }
+}
+
+/// What a root sync should do, decided before any history is touched so the
+/// decision is testable without an `AppHandle`.
+enum RootSyncPlan {
+    /// Nothing to do; the payload is the reason, for the skip log.
+    Skip(&'static str),
+    Rebase {
+        root_name: String,
+        root_path: String,
+        target_tip: String,
+        baseline: String,
+    },
+}
+
+/// Resolve the root of `anchor_name`'s stack and work out whether it needs
+/// rebasing onto the default branch. Reads local refs only — the caller is
+/// responsible for fetching first, which keeps this testable offline.
+///
+/// The target is deliberately `origin/<default>`, not the local default branch:
+/// "sync with main" means the remote's main, and the local ref may be days old.
+/// The baseline comes from `adoption_baseline`, which already rules on the
+/// awkward cases (a default branch committed to locally, a stale
+/// remote-tracking ref) and is covered by its own tests.
+async fn plan_root_sync(
+    repo_path: &str,
+    overrides: &HashMap<String, String>,
+    checkouts: &HashMap<String, String>,
+    anchor_name: &str,
+) -> Result<RootSyncPlan, String> {
+    let name_to_branch: HashMap<String, String> = checkouts
+        .iter()
+        .filter_map(|(branch, path)| {
+            std::path::Path::new(path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| (n.to_string(), branch.clone()))
+        })
+        .collect();
+
+    let Some(root_name) = stack_root_name(overrides, &name_to_branch, anchor_name) else {
+        return Ok(RootSyncPlan::Skip("no resolvable stack root (missing checkout or cycle)"));
+    };
+    let Some(root_branch) = name_to_branch.get(&root_name) else {
+        return Ok(RootSyncPlan::Skip("stack root has no checkout"));
+    };
+    let Some(root_path) = checkouts.get(root_branch) else {
+        return Ok(RootSyncPlan::Skip("stack root has no checkout"));
+    };
+
+    let default_remote = git_manager::resolve_default_remote_branch(repo_path);
+    let default_short = default_remote.strip_prefix("origin/").unwrap_or(&default_remote);
+    if root_branch == default_short {
+        return Ok(RootSyncPlan::Skip("stack root is the default branch"));
+    }
+
+    let Some(target_tip) = remote_branch_tip(repo_path, default_short).await else {
+        return Ok(RootSyncPlan::Skip("default branch has no remote-tracking ref"));
+    };
+
+    let baseline = adoption_baseline(root_path, &default_remote, &target_tip).await?;
+    if baseline == target_tip {
+        return Ok(RootSyncPlan::Skip("root already sits on the default branch tip"));
+    }
+
+    Ok(RootSyncPlan::Rebase {
+        root_name,
+        root_path: root_path.clone(),
+        target_tip,
+        baseline,
+    })
 }
 
 /// Kahn's algorithm over child→parent edges. Returns every stacked worktree name
@@ -1771,6 +1841,95 @@ mod tests {
             .expect("adoption_baseline");
 
         assert_eq!(baseline, fork);
+    }
+
+    /// Repo shaped like a real stack: root `feat/root` cut from main, child
+    /// `feat/child` on top of it, and `origin/main` advanced past the fork.
+    /// Returns (repo, root_worktree_path, expected_target_tip).
+    fn stack_with_advanced_main() -> (TempDir, String, String) {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path").to_string();
+
+        run_git(&repo_path, &["update-ref", "refs/remotes/origin/main", "refs/heads/main"]);
+        run_git(&repo_path, &["checkout", "-b", "feat/root"]);
+        run_git(&repo_path, &["commit", "--allow-empty", "-m", "root work"]);
+        run_git(&repo_path, &["checkout", "main"]);
+        run_git(&repo_path, &["commit", "--allow-empty", "-m", "someone landed on main"]);
+        let main_tip = run_git(&repo_path, &["rev-parse", "HEAD"]);
+        run_git(&repo_path, &["update-ref", "refs/remotes/origin/main", "refs/heads/main"]);
+        run_git(&repo_path, &["checkout", "feat/root"]);
+
+        (repo, repo_path.clone(), main_tip)
+    }
+
+    #[tokio::test]
+    async fn plan_root_sync_targets_origin_default_from_a_child_anchor() {
+        let (_repo, repo_path, main_tip) = stack_with_advanced_main();
+        // The child is anchored on the root's branch; only the child has an entry.
+        let overrides = map(&[("feat-child", "feat/root")]);
+        let checkouts = map(&[("feat/root", &repo_path), ("feat/child", "/nonexistent/feat-child")]);
+
+        let plan = plan_root_sync(&repo_path, &overrides, &checkouts, "feat-child")
+            .await
+            .expect("plan_root_sync");
+
+        match plan {
+            RootSyncPlan::Rebase { root_name, root_path, target_tip, baseline } => {
+                // checkout dir name for the root is the temp dir's own name
+                assert!(root_path == repo_path, "root path must be the root's checkout");
+                assert_eq!(target_tip, main_tip, "must target origin/main, not local refs");
+                assert_ne!(baseline, main_tip, "root has its own commit to replay");
+                assert!(!root_name.is_empty());
+            }
+            RootSyncPlan::Skip(reason) => panic!("expected a rebase, got skip: {reason}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn plan_root_sync_skips_a_root_already_on_the_default_tip() {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path").to_string();
+        run_git(&repo_path, &["update-ref", "refs/remotes/origin/main", "refs/heads/main"]);
+        run_git(&repo_path, &["checkout", "-b", "feat/root"]);
+        // No commits on the root and no movement on main: nothing to replay.
+        let overrides = map(&[("feat-child", "feat/root")]);
+        let checkouts = map(&[("feat/root", &repo_path)]);
+
+        let plan = plan_root_sync(&repo_path, &overrides, &checkouts, "feat-child")
+            .await
+            .expect("plan_root_sync");
+
+        assert!(matches!(plan, RootSyncPlan::Skip(_)), "an up-to-date root must not rebase");
+    }
+
+    #[tokio::test]
+    async fn plan_root_sync_never_rebases_the_default_branch() {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path").to_string();
+        run_git(&repo_path, &["update-ref", "refs/remotes/origin/main", "refs/heads/main"]);
+        // A (historically corrupt) entry pointing a child straight at main.
+        let overrides = map(&[("feat-child", "main")]);
+        let checkouts = map(&[("main", &repo_path)]);
+
+        let plan = plan_root_sync(&repo_path, &overrides, &checkouts, "feat-child")
+            .await
+            .expect("plan_root_sync");
+
+        assert!(matches!(plan, RootSyncPlan::Skip(_)), "main must never be rebased onto itself");
+    }
+
+    #[tokio::test]
+    async fn plan_root_sync_skips_when_the_root_has_no_checkout() {
+        let (_repo, repo_path, _tip) = stack_with_advanced_main();
+        let overrides = map(&[("feat-child", "feat/root")]);
+        // feat/root absent from the checkout list — removed locally.
+        let checkouts = map(&[("feat/child", "/nonexistent/feat-child")]);
+
+        let plan = plan_root_sync(&repo_path, &overrides, &checkouts, "feat-child")
+            .await
+            .expect("plan_root_sync");
+
+        assert!(matches!(plan, RootSyncPlan::Skip(_)));
     }
 
     // The heuristic's positive case: pushed, merged into main, and no worktree
