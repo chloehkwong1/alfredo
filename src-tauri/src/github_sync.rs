@@ -308,11 +308,19 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     let mut any_repo_succeeded = false;
     let mut rate_limit_fallback = false;
     let mut saw_primary_rate_limit_in: Option<String> = None;
+    // Repos whose poll actually returned PR data this round. A repo that 403'd
+    // or timed out contributes no PRs to `all_prs`, and `check_merged_parents`
+    // treats "no PRs for this repo" as "nothing merged" — feeding it a failed
+    // repo would sweep away that repo's valid pending entries as collateral
+    // damage of an unrelated rate limit. Only repos in this list may drive that
+    // sweep.
+    let mut succeeded_repos: Vec<String> = Vec::new();
 
     for repo_path in &repo_paths {
         match poll_repo(&app_data_dir, repo_path, &active_branches).await {
             Ok(prs) => {
                 any_repo_succeeded = true;
+                succeeded_repos.push(repo_path.clone());
                 all_prs.extend(prs);
             }
             Err(e) if e.starts_with("auth:") => {
@@ -364,8 +372,10 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     // Task 14: keep the "Stack" navigation section in stacked PR bodies in sync
     sync_pr_stack_sections(&app_data_dir, &repo_paths, &all_prs).await;
 
-    // Task 11: check for merged parents and auto-clear stack parent config
-    crate::stack_manager::check_merged_parents(app_handle, &app_data_dir, &repo_paths, &all_prs).await;
+    // Task 11: check for merged parents and auto-clear stack parent config.
+    // Scoped to `succeeded_repos`, not `repo_paths` — see the sweep-hazard
+    // comment above.
+    crate::stack_manager::check_merged_parents(app_handle, &app_data_dir, &succeeded_repos, &all_prs).await;
 
     // Phase 2: enrich with comments (separate API calls, one PR at a time)
     for repo_path in &repo_paths {
