@@ -187,10 +187,19 @@ export function useGithubSync() {
       const worktreeName = event.payload;
       const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
       if (wt) {
+        // A conflicted merged-parent dissolve still fires this event (the
+        // stack relationship is dissolved either way — see stack_manager's
+        // `DissolveFailure::Conflicted` handling), but the rebase itself was
+        // aborted and the branch never moved. `stack:rebase-conflict` always
+        // lands first and flips stackRebaseStatus to "conflict", so use that
+        // as the signal to skip the false "moved onto main" trace. stackParent
+        // and stackPending still clear — the config-level relationship really
+        // is gone.
+        const wasConflicted = wt.stackRebaseStatus?.kind === "conflict";
         useWorkspaceStore.getState().updateWorktree(wt.id, {
           stackParent: null,
           stackPending: null,
-          lastStackAction: { action: "moved onto main", at: Date.now() },
+          ...(wasConflicted ? {} : { lastStackAction: { action: "moved onto main", at: Date.now() } }),
         });
       }
     });
