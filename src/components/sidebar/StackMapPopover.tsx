@@ -50,7 +50,12 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
   const handleRetryRestack = async () => {
     if (!conflicted) return;
     onClose();
-    await restackNow(conflicted.repoPath, conflicted.name).catch(console.error);
+    // A conflicted ROOT has no stack parent, so `restackNow` (restack_child)
+    // would reject it outright — its retry is the sync that conflicted.
+    const retry = conflicted.stackParent
+      ? restackNow(conflicted.repoPath, conflicted.name)
+      : restackStack(conflicted.repoPath, conflicted.name);
+    await retry.catch(console.error);
   };
 
   const handleRestackStack = async () => {
@@ -120,7 +125,7 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
           onClick={handleRestackStack}
           className="w-full flex items-center justify-center gap-1.5 rounded border border-border-default py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
         >
-          <RefreshCw className="h-3 w-3" /> Restack stack
+          <RefreshCw className="h-3 w-3" /> Sync stack with main
         </button>
       </div>
     </div>
