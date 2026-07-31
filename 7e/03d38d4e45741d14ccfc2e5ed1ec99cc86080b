@@ -1,0 +1,28 @@
+src-tauri/src/commands/ask_alfredo.rs
+  s_5979517e0c9fce::t_e72a8a33f8931e 2,14-17
+  s_5979517e0c9fce::t_26eb1282a3783d 18
+src-tauri/src/lib.rs
+  s_5979517e0c9fce::t_449e8bd1ef63df 288
+src-tauri/src/ask_alfredo/whats_new.rs
+  s_5979517e0c9fce::t_eab0cf1110511a 172-194
+  s_5979517e0c9fce::t_57279c24d06e41 56-59,67-71,76,79-87,96-125
+  s_5979517e0c9fce::t_415692ccf794be 2
+  s_5979517e0c9fce::t_df97456755f5bd 126-127
+  s_5979517e0c9fce::t_0225fc3740eb33 171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "7e03d38d4e45741d14ccfc2e5ed1ec99cc86080b",
+  "prompts": {},
+  "sessions": {
+    "s_5979517e0c9fce": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ce95c773-6726-4a2e-89ba-8f38fece550f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
