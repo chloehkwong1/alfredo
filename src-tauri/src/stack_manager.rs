@@ -2063,7 +2063,10 @@ mod tests {
             .await
             .expect("plan_root_sync");
 
-        assert!(matches!(plan, RootSyncPlan::Skip { .. }), "an up-to-date root must not rebase");
+        assert!(
+            matches!(plan, RootSyncPlan::Skip { reason, .. } if reason == "root already sits on the default branch tip"),
+            "an up-to-date root must not rebase"
+        );
     }
 
     #[tokio::test]
@@ -2079,21 +2082,34 @@ mod tests {
             .await
             .expect("plan_root_sync");
 
-        assert!(matches!(plan, RootSyncPlan::Skip { .. }), "main must never be rebased onto itself");
+        assert!(
+            matches!(plan, RootSyncPlan::Skip { reason, .. } if reason == "stack root is the default branch"),
+            "main must never be rebased onto itself"
+        );
     }
 
+    // Retargeted (review finding): with the OLD fixture (a parent branch with
+    // no checkout), `stack_root_name` itself returns `None` and this hit the
+    // FIRST guard in `plan_root_sync` ("no resolvable stack root"), duplicating
+    // `stack_root_name_bails_when_a_parent_has_no_checkout` and never
+    // exercising the guard this test is named for. The reachable guard is the
+    // SECOND one: `stack_root_name` returns an anchor with no
+    // `stack_parent_overrides` entry unchanged (it's already "the root"), but
+    // that name need not be a key in `name_to_branch` — i.e. an anchor with no
+    // override entry AND no checkout entry of its own.
     #[tokio::test]
     async fn plan_root_sync_skips_when_the_root_has_no_checkout() {
-        let (_repo, repo_path, _origin_main_sha, _local_main_sha) = stack_with_advanced_main();
-        let overrides = map(&[("feat-child", "feat/root")]);
-        // feat/root absent from the checkout list — removed locally.
-        let checkouts = map(&[("feat/child", "/nonexistent/feat-child")]);
+        let overrides = HashMap::new();
+        let checkouts = HashMap::new();
 
-        let plan = plan_root_sync(&repo_path, &overrides, &checkouts, "feat-child")
+        let plan = plan_root_sync("/nonexistent-repo", &overrides, &checkouts, "ghost")
             .await
             .expect("plan_root_sync");
 
-        assert!(matches!(plan, RootSyncPlan::Skip { .. }));
+        assert!(
+            matches!(plan, RootSyncPlan::Skip { root: None, reason } if reason == "stack root has no checkout"),
+            "an anchor that is already its own root but has no checkout must skip with no root resolved"
+        );
     }
 
     // The heuristic's positive case: pushed, merged into main, and no worktree
