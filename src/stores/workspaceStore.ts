@@ -21,6 +21,16 @@ interface WorkspaceState {
   unreadWorktrees: Set<string>;
   /** Tracks worktrees the user has pinned to the top of their column. */
   pinnedWorktrees: Set<string>;
+  /** Manual sidebar card order per repo per kanban column (worktree names,
+   *  top-first). Hydrated from personal config; persisted via setWorktreeOrders. */
+  worktreeOrder: Record<string, Partial<Record<KanbanColumn, string[]>>>;
+  /** Hydration: replace a repo's whole per-column order map. */
+  setWorktreeOrderForRepo: (
+    repoPath: string,
+    order: Partial<Record<KanbanColumn, string[]>>,
+  ) => void;
+  /** Optimistic drag update: replace one column's list for one repo. */
+  setColumnOrder: (repoPath: string, column: KanbanColumn, names: string[]) => void;
   /** Inline annotations per worktree. Keyed by worktreeId. */
   annotations: Record<string, Annotation[]>;
   /** Diff view mode per worktree. Keyed by worktreeId. */
@@ -172,7 +182,13 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         deletions: wt.deletions ?? old.deletions,
         stackParent: wt.stackParent !== undefined ? wt.stackParent : old.stackParent,
         stackChildren: wt.stackChildren !== undefined ? wt.stackChildren : old.stackChildren,
-        stackRebaseStatus: wt.stackRebaseStatus !== undefined ? wt.stackRebaseStatus : old.stackRebaseStatus,
+        // `??`, not a `!== undefined` guard: listWorktrees serialises this as
+        // an explicit `null` (the backend never computes it — only the stack
+        // poll's events do), and `null !== undefined` meant every refresh wiped
+        // a live "conflict"/"push failed" badge until the next 60s poll
+        // re-emitted it. Nothing in this merge path ever clears the status
+        // legitimately; the real clears go through updateWorktree.
+        stackRebaseStatus: wt.stackRebaseStatus ?? old.stackRebaseStatus,
         // Frontend-only: backend never persists setup script errors, so a
         // refresh would otherwise clobber an unacknowledged error.
         setupScriptError: old.setupScriptError,
@@ -203,6 +219,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   seenWorktrees: new Set<string>(),
   unreadWorktrees: new Set<string>(),
   pinnedWorktrees: new Set<string>(),
+  worktreeOrder: {},
+  setWorktreeOrderForRepo: (repoPath, order) =>
+    set((state) => ({
+      worktreeOrder: { ...state.worktreeOrder, [repoPath]: order },
+    })),
+  setColumnOrder: (repoPath, column, names) =>
+    set((state) => ({
+      worktreeOrder: {
+        ...state.worktreeOrder,
+        [repoPath]: { ...state.worktreeOrder[repoPath], [column]: names },
+      },
+    })),
   annotations: {},
   diffViewMode: {},
   changesViewMode: {},
@@ -557,6 +585,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       seenWorktrees: new Set<string>(),
       unreadWorktrees: new Set<string>(),
       pinnedWorktrees: new Set<string>(),
+      worktreeOrder: {},
       annotations: {},
       diffViewMode: {},
       changesViewMode: {},

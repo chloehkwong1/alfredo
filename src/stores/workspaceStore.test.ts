@@ -139,6 +139,21 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.stackRebaseStatus).toEqual({ kind: "upToDate" });
   });
 
+  it("preserves stackRebaseStatus when listWorktrees sends an explicit null", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [makeWorktree({ stackRebaseStatus: { kind: "conflict" } })],
+    });
+
+    // What the backend actually sends: Rust `None` serialises to JSON null, not
+    // undefined. A `!== undefined` guard let this wipe the conflict badge on
+    // every 60s reconcile until the stack poll re-emitted it.
+    store.getState().setWorktrees([makeWorktree({ stackRebaseStatus: null })]);
+
+    const wt = store.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.stackRebaseStatus).toEqual({ kind: "conflict" });
+  });
+
   it("preserves creating/errored placeholders not in fresh data", () => {
     const store = useWorkspaceStore;
     store.setState({
@@ -700,5 +715,55 @@ describe("restoredRepos", () => {
     store.getState().unmarkRepoRestored("/repo-a");
     expect(store.getState().restoredRepos.has("/repo-a")).toBe(false);
     expect(store.getState().restoredRepos.has("/repo-b")).toBe(true);
+  });
+});
+
+// ── worktreeOrder (manual sidebar ordering) ───────────────────────
+
+describe("worktreeOrder", () => {
+  it("setWorktreeOrderForRepo hydrates a repo's map", () => {
+    const store = useWorkspaceStore;
+    store.getState().setWorktreeOrderForRepo("/repo-a", {
+      inProgress: ["wt-2", "wt-1"],
+      needsReview: ["wt-3"],
+    });
+
+    expect(store.getState().worktreeOrder["/repo-a"]).toEqual({
+      inProgress: ["wt-2", "wt-1"],
+      needsReview: ["wt-3"],
+    });
+  });
+
+  it("setColumnOrder replaces one column for one repo without touching other columns or repos", () => {
+    const store = useWorkspaceStore;
+    store.getState().setWorktreeOrderForRepo("/repo-a", {
+      inProgress: ["wt-1"],
+      needsReview: ["wt-3"],
+    });
+    store.getState().setWorktreeOrderForRepo("/repo-b", { inProgress: ["other"] });
+
+    store.getState().setColumnOrder("/repo-a", "inProgress", ["wt-2", "wt-1"]);
+
+    expect(store.getState().worktreeOrder["/repo-a"]).toEqual({
+      inProgress: ["wt-2", "wt-1"],
+      needsReview: ["wt-3"],
+    });
+    expect(store.getState().worktreeOrder["/repo-b"]).toEqual({ inProgress: ["other"] });
+  });
+
+  it("setColumnOrder works for a repo with no existing entry", () => {
+    const store = useWorkspaceStore;
+    store.getState().setColumnOrder("/repo-new", "inProgress", ["wt-1"]);
+
+    expect(store.getState().worktreeOrder["/repo-new"]).toEqual({ inProgress: ["wt-1"] });
+  });
+
+  it("clearStore resets worktreeOrder", () => {
+    const store = useWorkspaceStore;
+    store.getState().setWorktreeOrderForRepo("/repo-a", { inProgress: ["wt-1"] });
+
+    store.getState().clearStore();
+
+    expect(store.getState().worktreeOrder).toEqual({});
   });
 });

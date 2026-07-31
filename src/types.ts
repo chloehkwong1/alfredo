@@ -90,6 +90,7 @@ export interface Worktree {
   unarchivedAt?: number; // unix timestamp ms — when manually unarchived (prevents immediate re-archive)
   lastActivityAt?: number; // unix timestamp ms, computed from max(lastCommitEpoch, prUpdatedAt, agentChange)
   lastCommitEpoch?: number; // epoch ms of latest commit on branch (from Rust)
+  createdAtEpoch?: number; // epoch ms the worktree directory was created (from Rust)
   repoPath: string;
   /** Claude Code session UUID for `--resume` on next spawn. */
   claudeSessionId?: string;
@@ -246,6 +247,9 @@ export interface AppConfig {
   linearApiKey: string | null;
   branchMode: boolean;
   columnOverrides?: Record<string, KanbanColumn>;
+  /** Manual sidebar card order per kanban column (worktree names, top-first).
+   *  Personal-layer only — passes through the effective config unchanged. */
+  worktreeOrder?: Partial<Record<KanbanColumn, string[]>>;
   theme?: string;
   notifications?: NotificationConfig;
   worktreeBasePath?: string | null;

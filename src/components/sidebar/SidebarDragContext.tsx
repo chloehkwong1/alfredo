@@ -20,7 +20,8 @@ import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import type { KanbanColumn, Worktree } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
-import { setWorktreeColumn, releasePortFor } from "../../api";
+import { setWorktreeColumn, setWorktreeOrders, releasePortFor } from "../../api";
+import { sortColumnWorktrees, columnNameOrder, type WorktreeOrderMap } from "../../lib/worktreeOrder";
 import { AgentItemOverlay } from "./AgentItemOverlay";
 
 const COLUMNS: KanbanColumn[] = [
@@ -45,6 +46,9 @@ interface SidebarDragContextProps {
    *  flicker between drag-end and the async config write landing. */
   onClearTempExpanded?: (except?: KanbanColumn) => void;
   worktreeLabels?: Record<string, string>;
+  /** Mirrors Sidebar's pinned-only filter so drag indices are computed on the
+   *  list the user actually sees (StatusGroup hides unpinned cards when set). */
+  hideUnpinned?: boolean;
 }
 
 /** Find which column an id belongs to. If the id IS a column, return it. Otherwise find the worktree's column. */
@@ -58,6 +62,31 @@ const measuring = {
   droppable: { strategy: MeasuringStrategy.Always as const },
 };
 
+/** The cards of one column exactly as StatusGroup renders them: Sidebar's
+ *  column grouping (unknown columns route to inProgress) → comparator sort →
+ *  pinned-only filter → pinned-first hoist (stable within each half). Drag
+ *  from/to indices must be computed on this list, not the raw store array. */
+function renderedColumnCards(
+  worktrees: Worktree[],
+  column: KanbanColumn,
+  orderByRepo: WorktreeOrderMap,
+  pinned: Set<string>,
+  hideUnpinned: boolean,
+): Worktree[] {
+  const inColumn = worktrees.filter(
+    (wt) =>
+      !wt.archived &&
+      !wt.isBranchMode &&
+      (COLUMN_SET.has(wt.column) ? wt.column : "inProgress") === column,
+  );
+  const sorted = sortColumnWorktrees(inColumn, column, orderByRepo);
+  const visible = hideUnpinned ? sorted.filter((wt) => pinned.has(wt.id)) : sorted;
+  return [
+    ...visible.filter((wt) => pinned.has(wt.id)),
+    ...visible.filter((wt) => !pinned.has(wt.id)),
+  ];
+}
+
 function SidebarDragContext({
   children,
   collapsedColumns,
@@ -65,6 +94,7 @@ function SidebarDragContext({
   onSetTempExpanded,
   onClearTempExpanded,
   worktreeLabels,
+  hideUnpinned = false,
 }: SidebarDragContextProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const reorderWorktrees = useWorkspaceStore((s) => s.reorderWorktrees);
@@ -248,7 +278,14 @@ function SidebarDragContext({
       const activeColumn = findColumnForId(activeWtId, currentWorktrees);
       const overColumn = findColumnForId(overId, currentWorktrees);
 
-      if (activeColumn && overColumn && activeColumn === overColumn && activeWtId !== overId && !COLUMN_SET.has(overId)) {
+      const isCardOverCard =
+        activeColumn != null &&
+        overColumn != null &&
+        activeColumn === overColumn &&
+        activeWtId !== overId &&
+        !COLUMN_SET.has(overId);
+
+      if (isCardOverCard) {
         const activeIdx = currentWorktrees.findIndex((wt) => wt.id === activeWtId);
         const overIdx = currentWorktrees.findIndex((wt) => wt.id === overId);
         if (activeIdx !== -1 && overIdx !== -1 && activeIdx !== overIdx) {
@@ -256,9 +293,29 @@ function SidebarDragContext({
         }
       }
 
-      // Persist column change if column changed from original
+      // Persist manual card order (personal config, per repo). The optimistic
+      // setColumnOrder is what makes the drop stick — display order is owned
+      // by sortColumnWorktrees, so the store array order alone would be
+      // clobbered on the next comparator pass. Order must be computed on the
+      // RENDERED list (column filter → comparator sort → pinned-only filter →
+      // pinned-first hoist), not the store array (discovery order).
+      const { worktreeOrder, setColumnOrder, pinnedWorktrees } = useWorkspaceStore.getState();
+      const displayCards = (list: Worktree[], column: KanbanColumn) =>
+        renderedColumnCards(list, column, worktreeOrder, pinnedWorktrees, hideUnpinned);
+      // One backend write per drag, all affected columns in a single payload.
+      const persistOrders = (repoPath: string, orders: Partial<Record<KanbanColumn, string[]>>) => {
+        for (const [column, names] of Object.entries(orders) as [KanbanColumn, string[]][]) {
+          setColumnOrder(repoPath, column, names);
+        }
+        setWorktreeOrders(repoPath, orders).catch((e) => {
+          console.error("[drag] Failed to persist worktree order:", e);
+        });
+      };
+
       const worktree = currentWorktrees.find((wt) => wt.id === activeWtId);
+
       if (worktree && originColumnRef.current && worktree.column !== originColumnRef.current) {
+        // Column changed from original — persist the move
         usePrStore.getState().setManualColumn(activeWtId, worktree.column, originColumnRef.current!);
 
         // Persist to Tauri backend (fire-and-forget)
@@ -271,6 +328,48 @@ function SidebarDragContext({
           releasePortFor(worktree).catch((e) =>
             console.warn("[drag] Failed to release port on Done:", worktree.id, e),
           );
+        }
+
+        // Persist the target column with the card at its drop position, taken
+        // straight from dnd-kit: insert before the card whose id is `overId`,
+        // or append when dropped on the column container itself. Read fresh
+        // state — handleDragOver has already moved the card in the store.
+        const latest = useWorkspaceStore.getState().worktrees;
+        const targetCol = worktree.column;
+        const originCol = originColumnRef.current;
+        const others = displayCards(latest, targetCol).filter((wt) => wt.id !== activeWtId);
+        const overIdx = COLUMN_SET.has(overId) ? -1 : others.findIndex((wt) => wt.id === overId);
+        const insertIdx = overIdx === -1 ? others.length : overIdx;
+        others.splice(insertIdx, 0, worktree);
+
+        const orders: Partial<Record<KanbanColumn, string[]>> = {
+          [targetCol]: columnNameOrder(others, targetCol, worktree.repoPath),
+        };
+        // Prune the origin column's list only when one already exists —
+        // creating a brand-new origin list from a move-out would silently
+        // freeze a column the user never manually ordered.
+        if (worktreeOrder[worktree.repoPath]?.[originCol] !== undefined) {
+          orders[originCol] = columnNameOrder(
+            displayCards(latest, originCol),
+            originCol,
+            worktree.repoPath,
+          );
+        }
+        persistOrders(worktree.repoPath, orders);
+      } else if (isCardOverCard && worktree && activeColumn) {
+        // Same-column reorder — apply the move on the rendered list and
+        // persist the result.
+        const display = displayCards(currentWorktrees, activeColumn);
+        const fromIdx = display.findIndex((wt) => wt.id === activeWtId);
+        const toIdx = display.findIndex((wt) => wt.id === overId);
+        if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+          persistOrders(worktree.repoPath, {
+            [activeColumn]: columnNameOrder(
+              arrayMove(display, fromIdx, toIdx),
+              activeColumn,
+              worktree.repoPath,
+            ),
+          });
         }
       }
 
@@ -295,7 +394,7 @@ function SidebarDragContext({
       originColumnRef.current = null;
       prevOverColumnRef.current = null;
     },
-    [reorderWorktrees, collapsedColumns, onExpandColumn, onClearTempExpanded],
+    [reorderWorktrees, collapsedColumns, onExpandColumn, onClearTempExpanded, hideUnpinned],
   );
 
   const handleDragCancel = useCallback(() => {

@@ -16,6 +16,7 @@ import { lifecycleManager } from "../../services/lifecycleManager";
 import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { runArchiveScript, countWorktrees, releasePortFor, notificationPermissionStatus, requestNotificationPermission } from "../../api";
+import { sortColumnWorktrees, type WorktreeOrderMap } from "../../lib/worktreeOrder";
 import { LifecycleNudge } from "./LifecycleNudge";
 
 const COLUMNS: KanbanColumn[] = [
@@ -30,6 +31,7 @@ const COLUMNS: KanbanColumn[] = [
 
 function groupByColumn(
   worktrees: Worktree[],
+  worktreeOrder: WorktreeOrderMap,
 ): Record<KanbanColumn, Worktree[]> {
   const groups: Record<KanbanColumn, Worktree[]> = {
     toDo: [],
@@ -44,9 +46,8 @@ function groupByColumn(
     const col = groups[wt.column] ? wt.column : "inProgress";
     groups[col].push(wt);
   }
-  // Most recently updated first within each section
   for (const col of Object.keys(groups) as KanbanColumn[]) {
-    groups[col].sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0));
+    groups[col] = sortColumnWorktrees(groups[col], col, worktreeOrder);
   }
   return groups;
 }
@@ -104,6 +105,7 @@ function Sidebar({
   const archiveWorktree = useWorkspaceStore((s) => s.archiveWorktree);
   const unarchiveWorktree = useWorkspaceStore((s) => s.unarchiveWorktree);
   const pinnedWorktrees = useWorkspaceStore((s) => s.pinnedWorktrees);
+  const worktreeOrder = useWorkspaceStore((s) => s.worktreeOrder);
   const clearAllPins = useWorkspaceStore((s) => s.clearAllPins);
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
   const repoPath = activeRepo;
@@ -286,7 +288,7 @@ function Sidebar({
 
   const activeWorktrees = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode);
   const archivedWorktrees = worktrees.filter((wt) => wt.archived);
-  const grouped = groupByColumn(activeWorktrees);
+  const grouped = groupByColumn(activeWorktrees, worktreeOrder);
 
   const doneWorktrees = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode && wt.column === "done");
   const showLifecycleNudge =
@@ -541,6 +543,7 @@ function Sidebar({
               onSetTempExpanded={handleSetTempExpanded}
               onClearTempExpanded={handleClearTempExpanded}
               worktreeLabels={worktreeLabels}
+              hideUnpinned={hideUnpinned}
             >
               {(isDragging, dragActiveId) =>
                 COLUMNS.map((col) => (

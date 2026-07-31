@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, debugLog, reconcileWorktreePorts, loadResumeSessionIds } from "../api";
+import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, getWorktreeOrder, debugLog, reconcileWorktreePorts, loadResumeSessionIds } from "../api";
 import { withRetry } from "./withRetry";
 import { loadSession, applyResumeSidecar } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
@@ -46,6 +46,7 @@ export function useSessionRestore(
   const clearWorktreesForRepo = useWorkspaceStore((s) => s.clearWorktreesForRepo);
   const removeWorktree = useWorkspaceStore((s) => s.removeWorktree);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
+  const setWorktreeOrderForRepo = useWorkspaceStore((s) => s.setWorktreeOrderForRepo);
   const restoreTabs = useTabStore((s) => s.restoreTabs);
   const updateTab = useTabStore((s) => s.updateTab);
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
@@ -328,6 +329,23 @@ export function useSessionRestore(
         }).catch((e) => console.warn(`[session-restore] Failed to get active branch for ${repo}:`, e));
         continue;
       }
+
+      // Hydrate manual sidebar card order from the personal config layer
+      // (get_worktree_order only — never getConfig, whose migration path can
+      // write an alfredo.json into repos the user hasn't opened). Runs on
+      // every load (not just first restore) so a failed set_worktree_orders
+      // self-heals on the next hydration. Fire-and-forget — never blocks
+      // restore. If a drag persists an order while the fetch is in flight
+      // (object identity changed), skip the write — this fetch's snapshot is
+      // stale and the next hydration reconciles.
+      const orderBeforeFetch = useWorkspaceStore.getState().worktreeOrder[repo];
+      getWorktreeOrder(repo)
+        .then((order) => {
+          if (cancelled) return;
+          if (useWorkspaceStore.getState().worktreeOrder[repo] !== orderBeforeFetch) return;
+          setWorktreeOrderForRepo(repo, order ?? {});
+        })
+        .catch((e) => console.warn(`[session-restore] Failed to load worktree order for ${repo}:`, e));
 
       withRetry(() => listWorktrees(repo), () => cancelled, `listWorktrees ${repo}`).then(async (result) => {
         if (cancelled) return;

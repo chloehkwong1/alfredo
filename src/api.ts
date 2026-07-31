@@ -242,6 +242,23 @@ export function setWorktreeColumn(
   return invoke("set_worktree_column", { repoPath, worktreeName, column });
 }
 
+/** Persist the manual sidebar card order for one or more kanban columns of a
+ *  repo (personal config layer). Order is worktree names, top-first. */
+export function setWorktreeOrders(
+  repoPath: string,
+  orders: Partial<Record<KanbanColumn, string[]>>,
+): Promise<void> {
+  return invoke("set_worktree_orders", { repoPath, orders });
+}
+
+/** Read the persisted manual sidebar card order for a repo (personal config
+ *  layer only — never triggers config migration). */
+export function getWorktreeOrder(
+  repoPath: string,
+): Promise<Partial<Record<KanbanColumn, string[]>>> {
+  return invoke("get_worktree_order", { repoPath });
+}
+
 /** Drop a worktree's persisted column override, reverting it to the
  *  auto-derived kanban column. Used to self-heal a stale auto-Done when the
  *  worktree's branch goes live again (reopened / reused with a new PR). */
