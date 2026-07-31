@@ -1,0 +1,46 @@
+src/lib/stackChain.ts
+  s_413b15c21ae198::t_d2e54759ab19bd 24-31
+src/components/sidebar/StackMapPopover.tsx
+  s_413b15c21ae198::t_bef08d0a616019 22
+  s_413b15c21ae198::t_ec2736ebb1e644 100
+src-tauri/src/types.rs
+  s_413b15c21ae198::t_6bd8b34c4c6b00 127-130
+src-tauri/src/stack_manager.rs
+  s_413b15c21ae198::t_0080989b5d7f6f 1140-1159
+  s_413b15c21ae198::t_25a3fa03c37ad7 1035-1072
+  s_413b15c21ae198::t_e5125c46498d8a 777,988-990,993,1008-1020
+  s_413b15c21ae198::t_70a595ede1737b 759-761,769-774
+  s_413b15c21ae198::t_7fb7b0556c7df9 1385-1391
+  s_413b15c21ae198::t_ba9108e16b996d 327,329,341-346
+  s_413b15c21ae198::t_fdfeb42e75e347 565-573
+  s_413b15c21ae198::t_f069c2a89431d9 2522-2605
+  s_3dc970c75dcff9::t_9a9a3ccfa11524 347-349,775-776
+src/types.ts
+  s_413b15c21ae198::t_71a1417d5125cc 65-66
+src/components/sidebar/AgentItem.tsx
+  s_413b15c21ae198::t_78b79adde6b561 459-461
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "9dc902552adc0fe2215c03ef54e22c216f4c695d",
+  "prompts": {},
+  "sessions": {
+    "s_3dc970c75dcff9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ddebfd8-10d3-401b-9e93-376033d739dd",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_413b15c21ae198": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "936a3307-5bc1-496a-a7cc-a2cdfb91ad87",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
