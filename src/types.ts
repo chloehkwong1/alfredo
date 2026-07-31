@@ -504,6 +504,14 @@ export interface RepoEntry {
   mode: RepoMode;
 }
 
+/** One release's curated highlights, parsed from the bundled whats-new.md. */
+export interface WhatsNewEntry {
+  version: string;
+  date: string;
+  /** Markdown bullet list for this release. */
+  body: string;
+}
+
 export interface GlobalAppConfig {
   repos: RepoEntry[];
   activeRepo: string | null;
@@ -555,6 +563,8 @@ export interface GlobalAppConfig {
   receiveBetaUpdates?: boolean;
   /** First-time worktree-lifecycle nudge has been dismissed by the user. */
   dismissedLifecycleNudge?: boolean;
+  /** Newest what's-new entry version the user has dismissed, e.g. "0.19.0". */
+  whatsNewLastSeen?: string | null;
 }
 
 // ── Inline annotation ────────────────────────────────────────────

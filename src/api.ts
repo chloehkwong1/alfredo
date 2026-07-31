@@ -18,6 +18,7 @@ import type {
   RepoSharedConfig,
   Session,
   SessionType,
+  WhatsNewEntry,
   Worktree,
   WorktreeSource,
   WorkflowRunLog,
@@ -655,6 +656,14 @@ export function getAppConfig(): Promise<GlobalAppConfig> {
 
 export function saveAppConfig(config: GlobalAppConfig): Promise<void> {
   return invoke("save_app_config", { config });
+}
+
+export function getWhatsNew(): Promise<WhatsNewEntry[]> {
+  return invoke<WhatsNewEntry[]>("get_whats_new");
+}
+
+export function markWhatsNewSeen(version: string): Promise<GlobalAppConfig> {
+  return invoke<GlobalAppConfig>("mark_whats_new_seen", { version });
 }
 
 export function addRepo(path: string, mode: RepoMode): Promise<GlobalAppConfig> {
