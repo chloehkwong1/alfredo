@@ -456,6 +456,9 @@ function AgentItemContent({
             {worktree.stackRebaseStatus?.kind === "pushFailed" && (
               <span className="flex-shrink-0 text-status-error">· restacked, push failed</span>
             )}
+            {worktree.stackRebaseStatus?.kind === "rewrittenExternally" && (
+              <span className="flex-shrink-0 text-status-error">· rebased outside Alfredo</span>
+            )}
           </div>
         )}
         {/* Line 4: PR stats row — separated by border */}

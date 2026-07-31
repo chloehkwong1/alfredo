@@ -324,9 +324,9 @@ pub async fn check_merged_parents(
             ).await;
 
             match outcome {
-                // Rebased: the child now sits on the default branch, so the stack
+                // Rebased / verified already on the default branch: the stack
                 // relationship really is over.
-                Ok(RestackOutcome::Rebased) => {}
+                Ok(RestackOutcome::Rebased | RestackOutcome::AlreadyOnTarget) => {}
                 // Nothing was rebased — the child is still stacked on the merged
                 // parent's commits. Retargeting the PR and dropping the config
                 // here would strand it with a base it never got rebased onto.
@@ -335,6 +335,15 @@ pub async fn check_merged_parents(
                 Ok(RestackOutcome::SkippedDirty) => {
                     eprintln!(
                         "[stack_manager] merged-parent restack deferred for {child_name}: worktree dirty"
+                    );
+                    continue;
+                }
+                // Refused: the child was rewritten outside Alfredo and does not
+                // contain the default tip, so it may still be carrying the
+                // merged parent's commits. Dissolving would strand it.
+                Ok(RestackOutcome::RefusedStaleBaseline) => {
+                    eprintln!(
+                        "[stack_manager] merged-parent restack refused for {child_name}: rewritten outside Alfredo"
                     );
                     continue;
                 }
@@ -553,7 +562,15 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
         }
         // An unresolved conflict or a dirty tree must keep its badge — only
         // clear when the rebase is genuinely finished and the tree is clean.
-        Some(StackRebaseStatus::Conflict | StackRebaseStatus::SkippedDirty) => {
+        // `RewrittenExternally` can't be earned by a root (its baseline is
+        // derived fresh per sync, never persisted), but if one ever appears,
+        // "the sync just verified this branch is on the default tip" is
+        // exactly the evidence that clears it.
+        Some(
+            StackRebaseStatus::Conflict
+            | StackRebaseStatus::SkippedDirty
+            | StackRebaseStatus::RewrittenExternally,
+        ) => {
             if !worktree_is_dirty(&root.path, true).await {
                 clear_sticky_status(repo_path, &root.name);
                 emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
@@ -739,12 +756,22 @@ pub async fn detect_stale_parents(
         match restack_onto_default(app_handle, app_data_dir, repo_path, child_name, &default_short)
             .await
         {
-            // Child sits on the default branch now — the relationship is over.
-            Ok(RestackOutcome::Rebased) => {}
+            // Child sits on the default branch now (rebased, or verified there
+            // already) — the relationship is over.
+            Ok(RestackOutcome::Rebased | RestackOutcome::AlreadyOnTarget) => {}
             // Nothing moved. The parent stays stale, so this retries next poll.
             Ok(RestackOutcome::SkippedDirty) => {
                 eprintln!(
                     "[stack_manager] stale-parent restack deferred for {child_name}: worktree dirty"
+                );
+                continue;
+            }
+            // Refused: rewritten outside Alfredo without containing the default
+            // tip — it may still carry the stale parent's commits, so dissolving
+            // would strand it. Nothing moved; retries when the branch changes.
+            Ok(RestackOutcome::RefusedStaleBaseline) => {
+                eprintln!(
+                    "[stack_manager] stale-parent restack refused for {child_name}: rewritten outside Alfredo"
                 );
                 continue;
             }
@@ -958,11 +985,12 @@ async fn restack_child_inner(
     }
 
     match run_restack(app_handle, repo_path, &worktree_path, worktree_name, &parent_tip, &baseline).await {
-        // Only a real rebase moves the child's history onto `parent_tip` — only
-        // that outcome may advance the persisted baseline. A dirty-skip performs
+        // Only an outcome that verified HEAD sits on `parent_tip` — a real
+        // rebase, or `AlreadyOnTarget`'s ancestry check of a hand-restacked
+        // branch — may advance the persisted baseline. A dirty-skip performs
         // no rebase at all, so persisting here would make every later poll
         // short-circuit `UpToDate` forever and desync the baseline from HEAD.
-        Ok(RestackOutcome::Rebased) => {
+        Ok(RestackOutcome::Rebased | RestackOutcome::AlreadyOnTarget) => {
             // Reload rather than reuse the snapshot taken before the rebase: the
             // rebase + push above take seconds, and any config write that landed
             // meanwhile (port claim, column drag, a sibling's baseline) would be
@@ -977,6 +1005,19 @@ async fn restack_child_inner(
             Ok(())
         }
         Ok(RestackOutcome::SkippedDirty) => Ok(()),
+        // Refusals reuse the conflict memo: a stale baseline stays stale until
+        // the branch or the parent tip changes, so retrying it every poll only
+        // re-runs two git calls to re-set the same badge. "Restack now" clears
+        // the memo, re-checks, and (once the user has fixed the branch) lands
+        // in the `AlreadyOnTarget` self-heal above.
+        Ok(RestackOutcome::RefusedStaleBaseline) => {
+            if auto {
+                record_conflict(repo_path, worktree_name, &parent_tip);
+            }
+            Err(format!(
+                "{worktree_name} was rebased outside Alfredo — its recorded baseline no longer exists in the branch history, so auto-restack is off. Restack it manually (git rebase --onto <parent tip> <first own commit>^), then press Restack now."
+            ))
+        }
         Err(e) => {
             if auto {
                 record_conflict(repo_path, worktree_name, &parent_tip);
@@ -991,6 +1032,44 @@ async fn restack_child_inner(
 enum RestackOutcome {
     Rebased,
     SkippedDirty,
+    /// The baseline is dangling but HEAD already contains the target tip (the
+    /// branch was restacked by hand in a terminal). Nothing to rebase; callers
+    /// may adopt the target tip as the new baseline — `check_baseline` just
+    /// verified that containment against the branch's actual history.
+    AlreadyOnTarget,
+    /// The baseline is dangling and HEAD does NOT contain the target tip. No
+    /// automatic `--onto` floor is safe (see `check_baseline`), so no rebase
+    /// ran and nothing may be dissolved or persisted.
+    RefusedStaleBaseline,
+}
+
+/// How a `--onto` baseline relates to the branch it would be replayed from.
+enum BaselineCheck {
+    /// Baseline is an ancestor of HEAD — a safe `--onto` floor.
+    Valid,
+    /// Baseline is dangling, but HEAD descends from the target tip.
+    AlreadyOnTarget,
+    /// Baseline is dangling and HEAD does not contain the target tip.
+    Stale,
+}
+
+/// A persisted baseline is only a safe `--onto` floor while it is still an
+/// ancestor of HEAD. A rebase run outside Alfredo (an agent in the worktree's
+/// terminal, a manual `git rebase`) rewrites every SHA and leaves the persisted
+/// baseline dangling — and `git rebase --onto <tip> <dangling>` silently falls
+/// back to the merge-base, replaying every upstream commit between the old
+/// fork point and HEAD into the branch (the PRO-5930 incident: one background
+/// restack grafted ~47 foreign main commits). Every baseline-driven rebase
+/// must pass through this check first; derived baselines (merge-base,
+/// `adoption_baseline`) are ancestors by construction and sail through.
+async fn check_baseline(worktree_path: &str, baseline: &str, target_tip: &str) -> BaselineCheck {
+    if is_ancestor(worktree_path, baseline, "HEAD").await {
+        return BaselineCheck::Valid;
+    }
+    if is_ancestor(worktree_path, target_tip, "HEAD").await {
+        return BaselineCheck::AlreadyOnTarget;
+    }
+    BaselineCheck::Stale
 }
 
 /// Detects a `git rebase` already in progress in `worktree_path`, via `git
@@ -1056,6 +1135,26 @@ async fn run_restack(
     // `rebase --continue` actually finishes it (or the rebase is aborted).
     if rebase_in_progress(worktree_path).await {
         return Ok(RestackOutcome::SkippedDirty);
+    }
+
+    match check_baseline(worktree_path, baseline, target_tip).await {
+        BaselineCheck::Valid => {}
+        // Self-heal: the user already restacked by hand, so the only thing out
+        // of date is Alfredo's bookkeeping. Report up to date; the caller
+        // adopts `target_tip` as the baseline.
+        BaselineCheck::AlreadyOnTarget => {
+            clear_sticky_status(repo_path, worktree_name);
+            emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+            return Ok(RestackOutcome::AlreadyOnTarget);
+        }
+        BaselineCheck::Stale => {
+            eprintln!(
+                "[stack_manager] restack refused for {worktree_name}: baseline {baseline} is not an ancestor of HEAD (branch rewritten outside Alfredo)"
+            );
+            set_sticky_status(repo_path, worktree_name, StackRebaseStatus::RewrittenExternally);
+            emit_status(app_handle, worktree_name, StackRebaseStatus::RewrittenExternally);
+            return Ok(RestackOutcome::RefusedStaleBaseline);
+        }
     }
 
     // A fresh attempt supersedes whatever the last one reported.
@@ -1283,7 +1382,13 @@ pub async fn change_base(
     // still resolves, else the adoption derivation — this is what makes
     // retroactive re-parenting replay only the child's commits.
     let old_baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
-        Some(sha) => sha,
+        // Same hazard `check_baseline` guards in `run_restack`: a branch
+        // rewritten outside Alfredo leaves the persisted SHA dangling, and
+        // using it as the `--onto` floor grafts upstream history into the
+        // branch. Fall through to the fork-point derivation, which reads only
+        // the branch's real history.
+        Some(sha) if is_ancestor(&worktree_path, &sha, "HEAD").await => sha,
+        Some(_) => adoption_baseline(&worktree_path, &default_remote, &target_tip).await?,
         None => {
             let old_parent_tip = match config_manager::get_stack_parent(&config, worktree_name) {
                 Some(p) => branch_tip(repo_path, &p).await,
@@ -2413,5 +2518,89 @@ mod tests {
             !conflict_memo_should_skip(repo, name, "aaa"),
             "a dissolved worktree must not keep suppressing rebases"
         );
+    }
+
+    /// Commit a real file (not `--allow-empty`): these fixtures get rebased,
+    /// and git's handling of originally-empty commits under replay would make
+    /// the shapes version-sensitive.
+    fn commit_file(repo_path: &str, file: &str, msg: &str) {
+        std::fs::write(std::path::Path::new(repo_path).join(file), msg).expect("write file");
+        run_git(repo_path, &["add", file]);
+        run_git(repo_path, &["commit", "-m", msg]);
+    }
+
+    #[tokio::test]
+    async fn check_baseline_accepts_a_baseline_still_in_history() {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+
+        run_git(repo_path, &["checkout", "-b", "feat/parent"]);
+        commit_file(repo_path, "parent.txt", "parent work");
+        let parent_tip = run_git(repo_path, &["rev-parse", "HEAD"]);
+        run_git(repo_path, &["checkout", "-b", "feat/child"]);
+        commit_file(repo_path, "child.txt", "child work");
+
+        assert!(matches!(
+            check_baseline(repo_path, &parent_tip, &parent_tip).await,
+            BaselineCheck::Valid
+        ));
+    }
+
+    // The PRO-5930 incident shape: an agent rebases the child straight onto a
+    // newer main tip in a terminal, rewriting every SHA, while the recorded
+    // baseline still points at the parent tip of the old history. Rebasing
+    // `--onto` that dangling floor grafts the upstream commits between the old
+    // fork point and HEAD into the branch — the guard must refuse instead.
+    #[tokio::test]
+    async fn check_baseline_refuses_after_an_external_rebase_onto_newer_main() {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+
+        run_git(repo_path, &["checkout", "-b", "feat/parent"]);
+        commit_file(repo_path, "parent.txt", "parent work");
+        let old_parent_tip = run_git(repo_path, &["rev-parse", "HEAD"]);
+        run_git(repo_path, &["checkout", "-b", "feat/child"]);
+        commit_file(repo_path, "child.txt", "child work");
+
+        run_git(repo_path, &["checkout", "main"]);
+        commit_file(repo_path, "main.txt", "someone else's main commit");
+        run_git(repo_path, &["checkout", "feat/child"]);
+        run_git(repo_path, &["rebase", "main"]);
+
+        assert!(matches!(
+            check_baseline(repo_path, &old_parent_tip, &old_parent_tip).await,
+            BaselineCheck::Stale
+        ));
+    }
+
+    // The recovered shape: the parent was rebased (new SHAs) and the user has
+    // already restacked the child onto the new parent tip by hand. The baseline
+    // is dangling but HEAD verifiably contains the target — nothing to rebase,
+    // and the caller may adopt the target tip as the new baseline.
+    #[tokio::test]
+    async fn check_baseline_self_heals_a_branch_already_restacked_by_hand() {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+
+        run_git(repo_path, &["checkout", "-b", "feat/parent"]);
+        commit_file(repo_path, "parent.txt", "parent work");
+        let old_parent_tip = run_git(repo_path, &["rev-parse", "HEAD"]);
+        run_git(repo_path, &["checkout", "-b", "feat/child"]);
+        commit_file(repo_path, "child.txt", "child work");
+
+        run_git(repo_path, &["checkout", "main"]);
+        commit_file(repo_path, "main.txt", "someone else's main commit");
+        run_git(repo_path, &["checkout", "feat/parent"]);
+        run_git(repo_path, &["rebase", "main"]);
+        let new_parent_tip = run_git(repo_path, &["rev-parse", "HEAD"]);
+        run_git(
+            repo_path,
+            &["rebase", "--onto", &new_parent_tip, &old_parent_tip, "feat/child"],
+        );
+
+        assert!(matches!(
+            check_baseline(repo_path, &old_parent_tip, &new_parent_tip).await,
+            BaselineCheck::AlreadyOnTarget
+        ));
     }
 }

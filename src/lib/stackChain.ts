@@ -21,7 +21,14 @@ export interface StackChain {
   needsAttention: boolean;
 }
 
-const ATTENTION_KINDS = new Set(["conflict", "skippedDirty", "pushFailed", "behind", "rebasing"]);
+const ATTENTION_KINDS = new Set([
+  "conflict",
+  "skippedDirty",
+  "pushFailed",
+  "behind",
+  "rebasing",
+  "rewrittenExternally",
+]);
 
 /**
  * Resolve the full stack tree containing `worktreeId`. `stackParent` stores a

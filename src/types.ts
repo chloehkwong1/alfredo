@@ -62,7 +62,8 @@ export type StackRebaseStatus =
   | { kind: "rebasing" }
   | { kind: "conflict" }
   | { kind: "skippedDirty" }
-  | { kind: "pushFailed" };
+  | { kind: "pushFailed" }
+  | { kind: "rewrittenExternally" };
 
 export interface Worktree {
   id: string;

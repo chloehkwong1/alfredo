@@ -124,6 +124,10 @@ pub enum StackRebaseStatus {
     Conflict,
     SkippedDirty,
     PushFailed,
+    /// The branch was rebased/rewritten outside Alfredo: the persisted stack
+    /// baseline is no longer an ancestor of HEAD, so no automatic `--onto`
+    /// floor is trustworthy. Auto-restack refuses; recovery is manual.
+    RewrittenExternally,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

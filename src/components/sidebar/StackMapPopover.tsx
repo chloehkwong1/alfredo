@@ -19,6 +19,7 @@ function stateText(s: StackRebaseStatus | null | undefined): string {
     case "conflict": return "conflict on rebase";
     case "skippedDirty": return "paused — uncommitted changes";
     case "pushFailed": return "restacked · push failed";
+    case "rewrittenExternally": return "rebased outside Alfredo — restack manually";
     default: return "up to date";
   }
 }
@@ -96,7 +97,7 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
             {member.prefix}
           </span>
           <span className="truncate flex-1">{m.branch}</span>
-          <span className={`flex-shrink-0 text-[10px] ${m.stackRebaseStatus?.kind === "conflict" || m.stackRebaseStatus?.kind === "pushFailed" ? "text-status-error" : "text-text-tertiary"}`}>
+          <span className={`flex-shrink-0 text-[10px] ${m.stackRebaseStatus?.kind === "conflict" || m.stackRebaseStatus?.kind === "pushFailed" || m.stackRebaseStatus?.kind === "rewrittenExternally" ? "text-status-error" : "text-text-tertiary"}`}>
             {m.id === anchorWorktree.id ? "← here" : stateText(m.stackRebaseStatus)}
           </span>
         </button>
