@@ -2,6 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { restackStack, restackNow } from "../../api";
 import { resolveStackConflict } from "../../services/stackConflictHandoff";
+import { formatRelativeTime } from "../changes/formatRelativeTime";
 import type { StackChain } from "../../lib/stackChain";
 import type { Worktree, StackRebaseStatus } from "../../types";
 
@@ -24,6 +25,16 @@ function stateText(s: StackRebaseStatus | null | undefined): string {
   }
 }
 
+/** Row label: merged > active status > queued pending > up to date. */
+function memberStateText(m: Worktree): string {
+  if (m.prStatus?.merged) return "merged ✓";
+  if (m.stackRebaseStatus && m.stackRebaseStatus.kind !== "upToDate") {
+    return stateText(m.stackRebaseStatus);
+  }
+  if (m.stackPending) return "restack queued";
+  return "up to date";
+}
+
 /** Popover opened from `StackGlyph` — tree view of the whole stack (base
  *  branch pinned at the top, root→tips reading downward like a file tree, so
  *  forks stay legible). Click-to-jump per member, plus a footer action to
@@ -36,6 +47,15 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
     .map((member) => ({ member, worktree: worktrees.find((w) => w.id === member.id) }))
     .filter((r): r is { member: (typeof chain.members)[number]; worktree: Worktree } => Boolean(r.worktree));
   const conflicted = rows.map((r) => r.worktree).find((m) => m.stackRebaseStatus?.kind === "conflict");
+  // Conflict owns the popover's action slot (buttons below); the pending
+  // banner yields to it. Forked stacks: first blocked child in tree order.
+  const pendingMember = conflicted
+    ? undefined
+    : rows.map((r) => r.worktree).find((m) => m.stackPending);
+  const lastTrace = rows
+    .map((r) => r.worktree.lastStackAction)
+    .filter((t): t is { action: string; at: number } => Boolean(t))
+    .sort((x, y) => y.at - x.at)[0];
 
   const handleHaveClaudeResolve = async () => {
     if (!conflicted) return;
@@ -83,6 +103,15 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
       <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-tertiary">
         ↳ {defaultBranch ?? "main"}
       </div>
+      {pendingMember?.stackPending && (
+        <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-secondary leading-snug">
+          {pendingMember.stackPending.mergedParent} was merged —{" "}
+          {pendingMember.stackPending.blockedBy === "dirty"
+            ? `waiting for uncommitted changes in ${pendingMember.branch} to clear`
+            : `waiting for ${pendingMember.branch}'s agent to finish`}
+          , then this stack rebases onto {defaultBranch ?? "main"}.
+        </div>
+      )}
       {rows.map(({ member, worktree: m }) => (
         <button
           key={m.id}
@@ -98,7 +127,11 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
           </span>
           <span className="truncate flex-1">{m.branch}</span>
           <span className={`flex-shrink-0 text-[10px] ${m.stackRebaseStatus?.kind === "conflict" || m.stackRebaseStatus?.kind === "pushFailed" || m.stackRebaseStatus?.kind === "rewrittenExternally" ? "text-status-error" : "text-text-tertiary"}`}>
-            {m.id === anchorWorktree.id ? "← here" : stateText(m.stackRebaseStatus)}
+            {m.id === anchorWorktree.id
+              ? memberStateText(m) === "up to date"
+                ? "← here"
+                : `← here · ${memberStateText(m)}`
+              : memberStateText(m)}
           </span>
         </button>
       ))}
@@ -129,6 +162,11 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
           <RefreshCw className="h-3 w-3" /> Sync stack with main
         </button>
       </div>
+      {lastTrace && (
+        <div className="px-3 pt-1.5 text-[10px] text-text-tertiary">
+          ↻ {lastTrace.action} · {formatRelativeTime(lastTrace.at / 1000)}
+        </div>
+      )}
     </div>
   );
 }
