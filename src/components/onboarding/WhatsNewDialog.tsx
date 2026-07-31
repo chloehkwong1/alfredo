@@ -10,6 +10,7 @@ import {
 } from "../ui/Dialog";
 import { Button } from "../ui/Button";
 import { MarkdownBody } from "../shared/MarkdownBody";
+import { VersionBadge } from "../layout/UpdateBanner";
 import type { WhatsNewEntry } from "../../types";
 
 const RELEASES_URL = "https://github.com/chloehkwong1/alfredo/releases";
@@ -41,16 +42,15 @@ export function WhatsNewDialog({ entries, open, onDismiss }: WhatsNewDialogProps
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-6 overflow-y-auto pr-1" style={{ maxHeight: "52vh" }}>
+        <div
+          className="flex flex-col gap-6 overflow-y-auto pr-1"
+          style={{ maxHeight: "52vh" }}
+          tabIndex={0}
+        >
           {entries.map((entry) => (
             <section key={entry.version}>
               <div className="mb-2 flex items-baseline gap-2">
-                <span
-                  className="font-mono font-semibold text-status-idle rounded"
-                  style={{ fontSize: 11, padding: "1px 6px", background: "rgba(52, 211, 153, 0.1)" }}
-                >
-                  v{entry.version}
-                </span>
+                <VersionBadge version={entry.version} />
                 <span className="text-text-tertiary" style={{ fontSize: 11 }}>
                   {entry.date}
                 </span>

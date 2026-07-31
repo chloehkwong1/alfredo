@@ -73,9 +73,12 @@ fn finish(version: String, date: String, lines: &[&str], is_last: bool) -> Whats
     let joined = lines.join("\n");
     let mut blocks: Vec<&str> = joined.split("\n\n").collect();
     if is_last {
-        // Every entry is a bullet list, so a trailing non-bullet block here
-        // is the document trailer, not part of the release — drop it.
-        while blocks
+        // The document trailer (e.g. "Check the releases page…") is at most
+        // one block, so only ever drop one trailing non-bullet block here —
+        // a `while` would also eat legitimate trailing prose that belongs to
+        // the entry itself (e.g. a closing "Note: requires macOS 26 or
+        // later." line).
+        if blocks
             .last()
             .is_some_and(|b| !b.trim_start().starts_with('-'))
         {
@@ -189,6 +192,24 @@ Check the releases page for older versions and full detail.
     }
 
     #[test]
+    fn last_entry_strips_only_one_trailing_block() {
+        let raw = "\
+**v0.1.0 — 2026-01-01**
+- some bullet
+
+Note: requires macOS 26 or later.
+
+Check the releases page for older versions and full detail.
+";
+        let entries = parse_entries(raw);
+        assert_eq!(entries.len(), 1);
+        // Only the document trailer (the last block) is dropped; the
+        // legitimate closing note directly above it is retained.
+        assert!(entries[0].body.ends_with("Note: requires macOS 26 or later."));
+        assert!(!entries[0].body.contains("Check the releases page"));
+    }
+
+    #[test]
     fn ignores_non_heading_bold_lines() {
         let raw = "**v1.2.3 — 2026-01-01**\n- real bullet\n**Not a heading**\n- another bullet\n";
         let entries = parse_entries(raw);
@@ -217,8 +238,13 @@ Check the releases page for older versions and full detail.
         assert!(version_gt("0.1.0", "garbage"));
     }
 
-    /// The real shipped file must parse — catches a heading-format drift in
-    /// `/update-alfredo-docs` output before it silently disables the popup.
+    /// The real shipped file must parse, and every `**v`-prefixed heading line
+    /// in it must have actually produced an entry. This is the part that
+    /// catches heading-format drift in `/update-alfredo-docs` output (e.g. an
+    /// en dash `–` sneaking in where `parse_heading` requires an em dash
+    /// `—`): a malformed heading is otherwise silently treated as preamble,
+    /// the entry list is simply shorter, and a non-empty-list assertion alone
+    /// would never notice.
     #[test]
     fn shipped_whats_new_parses() {
         let manifest = env!("CARGO_MANIFEST_DIR");
@@ -226,7 +252,12 @@ Check the releases page for older versions and full detail.
         let raw = std::fs::read_to_string(&path).expect("read whats-new.md");
         let doc = crate::ask_alfredo::docs::parse_doc(&raw).expect("frontmatter parses");
         let entries = parse_entries(&doc.body);
-        assert!(!entries.is_empty(), "no entries parsed from shipped whats-new.md");
+        let expected = doc
+            .body
+            .lines()
+            .filter(|l| l.trim_start().starts_with("**v"))
+            .count();
+        assert_eq!(entries.len(), expected, "some **v headings failed to parse");
         for entry in &entries {
             assert_eq!(entry.version.split('.').count(), 3, "bad version {}", entry.version);
             assert!(!entry.date.is_empty(), "empty date for v{}", entry.version);

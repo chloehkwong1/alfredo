@@ -96,7 +96,7 @@ export function UpdateBanner({ updater }: UpdateBannerProps) {
   );
 }
 
-function VersionBadge({ version }: { version: string | null }) {
+export function VersionBadge({ version }: { version: string | null }) {
   if (!version) return null;
   return (
     <span

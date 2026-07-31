@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getWhatsNew, markWhatsNewSeen } from "../api";
 import type { WhatsNewEntry } from "../types";
-import { useAppConfigValue } from "../stores/appConfigStore";
+import { useAppConfigStore, useAppConfigValue } from "../stores/appConfigStore";
 
 export interface WhatsNewDecision {
   show: boolean;
@@ -68,15 +68,19 @@ export function decideWhatsNew({
  * Claims the "act now" slot exactly once for a `{ current: boolean }` ref,
  * refusing the claim if already cancelled or already claimed.
  *
- * React StrictMode double-invokes mount effects synchronously: setup →
- * cleanup → setup. If the ref were claimed *before* the awaited fetch (as
- * a naive guard would), the phantom first invocation grabs it, its cleanup
- * cancels it, and the surviving second invocation then finds the guard
- * already tripped and never runs at all — the decision silently never
- * happens. Claiming only here, after the async work settles and with the
- * invocation's own `cancelled` flag in hand, means the always-cancelled
- * phantom invocation can never win the claim, regardless of which
- * invocation's promise happens to settle first.
+ * This is not just a React-StrictMode dev-mode concern — it is
+ * production-reachable. `useStatePersistence` writes `activeWorktreeId` via
+ * `updateConfig` shortly after launch, which replaces the store's config
+ * object identity; if that lands inside this effect's `getWhatsNew()` await
+ * window, `config` in the deps array changes, the in-flight effect run is
+ * cancelled, and a second run starts. Whichever invocation's promise settles
+ * first must not win the claim just by finishing first — only a
+ * non-cancelled invocation may claim it. Claiming only here, after the async
+ * work settles and with the invocation's own `cancelled` flag in hand, means
+ * any cancelled invocation (StrictMode's phantom double-invoke, or the real
+ * production race above) can never win the claim, regardless of settle order.
+ * A naive guard that claims *before* the await would let a cancelled
+ * invocation grab the slot first and silently suppress the popup.
  */
 export function claimOnce(ref: { current: boolean }, cancelled: boolean): boolean {
   if (cancelled || ref.current) return false;
@@ -105,6 +109,9 @@ export function useWhatsNew() {
         console.error("[whats-new] fetch failed:", e);
         return;
       }
+      // Must stay AFTER the `await` above — claiming before it would let a
+      // cancelled invocation win the slot and silently suppress the popup,
+      // with every existing test still green. See claimOnce's doc comment.
       if (!claimOnce(decidedRef, cancelled)) return;
 
       const decision = decideWhatsNew({
@@ -114,9 +121,9 @@ export function useWhatsNew() {
       });
 
       if (decision.seedVersion) {
-        markWhatsNewSeen(decision.seedVersion).catch((e) =>
-          console.error("[whats-new] seed failed:", e),
-        );
+        markWhatsNewSeen(decision.seedVersion)
+          .then((next) => useAppConfigStore.getState().setConfig(next))
+          .catch((e) => console.error("[whats-new] seed failed:", e));
         return;
       }
       if (decision.show) {
@@ -134,9 +141,9 @@ export function useWhatsNew() {
     setOpen(false);
     const newest = newestVersion(entries);
     if (newest) {
-      markWhatsNewSeen(newest).catch((e) =>
-        console.error("[whats-new] mark seen failed:", e),
-      );
+      markWhatsNewSeen(newest)
+        .then((next) => useAppConfigStore.getState().setConfig(next))
+        .catch((e) => console.error("[whats-new] mark seen failed:", e));
     }
   }, [entries]);
 
