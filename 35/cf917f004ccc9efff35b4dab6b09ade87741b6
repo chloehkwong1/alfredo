@@ -1,0 +1,21 @@
+src/lib/stackChain.test.ts
+  s_6e0310ee114d01::t_f1fd648e682987 53-57
+src/lib/stackChain.ts
+  s_6e0310ee114d01::t_d1856b0e201d8f 94-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "35cf917f004ccc9efff35b4dab6b09ade87741b6",
+  "prompts": {},
+  "sessions": {
+    "s_6e0310ee114d01": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28ee7a5f-3ef4-4788-a47f-e84400b2587f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
