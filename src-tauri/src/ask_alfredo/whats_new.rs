@@ -1,11 +1,7 @@
 use serde::Serialize;
+use tauri::{AppHandle, Manager};
 
 /// One release entry parsed out of `docs/features/whats-new.md`.
-///
-/// `#[allow(dead_code)]` because the command wrapper that constructs and
-/// returns these (a later task) doesn't exist yet; the `--lib` clippy gate
-/// only sees this module's own tests.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WhatsNewEntry {
@@ -50,10 +46,6 @@ fn parse_heading(line: &str) -> Option<(String, String)> {
 
 /// Split the whats-new body into per-release entries in source order (the file
 /// is written newest-first). Preamble before the first heading is dropped.
-///
-/// `#[allow(dead_code)]` because the command wrapper that calls this (a
-/// later task) doesn't exist yet.
-#[allow(dead_code)]
 pub fn parse_entries(body: &str) -> Vec<WhatsNewEntry> {
     let mut entries = Vec::new();
     let mut current: Option<(String, String, Vec<&str>)> = None;
@@ -61,7 +53,10 @@ pub fn parse_entries(body: &str) -> Vec<WhatsNewEntry> {
     for line in body.lines() {
         if let Some((version, date)) = parse_heading(line) {
             if let Some((v, d, lines)) = current.take() {
-                entries.push(finish(v, d, &lines));
+                // Not the last entry in the document — a heading follows it,
+                // so any trailing non-bullet block is a legitimate part of
+                // this entry's own body, not the document trailer.
+                entries.push(finish(v, d, &lines, false));
             }
             current = Some((version, date, Vec::new()));
         } else if let Some((_, _, lines)) = current.as_mut() {
@@ -69,28 +64,65 @@ pub fn parse_entries(body: &str) -> Vec<WhatsNewEntry> {
         }
     }
     if let Some((v, d, lines)) = current.take() {
-        entries.push(finish(v, d, &lines));
+        // The last entry in the document is the only one that can butt up
+        // against the document-level trailer (e.g. the closing "Check the
+        // releases page…" line), so only here do we strip a trailing
+        // non-bullet block.
+        entries.push(finish(v, d, &lines, true));
     }
     entries
 }
 
-fn finish(version: String, date: String, lines: &[&str]) -> WhatsNewEntry {
+fn finish(version: String, date: String, lines: &[&str], is_last: bool) -> WhatsNewEntry {
     let joined = lines.join("\n");
-    // Every entry is a bullet list. Trailing non-bullet blocks belong to the
-    // document (e.g. the closing "Check the releases page…" line), not to the
-    // release, so drop them.
     let mut blocks: Vec<&str> = joined.split("\n\n").collect();
-    while blocks
-        .last()
-        .is_some_and(|b| !b.trim_start().starts_with('-'))
-    {
-        blocks.pop();
+    if is_last {
+        // Every entry is a bullet list, so a trailing non-bullet block here
+        // is the document trailer, not part of the release — drop it.
+        while blocks
+            .last()
+            .is_some_and(|b| !b.trim_start().starts_with('-'))
+        {
+            blocks.pop();
+        }
     }
     WhatsNewEntry {
         version,
         date,
         body: blocks.join("\n\n").trim().to_string(),
     }
+}
+
+/// Load and parse the bundled `whats-new.md`. Never fails loudly — a missing
+/// or unreadable file just means no popup.
+pub fn load(app: &AppHandle) -> Vec<WhatsNewEntry> {
+    // Tauri encodes resource paths that escape the config dir under `_up_/`,
+    // matching `ask_alfredo::docs::load_all`.
+    let path = match app.path().resolve(
+        "_up_/docs/features/whats-new.md",
+        tauri::path::BaseDirectory::Resource,
+    ) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("whats_new: resolve failed: {e}");
+            return Vec::new();
+        }
+    };
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("whats_new: read {}: {e}", path.display());
+            return Vec::new();
+        }
+    };
+    let body = match crate::ask_alfredo::docs::parse_doc(&raw) {
+        Ok(doc) => doc.body,
+        Err(e) => {
+            eprintln!("whats_new: frontmatter parse failed ({e}), using raw body");
+            raw
+        }
+    };
+    parse_entries(&body)
 }
 
 #[cfg(test)]
@@ -134,6 +166,30 @@ Check the releases page for older versions and full detail.
         let entries = parse_entries(SAMPLE);
         assert!(entries[0].body.contains("Open Linear issues"));
         assert!(entries[0].body.contains("Fable 5 and Sonnet 5"));
+    }
+
+    #[test]
+    fn keeps_trailing_prose_of_non_last_entry_but_strips_document_trailer() {
+        let raw = "\
+**v0.2.0 — 2026-02-02**
+- some bullet
+
+This entry's closing sentence is not a bullet, but it belongs to the entry.
+
+**v0.1.0 — 2026-01-01**
+- another bullet
+
+Check the releases page for older versions and full detail.
+";
+        let entries = parse_entries(raw);
+        assert_eq!(entries.len(), 2);
+        // Non-last entry: trailing prose block is real content, kept verbatim.
+        assert!(entries[0]
+            .body
+            .ends_with("This entry's closing sentence is not a bullet, but it belongs to the entry."));
+        // Last entry: the document trailer is stripped, leaving only the bullet.
+        assert!(entries[1].body.ends_with("another bullet"));
+        assert!(!entries[1].body.contains("Check the releases page"));
     }
 
     #[test]

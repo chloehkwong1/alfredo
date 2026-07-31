@@ -285,6 +285,7 @@ pub fn run() {
             debug_log_cmd::debug_log,
             // Ask Alfredo
             ask_alfredo_cmd::search_alfredo_docs,
+            ask_alfredo_cmd::get_whats_new,
             // App Config
             app_config::get_app_config,
             app_config::save_app_config,
