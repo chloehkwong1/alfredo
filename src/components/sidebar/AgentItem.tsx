@@ -453,6 +453,10 @@ function AgentItemContent({
             {worktree.stackRebaseStatus?.kind === "skippedDirty" && (
               <span className="flex-shrink-0">· uncommitted changes — restack paused</span>
             )}
+            {worktree.stackPending?.blockedBy === "agentBusy" &&
+              worktree.stackRebaseStatus?.kind !== "skippedDirty" && (
+              <span className="flex-shrink-0">· restack queued — agent busy</span>
+            )}
             {worktree.stackRebaseStatus?.kind === "pushFailed" && (
               <span className="flex-shrink-0 text-status-error">· restacked, push failed</span>
             )}
