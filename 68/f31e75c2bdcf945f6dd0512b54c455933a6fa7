@@ -1,0 +1,45 @@
+src/hooks/useGithubSync.ts
+  s_6e0310ee114d01::t_de465fbd4f3e75 229,232-233
+  s_6e0310ee114d01::t_d87b83dae407c6 234-236
+  s_194b43f4b982a1::t_f97254fcda582a 237
+src-tauri/src/stack_manager.rs
+  s_6e0310ee114d01::t_b46e7533bc777d 124-128,138-161,164-167,177-187,2739
+  s_6e0310ee114d01::t_feaf6bdf2fcfec 24-27
+  s_6e0310ee114d01::t_b90432ef889513 421
+  s_6e0310ee114d01::t_e83c17b353a070 451
+  s_6e0310ee114d01::t_dc0f99ff6641b6 2718-2738
+  s_6e0310ee114d01::t_6bf100ab1821fb 369
+  s_6e0310ee114d01::t_97da5716f88e8a 1605-1615
+  s_6e0310ee114d01::t_00f5d3e56c0241 1586
+  s_6e0310ee114d01::t_6eccd2c1c92f81 1781-1786,1789-1793
+  s_6e0310ee114d01::t_23a2ecf2dbe2ad 853,857,865,873-877,893-897,907,912,922-924
+  s_6e0310ee114d01::t_e1433ab1f3473b 484,486
+  s_6e0310ee114d01::t_b32603b5330d6c 461,471
+  s_6e0310ee114d01::t_d3dc9c17a12e6e 2740
+src-tauri/src/types.rs
+  s_6e0310ee114d01::t_3317970892a133 134-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "68f31e75c2bdcf945f6dd0512b54c455933a6fa7",
+  "prompts": {},
+  "sessions": {
+    "s_194b43f4b982a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0a346471-e4eb-486a-9425-31b5fc5c6e50",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_6e0310ee114d01": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "28ee7a5f-3ef4-4788-a47f-e84400b2587f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
