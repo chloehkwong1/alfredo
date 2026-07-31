@@ -1371,21 +1371,40 @@ pub async fn begin_conflict_handoff(
     let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
-    let Some(parent_branch) = config_manager::get_stack_parent(&config, worktree_name) else {
-        return Err(format!("{worktree_name} has no stack parent"));
-    };
     let worktree_path = worktree_checkout_path(repo_path, worktree_name, &config).await;
-    let Some(parent_tip) = branch_tip(repo_path, &parent_branch).await else {
-        return Err(format!("could not resolve tip of {parent_branch}"));
-    };
-    let baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
-        Some(sha) => sha,
-        None => git_manager::merge_base(&worktree_path, "HEAD", &parent_tip)
-            .await
-            .map_err(|e| e.to_string())?,
+
+    // A stack ROOT has no parent entry — its conflict came from a root sync, so
+    // the handoff has to replay THAT rebase (onto `origin/<default>`), or the
+    // agent is handed a conflict for a rebase nobody attempted.
+    let stack_parent = config_manager::get_stack_parent(&config, worktree_name);
+    let (target_branch, target_tip, baseline) = match &stack_parent {
+        Some(parent_branch) => {
+            let Some(parent_tip) = branch_tip(repo_path, parent_branch).await else {
+                return Err(format!("could not resolve tip of {parent_branch}"));
+            };
+            let baseline = match config_manager::get_stack_baseline(&config, worktree_name) {
+                Some(sha) => sha,
+                None => git_manager::merge_base(&worktree_path, "HEAD", &parent_tip)
+                    .await
+                    .map_err(|e| e.to_string())?,
+            };
+            (parent_branch.clone(), parent_tip, baseline)
+        }
+        None => {
+            let default_remote = git_manager::resolve_default_remote_branch(repo_path);
+            let default_short =
+                default_remote.strip_prefix("origin/").unwrap_or(&default_remote).to_string();
+            let Some(tip) = remote_branch_tip(repo_path, &default_short).await else {
+                return Err(format!(
+                    "{worktree_name} has no stack parent and no {default_remote} to sync with"
+                ));
+            };
+            let baseline = adoption_baseline(&worktree_path, &default_remote, &tip).await?;
+            (default_remote.clone(), tip, baseline)
+        }
     };
 
-    match git_manager::rebase_onto_sha(&worktree_path, &parent_tip, &baseline, false).await {
+    match git_manager::rebase_onto_sha(&worktree_path, &target_tip, &baseline, false).await {
         Ok(()) => {
             // No conflict after all. Persist baseline like a normal successful
             // restack, and clear this worktree's conflict bookkeeping —
@@ -1394,11 +1413,16 @@ pub async fn begin_conflict_handoff(
             // whatever the sticky Conflict/memo were about.
             clear_conflict_memo(repo_path, worktree_name);
             clear_sticky_status(repo_path, worktree_name);
-            let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
-                .await
-                .map_err(|e| e.to_string())?;
-            config_manager::set_stack_baseline(&mut config, worktree_name, &parent_tip);
-            let _ = config_manager::save_config(app_data_dir, repo_path, &config).await;
+            // Roots deliberately persist nothing: with no stack_parent_overrides
+            // entry, a stray baseline would later be read by `change_base` as its
+            // `--onto` floor instead of deriving `adoption_baseline` fresh.
+            if stack_parent.is_some() {
+                let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                config_manager::set_stack_baseline(&mut config, worktree_name, &target_tip);
+                let _ = config_manager::save_config(app_data_dir, repo_path, &config).await;
+            }
             let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
             Ok("__no_conflict__".to_string())
         }
@@ -1410,10 +1434,10 @@ pub async fn begin_conflict_handoff(
             // auto-restack that advances the baseline and pushes (see doc
             // comment above; `rebase_in_progress` guards the in-flight resolve).
             clear_conflict_memo(repo_path, worktree_name);
-            let short_parent = &parent_tip[..12.min(parent_tip.len())];
+            let short_parent = &target_tip[..12.min(target_tip.len())];
             Ok(format!(
                 "A `git rebase --onto {short_parent} <baseline>` restacking this branch onto \
-                 `{parent_branch}` stopped on conflicts, which are now in the working tree. \
+                 `{target_branch}` stopped on conflicts, which are now in the working tree. \
                  Resolve every conflict preserving the intent of BOTH sides, then run \
                  `git add -A && git rebase --continue` (repeat if further commits conflict) \
                  until the rebase completes. Do NOT push — Alfredo handles pushing. \
