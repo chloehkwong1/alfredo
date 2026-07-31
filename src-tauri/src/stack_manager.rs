@@ -1417,6 +1417,42 @@ pub async fn checkout_paths(repo_path: &str) -> HashMap<String, String> {
     out
 }
 
+/// Walk child→parent edges up from `start` to the branch the stack is rooted
+/// on. The root is the first worktree with no `stack_parent_overrides` entry —
+/// roots are never in that map (creating or re-basing onto the default branch
+/// deliberately writes no entry), which is exactly why the restack cascade has
+/// never touched them.
+///
+/// `None` means "don't sync anything": either a parent branch has no local
+/// checkout (nothing to rebase, and guessing a different root would rewrite the
+/// wrong branch) or the chain cycles.
+#[allow(dead_code)]
+fn stack_root_name(
+    overrides: &HashMap<String, String>,
+    name_to_branch: &HashMap<String, String>,
+    start: &str,
+) -> Option<String> {
+    let branch_to_name: HashMap<&str, &str> = name_to_branch
+        .iter()
+        .map(|(n, b)| (b.as_str(), n.as_str()))
+        .collect();
+
+    let mut current = start.to_string();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    seen.insert(current.clone());
+
+    loop {
+        let Some(parent_branch) = overrides.get(&current) else {
+            return Some(current);
+        };
+        let parent_name = (*branch_to_name.get(parent_branch.as_str())?).to_string();
+        if !seen.insert(parent_name.clone()) {
+            return None;
+        }
+        current = parent_name;
+    }
+}
+
 /// Kahn's algorithm over child→parent edges. Returns every stacked worktree name
 /// with parents before children; members of cycles are dropped (logged).
 fn restack_order(
@@ -1504,6 +1540,48 @@ mod tests {
         let overrides = map(&[("wt-a", "feat/b"), ("wt-b", "feat/a")]);
         let name_to_branch = map(&[("wt-a", "feat/a"), ("wt-b", "feat/b")]);
         assert!(restack_order(&overrides, &name_to_branch).is_empty());
+    }
+
+    #[test]
+    fn stack_root_name_walks_to_the_top_of_a_three_level_stack() {
+        // grandchild → child → parent; only the two children have entries.
+        let overrides = map(&[("feat-c", "feat/b"), ("feat-b", "feat/a")]);
+        let name_to_branch =
+            map(&[("feat-c", "feat/c"), ("feat-b", "feat/b"), ("feat-a", "feat/a")]);
+
+        assert_eq!(
+            stack_root_name(&overrides, &name_to_branch, "feat-c"),
+            Some("feat-a".to_string())
+        );
+    }
+
+    #[test]
+    fn stack_root_name_returns_the_anchor_when_it_is_already_the_root() {
+        let overrides = map(&[("feat-b", "feat/a")]);
+        let name_to_branch = map(&[("feat-b", "feat/b"), ("feat-a", "feat/a")]);
+
+        assert_eq!(
+            stack_root_name(&overrides, &name_to_branch, "feat-a"),
+            Some("feat-a".to_string())
+        );
+    }
+
+    #[test]
+    fn stack_root_name_bails_when_a_parent_has_no_checkout() {
+        // feat/a was removed locally: there is no tree to rebase, so the whole
+        // sync must be skipped rather than syncing the wrong branch.
+        let overrides = map(&[("feat-b", "feat/a")]);
+        let name_to_branch = map(&[("feat-b", "feat/b")]);
+
+        assert_eq!(stack_root_name(&overrides, &name_to_branch, "feat-b"), None);
+    }
+
+    #[test]
+    fn stack_root_name_bails_on_a_cycle() {
+        let overrides = map(&[("feat-a", "feat/b"), ("feat-b", "feat/a")]);
+        let name_to_branch = map(&[("feat-a", "feat/a"), ("feat-b", "feat/b")]);
+
+        assert_eq!(stack_root_name(&overrides, &name_to_branch, "feat-a"), None);
     }
 
     // `worktree_is_dirty` is the discriminator `run_restack` gates
