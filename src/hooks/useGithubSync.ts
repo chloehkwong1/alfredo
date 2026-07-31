@@ -5,7 +5,9 @@ import type { PrUpdatePayload, StackRebaseStatus, StackPendingAction } from "../
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
 import { useToastStore } from "../stores/toastStore";
-import { getPrFiles, setSyncRepoPaths, runArchiveScript, releasePortFor } from "../api";
+import { getPrFiles, setSyncRepoPaths, runArchiveScript } from "../api";
+import { stopServerAndReleasePort } from "../services/portReclaim";
+import { shouldAutoArchive } from "../lib/autoArchive";
 import { lifecycleManager } from "../services/lifecycleManager";
 import { resolveStackConflict } from "../services/stackConflictHandoff";
 
@@ -77,14 +79,13 @@ export function useGithubSync() {
       if (state.archiveAfterDays > 0) {
         const archiveAfterMs = state.archiveAfterDays * 24 * 60 * 60 * 1000;
         state.worktrees
-          .filter((wt) => {
-            if (wt.column !== "done" || wt.archived) return false;
-            if (wt.unarchivedAt && now - wt.unarchivedAt < archiveAfterMs) return false;
-            const refTime = wt.prStatus?.mergedAt
-              ? new Date(wt.prStatus.mergedAt).getTime()
-              : wt.lastActivityAt;
-            return refTime != null && now - refTime >= archiveAfterMs;
-          })
+          .filter((wt) =>
+            shouldAutoArchive(wt, {
+              now,
+              archiveAfterMs,
+              hasRunningServer: !!state.runningServers[wt.id],
+            }),
+          )
           .forEach((wt) => toArchive.push(wt.id));
       }
 
@@ -97,9 +98,7 @@ export function useGithubSync() {
           } catch (e) {
             console.warn("[github-sync] Archive script failed for", wt.id, e);
           }
-          releasePortFor(wt).catch((e) =>
-            console.warn("[github-sync] Failed to release port on auto-archive:", wt.id, e),
-          );
+          await stopServerAndReleasePort(wt, "auto-archive");
         }
 
         useWorkspaceStore.setState((s) => ({

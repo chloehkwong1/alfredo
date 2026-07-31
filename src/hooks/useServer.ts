@@ -12,6 +12,7 @@ const revivingServers = new Set<string>();
 import { getConfig, listSessions, claimWorktreePort, listWorktrees } from "../api";
 import { usePortPickerStore } from "../stores/portPickerStore";
 import { sessionManager } from "../services/sessionManager";
+import { stopDevServer } from "../services/portReclaim";
 import { lifecycleManager } from "../services/lifecycleManager";
 import type { RunScript, Session } from "../types";
 
@@ -283,11 +284,7 @@ export function useServer(activeWorktreeId: string | null) {
 
     try {
       if (isServerRunningHere) {
-        await sessionManager.stopSession(runningServer!.tabId);
-        useTabStore.getState().updateTab(
-          activeWorktreeId, runningServer!.tabId, { command: undefined },
-        );
-        setRunningServer(activeWorktreeId, null);
+        await stopDevServer(activeWorktreeId, runningServer!.tabId);
         return;
       }
 

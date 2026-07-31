@@ -20,7 +20,8 @@ import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import type { KanbanColumn, Worktree } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { usePrStore } from "../../stores/prStore";
-import { setWorktreeColumn, setWorktreeOrders, releasePortFor } from "../../api";
+import { setWorktreeColumn, setWorktreeOrders } from "../../api";
+import { stopServerAndReleasePort } from "../../services/portReclaim";
 import { sortColumnWorktrees, columnNameOrder, type WorktreeOrderMap } from "../../lib/worktreeOrder";
 import { AgentItemOverlay } from "./AgentItemOverlay";
 
@@ -323,11 +324,9 @@ function SidebarDragContext({
           console.error("[drag] Failed to persist column change:", e);
         });
 
-        // Release the port when dragged to Done (keyed on id).
+        // Stop the dev server and release its port when dragged to Done.
         if (worktree.column === "done") {
-          releasePortFor(worktree).catch((e) =>
-            console.warn("[drag] Failed to release port on Done:", worktree.id, e),
-          );
+          stopServerAndReleasePort(worktree, "drag");
         }
 
         // Persist the target column with the card at its drop position, taken

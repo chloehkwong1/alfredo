@@ -3,9 +3,8 @@ import { ChevronDown, Play, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getConfig, listWorktrees, takeWorktreePort } from "../../api";
 import { useAppConfig } from "../../hooks/useAppConfig";
-import { sessionManager } from "../../services/sessionManager";
+import { stopDevServer } from "../../services/portReclaim";
 import { usePortPickerStore } from "../../stores/portPickerStore";
-import { useTabStore } from "../../stores/tabStore";
 import { useToastStore } from "../../stores/toastStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import {
@@ -43,7 +42,6 @@ function StartServerControl({
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const runningServers = useWorkspaceStore((s) => s.runningServers);
   const setWorktreesForRepo = useWorkspaceStore((s) => s.setWorktreesForRepo);
-  const setRunningServer = useWorkspaceStore((s) => s.setRunningServer);
   const { repoColors, repoDisplayNames, repoShortLabels, repos } = useAppConfig();
   const showToast = useToastStore((s) => s.show);
 
@@ -125,11 +123,7 @@ function StartServerControl({
       if (holderRunning) {
         stoppedHolderBranch = slot.branch;
         try {
-          await sessionManager.stopSession(holderRunning.tabId);
-          useTabStore
-            .getState()
-            .updateTab(slot.worktreeName, holderRunning.tabId, { command: undefined });
-          setRunningServer(slot.worktreeName, null);
+          await stopDevServer(slot.worktreeName, holderRunning.tabId);
         } catch (e) {
           console.warn("[port-picker] failed to stop holder server", e);
           // Continue — the take itself is the important bit. Worst case the

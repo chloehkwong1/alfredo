@@ -7,7 +7,8 @@ import type {
   PrStatusWithColumn,
   Worktree,
 } from "../types";
-import { releasePortFor, setWorktreeColumn, clearWorktreeColumn } from "../api";
+import { setWorktreeColumn, clearWorktreeColumn } from "../api";
+import { stopServerAndReleasePort } from "../services/portReclaim";
 
 interface ColumnOverride {
   column: KanbanColumn;
@@ -240,16 +241,15 @@ export const usePrStore = create<PrState>((set, get) => ({
         lastActivityAt: candidates.length > 0 ? Math.max(...candidates) : undefined,
       });
 
-      // Mirror the backend's "release port on Done" contract for auto-column
-      // transitions (PR merged → autoColumn flips to "done"). set_worktree_column
-      // only fires on manual drag/menu actions, so without this the port stays
-      // pinned in app.json forever once a PR auto-completes. The non-done guard
-      // also prevents a double-fire after a manual drag-to-Done (frontend column
-      // is already "done" by the next sync tick).
+      // Mirror the "reclaim on Done" contract for auto-column transitions
+      // (PR merged → autoColumn flips to "done"). set_worktree_column only fires
+      // on manual drag/menu actions, so without this the server keeps running and
+      // the port stays pinned in app.json forever once a PR auto-completes. The
+      // non-done guard also prevents a double-fire after a manual drag-to-Done
+      // (frontend column is already "done" by the next sync tick), which would
+      // otherwise stop a server the user had just restarted in Done.
       if (wt.column !== "done" && column === "done") {
-        releasePortFor(wt).catch((e) => {
-          console.warn("[pr-store] Failed to release port on auto-Done:", wt.id, e);
-        });
+        stopServerAndReleasePort(wt, "pr-store");
       }
 
       // Persist (and reverse) the auto-Done column to the per-repo config so it

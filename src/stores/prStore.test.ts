@@ -1,21 +1,28 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// applyPrUpdates fires fire-and-forget calls into ../api (releasePortFor and,
-// for the auto-Done persistence below, setWorktreeColumn / clearWorktreeColumn).
+// applyPrUpdates fires fire-and-forget calls into ../api (setWorktreeColumn /
+// clearWorktreeColumn for the auto-Done persistence below).
 // Mock the module so we can assert on those without a Tauri backend.
 vi.mock("../api", () => ({
-  releasePortFor: vi.fn(() => Promise.resolve()),
   setWorktreeColumn: vi.fn(() => Promise.resolve()),
   clearWorktreeColumn: vi.fn(() => Promise.resolve()),
 }));
 
+// Auto-Done also stops the dev server and frees its port. Mocked out here both
+// to assert the call and to keep sessionManager (xterm) out of this test's graph.
+vi.mock("../services/portReclaim", () => ({
+  stopServerAndReleasePort: vi.fn(() => Promise.resolve()),
+}));
+
 import { usePrStore } from "./prStore";
 import { setWorktreeColumn, clearWorktreeColumn } from "../api";
+import { stopServerAndReleasePort } from "../services/portReclaim";
 import type { KanbanColumn, PrStatusWithColumn, Worktree } from "../types";
 
 // id and name are deliberately DIFFERENT so a regression that swaps the
 // column key (wt.name) for the port key (wt.id) is caught — column_overrides
-// is name-keyed (config_manager.rs), releasePortFor is id-keyed.
+// is name-keyed (config_manager.rs), while stopServerAndReleasePort is
+// id-keyed (it reads wt.id for both runningServers and port_assignments).
 const WT_ID = "/repo::feature-1";
 const WT_NAME = "feature-1";
 
@@ -69,6 +76,7 @@ beforeEach(() => {
   usePrStore.getState().clearStore();
   vi.mocked(setWorktreeColumn).mockClear();
   vi.mocked(clearWorktreeColumn).mockClear();
+  vi.mocked(stopServerAndReleasePort).mockClear();
 });
 
 // A merged PR ages out of the 30-closed-PR sync window on busy repos. The
@@ -83,6 +91,25 @@ describe("applyPrUpdates — persist auto-Done across restart", () => {
       .applyPrUpdates([makePr({ merged: true, state: "closed" })], [makeWorktree({ column: "inProgress" })]);
 
     expect(setWorktreeColumn).toHaveBeenCalledWith("/repo", WT_NAME, "done");
+  });
+
+  it("stops the server and frees the port on the transition into Done", () => {
+    usePrStore
+      .getState()
+      .applyPrUpdates([makePr({ merged: true, state: "closed" })], [makeWorktree({ column: "inProgress" })]);
+
+    expect(stopServerAndReleasePort).toHaveBeenCalledWith(
+      expect.objectContaining({ id: WT_ID, repoPath: "/repo" }),
+      "pr-store",
+    );
+  });
+
+  it("does not re-stop the server when the worktree was already Done", () => {
+    usePrStore
+      .getState()
+      .applyPrUpdates([makePr({ merged: true, state: "closed" })], [makeWorktree({ column: "done" })]);
+
+    expect(stopServerAndReleasePort).not.toHaveBeenCalled();
   });
 
   it("persists for a closed-not-merged PR (also terminal -> Done)", () => {

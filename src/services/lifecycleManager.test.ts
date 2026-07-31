@@ -6,6 +6,11 @@ const mockRemoveWorktreeTabs = vi.fn();
 const mockRemoveWorktreeState = vi.fn();
 const mockRemoveLayout = vi.fn();
 const mockCloseSession = vi.fn().mockResolvedValue(undefined);
+const mockStopSession = vi.fn().mockResolvedValue(undefined);
+const mockSetRunningServer = vi.fn();
+const mockGetSession = vi.fn(() => null as { sessionId: string } | null);
+const mockListSessions = vi.fn(() => Promise.resolve([] as unknown[]));
+const mockClosePty = vi.fn((..._args: unknown[]) => Promise.resolve());
 const mockDeleteWorktreeApi = vi.fn().mockResolvedValue(undefined);
 const mockReleaseWorktreePort = vi.fn((..._args: unknown[]) => Promise.resolve());
 const mockDeleteSessionFile = vi.fn().mockResolvedValue(undefined);
@@ -24,10 +29,11 @@ const mockGetPane = vi.fn();
 
 let tabStoreState: Record<string, unknown>;
 let layoutStoreState: Record<string, unknown>;
+let workspaceStoreState: Record<string, unknown>;
 
 vi.mock("../stores/workspaceStore", () => ({
   useWorkspaceStore: {
-    getState: () => ({ removeWorktree: mockRemoveWorktree }),
+    getState: () => workspaceStoreState,
   },
 }));
 
@@ -52,6 +58,8 @@ vi.mock("../stores/layoutStore", () => ({
 vi.mock("./sessionManager", () => ({
   sessionManager: {
     closeSession: (...args: unknown[]) => mockCloseSession(...args),
+    stopSession: (...args: unknown[]) => mockStopSession(...args),
+    getSession: (...args: unknown[]) => mockGetSession(...(args as [])),
   },
   stateSourceMap: new Map(),
 }));
@@ -61,6 +69,8 @@ vi.mock("../api", () => ({
   releaseWorktreePort: (...args: unknown[]) => mockReleaseWorktreePort(...args),
   releasePortFor: (wt: { repoPath: string; id: string }) =>
     mockReleaseWorktreePort(wt.repoPath, wt.id),
+  listSessions: () => mockListSessions(),
+  closePty: (...args: unknown[]) => mockClosePty(...args),
 }));
 
 vi.mock("./SessionPersistence", () => ({
@@ -69,10 +79,15 @@ vi.mock("./SessionPersistence", () => ({
 
 // Import AFTER mocks are declared
 import { lifecycleManager } from "./lifecycleManager";
+import { stopServerAndReleasePort, stopDevServer } from "./portReclaim";
 
 beforeEach(() => {
   vi.resetAllMocks();
   mockCloseSession.mockResolvedValue(undefined);
+  mockStopSession.mockResolvedValue(undefined);
+  mockGetSession.mockReturnValue(null);
+  mockListSessions.mockResolvedValue([]);
+  mockClosePty.mockResolvedValue(undefined);
   mockDeleteWorktreeApi.mockResolvedValue(undefined);
   mockReleaseWorktreePort.mockResolvedValue(undefined);
   mockDeleteSessionFile.mockResolvedValue(undefined);
@@ -85,6 +100,11 @@ beforeEach(() => {
     ensureDefaultTabs: mockEnsureDefaultTabs,
     restoreTabs: mockRestoreTabs,
     updateTab: mockUpdateTab,
+  };
+  workspaceStoreState = {
+    removeWorktree: mockRemoveWorktree,
+    runningServers: {},
+    setRunningServer: mockSetRunningServer,
   };
   layoutStoreState = {
     layout: {},
@@ -662,5 +682,182 @@ describe("lifecycleManager", () => {
       // Session close (async invoke boundary) must complete before store ops
       expect(callOrder[0]).toBe("closeSession");
     });
+  });
+});
+
+describe("stopServerAndReleasePort", () => {
+  const wt = { repoPath: "/repo", id: "/repo::feature-1" };
+
+  it("stops the running dev server before releasing its port", async () => {
+    const callOrder: string[] = [];
+    workspaceStoreState.runningServers = {
+      [wt.id]: { sessionId: "sess-1", tabId: "tab-server" },
+    };
+    mockStopSession.mockImplementation(() => {
+      callOrder.push("stopSession");
+      return Promise.resolve();
+    });
+    mockReleaseWorktreePort.mockImplementation(() => {
+      callOrder.push("releasePort");
+      return Promise.resolve();
+    });
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockStopSession).toHaveBeenCalledWith("tab-server");
+    expect(mockReleaseWorktreePort).toHaveBeenCalledWith("/repo", "/repo::feature-1");
+    // Releasing the assignment while the process still holds the OS port is the
+    // bug this guards: the next claimant would be handed a bound port.
+    expect(callOrder).toEqual(["stopSession", "releasePort"]);
+  });
+
+  it("clears the tab command and the running-server entry so Start can re-run", async () => {
+    workspaceStoreState.runningServers = {
+      [wt.id]: { sessionId: "sess-1", tabId: "tab-server" },
+    };
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockUpdateTab).toHaveBeenCalledWith(wt.id, "tab-server", { command: undefined });
+    expect(mockSetRunningServer).toHaveBeenCalledWith(wt.id, null);
+  });
+
+  it("releases the port without touching sessions when no server is running", async () => {
+    workspaceStoreState.runningServers = {};
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockStopSession).not.toHaveBeenCalled();
+    expect(mockReleaseWorktreePort).toHaveBeenCalledWith("/repo", "/repo::feature-1");
+  });
+
+  it("keys on worktree id, not name — a name key silently no-ops the release", async () => {
+    workspaceStoreState.runningServers = {
+      "feature-1": { sessionId: "sess-1", tabId: "tab-server" },
+    };
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockStopSession).not.toHaveBeenCalled();
+  });
+
+  it("stopDevServer performs the full stop trio in order", async () => {
+    await stopDevServer("wt-9", "tab-9");
+
+    expect(mockStopSession).toHaveBeenCalledWith("tab-9");
+    expect(mockUpdateTab).toHaveBeenCalledWith("wt-9", "tab-9", { command: undefined });
+    expect(mockSetRunningServer).toHaveBeenCalledWith("wt-9", null);
+  });
+
+  it("stopDevServer does not disown a server started during the await", async () => {
+    // The entry moved on to a different tab while stopSession was in flight —
+    // clearing it would hide a server that is actually running.
+    mockStopSession.mockImplementation(() => {
+      workspaceStoreState.runningServers = {
+        "wt-9": { sessionId: "sess-2", tabId: "tab-NEW" },
+      };
+      return Promise.resolve();
+    });
+
+    await stopDevServer("wt-9", "tab-OLD");
+
+    expect(mockSetRunningServer).not.toHaveBeenCalled();
+  });
+
+  it("keeps the port assignment when the server fails to stop", async () => {
+    // Releasing here would strand a bound port: the picker builds held slots
+    // from the assignments map, so a released port renders free and unreclaimable.
+    workspaceStoreState.runningServers = {
+      [wt.id]: { sessionId: "sess-1", tabId: "tab-server" },
+    };
+    mockStopSession.mockRejectedValue(new Error("pty already gone"));
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockReleaseWorktreePort).not.toHaveBeenCalled();
+  });
+
+  it("closes a live server session the store lost track of, then releases", async () => {
+    // runningServers is best-effort — the stale-server sweep can clear an entry
+    // while the PTY is still alive. Rust is the authority.
+    workspaceStoreState.runningServers = {};
+    mockListSessions.mockResolvedValue([
+      { id: "sess-orphan", worktreeId: wt.id, sessionType: "server", status: "running" },
+    ]);
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockClosePty).toHaveBeenCalledWith("sess-orphan");
+    expect(mockReleaseWorktreePort).toHaveBeenCalledWith("/repo", "/repo::feature-1");
+  });
+
+  it("does not double-close the session already handled by stopDevServer", async () => {
+    workspaceStoreState.runningServers = {
+      [wt.id]: { sessionId: "sess-1", tabId: "tab-server" },
+    };
+    mockGetSession.mockReturnValue({ sessionId: "sess-1" });
+    mockListSessions.mockResolvedValue([
+      { id: "sess-1", worktreeId: wt.id, sessionType: "server", status: "running" },
+    ]);
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockStopSession).toHaveBeenCalledWith("tab-server");
+    expect(mockClosePty).not.toHaveBeenCalled();
+    expect(mockReleaseWorktreePort).toHaveBeenCalledWith("/repo", "/repo::feature-1");
+  });
+
+  it("ignores agent and shell sessions, and other worktrees' servers", async () => {
+    workspaceStoreState.runningServers = {};
+    mockListSessions.mockResolvedValue([
+      { id: "a", worktreeId: wt.id, sessionType: "agent", status: "running" },
+      { id: "s", worktreeId: wt.id, sessionType: "shell", status: "running" },
+      { id: "other", worktreeId: "/repo::feature-2", sessionType: "server", status: "running" },
+      { id: "dead", worktreeId: wt.id, sessionType: "server", status: { exited: 0 } },
+    ]);
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockClosePty).not.toHaveBeenCalled();
+    expect(mockReleaseWorktreePort).toHaveBeenCalledWith("/repo", "/repo::feature-1");
+  });
+
+  it("keeps the assignment when an orphaned session fails to close", async () => {
+    workspaceStoreState.runningServers = {};
+    mockListSessions.mockResolvedValue([
+      { id: "sess-orphan", worktreeId: wt.id, sessionType: "server", status: "running" },
+    ]);
+    mockClosePty.mockRejectedValue(new Error("close failed"));
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockReleaseWorktreePort).not.toHaveBeenCalled();
+  });
+
+  it("does not release a port claimed by a server started during teardown", async () => {
+    workspaceStoreState.runningServers = {
+      [wt.id]: { sessionId: "sess-1", tabId: "tab-OLD" },
+    };
+    // User drags back out of Done and hits Start while the stop is in flight.
+    mockStopSession.mockImplementation(() => {
+      workspaceStoreState.runningServers = {
+        [wt.id]: { sessionId: "sess-2", tabId: "tab-NEW" },
+      };
+      return Promise.resolve();
+    });
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockReleaseWorktreePort).not.toHaveBeenCalled();
+  });
+
+  it("keeps the assignment when the session list is unavailable", async () => {
+    // Without the authoritative list we cannot know what is still bound.
+    mockListSessions.mockRejectedValue(new Error("ipc down"));
+
+    await stopServerAndReleasePort(wt, "test");
+
+    expect(mockStopSession).not.toHaveBeenCalled();
+    expect(mockReleaseWorktreePort).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,8 @@ import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy,
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, restackNow, setStackParent, runSetupScripts, setWorktreeColumn, releasePortFor } from "../../api";
+import { rebaseWorktree, restackNow, setStackParent, runSetupScripts, setWorktreeColumn } from "../../api";
+import { stopServerAndReleasePort } from "../../services/portReclaim";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp } from "../../api";
@@ -783,9 +784,7 @@ const AgentItem = memo(function AgentItem({
       console.error("Failed to persist column change:", e);
     }
     if (target === "done") {
-      await releasePortFor(worktree).catch((e) =>
-        console.warn("Failed to release port on Done:", worktree.id, e),
-      );
+      await stopServerAndReleasePort(worktree, "move-to-done");
     }
   };
 
