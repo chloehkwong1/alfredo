@@ -25,12 +25,19 @@ function stateText(s: StackRebaseStatus | null | undefined): string {
   }
 }
 
-/** Row label: merged > active status > queued pending > up to date. */
+/** Row label: error state > merged > active status > queued pending > up to
+ *  date. Merged is terminal, so only conflict/pushFailed/rewrittenExternally
+ *  — states that mean the branch itself needs action even though its PR
+ *  landed — may outrank it; behind/rebasing/skippedDirty must not, or a
+ *  merged PR would show a stale "5 behind" that self-resolves once the poll
+ *  catches up. Without this ordering "merged ✓" hid those error states while
+ *  the row's className still rendered error-red — a contradictory row. */
 function memberStateText(m: Worktree): string {
+  const kind = m.stackRebaseStatus?.kind;
+  const isErrorState = kind === "conflict" || kind === "pushFailed" || kind === "rewrittenExternally";
+  if (isErrorState) return stateText(m.stackRebaseStatus);
   if (m.prStatus?.merged) return "merged ✓";
-  if (m.stackRebaseStatus && m.stackRebaseStatus.kind !== "upToDate") {
-    return stateText(m.stackRebaseStatus);
-  }
+  if (kind && kind !== "upToDate") return stateText(m.stackRebaseStatus);
   if (m.stackPending) return "restack queued";
   return "up to date";
 }
