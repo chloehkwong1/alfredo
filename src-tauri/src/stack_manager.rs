@@ -498,15 +498,64 @@ async fn sync_stack_root(
     match plan_root_sync(repo_path, &config.stack_parent_overrides, &checkouts, anchor_worktree)
         .await?
     {
-        RootSyncPlan::Skip(reason) => {
+        RootSyncPlan::Skip { root, reason } => {
             eprintln!("[stack_manager] root sync skipped for {anchor_worktree}: {reason}");
+            // Only the "already synced" reason is a fact we can act on — every
+            // other skip reason (no resolvable root, no checkout, root is the
+            // default branch, no remote-tracking ref) means we don't actually
+            // know the branch's state, so healing there would emit a false
+            // `UpToDate`. See `heal_root_sticky_status` for why healing must
+            // happen here at all.
+            if reason == ROOT_ALREADY_SYNCED_REASON {
+                if let Some(root) = root {
+                    heal_root_sticky_status(app_handle, repo_path, &root).await;
+                }
+            }
             Ok(())
         }
-        RootSyncPlan::Rebase { root_name, root_path, target_tip, baseline } => {
-            run_restack(app_handle, repo_path, &root_path, &root_name, &target_tip, &baseline)
+        RootSyncPlan::Rebase { root, target_tip, baseline } => {
+            run_restack(app_handle, repo_path, &root.path, &root.name, &target_tip, &baseline)
                 .await
                 .map(|_| ())
         }
+    }
+}
+
+/// Clear a root's sticky status when a sync finds it already up to date.
+///
+/// `compute_stack_statuses` iterates `config.stack_parent_overrides` to decide
+/// which worktrees to recompute a status for, and a root — by construction —
+/// never has an entry there (see `stack_root_name`). So once a root's sticky
+/// status is set, nothing else in this module ever revisits it to clear it:
+/// not the background poll, not `compute_stack_statuses`. An explicit "Sync
+/// stack with main" (this function) is the only path that can — the same
+/// hazard `change_base` documents at its own dissolve site ("would outlive
+/// every path that could clear it").
+///
+/// Concretely, two states get stuck otherwise: `PushFailed` (the rebase
+/// landed but the lease push failed) and `Conflict`/`SkippedDirty` (the user
+/// resolved the rebase manually in a terminal, so nothing ever told Alfredo).
+/// This mirrors `restack_child_inner`'s `baseline == parent_tip` healing for
+/// children — roots need the same recovery, just reached through the sync
+/// button instead of "Restack now" since roots have no restack command.
+async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: &ResolvedRoot) {
+    match sticky_status(repo_path, &root.name) {
+        Some(StackRebaseStatus::PushFailed) => {
+            push_with_lease_or_flag(app_handle, repo_path, &root.path, &root.name).await;
+            if sticky_status(repo_path, &root.name).is_none() {
+                emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
+            }
+        }
+        // An unresolved conflict or a dirty tree must keep its badge — only
+        // clear when the rebase is genuinely finished and the tree is clean.
+        Some(StackRebaseStatus::Conflict | StackRebaseStatus::SkippedDirty) => {
+            if !rebase_in_progress(&root.path).await && !worktree_is_dirty(&root.path, true).await {
+                clear_sticky_status(repo_path, &root.name);
+                emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
+            }
+        }
+        Some(StackRebaseStatus::UpToDate | StackRebaseStatus::Behind { .. } | StackRebaseStatus::Rebasing)
+        | None => {}
     }
 }
 
@@ -1532,14 +1581,33 @@ fn stack_root_name(
     }
 }
 
+/// A stack root resolved to a concrete worktree: name and checkout path.
+struct ResolvedRoot {
+    name: String,
+    path: String,
+}
+
+/// The skip reason meaning "nothing to do, and we know that for a fact" — the
+/// only one `sync_stack_root` may treat as license to heal a stale sticky
+/// status. Named so the string isn't duplicated between the place that
+/// returns it and the place that matches on it.
+const ROOT_ALREADY_SYNCED_REASON: &str = "root already sits on the default branch tip";
+
 /// What a root sync should do, decided before any history is touched so the
 /// decision is testable without an `AppHandle`.
 enum RootSyncPlan {
-    /// Nothing to do; the payload is the reason, for the skip log.
-    Skip(&'static str),
+    /// Nothing to do. `root` is the resolved root when skip happened after
+    /// resolution (so a caller that only cares about "already synced" can act
+    /// on it); `None` when the skip happened before a root could be pinned
+    /// down at all. `reason` is the skip log payload — and, for callers that
+    /// need to distinguish "definitely current" from "unknown", the specific
+    /// string `ROOT_ALREADY_SYNCED_REASON`.
+    Skip {
+        root: Option<ResolvedRoot>,
+        reason: &'static str,
+    },
     Rebase {
-        root_name: String,
-        root_path: String,
+        root: ResolvedRoot,
         target_tip: String,
         baseline: String,
     },
@@ -1571,36 +1639,38 @@ async fn plan_root_sync(
         .collect();
 
     let Some(root_name) = stack_root_name(overrides, &name_to_branch, anchor_name) else {
-        return Ok(RootSyncPlan::Skip("no resolvable stack root (missing checkout or cycle)"));
+        return Ok(RootSyncPlan::Skip {
+            root: None,
+            reason: "no resolvable stack root (missing checkout or cycle)",
+        });
     };
     let Some(root_branch) = name_to_branch.get(&root_name) else {
-        return Ok(RootSyncPlan::Skip("stack root has no checkout"));
+        return Ok(RootSyncPlan::Skip { root: None, reason: "stack root has no checkout" });
     };
     let Some(root_path) = checkouts.get(root_branch) else {
-        return Ok(RootSyncPlan::Skip("stack root has no checkout"));
+        return Ok(RootSyncPlan::Skip { root: None, reason: "stack root has no checkout" });
     };
+    let root = ResolvedRoot { name: root_name, path: root_path.clone() };
 
     let default_remote = git_manager::resolve_default_remote_branch(repo_path);
     let default_short = default_remote.strip_prefix("origin/").unwrap_or(&default_remote);
     if root_branch == default_short {
-        return Ok(RootSyncPlan::Skip("stack root is the default branch"));
+        return Ok(RootSyncPlan::Skip { root: Some(root), reason: "stack root is the default branch" });
     }
 
     let Some(target_tip) = remote_branch_tip(repo_path, default_short).await else {
-        return Ok(RootSyncPlan::Skip("default branch has no remote-tracking ref"));
+        return Ok(RootSyncPlan::Skip {
+            root: Some(root),
+            reason: "default branch has no remote-tracking ref",
+        });
     };
 
-    let baseline = adoption_baseline(root_path, &default_remote, &target_tip).await?;
+    let baseline = adoption_baseline(&root.path, &default_remote, &target_tip).await?;
     if baseline == target_tip {
-        return Ok(RootSyncPlan::Skip("root already sits on the default branch tip"));
+        return Ok(RootSyncPlan::Skip { root: Some(root), reason: ROOT_ALREADY_SYNCED_REASON });
     }
 
-    Ok(RootSyncPlan::Rebase {
-        root_name,
-        root_path: root_path.clone(),
-        target_tip,
-        baseline,
-    })
+    Ok(RootSyncPlan::Rebase { root, target_tip, baseline })
 }
 
 /// Kahn's algorithm over child→parent edges. Returns every stacked worktree name
@@ -1964,18 +2034,18 @@ mod tests {
             .expect("plan_root_sync");
 
         match plan {
-            RootSyncPlan::Rebase { root_name, root_path, target_tip, baseline } => {
+            RootSyncPlan::Rebase { root, target_tip, baseline } => {
                 // checkout dir name for the root is the temp dir's own name
-                assert!(root_path == repo_path, "root path must be the root's checkout");
+                assert!(root.path == repo_path, "root path must be the root's checkout");
                 assert_eq!(target_tip, origin_main_sha, "must target origin/main, not local refs");
                 assert_ne!(
                     target_tip, local_main_sha,
                     "must not read the diverged local main ref"
                 );
                 assert_ne!(baseline, origin_main_sha, "root has its own commit to replay");
-                assert!(!root_name.is_empty());
+                assert!(!root.name.is_empty());
             }
-            RootSyncPlan::Skip(reason) => panic!("expected a rebase, got skip: {reason}"),
+            RootSyncPlan::Skip { reason, .. } => panic!("expected a rebase, got skip: {reason}"),
         }
     }
 
@@ -1993,7 +2063,7 @@ mod tests {
             .await
             .expect("plan_root_sync");
 
-        assert!(matches!(plan, RootSyncPlan::Skip(_)), "an up-to-date root must not rebase");
+        assert!(matches!(plan, RootSyncPlan::Skip { .. }), "an up-to-date root must not rebase");
     }
 
     #[tokio::test]
@@ -2009,7 +2079,7 @@ mod tests {
             .await
             .expect("plan_root_sync");
 
-        assert!(matches!(plan, RootSyncPlan::Skip(_)), "main must never be rebased onto itself");
+        assert!(matches!(plan, RootSyncPlan::Skip { .. }), "main must never be rebased onto itself");
     }
 
     #[tokio::test]
@@ -2023,7 +2093,7 @@ mod tests {
             .await
             .expect("plan_root_sync");
 
-        assert!(matches!(plan, RootSyncPlan::Skip(_)));
+        assert!(matches!(plan, RootSyncPlan::Skip { .. }));
     }
 
     // The heuristic's positive case: pushed, merged into main, and no worktree
