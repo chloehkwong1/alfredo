@@ -50,6 +50,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             comment_chips: vec![],
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
+            whats_new_last_seen: None,
         });
     }
 
@@ -116,6 +117,19 @@ pub fn add_repo(config: &mut GlobalAppConfig, path: String, mode: RepoMode) -> R
         config.active_repo = Some(path);
     }
     Ok(())
+}
+
+/// Advance the what's-new marker, never rewinding it — a downgrade must not
+/// re-trigger the popup for content the user already dismissed. Returns true
+/// when the config changed and therefore needs saving.
+pub fn advance_whats_new_seen(config: &mut GlobalAppConfig, version: &str) -> bool {
+    if let Some(current) = config.whats_new_last_seen.as_deref() {
+        if !crate::ask_alfredo::whats_new::version_gt(version, current) {
+            return false;
+        }
+    }
+    config.whats_new_last_seen = Some(version.to_string());
+    true
 }
 
 /// Remove a repo from the config.
@@ -205,6 +219,7 @@ pub async fn migrate_if_needed(
         comment_chips: vec![],
         dismissed_lifecycle_nudge: false,
         receive_beta_updates: false,
+        whats_new_last_seen: None,
     };
 
     save(app_data_dir, &global).await?;
@@ -276,6 +291,7 @@ mod tests {
             comment_chips: vec![],
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
+            whats_new_last_seen: None,
         };
         save(dir.path(), &config).await?;
         let loaded = load(dir.path()).await?;
@@ -326,6 +342,7 @@ mod tests {
             comment_chips: vec![],
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
+            whats_new_last_seen: None,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
         assert!(result.is_err());
@@ -373,6 +390,7 @@ mod tests {
             comment_chips: vec![],
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
+            whats_new_last_seen: None,
         };
         remove_repo(&mut config, "/tmp/a");
         assert_eq!(config.repos.len(), 1);
@@ -409,5 +427,45 @@ mod tests {
     fn global_config_without_extra_flags_deserializes_to_none() {
         let cfg: crate::types::GlobalAppConfig = serde_json::from_str("{}").unwrap();
         assert_eq!(cfg.extra_flags, None);
+    }
+
+    #[tokio::test]
+    async fn advance_whats_new_seen_sets_marker_when_unset()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let mut config = load(dir.path()).await?;
+        assert!(advance_whats_new_seen(&mut config, "0.20.0"));
+        assert_eq!(config.whats_new_last_seen.as_deref(), Some("0.20.0"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn advance_whats_new_seen_moves_marker_forward()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let mut config = load(dir.path()).await?;
+        config.whats_new_last_seen = Some("0.19.0".into());
+        assert!(advance_whats_new_seen(&mut config, "0.20.0"));
+        assert_eq!(config.whats_new_last_seen.as_deref(), Some("0.20.0"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn advance_whats_new_seen_never_rewinds() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let mut config = load(dir.path()).await?;
+        config.whats_new_last_seen = Some("0.20.0".into());
+        assert!(!advance_whats_new_seen(&mut config, "0.19.0"));
+        assert_eq!(config.whats_new_last_seen.as_deref(), Some("0.20.0"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn advance_whats_new_seen_is_idempotent() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::TempDir::new()?;
+        let mut config = load(dir.path()).await?;
+        config.whats_new_last_seen = Some("0.20.0".into());
+        assert!(!advance_whats_new_seen(&mut config, "0.20.0"));
+        Ok(())
     }
 }

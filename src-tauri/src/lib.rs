@@ -300,6 +300,7 @@ pub fn run() {
             app_config::set_worktree_label,
             app_config::set_comment_chips,
             app_config::has_active_sessions,
+            app_config::mark_whats_new_seen,
             // PTY
             pty::spawn_pty,
             pty::write_pty,

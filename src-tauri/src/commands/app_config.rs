@@ -28,6 +28,7 @@ pub async fn get_app_config(app: AppHandle) -> Result<GlobalAppConfig, AppError>
 ///
 /// Backend-owned fields (do NOT copy from the incoming blob):
 ///   - `linear_oauth` — written by `linear_oauth_start` / `refresh_if_needed`.
+///   - `whats_new_last_seen` — written by `mark_whats_new_seen`.
 ///
 /// When a new backend-managed field is added (e.g. `linear_oauth_last_error`
 /// in B4), add it to the preserve list below.
@@ -38,6 +39,7 @@ pub async fn save_app_config(app: AppHandle, config: GlobalAppConfig) -> Result<
 
     let merged = GlobalAppConfig {
         linear_oauth: on_disk.linear_oauth,
+        whats_new_last_seen: on_disk.whats_new_last_seen,
         ..config
     };
 
@@ -208,4 +210,17 @@ pub async fn has_active_sessions(app: AppHandle, repo_path: String) -> Result<bo
                     | crate::types::SessionStatus::WaitingForInput
             )
     }))
+}
+
+#[tauri::command]
+pub async fn mark_whats_new_seen(
+    app: AppHandle,
+    version: String,
+) -> Result<GlobalAppConfig, AppError> {
+    let dir = app_data_dir(&app)?;
+    let mut config = app_config_manager::load(&dir).await?;
+    if app_config_manager::advance_whats_new_seen(&mut config, &version) {
+        app_config_manager::save(&dir, &config).await?;
+    }
+    Ok(config)
 }

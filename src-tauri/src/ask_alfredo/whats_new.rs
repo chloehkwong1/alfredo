@@ -12,10 +12,6 @@ pub struct WhatsNewEntry {
 
 /// Numeric `major.minor.patch` compare. Unparseable segments sort as 0, so a
 /// malformed marker never suppresses the popup forever.
-///
-/// `#[allow(dead_code)]` because the caller (the update-check command, a
-/// later task) doesn't exist yet.
-#[allow(dead_code)]
 pub fn version_gt(a: &str, b: &str) -> bool {
     parts(a) > parts(b)
 }
