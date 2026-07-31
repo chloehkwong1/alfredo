@@ -4,8 +4,23 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { PrUpdatePayload, StackRebaseStatus } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
+import { useToastStore } from "../stores/toastStore";
 import { getPrFiles, setSyncRepoPaths, runArchiveScript, releasePortFor } from "../api";
 import { lifecycleManager } from "../services/lifecycleManager";
+import { resolveStackConflict } from "../services/stackConflictHandoff";
+
+/** Worktree name → the id of its open conflict toast. A rebase conflict blocks
+ *  the whole stack, so the toast never times out — which means something has to
+ *  take it down. These entries let a resolution (or a repeat conflict on the
+ *  same branch) replace the bar instead of stacking identical ones up. */
+const conflictToastIds = new Map<string, string>();
+
+function dismissConflictToast(worktreeName: string) {
+  const id = conflictToastIds.get(worktreeName);
+  if (!id) return;
+  conflictToastIds.delete(worktreeName);
+  useToastStore.getState().dismiss(id);
+}
 
 /**
  * Listens for `github:pr-update` events from the Rust background sync loop
@@ -125,6 +140,7 @@ export function useGithubSync() {
           stackRebaseStatus: { kind: "upToDate" },
         });
       }
+      dismissConflictToast(worktreeName);
     });
     return () => { unlisten.then((fn) => fn()); };
   }, []);
@@ -134,11 +150,31 @@ export function useGithubSync() {
     const unlisten = listen<string>("stack:rebase-conflict", (event) => {
       const worktreeName = event.payload;
       const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
-      if (wt) {
-        useWorkspaceStore.getState().updateWorktree(wt.id, {
-          stackRebaseStatus: { kind: "conflict" },
-        });
-      }
+      if (!wt) return;
+      useWorkspaceStore.getState().updateWorktree(wt.id, {
+        stackRebaseStatus: { kind: "conflict" },
+      });
+
+      // The sidebar badge is easy to miss on a long list, and the stack popover
+      // that holds the resolve action is two clicks away behind the glyph.
+      dismissConflictToast(worktreeName);
+      const id = useToastStore.getState().show({
+        message: `Rebase conflict on ${wt.branch}`,
+        durationMs: 0,
+        action: {
+          label: "Have Claude resolve",
+          onClick: () => {
+            conflictToastIds.delete(worktreeName);
+            resolveStackConflict(wt).catch((e) => {
+              console.error("Conflict handoff failed:", e);
+              useToastStore.getState().show({
+                message: `Handoff failed: ${e instanceof Error ? e.message : e}`,
+              });
+            });
+          },
+        },
+      });
+      conflictToastIds.set(worktreeName, id);
     });
     return () => { unlisten.then((fn) => fn()); };
   }, []);
@@ -167,6 +203,9 @@ export function useGithubSync() {
         if (wt) {
           useWorkspaceStore.getState().updateWorktree(wt.id, { stackRebaseStatus: status });
         }
+        // The poll is the authority on whether the conflict still stands: once
+        // it reports anything else, a sticky bar offering to resolve it is lying.
+        if (status.kind !== "conflict") dismissConflictToast(worktreeName);
       },
     );
     return () => { unlisten.then((fn) => fn()); };

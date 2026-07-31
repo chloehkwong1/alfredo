@@ -1,7 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { restackStack, restackNow, prepareConflictHandoff } from "../../api";
-import { ensureAgentSession, writeToSession, focusAgentTab } from "../../services/agentMessenger";
+import { restackStack, restackNow } from "../../api";
+import { resolveStackConflict } from "../../services/stackConflictHandoff";
 import type { StackChain } from "../../lib/stackChain";
 import type { Worktree, StackRebaseStatus } from "../../types";
 
@@ -40,15 +40,7 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
     if (!conflicted) return;
     onClose();
     try {
-      const prompt = await prepareConflictHandoff(conflicted.repoPath, conflicted.name);
-      if (prompt === "__no_conflict__") return;
-      const session = await ensureAgentSession(conflicted.id, conflicted.repoPath, conflicted.branch);
-      if (!session?.sessionId) {
-        throw new Error("worktree has no live agent session — reopen its terminal first");
-      }
-      await writeToSession(session.sessionId, `${prompt}\n`);
-      setActiveWorktree(conflicted.id);
-      focusAgentTab(conflicted.id);
+      await resolveStackConflict(conflicted);
     } catch (e) {
       console.error("Conflict handoff failed:", e);
       new Notification("Alfredo", { body: `Handoff failed: ${e instanceof Error ? e.message : e}` });
