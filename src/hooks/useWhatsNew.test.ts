@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareVersions, decideWhatsNew, newestVersion } from "./useWhatsNew";
+import { claimOnce, compareVersions, decideWhatsNew, newestVersion } from "./useWhatsNew";
 import type { WhatsNewEntry } from "../types";
 
 const entry = (version: string): WhatsNewEntry => ({
@@ -67,5 +67,39 @@ describe("decideWhatsNew", () => {
   it("hides when the marker is ahead of every entry (downgrade)", () => {
     const d = decideWhatsNew({ entries: ENTRIES, lastSeen: "0.21.0", repoCount: 2 });
     expect(d.show).toBe(false);
+  });
+});
+
+describe("claimOnce", () => {
+  // Regression coverage for React StrictMode's synchronous double-invoke of
+  // mount effects (setup -> cleanup -> setup): the phantom first invocation
+  // is always cancelled before its async work settles, but its promise can
+  // still resolve either before or after the surviving second invocation's.
+  // Exactly one of the two must ever win the claim, regardless of order.
+
+  it("lets the surviving (non-cancelled) invocation claim even if the cancelled phantom settles first", () => {
+    const ref = { current: false };
+    expect(claimOnce(ref, true)).toBe(false); // phantom invocation settles first, cancelled
+    expect(claimOnce(ref, false)).toBe(true); // surviving invocation settles second, claims
+    expect(ref.current).toBe(true);
+  });
+
+  it("lets the surviving invocation claim even if it settles before the cancelled phantom", () => {
+    const ref = { current: false };
+    expect(claimOnce(ref, false)).toBe(true); // surviving invocation settles first, claims
+    expect(claimOnce(ref, true)).toBe(false); // phantom invocation settles second, cancelled anyway
+    expect(ref.current).toBe(true);
+  });
+
+  it("never lets a second invocation claim once the ref is already claimed", () => {
+    const ref = { current: false };
+    expect(claimOnce(ref, false)).toBe(true);
+    expect(claimOnce(ref, false)).toBe(false);
+  });
+
+  it("does not claim when cancelled, leaving the ref open for a later invocation", () => {
+    const ref = { current: false };
+    expect(claimOnce(ref, true)).toBe(false);
+    expect(ref.current).toBe(false);
   });
 });

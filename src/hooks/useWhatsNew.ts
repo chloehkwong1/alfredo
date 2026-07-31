@@ -64,16 +64,37 @@ export function decideWhatsNew({
   return { show: true, entries: missed, seedVersion: null };
 }
 
+/**
+ * Claims the "act now" slot exactly once for a `{ current: boolean }` ref,
+ * refusing the claim if already cancelled or already claimed.
+ *
+ * React StrictMode double-invokes mount effects synchronously: setup →
+ * cleanup → setup. If the ref were claimed *before* the awaited fetch (as
+ * a naive guard would), the phantom first invocation grabs it, its cleanup
+ * cancels it, and the surviving second invocation then finds the guard
+ * already tripped and never runs at all — the decision silently never
+ * happens. Claiming only here, after the async work settles and with the
+ * invocation's own `cancelled` flag in hand, means the always-cancelled
+ * phantom invocation can never win the claim, regardless of which
+ * invocation's promise happens to settle first.
+ */
+export function claimOnce(ref: { current: boolean }, cancelled: boolean): boolean {
+  if (cancelled || ref.current) return false;
+  ref.current = true;
+  return true;
+}
+
 export function useWhatsNew() {
   const config = useAppConfigValue((s) => s.config);
   const [entries, setEntries] = useState<WhatsNewEntry[]>([]);
   const [open, setOpen] = useState(false);
-  // The decision is made once per launch, off the first loaded config.
+  // Set once a decision has actually been committed (see claimOnce), so a
+  // later config-changed refetch's effect run bails out at the top here
+  // without re-fetching or re-deciding.
   const decidedRef = useRef(false);
 
   useEffect(() => {
     if (decidedRef.current || !config) return;
-    decidedRef.current = true;
     let cancelled = false;
 
     void (async () => {
@@ -84,7 +105,7 @@ export function useWhatsNew() {
         console.error("[whats-new] fetch failed:", e);
         return;
       }
-      if (cancelled) return;
+      if (!claimOnce(decidedRef, cancelled)) return;
 
       const decision = decideWhatsNew({
         entries: fetched,
