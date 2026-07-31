@@ -1,0 +1,27 @@
+src/components/sidebar/StackMapPopover.tsx
+  s_0fb076c26f61e1::t_984f5edaf5f83e 43
+  s_0fb076c26f61e1::t_995e4bdcb8b2a5 3-4
+src/services/stackConflictHandoff.ts
+  s_0fb076c26f61e1::t_670aa49bfb50df 1-31
+src/hooks/useGithubSync.ts
+  s_0fb076c26f61e1::t_a6c11d51d1f1e4 7,10-23
+  s_0fb076c26f61e1::t_83bda256ffddc3 153-177
+  s_0fb076c26f61e1::t_b44d3f1f70991f 143
+  s_0fb076c26f61e1::t_55de28cf1a4978 206-208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "5b729b95d56f76fb40639a31d7ba551f5e78645b",
+  "prompts": {},
+  "sessions": {
+    "s_0fb076c26f61e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff12b5e3-808b-489b-ba22-e9c288004a8e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
