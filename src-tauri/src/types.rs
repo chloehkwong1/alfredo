@@ -130,6 +130,23 @@ pub enum StackRebaseStatus {
     RewrittenExternally,
 }
 
+/// A stack action Alfredo intends to run but has deferred, plus the blocker it
+/// waits on. Only the merged-parent path produces these — routine quiet-gate
+/// skips stay silent so a dirty tree alone never badges a whole stack.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StackPendingAction {
+    pub merged_parent: String,
+    pub blocked_by: StackPendingBlocker,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum StackPendingBlocker {
+    Dirty,
+    AgentBusy,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Worktree {

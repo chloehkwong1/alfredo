@@ -7,7 +7,7 @@ use tauri::{AppHandle, Emitter};
 use crate::config_manager;
 use crate::git_manager;
 use crate::git_manager::git_command;
-use crate::types::{AppConfig, StackRebaseStatus};
+use crate::types::{AppConfig, StackPendingAction, StackPendingBlocker, StackRebaseStatus};
 
 // ── Event payloads ───────────────────────────────────────────────
 
@@ -16,6 +16,13 @@ use crate::types::{AppConfig, StackRebaseStatus};
 struct StackStatusPayload {
     worktree_name: String,
     status: StackRebaseStatus,
+}
+
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct StackPendingPayload {
+    worktree_name: String,
+    pending: Option<StackPendingAction>,
 }
 
 // ── In-process memos ─────────────────────────────────────────────
@@ -95,6 +102,31 @@ fn sticky_status(repo_path: &str, worktree_name: &str) -> Option<StackRebaseStat
     STICKY_STATUS.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
 }
 
+/// Worktree → a merged-parent restack that is queued but deferred (dirty tree
+/// or busy agent). In-memory only: re-derived every poll from real git/PR
+/// state, so a restart loses nothing.
+static PENDING_ACTION: LazyLock<Mutex<HashMap<String, StackPendingAction>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn set_pending_action(repo_path: &str, worktree_name: &str, pending: StackPendingAction) {
+    if let Ok(mut map) = PENDING_ACTION.lock() {
+        map.insert(memo_key(repo_path, worktree_name), pending);
+    }
+}
+
+fn clear_pending_action(repo_path: &str, worktree_name: &str) {
+    if let Ok(mut map) = PENDING_ACTION.lock() {
+        map.remove(&memo_key(repo_path, worktree_name));
+    }
+}
+
+/// Test-only reader: production never reads the map back (emits carry the
+/// value), and without the cfg gate `clippy --lib -D warnings` flags dead code.
+#[cfg(test)]
+fn pending_action(repo_path: &str, worktree_name: &str) -> Option<StackPendingAction> {
+    PENDING_ACTION.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
+}
+
 /// Drop everything this module remembers about a worktree. Called from every
 /// path that dissolves or detaches a stack: with no `stack_parent_overrides`
 /// entry left, nothing would ever clear these again, and a worktree that
@@ -103,6 +135,7 @@ fn sticky_status(repo_path: &str, worktree_name: &str) -> Option<StackRebaseStat
 pub fn forget_stack_memos(repo_path: &str, worktree_name: &str) {
     clear_conflict_memo(repo_path, worktree_name);
     clear_sticky_status(repo_path, worktree_name);
+    clear_pending_action(repo_path, worktree_name);
 }
 
 // ── Busy-agent gating ────────────────────────────────────────────
@@ -302,7 +335,7 @@ pub async fn check_merged_parents(
         let checkouts = checkout_paths(repo_path).await;
 
         let mut dissolved: Vec<String> = Vec::new();
-        for (child_name, _merged_parent) in &affected {
+        for (child_name, merged_parent) in &affected {
             // Dissolving rebases and force-pushes the child, so it gets the same
             // quiet gate as a routine restack: never rewrite history under a
             // running agent. The parent stays merged, so this retries next poll.
@@ -311,6 +344,12 @@ pub async fn check_merged_parents(
                     eprintln!(
                         "[stack_manager] merged-parent restack deferred for {child_name}: agent busy"
                     );
+                    let pending = StackPendingAction {
+                        merged_parent: merged_parent.clone(),
+                        blocked_by: StackPendingBlocker::AgentBusy,
+                    };
+                    set_pending_action(repo_path, child_name, pending.clone());
+                    emit_pending(app_handle, child_name, Some(pending));
                     continue;
                 }
             }
@@ -336,6 +375,12 @@ pub async fn check_merged_parents(
                     eprintln!(
                         "[stack_manager] merged-parent restack deferred for {child_name}: worktree dirty"
                     );
+                    let pending = StackPendingAction {
+                        merged_parent: merged_parent.clone(),
+                        blocked_by: StackPendingBlocker::Dirty,
+                    };
+                    set_pending_action(repo_path, child_name, pending.clone());
+                    emit_pending(app_handle, child_name, Some(pending));
                     continue;
                 }
                 // Refused: the child was rewritten outside Alfredo and does not
@@ -345,6 +390,8 @@ pub async fn check_merged_parents(
                     eprintln!(
                         "[stack_manager] merged-parent restack refused for {child_name}: rewritten outside Alfredo"
                     );
+                    clear_pending_action(repo_path, child_name);
+                    emit_pending(app_handle, child_name, None);
                     continue;
                 }
                 // Same reasoning: git was never asked to rebase (missing
@@ -354,6 +401,8 @@ pub async fn check_merged_parents(
                     eprintln!(
                         "[stack_manager] merged-parent restack deferred for {child_name}: {e}"
                     );
+                    clear_pending_action(repo_path, child_name);
+                    emit_pending(app_handle, child_name, None);
                     continue;
                 }
                 // A rebase was attempted and hit conflicts (already aborted).
@@ -363,6 +412,13 @@ pub async fn check_merged_parents(
                     eprintln!("[stack_manager] merged-parent restack failed for {child_name}: {e}");
                 }
             }
+
+            // The move ran (or conflicted, which also dissolves) — the pending action
+            // is spent. The dissolve below also calls forget_stack_memos, but that is
+            // batched after the loop; clear + emit now so the UI never shows a stale
+            // "waiting" banner next to a fresh parent-merged event.
+            clear_pending_action(repo_path, child_name);
+            emit_pending(app_handle, child_name, None);
 
             // Update the child's PR base branch to the default branch
             if let Some((ref owner, ref repo)) = owner_repo {
@@ -1625,6 +1681,13 @@ fn emit_status(app_handle: &AppHandle, worktree_name: &str, status: StackRebaseS
     );
 }
 
+fn emit_pending(app_handle: &AppHandle, worktree_name: &str, pending: Option<StackPendingAction>) {
+    let _ = app_handle.emit(
+        "stack:pending-update",
+        StackPendingPayload { worktree_name: worktree_name.to_string(), pending },
+    );
+}
+
 /// branch name → checkout path for every worktree of the repo (incl. the main checkout).
 pub async fn checkout_paths(repo_path: &str) -> HashMap<String, String> {
     let mut out = HashMap::new();
@@ -2518,6 +2581,32 @@ mod tests {
             !conflict_memo_should_skip(repo, name, "aaa"),
             "a dissolved worktree must not keep suppressing rebases"
         );
+    }
+
+    #[test]
+    fn pending_action_set_clear_and_forget() {
+        // Distinct key from other tests — the maps are process-global.
+        let repo = "/tmp/alfredo-test-pending";
+        let name = "wt-pending";
+
+        let p = StackPendingAction {
+            merged_parent: "chloe/feature-root".into(),
+            blocked_by: StackPendingBlocker::Dirty,
+        };
+        set_pending_action(repo, name, p.clone());
+        assert_eq!(pending_action(repo, name), Some(p));
+
+        clear_pending_action(repo, name);
+        assert_eq!(pending_action(repo, name), None);
+
+        // forget_stack_memos must clear pending too — dissolve paths rely on it.
+        let p2 = StackPendingAction {
+            merged_parent: "chloe/feature-root".into(),
+            blocked_by: StackPendingBlocker::AgentBusy,
+        };
+        set_pending_action(repo, name, p2);
+        forget_stack_memos(repo, name);
+        assert_eq!(pending_action(repo, name), None);
     }
 
     /// Commit a real file (not `--allow-empty`): these fixtures get rebased,
