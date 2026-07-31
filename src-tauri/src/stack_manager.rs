@@ -21,6 +21,10 @@ struct StackStatusPayload {
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct StackPendingPayload {
+    // Without this, the frontend listener can only match on `worktreeName`,
+    // which collides across repos that happen to share a branch/worktree
+    // name — this event would land on the wrong repo's worktree.
+    repo_path: String,
     worktree_name: String,
     pending: Option<StackPendingAction>,
 }
@@ -117,10 +121,11 @@ fn set_pending_action(repo_path: &str, worktree_name: &str, pending: StackPendin
     }
 }
 
-fn clear_pending_action(repo_path: &str, worktree_name: &str) {
-    if let Ok(mut map) = PENDING_ACTION.lock() {
-        map.remove(&memo_key(repo_path, worktree_name));
-    }
+/// Returns whether an entry actually existed — callers use this to decide
+/// whether clearing is worth telling the frontend about (see `resolve_pending`).
+fn clear_pending_action(repo_path: &str, worktree_name: &str) -> bool {
+    let Ok(mut map) = PENDING_ACTION.lock() else { return false };
+    map.remove(&memo_key(repo_path, worktree_name)).is_some()
 }
 
 /// Test-only reader: production never reads the map back (emits carry the
@@ -130,20 +135,36 @@ fn pending_action(repo_path: &str, worktree_name: &str) -> Option<StackPendingAc
     PENDING_ACTION.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
 }
 
-/// Child worktree names with a pending action recorded for this repo, derived
-/// from the same canonicalized prefix `memo_key` uses. Backs the end-of-poll
-/// sweep in `check_merged_parents`: it needs to enumerate what the map
-/// remembers for a repo, not just look up one worktree at a time.
-fn pending_children_for_repo(repo_path: &str) -> Vec<String> {
-    let prefix = format!("{}::", canonicalized_repo(repo_path));
-    let Ok(map) = PENDING_ACTION.lock() else { return Vec::new() };
-    map.keys().filter_map(|k| k.strip_prefix(&prefix).map(str::to_string)).collect()
+/// Record a pending action and tell the frontend in the same call. The map
+/// write and the emit are one invariant, not two steps: a write the frontend
+/// never hears about leaks a "restack queued" banner that never appears (or
+/// one that never disappears) until some unrelated later event happens to
+/// resync the store.
+fn record_pending(
+    app_handle: &AppHandle,
+    repo_path: &str,
+    worktree_name: &str,
+    pending: StackPendingAction,
+) {
+    set_pending_action(repo_path, worktree_name, pending.clone());
+    emit_pending(app_handle, repo_path, worktree_name, Some(pending));
 }
 
-/// Clear any pending action for this repo whose child is not in this poll's
-/// `affected` set, and return the cleared children so the caller can emit the
-/// frontend clear (kept out of this function so it stays testable without an
-/// `AppHandle`).
+/// Clear a pending action and tell the frontend — but only when there was
+/// something to clear. `updateWorktree` rebuilds the whole `worktrees` array
+/// on every dispatch (no no-op bail), so an unconditional emit here would
+/// re-render the sidebar for every stacked worktree on every poll, forever,
+/// even when nothing was ever pending.
+fn resolve_pending(app_handle: &AppHandle, repo_path: &str, worktree_name: &str) {
+    if clear_pending_action(repo_path, worktree_name) {
+        emit_pending(app_handle, repo_path, worktree_name, None);
+    }
+}
+
+/// Clear every pending action for this repo whose child is not in this poll's
+/// `affected` set, in one lock acquisition and one canonicalize call. Returns
+/// the cleared children so the caller can emit the frontend clear (kept out
+/// of this function so it stays testable without an `AppHandle`).
 ///
 /// Exists because a child can drop out of `affected` for reasons that have
 /// nothing to do with its dissolve completing: the PR sync only keeps open
@@ -153,11 +174,17 @@ fn pending_children_for_repo(repo_path: &str) -> Vec<String> {
 /// entry, backend map and frontend banner both, would otherwise leak until
 /// restart while a "waiting for uncommitted changes…" banner lies forever.
 fn sweep_stale_pending(repo_path: &str, affected: &[String]) -> Vec<String> {
-    pending_children_for_repo(repo_path)
-        .into_iter()
-        .filter(|child| !affected.contains(child))
-        .inspect(|child| clear_pending_action(repo_path, child))
-        .collect()
+    let prefix = format!("{}::", canonicalized_repo(repo_path));
+    let Ok(mut map) = PENDING_ACTION.lock() else { return Vec::new() };
+    let stale: Vec<(String, String)> = map
+        .keys()
+        .filter_map(|k| k.strip_prefix(&prefix).map(|child| (k.clone(), child.to_string())))
+        .filter(|(_, child)| !affected.contains(child))
+        .collect();
+    for (key, _) in &stale {
+        map.remove(key);
+    }
+    stale.into_iter().map(|(_, child)| child).collect()
 }
 
 /// Drop everything this module remembers about a worktree. Called from every
@@ -339,7 +366,7 @@ pub async fn check_merged_parents(
         // empty, and none of those cases may leak its pending entry.
         let affected_children: Vec<String> = affected.iter().map(|(child, _)| child.clone()).collect();
         for child in sweep_stale_pending(repo_path, &affected_children) {
-            emit_pending(app_handle, &child, None);
+            emit_pending(app_handle, repo_path, &child, None);
         }
 
         if config.stack_parent_overrides.is_empty() {
@@ -391,8 +418,7 @@ pub async fn check_merged_parents(
                         merged_parent: merged_parent.clone(),
                         blocked_by: StackPendingBlocker::AgentBusy,
                     };
-                    set_pending_action(repo_path, child_name, pending.clone());
-                    emit_pending(app_handle, child_name, Some(pending));
+                    record_pending(app_handle, repo_path, child_name, pending);
                     continue;
                 }
             }
@@ -422,8 +448,7 @@ pub async fn check_merged_parents(
                         merged_parent: merged_parent.clone(),
                         blocked_by: StackPendingBlocker::Dirty,
                     };
-                    set_pending_action(repo_path, child_name, pending.clone());
-                    emit_pending(app_handle, child_name, Some(pending));
+                    record_pending(app_handle, repo_path, child_name, pending);
                     continue;
                 }
                 // Refused: the child was rewritten outside Alfredo and does not
@@ -433,8 +458,7 @@ pub async fn check_merged_parents(
                     eprintln!(
                         "[stack_manager] merged-parent restack refused for {child_name}: rewritten outside Alfredo"
                     );
-                    clear_pending_action(repo_path, child_name);
-                    emit_pending(app_handle, child_name, None);
+                    resolve_pending(app_handle, repo_path, child_name);
                     continue;
                 }
                 // Same reasoning: git was never asked to rebase (missing
@@ -444,8 +468,7 @@ pub async fn check_merged_parents(
                     eprintln!(
                         "[stack_manager] merged-parent restack deferred for {child_name}: {e}"
                     );
-                    clear_pending_action(repo_path, child_name);
-                    emit_pending(app_handle, child_name, None);
+                    resolve_pending(app_handle, repo_path, child_name);
                     continue;
                 }
                 // A rebase was attempted and hit conflicts (already aborted).
@@ -458,10 +481,9 @@ pub async fn check_merged_parents(
 
             // The move ran (or conflicted, which also dissolves) — the pending action
             // is spent. The dissolve below also calls forget_stack_memos, but that is
-            // batched after the loop; clear + emit now so the UI never shows a stale
+            // batched after the loop; resolve now so the UI never shows a stale
             // "waiting" banner next to a fresh parent-merged event.
-            clear_pending_action(repo_path, child_name);
-            emit_pending(app_handle, child_name, None);
+            resolve_pending(app_handle, repo_path, child_name);
 
             // Update the child's PR base branch to the default branch
             if let Some((ref owner, ref repo)) = owner_repo {
@@ -828,11 +850,11 @@ pub async fn detect_stale_parents(
     let default_short =
         default_remote.strip_prefix("origin/").unwrap_or(&default_remote).to_string();
 
-    let affected: Vec<String> = config
+    let affected: Vec<(String, String)> = config
         .stack_parent_overrides
         .iter()
         .filter(|(_, parent)| stale_parents.contains(parent))
-        .map(|(child, _)| child.clone())
+        .map(|(child, parent)| (child.clone(), parent.clone()))
         .collect();
 
     // Only now that a dissolution is actually pending is the registry worth
@@ -840,7 +862,7 @@ pub async fn detect_stale_parents(
     ensure_registry(registry).await;
 
     let mut dissolved: Vec<String> = Vec::new();
-    for child_name in &affected {
+    for (child_name, stale_parent) in &affected {
         // Dissolving runs a rebase and a force-push, so it gets the same quiet
         // gate as a routine restack: never rewrite history under a running agent.
         if let Some(child_path) = checkout_path_for(&checkouts, child_name) {
@@ -848,6 +870,11 @@ pub async fn detect_stale_parents(
                 eprintln!(
                     "[stack_manager] stale-parent restack deferred for {child_name}: agent busy"
                 );
+                let pending = StackPendingAction {
+                    merged_parent: stale_parent.clone(),
+                    blocked_by: StackPendingBlocker::AgentBusy,
+                };
+                record_pending(app_handle, repo_path, child_name, pending);
                 continue;
             }
         }
@@ -863,6 +890,11 @@ pub async fn detect_stale_parents(
                 eprintln!(
                     "[stack_manager] stale-parent restack deferred for {child_name}: worktree dirty"
                 );
+                let pending = StackPendingAction {
+                    merged_parent: stale_parent.clone(),
+                    blocked_by: StackPendingBlocker::Dirty,
+                };
+                record_pending(app_handle, repo_path, child_name, pending);
                 continue;
             }
             // Refused: rewritten outside Alfredo without containing the default
@@ -872,10 +904,12 @@ pub async fn detect_stale_parents(
                 eprintln!(
                     "[stack_manager] stale-parent restack refused for {child_name}: rewritten outside Alfredo"
                 );
+                resolve_pending(app_handle, repo_path, child_name);
                 continue;
             }
             Err(DissolveFailure::NotAttempted(e)) => {
                 eprintln!("[stack_manager] stale-parent restack deferred for {child_name}: {e}");
+                resolve_pending(app_handle, repo_path, child_name);
                 continue;
             }
             // Rebase ran and conflicted (already aborted). Same deliberate ruling
@@ -885,6 +919,9 @@ pub async fn detect_stale_parents(
                 eprintln!("[stack_manager] stale-parent restack failed for {child_name}: {e}");
             }
         }
+        // The move ran (or conflicted, which also dissolves) — resolve any
+        // pending banner now rather than leaving it for a later poll.
+        resolve_pending(app_handle, repo_path, child_name);
         dissolved.push(child_name.clone());
     }
 
@@ -1546,8 +1583,7 @@ pub async fn change_base(
         // explicit user action superseding any background attempt, so any
         // pending merged-parent banner for this worktree is stale now —
         // clear it explicitly rather than leaving it to a later poll.
-        clear_pending_action(repo_path, worktree_name);
-        emit_pending(app_handle, worktree_name, None);
+        resolve_pending(app_handle, repo_path, worktree_name);
         return Ok(());
     }
 
@@ -1566,6 +1602,17 @@ pub async fn change_base(
                 .await
                 .map_err(|e| e.to_string())?;
             let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
+            // A dissolve onto the default branch is truthfully "moved onto
+            // main", not an ordinary restack — `stack:rebase-complete` alone
+            // makes the frontend trace it as "restacked". Emitting
+            // `stack:parent-merged` right after reuses its handler (already
+            // correct for a user-initiated dissolve: it clears
+            // stackParent/stackPending and only skips the trace when the
+            // rebase conflicted, which can't be true on this success path) to
+            // overwrite that with the accurate label.
+            if new_parent.is_none() {
+                let _ = app_handle.emit("stack:parent-merged", worktree_name.to_string());
+            }
             push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name).await;
             // Dissolved: no `stack_parent_overrides` entry survives, so
             // `compute_stack_statuses` will never visit this worktree again and
@@ -1731,10 +1778,19 @@ fn emit_status(app_handle: &AppHandle, worktree_name: &str, status: StackRebaseS
     );
 }
 
-fn emit_pending(app_handle: &AppHandle, worktree_name: &str, pending: Option<StackPendingAction>) {
+fn emit_pending(
+    app_handle: &AppHandle,
+    repo_path: &str,
+    worktree_name: &str,
+    pending: Option<StackPendingAction>,
+) {
     let _ = app_handle.emit(
         "stack:pending-update",
-        StackPendingPayload { worktree_name: worktree_name.to_string(), pending },
+        StackPendingPayload {
+            repo_path: repo_path.to_string(),
+            worktree_name: worktree_name.to_string(),
+            pending,
+        },
     );
 }
 
@@ -2657,6 +2713,29 @@ mod tests {
         set_pending_action(repo, name, p2);
         forget_stack_memos(repo, name);
         assert_eq!(pending_action(repo, name), None);
+    }
+
+    // `resolve_pending` gates its frontend emit on this return value: an
+    // unconditional emit on every poll would rebuild the whole `worktrees`
+    // array (see `updateWorktree`) even when nothing was ever pending.
+    #[test]
+    fn clear_pending_action_reports_whether_an_entry_was_removed() {
+        let repo = "/tmp/alfredo-test-clear-bool";
+        let name = "wt-clear-bool";
+        clear_pending_action(repo, name); // ensure clean state; ignore return
+
+        assert!(!clear_pending_action(repo, name), "clearing an absent entry reports false");
+
+        set_pending_action(
+            repo,
+            name,
+            StackPendingAction {
+                merged_parent: "chloe/feature-root".into(),
+                blocked_by: StackPendingBlocker::Dirty,
+            },
+        );
+        assert!(clear_pending_action(repo, name), "clearing a present entry reports true");
+        assert!(!clear_pending_action(repo, name), "clearing it again reports false");
     }
 
     // A child can drop out of `affected` for reasons unrelated to its dissolve

@@ -131,8 +131,10 @@ pub enum StackRebaseStatus {
 }
 
 /// A stack action Alfredo intends to run but has deferred, plus the blocker it
-/// waits on. Only the merged-parent path produces these — routine quiet-gate
-/// skips stay silent so a dirty tree alone never badges a whole stack.
+/// waits on. Only a parent-dissolution path (a merged PR, or the stale-parent
+/// heuristic) produces these — the routine per-child quiet-gate skip in
+/// `check_and_rebase` stays silent so an ordinary busy/dirty deferral never
+/// badges a whole stack.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct StackPendingAction {

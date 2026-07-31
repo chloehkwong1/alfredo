@@ -226,11 +226,15 @@ export function useGithubSync() {
 
   // stack:pending-update — a merged-parent restack was queued/deferred (or resolved)
   useEffect(() => {
-    const unlisten = listen<{ worktreeName: string; pending: StackPendingAction | null }>(
+    const unlisten = listen<{ repoPath: string; worktreeName: string; pending: StackPendingAction | null }>(
       "stack:pending-update",
       (event) => {
-        const { worktreeName, pending } = event.payload;
-        const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+        const { repoPath, worktreeName, pending } = event.payload;
+        // Matched on repo too: worktree names aren't unique across repos, and
+        // matching on name alone can apply another repo's pending state here.
+        const wt = useWorkspaceStore
+          .getState()
+          .worktrees.find((w) => w.name === worktreeName && w.repoPath === repoPath);
         if (wt) {
           useWorkspaceStore.getState().updateWorktree(wt.id, { stackPending: pending });
         }
