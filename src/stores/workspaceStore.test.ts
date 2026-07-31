@@ -92,6 +92,21 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.setupInProgress).toBe(true);
   });
 
+  it("preserves event-fed stackPending across a git refresh", () => {
+    useWorkspaceStore.setState({
+      worktrees: [
+        makeWorktree({
+          stackPending: { mergedParent: "chloe/root-branch", blockedBy: "dirty" },
+        }),
+      ],
+    });
+    useWorkspaceStore.getState().setWorktrees([
+      makeWorktree({ path: "/new/path" }),
+    ]);
+    const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === "wt-1")!;
+    expect(wt.stackPending).toEqual({ mergedParent: "chloe/root-branch", blockedBy: "dirty" });
+  });
+
   it("uses fresh stackParent/stackChildren/stackRebaseStatus when defined", () => {
     const store = useWorkspaceStore;
     store.setState({

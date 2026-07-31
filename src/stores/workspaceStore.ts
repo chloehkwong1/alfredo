@@ -189,6 +189,8 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         // re-emitted it. Nothing in this merge path ever clears the status
         // legitimately; the real clears go through updateWorktree.
         stackRebaseStatus: wt.stackRebaseStatus ?? old.stackRebaseStatus,
+        // Event-fed like stackRebaseStatus; listWorktrees never returns it.
+        stackPending: old.stackPending,
         // Frontend-only: backend never persists setup script errors, so a
         // refresh would otherwise clobber an unacknowledged error.
         setupScriptError: old.setupScriptError,

@@ -65,6 +65,13 @@ export type StackRebaseStatus =
   | { kind: "pushFailed" }
   | { kind: "rewrittenExternally" };
 
+/** A merged-parent restack Alfredo has queued but deferred. Event-fed
+ *  (`stack:pending-update`) — the backend never returns it from listWorktrees. */
+export interface StackPendingAction {
+  mergedParent: string;
+  blockedBy: "dirty" | "agentBusy";
+}
+
 export interface Worktree {
   id: string;
   name: string;
@@ -108,6 +115,7 @@ export interface Worktree {
   stackParent?: string | null;
   stackChildren?: string[];
   stackRebaseStatus?: StackRebaseStatus | null;
+  stackPending?: StackPendingAction | null;
   /** Setup script error — worktree was created successfully but post-create scripts failed. */
   setupScriptError?: string | null;
   /** True while post-create setup scripts are still running in the background.

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { PrUpdatePayload, StackRebaseStatus } from "../types";
+import type { PrUpdatePayload, StackRebaseStatus, StackPendingAction } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
 import { useToastStore } from "../stores/toastStore";
@@ -187,6 +187,7 @@ export function useGithubSync() {
       if (wt) {
         useWorkspaceStore.getState().updateWorktree(wt.id, {
           stackParent: null,
+          stackPending: null,
         });
       }
     });
@@ -206,6 +207,21 @@ export function useGithubSync() {
         // The poll is the authority on whether the conflict still stands: once
         // it reports anything else, a sticky bar offering to resolve it is lying.
         if (status.kind !== "conflict") dismissConflictToast(worktreeName);
+      },
+    );
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
+  // stack:pending-update — a merged-parent restack was queued/deferred (or resolved)
+  useEffect(() => {
+    const unlisten = listen<{ worktreeName: string; pending: StackPendingAction | null }>(
+      "stack:pending-update",
+      (event) => {
+        const { worktreeName, pending } = event.payload;
+        const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+        if (wt) {
+          useWorkspaceStore.getState().updateWorktree(wt.id, { stackPending: pending });
+        }
       },
     );
     return () => { unlisten.then((fn) => fn()); };
