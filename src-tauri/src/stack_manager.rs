@@ -181,15 +181,7 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
         let agent_busy = |path: &str| path_is_busy(registry.as_ref(), path);
 
         let checkouts = checkout_paths(repo_path).await;
-        let name_to_branch: HashMap<String, String> = checkouts
-            .iter()
-            .filter_map(|(branch, path)| {
-                std::path::Path::new(path)
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|n| (n.to_string(), branch.clone()))
-            })
-            .collect();
+        let name_to_branch = names_to_branches(&checkouts);
         // Worktree dir name → its checkout path, the same dir-name match
         // `restack_child` uses to find a child's own tree.
         let name_to_path: HashMap<String, String> = checkouts
@@ -492,6 +484,10 @@ async fn sync_stack_root(
 ) -> Result<(), String> {
     // Force past the 30s throttle: syncing onto a remote-tracking ref that
     // happens to be stale is the exact failure this feature exists to fix.
+    // Best-effort, though: `fetch_upstream_throttled` returns `()` and
+    // silently swallows failures (offline, auth-broken remote) — a failed
+    // fetch does not abort the sync below, which then proceeds against
+    // whatever `origin/<default>` was left over from the last successful one.
     git_manager::fetch_upstream_throttled(repo_path, true).await;
 
     let checkouts = checkout_paths(repo_path).await;
@@ -587,15 +583,7 @@ pub async fn restack_repo(
     }
 
     let checkouts = checkout_paths(repo_path).await;
-    let name_to_branch: HashMap<String, String> = checkouts
-        .iter()
-        .filter_map(|(branch, path)| {
-            std::path::Path::new(path)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| (n.to_string(), branch.clone()))
-        })
-        .collect();
+    let name_to_branch = names_to_branches(&checkouts);
     for child in restack_order(&config.stack_parent_overrides, &name_to_branch) {
         if let Err(e) = restack_child(app_handle, app_data_dir, repo_path, &child).await {
             first_err.get_or_insert(e);
@@ -1440,7 +1428,11 @@ pub async fn begin_conflict_handoff(
             (parent_branch.clone(), parent_tip, baseline)
         }
         None => {
-            let default_remote = git_manager::resolve_default_remote_branch(repo_path);
+            let rp = repo_path.to_string();
+            let default_remote =
+                tokio::task::spawn_blocking(move || git_manager::resolve_default_remote_branch(&rp))
+                    .await
+                    .map_err(|e| e.to_string())?;
             let default_short =
                 default_remote.strip_prefix("origin/").unwrap_or(&default_remote).to_string();
             let Some(tip) = remote_branch_tip(repo_path, &default_short).await else {
@@ -1546,6 +1538,21 @@ pub async fn checkout_paths(repo_path: &str) -> HashMap<String, String> {
     out
 }
 
+/// `checkout_paths`' branch→path map folded into worktree-dir-name→branch —
+/// the shape `restack_order`, `stack_root_name` and `plan_root_sync` all key
+/// their graph walks on. Was duplicated verbatim at three call sites.
+fn names_to_branches(checkouts: &HashMap<String, String>) -> HashMap<String, String> {
+    checkouts
+        .iter()
+        .filter_map(|(branch, path)| {
+            std::path::Path::new(path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| (n.to_string(), branch.clone()))
+        })
+        .collect()
+}
+
 /// Walk child→parent edges up from `start` to the branch the stack is rooted
 /// on. The root is the first worktree with no `stack_parent_overrides` entry —
 /// roots are never in that map (creating or re-basing onto the default branch
@@ -1628,15 +1635,7 @@ async fn plan_root_sync(
     checkouts: &HashMap<String, String>,
     anchor_name: &str,
 ) -> Result<RootSyncPlan, String> {
-    let name_to_branch: HashMap<String, String> = checkouts
-        .iter()
-        .filter_map(|(branch, path)| {
-            std::path::Path::new(path)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| (n.to_string(), branch.clone()))
-        })
-        .collect();
+    let name_to_branch = names_to_branches(checkouts);
 
     let Some(root_name) = stack_root_name(overrides, &name_to_branch, anchor_name) else {
         return Ok(RootSyncPlan::Skip {
@@ -1644,15 +1643,22 @@ async fn plan_root_sync(
             reason: "no resolvable stack root (missing checkout or cycle)",
         });
     };
+    // Reachable: `stack_root_name` returns the anchor's own name unchanged
+    // when it already has no `stack_parent_overrides` entry, and that name
+    // need not be a key in `name_to_branch` at all (e.g. no checkout for it).
     let Some(root_branch) = name_to_branch.get(&root_name) else {
         return Ok(RootSyncPlan::Skip { root: None, reason: "stack root has no checkout" });
     };
-    let Some(root_path) = checkouts.get(root_branch) else {
-        return Ok(RootSyncPlan::Skip { root: None, reason: "stack root has no checkout" });
-    };
-    let root = ResolvedRoot { name: root_name, path: root_path.clone() };
+    // Unlike the guard above, this can't miss: `name_to_branch`'s values are
+    // built by iterating `checkouts`, so any value it yields is already one of
+    // `checkouts`' keys.
+    let root = ResolvedRoot { name: root_name, path: checkouts[root_branch].clone() };
 
-    let default_remote = git_manager::resolve_default_remote_branch(repo_path);
+    let rp = repo_path.to_string();
+    let default_remote =
+        tokio::task::spawn_blocking(move || git_manager::resolve_default_remote_branch(&rp))
+            .await
+            .map_err(|e| e.to_string())?;
     let default_short = default_remote.strip_prefix("origin/").unwrap_or(&default_remote);
     if root_branch == default_short {
         return Ok(RootSyncPlan::Skip { root: Some(root), reason: "stack root is the default branch" });

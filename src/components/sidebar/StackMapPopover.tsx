@@ -63,8 +63,8 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
     try {
       await restackStack(anchorWorktree.repoPath, anchorWorktree.name);
     } catch (e) {
-      console.error("Restack stack failed:", e);
-      new Notification("Alfredo", { body: `Restack stack failed: ${e instanceof Error ? e.message : e}` });
+      console.error("Sync stack with main failed:", e);
+      new Notification("Alfredo", { body: `Sync stack with main failed: ${e instanceof Error ? e.message : e}` });
     }
   };
 
