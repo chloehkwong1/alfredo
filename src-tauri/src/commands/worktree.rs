@@ -619,9 +619,10 @@ pub async fn restack_now(
         .map_err(AppError::Git)
 }
 
-/// Restack every stacked worktree of the repo in dependency order.
-/// `worktree_name` is accepted for future scoping/API stability and to anchor
-/// error messages — the cascade itself is repo-wide.
+/// Sync a stack with the default branch: rebase the anchor's stack root onto a
+/// freshly-fetched `origin/<default>`, then restack every stacked worktree of
+/// the repo in dependency order. `worktree_name` anchors the root walk (and the
+/// error message); the child cascade itself is repo-wide.
 #[tauri::command]
 pub async fn restack_stack(
     app: AppHandle,
@@ -629,7 +630,7 @@ pub async fn restack_stack(
     worktree_name: String,
 ) -> Result<()> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    crate::stack_manager::restack_repo(&app, &app_data_dir, &repo_path)
+    crate::stack_manager::restack_repo(&app, &app_data_dir, &repo_path, &worktree_name)
         .await
         .map_err(|e| AppError::Git(format!("restack stack (from {worktree_name}): {e}")))
 }

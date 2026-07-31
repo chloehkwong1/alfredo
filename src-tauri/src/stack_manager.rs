@@ -7,7 +7,7 @@ use tauri::{AppHandle, Emitter};
 use crate::config_manager;
 use crate::git_manager;
 use crate::git_manager::git_command;
-use crate::types::{StackRebaseStatus};
+use crate::types::{AppConfig, StackRebaseStatus};
 
 // ── Event payloads ───────────────────────────────────────────────
 
@@ -470,16 +470,73 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
     }
 }
 
+/// Rebase a stack's root onto a freshly-fetched `origin/<default>`, then let the
+/// caller's cascade carry the move down the stack.
+///
+/// Only ever reached from `restack_repo` — i.e. the explicit "Sync stack with
+/// main" action. The 60s poll calls `restack_child_inner` directly and must keep
+/// doing so: `run_restack` force-pushes on success, and rewriting a published
+/// root every time someone lands on main is not a decision to make in the
+/// background.
+///
+/// Reuses `run_restack` wholesale so a root gets exactly what children get —
+/// dirty-skip, `Rebasing`/`Conflict` events, abort-on-conflict, lease push.
+/// Nothing is persisted: a root has no `stack_parent_overrides` entry, and
+/// writing it a `stack_baseline` would later be picked up by `change_base` as an
+/// `--onto` floor it must derive fresh.
+async fn sync_stack_root(
+    app_handle: &AppHandle,
+    repo_path: &str,
+    config: &AppConfig,
+    anchor_worktree: &str,
+) -> Result<(), String> {
+    // Force past the 30s throttle: syncing onto a remote-tracking ref that
+    // happens to be stale is the exact failure this feature exists to fix.
+    git_manager::fetch_upstream_throttled(repo_path, true).await;
+
+    let checkouts = checkout_paths(repo_path).await;
+    match plan_root_sync(repo_path, &config.stack_parent_overrides, &checkouts, anchor_worktree)
+        .await?
+    {
+        RootSyncPlan::Skip(reason) => {
+            eprintln!("[stack_manager] root sync skipped for {anchor_worktree}: {reason}");
+            Ok(())
+        }
+        RootSyncPlan::Rebase { root_name, root_path, target_tip, baseline } => {
+            run_restack(app_handle, repo_path, &root_path, &root_name, &target_tip, &baseline)
+                .await
+                .map(|_| ())
+        }
+    }
+}
+
 /// Run the full dependency-ordered cascade for one repo (used by the
 /// restack_stack command; same body as the per-repo loop in check_and_rebase
 /// but without the quiet gate — the user explicitly asked).
-pub async fn restack_repo(app_handle: &AppHandle, app_data_dir: &Path, repo_path: &str) -> Result<(), String> {
+pub async fn restack_repo(
+    app_handle: &AppHandle,
+    app_data_dir: &Path,
+    repo_path: &str,
+    anchor_worktree: &str,
+) -> Result<(), String> {
     let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
     if config.stack_parent_overrides.is_empty() {
         return Ok(());
     }
+
+    // Root first: children re-resolve their parent's tip per child, so moving
+    // the root here is picked up by the cascade below with no extra plumbing.
+    // A conflicted root sync is reported but does NOT abort the cascade —
+    // `run_restack` aborts the rebase, so the root's history is untouched and
+    // restacking the children against it stays correct (and mostly no-ops).
+    let mut first_err: Option<String> = None;
+    if let Err(e) = sync_stack_root(app_handle, repo_path, &config, anchor_worktree).await {
+        eprintln!("[stack_manager] root sync failed for {anchor_worktree}: {e}");
+        first_err = Some(e);
+    }
+
     let checkouts = checkout_paths(repo_path).await;
     let name_to_branch: HashMap<String, String> = checkouts
         .iter()
@@ -490,7 +547,6 @@ pub async fn restack_repo(app_handle: &AppHandle, app_data_dir: &Path, repo_path
                 .map(|n| (n.to_string(), branch.clone()))
         })
         .collect();
-    let mut first_err: Option<String> = None;
     for child in restack_order(&config.stack_parent_overrides, &name_to_branch) {
         if let Err(e) = restack_child(app_handle, app_data_dir, repo_path, &child).await {
             first_err.get_or_insert(e);
