@@ -1,0 +1,21 @@
+src/components/sidebar/StackMapPopover.tsx
+  s_0fb076c26f61e1::t_44284996fbd0be 66-67
+src-tauri/src/stack_manager.rs
+  s_0fb076c26f61e1::t_6b9bc430413c0e 184,487-490,586,1431-1435,1541-1555,1638,1646-1648,1652-1655,1657-1661
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.18",
+  "base_commit_sha": "9649245be253d8da76f058b6ed59c82342b80e39",
+  "prompts": {},
+  "sessions": {
+    "s_0fb076c26f61e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff12b5e3-808b-489b-ba22-e9c288004a8e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
