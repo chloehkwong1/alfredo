@@ -1,0 +1,23 @@
+src/components/commandPalette/useCommandRegistry.ts
+  s_253f83fcd0bb41::t_ea252eaf61a665 345
+  s_253f83fcd0bb41::t_3c2e2d05d187d3 31
+src/components/changes/MergeStatusBanner.tsx
+  s_253f83fcd0bb41::t_82a07d3358fe69 36
+  s_253f83fcd0bb41::t_8b786525c9b477 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "2b685dbbb34d25ff3b7e6b9ae8fb35598082c15d",
+  "prompts": {},
+  "sessions": {
+    "s_253f83fcd0bb41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4786c1c8-8f36-40a7-8d2f-039e253e0916",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
