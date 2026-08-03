@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { CheckRun, PrStatus, WorkflowRunLog } from "../../types";
 import { formatTimeAgo } from "./formatRelativeTime";
+import { isCheckFailing } from "./checkRunStatus";
 import { rerunFailedChecks, fixFailingChecks, mergeAndFix } from "../../services/prActions";
 import { focusAgentTab } from "../../services/agentMessenger";
 import { getJobLog } from "../../api";
@@ -32,9 +33,7 @@ export function MergeStatusBanner({
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const [logsLoading, setLogsLoading] = useState(false);
 
-  const failedChecks = checkRuns.filter(
-    (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
-  );
+  const failedChecks = checkRuns.filter(isCheckFailing);
 
   const handleRerun = async () => {
     setLoading("rerun");

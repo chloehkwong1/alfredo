@@ -28,6 +28,7 @@ import { lifecycleManager } from "../../services/lifecycleManager";
 import { rerunFailedChecks, fixFailingChecks } from "../../services/prActions";
 import { openPathInEditor, openPathInTerminal } from "../../services/openExternal";
 import { getAgentSessionInfo } from "../../services/agentMessenger";
+import { isCheckFailing } from "../changes/checkRunStatus";
 import type { Worktree, CheckRun, RepoEntry } from "../../types";
 import { copyText } from "../../lib/clipboard";
 
@@ -341,9 +342,7 @@ function buildPrCommands(
   const worktreeId = activeWorktree.id;
   const repoPath = activeWorktree.repoPath;
 
-  const failedChecks = checkRuns.filter(
-    (r) => r.status === "completed" && r.conclusion !== "success" && r.conclusion !== "skipped" && r.conclusion !== null,
-  );
+  const failedChecks = checkRuns.filter(isCheckFailing);
 
   const switchToAgentTab = () => {
     const { agentTab } = getAgentSessionInfo(worktreeId);
