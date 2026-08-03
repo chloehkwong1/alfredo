@@ -5,7 +5,7 @@ import type { PrUpdatePayload, StackRebaseStatus, StackPendingAction } from "../
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
 import { useToastStore } from "../stores/toastStore";
-import { getPrFiles, setSyncRepoPaths, runArchiveScript } from "../api";
+import { getPrFiles, getWorktreeDiffStats, setSyncRepoPaths, runArchiveScript } from "../api";
 import { stopServerAndReleasePort } from "../services/portReclaim";
 import { shouldAutoArchive } from "../lib/autoArchive";
 import { lifecycleManager } from "../services/lifecycleManager";
@@ -16,6 +16,17 @@ import { resolveStackConflict } from "../services/stackConflictHandoff";
  *  take it down. These entries let a resolution (or a repeat conflict on the
  *  same branch) replace the bar instead of stacking identical ones up. */
 const conflictToastIds = new Map<string, string>();
+
+/** Restacks and dissolves are gated on the agent being idle, so they always
+ *  land *after* usePty's busy→idle diff-stat refresh — without this, the badge
+ *  keeps its pre-rebase numbers until the next agent run or an app restart. */
+function refreshDiffStats(worktreeId: string, worktreePath: string, stackParent?: string | null) {
+  getWorktreeDiffStats(worktreePath, stackParent)
+    .then(([additions, deletions]) => {
+      useWorkspaceStore.getState().updateWorktree(worktreeId, { additions, deletions });
+    })
+    .catch((e) => console.warn("[stack] Failed to refresh diff stats after rebase:", e));
+}
 
 function dismissConflictToast(worktreeName: string) {
   const id = conflictToastIds.get(worktreeName);
@@ -140,6 +151,7 @@ export function useGithubSync() {
           stackPending: null,
           lastStackAction: { action: "restacked", at: Date.now() },
         });
+        refreshDiffStats(wt.id, wt.path, wt.stackParent);
       }
       dismissConflictToast(worktreeName);
     });
@@ -200,6 +212,11 @@ export function useGithubSync() {
           stackPending: null,
           ...(wasConflicted ? {} : { lastStackAction: { action: "moved onto main", at: Date.now() } }),
         });
+        // The stack is dissolved either way, so the badge's base is now the
+        // default branch — refetch against it (null parent). On the conflicted
+        // path the branch itself never moved, but the base change alone can
+        // still change the numbers.
+        refreshDiffStats(wt.id, wt.path, null);
       }
     });
     return () => { unlisten.then((fn) => fn()); };
