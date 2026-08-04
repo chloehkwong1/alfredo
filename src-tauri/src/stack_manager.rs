@@ -1756,14 +1756,17 @@ pub async fn begin_conflict_handoff(
     }
 }
 
-/// True when `git status --porcelain` reports any changes. `default_if_unknown`
-/// is the fail-safe when the check itself errors (spawn failure): callers that
-/// need "don't rebase on an uncertain tree" pass `true`; callers that use this
-/// only as a soft gating heuristic (don't block forever on a transient error)
-/// pass `false`.
+/// True when `git status --porcelain` reports any tracked changes. Untracked
+/// files are ignored: a rebase never touches them, and agent scratch dirs like
+/// `.claude/plans/` would otherwise make every worktree permanently dirty and
+/// silently disable auto-restack. Conflicted paths still count — they surface
+/// as tracked (`UU`) entries. `default_if_unknown` is the fail-safe when the
+/// check itself errors (spawn failure): callers that need "don't rebase on an
+/// uncertain tree" pass `true`; callers that use this only as a soft gating
+/// heuristic (don't block forever on a transient error) pass `false`.
 async fn worktree_is_dirty(worktree_path: &str, default_if_unknown: bool) -> bool {
     git_command()
-        .args(["status", "--porcelain"])
+        .args(["status", "--porcelain", "--untracked-files=no"])
         .current_dir(worktree_path)
         .output()
         .await
@@ -2130,7 +2133,21 @@ mod tests {
     async fn worktree_is_dirty_true_for_uncommitted_changes() {
         let dir = init_test_repo();
         std::fs::write(dir.path().join("uncommitted.txt"), "wip").expect("write file");
+        StdCommand::new("git")
+            .args(["add", "uncommitted.txt"])
+            .current_dir(dir.path())
+            .output()
+            .expect("git add");
         assert!(worktree_is_dirty(dir.path().to_str().expect("utf8 path"), false).await);
+    }
+
+    // Agent scratch dirs (`.claude/plans/` etc.) live untracked in most
+    // worktrees; counting them as dirty would silently disable auto-restack.
+    #[tokio::test]
+    async fn worktree_is_dirty_false_for_untracked_files() {
+        let dir = init_test_repo();
+        std::fs::write(dir.path().join("untracked.txt"), "scratch").expect("write file");
+        assert!(!worktree_is_dirty(dir.path().to_str().expect("utf8 path"), true).await);
     }
 
     /// Build a repo whose `feat/parent` has been merged into main and pushed:
