@@ -1,0 +1,23 @@
+src/services/monaco/loader.ts
+  s_bd98f5d630d46a::t_665ede00b6b788 1-7
+package.json
+  s_bd98f5d630d46a::t_e4c439be7ebb29 51
+package-lock.json
+  s_bd98f5d630d46a::t_9ac7ad0eea53d4 43,3211-3213,4932-4934,4937
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "f3827168006a3af640e7feee7214ee809656bf85",
+  "prompts": {},
+  "sessions": {
+    "s_bd98f5d630d46a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "68794c69-8567-4da7-a5a9-3a0adef80d58",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
