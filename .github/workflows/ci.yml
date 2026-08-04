@@ -28,6 +28,12 @@ jobs:
       - name: Run tests
         run: npm test
 
+      # Catches bundler-level breakage (import resolution, exports maps,
+      # worker handling) that tsc and vitest can't see — a monaco bump
+      # broke the v0.20.0 release build while PR CI stayed green (#59).
+      - name: Production build
+        run: npm run build
+
   backend:
     name: Backend
     runs-on: ubuntu-22.04
