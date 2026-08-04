@@ -1,0 +1,21 @@
+package.json
+  s_bd98f5d630d46a::t_4a1c6b97a56c3e 51
+package-lock.json
+  s_bd98f5d630d46a::t_bee8bfa887c19e 3,9,43,3211-3213,4932-4934,4937
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "a246fd5ee8588b4c4b2304af25ac215917770810",
+  "prompts": {},
+  "sessions": {
+    "s_bd98f5d630d46a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "68794c69-8567-4da7-a5a9-3a0adef80d58",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
