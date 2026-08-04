@@ -1,0 +1,41 @@
+docs/features/open-from-linear.md
+  s_bd98f5d630d46a::t_d0ba595c3f2008 9-11
+  s_bd98f5d630d46a::t_ee32377cae46a8 51-61
+docs/features/repository-settings.md
+  s_bd98f5d630d46a::t_f538cf1bb8c68e 51-54
+docs/features/opening-files.md
+  s_bd98f5d630d46a::t_d753e54a4c5ad9 16-22
+docs/features/rebasing-and-stacks.md
+  s_bd98f5d630d46a::t_6f89aa675c74d6 33-45
+  s_bd98f5d630d46a::t_9c0df433e0f21a 19-25
+docs/features/installation-and-updates.md
+  s_bd98f5d630d46a::t_dda25b2af9ba9a 19-23
+docs/features/external-worktrees.md
+  s_bd98f5d630d46a::t_f344ca207430cd 1-31
+docs/features/auto-assign-ports.md
+  s_bd98f5d630d46a::t_cab9eb3fee3b9c 45-47
+docs/features/changes-panel.md
+  s_bd98f5d630d46a::t_e24e6a1e679595 24-28
+  s_bd98f5d630d46a::t_f1404cf7b85b88 13-14
+docs/features/whats-new.md
+  s_bd98f5d630d46a::t_f620f0a7102cc0 39-42
+  s_bd98f5d630d46a::t_04b9ad8d0f38e0 10-38,43-51
+docs/features/stack-map.md
+  s_bd98f5d630d46a::t_6597c753ee33ac 9-14,16-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "d80083c7b14906cae8d9bc311dd7325f0926e558",
+  "prompts": {},
+  "sessions": {
+    "s_bd98f5d630d46a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "68794c69-8567-4da7-a5a9-3a0adef80d58",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
