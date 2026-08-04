@@ -13,7 +13,13 @@ is focused in the diff view, the Changes toolbar at the top shows a
 small external-link icon labelled "Open in editor"; clicking it opens
 the currently focused file.
 
-Both entry points use the editor set in Global Settings → General →
+**File paths printed in the terminal are links too.** Cmd-click a
+path an agent or test runner prints (e.g. `src/foo.ts:42:7`) and it
+opens in your preferred editor at that exact line and column. If the
+selected editor can't take the link, Alfredo falls back to the OS
+default opener rather than doing nothing.
+
+All entry points use the editor set in Global Settings → General →
 External Tools → "Preferred editor". Options include VS Code, Cursor,
 Zed, and others; pick "Custom" to point at an arbitrary .app bundle or
 binary. The setting defaults to VS Code. If nothing happens when you

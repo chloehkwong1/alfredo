@@ -16,6 +16,11 @@ The flow is powered by `tauri-plugin-updater`; downloads stream with
 a progress event, and failed installs leave the pending update in
 place so you can retry without re-checking.
 
+After an update installs and Alfredo relaunches, a **What's new**
+dialog opens once with the release highlights for versions you
+haven't seen yet, then stays out of the way (the same list is always
+available by asking Ask Alfredo "what's new").
+
 By default the updater only picks up **stable** releases. To
 receive pre-releases, open Global Settings → General → Updates and
 toggle **Receive beta updates**. Alfredo switches to the beta

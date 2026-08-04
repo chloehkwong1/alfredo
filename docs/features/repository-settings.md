@@ -48,6 +48,10 @@ schema and how the personal layer merges on top.
   are created. Defaults to the repo's parent folder.
 - **Default Agent** (per-repo) — overrides the global default just
   for this repo.
+- **Linear prompt** — per-repo template for the prompt pasted when
+  opening a Linear issue in this repo, with a **Submit prompt
+  automatically** toggle. See "Open a Linear issue in Alfredo" for
+  the template variables.
 
 **Scripts tab:**
 

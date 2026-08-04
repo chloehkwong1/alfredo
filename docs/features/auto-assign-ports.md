@@ -42,7 +42,9 @@ on which port without opening the run pane.
 ### When the port is released
 
 A port is released automatically when the worktree is dragged to
-**Done** in the kanban. It's also released if you stop the server
+**Done** in the kanban — and if a dev server is still running there,
+moving to Done stops it first (if the stop fails, the port stays
+assigned rather than leaking a live server). It's also released if you stop the server
 because someone else takes it via the picker (see below). Otherwise
 the claim is sticky — quitting Alfredo and reopening keeps the same
 port mapped to the same worktree.

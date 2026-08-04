@@ -6,8 +6,9 @@ ui_path: Linear → issue → Open in Alfredo (custom coding-tool link)
 
 Clicking a Linear issue's "Open in Alfredo" link creates a worktree for
 the issue, launches Claude in it, and pastes the full issue into the
-input — ready to review and submit with Enter. Nothing is sent to the
-agent automatically; the prompt just sits in the input box.
+input — ready to review and submit with Enter. By default nothing is
+sent to the agent automatically; the prompt just sits in the input box
+(see "Custom prompt & auto-submit" below to change either).
 
 ## Setup (once)
 
@@ -46,6 +47,17 @@ ready.
 Re-clicking the link for an issue whose worktree already exists reuses
 that worktree instead of failing — the prompt is pasted into its agent
 again.
+
+## Custom prompt & auto-submit
+
+In **Repository Settings → General → Linear prompt** you can replace
+the default paste format with your own per-repo template. It supports
+`{{identifier}}`, `{{title}}`, `{{description}}`, `{{branch}}`, and
+`{{url}}`; leave it empty to keep the built-in format. Tick **Submit
+prompt automatically** to send the rendered prompt straight to Claude
+instead of leaving it in the input box — Alfredo only auto-submits
+when the open flow is healthy (e.g. it won't fire a half-rendered
+prompt after a failed ticket fetch).
 
 ## Notes
 

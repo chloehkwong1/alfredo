@@ -7,6 +7,48 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.20.0 — 2026-08-04**
+- **Stacked PRs overhauled end-to-end** — restacks are baseline-tracked
+  (`git rebase --onto`), so a child only ever replays its own commits
+  and survives amended, force-pushed, or squash-merged parents. Whole
+  stacks cascade automatically once parents are clean and idle; **Sync
+  stack with main** pulls origin/main into the root first, then ripples
+  down. Conflicts pause the stack and can be handed to that worktree's
+  Claude session with a ready-made resolution prompt.
+- **Stack map** — a pos/total glyph on stacked rows opens a popover
+  showing the whole stack (tree-shaped for forked stacks), with
+  click-to-jump, whole-stack restack, per-member state, pending
+  actions, and a last-action trace. Restacks queued behind a busy
+  agent show as pending in the sidebar too.
+- **Worktrees created outside Alfredo now auto-appear** — create one
+  from the terminal or a script and Alfredo adopts it (ports,
+  sessions, the lot) within seconds; externally deleted ones
+  disappear.
+- **Linear: per-repo prompt template + auto-submit** — customise the
+  prompt "Open in Alfredo" builds (with `{{variables}}`) in Repository
+  Settings, and optionally auto-send it to Claude instead of leaving
+  it in the input.
+- **Release highlights on update** — after Alfredo updates, a
+  what's-new dialog opens once with the highlights (this list!).
+- **Sidebar cards keep their order** — no more reshuffling when agent
+  status flips: pinned first, then your drag order, then creation
+  order.
+- **Light theme redesign** — new Paper light mode, near-white sidebar,
+  and contrast raised to WCAG AA across muted text, chips, and
+  statuses.
+- **Drop a commit** from the Commits tab right-click menu (with a
+  clear warning if it's already on origin), and **Open in editor**
+  from diff file headers; file paths printed in the terminal open in
+  your preferred editor at the exact line.
+- **Opus 5** is now a selectable model.
+- Various fixes: copied text no longer garbles non-ASCII characters
+  when Alfredo launches from the Dock; moving a worktree to Done
+  stops its dev server and frees the port; untracked scratch files
+  (like `.claude/`) no longer silently block auto-restack; new
+  branches no longer inherit the start-point's upstream; leaked
+  agent sessions are reaped before file-handle exhaustion; sidebar
+  status self-corrects from the Claude registry if a hook is missed.
+
 **v0.19.0 — 2026-07-09**
 - **Open Linear issues straight in Alfredo** — "Open in Alfredo" on a
   Linear issue spins up (or focuses) a worktree, drops the issue in as a
@@ -91,49 +133,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   exit code and output; orphaned worktree ports reconciled on repo load
   and released reliably on done/archive/delete; new "bear" notification
   sound.
-
-**v0.16.0 — 2026-05-18**
-- **Change a worktree's base branch** — a new dialog in the sidebar
-  context menu lets you re-point a worktree at a different base (e.g.
-  switch from `main` to a feature branch you're stacking on). Each
-  agent row also surfaces a clickable parent-branch link.
-- **Terminal rebuilds its glyph cache on wake** — the WebGL atlas
-  used to corrupt after macOS sleep or a display DPR change, leaving
-  terminals showing garbled text until restart. It now rebuilds
-  automatically on wake and DPR change.
-- **Refreshed notification sound lineup** — adds alfie, bigben,
-  pacman, ahooga, honk, boing, microwave, shutter, seatbelt,
-  powerup, blip, doorbell, fwump, levelup, and quack. Native macOS
-  banners now go through `UNUserNotificationCenter`; sound playback
-  stays in-process so custom sounds remain reliable regardless of
-  bundle signing. macOS Focus / DND suppresses the banner but not
-  the sound — toggle Alfredo's notifications off to silence
-  everything.
-- **Sticky commit header with inline prev/next nav** — in the
-  Commits tab, the selected-commit header sticks to the top of the
-  diff column with prev/next arrows (and `j` / `k` keyboard nav) so
-  you can walk through a branch's commits without losing your place.
-- **Smarter "existing PR" handling on worktree create** — clicking
-  a PR row that already has a worktree skips the create flow and
-  jumps straight to the existing worktree. Errors when importing a
-  PR on a reused branch are now explicit instead of cryptic.
-- **Atomic config writes** — `app.json`, `personal.json`,
-  `alfredo.json`, and keychain JSON now write via temp-file +
-  rename, so a crash mid-write can no longer leave a half-written
-  file that refuses to load.
-- Various fixes: settings dialogs no longer open inside the
-  collapsed sidebar rail; split-diff row backgrounds align to the
-  widest content; split-diff right-side line lookup is scoped to the
-  right pane (was matching left-pane lines); `j` / `k` commit-nav
-  direction corrected; rebase errors show the full git output and
-  long branch names no longer break the layout; worktree-create
-  failures surface as errors instead of being silently swallowed;
-  sidebar diff stats persist across worktree refreshes; remote-
-  control sessions are keyed by Claude tab so multiple tabs in one
-  worktree don't collide; open PRs win over closed/merged ones on
-  the same branch; markdown view-mode choice persists per file
-  across remounts; annotation bubble no longer caps at 720px;
-  Linear and GitHub share a bounded HTTP pool to prevent socket
-  exhaustion.
 
 Check the releases page for older versions and full detail.

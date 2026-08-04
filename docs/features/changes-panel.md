@@ -10,7 +10,8 @@ bar. It has up to three tabs:
 
 - **Files** — uncommitted and committed diffs in a file tree.
   Click any file to open its diff; right-click for "Open in Editor"
-  and "Copy Path". The count in the tab label renders as a small
+  and "Copy Path". An **Open in editor** button also sits on each
+  file's header inside the diff view itself. The count in the tab label renders as a small
   **pill chip** next to the label. Markdown files (`.md`, `.markdown`,
   `.mdx`) get a hover-revealed Eye toggle for rendered preview — see
   [markdown rendered view](markdown-rendered-view.md).
@@ -20,6 +21,11 @@ bar. It has up to three tabs:
   matches the Files tab. With a commit selected, a **sticky header**
   pins to the top of the diff column with inline **prev/next**
   arrows; `j` / `k` walk through commits from the keyboard.
+  Right-click a commit row for **Drop Commit…** — after a
+  confirmation it removes that commit and replays the later ones on
+  top (nothing changes if a later commit depends on it). If the
+  commit is already on origin, the dialog warns that dropping it
+  rewrites pushed history and will need a force-push.
 - **PR** — only appears once Alfredo detects a pull request for the
   branch. Shows PR title, description, merge status, reviews, and
   inline comment threads (see pr-checks doc for the checks section).
