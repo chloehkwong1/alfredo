@@ -50,13 +50,25 @@ export function computeDiscovery({ known, freshWorktrees, knownPaths }: Discover
  *  lifecycle path (PTY close, tab/layout/port/session cleanup) — a silent
  *  merge-drop would leak a running claude with no UI left to kill it.
  *  `creating` and `createError` placeholders exist only in the store, never
- *  on disk, so their absence from a listing means nothing. */
+ *  on disk, so their absence from a listing means nothing.
+ *
+ *  A missing id alone does not mean the worktree is gone. Ids carry the branch
+ *  (`{repo_path}::{branch}`), and the branch token is not stable: a `git
+ *  checkout -b`, or a rebase that finishes on a detached HEAD (where
+ *  git_manager falls back to the directory name), re-ids a worktree that never
+ *  left disk. Removal is destructive — it force-deletes the directory — so it
+ *  requires the path to be absent too, the mirror of the path-novelty rule
+ *  `computeDiscovery` uses to tell a branch switch from a real worktree add. */
 export function computeRemovals(
-  storeWts: Array<{ id: string; creating?: boolean; createError?: string }>,
+  storeWts: Array<{ id: string; path: string; creating?: boolean; createError?: string }>,
   freshIds: Set<string>,
+  freshPaths: Set<string>,
 ): string[] {
   return storeWts
-    .filter((wt) => !wt.creating && !wt.createError && !freshIds.has(wt.id))
+    .filter(
+      (wt) =>
+        !wt.creating && !wt.createError && !freshIds.has(wt.id) && !freshPaths.has(wt.path),
+    )
     .map((wt) => wt.id);
 }
 
@@ -118,8 +130,9 @@ async function pollRepo(
       .getState()
       .worktrees.filter((wt) => wt.repoPath === repo && !wt.isBranchMode);
     const freshIds = new Set(fresh.map((wt) => wt.id));
+    const freshPaths = new Set(fresh.map((wt) => wt.path));
     const byId = new Map(currentWts.map((wt) => [wt.id, wt]));
-    for (const removedId of computeRemovals(currentWts, freshIds)) {
+    for (const removedId of computeRemovals(currentWts, freshIds, freshPaths)) {
       const gone = byId.get(removedId);
       if (!gone) continue;
       await lifecycleManager

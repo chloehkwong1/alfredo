@@ -98,11 +98,16 @@ describe("computeDiscovery", () => {
 
 describe("computeRemovals", () => {
   const freshIds = new Set(["repo::kept"]);
+  const freshPaths = new Set(["/wt/kept"]);
 
   it("removes store worktrees missing from the fresh listing", () => {
     const removals = computeRemovals(
-      [{ id: "repo::kept" }, { id: "repo::gone" }],
+      [
+        { id: "repo::kept", path: "/wt/kept" },
+        { id: "repo::gone", path: "/wt/gone" },
+      ],
       freshIds,
+      freshPaths,
     );
     expect(removals).toEqual(["repo::gone"]);
   });
@@ -110,10 +115,25 @@ describe("computeRemovals", () => {
   it("never removes creating or createError placeholders (store-only, not on disk)", () => {
     const removals = computeRemovals(
       [
-        { id: "repo::spinning", creating: true },
-        { id: "repo::failed", createError: "boom" },
+        { id: "repo::spinning", path: "/wt/spinning", creating: true },
+        { id: "repo::failed", path: "/wt/failed", createError: "boom" },
       ],
       freshIds,
+      freshPaths,
+    );
+    expect(removals).toEqual([]);
+  });
+
+  it("keeps a worktree whose id changed while its path stayed put", () => {
+    // A `git rebase --onto X Y HEAD` that runs to completion leaves the
+    // worktree on a non-rebase detached HEAD, so git_manager falls back to the
+    // directory name for the branch token and the id flips from
+    // `repo::chloe/feat` to `repo::chloe-feat`. The directory is still on disk;
+    // reading that as an external delete force-removes live work.
+    const removals = computeRemovals(
+      [{ id: "repo::chloe/feat", path: "/wt/chloe-feat" }],
+      new Set(["repo::chloe-feat"]),
+      new Set(["/wt/chloe-feat"]),
     );
     expect(removals).toEqual([]);
   });
