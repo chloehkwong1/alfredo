@@ -573,7 +573,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       const existingForRepo = state.worktrees.filter((wt) => wt.repoPath === repoPath);
       const freshWorktrees =
         typeof freshArg === "function" ? freshArg(existingForRepo) : freshArg;
-      return { worktrees: [...otherRepoWorktrees, ...mergeWorktreeState(freshWorktrees, existingForRepo)] };
+      const worktrees = [
+        ...otherRepoWorktrees,
+        ...mergeWorktreeState(freshWorktrees, existingForRepo),
+      ];
+      // A worktree can leave the store without removeWorktree running: a re-id
+      // (branch switch, or a rebase that finishes on a detached HEAD) gives the
+      // same directory a new id, so the old row is merge-dropped here.
+      // removeWorktree is the only other place that nulls the selection, so
+      // without this the active id dangles and AppShell renders the main pane
+      // against a worktree the store no longer holds.
+      const selectionSurvives =
+        !state.activeWorktreeId || worktrees.some((wt) => wt.id === state.activeWorktreeId);
+      return {
+        worktrees,
+        activeWorktreeId: selectionSurvives ? state.activeWorktreeId : null,
+      };
     }),
 
   clearWorktreesForRepo: (repoPath) =>

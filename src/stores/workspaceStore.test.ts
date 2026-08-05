@@ -630,6 +630,40 @@ describe("setWorktreesForRepo", () => {
     expect(ids).toContain("branch::/repo-a");
     expect(ids).toContain("wt-real");
   });
+
+  it("clears the selection when the active worktree is no longer listed", () => {
+    // A re-id (branch switch, or a rebase that finishes on a detached HEAD)
+    // gives the same directory a new id, so the old row is merge-dropped
+    // without removeWorktree — the only other place that nulls the selection.
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [makeWorktree({ id: "repo::old", repoPath: "/repo-a", path: "/wt/x" })],
+      activeWorktreeId: "repo::old",
+    });
+
+    store.getState().setWorktreesForRepo("/repo-a", [
+      makeWorktree({ id: "repo::new", repoPath: "/repo-a", path: "/wt/x" }),
+    ]);
+
+    expect(store.getState().activeWorktreeId).toBeNull();
+  });
+
+  it("keeps the selection when the active worktree is in another repo", () => {
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [
+        makeWorktree({ id: "wt-a", repoPath: "/repo-a" }),
+        makeWorktree({ id: "wt-b", repoPath: "/repo-b" }),
+      ],
+      activeWorktreeId: "wt-b",
+    });
+
+    store.getState().setWorktreesForRepo("/repo-a", [
+      makeWorktree({ id: "wt-a2", repoPath: "/repo-a" }),
+    ]);
+
+    expect(store.getState().activeWorktreeId).toBe("wt-b");
+  });
 });
 
 // ── moveWorktreeToFront ───────────────────────────────────────────
