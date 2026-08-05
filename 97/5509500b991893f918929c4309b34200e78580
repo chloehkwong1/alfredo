@@ -1,0 +1,21 @@
+docs/features/whats-new.md
+  s_733370113894a1::t_b51b78789198de 10-20
+docs/features/external-worktrees.md
+  s_733370113894a1::t_b10fdcb3e3449f 30-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "975509500b991893f918929c4309b34200e78580",
+  "prompts": {},
+  "sessions": {
+    "s_733370113894a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e1c76de-4d48-4710-8c3f-2abfcdc2ce8e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
