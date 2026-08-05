@@ -7,6 +7,17 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.20.1 — 2026-08-05**
+- **Fixed: a worktree could vanish, taking uncommitted work with it** —
+  a rebase that finished on a detached HEAD changed how Alfredo
+  identified the worktree, so it was mistaken for one deleted outside
+  the app and removed from disk. A branch change is no longer read as
+  a deletion; a worktree is only removed when its directory is
+  genuinely gone.
+- Various fixes: the sidebar selection no longer points at a worktree
+  that has left the list, which left the main pane and Changes panel
+  rendering against a stale row.
+
 **v0.20.0 — 2026-08-04**
 - **Stacked PRs overhauled end-to-end** — restacks are baseline-tracked
   (`git rebase --onto`), so a child only ever replays its own commits
@@ -109,29 +120,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   "couldn't load changes". Uncommitted diffs are now computed natively
   so they load reliably; this also clears spurious "deleted" rows for
   files whose paths differ only in case.
-
-**v0.17.0 — 2026-05-22**
-- **Per-worktree Notes** — every worktree now has a built-in Notes tab:
-  a rich-text editor with a formatting toolbar, task-list checkboxes,
-  and debounced autosave, pinned leftmost as an icon tab.
-- **Fixed garbled terminal text on macOS** — under heavy output the
-  WebGL renderer could draw the wrong glyphs (e.g. "code" showing as
-  "node"), and the garble survived scrolling. Updated xterm to pick up
-  the upstream fix for texture-atlas page-merge corruption — the deeper
-  cause behind the wake/DPR rebuild added in v0.16.0.
-- **Rename a worktree** from the sidebar right-click menu.
-- **Quote deleted lines in comments** — annotating a removed diff line
-  now sends the deleted content along to Claude.
-- **Stable updates never offer betas** — the stable channel refuses
-  prerelease builds even if the feed serves one, and failed update
-  installs/downloads now show in the log and banner instead of silently
-  reverting.
-- Various fixes: main tabs and chats resume on app reload; PR review
-  comments anchor to the correct side (no double-render); split-view
-  diff search scrolls to the active match; the annotation preview tab
-  pins on submit rather than on open; setup-script errors include the
-  exit code and output; orphaned worktree ports reconciled on repo load
-  and released reliably on done/archive/delete; new "bear" notification
-  sound.
 
 Check the releases page for older versions and full detail.

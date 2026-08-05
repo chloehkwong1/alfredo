@@ -27,5 +27,9 @@ worktree entry is pruned.
 - Switching branches inside an existing worktree
   (`git checkout -b`) is not treated as a new worktree; adoption
   only triggers for a genuinely new path on disk.
+- The same holds in reverse: a branch change — including a rebase
+  that finishes on a detached HEAD — is never read as a deletion.
+  Removal needs the directory itself to be gone, so work in a
+  worktree is safe no matter what its branch does.
 - Creating a worktree through Alfredo's own flow is unaffected —
   discovery pauses while an in-app creation is mid-flight.
