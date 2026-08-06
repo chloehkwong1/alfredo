@@ -1,0 +1,22 @@
+src/services/syntaxHighlighter.ts
+  s_93b112609de481::t_e94eb136890571 110-112
+  s_93b112609de481::t_d45bb61dadcf66 26
+  s_93b112609de481::t_78da1dd900e647 2
+  s_93b112609de481::t_d86fead3f0ccac 124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "2a78de176814b1e2c7df2c08e1b50ab7c2b87daf",
+  "prompts": {},
+  "sessions": {
+    "s_93b112609de481": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d01aa39a-d334-4ba7-933d-d73119cefad0",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
