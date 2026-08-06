@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeBadgeCount } from "./dockBadge";
+import { computeBadgeCount, worktreeNeedsYou } from "./dockBadge";
 import type { Worktree } from "../types";
 
 function wt(overrides: Partial<Worktree> = {}): Worktree {
@@ -104,6 +104,28 @@ describe("computeBadgeCount", () => {
       notificationsEnabled: true,
     });
     expect(count).toBe(1);
+  });
+
+  it("agrees with worktreeNeedsYou per worktree", () => {
+    const worktrees = [
+      wt({ id: "a", agentStatus: "waitingForInput" }),
+      wt({ id: "b", agentStatus: "idle" }),
+      wt({ id: "c", agentStatus: "busy" }),
+      wt({ id: "d", agentStatus: "idle", archived: true }),
+    ];
+    const seen = new Set(["b"]);
+    const unread = new Set(["b"]);
+    const count = computeBadgeCount({
+      worktrees,
+      seen,
+      unread,
+      notificationsEnabled: true,
+    });
+    const perWorktree = worktrees.filter((w) =>
+      worktreeNeedsYou(w, seen, unread),
+    );
+    expect(perWorktree.map((w) => w.id)).toEqual(["a", "b"]);
+    expect(count).toBe(perWorktree.length);
   });
 
   it("sums across multiple attention worktrees", () => {

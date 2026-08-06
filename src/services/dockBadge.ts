@@ -11,24 +11,33 @@ export interface BadgeCountInput {
   notificationsEnabled: boolean;
 }
 
+/** The dock badge's per-worktree predicate. UI surfaces that claim to explain
+ *  the badge number (e.g. the collapsed status-group pill) must use this, not
+ *  reimplement it, so they can never drift from the badge count. */
+export function worktreeNeedsYou(
+  wt: Worktree,
+  seen: Set<string>,
+  unread: Set<string>,
+): boolean {
+  if (wt.archived) return false;
+  const effectiveSeen = seen.has(wt.id) && !unread.has(wt.id);
+  const status = computeEffectiveStatus(
+    wt.agentStatus,
+    wt.channelAlive,
+    wt.staleBusy,
+    effectiveSeen,
+    wt.justCreated,
+    wt.setupInProgress,
+  );
+  return NEEDS_YOU_STATES.has(status);
+}
+
 export function computeBadgeCount(input: BadgeCountInput): number {
   if (!input.notificationsEnabled) return 0;
 
   let count = 0;
   for (const wt of input.worktrees) {
-    if (wt.archived) continue;
-    const isSeen = input.seen.has(wt.id);
-    const isUnread = input.unread.has(wt.id);
-    const effectiveSeen = isSeen && !isUnread;
-    const status = computeEffectiveStatus(
-      wt.agentStatus,
-      wt.channelAlive,
-      wt.staleBusy,
-      effectiveSeen,
-      wt.justCreated,
-      wt.setupInProgress,
-    );
-    if (NEEDS_YOU_STATES.has(status)) count += 1;
+    if (worktreeNeedsYou(wt, input.seen, input.unread)) count += 1;
   }
   return count;
 }

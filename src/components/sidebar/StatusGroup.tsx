@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import type { KanbanColumn, Worktree } from "../../types";
 import { AgentItem } from "./AgentItem";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { worktreeNeedsYou } from "../../services/dockBadge";
 
 interface StatusGroupProps {
   column: KanbanColumn;
@@ -99,6 +101,13 @@ function StatusGroup({
   const tempExpanded = isTempExpanded ?? false;
   const collapsed = persistedCollapsed && !tempExpanded;
   const { isOver, setNodeRef } = useDroppable({ id: column });
+  const seenWorktrees = useWorkspaceStore((s) => s.seenWorktrees);
+  const unreadWorktrees = useWorkspaceStore((s) => s.unreadWorktrees);
+  // Expanded groups surface attention on the cards themselves; collapsed
+  // groups hide the cards, so the count pill takes over as the indicator.
+  const collapsedNeedsYou =
+    collapsed
+    && worktrees.some((wt) => worktreeNeedsYou(wt, seenWorktrees, unreadWorktrees));
 
   const pinned = pinnedWorktrees ?? new Set<string>();
   const visibleWorktrees = hideUnpinned
@@ -158,7 +167,14 @@ function StatusGroup({
           onClick={() => onToggleCollapsed?.(column)}
           className="flex items-center gap-2 cursor-pointer text-text-secondary hover:text-text-primary transition-colors"
         >
-          <span className="text-2xs text-text-secondary tabular-nums font-semibold bg-bg-elevated rounded-full px-1.5 py-0.5">
+          <span
+            className={[
+              "text-2xs tabular-nums font-semibold rounded-full px-1.5 py-0.5",
+              collapsedNeedsYou
+                ? "text-accent-primary bg-accent-muted dot-glow-attn"
+                : "text-text-secondary bg-bg-elevated",
+            ].join(" ")}
+          >
             {hideUnpinned && visibleWorktrees.length !== worktrees.length
               ? `${visibleWorktrees.length} / ${worktrees.length}`
               : worktrees.length}
