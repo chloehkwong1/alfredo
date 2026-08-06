@@ -1763,7 +1763,10 @@ fn is_leaked_outer_session_var(key: &str) -> bool {
     let Some(suffix) = key.strip_prefix("CLAUDE_CODE_") else {
         return false;
     };
-    suffix.contains("SESSION") || suffix == "ENTRYPOINT" || suffix == "EXECPATH"
+    // SSE_PORT is the IDE-attach port of the *outer* session — not
+    // session-shaped by name, but inherited it points spawned agents at an IDE
+    // server that isn't theirs.
+    suffix.contains("SESSION") || suffix == "ENTRYPOINT" || suffix == "EXECPATH" || suffix == "SSE_PORT"
 }
 
 /// True if the given `ps -o comm=` result is a shell itself (so we should
@@ -1889,6 +1892,9 @@ mod tests {
         assert!(is_leaked_outer_session_var("CLAUDE_CODE_ENTRYPOINT"));
         assert!(is_leaked_outer_session_var("CLAUDE_CODE_EXECPATH"));
         assert!(is_leaked_outer_session_var("CLAUDE_MEM_WORKER_PORT"));
+        // IDE-attach port of the outer session — inherited, it points spawned
+        // agents at the outer session's IDE server.
+        assert!(is_leaked_outer_session_var("CLAUDE_CODE_SSE_PORT"));
 
         // Must be preserved: Alfredo's own vars, user credentials, generic env.
         assert!(!is_leaked_outer_session_var("ALFREDO_SESSION_ID"));

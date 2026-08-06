@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { normalizeCommand } from "../../lib/normalizeCommand";
 import {
   Archive as ArchiveIcon,
   Check,
@@ -69,10 +70,6 @@ const FLAG_FIELDS: Array<keyof RepoOverrideFlags> = [
   "portRangeEnd",
 ];
 
-// Collapse all whitespace runs (including newlines) into a single space, then
-// trim. Pasted commands often contain word-wrap newlines that the shell would
-// treat as statement terminators, breaking `&&` chains.
-const normalizeCommand = (s: string) => s.replace(/\s+/g, " ").trim();
 
 const inputClass = [
   "h-8 w-full px-3 text-sm",

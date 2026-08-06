@@ -156,7 +156,9 @@ pub fn validate_branch_name(name: &str) -> Result<(), AppError> {
 }
 
 /// Whether a directory holds anything worth keeping — any entry other than the
-/// `.git` pointer a detached worktree husk leaves behind.
+/// `.git` pointer a detached worktree husk leaves behind and the `.DS_Store`
+/// Finder drops into any folder it merely displays (without the exemption, one
+/// glance at the husk in Finder wedges the branch name permanently).
 ///
 /// Errs towards "yes" when the directory can't be read: the caller deletes on a
 /// `false`, and an unreadable directory is no basis for that.
@@ -166,7 +168,11 @@ async fn directory_holds_content(dir: &Path) -> bool {
     };
     loop {
         match entries.next_entry().await {
-            Ok(Some(entry)) if entry.file_name() == ".git" => continue,
+            Ok(Some(entry))
+                if entry.file_name() == ".git" || entry.file_name() == ".DS_Store" =>
+            {
+                continue
+            }
             Ok(Some(_)) => return true,
             Ok(None) => return false,
             Err(_) => return true,
@@ -2588,7 +2594,9 @@ mod tests {
     }
 
     /// The case the removal was added for still has to work, or a partial
-    /// delete leaves a directory that permanently blocks re-creation.
+    /// delete leaves a directory that permanently blocks re-creation. Browsing
+    /// the husk in Finder drops a `.DS_Store` into it — that must not turn the
+    /// husk into "real content" and wedge the branch name forever.
     #[tokio::test]
     async fn create_worktree_clears_an_empty_leftover_directory() {
         let dir = init_test_repo();
@@ -2596,11 +2604,13 @@ mod tests {
         let base_dir = TempDir::new().expect("create base temp dir");
         let base_path = base_dir.path().to_str().expect("base path is valid UTF-8");
 
-        std::fs::create_dir_all(base_dir.path().join("feature")).expect("mkdir leftover");
+        let leftover = base_dir.path().join("feature");
+        std::fs::create_dir_all(&leftover).expect("mkdir leftover");
+        std::fs::write(leftover.join(".DS_Store"), [0u8; 8]).expect("write DS_Store");
 
         create_worktree(repo_path, "feature", "main", Some(base_path))
             .await
-            .expect("an empty leftover must not block creation");
+            .expect("a Finder-browsed empty leftover must not block creation");
     }
 
     /// The gap that let a "clean" worktree take design/plan files with it: a

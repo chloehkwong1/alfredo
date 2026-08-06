@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { normalizeCommand } from "../../lib/normalizeCommand";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -49,15 +50,6 @@ interface RepoSetupDialogProps {
   onSetRepoShortLabel?: (repoPath: string, label: string | null) => void | Promise<void>;
   onSetRepoColor?: (repoPath: string, color: string) => void | Promise<void>;
   onConfigured: (result: { mode: RepoMode; selectedWorktreeIds?: string[] }) => void;
-}
-
-/**
- * Collapse all whitespace runs (including newlines) into a single space, then
- * trim. Pasted commands often contain word-wrap newlines that the shell would
- * treat as statement terminators, breaking `&&` chains.
- */
-function normalizeCommand(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
 }
 
 /** Derive parent directory from a path */
