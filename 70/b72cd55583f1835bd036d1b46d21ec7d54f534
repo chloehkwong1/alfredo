@@ -1,0 +1,24 @@
+src/components/changes/DiffFileCard.tsx
+  s_93b112609de481::t_b2b6af37b35bea 113
+  s_93b112609de481::t_db89d4e1a624ab 4
+  s_93b112609de481::t_e5da59118f6af3 118
+  s_93b112609de481::t_12905692bb059f 142
+src/hooks/useThemeMode.ts
+  s_93b112609de481::t_b5214e486d992e 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "70b72cd55583f1835bd036d1b46d21ec7d54f534",
+  "prompts": {},
+  "sessions": {
+    "s_93b112609de481": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d01aa39a-d334-4ba7-933d-d73119cefad0",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
