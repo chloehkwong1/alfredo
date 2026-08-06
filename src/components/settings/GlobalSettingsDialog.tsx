@@ -14,6 +14,7 @@ import { DEFAULT_NOTIFICATION_CONFIG } from "./notificationConfig";
 import { TerminalSettings } from "./TerminalSettings";
 import { ThemeSelector } from "./ThemeSelector";
 import { flagsError } from "../../services/launchCommand";
+import { isLightTheme } from "../../lib/themeMeta";
 
 type GlobalTab =
   | "general"
@@ -123,8 +124,10 @@ function applyTheme(theme: string) {
     document.documentElement.setAttribute("data-theme", theme);
   }
   getCurrentWindow()
-    .setTheme(theme === "light" ? "light" : "dark")
+    .setTheme(isLightTheme(theme) ? "light" : "dark")
     .catch(() => {});
+  // Diff views (Shiki tokens, Monaco) re-resolve light/dark off this event.
+  window.dispatchEvent(new Event("alfredo-theme-changed"));
 }
 
 function GlobalSettingsDialog({

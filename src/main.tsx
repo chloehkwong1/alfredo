@@ -5,6 +5,7 @@ import App from "./App";
 import { startStatusMirror } from "./services/statusMirror";
 import { startDockBadgeMirror } from "./services/dockBadge";
 import { preloadTerminalFonts } from "./services/fontPreload";
+import { isLightTheme } from "./lib/themeMeta";
 import "./styles/globals.css";
 
 // Fast theme apply from cache (avoids flash)
@@ -14,7 +15,7 @@ if (cachedTheme && cachedTheme !== "warm-dark") {
 }
 // Match native window chrome (macOS titlebar) to the selected theme.
 getCurrentWindow()
-  .setTheme(cachedTheme === "light" ? "light" : "dark")
+  .setTheme(isLightTheme(cachedTheme) ? "light" : "dark")
   .catch(() => {});
 
 // Start the single writer for worktree.agentStatus. Must run before any
