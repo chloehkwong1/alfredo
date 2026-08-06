@@ -86,7 +86,7 @@ function deriveFallbackDescription(prompt: string): string {
  * agent in a non-busy state; returns false after `timeoutMs` — callers paste
  * anyway rather than hang, but the auto-submit gate must see a real ready.
  */
-async function waitForAgentReady(
+export async function waitForAgentReady(
   session: { lastOutputAt: number; agentState: string },
   { quietMs = 1200, timeoutMs = 20000 }: { quietMs?: number; timeoutMs?: number } = {},
 ): Promise<boolean> {
@@ -129,7 +129,7 @@ async function waitForPasteEchoSettle(
  * session, or null on timeout. usePty must be the SOLE spawner: an eager spawn
  * here would race it and leave input/resize unwired.
  */
-async function waitForSpawnedSession(
+export async function waitForSpawnedSession(
   worktreeId: string,
   { timeoutMs = 15000 }: { timeoutMs?: number } = {},
 ) {
