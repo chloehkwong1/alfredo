@@ -1,0 +1,29 @@
+src-tauri/src/git_manager.rs
+  s_7b4b18cb2a5c1b::t_052e5fd1d90d13 2597-2599,2607-2609,2613
+  s_7b4b18cb2a5c1b::t_9887ae8525f979 159-161,171-175
+src-tauri/src/pty_manager.rs
+  s_7b4b18cb2a5c1b::t_c03e9340cd90e3 1766-1769
+  s_7b4b18cb2a5c1b::t_f4fb56c10ae685 1895-1897
+src/components/onboarding/RepoSetupDialog.tsx
+  s_7b4b18cb2a5c1b::t_76716df27f8984 2
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_7b4b18cb2a5c1b::t_4afa9332cfb04e 2
+src/lib/normalizeCommand.ts
+  s_7b4b18cb2a5c1b::t_ed5c82e9ea14f3 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "db242730606db05d9c9e7baf77863ce2c2d945c6",
+  "prompts": {},
+  "sessions": {
+    "s_7b4b18cb2a5c1b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "32c5a73d-b43a-4534-b752-6aa8bdb5deb8",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
