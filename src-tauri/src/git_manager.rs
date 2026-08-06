@@ -302,9 +302,10 @@ pub async fn create_worktree(
 ///   `"not a working tree"` (e.g. the worktree is dirty), the error is
 ///   surfaced to the caller — we do not silently nuke dirty worktrees.
 ///
-/// Resolves the on-disk path via `git worktree list --porcelain` rather than
-/// recomputing it from `worktree_name` + `base_path`, so it works even when
-/// the worktree was created under a different base or with a branch name that
+/// Resolves the on-disk path by asking git (libgit2 by admin name, then
+/// `git worktree list --porcelain`) rather than recomputing it from
+/// `worktree_name` + `base_path`, so it works even when the worktree was
+/// created under a different base, renamed since, or carries a branch name that
 /// doesn't match the sanitized dir name.
 pub async fn delete_worktree(
     repo_path: &str,
@@ -402,6 +403,21 @@ async fn resolve_worktree(
                 .to_path_buf()
         })
         .join(&dir_name);
+
+    // `worktree_name` is git's admin name (`.git/worktrees/<name>`), which is
+    // fixed at creation — it's what `list_worktrees` reports as `Worktree.name`.
+    // Rename a worktree's branch and directory and that name matches neither the
+    // path basename nor the branch, so the porcelain scan below misses it and the
+    // caller force-cleans a computed path that doesn't exist: a delete that
+    // reports success and removes nothing. Ask libgit2 by the same name the id
+    // came from first, so the lookup can't drift.
+    if let Ok(repo) = Repository::open(repo_path) {
+        if let Ok(worktree) = repo.find_worktree(worktree_name) {
+            let path = worktree.path().to_path_buf();
+            let branch = get_branch_for_path(&path);
+            return (path, branch);
+        }
+    }
 
     let Ok(output) = git_command()
         .args(["worktree", "list", "--porcelain"])
@@ -2229,6 +2245,60 @@ mod tests {
         let repo = Repository::open(repo_path).expect("open repo");
         let branch = repo.find_branch("test-branch", git2::BranchType::Local);
         assert!(branch.is_err());
+    }
+
+    /// Renaming a worktree's branch and directory leaves git's admin entry under
+    /// `.git/worktrees/` at its *original* name, and that stale name is exactly
+    /// what `list_worktrees` reports as `Worktree.name` — so it's what the delete
+    /// command receives. Resolution must still find the real path and branch.
+    /// Otherwise the delete silently no-ops (the computed fallback path doesn't
+    /// exist, so the forced cleanup "succeeds" having removed nothing) and
+    /// worktree discovery re-adopts the survivor on its next tick, forever.
+    #[tokio::test]
+    async fn test_delete_worktree_resolves_stale_admin_name_after_rename() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        let base_dir = TempDir::new().expect("create base temp dir");
+        let base_path = base_dir.path().to_str().expect("base path is valid UTF-8");
+
+        let original = create_worktree(repo_path, "old-name", "main", Some(base_path))
+            .await
+            .expect("create_worktree should succeed");
+
+        git_in(dir.path(), &["branch", "-m", "old-name", "chloe/renamed"]);
+        let renamed = base_dir.path().join("chloe-renamed");
+        std::fs::rename(&original, &renamed).expect("move worktree dir");
+        git_in(
+            dir.path(),
+            &["worktree", "repair", renamed.to_str().expect("renamed path is valid UTF-8")],
+        );
+
+        let pre_delete_repo = Repository::open(repo_path).expect("open repo");
+        let admin_names: Vec<String> = pre_delete_repo
+            .worktrees()
+            .expect("list worktrees")
+            .iter()
+            .filter_map(|n| match n {
+                Ok(Some(name)) => Some(name.to_string()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            admin_names,
+            vec!["old-name".to_string()],
+            "git keeps the original admin name after a rename — the premise of this test",
+        );
+
+        delete_worktree(repo_path, "old-name", true, Some(base_path))
+            .await
+            .expect("delete_worktree should succeed");
+
+        assert!(!renamed.exists(), "renamed worktree directory should be gone");
+        let repo = Repository::open(repo_path).expect("reopen repo");
+        assert!(
+            repo.find_branch("chloe/renamed", git2::BranchType::Local).is_err(),
+            "the worktree's actual branch should be deleted, not the stale admin name",
+        );
     }
 
     // ── parse_shortstat ─────────────────────────────────────────
