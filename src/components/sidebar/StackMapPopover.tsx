@@ -38,7 +38,9 @@ function memberStateText(m: Worktree): string {
   if (isErrorState) return stateText(m.stackRebaseStatus);
   if (m.prStatus?.merged) return "merged ✓";
   if (kind && kind !== "upToDate") return stateText(m.stackRebaseStatus);
-  if (m.stackPending) return "restack queued";
+  if (m.stackPending) {
+    return m.stackPending.blockedBy === "nativeRestacked" ? "restacked by GitHub" : "restack queued";
+  }
   return "up to date";
 }
 
@@ -112,11 +114,20 @@ function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: Stac
       </div>
       {pendingMember?.stackPending && (
         <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-secondary leading-snug">
-          {pendingMember.stackPending.mergedParent} was merged —{" "}
-          {pendingMember.stackPending.blockedBy === "dirty"
-            ? `waiting for uncommitted changes in ${pendingMember.branch} to clear`
-            : `waiting for ${pendingMember.branch}'s agent to finish`}
-          , then this stack rebases onto {defaultBranch ?? "main"}.
+          {pendingMember.stackPending.blockedBy === "nativeRestacked" ? (
+            <>
+              {pendingMember.stackPending.mergedParent} was merged — GitHub restacked{" "}
+              {pendingMember.branch} remotely; the local branch may be behind.
+            </>
+          ) : (
+            <>
+              {pendingMember.stackPending.mergedParent} was merged —{" "}
+              {pendingMember.stackPending.blockedBy === "dirty"
+                ? `waiting for uncommitted changes in ${pendingMember.branch} to clear`
+                : `waiting for ${pendingMember.branch}'s agent to finish`}
+              , then this stack rebases onto {defaultBranch ?? "main"}.
+            </>
+          )}
         </div>
       )}
       {rows.map(({ member, worktree: m }) => (

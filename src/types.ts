@@ -66,10 +66,13 @@ export type StackRebaseStatus =
   | { kind: "rewrittenExternally" };
 
 /** A merged-parent restack Alfredo has queued but deferred. Event-fed
- *  (`stack:pending-update`) — the backend never returns it from listWorktrees. */
+ *  (`stack:pending-update`) — the backend never returns it from listWorktrees.
+ *  `nativeRestacked` is a notice, not a deferral: the parent belonged to a
+ *  native GitHub Stack, so GitHub restacked the branch server-side and Alfredo
+ *  only cleared its local bookkeeping. */
 export interface StackPendingAction {
   mergedParent: string;
-  blockedBy: "dirty" | "agentBusy";
+  blockedBy: "dirty" | "agentBusy" | "nativeRestacked";
 }
 
 export interface Worktree {

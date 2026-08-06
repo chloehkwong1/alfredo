@@ -147,6 +147,11 @@ pub struct StackPendingAction {
 pub enum StackPendingBlocker {
     Dirty,
     AgentBusy,
+    /// Not a blocker but a notice: the merged parent belonged to a native
+    /// GitHub Stack, which retargets and rebases upper layers server-side.
+    /// Alfredo cleared its local override bookkeeping without rebasing — the
+    /// local branch may be behind the remote. Swept like other pendings.
+    NativeRestacked,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

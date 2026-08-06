@@ -234,13 +234,35 @@ fn checkout_path_for<'a>(
     })
 }
 
+// ── Native GitHub Stack stand-down ───────────────────────────────
+
+/// Worktree names (branch with `/` → `-`) of this repo's PRs that belong to a
+/// native GitHub Stack. GitHub retargets and rebases upper layers server-side
+/// on merge, so every override-driven automation path skips these children:
+/// no auto-restack, no stale-parent dissolve, no dissolution rebase on parent
+/// merge (bookkeeping-only there). Manual actions stay allowed.
+fn native_member_worktrees(
+    prs: &[crate::github_sync::PrStatusWithColumn],
+    repo_path: &str,
+) -> std::collections::HashSet<String> {
+    crate::github_sync::native_member_branches(prs, repo_path)
+        .into_iter()
+        .map(|b| b.replace('/', "-"))
+        .collect()
+}
+
 // ── Public entry points ──────────────────────────────────────────
 
 /// Called at the end of each sync poll. Baseline-tracked (no in-memory SHA
 /// cache — restart-safe): "parent moved" is decided per child inside
 /// `restack_child` by comparing its persisted baseline against the parent's
 /// current tip.
-pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_paths: &[String]) {
+pub async fn check_and_rebase(
+    app_handle: &AppHandle,
+    app_data_dir: &Path,
+    repo_paths: &[String],
+    prs: &[crate::github_sync::PrStatusWithColumn],
+) {
     // One registry snapshot per poll, fetched lazily on first actual need (most
     // polls touch zero stacked repos, so the common case pays no subprocess
     // spawn). Unavailable registry (no claude binary, timeout) degrades to
@@ -252,7 +274,7 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
         // Task 13: detect stale parents (merged into main) first. Shares this
         // poll's registry slot so the two paths never poll `claude` twice.
         if let Err(e) =
-            detect_stale_parents(app_handle, app_data_dir, repo_path, &mut registry).await
+            detect_stale_parents(app_handle, app_data_dir, repo_path, &mut registry, prs).await
         {
             eprintln!("[stack_manager] detect_stale_parents failed for {repo_path}: {e}");
         }
@@ -287,9 +309,17 @@ pub async fn check_and_rebase(app_handle: &AppHandle, app_data_dir: &Path, repo_
             })
             .collect();
 
+        let native_children = native_member_worktrees(prs, repo_path);
+
         // Full-repo dependency order; a mid-cascade parent's new tip is picked up
         // because restack_child re-resolves the parent tip per child.
         for child_name in restack_order(&config.stack_parent_overrides, &name_to_branch) {
+            // Native GitHub Stack member: GitHub rebases it server-side, so the
+            // auto path must not touch it (and must not advance its baseline,
+            // which would silently mark it clean). Manual "Restack now" still works.
+            if native_children.contains(&child_name) {
+                continue;
+            }
             let Some(parent_branch) = config.stack_parent_overrides.get(&child_name) else {
                 continue;
             };
@@ -403,9 +433,28 @@ pub async fn check_merged_parents(
         // its subprocess. Also needed for the busy gate below.
         ensure_registry(&mut registry).await;
         let checkouts = checkout_paths(repo_path).await;
+        let native_children = native_member_worktrees(prs, repo_path);
 
         let mut dissolved: Vec<String> = Vec::new();
+        // Native-member children whose parent merged: GitHub already restacked
+        // them server-side, so only the notice is emitted — recorded AFTER the
+        // batched `forget_stack_memos` below, which would otherwise clear it.
+        let mut native_notices: Vec<(String, String)> = Vec::new();
         for (child_name, merged_parent) in &affected {
+            // Native GitHub Stack member: the merge already retargeted and
+            // rebased this child server-side. Rebasing locally or calling
+            // `update_pr_base_branch` would fight GitHub — clear Alfredo's
+            // bookkeeping only (batched below, mirroring the dissolve path)
+            // and surface a pending-style notice instead.
+            if native_children.contains(child_name) {
+                eprintln!(
+                    "[stack_manager] parent {merged_parent} merged for native-stack member {child_name}: standing down, clearing local override only"
+                );
+                native_notices.push((child_name.clone(), merged_parent.clone()));
+                dissolved.push(child_name.clone());
+                continue;
+            }
+
             // Dissolving rebases and force-pushes the child, so it gets the same
             // quiet gate as a routine restack: never rewrite history under a
             // running agent. The parent stays merged, so this retries next poll.
@@ -534,6 +583,22 @@ pub async fn check_merged_parents(
         }
         if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &config).await {
             eprintln!("[stack_manager] failed to save config after clearing merged parents: {e}");
+        }
+
+        // Recorded after `forget_stack_memos` (which clears pending entries) so
+        // the notice survives this poll. With the override gone, the child drops
+        // out of `affected` next poll and `sweep_stale_pending` retires the
+        // notice like any other pending.
+        for (child_name, merged_parent) in &native_notices {
+            record_pending(
+                app_handle,
+                repo_path,
+                child_name,
+                StackPendingAction {
+                    merged_parent: merged_parent.clone(),
+                    blocked_by: StackPendingBlocker::NativeRestacked,
+                },
+            );
         }
     }
 }
@@ -825,6 +890,7 @@ pub async fn detect_stale_parents(
     app_data_dir: &Path,
     repo_path: &str,
     registry: &mut Option<HashMap<String, String>>,
+    prs: &[crate::github_sync::PrStatusWithColumn],
 ) -> Result<(), String> {
     let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
@@ -850,12 +916,22 @@ pub async fn detect_stale_parents(
     let default_short =
         default_remote.strip_prefix("origin/").unwrap_or(&default_remote).to_string();
 
+    // Native GitHub Stack members are excluded outright: this path has no PR
+    // signal, and GitHub owns their restacking — a heuristic dissolve here
+    // would rebase a branch the server is about to (or already did) move.
+    // Their genuinely-merged case is `check_merged_parents`' bookkeeping-only
+    // stand-down, driven by a real merged-PR event.
+    let native_children = native_member_worktrees(prs, repo_path);
     let affected: Vec<(String, String)> = config
         .stack_parent_overrides
         .iter()
         .filter(|(_, parent)| stale_parents.contains(parent))
+        .filter(|(child, _)| !native_children.contains(*child))
         .map(|(child, parent)| (child.clone(), parent.clone()))
         .collect();
+    if affected.is_empty() {
+        return Ok(());
+    }
 
     // Only now that a dissolution is actually pending is the registry worth
     // polling — the vast majority of calls return above.
@@ -2839,6 +2915,101 @@ mod tests {
             check_baseline(repo_path, &old_parent_tip, &old_parent_tip).await,
             BaselineCheck::Stale
         ));
+    }
+
+    fn pr_with_native(
+        branch: &str,
+        repo_path: &str,
+        native: bool,
+    ) -> crate::github_sync::PrStatusWithColumn {
+        crate::github_sync::PrStatusWithColumn {
+            number: 1,
+            state: "open".into(),
+            title: "t".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: branch.into(),
+            auto_column: "openPr".into(),
+            merged_at: None,
+            head_sha: None,
+            failing_check_count: None,
+            pending_check_count: None,
+            unresolved_comment_count: None,
+            review_decision: None,
+            mergeable: None,
+            body: None,
+            repo_path: repo_path.into(),
+            check_runs: Vec::new(),
+            reviews: Vec::new(),
+            comments: None,
+            updated_at: None,
+            author: None,
+            requested_reviewers: Vec::new(),
+            base_branch: None,
+            native_stack: native.then(|| crate::types::NativeStackInfo {
+                id: "PRS_1".into(),
+                number: 9,
+                position: 1,
+                size: 2,
+                members: Vec::new(),
+            }),
+        }
+    }
+
+    // The stand-down guard predicate, in the shape the dissolve/restack loops
+    // key on: worktree names (branch `/` → `-`), scoped to one repo.
+    #[test]
+    fn native_member_worktrees_maps_branches_to_worktree_names_per_repo() {
+        let prs = vec![
+            pr_with_native("feat/native-child", "/repo/a", true),
+            pr_with_native("feat/plain", "/repo/a", false),
+            pr_with_native("feat/other", "/repo/b", true),
+        ];
+
+        let members = native_member_worktrees(&prs, "/repo/a");
+        assert_eq!(members.len(), 1);
+        assert!(members.contains("feat-native-child"), "branch slashes fold to dashes");
+        assert!(!members.contains("feat-plain"));
+        assert!(!members.contains("feat-other"), "other repos' members must not leak in");
+    }
+
+    // The bookkeeping-only dissolve for a native-member child: the notice is
+    // recorded AFTER `forget_stack_memos` (mirroring `check_merged_parents`'
+    // ordering — the reverse order would clear it before the frontend ever saw
+    // it), survives that poll, and is retired by the ordinary pending sweep
+    // once the cleared override drops the child out of `affected`.
+    #[test]
+    fn native_restacked_notice_survives_forget_and_is_swept_next_poll() {
+        // Distinct key from other tests — the maps are process-global.
+        let repo = "/tmp/alfredo-test-native-notice";
+        let name = "wt-native-child";
+
+        // Pre-existing deferral (child was busy last poll) gets superseded.
+        set_pending_action(
+            repo,
+            name,
+            StackPendingAction {
+                merged_parent: "feat/root".into(),
+                blocked_by: StackPendingBlocker::AgentBusy,
+            },
+        );
+
+        // check_merged_parents' native path: bookkeeping first, notice second.
+        forget_stack_memos(repo, name);
+        assert_eq!(pending_action(repo, name), None, "forget clears the stale deferral");
+        let notice = StackPendingAction {
+            merged_parent: "feat/root".into(),
+            blocked_by: StackPendingBlocker::NativeRestacked,
+        };
+        set_pending_action(repo, name, notice.clone());
+        assert_eq!(pending_action(repo, name), Some(notice), "notice must outlive the forget");
+
+        // Next poll: the override is gone, so the child is no longer affected —
+        // the standard sweep retires the notice like any other pending.
+        let cleared = sweep_stale_pending(repo, &[]);
+        assert_eq!(cleared, vec![name.to_string()]);
+        assert_eq!(pending_action(repo, name), None);
     }
 
     // The recovered shape: the parent was rebased (new SHAs) and the user has

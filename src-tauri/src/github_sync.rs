@@ -389,14 +389,16 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     }
 
     // Emit again with comment data populated
-    if !all_prs.is_empty() {
+    let payload = PrUpdatePayload { prs: all_prs };
+    if !payload.prs.is_empty() {
         app_handle
-            .emit("github:pr-update", &PrUpdatePayload { prs: all_prs })
+            .emit("github:pr-update", &payload)
             .map_err(|e| format!("failed to emit event: {e}"))?;
     }
 
-    // Task 10: detect parent HEAD changes and auto-rebase stacked worktrees
-    crate::stack_manager::check_and_rebase(app_handle, &app_data_dir, &repo_paths).await;
+    // Task 10: detect parent HEAD changes and auto-rebase stacked worktrees.
+    // The PR payload rides along so native-stack members can be skipped.
+    crate::stack_manager::check_and_rebase(app_handle, &app_data_dir, &repo_paths, &payload.prs).await;
 
     // Task 12: compute and emit stack rebase statuses
     crate::stack_manager::compute_stack_statuses(app_handle, &app_data_dir, &repo_paths).await;
@@ -626,6 +628,8 @@ async fn sync_pr_base_branches(
             continue;
         };
 
+        let native_members = native_member_branches(all_prs, repo_path);
+
         for (worktree_name, expected_parent) in &config.stack_parent_overrides {
             // Skip if the parent branch has already been merged — check_merged_parents
             // will handle retargeting to main and clearing the stack parent.
@@ -644,6 +648,12 @@ async fn sync_pr_base_branches(
             }) else {
                 continue;
             };
+
+            // Native GitHub Stack members are retargeted server-side by GitHub;
+            // fighting that with `gh pr edit --base` would ping-pong the base.
+            if native_members.contains(&pr.branch) {
+                continue;
+            }
 
             // Compare the PR's actual base (from the sync payload) with the expected stack parent
             let Some(actual_base) = pr.base_branch.as_deref() else {
@@ -664,6 +674,22 @@ async fn sync_pr_base_branches(
             }
         }
     }
+}
+
+/// Branch names of this repo's PRs that belong to a native GitHub Stack
+/// (public preview). GitHub retargets and rebases upper stack layers
+/// server-side on merge, so Alfredo's override-driven automation stands down
+/// for these branches — no PR retargeting, no body splice-in, no dissolution
+/// rebase. Overrides become display-only; manual actions stay allowed.
+pub(crate) fn native_member_branches(
+    all_prs: &[PrStatusWithColumn],
+    repo_path: &str,
+) -> std::collections::HashSet<String> {
+    all_prs
+        .iter()
+        .filter(|p| p.repo_path == repo_path && p.native_stack.is_some())
+        .map(|p| p.branch.clone())
+        .collect()
 }
 
 /// Update a PR's base branch via `gh pr edit`.
@@ -901,6 +927,8 @@ async fn sync_pr_stack_sections(
             continue;
         };
 
+        let native_members = native_member_branches(all_prs, repo_path);
+
         // branch → PR for this repo (merged PRs included: they render as "(merged)").
         let pr_by_branch: std::collections::HashMap<&str, &PrStatusWithColumn> = all_prs
             .iter()
@@ -937,7 +965,12 @@ async fn sync_pr_stack_sections(
             let wt_name = pr.branch.replace('/', "-");
             let is_stacked = name_to_parent.contains_key(&wt_name);
             let is_parent = parents.contains(pr.branch.as_str());
-            let chain: Vec<(u64, String, bool)> = if is_stacked || is_parent {
+            // Native GitHub Stack members never qualify for a splice-in — GitHub
+            // renders its own stack navigation on those PRs. An empty chain routes
+            // any stale Alfredo section into the existing splice-OUT path below
+            // (covered by `stale_section_is_removed_and_is_a_fixed_point`).
+            let is_native = native_members.contains(&pr.branch);
+            let chain: Vec<(u64, String, bool)> = if !is_native && (is_stacked || is_parent) {
                 assemble_chain(name_to_parent, &name_to_branch, &pr.branch)
                     .iter()
                     .filter_map(|b| pr_by_branch.get(b.as_str()).map(|p| (p.number, b.clone(), p.merged)))
@@ -1273,6 +1306,60 @@ mod tests {
         assert!(removed.contains("Top") && removed.contains("Bottom"));
         // The no-op guard then keeps later polls from re-editing it.
         assert_eq!(splice_stack_section(&removed, ""), removed);
+    }
+
+    /// Minimal native-stack fixture: only membership (`Some` vs `None`) matters
+    /// to the stand-down gates.
+    fn native_stack_info() -> crate::types::NativeStackInfo {
+        crate::types::NativeStackInfo {
+            id: "PRS_1".into(),
+            number: 7,
+            position: 2,
+            size: 2,
+            members: Vec::new(),
+        }
+    }
+
+    fn pr_with_native(number: u64, branch: &str, repo_path: &str, native: bool) -> PrStatusWithColumn {
+        let pr = PrStatus {
+            number,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: branch.into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("chloe".into()),
+            requested_reviewers: vec![],
+            native_stack: native.then(native_stack_info),
+        };
+        PrStatusWithColumn::from_pr(&pr, repo_path, Some("chloe"))
+    }
+
+    /// The stand-down guard predicate: only PRs of the requested repo with a
+    /// `native_stack` entry qualify; everything else stays under Alfredo's
+    /// automation.
+    #[test]
+    fn native_member_branches_filters_by_repo_and_membership() {
+        let prs = vec![
+            pr_with_native(1, "feat/native", "/repo/a", true),
+            pr_with_native(2, "feat/plain", "/repo/a", false),
+            pr_with_native(3, "feat/other-repo", "/repo/b", true),
+        ];
+
+        let members = native_member_branches(&prs, "/repo/a");
+        assert_eq!(members.len(), 1);
+        assert!(members.contains("feat/native"));
+        assert!(!members.contains("feat/plain"));
+        assert!(!members.contains("feat/other-repo"), "other repos' PRs must not leak in");
+
+        assert!(native_member_branches(&prs, "/repo/c").is_empty());
     }
 
     #[test]
