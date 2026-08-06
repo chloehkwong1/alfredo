@@ -470,6 +470,14 @@ function AgentItemContent({
             )}
           </div>
         )}
+        {/* Native-stack members lose their Alfredo chain when a merged parent
+            dissolves the local stack, so the block above never renders for
+            them — surface the nativeRestacked notice on its own row. */}
+        {!stackChain && worktree.stackPending?.blockedBy === "nativeRestacked" && (
+          <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
+            <span className="truncate">restacked by GitHub — local branch may be behind</span>
+          </div>
+        )}
         {/* Line 4: PR stats row — separated by border */}
         {prSummary && hasPrStats(prSummary) && (
           <div className="pt-2 mt-2.5 border-t border-border-subtle">

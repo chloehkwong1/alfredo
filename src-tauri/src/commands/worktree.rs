@@ -653,6 +653,19 @@ pub async fn change_stack_base(
         .map_err(AppError::Git)
 }
 
+/// Dismiss a worktree's pending stack banner. Exists for the
+/// `NativeRestacked` notice, which `sweep_stale_pending` deliberately never
+/// retires — a frontend dismiss is the only path that clears it.
+#[tauri::command]
+pub async fn resolve_stack_pending(
+    app: AppHandle,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<()> {
+    crate::stack_manager::resolve_pending(&app, &repo_path, &worktree_name);
+    Ok(())
+}
+
 /// Leave a failing restack's conflict in the worktree and return the
 /// resolution prompt for the worktree's agent, or the sentinel
 /// `"__no_conflict__"` if the rebase actually succeeded (nothing to hand off).

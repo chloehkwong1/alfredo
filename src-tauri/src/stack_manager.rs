@@ -155,7 +155,11 @@ fn record_pending(
 /// on every dispatch (no no-op bail), so an unconditional emit here would
 /// re-render the sidebar for every stacked worktree on every poll, forever,
 /// even when nothing was ever pending.
-fn resolve_pending(app_handle: &AppHandle, repo_path: &str, worktree_name: &str) {
+///
+/// Public because the `resolve_stack_pending` command wraps it: a
+/// `NativeRestacked` notice is exempt from `sweep_stale_pending`, so a
+/// frontend dismiss is the only thing that ever retires it.
+pub fn resolve_pending(app_handle: &AppHandle, repo_path: &str, worktree_name: &str) {
     if clear_pending_action(repo_path, worktree_name) {
         emit_pending(app_handle, repo_path, worktree_name, None);
     }
@@ -173,12 +177,19 @@ fn resolve_pending(app_handle: &AppHandle, repo_path: &str, worktree_name: &str)
 /// age off that page. Nothing else ever revisits that child — its pending
 /// entry, backend map and frontend banner both, would otherwise leak until
 /// restart while a "waiting for uncommitted changes…" banner lies forever.
+///
+/// `NativeRestacked` is exempt: it's a one-shot notice, not a deferral, and
+/// its override is already cleared when it's recorded — so the child drops
+/// out of `affected` on the very next poll, and sweeping would retire the
+/// notice ~60s after it appeared, before anyone saw it. It persists until
+/// dismissed via the `resolve_stack_pending` command.
 fn sweep_stale_pending(repo_path: &str, affected: &[String]) -> Vec<String> {
     let prefix = format!("{}::", canonicalized_repo(repo_path));
     let Ok(mut map) = PENDING_ACTION.lock() else { return Vec::new() };
     let stale: Vec<(String, String)> = map
-        .keys()
-        .filter_map(|k| k.strip_prefix(&prefix).map(|child| (k.clone(), child.to_string())))
+        .iter()
+        .filter(|(_, pending)| pending.blocked_by != StackPendingBlocker::NativeRestacked)
+        .filter_map(|(k, _)| k.strip_prefix(&prefix).map(|child| (k.clone(), child.to_string())))
         .filter(|(_, child)| !affected.contains(child))
         .collect();
     for (key, _) in &stale {
@@ -236,19 +247,33 @@ fn checkout_path_for<'a>(
 
 // ── Native GitHub Stack stand-down ───────────────────────────────
 
-/// Worktree names (branch with `/` → `-`) of this repo's PRs that belong to a
-/// native GitHub Stack. GitHub retargets and rebases upper layers server-side
-/// on merge, so every override-driven automation path skips these children:
-/// no auto-restack, no stale-parent dissolve, no dissolution rebase on parent
-/// merge (bookkeeping-only there). Manual actions stay allowed.
+/// Worktree names of this repo's PRs that belong to a native GitHub Stack.
+/// GitHub retargets and rebases upper layers server-side on merge, so every
+/// override-driven automation path skips these children: no auto-restack, no
+/// stale-parent dissolve rebase, no dissolution rebase on parent merge
+/// (bookkeeping-only there). Manual actions stay allowed.
+///
+/// A child is native if EITHER its actual checked-out branch (via
+/// `name_to_branch` — adopted external worktrees have arbitrary dir names
+/// that no mangling reproduces) OR its dir name's mangled form (branch `/` →
+/// `-`, covering worktrees with no resolvable checkout this poll) matches a
+/// native-member PR branch. The union deliberately over-blocks: for a
+/// stand-down guard, skipping an automation is always safer than rewriting a
+/// branch GitHub owns.
 fn native_member_worktrees(
     prs: &[crate::github_sync::PrStatusWithColumn],
     repo_path: &str,
+    name_to_branch: &HashMap<String, String>,
 ) -> std::collections::HashSet<String> {
-    crate::github_sync::native_member_branches(prs, repo_path)
-        .into_iter()
-        .map(|b| b.replace('/', "-"))
-        .collect()
+    let branches = crate::github_sync::native_member_branches(prs, repo_path);
+    let mut names: std::collections::HashSet<String> =
+        branches.iter().map(|b| b.replace('/', "-")).collect();
+    for (name, branch) in name_to_branch {
+        if branches.contains(branch) {
+            names.insert(name.clone());
+        }
+    }
+    names
 }
 
 // ── Public entry points ──────────────────────────────────────────
@@ -309,7 +334,7 @@ pub async fn check_and_rebase(
             })
             .collect();
 
-        let native_children = native_member_worktrees(prs, repo_path);
+        let native_children = native_member_worktrees(prs, repo_path, &name_to_branch);
 
         // Full-repo dependency order; a mid-cascade parent's new tip is picked up
         // because restack_child re-resolves the parent tip per child.
@@ -433,7 +458,7 @@ pub async fn check_merged_parents(
         // its subprocess. Also needed for the busy gate below.
         ensure_registry(&mut registry).await;
         let checkouts = checkout_paths(repo_path).await;
-        let native_children = native_member_worktrees(prs, repo_path);
+        let native_children = native_member_worktrees(prs, repo_path, &names_to_branches(&checkouts));
 
         let mut dissolved: Vec<String> = Vec::new();
         // Native-member children whose parent merged: GitHub already restacked
@@ -586,9 +611,9 @@ pub async fn check_merged_parents(
         }
 
         // Recorded after `forget_stack_memos` (which clears pending entries) so
-        // the notice survives this poll. With the override gone, the child drops
-        // out of `affected` next poll and `sweep_stale_pending` retires the
-        // notice like any other pending.
+        // the notice survives this poll. `sweep_stale_pending` exempts
+        // NativeRestacked, so the notice persists until the user dismisses it
+        // via `resolve_stack_pending`.
         for (child_name, merged_parent) in &native_notices {
             record_pending(
                 app_handle,
@@ -884,7 +909,9 @@ async fn stale_parent_branches(
 /// it on a merged parent's commits with no relationship left to retry.
 ///
 /// PR retargeting is deliberately NOT done here — this path has no PR signal;
-/// that stays `check_merged_parents`' job.
+/// that stays `check_merged_parents`' job. Native GitHub Stack members get
+/// bookkeeping-only treatment (override cleared, no rebase) — see the
+/// native-children comment in the body.
 pub async fn detect_stale_parents(
     app_handle: &AppHandle,
     app_data_dir: &Path,
@@ -916,17 +943,19 @@ pub async fn detect_stale_parents(
     let default_short =
         default_remote.strip_prefix("origin/").unwrap_or(&default_remote).to_string();
 
-    // Native GitHub Stack members are excluded outright: this path has no PR
-    // signal, and GitHub owns their restacking — a heuristic dissolve here
-    // would rebase a branch the server is about to (or already did) move.
-    // Their genuinely-merged case is `check_merged_parents`' bookkeeping-only
-    // stand-down, driven by a real merged-PR event.
-    let native_children = native_member_worktrees(prs, repo_path);
+    // Native GitHub Stack members get the same bookkeeping-only stand-down as
+    // `check_merged_parents`' native path — override cleared, memos forgotten,
+    // NO rebase, NO PR retarget: this path has no PR signal, and GitHub owns
+    // their restacking, so a heuristic dissolve here would rebase a branch the
+    // server is about to (or already did) move. Without this, a native parent
+    // merged while Alfredo was closed (or whose PR aged out of the sync
+    // window) leaves the override stuck forever, since `check_merged_parents`
+    // only stands down for merges it sees in the current payload.
+    let native_children = native_member_worktrees(prs, repo_path, &names_to_branches(&checkouts));
     let affected: Vec<(String, String)> = config
         .stack_parent_overrides
         .iter()
         .filter(|(_, parent)| stale_parents.contains(parent))
-        .filter(|(child, _)| !native_children.contains(*child))
         .map(|(child, parent)| (child.clone(), parent.clone()))
         .collect();
     if affected.is_empty() {
@@ -938,7 +967,19 @@ pub async fn detect_stale_parents(
     ensure_registry(registry).await;
 
     let mut dissolved: Vec<String> = Vec::new();
+    // Native-member children: notice recorded AFTER the batched
+    // `forget_stack_memos` below, which would otherwise clear it.
+    let mut native_notices: Vec<(String, String)> = Vec::new();
     for (child_name, stale_parent) in &affected {
+        if native_children.contains(child_name) {
+            eprintln!(
+                "[stack_manager] stale parent {stale_parent} for native-stack member {child_name}: standing down, clearing local override only"
+            );
+            native_notices.push((child_name.clone(), stale_parent.clone()));
+            dissolved.push(child_name.clone());
+            continue;
+        }
+
         // Dissolving runs a rebase and a force-push, so it gets the same quiet
         // gate as a routine restack: never rewrite history under a running agent.
         if let Some(child_path) = checkout_path_for(&checkouts, child_name) {
@@ -1013,6 +1054,22 @@ pub async fn detect_stale_parents(
         config_manager::clear_stack_entry(&mut config, child);
         forget_stack_memos(repo_path, child);
     }
+
+    // Recorded after `forget_stack_memos` (which clears pending entries) so
+    // the notice survives — mirroring `check_merged_parents`' native path.
+    // Persists until dismissed: `sweep_stale_pending` exempts NativeRestacked.
+    for (child_name, stale_parent) in &native_notices {
+        record_pending(
+            app_handle,
+            repo_path,
+            child_name,
+            StackPendingAction {
+                merged_parent: stale_parent.clone(),
+                blocked_by: StackPendingBlocker::NativeRestacked,
+            },
+        );
+    }
+
     config_manager::save_config(app_data_dir, repo_path, &config)
         .await
         .map_err(|e| e.to_string())?;
@@ -2959,7 +3016,9 @@ mod tests {
     }
 
     // The stand-down guard predicate, in the shape the dissolve/restack loops
-    // key on: worktree names (branch `/` → `-`), scoped to one repo.
+    // key on: worktree names, scoped to one repo. Union of two signals — the
+    // mangled branch form (`/` → `-`) and the actual checked-out branch, so
+    // adopted external worktrees with arbitrary dir names are still gated.
     #[test]
     fn native_member_worktrees_maps_branches_to_worktree_names_per_repo() {
         let prs = vec![
@@ -2968,20 +3027,47 @@ mod tests {
             pr_with_native("feat/other", "/repo/b", true),
         ];
 
-        let members = native_member_worktrees(&prs, "/repo/a");
+        let members = native_member_worktrees(&prs, "/repo/a", &HashMap::new());
         assert_eq!(members.len(), 1);
         assert!(members.contains("feat-native-child"), "branch slashes fold to dashes");
         assert!(!members.contains("feat-plain"));
         assert!(!members.contains("feat-other"), "other repos' members must not leak in");
     }
 
-    // The bookkeeping-only dissolve for a native-member child: the notice is
-    // recorded AFTER `forget_stack_memos` (mirroring `check_merged_parents`'
-    // ordering — the reverse order would clear it before the frontend ever saw
-    // it), survives that poll, and is retired by the ordinary pending sweep
-    // once the cleared override drops the child out of `affected`.
+    // Adopted external worktrees (worktree auto-discovery) have dir names no
+    // mangling reproduces — the gate must key on the resolved branch too, and
+    // keep the mangled form for worktrees with no resolvable checkout.
     #[test]
-    fn native_restacked_notice_survives_forget_and_is_swept_next_poll() {
+    fn native_member_worktrees_gates_adopted_dir_names_via_resolved_branch() {
+        let prs = vec![
+            pr_with_native("feat/native-child", "/repo/a", true),
+            pr_with_native("feat/plain", "/repo/a", false),
+        ];
+        let name_to_branch: HashMap<String, String> = [
+            ("my-adopted-checkout".to_string(), "feat/native-child".to_string()),
+            ("plain-checkout".to_string(), "feat/plain".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
+        let members = native_member_worktrees(&prs, "/repo/a", &name_to_branch);
+        assert!(
+            members.contains("my-adopted-checkout"),
+            "adopted dir name resolves through its branch"
+        );
+        assert!(members.contains("feat-native-child"), "mangled form is kept (union)");
+        assert!(!members.contains("plain-checkout"), "non-native branches stay ungated");
+    }
+
+    // The bookkeeping-only dissolve for a native-member child (both the
+    // `check_merged_parents` and `detect_stale_parents` native paths): the
+    // notice is recorded AFTER `forget_stack_memos` (mirroring their ordering
+    // — the reverse would clear it before the frontend ever saw it), and is
+    // EXEMPT from the stale-pending sweep: its override is already gone when
+    // it's recorded, so the very next poll would otherwise retire it (~60s)
+    // before anyone saw it. Only an explicit dismiss clears it.
+    #[test]
+    fn native_restacked_notice_survives_forget_and_sweep_until_dismissed() {
         // Distinct key from other tests — the maps are process-global.
         let repo = "/tmp/alfredo-test-native-notice";
         let name = "wt-native-child";
@@ -2996,7 +3082,7 @@ mod tests {
             },
         );
 
-        // check_merged_parents' native path: bookkeeping first, notice second.
+        // The native path: bookkeeping first, notice second.
         forget_stack_memos(repo, name);
         assert_eq!(pending_action(repo, name), None, "forget clears the stale deferral");
         let notice = StackPendingAction {
@@ -3004,12 +3090,26 @@ mod tests {
             blocked_by: StackPendingBlocker::NativeRestacked,
         };
         set_pending_action(repo, name, notice.clone());
-        assert_eq!(pending_action(repo, name), Some(notice), "notice must outlive the forget");
+        assert_eq!(pending_action(repo, name), Some(notice.clone()), "notice must outlive the forget");
 
         // Next poll: the override is gone, so the child is no longer affected —
-        // the standard sweep retires the notice like any other pending.
+        // but the sweep must spare the notice, while still retiring ordinary
+        // deferrals that aged out alongside it.
+        let other = "wt-ordinary-deferral";
+        set_pending_action(
+            repo,
+            other,
+            StackPendingAction {
+                merged_parent: "feat/root".into(),
+                blocked_by: StackPendingBlocker::Dirty,
+            },
+        );
         let cleared = sweep_stale_pending(repo, &[]);
-        assert_eq!(cleared, vec![name.to_string()]);
+        assert_eq!(cleared, vec![other.to_string()], "only the ordinary deferral is swept");
+        assert_eq!(pending_action(repo, name), Some(notice), "notice survives the sweep");
+
+        // The `resolve_stack_pending` command's clear path retires it.
+        assert!(clear_pending_action(repo, name));
         assert_eq!(pending_action(repo, name), None);
     }
 

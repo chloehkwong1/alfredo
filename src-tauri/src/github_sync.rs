@@ -409,8 +409,11 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     }
 
     // Task 10: detect parent HEAD changes and auto-rebase stacked worktrees.
-    // The PR payload rides along so native-stack members can be skipped.
-    crate::stack_manager::check_and_rebase(app_handle, &app_data_dir, &repo_paths, &payload.prs).await;
+    // The PR payload rides along so native-stack members can be skipped —
+    // which is exactly why this is scoped to `succeeded_repos` like
+    // `check_merged_parents` above: a repo whose poll failed contributed no
+    // PRs, so its native-member gate would vanish precisely when sync errors.
+    crate::stack_manager::check_and_rebase(app_handle, &app_data_dir, &succeeded_repos, &payload.prs).await;
 
     // Task 12: compute and emit stack rebase statuses
     crate::stack_manager::compute_stack_statuses(app_handle, &app_data_dir, &repo_paths).await;
@@ -452,6 +455,37 @@ async fn fetch_rate_limit_reset(
     manager.rate_limit_reset().await.ok()
 }
 
+/// Last authoritative native-stack map per repo path. `fetch_native_stack_entries`
+/// distinguishes "fetch failed" (`None`) from "authoritatively no stacks"
+/// (`Some(empty)`); this cache carries the last `Some` across failed polls so
+/// automation doesn't forget native membership because of one transient error.
+/// Same process-lifetime static pattern as `stack_manager`'s memo maps.
+static NATIVE_STACK_CACHE: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<String, std::collections::HashMap<u64, NativeStackInfo>>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+/// Apply the error-vs-empty distinction: an authoritative fetch (`Some`, even
+/// empty) updates the cache and wins; a failed fetch (`None`) falls back to the
+/// last-known-good map for this repo, or empty when none exists yet.
+fn resolve_native_stacks(
+    fetched: Option<std::collections::HashMap<u64, NativeStackInfo>>,
+    repo_path: &str,
+) -> std::collections::HashMap<u64, NativeStackInfo> {
+    match fetched {
+        Some(map) => {
+            if let Ok(mut cache) = NATIVE_STACK_CACHE.lock() {
+                cache.insert(repo_path.to_string(), map.clone());
+            }
+            map
+        }
+        None => NATIVE_STACK_CACHE
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(repo_path).cloned())
+            .unwrap_or_default(),
+    }
+}
+
 /// Fetch and enrich PRs for a single repo. Returns the enriched PR list.
 async fn poll_repo(
     app_data_dir: &std::path::Path,
@@ -476,16 +510,22 @@ async fn poll_repo(
         .await
         .map_err(|e| format!("{e}"))?;
 
-    let mut prs = manager
-        .sync_prs(&owner, &repo)
-        .await
-        .map_err(|e| format!("{e}"))?;
+    // The REST PR sync and the GraphQL native-stack query are independent —
+    // join them so the poll doesn't pay a serialized extra round-trip.
+    let (prs_result, native_fetch) = tokio::join!(
+        manager.sync_prs(&owner, &repo),
+        manager.fetch_native_stack_entries(&owner, &repo),
+    );
+    let mut prs = prs_result.map_err(|e| format!("{e}"))?;
 
     // Stamp native GitHub Stack membership (GraphQL-only preview field) onto
     // the REST payload before `from_pr` so the flag + sibling roster reach
     // both the frontend `github:pr-update` payload and `check_merged_parents`.
-    // Fail-soft: on any error the map is empty and every PR stays `None`.
-    let native_stacks = manager.fetch_native_stack_entries(&owner, &repo).await;
+    // Fail-soft for PR sync (a `None` fetch never breaks the poll), but NOT
+    // "error means no stacks": a failed fetch falls back to the last-known-good
+    // map so one transient 5xx of this preview API can't re-arm every
+    // stand-down gate for branches GitHub still owns the restacking of.
+    let native_stacks = resolve_native_stacks(native_fetch, repo_path);
     if !native_stacks.is_empty() {
         for pr in prs.iter_mut() {
             pr.native_stack = native_stacks.get(&pr.number).cloned();
@@ -1372,6 +1412,32 @@ mod tests {
         assert!(!members.contains("feat/other-repo"), "other repos' PRs must not leak in");
 
         assert!(native_member_branches(&prs, "/repo/c").is_empty());
+    }
+
+    // Error ≠ empty: `None` (fetch/shape failure) must fall back to the last
+    // authoritative map, while `Some(empty)` is authoritative and overwrites
+    // it — a transient 5xx must not re-arm the stand-down gates, but a real
+    // stack dissolution must not be shadowed by a stale cache either.
+    #[test]
+    fn resolve_native_stacks_distinguishes_fetch_failure_from_authoritative_empty() {
+        // Distinct key from any other test — the cache is process-global.
+        let repo = "/tmp/alfredo-test-native-cache";
+
+        // No cache yet: a failed fetch degrades to empty (old behaviour).
+        assert!(resolve_native_stacks(None, repo).is_empty());
+
+        let mut map = std::collections::HashMap::new();
+        map.insert(7u64, native_stack_info());
+        assert_eq!(resolve_native_stacks(Some(map.clone()), repo).len(), 1);
+
+        // Failed fetch: last-known-good map survives.
+        let fallback = resolve_native_stacks(None, repo);
+        assert_eq!(fallback.len(), 1);
+        assert!(fallback.contains_key(&7));
+
+        // Authoritatively empty: cache is overwritten, not preserved.
+        assert!(resolve_native_stacks(Some(std::collections::HashMap::new()), repo).is_empty());
+        assert!(resolve_native_stacks(None, repo).is_empty());
     }
 
     #[test]

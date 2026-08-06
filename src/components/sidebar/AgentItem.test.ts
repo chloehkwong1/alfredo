@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeEffectiveStatus } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
+import { hiddenMembersNote } from "./StackMapPopover";
 import type { PrStatus } from "../../types";
 
 describe("computeEffectiveStatus", () => {
@@ -83,5 +84,26 @@ describe("nativeStackChipLabel", () => {
   it("returns null when there is no PR at all", () => {
     expect(nativeStackChipLabel(null)).toBeNull();
     expect(nativeStackChipLabel(undefined)).toBeNull();
+  });
+});
+
+// The backend's native-stack query returns OPEN PRs only, so merged/closed
+// members drop out of the roster while `size` still counts them. This note is
+// what keeps the "Stack #N · {size} PRs" header honest against a shorter list.
+describe("hiddenMembersNote", () => {
+  it("returns null when every member is present", () => {
+    expect(hiddenMembersNote(3, 3)).toBeNull();
+  });
+
+  it("counts a single missing member in the singular", () => {
+    expect(hiddenMembersNote(3, 2)).toBe("1 merged or closed PR not shown");
+  });
+
+  it("counts multiple missing members in the plural", () => {
+    expect(hiddenMembersNote(5, 2)).toBe("3 merged or closed PRs not shown");
+  });
+
+  it("stays null if the roster somehow exceeds the recorded size", () => {
+    expect(hiddenMembersNote(2, 3)).toBeNull();
   });
 });

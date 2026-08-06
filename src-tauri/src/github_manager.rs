@@ -82,18 +82,13 @@ fn warn_native_stack_once(context: &str) {
     }
 }
 
-/// Parse the GraphQL response of the native-stack query into a map of
-/// PR number → stack membership. Every parse step is fail-open: a node
-/// missing any required field is skipped, a `null` stackEntry means the PR
-/// is not in a stack, and an unexpected response shape yields an empty map.
-fn parse_native_stack_response(response: &serde_json::Value) -> HashMap<u64, NativeStackInfo> {
+/// Parse PR nodes of the native-stack query (accumulated across pages — a
+/// stack's members can straddle a page boundary, so grouping must run over
+/// the combined node list, never per page) into PR number → stack membership.
+/// Every parse step is fail-open: a node missing any required field is
+/// skipped, and a `null` stackEntry means the PR is not in a stack.
+fn parse_native_stack_nodes(nodes: &[serde_json::Value]) -> HashMap<u64, NativeStackInfo> {
     let mut result = HashMap::new();
-    let Some(nodes) = response
-        .pointer("/data/repository/pullRequests/nodes")
-        .and_then(serde_json::Value::as_array)
-    else {
-        return result;
-    };
 
     // Group members by stack id, remembering each stack's number + size.
     let mut rosters: HashMap<String, (u64, u32, Vec<NativeStackMember>)> = HashMap::new();
@@ -730,18 +725,38 @@ impl GithubManager {
     /// absent from REST and `gh pr view --json`). Returns PR number →
     /// stack info; PRs not in a stack are absent from the map.
     ///
-    /// Fail-soft by design: any transport, GraphQL, or parse error returns
-    /// an empty map (with a once-per-process warning) so a preview-API
-    /// schema change can never break PR sync.
+    /// Cursor-paginated, newest PRs first: GitHub's default ordering is
+    /// oldest-first, so a >100-open-PR repo would otherwise silently drop
+    /// its newest PRs from the membership map. The page cap is a runaway
+    /// guard; ordering by CREATED_AT DESC means even a cap hit favours the
+    /// PRs a live worktree is most likely stacked on.
+    ///
+    /// `None` means the fetch or response shape failed (transport error,
+    /// GraphQL error, preview-API withdrawal) — warned once per process,
+    /// and callers must NOT treat it as "no stacks": that would re-arm
+    /// every stand-down gate on a transient 5xx. `Some(map)` is
+    /// authoritative, including an authoritatively empty map.
     pub async fn fetch_native_stack_entries(
         &self,
         owner: &str,
         repo: &str,
-    ) -> HashMap<u64, NativeStackInfo> {
-        let query = format!(
-            r#"{{
+    ) -> Option<HashMap<u64, NativeStackInfo>> {
+        // 10 pages × 100 PRs is far beyond any repo Alfredo watches; the cap
+        // only exists so a pathological pageInfo can't loop forever.
+        const MAX_PAGES: usize = 10;
+
+        let mut nodes: Vec<serde_json::Value> = Vec::new();
+        let mut cursor: Option<String> = None;
+        for _ in 0..MAX_PAGES {
+            let after = cursor
+                .as_ref()
+                .map(|c| format!(r#", after: "{c}""#))
+                .unwrap_or_default();
+            let query = format!(
+                r#"{{
   repository(owner: "{owner}", name: "{repo}") {{
-    pullRequests(states: [OPEN], first: 100) {{
+    pullRequests(states: [OPEN], first: 100, orderBy: {{field: CREATED_AT, direction: DESC}}{after}) {{
+      pageInfo {{ hasNextPage endCursor }}
       nodes {{
         number
         title
@@ -756,36 +771,62 @@ impl GithubManager {
     }}
   }}
 }}"#
-        );
+            );
 
-        let body = serde_json::json!({ "query": query });
-        let request = async {
-            self.http_client
-                .post("https://api.github.com/graphql")
-                .header("Authorization", format!("Bearer {}", self.token()))
-                .header("User-Agent", "alfredo")
-                .json(&body)
-                .send()
-                .await?
-                .json::<serde_json::Value>()
-                .await
-        };
-        let response = match request.await {
-            Ok(v) => v,
-            Err(e) => {
-                warn_native_stack_once(&format!("request failed for {owner}/{repo}: {e}"));
-                return HashMap::new();
+            let body = serde_json::json!({ "query": query });
+            let request = async {
+                self.http_client
+                    .post("https://api.github.com/graphql")
+                    .header("Authorization", format!("Bearer {}", self.token()))
+                    .header("User-Agent", "alfredo")
+                    .json(&body)
+                    .send()
+                    .await?
+                    .json::<serde_json::Value>()
+                    .await
+            };
+            let response = match request.await {
+                Ok(v) => v,
+                Err(e) => {
+                    warn_native_stack_once(&format!("request failed for {owner}/{repo}: {e}"));
+                    return None;
+                }
+            };
+
+            let Some(page_nodes) = response
+                .pointer("/data/repository/pullRequests/nodes")
+                .and_then(serde_json::Value::as_array)
+            else {
+                let errors = response
+                    .get("errors")
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| "no data in response".to_string());
+                warn_native_stack_once(&format!(
+                    "unexpected GraphQL response for {owner}/{repo}: {errors}"
+                ));
+                return None;
+            };
+            nodes.extend(page_nodes.iter().cloned());
+
+            // pageInfo parsing is fail-soft: a missing/odd shape ends the loop
+            // with the pages already gathered rather than erroring out.
+            let page_info = response.pointer("/data/repository/pullRequests/pageInfo");
+            let has_next = page_info
+                .and_then(|p| p.get("hasNextPage"))
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            if !has_next {
+                break;
             }
-        };
-
-        if response.pointer("/data/repository/pullRequests/nodes").is_none() {
-            let errors = response
-                .get("errors")
-                .map(ToString::to_string)
-                .unwrap_or_else(|| "no data in response".to_string());
-            warn_native_stack_once(&format!("unexpected GraphQL response for {owner}/{repo}: {errors}"));
+            cursor = page_info
+                .and_then(|p| p.get("endCursor"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string);
+            if cursor.is_none() {
+                break;
+            }
         }
-        parse_native_stack_response(&response)
+        Some(parse_native_stack_nodes(&nodes))
     }
 
     /// Fetch general (non-line-level) comments on a PR.
@@ -2092,20 +2133,14 @@ mod tests {
         })
     }
 
-    fn wrap_nodes(nodes: Vec<serde_json::Value>) -> serde_json::Value {
-        serde_json::json!({
-            "data": { "repository": { "pullRequests": { "nodes": nodes } } }
-        })
-    }
-
     #[test]
     fn test_parse_native_stack_member_with_ordered_roster() {
         // Response order is position-descending; roster must come back sorted.
-        let response = wrap_nodes(vec![
+        let nodes = vec![
             stack_node(12, "feat/layer-2", 2, "ST_abc"),
             stack_node(11, "feat/layer-1", 1, "ST_abc"),
-        ]);
-        let map = parse_native_stack_response(&response);
+        ];
+        let map = parse_native_stack_nodes(&nodes);
         assert_eq!(map.len(), 2);
 
         let info = map.get(&11).unwrap();
@@ -2126,9 +2161,35 @@ mod tests {
         assert_eq!(upper.members, info.members);
     }
 
+    // A stack whose members straddle a page boundary must come back as one
+    // roster — grouping runs over the accumulated node list, never per page.
+    #[test]
+    fn test_parse_native_stack_nodes_merges_members_across_pages() {
+        let page_one = vec![stack_node(12, "feat/layer-2", 2, "ST_abc")];
+        let page_two = vec![
+            stack_node(11, "feat/layer-1", 1, "ST_abc"),
+            stack_node(30, "feat/other", 1, "ST_xyz"),
+        ];
+        let combined: Vec<serde_json::Value> =
+            page_one.into_iter().chain(page_two).collect();
+
+        let map = parse_native_stack_nodes(&combined);
+        assert_eq!(map.len(), 3);
+
+        let info = map.get(&11).unwrap();
+        assert_eq!(info.id, "ST_abc");
+        let roster: Vec<(u64, u32)> = info.members.iter().map(|m| (m.number, m.position)).collect();
+        assert_eq!(roster, vec![(11, 1), (12, 2)], "cross-page members share one sorted roster");
+        assert_eq!(map.get(&12).unwrap().members, info.members);
+
+        // The unrelated stack on page two stays its own roster.
+        assert_eq!(map.get(&30).unwrap().id, "ST_xyz");
+        assert_eq!(map.get(&30).unwrap().members.len(), 1);
+    }
+
     #[test]
     fn test_parse_native_stack_null_entry_absent() {
-        let response = wrap_nodes(vec![
+        let nodes = vec![
             serde_json::json!({
                 "number": 40,
                 "title": "Solo PR",
@@ -2138,24 +2199,16 @@ mod tests {
                 "stackEntry": null
             }),
             stack_node(11, "feat/layer-1", 1, "ST_abc"),
-        ]);
-        let map = parse_native_stack_response(&response);
+        ];
+        let map = parse_native_stack_nodes(&nodes);
         assert!(!map.contains_key(&40));
         assert!(map.contains_key(&11));
     }
 
     #[test]
-    fn test_parse_native_stack_errors_only_response() {
-        let response = serde_json::json!({
-            "errors": [{ "message": "Field 'stackEntry' doesn't exist on type 'PullRequest'" }]
-        });
-        assert!(parse_native_stack_response(&response).is_empty());
-    }
-
-    #[test]
     fn test_parse_native_stack_missing_field_skips_node() {
         // stack object lost its `id` (schema drift) → node skipped, fail-open.
-        let response = wrap_nodes(vec![serde_json::json!({
+        let nodes = vec![serde_json::json!({
             "number": 11,
             "title": "PR #11",
             "headRefName": "feat/layer-1",
@@ -2165,8 +2218,8 @@ mod tests {
                 "position": 1,
                 "stack": { "number": 7, "size": 2 }
             }
-        })]);
-        assert!(parse_native_stack_response(&response).is_empty());
+        })];
+        assert!(parse_native_stack_nodes(&nodes).is_empty());
     }
 
     // --- parse_workflow_logs tests ---

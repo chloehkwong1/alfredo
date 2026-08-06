@@ -14,7 +14,7 @@ vi.mock("../services/portReclaim", () => ({
   stopServerAndReleasePort: vi.fn(() => Promise.resolve()),
 }));
 
-import { usePrStore, nativeStackFor, isNativeStackMember } from "./prStore";
+import { usePrStore } from "./prStore";
 import { setWorktreeColumn, clearWorktreeColumn } from "../api";
 import { stopServerAndReleasePort } from "../services/portReclaim";
 import type { KanbanColumn, NativeStackInfo, NativeStackMember, PrStatusWithColumn, Worktree } from "../types";
@@ -205,9 +205,8 @@ describe("applyPrUpdates — persist auto-Done across restart", () => {
 });
 
 // Native GitHub Stacks (public preview): membership rides in on each PR as
-// `nativeStack` and must (a) reach the worktree's prStatus patch for the
-// sidebar chip/popover, and (b) be queryable per repo+branch even for sibling
-// PRs with no local worktree.
+// `nativeStack` and must reach the worktree's prStatus patch — the sidebar
+// chip and stack popover read `worktree.prStatus.nativeStack` directly.
 describe("applyPrUpdates — native GitHub Stack membership", () => {
   const member = (number: number, position: number, branch: string): NativeStackMember => ({
     number,
@@ -218,8 +217,8 @@ describe("applyPrUpdates — native GitHub Stack membership", () => {
     position,
   });
 
-  // Members deliberately shuffled — nativeStackFor must normalize to
-  // position order (base-most first) regardless of payload order.
+  // Members deliberately shuffled — the patch carries the payload as-is and
+  // consumers (NativeStackPopover) sort by position themselves.
   const makeNative = (overrides: Partial<NativeStackInfo> = {}): NativeStackInfo => ({
     id: "STACK_1",
     number: 42,
@@ -248,34 +247,10 @@ describe("applyPrUpdates — native GitHub Stack membership", () => {
     expect(patches.get(WT_ID)?.prStatus?.nativeStack).toBeNull();
   });
 
-  it("nativeStackFor returns the roster sorted by position, scoped to repo+branch", () => {
+  it("patches nativeStack back to null when a later sync shows the PR left the stack", () => {
     usePrStore.getState().applyPrUpdates([openPr({ nativeStack: makeNative() })], [makeWorktree()]);
 
-    const ns = nativeStackFor("/repo", "feature-1");
-    expect(ns?.members.map((m) => m.position)).toEqual([1, 2, 3]);
-    expect(ns?.members.map((m) => m.branch)).toEqual(["root", "feature-1", "tip"]);
-    expect(isNativeStackMember("/repo", "feature-1")).toBe(true);
-    // Same branch name, different repo — must not leak across repos.
-    expect(isNativeStackMember("/other-repo", "feature-1")).toBe(false);
-    expect(nativeStackFor("/repo", "unrelated")).toBeNull();
-  });
-
-  it("tracks sibling members whose branch has no local worktree", () => {
-    usePrStore
-      .getState()
-      .applyPrUpdates(
-        [openPr({ number: 3, branch: "tip", nativeStack: makeNative({ position: 3 }) })],
-        [makeWorktree()], // worktree list has feature-1 only, not tip
-      );
-
-    expect(isNativeStackMember("/repo", "tip")).toBe(true);
-  });
-
-  it("clears membership when a later sync shows the PR left the stack", () => {
-    usePrStore.getState().applyPrUpdates([openPr({ nativeStack: makeNative() })], [makeWorktree()]);
-    expect(isNativeStackMember("/repo", "feature-1")).toBe(true);
-
-    usePrStore.getState().applyPrUpdates([openPr()], [makeWorktree()]);
-    expect(isNativeStackMember("/repo", "feature-1")).toBe(false);
+    const patches = usePrStore.getState().applyPrUpdates([openPr()], [makeWorktree()]);
+    expect(patches.get(WT_ID)?.prStatus?.nativeStack).toBeNull();
   });
 });

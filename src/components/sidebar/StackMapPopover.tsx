@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { restackStack, restackNow } from "../../api";
+import { restackStack, restackNow, resolveStackPending } from "../../api";
 import { resolveStackConflict } from "../../services/stackConflictHandoff";
 import { formatRelativeTime } from "../changes/formatRelativeTime";
 import type { StackChain } from "../../lib/stackChain";
@@ -54,6 +55,15 @@ interface NativeStackPopoverProps {
   onClose: () => void;
 }
 
+/** Roster note for native-stack members the backend query can't return: it
+ *  only fetches OPEN PRs, so merged/closed members vanish from `members`
+ *  while `size` still counts them. Null when the full roster is present. */
+function hiddenMembersNote(size: number, shownCount: number): string | null {
+  const hidden = size - shownCount;
+  if (hidden <= 0) return null;
+  return `${hidden} merged or closed PR${hidden === 1 ? "" : "s"} not shown`;
+}
+
 /** GitHub-parity rendering for a native GitHub Stack: "Stack #N" header,
  *  "Managed by GitHub" label, full roster in stack order (tip first, base-most
  *  last — mirroring GitHub's popover), current PR highlighted, base branch as
@@ -63,9 +73,22 @@ interface NativeStackPopoverProps {
 function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClose }: NativeStackPopoverProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
+  // The backend no longer auto-sweeps nativeRestacked pendings — the notice
+  // persists until the user dismisses it here (resolve_stack_pending).
+  const [pendingDismissed, setPendingDismissed] = useState(false);
+  const pending = anchorWorktree.stackPending;
   // Backend sends the roster base-most first; GitHub renders tip-most on top
   // with the base branch at the bottom, so display order is reversed.
   const rows = [...nativeStack.members].sort((a, b) => b.position - a.position);
+  const hiddenNote = hiddenMembersNote(nativeStack.size, rows.length);
+
+  const handleDismissPending = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPendingDismissed(true);
+    resolveStackPending(anchorWorktree.repoPath, anchorWorktree.name).catch((err) => {
+      console.error("Failed to resolve stack pending:", err);
+    });
+  };
 
   const handleSelect = (member: NativeStackInfo["members"][number]) => {
     const local = worktrees.find(
@@ -93,6 +116,25 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
       <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-tertiary">
         Managed by GitHub
       </div>
+      {pending?.blockedBy === "nativeRestacked" && !pendingDismissed && (
+        <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-secondary leading-snug flex items-start gap-2">
+          <span className="flex-1">
+            {pending.mergedParent} was merged — GitHub restacked this branch remotely; your
+            local branch may be behind.
+          </span>
+          <button
+            type="button"
+            aria-label="Dismiss restacked notice"
+            onClick={handleDismissPending}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            className="flex-shrink-0 px-1 -mr-1 text-text-tertiary hover:text-text-primary"
+          >
+            ×
+          </button>
+        </div>
+      )}
       {rows.map((m) => (
         <button
           key={m.number}
@@ -117,6 +159,9 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
           </span>
         </button>
       ))}
+      {hiddenNote && (
+        <div className="px-3 py-1.5 text-[10px] italic text-text-tertiary">{hiddenNote}</div>
+      )}
       <div className="px-3 pt-1.5 mt-1 border-t border-border-subtle text-[11px] text-text-tertiary">
         ↳ {defaultBranch ?? "main"}
       </div>
@@ -288,4 +333,4 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
   );
 }
 
-export { StackMapPopover };
+export { StackMapPopover, hiddenMembersNote };
