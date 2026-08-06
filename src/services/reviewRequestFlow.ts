@@ -61,7 +61,7 @@ export async function handleReviewRequests(prs: PrStatusWithColumn[]): Promise<v
         branch: pr.branch,
         prStatus: null,
         agentStatus: "notRunning",
-        column: "needsReview",
+        column: pr.autoColumn,
         isBranchMode: false,
         additions: null,
         deletions: null,
@@ -78,9 +78,9 @@ export async function handleReviewRequests(prs: PrStatusWithColumn[]): Promise<v
           console.error("[review-requests] ensureDefaultTabs failed:", e);
         }
         // Seed prStatus/column from the PR we already hold so the card sits in
-        // Needs Review immediately instead of waiting for the next sync tick.
+        // the right column immediately instead of waiting for the next sync tick.
         useWorkspaceStore.getState().updateWorktree(worktreeId, {
-          column: "needsReview",
+          column: pr.autoColumn,
           prStatus: {
             number: pr.number,
             state: pr.state,

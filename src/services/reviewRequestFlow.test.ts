@@ -61,6 +61,17 @@ describe("handleReviewRequests", () => {
     expect(wt?.column).toBe("needsReview");
   });
 
+  it("seeds the store column from the PR's autoColumn (draft PR sits in Draft PR, not Needs Review)", async () => {
+    vi.mocked(createWorktreeFrom).mockResolvedValue({
+      id: "/repos/app::feat/flux", name: "feat/flux", path: "/repos/app-wt/feat-flux",
+      branch: "feat/flux", prStatus: null, agentStatus: "notRunning", column: "inProgress",
+      isBranchMode: false, additions: null, deletions: null, repoPath: "/repos/app",
+    } as never);
+    await handleReviewRequests([makePr({ draft: true, autoColumn: "draftPr" })]);
+    const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === "/repos/app::feat/flux");
+    expect(wt?.column).toBe("draftPr");
+  });
+
   it("ignores PRs not flagged reviewRequested", async () => {
     await handleReviewRequests([makePr({ reviewRequested: false })]);
     expect(createWorktreeFrom).not.toHaveBeenCalled();
