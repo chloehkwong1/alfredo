@@ -1,7 +1,7 @@
 import { GitFork, Layers } from "lucide-react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { StackChain } from "../../lib/stackChain";
-import type { Worktree } from "../../types";
+import type { PrStatus, Worktree } from "../../types";
 
 interface StackGlyphProps {
   worktree: Worktree;
@@ -59,4 +59,45 @@ function StackGlyph({ worktree, chain, onOpenMap }: StackGlyphProps) {
   );
 }
 
-export { StackGlyph };
+/** "N/M" label for the native-stack chip beside the PR number pill. Null when
+ *  the PR isn't a native GitHub Stack member — the chip renders nothing. */
+function nativeStackChipLabel(prStatus: PrStatus | null | undefined): string | null {
+  const ns = prStatus?.nativeStack;
+  return ns ? `${ns.position}/${ns.size}` : null;
+}
+
+interface NativeStackChipProps {
+  prStatus: PrStatus | null | undefined;
+  onOpenMap: () => void;
+}
+
+/** GitHub-parity `⧉ pos/size` chip for PRs in a native GitHub Stack — mirrors
+ *  the stack-count chip GitHub shows beside the PR state. Renders even when
+ *  the worktree has no Alfredo stack override (native members usually don't).
+ *  Click opens the same stack map popover as StackGlyph. Lives inside a
+ *  dnd-kit sortable row — every handler stops propagation. */
+function NativeStackChip({ prStatus, onOpenMap }: NativeStackChipProps) {
+  const label = nativeStackChipLabel(prStatus);
+  if (!label) return null;
+  const ns = prStatus!.nativeStack!;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenMap();
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded text-[10px] text-accent-primary bg-accent-muted/40 hover:bg-accent-muted transition-colors cursor-pointer"
+      aria-label={`Stack position ${ns.position} of ${ns.size} in GitHub stack #${ns.number} — open stack map`}
+      title={`Stack #${ns.number} · ${ns.position}/${ns.size} — managed by GitHub`}
+    >
+      <Layers className="h-3 w-3" />
+      {label}
+    </button>
+  );
+}
+
+export { StackGlyph, NativeStackChip, nativeStackChipLabel };

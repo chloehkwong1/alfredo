@@ -1,14 +1,17 @@
 import { RefreshCw } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { restackStack, restackNow } from "../../api";
 import { resolveStackConflict } from "../../services/stackConflictHandoff";
 import { formatRelativeTime } from "../changes/formatRelativeTime";
 import type { StackChain } from "../../lib/stackChain";
-import type { Worktree, StackRebaseStatus } from "../../types";
+import type { NativeStackInfo, Worktree, StackRebaseStatus } from "../../types";
 
 interface StackMapPopoverProps {
   anchorWorktree: Worktree;
-  chain: StackChain;
+  /** Null for native-only members: a native GitHub Stack needs no local
+   *  stackParent override, so there may be no Alfredo chain to compute. */
+  chain: StackChain | null;
   defaultBranch: string | null;
   onClose: () => void;
 }
@@ -44,12 +47,108 @@ function memberStateText(m: Worktree): string {
   return "up to date";
 }
 
+interface NativeStackPopoverProps {
+  anchorWorktree: Worktree;
+  nativeStack: NativeStackInfo;
+  defaultBranch: string | null;
+  onClose: () => void;
+}
+
+/** GitHub-parity rendering for a native GitHub Stack: "Stack #N" header,
+ *  "Managed by GitHub" label, full roster in stack order (tip first, base-most
+ *  last — mirroring GitHub's popover), current PR highlighted, base branch as
+ *  the bottom row. Members with a local worktree focus it on click; siblings
+ *  without one open their PR on GitHub. No restack actions — GitHub manages
+ *  this stack server-side, Alfredo's automation stands down. */
+function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClose }: NativeStackPopoverProps) {
+  const worktrees = useWorkspaceStore((s) => s.worktrees);
+  const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
+  // Backend sends the roster base-most first; GitHub renders tip-most on top
+  // with the base branch at the bottom, so display order is reversed.
+  const rows = [...nativeStack.members].sort((a, b) => b.position - a.position);
+
+  const handleSelect = (member: NativeStackInfo["members"][number]) => {
+    const local = worktrees.find(
+      (w) => w.repoPath === anchorWorktree.repoPath && w.branch === member.branch && !w.archived,
+    );
+    onClose();
+    if (local) {
+      setActiveWorktree(local.id);
+    } else if (member.url) {
+      openUrl(member.url).catch((e) => console.error("Failed to open PR:", e));
+    }
+  };
+
+  return (
+    <div
+      className="w-72 rounded-md border border-border-default bg-bg-primary shadow-lg py-2"
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <div className="px-3 pb-0.5 text-[10px] uppercase tracking-wider text-text-tertiary">
+        Stack #{nativeStack.number} · {nativeStack.size} PRs
+      </div>
+      <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-tertiary">
+        Managed by GitHub
+      </div>
+      {rows.map((m) => (
+        <button
+          key={m.number}
+          type="button"
+          onClick={() => handleSelect(m)}
+          className={[
+            "w-full flex flex-col gap-0.5 px-3 py-1.5 text-left text-xs",
+            m.number === anchorWorktree.prStatus?.number ? "bg-accent-muted/40" : "hover:bg-bg-hover",
+          ].join(" ")}
+        >
+          <span className="flex items-center gap-2">
+            <span className="truncate flex-1">{m.title}</span>
+            <span className="flex-shrink-0 text-text-tertiary">#{m.number}</span>
+          </span>
+          <span className="flex items-center gap-2 text-[10px] text-text-tertiary">
+            <span className="truncate font-mono">{m.branch}</span>
+            {m.state === "MERGED" && <span className="flex-shrink-0">merged ✓</span>}
+            {m.state === "CLOSED" && <span className="flex-shrink-0">closed</span>}
+            {m.number === anchorWorktree.prStatus?.number && (
+              <span className="flex-shrink-0 ml-auto">← here</span>
+            )}
+          </span>
+        </button>
+      ))}
+      <div className="px-3 pt-1.5 mt-1 border-t border-border-subtle text-[11px] text-text-tertiary">
+        ↳ {defaultBranch ?? "main"}
+      </div>
+    </div>
+  );
+}
+
 /** Popover opened from `StackGlyph` — tree view of the whole stack (base
  *  branch pinned at the top, root→tips reading downward like a file tree, so
  *  forks stay legible). Click-to-jump per member, plus a footer action to
  *  restack the whole tree. Lives inside a dnd-kit sortable row — every handler
- *  stops propagation so drag listeners and the row's own onClick never fire. */
+ *  stops propagation so drag listeners and the row's own onClick never fire.
+ *  Native GitHub Stack members render GitHub-style instead (one surface, two
+ *  skins) — see NativeStackPopover. */
 function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: StackMapPopoverProps) {
+  const nativeStack = anchorWorktree.prStatus?.nativeStack;
+  if (nativeStack) {
+    return (
+      <NativeStackPopover
+        anchorWorktree={anchorWorktree}
+        nativeStack={nativeStack}
+        defaultBranch={defaultBranch}
+        onClose={onClose}
+      />
+    );
+  }
+  if (!chain) return null;
+  return <AlfredoStackPopover anchorWorktree={anchorWorktree} chain={chain} defaultBranch={defaultBranch} onClose={onClose} />;
+}
+
+/** Alfredo-managed (non-native) stack rendering — unchanged behaviour. */
+function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: StackMapPopoverProps & { chain: StackChain }) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const rows = chain.members

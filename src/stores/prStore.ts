@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   CheckRun,
   KanbanColumn,
+  NativeStackInfo,
   PrDetailedStatus,
   PrPanelState,
   PrStatusWithColumn,
@@ -38,6 +39,10 @@ interface PrState {
   columnOverrides: Record<string, ColumnOverride>;
   /** Last autoColumn computed by Rust for each worktree — used to snapshot overrides. */
   lastAutoColumn: Record<string, KanbanColumn>;
+  /** Native GitHub Stack membership keyed by `${repoPath}::${branch}` — every
+   *  synced PR, not just worktree-attached ones, so sibling branches without a
+   *  local worktree still resolve. */
+  nativeStacks: Record<string, NativeStackInfo>;
 
   setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
   setPrDetail: (worktreeId: string, detail: PrDetailedStatus) => void;
@@ -72,6 +77,7 @@ const INITIAL_STATE = {
   jumpToComment: {},
   columnOverrides: {},
   lastAutoColumn: {},
+  nativeStacks: {},
 };
 
 export const usePrStore = create<PrState>((set, get) => ({
@@ -203,6 +209,22 @@ export const usePrStore = create<PrState>((set, get) => ({
     const newPrDetail = { ...state.prDetail };
     const patches = new Map<string, Partial<Worktree>>();
 
+    // Native-stack membership is recorded for EVERY deduped PR (prByKey's key
+    // is already `${repoPath}::${branch}`), not just worktree-attached ones —
+    // the stack popover's roster maps sibling branches with no local worktree.
+    // A PR that left its stack (nativeStack gone) drops its entry.
+    const newNativeStacks = { ...state.nativeStacks };
+    for (const [key, pr] of prByKey) {
+      if (pr.nativeStack) {
+        newNativeStacks[key] = {
+          ...pr.nativeStack,
+          members: [...pr.nativeStack.members].sort((a, b) => a.position - b.position),
+        };
+      } else if (newNativeStacks[key]) {
+        delete newNativeStacks[key];
+      }
+    }
+
     for (const wt of worktrees) {
       const pr = prByKey.get(`${wt.repoPath}::${wt.branch}`);
       if (!pr) continue;
@@ -237,6 +259,7 @@ export const usePrStore = create<PrState>((set, get) => ({
         mergedAt: pr.mergedAt,
         headSha: pr.headSha,
         body: pr.body,
+        nativeStack: pr.nativeStack ?? null,
       };
 
       // Use manual override if still active, otherwise auto-assign
@@ -333,8 +356,21 @@ export const usePrStore = create<PrState>((set, get) => ({
       prSummary: newSummary,
       checkRuns: newCheckRuns,
       prDetail: newPrDetail,
+      nativeStacks: newNativeStacks,
     });
 
     return patches;
   },
 }));
+
+/** The native GitHub Stack the PR on `branch` belongs to, or null. Scoped by
+ *  repo — branch names aren't unique across repos. Roster comes back sorted by
+ *  position (base-most first). */
+export function nativeStackFor(repoPath: string, branch: string): NativeStackInfo | null {
+  return usePrStore.getState().nativeStacks[`${repoPath}::${branch}`] ?? null;
+}
+
+/** True when `branch`'s PR is in a GitHub-managed (native) stack. */
+export function isNativeStackMember(repoPath: string, branch: string): boolean {
+  return nativeStackFor(repoPath, branch) != null;
+}

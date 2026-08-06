@@ -174,6 +174,35 @@ export type WorktreeSource =
 
 // ── GitHub ──────────────────────────────────────────────────────
 
+/** One PR in a native GitHub Stack roster. Sibling PRs usually have no local
+ *  worktree, so their metadata rides along here rather than coming from a
+ *  worktree-attached PrStatus. */
+export interface NativeStackMember {
+  number: number;
+  title: string;
+  branch: string;
+  /** GraphQL PR state: "OPEN" | "MERGED" | "CLOSED". */
+  state: string;
+  url: string;
+  /** 1-based position within the stack (base-most first). */
+  position: number;
+}
+
+/** A PR's membership in a native GitHub Stack (public preview). Present when
+ *  GitHub manages retarget/rebase server-side — Alfredo's stack automation
+ *  stands down for these branches. */
+export interface NativeStackInfo {
+  id: string;
+  /** The stack's user-facing number ("Stack #23263"). */
+  number: number;
+  /** This PR's 1-based position within the stack. */
+  position: number;
+  /** Total number of PRs in the stack. */
+  size: number;
+  /** Full ordered roster (sorted by position, includes this PR). */
+  members: NativeStackMember[];
+}
+
 export interface PrStatus {
   number: number;
   state: string;
@@ -189,6 +218,8 @@ export interface PrStatus {
   body?: string;
   author?: string;
   requestedReviewers?: string[];
+  /** Native GitHub Stack membership; null/absent when not a member. */
+  nativeStack?: NativeStackInfo | null;
 }
 
 /** Payload emitted by the `github:pr-update` Tauri event. */

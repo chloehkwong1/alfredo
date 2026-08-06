@@ -174,6 +174,21 @@ function ChangeBaseBranchDialog({ open, onOpenChange, worktree }: ChangeBaseBran
           </DialogDescription>
         </DialogHeader>
 
+        {/* Native GitHub Stack members: manual re-parenting stays allowed, but
+            GitHub owns retarget/rebase for this stack and Alfredo's automation
+            stands down — warn before the user re-parents by hand. */}
+        {worktree.prStatus?.nativeStack && (
+          <div className="rounded-md border border-amber-400/25 bg-amber-400/10 px-3 py-2.5 text-xs">
+            <p className="font-medium text-amber-400">
+              This PR is in a GitHub-managed stack (Stack #{worktree.prStatus.nativeStack.number})
+            </p>
+            <p className="mt-1 text-text-secondary">
+              Alfredo won't auto-restack it — GitHub manages this stack server-side and may
+              retarget the PR again. You can still change the base manually.
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-col gap-2">
           <Input
             ref={filterRef}

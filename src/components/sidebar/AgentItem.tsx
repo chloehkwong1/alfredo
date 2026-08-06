@@ -34,7 +34,7 @@ import { CreateWorktreeDialog } from "../kanban/CreateWorktreeDialog";
 import { ChangeBaseBranchDialog } from "./ChangeBaseBranchDialog";
 import { columnIcon, columnLabel, COLUMN_ORDER } from "./StatusGroup";
 import { copyText } from "../../lib/clipboard";
-import { StackGlyph } from "./StackGlyph";
+import { StackGlyph, NativeStackChip } from "./StackGlyph";
 import { StackMapPopover } from "./StackMapPopover";
 import { computeStackChain, type StackChain } from "../../lib/stackChain";
 
@@ -362,6 +362,10 @@ function AgentItemContent({
           {worktree.prStatus && (
             <span className={`text-xs ${mutedTextClass} flex-shrink-0`}>#{worktree.prStatus.number}</span>
           )}
+          {/* GitHub-parity "N/M" stack-count chip for native GitHub Stack
+              members — opens the same stack popover as the glyph. Renders
+              nothing for non-members. */}
+          <NativeStackChip prStatus={worktree.prStatus} onOpenMap={onOpenStackMap} />
           <span className="flex items-center gap-1.5 ml-auto flex-shrink-0">
             <RelativeTime
               timestamp={worktree.lastActivityAt}
@@ -1027,7 +1031,10 @@ const AgentItem = memo(function AgentItem({
         </ContextMenuContent>
       </ContextMenu>
 
-      {stackMapOpen && stackChain && (
+      {/* Native members open the popover from the N/M chip even when they have
+          no local chain — StackMapPopover renders GitHub-style from the PR's
+          nativeStack roster in that case. */}
+      {stackMapOpen && (stackChain || worktree.prStatus?.nativeStack) && (
         <StackMapFrame anchorRef={rowContainerRef} frameRef={stackMapFrameRef}>
           <StackMapPopover
             anchorWorktree={worktree}

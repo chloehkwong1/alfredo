@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeEffectiveStatus } from "./AgentItem";
+import { nativeStackChipLabel } from "./StackGlyph";
+import type { PrStatus } from "../../types";
 
 describe("computeEffectiveStatus", () => {
   it("returns busy when agent is busy and not stale", () => {
@@ -48,5 +50,38 @@ describe("computeEffectiveStatus", () => {
 
   it("surfaces a busy agent over settingUp during background setup", () => {
     expect(computeEffectiveStatus("busy", true, false, true, false, true)).toBe("busy");
+  });
+});
+
+// NativeStackChip renders exactly when this label is non-null, and the label
+// is its visible text — pinning the "chip for native members, absent
+// otherwise" contract without a component render.
+describe("nativeStackChipLabel", () => {
+  const basePr: PrStatus = {
+    number: 7,
+    state: "open",
+    title: "Add thing",
+    url: "https://github.com/x/y/pull/7",
+    draft: false,
+    merged: false,
+    branch: "feature-1",
+  };
+
+  it("returns position/size for a native GitHub Stack member", () => {
+    const pr: PrStatus = {
+      ...basePr,
+      nativeStack: { id: "S1", number: 42, position: 2, size: 3, members: [] },
+    };
+    expect(nativeStackChipLabel(pr)).toBe("2/3");
+  });
+
+  it("returns null when the PR is not a native stack member", () => {
+    expect(nativeStackChipLabel(basePr)).toBeNull();
+    expect(nativeStackChipLabel({ ...basePr, nativeStack: null })).toBeNull();
+  });
+
+  it("returns null when there is no PR at all", () => {
+    expect(nativeStackChipLabel(null)).toBeNull();
+    expect(nativeStackChipLabel(undefined)).toBeNull();
   });
 });
