@@ -1120,8 +1120,10 @@ fn is_regenerable(path: &str) -> bool {
         ".DS_Store",
     ];
     /// Generic enough to also name real work — only filtered at the repo root.
+    /// `storage` is deliberately absent: Rails ActiveStorage keeps dev uploads
+    /// there, and those exist nowhere else.
     const ROOT_ONLY: &[&str] = &[
-        "target", "dist", "build", "out", "tmp", "log", "logs", "storage", "vendor",
+        "target", "dist", "build", "out", "tmp", "log", "logs", "vendor",
     ];
     /// Framework-specific build output that lives below the root.
     const NESTED_PREFIXES: &[&str] = &[
@@ -1150,11 +1152,57 @@ fn is_regenerable(path: &str) -> bool {
         .any(|segment| CACHE_SEGMENTS.contains(&segment))
 }
 
+/// True when an ignored worktree path is recoverable outside the worktree, so
+/// deleting it loses nothing: a symlink (its target survives the delete; any
+/// in-worktree target is reported as its own entry), or a byte-identical copy
+/// of the same relative path in the main checkout — the setup-script pattern
+/// that stamps `.env` into every worktree. A copy that diverged from the root
+/// original is unique content again and stays reported.
+async fn is_recoverable_from_root(
+    worktree_path: &str,
+    repo_path: Option<&str>,
+    rel: &str,
+) -> bool {
+    // Collapsed directory entries: contents unknown, keep them visible.
+    if rel.ends_with('/') {
+        return false;
+    }
+    let wt_file = Path::new(worktree_path).join(rel);
+    let Ok(meta) = tokio::fs::symlink_metadata(&wt_file).await else {
+        return false;
+    };
+    if meta.file_type().is_symlink() {
+        return true;
+    }
+    let Some(repo) = repo_path else {
+        return false;
+    };
+    let root_file = Path::new(repo).join(rel);
+    let Ok(root_meta) = tokio::fs::symlink_metadata(&root_file).await else {
+        return false;
+    };
+    // Size gate first; the byte compare is capped so a pathological multi-GB
+    // ignored file can't stall the delete confirm — past the cap we err
+    // towards showing the file.
+    const MAX_COMPARE_BYTES: u64 = 8 * 1024 * 1024;
+    if !root_meta.is_file() || root_meta.len() != meta.len() || meta.len() > MAX_COMPARE_BYTES {
+        return false;
+    }
+    match (tokio::fs::read(&wt_file).await, tokio::fs::read(&root_file).await) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
 /// Classify a worktree's working tree into untracked, tracked-uncommitted and
 /// gitignored paths via `git status --porcelain --ignored`. Returns an empty
 /// state (rather than erroring) when the path isn't a git worktree, so the
 /// delete confirm degrades to its plain form instead of blocking deletion.
-pub async fn worktree_dirty_state(worktree_path: &str) -> Result<WorktreeDirtyState, AppError> {
+/// `repo_path` (the main checkout) enables the recoverable-copy filter above.
+pub async fn worktree_dirty_state(
+    worktree_path: &str,
+    repo_path: Option<&str>,
+) -> Result<WorktreeDirtyState, AppError> {
     // `core.quotepath=false` keeps non-ASCII filenames readable (git otherwise
     // C-escapes them). A missing/unreadable worktree dir makes the spawn or the
     // command fail — treat either as "nothing to warn about" so the delete
@@ -1189,7 +1237,9 @@ pub async fn worktree_dirty_state(worktree_path: &str) -> Result<WorktreeDirtySt
         // the warning lists the file that actually exists.
         let path = rest.rsplit(" -> ").next().unwrap_or(rest).trim().to_string();
         if code.starts_with("!!") {
-            if !is_regenerable(&path) {
+            if !is_regenerable(&path)
+                && !is_recoverable_from_root(worktree_path, repo_path, &path).await
+            {
                 state.ignored.push(path);
             }
         } else if code.starts_with("??") {
@@ -2499,7 +2549,7 @@ mod tests {
         std::fs::write(path.join(".research/notes.md"), "findings\n").expect("write untracked");
         std::fs::write(path.join("tracked.txt"), "v2\n").expect("edit tracked");
 
-        let state = worktree_dirty_state(path_str).await.expect("dirty state");
+        let state = worktree_dirty_state(path_str, None).await.expect("dirty state");
         assert!(
             state.untracked.iter().any(|p| p.contains(".research")),
             "untracked should include research output, got {:?}",
@@ -2579,7 +2629,7 @@ mod tests {
         std::fs::create_dir_all(path.join("designs")).expect("mkdir designs");
         std::fs::write(path.join("designs/queue.html"), "<h1>mock</h1>\n").expect("write mockup");
 
-        let state = worktree_dirty_state(path_str).await.expect("dirty state");
+        let state = worktree_dirty_state(path_str, None).await.expect("dirty state");
         assert!(
             state.ignored.iter().any(|p| p.contains("designs")),
             "ignored should include the gitignored mockup, got {:?}",
@@ -2632,7 +2682,7 @@ mod tests {
         std::fs::create_dir_all(path.join("designs")).expect("mkdir designs");
         std::fs::write(path.join("designs/queue.html"), "<h1>mock</h1>\n").expect("write mockup");
 
-        let state = worktree_dirty_state(path_str).await.expect("dirty state");
+        let state = worktree_dirty_state(path_str, None).await.expect("dirty state");
         assert!(
             state.ignored.iter().any(|p| p.contains("designs")),
             "the mockup must survive filtering, got {:?}",
@@ -2645,6 +2695,88 @@ mod tests {
                 .any(|p| p.contains("node_modules") || p.contains("target")),
             "dependency and build output must be filtered out, got {:?}",
             state.ignored,
+        );
+    }
+
+    /// The florence pattern: setup scripts copy `.env` from the main checkout
+    /// and symlink `.claude/settings.local.json` into every worktree. Those are
+    /// recoverable — warning about them on every delete trains people to click
+    /// through the one warning that exists for unique files.
+    #[tokio::test]
+    async fn worktree_dirty_state_omits_ignored_files_recoverable_from_the_root() {
+        let dir = init_test_repo();
+        let path = dir.path();
+        let path_str = path.to_str().expect("temp dir path is valid UTF-8");
+
+        let git = |args: &[&str]| {
+            StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(path)
+                .output()
+                .expect("git command")
+        };
+
+        std::fs::write(path.join(".gitignore"), ".env\nlink.md\nnotes.md\n")
+            .expect("write gitignore");
+        git(&["add", "."]);
+        git(&["commit", "-m", "init"]);
+
+        // A "main checkout" holding the canonical .env.
+        let root = TempDir::new().expect("create root temp dir");
+        std::fs::write(root.path().join(".env"), "SECRET=1\n").expect("write root env");
+
+        // The worktree: a byte-identical .env copy, a symlink, and real work.
+        std::fs::write(path.join(".env"), "SECRET=1\n").expect("write copied env");
+        std::os::unix::fs::symlink(root.path().join(".env"), path.join("link.md"))
+            .expect("create symlink");
+        std::fs::write(path.join("notes.md"), "only exists here\n").expect("write unique");
+
+        let root_str = root.path().to_str().expect("root path is valid UTF-8");
+        let state = worktree_dirty_state(path_str, Some(root_str))
+            .await
+            .expect("dirty state");
+        assert_eq!(
+            state.ignored,
+            vec!["notes.md".to_string()],
+            "copies and symlinks are recoverable; only the unique file should show",
+        );
+    }
+
+    /// A worktree copy that DIVERGED from the root original is unique work
+    /// again — recoverability is about content, not the file's name.
+    #[tokio::test]
+    async fn worktree_dirty_state_keeps_ignored_files_that_diverged_from_the_root() {
+        let dir = init_test_repo();
+        let path = dir.path();
+        let path_str = path.to_str().expect("temp dir path is valid UTF-8");
+
+        let git = |args: &[&str]| {
+            StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(path)
+                .output()
+                .expect("git command")
+        };
+
+        std::fs::write(path.join(".gitignore"), ".env\n").expect("write gitignore");
+        git(&["add", "."]);
+        git(&["commit", "-m", "init"]);
+
+        let root = TempDir::new().expect("create root temp dir");
+        std::fs::write(root.path().join(".env"), "SECRET=1\n").expect("write root env");
+        std::fs::write(path.join(".env"), "SECRET=1\nEXTRA_KEY=only-here\n")
+            .expect("write diverged env");
+
+        let root_str = root.path().to_str().expect("root path is valid UTF-8");
+        let state = worktree_dirty_state(path_str, Some(root_str))
+            .await
+            .expect("dirty state");
+        assert_eq!(
+            state.ignored,
+            vec![".env".to_string()],
+            "a diverged copy is unique content and must be shown",
         );
     }
 
@@ -2668,7 +2800,7 @@ mod tests {
         git(&["add", "."]);
         git(&["commit", "-m", "init"]);
 
-        let state = worktree_dirty_state(path.to_str().unwrap()).await.expect("dirty state");
+        let state = worktree_dirty_state(path.to_str().unwrap(), None).await.expect("dirty state");
         assert!(state.untracked.is_empty() && state.uncommitted.is_empty());
     }
 

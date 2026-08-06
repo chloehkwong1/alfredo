@@ -109,7 +109,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
         .filter((wt) => wt.path)
         .map(async (wt) => {
           try {
-            const d = await worktreeDirtyState(wt.path);
+            const d = await worktreeDirtyState(wt.path, wt.repoPath);
             // Ignored files count here too — bulk delete is the easiest way to
             // lose a gitignored mockup, since nothing about the row hints at it.
             const count = d.untracked.length + d.uncommitted.length + d.ignored.length;
@@ -297,6 +297,7 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
         onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
         branch={pendingDelete?.branch ?? ""}
         worktreePath={pendingDelete?.path}
+        repoPath={pendingDelete?.repoPath}
         onConfirm={() => {
           if (pendingDelete) onDelete(pendingDelete.id);
           setPendingDelete(null);

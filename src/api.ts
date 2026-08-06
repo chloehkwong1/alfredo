@@ -138,8 +138,13 @@ export interface WorktreeDirtyState {
   ignored: string[];
 }
 
-export function worktreeDirtyState(worktreePath: string): Promise<WorktreeDirtyState> {
-  return invoke("worktree_dirty_state", { worktreePath });
+/** `repoPath` (the main checkout) lets the backend filter gitignored files
+ *  that are recoverable copies — a setup-script `.env`, a symlinked config. */
+export function worktreeDirtyState(
+  worktreePath: string,
+  repoPath?: string,
+): Promise<WorktreeDirtyState> {
+  return invoke("worktree_dirty_state", { worktreePath, repoPath: repoPath ?? null });
 }
 
 export function getCommitsBehindMain(

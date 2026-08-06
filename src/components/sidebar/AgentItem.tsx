@@ -1043,6 +1043,7 @@ const AgentItem = memo(function AgentItem({
         onOpenChange={setDeleteDialogOpen}
         branch={worktree.branch}
         worktreePath={worktree.path}
+        repoPath={worktree.repoPath}
         onConfirm={() => onDelete?.(worktree.id)}
       />
 

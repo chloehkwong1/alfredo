@@ -330,8 +330,11 @@ pub async fn delete_worktree(
 /// The delete confirm uses it to warn about work the diff-stat badge can't see —
 /// untracked files (e.g. `/research` output) show +0/-0 yet are wiped on delete.
 #[tauri::command]
-pub async fn worktree_dirty_state(worktree_path: String) -> Result<git_manager::WorktreeDirtyState> {
-    git_manager::worktree_dirty_state(&worktree_path).await
+pub async fn worktree_dirty_state(
+    worktree_path: String,
+    repo_path: Option<String>,
+) -> Result<git_manager::WorktreeDirtyState> {
+    git_manager::worktree_dirty_state(&worktree_path, repo_path.as_deref()).await
 }
 
 /// List all worktrees for a repository, filtered to the configured base path

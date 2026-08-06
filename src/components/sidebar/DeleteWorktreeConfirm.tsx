@@ -17,6 +17,9 @@ interface DeleteWorktreeConfirmProps {
   /** Worktree path. When provided, the dialog checks for untracked/uncommitted
    *  work the diff badge can't see and warns before the irreversible delete. */
   worktreePath?: string;
+  /** Main checkout path — lets the backend drop gitignored files that are
+   *  recoverable copies of root files (setup-script `.env`s, symlinks). */
+  repoPath?: string;
   /** Called after Radix's close animation finishes (200ms after the user
    *  confirms) so the unmounting consumer doesn't kill the overlay mid-animation. */
   onConfirm: () => void;
@@ -24,7 +27,7 @@ interface DeleteWorktreeConfirmProps {
 
 const MAX_LISTED = 8;
 
-function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, onConfirm }: DeleteWorktreeConfirmProps) {
+function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoPath, onConfirm }: DeleteWorktreeConfirmProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [dirty, setDirty] = useState<WorktreeDirtyState | null>(null);
@@ -39,11 +42,11 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, onCon
     }
     let cancelled = false;
     setDirty(null);
-    worktreeDirtyState(worktreePath)
+    worktreeDirtyState(worktreePath, repoPath)
       .then((d) => { if (!cancelled) setDirty(d); })
       .catch(() => { if (!cancelled) setDirty({ untracked: [], uncommitted: [], ignored: [] }); });
     return () => { cancelled = true; };
-  }, [open, worktreePath]);
+  }, [open, worktreePath, repoPath]);
 
   // Untracked first — it's the dangerous, invisible-in-the-badge case.
   const lost = dirty ? [...dirty.untracked, ...dirty.uncommitted] : [];
