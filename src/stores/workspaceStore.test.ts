@@ -133,7 +133,13 @@ describe("setWorktrees / mergeWorktreeState", () => {
       activeTabId: { [oldId]: "tab-1" },
     });
     useLayoutStore.setState({ activePaneId: { [oldId]: "pane-1" } });
-    usePrStore.setState({ prSummary: { [oldId]: { merged: false, closed: false } } });
+    usePrStore.setState({
+      prSummary: { [oldId]: { merged: false, closed: false } },
+      // Manual kanban placement — losing this reverts the card to autoColumn
+      // on the next PR sync.
+      columnOverrides: { [oldId]: { column: "inProgress", autoColumnWhenSet: "needsReview" } },
+      lastAutoColumn: { [oldId]: "needsReview" },
+    });
 
     store.getState().setWorktrees([
       makeWorktree({ id: newId, path: "/path/wt-1", branch: "feature-2" }),
@@ -146,6 +152,8 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(useTabStore.getState().activeTabId[newId]).toBe("tab-1");
     expect(useLayoutStore.getState().activePaneId[newId]).toBe("pane-1");
     expect(usePrStore.getState().prSummary[newId]).toBeDefined();
+    expect(usePrStore.getState().columnOverrides[newId]?.column).toBe("inProgress");
+    expect(usePrStore.getState().lastAutoColumn[newId]).toBe("needsReview");
 
     expect(store.getState().activeWorktreeId).toBe(newId);
     expect(store.getState().pinnedWorktrees.has(newId)).toBe(true);
@@ -153,6 +161,88 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(store.getState().unreadWorktrees.has(newId)).toBe(true);
     expect(store.getState().diffViewMode[newId]).toBe("side-by-side");
     expect(store.getState().changesPanelCollapsed[newId]).toBe(true);
+  });
+
+  it("does not hand a recycled directory the dead worktree's state", () => {
+    // `git worktree remove` + `git worktree add -b other <same dir>` between
+    // two polls: same path, same admin name (basename), but the admin dir was
+    // recreated, so its birthtime differs. The new worktree must start clean —
+    // inheriting the old claudeSessionId would resume the wrong conversation.
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [
+        makeWorktree({
+          id: "/repo::removed-branch",
+          path: "/path/wt-1",
+          branch: "removed-branch",
+          createdAtEpoch: 1_000,
+          claudeSessionId: "sess-dead",
+          archived: true,
+        }),
+      ],
+    });
+
+    store.getState().setWorktrees([
+      makeWorktree({
+        id: "/repo::fresh-branch",
+        path: "/path/wt-1",
+        branch: "fresh-branch",
+        createdAtEpoch: 2_000,
+      }),
+    ]);
+
+    const wt = store.getState().worktrees.find((w) => w.id === "/repo::fresh-branch")!;
+    expect(wt.claudeSessionId).toBeUndefined();
+    expect(wt.archived).toBeUndefined();
+  });
+
+  it("does not let a branch recycled into another worktree inherit by id", () => {
+    // Worktree A switches b1→b2; worktree B (different directory) later checks
+    // out b1. B's id now equals A's old id, but B is a different physical
+    // worktree (different admin name) — A's session must follow A, not B.
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [
+        makeWorktree({
+          id: "/repo::b1",
+          name: "wt-a",
+          path: "/wt/a",
+          branch: "b1",
+          createdAtEpoch: 1_000,
+          claudeSessionId: "sess-a",
+        }),
+      ],
+    });
+    useTabStore.setState({
+      tabs: { "/repo::b1": [{ id: "tab-a", type: "claude", label: "Claude" }] },
+      activeTabId: { "/repo::b1": "tab-a" },
+    });
+
+    store.getState().setWorktrees([
+      makeWorktree({
+        id: "/repo::b2",
+        name: "wt-a",
+        path: "/wt/a",
+        branch: "b2",
+        createdAtEpoch: 1_000,
+      }),
+      makeWorktree({
+        id: "/repo::b1",
+        name: "wt-b",
+        path: "/wt/b",
+        branch: "b1",
+        createdAtEpoch: 5_000,
+      }),
+    ]);
+
+    const a = store.getState().worktrees.find((w) => w.path === "/wt/a")!;
+    const b = store.getState().worktrees.find((w) => w.path === "/wt/b")!;
+    // A keeps its session under its new id; B starts clean.
+    expect(a.claudeSessionId).toBe("sess-a");
+    expect(b.claudeSessionId).toBeUndefined();
+    // The tabs follow A's rekey rather than staying under B's id.
+    expect(useTabStore.getState().tabs["/repo::b2"]).toHaveLength(1);
+    expect(useTabStore.getState().tabs["/repo::b1"]).toBeUndefined();
   });
 
   it("preserves in-flight setupInProgress across a git refresh", () => {

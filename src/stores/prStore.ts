@@ -98,6 +98,10 @@ export const usePrStore = create<PrState>((set, get) => ({
       prPanelState: rekeyRecord(state.prPanelState, oldId, newId),
       reviewedFiles: rekeyRecord(state.reviewedFiles, oldId, newId),
       jumpToComment: rekeyRecord(state.jumpToComment, oldId, newId),
+      // Without these two, applyPrUpdates finds no override under the new id
+      // on the next sync and silently reverts a manual kanban placement.
+      columnOverrides: rekeyRecord(state.columnOverrides, oldId, newId),
+      lastAutoColumn: rekeyRecord(state.lastAutoColumn, oldId, newId),
     })),
 
   toggleReviewedFile: (worktreeId, filePath) =>

@@ -122,31 +122,61 @@ interface WorkspaceState {
 }
 
 /**
+ * Whether two worktree records describe the same physical worktree, as opposed
+ * to a coincidence of id or path.
+ *
+ * Ids are `${repoPath}::${branch}`, so a branch deleted in one directory and
+ * checked out in another produces an id match between different worktrees; a
+ * directory removed and recreated produces a path match between different
+ * worktrees. Git's admin name (`.git/worktrees/<name>`, frozen at creation)
+ * survives checkouts but distinguishes directories; the admin dir's birthtime
+ * survives checkouts but distinguishes a recreation at the same basename.
+ * Birthtime is unavailable on some filesystems (`createdAtEpoch` is optional),
+ * in which case the name alone decides.
+ */
+function isSamePhysicalWorktree(prev: Worktree, wt: Worktree): boolean {
+  if (prev.name !== wt.name) return false;
+  if (prev.createdAtEpoch != null && wt.createdAtEpoch != null) {
+    return prev.createdAtEpoch === wt.createdAtEpoch;
+  }
+  return true;
+}
+
+/**
  * Resolve a fresh worktree back to its previous store entry.
  *
  * Ids are `${repoPath}::${branch}` (git_manager.rs `worktree_id`), so a plain
  * `git checkout` inside a worktree re-ids it and an id-only lookup misses —
  * silently dropping the running agent's `claudeSessionId`, its column, and its
  * Linear ticket. The directory is what actually persisted, so fall back to it.
+ * Both matches are gated on physical identity: an id or path can be recycled
+ * by a *different* worktree, which must not inherit this one's state.
  */
 function previousWorktreeLookup(existing: Worktree[]): (wt: Worktree) => Worktree | undefined {
   const byId = new Map(existing.map((w) => [w.id, w]));
   const byPath = new Map(existing.filter((w) => w.path).map((w) => [w.path, w]));
-  return (wt) => byId.get(wt.id) ?? (wt.path ? byPath.get(wt.path) : undefined);
+  return (wt) => {
+    const idHit = byId.get(wt.id);
+    if (idHit && isSamePhysicalWorktree(idHit, wt)) return idHit;
+    const pathHit = wt.path ? byPath.get(wt.path) : undefined;
+    if (pathHit && isSamePhysicalWorktree(pathHit, wt)) return pathHit;
+    return undefined;
+  };
 }
 
 /**
- * Worktrees whose id changed while their directory stayed put — i.e. someone
- * ran `git checkout` inside them. Everything keyed by the old id has to move.
+ * Worktrees whose id changed while their physical identity stayed put — i.e.
+ * someone ran `git checkout` inside them. Everything keyed by the old id has
+ * to move. Uses the same identity-gated lookup as the merge, so the two can't
+ * disagree about which old entry a fresh worktree continues: even when the old
+ * id survives as a *different* worktree (the branch was picked up elsewhere),
+ * the state still belongs to this directory and moves with it.
  */
 function detectRekeys(fresh: Worktree[], existing: Worktree[]): WorktreeRekey[] {
-  const freshIds = new Set(fresh.map((wt) => wt.id));
-  const byPath = new Map(existing.filter((wt) => wt.path).map((wt) => [wt.path, wt]));
+  const lookup = previousWorktreeLookup(existing);
   return fresh.flatMap((wt) => {
-    const prev = wt.path ? byPath.get(wt.path) : undefined;
-    // `freshIds.has(prev.id)` guards the case where the old id still exists as
-    // a separate worktree — then nothing moved and re-keying would clobber it.
-    if (!prev || prev.id === wt.id || freshIds.has(prev.id)) return [];
+    const prev = lookup(wt);
+    if (!prev || prev.id === wt.id) return [];
     return [{ oldId: prev.id, newId: wt.id }];
   });
 }
