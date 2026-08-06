@@ -1,0 +1,20 @@
+src/services/openIssueFlow.ts
+  s_d3e34e38385ee8::t_ae6da02f8dbf1d 89
+  s_d3e34e38385ee8::t_68f0cc2964abb3 132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "d07ff017df5285365660039af7cb9f7582e378cb",
+  "prompts": {},
+  "sessions": {
+    "s_d3e34e38385ee8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "631b9eb5-c75f-4c3f-b8e4-252274b00362",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
