@@ -1,6 +1,7 @@
 import React, { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { useContextExpansion } from "./useContextExpansion";
+import { useThemeMode } from "../../hooks/useThemeMode";
 import { UnifiedDiffBody } from "./UnifiedDiffBody";
 import { SplitDiffBody } from "./SplitDiffBody";
 import { MonacoDiffBody } from "./MonacoDiffBody";
@@ -109,10 +110,12 @@ function LegacyDiffBody({
   const { gapInfo, expandedGaps, loadingGaps, handleExpandContext } = useContextExpansion(
     file, repoPath, commitHash, autoExpandAll,
   );
+  const themeMode = useThemeMode();
 
   if (viewMode !== "side-by-side") {
     return (
       <UnifiedDiffBody
+        key={themeMode}
         file={file}
         gapInfo={gapInfo}
         expandedGaps={expandedGaps}
@@ -136,6 +139,7 @@ function LegacyDiffBody({
 
   return (
     <SplitDiffBody
+      key={themeMode}
       file={file}
       gapInfo={gapInfo}
       expandedGaps={expandedGaps}
