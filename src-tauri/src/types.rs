@@ -675,6 +675,9 @@ pub struct GlobalAppConfig {
     /// Opt in to pre-release builds from the beta update channel.
     #[serde(default)]
     pub receive_beta_updates: bool,
+    /// Auto-create worktrees for PRs where the user is a requested reviewer.
+    #[serde(default = "default_true")]
+    pub auto_pull_review_requests: bool,
     /// Newest `whats-new.md` entry version the user has dismissed, e.g.
     /// "0.19.0". Absent means never shown — see `decideWhatsNew` on the
     /// frontend for how a fresh install is distinguished from an upgrade.

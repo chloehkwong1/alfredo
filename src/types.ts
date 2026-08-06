@@ -609,6 +609,8 @@ export interface GlobalAppConfig {
   commentChips?: string[];
   /** Opt in to pre-release builds from the beta update channel. */
   receiveBetaUpdates?: boolean;
+  /** Auto-create worktrees for PRs awaiting your review. Default true. */
+  autoPullReviewRequests?: boolean;
   /** First-time worktree-lifecycle nudge has been dismissed by the user. */
   dismissedLifecycleNudge?: boolean;
   /** Newest what's-new entry version the user has dismissed, e.g. "0.19.0". */

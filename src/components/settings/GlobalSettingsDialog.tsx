@@ -383,6 +383,21 @@ function GlobalSettingsDialog({
                   </div>
                 </div>
 
+                <div className="flex items-start justify-between gap-4 mt-4">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-text-primary">Auto-pull review requests</div>
+                    <p className="text-xs text-text-tertiary mt-[5px]">
+                      When someone requests your review on GitHub, create a worktree for the PR in the matching repo automatically. Claude only launches when you open it.
+                    </p>
+                  </div>
+                  <div className="shrink-0 pt-0.5">
+                    <Toggle
+                      checked={appConfig.autoPullReviewRequests !== false}
+                      onChange={(v) => updateAppConfig({ autoPullReviewRequests: v })}
+                    />
+                  </div>
+                </div>
+
                 <SectionTitle>Diff View</SectionTitle>
                 <Field label="Default diff view" hint="Applied when a worktree has no explicit view mode set.">
                   <div className="flex border border-border-default rounded overflow-hidden w-fit">
