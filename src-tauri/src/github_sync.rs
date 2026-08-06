@@ -139,14 +139,14 @@ fn column_to_string(column: &KanbanColumn) -> String {
 
 impl PrStatusWithColumn {
     fn from_pr(pr: &PrStatus, repo_path: &str, github_username: Option<&str>) -> Self {
-        // Initial column is computed without review data — recomputed in
-        // poll_repo only for PRs that pass `should_enrich` AND have an active
-        // worktree. PRs the user has approved will start as "Needs Review"
-        // and flip to "Done" after the reviews fetch; PRs without an active
-        // worktree never get the recompute (acceptable today since those
-        // never surface as cards, but worth knowing if that ever changes).
-        // Review-requested PRs surface as cards in the NeedsReview column via
-        // the review_requested rule, which needs no review data.
+        // Initial column is computed without review data using determine_column's
+        // built-in rules (draft, own PR, review-requested, etc.), which don't require
+        // review-fetch enrichment. The column is recomputed in poll_repo only for
+        // PRs that pass `should_enrich` AND have an active worktree, where review
+        // data may flip the column (e.g., an approved other's PR moves to "Done").
+        // Review-requested PRs surface as cards in the NeedsReview column from
+        // this initial placement alone — the review_requested rule needs no
+        // enrichment to determine the correct column.
         let column = determine_column(Some(pr), github_username, &[]);
         let review_requested = github_username.is_some_and(|user| {
             let is_own = pr.author.as_deref().is_some_and(|a| a.eq_ignore_ascii_case(user));
