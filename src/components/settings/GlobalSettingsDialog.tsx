@@ -15,6 +15,7 @@ import { TerminalSettings } from "./TerminalSettings";
 import { ThemeSelector } from "./ThemeSelector";
 import { flagsError } from "../../services/launchCommand";
 import { isLightTheme } from "../../lib/themeMeta";
+import { applyMonacoThemeForMode } from "../../services/monaco/loader";
 
 type GlobalTab =
   | "general"
@@ -126,6 +127,7 @@ function applyTheme(theme: string) {
   getCurrentWindow()
     .setTheme(isLightTheme(theme) ? "light" : "dark")
     .catch(() => {});
+  applyMonacoThemeForMode(isLightTheme(theme) ? "light" : "dark");
   // Diff views (Shiki tokens, Monaco) re-resolve light/dark off this event.
   window.dispatchEvent(new Event("alfredo-theme-changed"));
 }

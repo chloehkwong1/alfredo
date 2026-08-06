@@ -6,7 +6,8 @@ import JsonWorker from "monaco-editor/language/json/json.worker.js?worker";
 import CssWorker from "monaco-editor/language/css/css.worker.js?worker";
 import HtmlWorker from "monaco-editor/language/html/html.worker.js?worker";
 
-import { ALFREDO_DARK_THEME } from "../../components/changes/MonacoTheme";
+import { ALFREDO_DARK_THEME, ALFREDO_LIGHT_THEME } from "../../components/changes/MonacoTheme";
+import { readCurrentThemeMode } from "../../lib/themeMeta";
 
 type MonacoNamespace = typeof import("monaco-editor");
 
@@ -45,9 +46,21 @@ export function loadMonaco(): Promise<MonacoNamespace> {
 
   monacoPromise = import("monaco-editor").then((monaco) => {
     monaco.editor.defineTheme("alfredo-dark", ALFREDO_DARK_THEME);
-    monaco.editor.setTheme("alfredo-dark");
+    monaco.editor.defineTheme("alfredo-light", ALFREDO_LIGHT_THEME);
+    monaco.editor.setTheme(readCurrentThemeMode() === "light" ? "alfredo-light" : "alfredo-dark");
     return monaco;
   });
 
   return monacoPromise;
+}
+
+/** Flip the global Monaco theme on app-theme change. No-op if Monaco was
+ *  never loaded — loadMonaco() picks the right theme at load time. */
+export function applyMonacoThemeForMode(mode: "light" | "dark"): void {
+  if (!monacoPromise) return;
+  monacoPromise
+    .then((monaco) => {
+      monaco.editor.setTheme(mode === "light" ? "alfredo-light" : "alfredo-dark");
+    })
+    .catch(() => {});
 }

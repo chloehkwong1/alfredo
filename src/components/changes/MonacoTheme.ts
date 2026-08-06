@@ -15,3 +15,19 @@ export const ALFREDO_DARK_THEME: editor.IStandaloneThemeData = {
     "diffEditor.removedLineBackground": "#7f1d1d22",
   },
 };
+
+export const ALFREDO_LIGHT_THEME: editor.IStandaloneThemeData = {
+  base: "vs",
+  inherit: true,
+  rules: [],
+  colors: {
+    "editor.background": "#ffffff",
+    "editor.foreground": "#1f2328",
+    "editorLineNumber.foreground": "#8c959f",
+    "editorLineNumber.activeForeground": "#57606a",
+    "diffEditor.insertedTextBackground": "#2da44e33",
+    "diffEditor.removedTextBackground": "#cf222e33",
+    "diffEditor.insertedLineBackground": "#2da44e22",
+    "diffEditor.removedLineBackground": "#cf222e22",
+  },
+};
