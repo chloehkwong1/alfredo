@@ -1744,13 +1744,26 @@ fn is_alfredo_session_pid(pid: i32) -> bool {
 /// True for an env var key that marks a process as running *inside* an outer
 /// Claude Code session. We strip these from agents we spawn (see `spawn`) so a
 /// spawned agent never mistakes itself for a nested child session — which would
-/// stop it persisting a resumable transcript. The `CLAUDE_CODE_` prefix covers
-/// the session-id / child-session / entrypoint / execpath markers (and any
-/// future ones); `CLAUDECODE` is the bare in-session flag; `CLAUDE_MEM_WORKER_PORT`
-/// points memsearch at the outer session's worker. `CLAUDE_API_KEY` and other
-/// non-`CLAUDE_CODE_` vars are deliberately preserved.
+/// stop it persisting a resumable transcript.
+///
+/// Matching the whole `CLAUDE_CODE_` prefix is too broad: it's also the prefix
+/// for the user's *configuration* (`CLAUDE_CODE_OAUTH_TOKEN`,
+/// `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`), so Alfredo launched
+/// from a terminal stripped the vars a Bedrock/Vertex teammate authenticates
+/// with. Match session *shape* instead — the markers all name a session,
+/// entrypoint or exec path, and no configuration var does — which still catches
+/// a future `CLAUDE_CODE_..._SESSION_...` marker without touching auth.
+///
+/// `CLAUDECODE` is the bare in-session flag; `CLAUDE_MEM_WORKER_PORT` points
+/// memsearch at the outer session's worker.
 fn is_leaked_outer_session_var(key: &str) -> bool {
-    key.starts_with("CLAUDE_CODE_") || key == "CLAUDECODE" || key == "CLAUDE_MEM_WORKER_PORT"
+    if key == "CLAUDECODE" || key == "CLAUDE_MEM_WORKER_PORT" {
+        return true;
+    }
+    let Some(suffix) = key.strip_prefix("CLAUDE_CODE_") else {
+        return false;
+    };
+    suffix.contains("SESSION") || suffix == "ENTRYPOINT" || suffix == "EXECPATH"
 }
 
 /// True if the given `ps -o comm=` result is a shell itself (so we should
@@ -1883,6 +1896,28 @@ mod tests {
         assert!(!is_leaked_outer_session_var("ANTHROPIC_API_KEY"));
         assert!(!is_leaked_outer_session_var("PATH"));
         assert!(!is_leaked_outer_session_var("HOME"));
+    }
+
+    /// `CLAUDE_CODE_` is also the prefix for the user's own configuration, so a
+    /// bare prefix match logs teammates out: launched from a terminal, Alfredo
+    /// stripped the Bedrock/Vertex/token vars their auth depends on.
+    #[test]
+    fn preserves_claude_code_configuration_vars() {
+        for key in [
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "CLAUDE_CODE_USE_BEDROCK",
+            "CLAUDE_CODE_USE_VERTEX",
+            "CLAUDE_CODE_SKIP_BEDROCK_AUTH",
+            "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+            "CLAUDE_CODE_ENABLE_TELEMETRY",
+            "CLAUDE_CODE_SUBAGENT_MODEL",
+            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+        ] {
+            assert!(
+                !is_leaked_outer_session_var(key),
+                "{key} is user configuration, not an inherited session marker",
+            );
+        }
     }
 
     #[test]
