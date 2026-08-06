@@ -1,0 +1,26 @@
+src/lib/worktreeOrder.ts
+  s_50b56e5d5c0726::t_392cdb82247f07 19-25,31,33-48
+src/components/sidebar/Sidebar.tsx
+  s_50b56e5d5c0726::t_85d8e2ffd94918 52
+  s_50b56e5d5c0726::t_72ee4d0ad94932 36
+  s_50b56e5d5c0726::t_064d0cbc6c6f51 580-581
+  s_50b56e5d5c0726::t_c5f26717902e3b 548-555,559
+src/lib/worktreeOrder.test.ts
+  s_50b56e5d5c0726::t_6e8b11a535141c 116-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e233872d81cbad851a812295033403b730a29cb3",
+  "prompts": {},
+  "sessions": {
+    "s_50b56e5d5c0726": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d475cf8-1c40-47bd-838a-4bb98ac57d03",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
