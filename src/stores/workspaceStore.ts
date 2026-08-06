@@ -118,6 +118,20 @@ interface WorkspaceState {
 }
 
 /**
+ * Resolve a fresh worktree back to its previous store entry.
+ *
+ * Ids are `${repoPath}::${branch}` (git_manager.rs `worktree_id`), so a plain
+ * `git checkout` inside a worktree re-ids it and an id-only lookup misses —
+ * silently dropping the running agent's `claudeSessionId`, its column, and its
+ * Linear ticket. The directory is what actually persisted, so fall back to it.
+ */
+function previousWorktreeLookup(existing: Worktree[]): (wt: Worktree) => Worktree | undefined {
+  const byId = new Map(existing.map((w) => [w.id, w]));
+  const byPath = new Map(existing.filter((w) => w.path).map((w) => [w.path, w]));
+  return (wt) => byId.get(wt.id) ?? (wt.path ? byPath.get(wt.path) : undefined);
+}
+
+/**
  * Compute the best "last activity" timestamp for a worktree by taking the max of:
  * - Last commit epoch on the branch (from git)
  * - PR updatedAt (from GitHub API) — not used here since PR updates come via prStore
@@ -128,9 +142,9 @@ function withActivityTimestamps(
   incoming: Worktree[],
   existing: Worktree[],
 ): Worktree[] {
-  const existingMap = new Map(existing.map((w) => [w.id, w]));
+  const lookup = previousWorktreeLookup(existing);
   return incoming.map((wt) => {
-    const prev = existingMap.get(wt.id);
+    const prev = lookup(wt);
 
     // Candidates for "last activity" — take the max of all available signals
     const candidates: number[] = [];
@@ -153,9 +167,9 @@ function withActivityTimestamps(
  * Used by both setWorktrees and setWorktreesForRepo to avoid duplicating this logic.
  */
 function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[] {
-  const existingMap = new Map(existing.map((wt) => [wt.id, wt]));
+  const lookup = previousWorktreeLookup(existing);
   const merged = fresh.map((wt) => {
-    const old = existingMap.get(wt.id);
+    const old = lookup(wt);
     if (old) {
       return {
         ...wt,

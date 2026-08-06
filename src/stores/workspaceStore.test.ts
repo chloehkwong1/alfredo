@@ -77,6 +77,41 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.runningAgents).toBe(3);
   });
 
+  it("preserves enriched state when a branch switch changes the worktree id", () => {
+    const store = useWorkspaceStore;
+    // The backend derives ids as `${repoPath}::${branch}` (git_manager.rs
+    // worktree_id), so `git checkout` inside a worktree re-ids it. The path is
+    // what actually stayed the same.
+    store.setState({
+      worktrees: [
+        makeWorktree({
+          id: "/repo::feature-1",
+          path: "/path/wt-1",
+          branch: "feature-1",
+          column: "needsReview",
+          agentStatus: "busy",
+          claudeSessionId: "sess-1",
+          linearTicketIdentifier: "ROS-42",
+        }),
+      ],
+    });
+
+    store.getState().setWorktrees([
+      makeWorktree({ id: "/repo::feature-2", path: "/path/wt-1", branch: "feature-2" }),
+    ]);
+
+    const worktrees = store.getState().worktrees;
+    expect(worktrees).toHaveLength(1);
+    const wt = worktrees[0];
+    expect(wt.branch).toBe("feature-2");
+    // The running agent and its column belong to the directory, not the branch
+    // label — losing them orphans the agent and resets the board position.
+    expect(wt.claudeSessionId).toBe("sess-1");
+    expect(wt.column).toBe("needsReview");
+    expect(wt.agentStatus).toBe("busy");
+    expect(wt.linearTicketIdentifier).toBe("ROS-42");
+  });
+
   it("preserves in-flight setupInProgress across a git refresh", () => {
     const store = useWorkspaceStore;
     store.setState({
