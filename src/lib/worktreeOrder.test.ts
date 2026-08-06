@@ -113,6 +113,47 @@ describe("sortColumnWorktrees", () => {
     expect(names(sortColumnWorktrees(cards, "inProgress", order))).toEqual(["b", "a"]);
   });
 
+  it("pins the drag-active card before its store-order successor, not at its comparator slot", () => {
+    // Store order after handleDragOver's splice: active sits directly before
+    // the card the pointer is over (b). Its epoch (500, newest) would slot it
+    // at the top — rendering there mid-drag makes dnd-kit oscillate (#185).
+    const cards = [
+      wt({ id: "a", name: "a", createdAtEpoch: 300 }),
+      wt({ id: "active", name: "active", createdAtEpoch: 500 }),
+      wt({ id: "b", name: "b", createdAtEpoch: 100 }),
+    ];
+    expect(ids(sortColumnWorktrees(cards, "inProgress", {}, "active"))).toEqual(["a", "active", "b"]);
+  });
+
+  it("pins the drag-active card at the end when it was appended to the column", () => {
+    const cards = [
+      wt({ id: "a", name: "a", createdAtEpoch: 300 }),
+      wt({ id: "b", name: "b", createdAtEpoch: 100 }),
+      wt({ id: "active", name: "active", createdAtEpoch: 500 }),
+    ];
+    expect(ids(sortColumnWorktrees(cards, "inProgress", {}, "active"))).toEqual(["a", "b", "active"]);
+  });
+
+  it("keeps slot-permuting the other cards while the active card is pinned", () => {
+    const cards = [
+      wt({ id: "x", name: "x", createdAtEpoch: 300 }),
+      wt({ id: "active", name: "active", createdAtEpoch: 100 }),
+      wt({ id: "y", name: "y", createdAtEpoch: 200 }),
+    ];
+    const order: WorktreeOrderMap = { "/tmp/repo": { inProgress: ["y", "x"] } };
+    // x/y permute per the persisted list; active renders before its store
+    // successor y regardless of the permutation.
+    expect(ids(sortColumnWorktrees(cards, "inProgress", order, "active"))).toEqual(["active", "y", "x"]);
+  });
+
+  it("ignores a dragActiveId that is not in the column", () => {
+    const cards = [
+      wt({ id: "a", name: "a", createdAtEpoch: 100 }),
+      wt({ id: "b", name: "b", createdAtEpoch: 200 }),
+    ];
+    expect(names(sortColumnWorktrees(cards, "inProgress", {}, "elsewhere"))).toEqual(["b", "a"]);
+  });
+
   it("is deterministic — shuffling input order never changes the output", () => {
     const cards = [
       wt({ id: "a1", name: "a1", repoPath: "/repo-a", createdAtEpoch: 500 }),

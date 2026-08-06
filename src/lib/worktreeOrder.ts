@@ -16,12 +16,36 @@ export type WorktreeOrderMap = Record<string, Partial<Record<KanbanColumn, strin
  * repo never moves another repo's cards, and a brand-new card lands at its
  * creation-order slot. Pinned-first grouping happens downstream in
  * StatusGroup.
+ *
+ * `dragActiveId` marks a card mid-drag: it renders at its store position
+ * (immediately before its store-order successor) instead of its comparator
+ * slot. handleDragOver splices the card before the card under the pointer;
+ * if the comparator then renders it elsewhere, dnd-kit's re-measure flips
+ * `over` back to the origin column and the two cross-column moves oscillate
+ * until React kills the update loop (error #185).
  */
 export function sortColumnWorktrees(
   worktrees: Worktree[],
   column: KanbanColumn,
   orderByRepo: WorktreeOrderMap,
+  dragActiveId?: string | null,
 ): Worktree[] {
+  if (dragActiveId != null) {
+    const activeIdx = worktrees.findIndex((wt) => wt.id === dragActiveId);
+    if (activeIdx !== -1) {
+      const active = worktrees[activeIdx];
+      const successor: Worktree | undefined = worktrees[activeIdx + 1];
+      const sorted = sortColumnWorktrees(
+        worktrees.filter((wt) => wt.id !== dragActiveId),
+        column,
+        orderByRepo,
+      );
+      const insertAt = successor ? sorted.findIndex((wt) => wt.id === successor.id) : -1;
+      if (insertAt === -1) sorted.push(active);
+      else sorted.splice(insertAt, 0, active);
+      return sorted;
+    }
+  }
   const base = worktrees.slice().sort((a, b) => {
     const aEpoch = a.createdAtEpoch ?? a.lastCommitEpoch ?? 0;
     const bEpoch = b.createdAtEpoch ?? b.lastCommitEpoch ?? 0;

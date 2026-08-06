@@ -33,6 +33,7 @@ const COLUMNS: KanbanColumn[] = [
 function groupByColumn(
   worktrees: Worktree[],
   worktreeOrder: WorktreeOrderMap,
+  dragActiveId?: string | null,
 ): Record<KanbanColumn, Worktree[]> {
   const groups: Record<KanbanColumn, Worktree[]> = {
     toDo: [],
@@ -48,7 +49,7 @@ function groupByColumn(
     groups[col].push(wt);
   }
   for (const col of Object.keys(groups) as KanbanColumn[]) {
-    groups[col] = sortColumnWorktrees(groups[col], col, worktreeOrder);
+    groups[col] = sortColumnWorktrees(groups[col], col, worktreeOrder, dragActiveId);
   }
   return groups;
 }
@@ -544,12 +545,18 @@ function Sidebar({
               worktreeLabels={worktreeLabels}
               hideUnpinned={hideUnpinned}
             >
-              {(isDragging, dragActiveId) =>
-                COLUMNS.map((col) => (
+              {(isDragging, dragActiveId) => {
+                // Mid-drag, regroup with the active card pinned to its store
+                // position so it renders where handleDragOver spliced it —
+                // see sortColumnWorktrees' dragActiveId doc.
+                const dragGrouped = dragActiveId
+                  ? groupByColumn(activeWorktrees, worktreeOrder, dragActiveId)
+                  : grouped;
+                return COLUMNS.map((col) => (
                   <StatusGroup
                     key={col}
                     column={col}
-                    worktrees={grouped[col]}
+                    worktrees={dragGrouped[col]}
                     activeWorktreeId={activeWorktreeId}
                     pinnedWorktrees={pinnedWorktrees}
                     hideUnpinned={hideUnpinned}
@@ -570,8 +577,8 @@ function Sidebar({
                     onToggleCollapsed={handleToggleCollapsed}
                     isTempExpanded={dragTempExpanded.has(col)}
                   />
-                ))
-              }
+                ));
+              }}
             </SidebarDragContext>
           )}
 
