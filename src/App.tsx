@@ -6,6 +6,7 @@ import { Toaster } from "./components/ui/Toaster";
 import { SectionErrorBoundary } from "./components/shared/SectionErrorBoundary";
 import { TooltipProvider } from "./components/ui";
 import { useGithubSync } from "./hooks/useGithubSync";
+import { useReviewRequests } from "./hooks/useReviewRequests";
 import { useWorktreeSetup } from "./hooks/useWorktreeSetup";
 import { useWhatsNew } from "./hooks/useWhatsNew";
 import { applyPersistedZoom } from "./services/uiZoom";
@@ -107,6 +108,7 @@ class ErrorBoundary extends Component<
 
 function AppInner() {
   useGithubSync();
+  useReviewRequests();
   useWorktreeSetup();
   const [askOpen, setAskOpen] = useState(false);
   const whatsNew = useWhatsNew();
