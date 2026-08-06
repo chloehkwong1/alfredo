@@ -593,8 +593,50 @@ pub fn prune_orphan_ports(
 /// space and trim. Multi-line commands saved before the frontend
 /// `normalizeCommand` fix — or written by older Alfredo builds, hand edits,
 /// or restored backups — would otherwise be split on `\n` by the shell.
+/// Tidy a configured command without changing what it runs.
+///
+/// Each line is stripped of stray indentation and blank lines are dropped, but
+/// newlines between two complete commands are *kept*: they're the statement
+/// separator, and collapsing them concatenated the commands instead. Alfredo's
+/// own `npm install\ncd src-tauri && cargo fetch` became `npm install cd
+/// src-tauri && cargo fetch`, which asks npm for packages named `cd` and
+/// `src-tauri`.
+///
+/// A newline is only closed up when the shell couldn't parse the two lines
+/// separately — an operator dangling at the end of one line or leading the
+/// next (`touch marker` / `&& touch other` is a syntax error, the field
+/// failure this function was originally added for).
 fn normalize_command(s: &str) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ")
+    /// Leaves the previous line incomplete, so the next line continues it.
+    const TRAILING_JOINERS: &[&str] = &["&&", "||", "|"];
+    /// Can't start a statement, so it belongs to the previous line.
+    const LEADING_JOINERS: &[&str] = &["&&", "||", "|", ";"];
+
+    let mut out = String::new();
+    for line in s
+        .lines()
+        .map(|l| l.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|l| !l.is_empty())
+    {
+        if out.is_empty() {
+            out.push_str(&line);
+            continue;
+        }
+        // An explicit `\` continuation is consumed rather than passed through,
+        // otherwise it would escape the space we join with.
+        if let Some(stripped) = out.strip_suffix('\\') {
+            out = stripped.trim_end().to_string();
+            out.push(' ');
+        } else if TRAILING_JOINERS.iter().any(|op| out.ends_with(op))
+            || LEADING_JOINERS.iter().any(|op| line.starts_with(op))
+        {
+            out.push(' ');
+        } else {
+            out.push('\n');
+        }
+        out.push_str(&line);
+    }
+    out
 }
 
 /// Run setup scripts sequentially in the given worktree directory.
@@ -863,14 +905,38 @@ mod tests {
     }
 
     #[test]
-    fn normalize_command_collapses_embedded_newlines_and_runs() {
-        // Mirrors the failure mode where a saved alfredo.json contains a
-        // literal `\n` mid-chain — zsh would otherwise split on the newline
-        // and execute line 2 as a separate command.
-        let raw = "  ln -sf a b && ln -sfn                \n  c d && true";
+    fn normalize_command_joins_lines_around_a_dangling_operator() {
+        // The original field failure: an operator leading the next line is a
+        // shell syntax error, so the two lines must become one statement.
         assert_eq!(
-            normalize_command(raw),
-            "ln -sf a b && ln -sfn c d && true"
+            normalize_command("touch marker\n&& touch other"),
+            "touch marker && touch other"
+        );
+        // Same chain, operator trailing the first line instead.
+        assert_eq!(
+            normalize_command("touch marker &&\ntouch other"),
+            "touch marker && touch other"
+        );
+        // Pipes and explicit line continuations chain the same way.
+        assert_eq!(normalize_command("cat a |\nwc -l"), "cat a | wc -l");
+        // The `\` is consumed, not passed through — left in, it would escape
+        // the joining space instead of continuing the line.
+        assert_eq!(normalize_command("echo a \\\nb"), "echo a b");
+    }
+
+    #[test]
+    fn normalize_command_keeps_standalone_lines_separate() {
+        // Alfredo's own alfredo.json. Collapsing every newline turned this into
+        // `npm install cd src-tauri && cargo fetch`, which asks npm to install
+        // packages named "cd" and "src-tauri", fails, and so never fetches.
+        assert_eq!(
+            normalize_command("npm install\ncd src-tauri && cargo fetch"),
+            "npm install\ncd src-tauri && cargo fetch"
+        );
+        // Indentation and blank lines are still tidied away.
+        assert_eq!(
+            normalize_command("  npm install   \n\n   npm run build  "),
+            "npm install\nnpm run build"
         );
     }
 
