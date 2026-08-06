@@ -1,0 +1,23 @@
+src/styles/themes.css
+  s_93b112609de481::t_1a8b31311800b8 526-690
+src/components/settings/ThemeSelector.tsx
+  s_93b112609de481::t_53094a2f326866 4-8
+src/styles/globals.css
+  s_93b112609de481::t_81673e29621888 377-384
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9e32371896e4a5925299b4d98bf472c7cbb5791d",
+  "prompts": {},
+  "sessions": {
+    "s_93b112609de481": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d01aa39a-d334-4ba7-933d-d73119cefad0",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
