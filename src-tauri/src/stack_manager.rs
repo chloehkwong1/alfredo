@@ -2954,6 +2954,7 @@ mod tests {
                 size: 2,
                 members: Vec::new(),
             }),
+            review_requested: false,
         }
     }
 

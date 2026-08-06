@@ -57,6 +57,7 @@ function makePr(overrides: Partial<PrStatusWithColumn> = {}): PrStatusWithColumn
     checkRuns: [],
     reviews: [],
     comments: null,
+    reviewRequested: false,
     ...overrides,
   };
 }

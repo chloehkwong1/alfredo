@@ -122,6 +122,9 @@ pub struct PrStatusWithColumn {
     /// stands down and overrides become display-only for this branch. Carries
     /// the full sibling roster since siblings usually have no local worktree.
     pub native_stack: Option<NativeStackInfo>,
+    /// True when the authenticated user is a requested reviewer on someone
+    /// else's open PR — drives review-request worktree auto-creation.
+    pub review_requested: bool,
 }
 
 /// Serialize a `KanbanColumn` to its camelCase string form (e.g. "needsReview").
@@ -142,7 +145,15 @@ impl PrStatusWithColumn {
         // and flip to "Done" after the reviews fetch; PRs without an active
         // worktree never get the recompute (acceptable today since those
         // never surface as cards, but worth knowing if that ever changes).
+        // Review-requested PRs surface as cards in the NeedsReview column via
+        // the review_requested rule, which needs no review data.
         let column = determine_column(Some(pr), github_username, &[]);
+        let review_requested = github_username.is_some_and(|user| {
+            let is_own = pr.author.as_deref().is_some_and(|a| a.eq_ignore_ascii_case(user));
+            pr.state == "open"
+                && !is_own
+                && pr.requested_reviewers.iter().any(|r| r.eq_ignore_ascii_case(user))
+        });
         Self {
             number: pr.number,
             state: pr.state.clone(),
@@ -169,6 +180,7 @@ impl PrStatusWithColumn {
             requested_reviewers: pr.requested_reviewers.clone(),
             base_branch: pr.base_branch.clone(),
             native_stack: pr.native_stack.clone(),
+            review_requested,
         }
     }
 }
@@ -1371,5 +1383,42 @@ mod tests {
 
         let mut seen = std::collections::HashSet::new();
         assert!(chain.iter().all(|b| seen.insert(b.clone())), "chain has duplicate members: {chain:?}");
+    }
+
+    #[test]
+    fn test_from_pr_flags_review_requested() {
+        let mut pr = PrStatus {
+            number: 7,
+            state: "open".into(),
+            title: "teammate's PR".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/theirs".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec!["Chloe".into()], // case-insensitive match
+            native_stack: None,
+        };
+        let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
+        assert!(with_col.review_requested);
+
+        // Own PR → never flagged, even if GitHub somehow lists me.
+        pr.author = Some("chloe".into());
+        assert!(!PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe")).review_requested);
+
+        // Closed PR → not flagged.
+        pr.author = Some("teammate".into());
+        pr.state = "closed".into();
+        assert!(!PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe")).review_requested);
+
+        // Unknown username → not flagged.
+        pr.state = "open".into();
+        assert!(!PrStatusWithColumn::from_pr(&pr, "/test/repo", None).review_requested);
     }
 }

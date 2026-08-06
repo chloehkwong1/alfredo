@@ -245,6 +245,8 @@ export interface PrStatusWithColumn extends PrStatus {
   comments: PrComment[] | null;
   /** ISO 8601 timestamp of the last update to this PR. */
   updatedAt?: string;
+  /** True when the current user is a requested reviewer on someone else's open PR. */
+  reviewRequested: boolean;
 }
 
 // ── Config ──────────────────────────────────────────────────────
