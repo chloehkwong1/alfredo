@@ -28,17 +28,42 @@ pub async fn check_for_update_filtered(
         .map(|c| c.receive_beta_updates)
         .unwrap_or(false);
 
-    let endpoints = crate::updater_endpoint_urls(receive_beta);
+    // Query each endpoint on its own updater instead of handing the plugin the
+    // whole list. The plugin's loop stops at the first feed that returns a
+    // parseable release, so a `beta-latest` pointer left behind by a run of
+    // stable-only releases answers first and hides a newer stable — beta users
+    // sit below current stable and are told they are up to date.
+    let mut updates = Vec::new();
+    let mut last_error: Option<String> = None;
+    for endpoint in crate::updater_endpoint_urls(receive_beta) {
+        let built = app
+            .updater_builder()
+            .endpoints(vec![endpoint])
+            .and_then(tauri_plugin_updater::UpdaterBuilder::build);
+        match built {
+            Ok(updater) => match updater.check().await {
+                Ok(Some(update)) => updates.push(update),
+                Ok(None) => {}
+                Err(e) => last_error = Some(e.to_string()),
+            },
+            Err(e) => last_error = Some(e.to_string()),
+        }
+    }
 
-    let updater = app
-        .updater_builder()
-        .endpoints(endpoints)
-        .map_err(|e| e.to_string())?
-        .build()
-        .map_err(|e| e.to_string())?;
+    // Surface an error only when nothing was offered at all: one unreachable
+    // feed must not fail a check the other feed already satisfied.
+    if updates.is_empty() {
+        *pending.0.lock().await = None;
+        return match last_error {
+            Some(e) => Err(e),
+            None => Ok(None),
+        };
+    }
 
-    match updater.check().await.map_err(|e| e.to_string())? {
-        Some(update) if crate::should_offer_version(&update.version, receive_beta) => {
+    let versions: Vec<String> = updates.iter().map(|u| u.version.clone()).collect();
+    match crate::best_offer_index(&versions, receive_beta) {
+        Some(i) => {
+            let update = updates.swap_remove(i);
             let info = UpdateInfo {
                 version: update.version.clone(),
                 current_version: update.current_version.clone(),
@@ -47,17 +72,13 @@ pub async fn check_for_update_filtered(
             *pending.0.lock().await = Some(update);
             Ok(Some(info))
         }
-        // A prerelease served on the stable channel — the issue #47 anomaly.
-        // Refuse it and log so a recurring release-process slip is diagnosable.
-        Some(update) => {
-            eprintln!(
-                "[updater] refused prerelease {} on stable channel (issue #47)",
-                update.version
-            );
-            *pending.0.lock().await = None;
-            Ok(None)
-        }
+        // Every candidate was a prerelease on the stable channel — the issue
+        // #47 anomaly. Refuse and log so a release-process slip stays visible.
         None => {
+            eprintln!(
+                "[updater] refused prerelease(s) {} on stable channel (issue #47)",
+                versions.join(", ")
+            );
             *pending.0.lock().await = None;
             Ok(None)
         }

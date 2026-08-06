@@ -73,6 +73,29 @@ fn should_offer_version(version: &str, receive_beta: bool) -> bool {
     receive_beta || !version.contains('-')
 }
 
+/// Index of the highest version in `candidates` this channel may install.
+///
+/// `updater_endpoint_urls` hands the plugin an ordered list, but the plugin
+/// stops at the first endpoint that returns a parseable release
+/// (tauri-plugin-updater 2.10.1, `updater.rs`: "we found a release, break the
+/// loop") — it never compares across feeds. So a `beta-latest` pointer left
+/// behind by a run of stable-only releases answers first, wins, and pins beta
+/// users below current stable while reporting "up to date". Querying each
+/// endpoint separately and ranking the answers here is what makes the
+/// stable entry reachable for beta users.
+///
+/// Versions that don't parse as SemVer are skipped rather than fatal: one
+/// malformed feed must not sink a check the other feed could satisfy.
+fn best_offer_index(candidates: &[String], receive_beta: bool) -> Option<usize> {
+    candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| should_offer_version(v, receive_beta))
+        .filter_map(|(i, v)| semver::Version::parse(v).ok().map(|parsed| (i, parsed)))
+        .max_by(|(_, a), (_, b)| a.cmp(b))
+        .map(|(i, _)| i)
+}
+
 use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
@@ -487,6 +510,48 @@ mod updater_endpoint_tests {
         assert_eq!(endpoints.len(), 2);
         assert!(endpoints[0].as_str().contains("/beta-latest/"));
         assert!(endpoints[1].as_str().contains("/releases/latest/download/"));
+    }
+}
+
+#[cfg(test)]
+mod best_offer_tests {
+    use super::best_offer_index;
+
+    #[test]
+    fn beta_channel_prefers_a_newer_stable_over_a_stale_beta() {
+        // The real failure: beta-latest still advertised 0.19.0-beta.1 from
+        // July while three stable releases shipped after it. The plugin's own
+        // endpoint loop stops at the first feed that answers, so beta users
+        // were pinned below current stable and told they were up to date.
+        let candidates = ["0.19.0-beta.1".to_string(), "0.20.1".to_string()];
+        assert_eq!(best_offer_index(&candidates, true), Some(1));
+    }
+
+    #[test]
+    fn beta_channel_prefers_a_newer_beta_over_stable() {
+        let candidates = ["0.21.0-beta.1".to_string(), "0.20.1".to_string()];
+        assert_eq!(best_offer_index(&candidates, true), Some(0));
+    }
+
+    #[test]
+    fn stable_channel_skips_a_higher_prerelease() {
+        // Issue #47 again, now that more than one feed is consulted: the
+        // prerelease may be the highest version and must still be refused.
+        let candidates = ["0.21.0-beta.1".to_string(), "0.20.1".to_string()];
+        assert_eq!(best_offer_index(&candidates, false), Some(1));
+    }
+
+    #[test]
+    fn no_installable_candidate_yields_none() {
+        let candidates = ["0.21.0-beta.1".to_string()];
+        assert_eq!(best_offer_index(&candidates, false), None);
+        assert_eq!(best_offer_index(&[], true), None);
+    }
+
+    #[test]
+    fn unparseable_versions_are_skipped_not_fatal() {
+        let candidates = ["not-a-version".to_string(), "0.20.1".to_string()];
+        assert_eq!(best_offer_index(&candidates, true), Some(1));
     }
 }
 
