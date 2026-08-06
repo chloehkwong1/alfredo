@@ -1,0 +1,26 @@
+src/components/settings/GlobalSettingsDialog.tsx
+  s_93b112609de481::t_a54c412c3a1519 130
+  s_93b112609de481::t_f19a93408fc656 18
+src/services/monaco/loader.ts
+  s_93b112609de481::t_4d7bd06a92cf86 56-66
+  s_93b112609de481::t_87a0f486044d71 9-10
+  s_93b112609de481::t_f5c4caa94f54be 49-50
+src/components/changes/MonacoTheme.ts
+  s_93b112609de481::t_f25eebf4c15340 18-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "611b1c00c8b5fc22e2ae4eeebb55cc33f93fd969",
+  "prompts": {},
+  "sessions": {
+    "s_93b112609de481": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d01aa39a-d334-4ba7-933d-d73119cefad0",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
