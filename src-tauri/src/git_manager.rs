@@ -155,6 +155,25 @@ pub fn validate_branch_name(name: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Whether a directory holds anything worth keeping — any entry other than the
+/// `.git` pointer a detached worktree husk leaves behind.
+///
+/// Errs towards "yes" when the directory can't be read: the caller deletes on a
+/// `false`, and an unreadable directory is no basis for that.
+async fn directory_holds_content(dir: &Path) -> bool {
+    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+        return true;
+    };
+    loop {
+        match entries.next_entry().await {
+            Ok(Some(entry)) if entry.file_name() == ".git" => continue,
+            Ok(Some(_)) => return true,
+            Ok(None) => return false,
+            Err(_) => return true,
+        }
+    }
+}
+
 pub async fn create_worktree(
     repo_path: &str,
     branch_name: &str,
@@ -198,7 +217,17 @@ pub async fn create_worktree(
             })
             .unwrap_or(false);
         if !is_tracked {
-            // Leftover directory not tracked by git — safe to remove
+            // Untracked here means "git has no worktree at this path" — which
+            // covers a husk left by a partial delete, but equally a directory
+            // holding real work whose admin entry was pruned. Only the husk is
+            // safe to remove; anything with content is the user's to deal with,
+            // since deleting it here is silent and irreversible.
+            if directory_holds_content(&worktree_dir).await {
+                return Err(AppError::Git(format!(
+                    "{} already exists and isn't a git worktree. Move or delete it yourself, then create the worktree again.",
+                    worktree_dir.display()
+                )));
+            }
             tokio::fs::remove_dir_all(&worktree_dir).await.map_err(|e| {
                 AppError::Git(format!(
                     "leftover directory {} could not be removed: {e}",
@@ -2481,6 +2510,47 @@ mod tests {
             "uncommitted should include the edited tracked file, got {:?}",
             state.uncommitted,
         );
+    }
+
+    /// Creation used to `remove_dir_all` anything untracked sitting at the
+    /// target path, on the assumption it was junk from a partial delete. When
+    /// the directory holds real work whose git registration is gone, that's a
+    /// silent wipe — the same shape as a delete confirm that can't see the
+    /// files that matter.
+    #[tokio::test]
+    async fn create_worktree_refuses_to_wipe_an_occupied_directory() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        let base_dir = TempDir::new().expect("create base temp dir");
+        let base_path = base_dir.path().to_str().expect("base path is valid UTF-8");
+
+        let occupied = base_dir.path().join("feature");
+        std::fs::create_dir_all(&occupied).expect("mkdir occupied");
+        std::fs::write(occupied.join("notes.md"), "hours of work\n").expect("write notes");
+
+        let result = create_worktree(repo_path, "feature", "main", Some(base_path)).await;
+
+        assert!(result.is_err(), "creation must not proceed over real content");
+        assert!(
+            occupied.join("notes.md").exists(),
+            "the occupying file must survive the refusal",
+        );
+    }
+
+    /// The case the removal was added for still has to work, or a partial
+    /// delete leaves a directory that permanently blocks re-creation.
+    #[tokio::test]
+    async fn create_worktree_clears_an_empty_leftover_directory() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        let base_dir = TempDir::new().expect("create base temp dir");
+        let base_path = base_dir.path().to_str().expect("base path is valid UTF-8");
+
+        std::fs::create_dir_all(base_dir.path().join("feature")).expect("mkdir leftover");
+
+        create_worktree(repo_path, "feature", "main", Some(base_path))
+            .await
+            .expect("an empty leftover must not block creation");
     }
 
     /// The gap that let a "clean" worktree take design/plan files with it: a
