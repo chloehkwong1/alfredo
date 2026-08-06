@@ -1,0 +1,36 @@
+src/components/sidebar/DeleteWorktreeConfirm.tsx
+  s_7b4b18cb2a5c1b::t_cb2d2bc0fb2c5b 44,51-55
+  s_7b4b18cb2a5c1b::t_c87429d010aa6d 61-64
+  s_7b4b18cb2a5c1b::t_6e9bff53f380b1 112-130
+src-tauri/src/git_manager.rs
+  s_7b4b18cb2a5c1b::t_c9d610eb1f5c33 2545,2556-2558
+  s_7b4b18cb2a5c1b::t_e22501192fd47e 1064-1103,1105-1121
+  s_7b4b18cb2a5c1b::t_bfa652a96f5212 2548-2552
+  s_7b4b18cb2a5c1b::t_6da2dfabd7e764 1124-1127,1133-1135,1137-1143
+  s_7b4b18cb2a5c1b::t_43d61cce634d1f 2486-2524
+  s_7b4b18cb2a5c1b::t_be7205c302ad10 1104
+  s_7b4b18cb2a5c1b::t_785ee9aa04530c 2525-2544,2546-2547,2553-2555,2559-2580
+  s_7b4b18cb2a5c1b::t_e3227bb9113757 1062-1063,1122-1123
+  s_7b4b18cb2a5c1b::t_3b9d54305c0dc3 1056-1059
+  s_7b4b18cb2a5c1b::t_70007cd2ec125e 1162-1166
+src/api.ts
+  s_7b4b18cb2a5c1b::t_4fe98bb5555038 135-138
+src/components/sidebar/ArchiveSection.tsx
+  s_7b4b18cb2a5c1b::t_24536b10bb5d02 113-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "38ec02b7969ee41cfe1d897520eaf8b1efc80e39",
+  "prompts": {},
+  "sessions": {
+    "s_7b4b18cb2a5c1b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "32c5a73d-b43a-4534-b752-6aa8bdb5deb8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
