@@ -417,3 +417,109 @@ html[data-theme="honeycomb"] {
   --border-subtle: rgba(255, 255, 255, 0.06);
   --color-pr-comment: #60a5fa;
 }
+
+/* ── Gruvbox (Dark, medium contrast) ─────────────── */
+html[data-theme="gruvbox"] {
+  --bg-primary: #282828;
+  --bg-secondary: #32302f;
+  --bg-elevated: #3c3836;
+  --bg-hover: #504945;
+  --bg-active: #665c54;
+
+  --text-primary: #ebdbb2;
+  --text-secondary: #bdae93;
+  --text-tertiary: #a89984;
+  --text-on-accent: #282828;
+
+  --border-default: #504945;
+  --border-hover: #7c6f64;
+  --border-focus: #fe8019;
+
+  --accent-primary: #fe8019;
+  --accent-secondary: #d65d0e;
+  --accent-muted: rgba(254, 128, 25, 0.15);
+
+  --status-idle: #b8bb26;
+  --status-busy: #fabd2f;
+  --status-waiting: #83a598;
+  --status-error: #fb4934;
+
+  --diff-added: #b8bb26;
+  --diff-removed: #fb4934;
+
+  --danger: #fb4934;
+  --danger-hover: #cc241d;
+  --danger-muted: rgba(251, 73, 52, 0.15);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+
+  --search-match: rgba(250, 189, 47, 0.35);
+  --search-match-active: rgba(254, 128, 25, 0.5);
+
+  --bg-sidebar: #1d2021;
+  --bg-bar: #242220;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --color-pr-comment: #83a598;
+}
+
+/* ── GitHub Dark ─────────────────────────────────── */
+html[data-theme="github-dark"] {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-elevated: #1c2128;
+  --bg-hover: #21262d;
+  --bg-active: #30363d;
+
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-tertiary: #6e7681;
+  --text-on-accent: #ffffff;
+
+  --border-default: #30363d;
+  --border-hover: #484f58;
+  --border-focus: #58a6ff;
+
+  --accent-primary: #58a6ff;
+  --accent-secondary: #388bfd;
+  --accent-muted: rgba(88, 166, 255, 0.15);
+
+  --status-idle: #3fb950;
+  --status-busy: #d29922;
+  --status-waiting: #79c0ff;
+  --status-error: #f85149;
+
+  --diff-added: #3fb950;
+  --diff-removed: #f85149;
+
+  --danger: #f85149;
+  --danger-hover: #da3633;
+  --danger-muted: rgba(248, 81, 73, 0.15);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+
+  --search-match: rgba(210, 153, 34, 0.35);
+  --search-match-active: rgba(219, 109, 40, 0.55);
+
+  --bg-sidebar: #010409;
+  --bg-bar: #0a0d13;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --color-pr-comment: #79c0ff;
+}
