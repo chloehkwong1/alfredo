@@ -374,9 +374,14 @@ body {
 .dot-glow-attn  { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-primary) 40%, transparent); }
 .dot-glow-error { box-shadow: 0 0 8px 2px color-mix(in srgb, var(--status-error) 45%, transparent); }
 
-/* Light theme: reduce glow intensity */
-html[data-theme="light"] .dot-glow-attn  { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--accent-primary) 30%, transparent); }
-html[data-theme="light"] .dot-glow-error { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--status-error) 35%, transparent); }
+/* Light themes: reduce glow intensity.
+   Selector list mirrors LIGHT_THEMES in src/lib/themeMeta.ts. */
+html[data-theme="light"] .dot-glow-attn,
+html[data-theme="catppuccin-latte"] .dot-glow-attn,
+html[data-theme="everforest-light"] .dot-glow-attn  { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--accent-primary) 30%, transparent); }
+html[data-theme="light"] .dot-glow-error,
+html[data-theme="catppuccin-latte"] .dot-glow-error,
+html[data-theme="everforest-light"] .dot-glow-error { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--status-error) 35%, transparent); }
 
 @keyframes tour-pulse {
   0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.85); }

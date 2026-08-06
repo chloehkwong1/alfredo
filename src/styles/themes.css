@@ -523,3 +523,168 @@ html[data-theme="github-dark"] {
   --border-subtle: rgba(255, 255, 255, 0.06);
   --color-pr-comment: #79c0ff;
 }
+
+/* ── Catppuccin (Latte) ──────────────────────────────
+   Light theme: full extended token set (cards, washes, chips) like the
+   Light block above — :root fallbacks are dark-tuned. Status colours are
+   darkened Latte hues so 12px labels clear 4.5:1 on card-selected. */
+html[data-theme="catppuccin-latte"] {
+  --bg-primary: #eff1f5;
+  --bg-secondary: #e6e9ef;
+  --bg-elevated: #ffffff;
+  --bg-hover: #dce0e8;
+  --bg-active: #ccd0da;
+
+  --text-primary: #4c4f69;
+  --text-secondary: #5c5f77;
+  --text-tertiary: #6c6f85;
+  --text-on-accent: #ffffff;
+
+  --border-default: #ccd0da;
+  --border-hover: #9ca0b0;
+  --border-focus: #8839ef;
+
+  --accent-primary: #8839ef;
+  --accent-secondary: #7326cf;
+  --accent-muted: rgba(136, 57, 239, 0.12);
+
+  --status-idle: #2c7420;
+  --status-busy: #8a5a06;
+  --status-waiting: #184fc9;
+  --status-error: #b3082f;
+
+  --diff-added: #2c7420;
+  --diff-removed: #b3082f;
+
+  --danger: #d20f39;
+  --danger-hover: #b3082f;
+  --danger-muted: rgba(210, 15, 57, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+
+  --search-match: rgba(223, 142, 29, 0.35);
+  --search-match-active: rgba(254, 100, 11, 0.5);
+
+  --bg-sidebar: #e6e9ef;
+  --bg-bar: #eaedf2;
+  --border-subtle: rgba(76, 79, 105, 0.09);
+  --color-pr-comment: #184fc9;
+
+  --card-bg: #f4f6fa;
+  --card-hover: #eff1f5;
+  --card-selected: #dde1e9;
+  --card-ring: rgba(76, 79, 105, 0.13);
+  --card-ring-selected: rgba(76, 79, 105, 0.3);
+  --surface-wash: rgba(76, 79, 105, 0.05);
+  --hover-wash: rgba(76, 79, 105, 0.05);
+  --group-rule: rgba(76, 79, 105, 0.14);
+
+  --accent-soft: #f4f6fa;
+  --accent-soft-hover: #eff1f5;
+  --accent-edge: rgba(76, 79, 105, 0.16);
+  --accent-edge-hover: rgba(76, 79, 105, 0.25);
+
+  --chip-violet-bg:    rgba(136, 57, 239, 0.10);
+  --chip-violet-text:  #8839ef;
+  --chip-teal-bg:      rgba(23, 146, 153, 0.10);
+  --chip-teal-text:    #128086;
+  --chip-fuchsia-bg:   rgba(234, 118, 203, 0.12);
+  --chip-fuchsia-text: #b0348c;
+  --chip-coral-bg:     rgba(230, 69, 83, 0.10);
+  --chip-coral-text:   #c22f3f;
+  --chip-ochre-bg:     rgba(254, 100, 11, 0.12);
+  --chip-ochre-text:   #9a4a04;
+  --chip-slate-bg:     rgba(108, 111, 133, 0.12);
+  --chip-slate-text:   #5c5f77;
+}
+
+/* ── Everforest (Light, medium) ──────────────────────
+   Same extended-set rules as Latte above. text-on-accent is dark: white
+   text fails on the chartreuse accent. */
+html[data-theme="everforest-light"] {
+  --bg-primary: #fdf6e3;
+  --bg-secondary: #f4f0d9;
+  --bg-elevated: #fffcf0;
+  --bg-hover: #efebd4;
+  --bg-active: #e6e2cc;
+
+  --text-primary: #5c6a72;
+  --text-secondary: #667b82;
+  --text-tertiary: #7d8f88;
+  --text-on-accent: #2d353b;
+
+  --border-default: #d0ccb6;
+  --border-hover: #a3ae9e;
+  --border-focus: #8da101;
+
+  --accent-primary: #8da101;
+  --accent-secondary: #7a8b00;
+  --accent-muted: rgba(141, 161, 1, 0.14);
+
+  --status-idle: #667a01;
+  --status-busy: #8f6700;
+  --status-waiting: #1f6c99;
+  --status-error: #c73a38;
+
+  --diff-added: #667a01;
+  --diff-removed: #c73a38;
+
+  --danger: #f85552;
+  --danger-hover: #e04846;
+  --danger-muted: rgba(248, 85, 82, 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+
+  --search-match: rgba(223, 160, 0, 0.35);
+  --search-match-active: rgba(245, 125, 38, 0.5);
+
+  --bg-sidebar: #f4f0d9;
+  --bg-bar: #f9f3de;
+  --border-subtle: rgba(92, 106, 114, 0.1);
+  --color-pr-comment: #1f6c99;
+
+  --card-bg: #fdf8e8;
+  --card-hover: #fffcf0;
+  --card-selected: #e6e2cc;
+  --card-ring: rgba(92, 106, 114, 0.15);
+  --card-ring-selected: rgba(92, 106, 114, 0.32);
+  --surface-wash: rgba(92, 106, 114, 0.05);
+  --hover-wash: rgba(92, 106, 114, 0.05);
+  --group-rule: rgba(92, 106, 114, 0.16);
+
+  --accent-soft: #fdf8e8;
+  --accent-soft-hover: #fffcf0;
+  --accent-edge: rgba(92, 106, 114, 0.18);
+  --accent-edge-hover: rgba(92, 106, 114, 0.28);
+
+  --chip-violet-bg:    rgba(223, 105, 186, 0.10);
+  --chip-violet-text:  #8f4a9e;
+  --chip-teal-bg:      rgba(53, 167, 124, 0.12);
+  --chip-teal-text:    #257e5d;
+  --chip-fuchsia-bg:   rgba(184, 50, 128, 0.10);
+  --chip-fuchsia-text: #b0468d;
+  --chip-coral-bg:     rgba(248, 85, 82, 0.10);
+  --chip-coral-text:   #c73a38;
+  --chip-ochre-bg:     rgba(223, 160, 0, 0.14);
+  --chip-ochre-text:   #8f6700;
+  --chip-slate-bg:     rgba(92, 106, 114, 0.12);
+  --chip-slate-text:   #5c6a72;
+}

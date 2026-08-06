@@ -1,8 +1,12 @@
 const themes = [
   { id: "warm-dark", name: "Warm Dark", bg: "#1a1918", fg: "#f5f2ef", accent: "#9333ea" },
   { id: "light", name: "Light", bg: "#fafaf9", fg: "#1c1917", accent: "#7c3aed" },
+  { id: "catppuccin-latte", name: "Catppuccin Latte", bg: "#eff1f5", fg: "#4c4f69", accent: "#8839ef" },
+  { id: "everforest-light", name: "Everforest Light", bg: "#fdf6e3", fg: "#5c6a72", accent: "#8da101" },
+  { id: "catppuccin", name: "Catppuccin Mocha", bg: "#1e1e2e", fg: "#cdd6f4", accent: "#cba6f7" },
+  { id: "gruvbox", name: "Gruvbox", bg: "#282828", fg: "#ebdbb2", accent: "#fe8019" },
+  { id: "github-dark", name: "GitHub Dark", bg: "#0d1117", fg: "#e6edf3", accent: "#58a6ff" },
   { id: "synthwave", name: "Synthwave '84", bg: "#1a1028", fg: "#f5f0ff", accent: "#ff2975" },
-  { id: "catppuccin", name: "Catppuccin", bg: "#1e1e2e", fg: "#cdd6f4", accent: "#cba6f7" },
   { id: "sunset", name: "Sunset Boulevard", bg: "#1f1520", fg: "#f5e6f0", accent: "#f472b6" },
   { id: "tokyo-night", name: "Tokyo Night", bg: "#1a1b26", fg: "#c0caf5", accent: "#7aa2f7" },
   { id: "solarized", name: "Solarized Dark", bg: "#002b36", fg: "#839496", accent: "#268bd2" },
