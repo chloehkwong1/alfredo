@@ -1,0 +1,45 @@
+src/components/sidebar/AgentItem.test.ts
+  s_5afefdd25efc40::t_e5571a9c84e543 3-4
+  s_5afefdd25efc40::t_76d51b7788bded 55-86
+  s_5afefdd25efc40::t_51cde6648c7cc2 87
+src/components/sidebar/StackGlyph.tsx
+  s_5afefdd25efc40::t_3dcf70ef33e422 4
+  s_5afefdd25efc40::t_5ecfe033f3bec0 62-103
+src/components/sidebar/StackMapPopover.tsx
+  s_5afefdd25efc40::t_ac5969196709ea 2,8,12-14
+  s_5afefdd25efc40::t_b48c5f13d356da 50-126,131-133,135-151
+src/components/sidebar/AgentItem.tsx
+  s_5afefdd25efc40::t_b4bf02ad16a77e 365-368
+  s_5afefdd25efc40::t_cf0978819704ab 37
+  s_5afefdd25efc40::t_09d944451496f4 1034-1037
+src/components/sidebar/ChangeBaseBranchDialog.tsx
+  s_5afefdd25efc40::t_b4b7d73ce25f5f 177-191
+src/types.ts
+  s_5afefdd25efc40::t_8804af7bb1e29e 177-205,221-222
+src/stores/prStore.test.ts
+  s_5afefdd25efc40::t_cb33873da124ba 17,20
+  s_5afefdd25efc40::t_63dcb21a8aab91 205-280
+src/stores/prStore.ts
+  s_5afefdd25efc40::t_e31b068d323109 42-45
+  s_5afefdd25efc40::t_2616f1ffa8d09d 80
+  s_5afefdd25efc40::t_5180451b43edd3 5
+  s_5afefdd25efc40::t_2e5a7cc566a29f 262
+  s_5afefdd25efc40::t_81e87933849da8 359,365-376
+  s_5afefdd25efc40::t_47d7cc6124a5b3 212-227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "2d18aa1b688271fd6eff79a154eaacb7424a4ac6",
+  "prompts": {},
+  "sessions": {
+    "s_5afefdd25efc40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd49f3cb-4d5d-4270-aa38-ff4ac71f17ea",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
