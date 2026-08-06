@@ -1,4 +1,5 @@
 import { createHighlighter, type BundledLanguage, type Highlighter, type ThemedToken } from "shiki";
+import { readCurrentThemeMode } from "../lib/themeMeta";
 
 let highlighterInstance: Highlighter | null = null;
 let highlighterPromise: Promise<Highlighter> | null = null;
@@ -22,7 +23,7 @@ export async function getHighlighter(): Promise<Highlighter> {
   if (highlighterPromise) return highlighterPromise;
 
   highlighterPromise = createHighlighter({
-    themes: ["github-dark-default"],
+    themes: ["github-dark-default", "github-light-default"],
     langs: [...SUPPORTED_LANGS],
   });
 
@@ -106,7 +107,9 @@ export async function tokenizeLine(
     return [{ content: code, offset: 0, color: undefined }];
   }
 
-  const cacheKey = `${lang}:${code}`;
+  const theme =
+    readCurrentThemeMode() === "light" ? "github-light-default" : "github-dark-default";
+  const cacheKey = `${theme}:${lang}:${code}`;
   const cached = tokenCache.get(cacheKey);
   if (cached) return cached;
 
@@ -118,7 +121,7 @@ export async function tokenizeLine(
     const highlighter = await getHighlighter();
     const tokens = highlighter.codeToTokensBase(code, {
       lang: lang as BundledLanguage,
-      theme: "github-dark-default",
+      theme,
     });
 
     const result = tokens[0] ?? [{ content: code, offset: 0, color: undefined }];
