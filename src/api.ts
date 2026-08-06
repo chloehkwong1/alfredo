@@ -132,6 +132,10 @@ export function deleteWorktree(
 export interface WorktreeDirtyState {
   untracked: string[];
   uncommitted: string[];
+  /** Gitignored paths that don't look regenerable (design mockups, plan docs,
+   *  local notes). Invisible to plain `git status`, so a worktree holding only
+   *  these reads as completely clean. Build output is filtered out backend-side. */
+  ignored: string[];
 }
 
 export function worktreeDirtyState(worktreePath: string): Promise<WorktreeDirtyState> {

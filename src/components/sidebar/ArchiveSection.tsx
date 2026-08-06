@@ -110,7 +110,9 @@ function ArchiveSection({ worktrees, onDelete, onDeleteAll, onUnarchive, deletin
         .map(async (wt) => {
           try {
             const d = await worktreeDirtyState(wt.path);
-            const count = d.untracked.length + d.uncommitted.length;
+            // Ignored files count here too — bulk delete is the easiest way to
+            // lose a gitignored mockup, since nothing about the row hints at it.
+            const count = d.untracked.length + d.uncommitted.length + d.ignored.length;
             return count > 0 ? { branch: wt.branch, count } : null;
           } catch {
             return null;

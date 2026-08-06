@@ -1053,20 +1053,94 @@ pub struct WorktreeDirtyState {
     pub untracked: Vec<String>,
     /// Tracked-but-uncommitted paths (modified/added/deleted, not yet committed).
     pub uncommitted: Vec<String>,
+    /// Gitignored paths (`!!`) that don't look regenerable — design mockups,
+    /// plan docs, local notes. Build output and dependency caches are filtered
+    /// out by `is_regenerable`, otherwise this list is all noise.
+    pub ignored: Vec<String>,
 }
 
-/// Classify a worktree's working tree into untracked vs tracked-uncommitted
-/// paths via `git status --porcelain`. Ignored files (`!!`) are intentionally
-/// excluded — only real, would-be-lost work is reported. Returns an empty state
-/// (rather than erroring) when the path isn't a git worktree, so the delete
-/// confirm degrades to its plain form instead of blocking deletion.
+/// True for gitignored paths a rebuild would recreate, so they don't belong in
+/// a "you are about to lose this" warning.
+///
+/// Deliberately biased towards *showing* a path: a wrong filter re-creates the
+/// silent data loss this whole warning exists to prevent, while a missed filter
+/// only costs one more line in the confirm. So generic names (`build`, `out`,
+/// `gen`) only count at the repo root or under a known nested prefix — never as
+/// a bare segment anywhere, which would swallow `designs/out/mockup.html`.
+fn is_regenerable(path: &str) -> bool {
+    /// Unmistakably machine-generated wherever they appear in the tree.
+    const CACHE_SEGMENTS: &[&str] = &[
+        "node_modules",
+        "__pycache__",
+        ".yarn",
+        ".pnpm-store",
+        ".bundle",
+        ".venv",
+        ".gradle",
+        ".ruby-lsp",
+        ".memsearch",
+        ".playwright-cli",
+        ".turbo",
+        ".parcel-cache",
+        ".vite",
+        ".next",
+        ".nuxt",
+        ".svelte-kit",
+        ".husky",
+        "coverage",
+        ".DS_Store",
+    ];
+    /// Generic enough to also name real work — only filtered at the repo root.
+    const ROOT_ONLY: &[&str] = &[
+        "target", "dist", "build", "out", "tmp", "log", "logs", "storage", "vendor",
+    ];
+    /// Framework-specific build output that lives below the root.
+    const NESTED_PREFIXES: &[&str] = &[
+        "app/assets/builds/",
+        "public/assets/",
+        "public/packs/",
+        "public/packs-test/",
+        "src-tauri/gen/",
+        "src-tauri/target/",
+        "vendor/bundle/",
+    ];
+
+    let trimmed = path.trim_start_matches("./");
+    if NESTED_PREFIXES.iter().any(|p| trimmed.starts_with(p)) {
+        return true;
+    }
+    let mut segments = trimmed.split('/').filter(|s| !s.is_empty());
+    let Some(first) = segments.next() else {
+        return false;
+    };
+    if ROOT_ONLY.contains(&first) {
+        return true;
+    }
+    std::iter::once(first)
+        .chain(segments)
+        .any(|segment| CACHE_SEGMENTS.contains(&segment))
+}
+
+/// Classify a worktree's working tree into untracked, tracked-uncommitted and
+/// gitignored paths via `git status --porcelain --ignored`. Returns an empty
+/// state (rather than erroring) when the path isn't a git worktree, so the
+/// delete confirm degrades to its plain form instead of blocking deletion.
 pub async fn worktree_dirty_state(worktree_path: &str) -> Result<WorktreeDirtyState, AppError> {
     // `core.quotepath=false` keeps non-ASCII filenames readable (git otherwise
     // C-escapes them). A missing/unreadable worktree dir makes the spawn or the
     // command fail — treat either as "nothing to warn about" so the delete
     // confirm still works (honouring the empty-state contract above).
+    //
+    // `--ignored` (directory-collapsed, not `=matching`) keeps the list short:
+    // one `node_modules/` entry instead of 40k files.
     let output = match git_command()
-        .args(["-c", "core.quotepath=false", "status", "--porcelain"])
+        .args([
+            "-c",
+            "core.quotepath=false",
+            "status",
+            "--porcelain",
+            "--ignored",
+        ])
         .current_dir(worktree_path)
         .output()
         .await
@@ -1085,7 +1159,11 @@ pub async fn worktree_dirty_state(worktree_path: &str) -> Result<WorktreeDirtySt
         // Renames/copies render as "old -> new"; keep the current (new) path so
         // the warning lists the file that actually exists.
         let path = rest.rsplit(" -> ").next().unwrap_or(rest).trim().to_string();
-        if code.starts_with("??") {
+        if code.starts_with("!!") {
+            if !is_regenerable(&path) {
+                state.ignored.push(path);
+            }
+        } else if code.starts_with("??") {
             state.untracked.push(path);
         } else {
             state.uncommitted.push(path);
@@ -2402,6 +2480,101 @@ mod tests {
             state.uncommitted.iter().any(|p| p == "tracked.txt"),
             "uncommitted should include the edited tracked file, got {:?}",
             state.uncommitted,
+        );
+    }
+
+    /// The gap that let a "clean" worktree take design/plan files with it: a
+    /// gitignored file is invisible to plain `git status`, so the confirm
+    /// reported nothing while `remove_dir_all` wiped it.
+    #[tokio::test]
+    async fn worktree_dirty_state_reports_ignored_files() {
+        let dir = init_test_repo();
+        let path = dir.path();
+        let path_str = path.to_str().expect("temp dir path is valid UTF-8");
+
+        let git = |args: &[&str]| {
+            StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(path)
+                .output()
+                .expect("git command")
+        };
+
+        std::fs::write(path.join(".gitignore"), "designs/\n").expect("write gitignore");
+        git(&["add", "."]);
+        git(&["commit", "-m", "init"]);
+
+        // The real case: a mockup that only exists in this worktree.
+        std::fs::create_dir_all(path.join("designs")).expect("mkdir designs");
+        std::fs::write(path.join("designs/queue.html"), "<h1>mock</h1>\n").expect("write mockup");
+
+        let state = worktree_dirty_state(path_str).await.expect("dirty state");
+        assert!(
+            state.ignored.iter().any(|p| p.contains("designs")),
+            "ignored should include the gitignored mockup, got {:?}",
+            state.ignored,
+        );
+        assert!(
+            state.untracked.is_empty(),
+            "an ignored file must not be double-reported as untracked, got {:?}",
+            state.untracked,
+        );
+    }
+
+    /// Without filtering, `--ignored` buries the two files that matter under
+    /// dependency and build output — this repo alone reports 77 entries, which
+    /// trains people to click straight through the confirm.
+    #[tokio::test]
+    async fn worktree_dirty_state_omits_regenerable_ignored_paths() {
+        let dir = init_test_repo();
+        let path = dir.path();
+        let path_str = path.to_str().expect("temp dir path is valid UTF-8");
+
+        let git = |args: &[&str]| {
+            StdCommand::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@test.com"])
+                .args(args)
+                .current_dir(path)
+                .output()
+                .expect("git command")
+        };
+
+        std::fs::write(
+            path.join(".gitignore"),
+            "node_modules/\ntarget/\nsrc-tauri/target/\ndesigns/\n",
+        )
+        .expect("write gitignore");
+        // A tracked file under src-tauri/ stops git collapsing the whole
+        // directory into one `src-tauri/` entry — mirroring the real repo,
+        // where the reported path is `src-tauri/target/`.
+        std::fs::create_dir_all(path.join("src-tauri")).expect("mkdir src-tauri");
+        std::fs::write(path.join("src-tauri/Cargo.toml"), "[package]\n").expect("write manifest");
+        git(&["add", "."]);
+        git(&["commit", "-m", "init"]);
+
+        // `src-tauri/target` is the 5GB case: Rust build output that isn't at
+        // the repo root, so a root-only rule misses it.
+        for dir_name in ["node_modules", "target", "src-tauri/target"] {
+            std::fs::create_dir_all(path.join(dir_name)).expect("mkdir");
+            std::fs::write(path.join(dir_name).join("f.txt"), "x\n").expect("write");
+        }
+        std::fs::create_dir_all(path.join("designs")).expect("mkdir designs");
+        std::fs::write(path.join("designs/queue.html"), "<h1>mock</h1>\n").expect("write mockup");
+
+        let state = worktree_dirty_state(path_str).await.expect("dirty state");
+        assert!(
+            state.ignored.iter().any(|p| p.contains("designs")),
+            "the mockup must survive filtering, got {:?}",
+            state.ignored,
+        );
+        assert!(
+            !state
+                .ignored
+                .iter()
+                .any(|p| p.contains("node_modules") || p.contains("target")),
+            "dependency and build output must be filtered out, got {:?}",
+            state.ignored,
         );
     }
 
