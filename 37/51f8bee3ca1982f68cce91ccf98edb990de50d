@@ -1,0 +1,26 @@
+src/services/dockBadge.test.ts
+  s_976c2d425e50e3::t_ff2e433397529c 2
+  s_976c2d425e50e3::t_9d38130f65343b 109-130
+src/components/sidebar/StatusGroup.tsx
+  s_976c2d425e50e3::t_e30efb83b13851 170-177
+  s_976c2d425e50e3::t_e168b54e989fdb 104-110
+  s_976c2d425e50e3::t_25f09a15aa71f1 17-18
+src/services/dockBadge.ts
+  s_976c2d425e50e3::t_d243129d56eb62 14-34,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "3751f8bee3ca1982f68cce91ccf98edb990de50d",
+  "prompts": {},
+  "sessions": {
+    "s_976c2d425e50e3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9c7f2c9-1e92-4852-95ca-708df4ded440",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
