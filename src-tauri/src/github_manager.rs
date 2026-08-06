@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::bounded_lru::BoundedLru;
 use crate::platform::gh_command;
-use crate::types::{AppError, CheckRun, KanbanColumn, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
+use crate::types::{AppError, CheckRun, KanbanColumn, NativeStackInfo, NativeStackMember, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
 // LOCK ORDER: when both module-level caches need to be touched in the same
 // call, always acquire `token_cache` first and release it before acquiring
@@ -64,7 +64,97 @@ fn pr_status_from_octocrab(pr: octocrab::models::pulls::PullRequest) -> PrStatus
             .iter()
             .map(|r| r.login.clone())
             .collect(),
+        // REST carries no stack fields; stamped later from the GraphQL
+        // native-stack query in `poll_repo`.
+        native_stack: None,
     }
+}
+
+/// Warn once per process when native-stack detection fails. The stackEntry
+/// GraphQL field is an undocumented public-preview API — failures are
+/// expected (schema drift, preview withdrawal) and must never break PR sync,
+/// so we log a single line instead of spamming every 60s poll.
+fn warn_native_stack_once(context: &str) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static WARNED: AtomicBool = AtomicBool::new(false);
+    if !WARNED.swap(true, Ordering::Relaxed) {
+        eprintln!("[github] native-stack detection unavailable (preview API): {context}");
+    }
+}
+
+/// Parse the GraphQL response of the native-stack query into a map of
+/// PR number → stack membership. Every parse step is fail-open: a node
+/// missing any required field is skipped, a `null` stackEntry means the PR
+/// is not in a stack, and an unexpected response shape yields an empty map.
+fn parse_native_stack_response(response: &serde_json::Value) -> HashMap<u64, NativeStackInfo> {
+    let mut result = HashMap::new();
+    let Some(nodes) = response
+        .pointer("/data/repository/pullRequests/nodes")
+        .and_then(serde_json::Value::as_array)
+    else {
+        return result;
+    };
+
+    // Group members by stack id, remembering each stack's number + size.
+    let mut rosters: HashMap<String, (u64, u32, Vec<NativeStackMember>)> = HashMap::new();
+    for node in nodes {
+        let Some(entry) = node.get("stackEntry").filter(|e| !e.is_null()) else {
+            continue; // not in a stack
+        };
+        let (Some(number), Some(position)) = (
+            node.get("number").and_then(serde_json::Value::as_u64),
+            entry.get("position").and_then(serde_json::Value::as_u64),
+        ) else {
+            continue;
+        };
+        let Some(stack) = entry.get("stack").filter(|s| !s.is_null()) else {
+            continue;
+        };
+        let (Some(stack_id), Some(stack_number), Some(stack_size)) = (
+            stack.get("id").and_then(serde_json::Value::as_str),
+            stack.get("number").and_then(serde_json::Value::as_u64),
+            stack.get("size").and_then(serde_json::Value::as_u64),
+        ) else {
+            continue;
+        };
+
+        let as_string = |key: &str| {
+            node.get(key)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        let member = NativeStackMember {
+            number,
+            title: as_string("title"),
+            branch: as_string("headRefName"),
+            state: as_string("state"),
+            url: as_string("url"),
+            position: position as u32,
+        };
+        rosters
+            .entry(stack_id.to_string())
+            .or_insert_with(|| (stack_number, stack_size as u32, Vec::new()))
+            .2
+            .push(member);
+    }
+
+    for (stack_id, (stack_number, size, mut members)) in rosters {
+        members.sort_by_key(|m| m.position);
+        for member in &members {
+            result.insert(
+                member.number,
+                NativeStackInfo {
+                    id: stack_id.clone(),
+                    number: stack_number,
+                    position: member.position,
+                    size,
+                    members: members.clone(),
+                },
+            );
+        }
+    }
+    result
 }
 
 /// Deduplicate reviews: keep only the latest review per reviewer.
@@ -635,6 +725,69 @@ impl GithubManager {
         }
     }
 
+    /// Fetch native GitHub Stack membership for all open PRs in a repo
+    /// (public preview, via the undocumented `stackEntry` GraphQL field —
+    /// absent from REST and `gh pr view --json`). Returns PR number →
+    /// stack info; PRs not in a stack are absent from the map.
+    ///
+    /// Fail-soft by design: any transport, GraphQL, or parse error returns
+    /// an empty map (with a once-per-process warning) so a preview-API
+    /// schema change can never break PR sync.
+    pub async fn fetch_native_stack_entries(
+        &self,
+        owner: &str,
+        repo: &str,
+    ) -> HashMap<u64, NativeStackInfo> {
+        let query = format!(
+            r#"{{
+  repository(owner: "{owner}", name: "{repo}") {{
+    pullRequests(states: [OPEN], first: 100) {{
+      nodes {{
+        number
+        title
+        headRefName
+        state
+        url
+        stackEntry {{
+          position
+          stack {{ id number size }}
+        }}
+      }}
+    }}
+  }}
+}}"#
+        );
+
+        let body = serde_json::json!({ "query": query });
+        let request = async {
+            self.http_client
+                .post("https://api.github.com/graphql")
+                .header("Authorization", format!("Bearer {}", self.token()))
+                .header("User-Agent", "alfredo")
+                .json(&body)
+                .send()
+                .await?
+                .json::<serde_json::Value>()
+                .await
+        };
+        let response = match request.await {
+            Ok(v) => v,
+            Err(e) => {
+                warn_native_stack_once(&format!("request failed for {owner}/{repo}: {e}"));
+                return HashMap::new();
+            }
+        };
+
+        if response.pointer("/data/repository/pullRequests/nodes").is_none() {
+            let errors = response
+                .get("errors")
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "no data in response".to_string());
+            warn_native_stack_once(&format!("unexpected GraphQL response for {owner}/{repo}: {errors}"));
+        }
+        parse_native_stack_response(&response)
+    }
+
     /// Fetch general (non-line-level) comments on a PR.
     pub async fn get_pr_issue_comments(
         &self,
@@ -1155,14 +1308,29 @@ fn latest_decisive_states(reviews: &[PrReview]) -> Vec<&str> {
     latest.into_values().map(|r| r.state.as_str()).collect()
 }
 
+/// The given user's most recent decisive review state ("approved",
+/// "changes_requested", or "dismissed"), if they have one. Comparison is
+/// case-insensitive — GitHub logins are.
+fn my_latest_decisive_state<'a>(reviews: &'a [PrReview], user: &str) -> Option<&'a str> {
+    reviews
+        .iter()
+        .filter(|r| r.reviewer.eq_ignore_ascii_case(user))
+        .filter(|r| matches!(r.state.as_str(), "approved" | "changes_requested" | "dismissed"))
+        .max_by(|a, b| a.submitted_at.cmp(&b.submitted_at))
+        .map(|r| r.state.as_str())
+}
+
 /// Determine the kanban column for a worktree based on its PR status.
 ///
 /// When `github_username` is provided, open (non-draft) PRs are split into
 /// "In Review" (user is the author) vs "Needs Review" (someone else's PR).
-/// Others' PRs resolve to "Done" when any reviewer has an active approving
-/// review and no reviewer has an outstanding `changes_requested`. A dismissed
-/// approval flips back to "Needs Review" since the latest-decisive state for
-/// that reviewer is no longer "approved".
+/// My involvement takes precedence over the aggregate review state: an open
+/// request for my review parks the card in Needs Review (a re-request after my
+/// approval pulls it back), and my own approval — not just anyone's — moves it
+/// to Done. PRs I was never asked to review keep the aggregate behaviour:
+/// resolve to "Done" when any reviewer has an active approving review and no
+/// reviewer has an outstanding `changes_requested`. A dismissed approval flips
+/// back to "Needs Review" since the latest-decisive state is no longer "approved".
 ///
 /// `reviews` should be the raw review list (not pre-deduplicated) so the
 /// most-recent-decisive review can be identified. When called before reviews
@@ -1185,6 +1353,19 @@ pub fn determine_column(
             };
             if is_own_pr {
                 return KanbanColumn::OpenPr;
+            }
+            // My involvement takes precedence over the aggregate review
+            // state: an open request for my review parks the card in Needs
+            // Review (a re-request after my approval pulls it back), and my
+            // own approval — not just anyone's — moves it to Done. PRs I was
+            // never asked to review keep the aggregate behaviour below.
+            if let Some(user) = github_username {
+                if pr.requested_reviewers.iter().any(|r| r.eq_ignore_ascii_case(user)) {
+                    return KanbanColumn::NeedsReview;
+                }
+                if my_latest_decisive_state(reviews, user) == Some("approved") {
+                    return KanbanColumn::Done;
+                }
             }
             let states = latest_decisive_states(reviews);
             if states.contains(&"changes_requested") {
@@ -1248,6 +1429,7 @@ mod tests {
             updated_at: None,
             author: Some("chloe".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::DraftPr);
     }
@@ -1270,6 +1452,7 @@ mod tests {
             updated_at: None,
             author: Some("chloe".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::OpenPr);
     }
@@ -1292,6 +1475,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::NeedsReview);
     }
@@ -1314,6 +1498,7 @@ mod tests {
             updated_at: None,
             author: Some("anyone".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         assert_eq!(determine_column(Some(&pr), None, &[]), KanbanColumn::OpenPr);
     }
@@ -1336,6 +1521,7 @@ mod tests {
             updated_at: None,
             author: Some("chloe".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::Done);
     }
@@ -1358,6 +1544,7 @@ mod tests {
             updated_at: None,
             author: Some("chloe".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::Done);
     }
@@ -1380,6 +1567,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec![], // GitHub auto-removes me after I review
+            native_stack: None,
         };
         let reviews = vec![PrReview {
             reviewer: "chloe".into(),
@@ -1392,11 +1580,9 @@ mod tests {
 
     #[test]
     fn test_determine_column_others_pr_approved_with_pending_individual_request() {
-        // Edge case: user approved on behalf of a team but their individual
-        // review request remains in `requested_reviewers`. Under the current
-        // rule (any active approval → Done), a stray pending request does not
-        // override an existing approval. Re-requests flip back only via
-        // dismissal of the prior approval.
+        // A pending individual request for MY review always parks the card in
+        // Needs Review — a re-request after my approval pulls it back. (Spec:
+        // 2026-08-06-review-requests-design.md, "Column semantics fix".)
         let pr = PrStatus {
             number: 1,
             state: "open".into(),
@@ -1413,6 +1599,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec!["chloe".into()],
+            native_stack: None,
         };
         let reviews = vec![PrReview {
             reviewer: "chloe".into(),
@@ -1420,13 +1607,13 @@ mod tests {
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
         }];
-        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
     }
 
     #[test]
     fn test_determine_column_others_pr_approved_by_someone_else() {
-        // Any approving review moves the PR to Done, not just the current
-        // user's. This matches GitHub's overall reviewDecision semantics.
+        // When I'm in requested_reviewers, my pending request takes precedence:
+        // the PR stays in Needs Review even if someone else has approved it.
         let pr = PrStatus {
             number: 1,
             state: "open".into(),
@@ -1443,6 +1630,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec!["chloe".into()],
+            native_stack: None,
         };
         let reviews = vec![PrReview {
             reviewer: "another-reviewer".into(),
@@ -1450,7 +1638,7 @@ mod tests {
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
         }];
-        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
     }
 
     #[test]
@@ -1473,6 +1661,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let reviews = vec![
             PrReview {
@@ -1509,6 +1698,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let reviews = vec![PrReview {
             reviewer: "chloe".into(),
@@ -1540,6 +1730,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let reviews = vec![
             PrReview {
@@ -1578,6 +1769,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let reviews = vec![
             PrReview {
@@ -1617,6 +1809,7 @@ mod tests {
             updated_at: None,
             author: Some("chloe".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let reviews = vec![PrReview {
             reviewer: "chloe".into(),
@@ -1647,6 +1840,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let reviews = vec![PrReview {
             reviewer: "alice".into(),
@@ -1655,6 +1849,115 @@ mod tests {
             body: None,
         }];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
+    }
+
+    #[test]
+    fn test_determine_column_requested_reviewer_parks_in_needs_review() {
+        // I'm in requested_reviewers and haven't reviewed → Needs Review,
+        // regardless of what other reviewers have done.
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec!["Chloe".into()], // case differs on purpose
+            native_stack: None,
+        };
+        let reviews = vec![PrReview {
+            reviewer: "another-reviewer".into(),
+            state: "approved".into(),
+            submitted_at: Some("2026-05-07T10:00:00Z".into()),
+            body: None,
+        }];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
+    }
+
+    #[test]
+    fn test_determine_column_my_approval_beats_others_changes_requested() {
+        // Once I've approved (and I'm no longer requested), the PR is off my
+        // plate → Done, even if another reviewer has changes_requested open.
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec![],
+            native_stack: None,
+        };
+        let reviews = vec![
+            PrReview {
+                reviewer: "chloe".into(),
+                state: "approved".into(),
+                submitted_at: Some("2026-05-07T10:00:00Z".into()),
+                body: None,
+            },
+            PrReview {
+                reviewer: "another-reviewer".into(),
+                state: "changes_requested".into(),
+                submitted_at: Some("2026-05-07T11:00:00Z".into()),
+                body: None,
+            },
+        ];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
+    }
+
+    #[test]
+    fn test_determine_column_my_dismissed_approval_is_not_done() {
+        // My approval was dismissed → my latest decisive state is "dismissed",
+        // not "approved" → falls through; no other reviews → Needs Review.
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: false,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec![],
+            native_stack: None,
+        };
+        let reviews = vec![
+            PrReview {
+                reviewer: "chloe".into(),
+                state: "approved".into(),
+                submitted_at: Some("2026-05-07T10:00:00Z".into()),
+                body: None,
+            },
+            PrReview {
+                reviewer: "chloe".into(),
+                state: "dismissed".into(),
+                submitted_at: Some("2026-05-07T12:00:00Z".into()),
+                body: None,
+            },
+        ];
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
     }
 
     // --- dedup_reviews tests ---
@@ -1766,6 +2069,104 @@ mod tests {
     #[test]
     fn test_parse_github_timestamp_invalid() {
         assert_eq!(parse_github_timestamp("not-a-date"), 0);
+    }
+
+    // --- parse_native_stack_response tests ---
+
+    fn stack_node(
+        number: u64,
+        branch: &str,
+        position: u64,
+        stack_id: &str,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "number": number,
+            "title": format!("PR #{number}"),
+            "headRefName": branch,
+            "state": "OPEN",
+            "url": format!("https://github.com/o/r/pull/{number}"),
+            "stackEntry": {
+                "position": position,
+                "stack": { "id": stack_id, "number": 7, "size": 2 }
+            }
+        })
+    }
+
+    fn wrap_nodes(nodes: Vec<serde_json::Value>) -> serde_json::Value {
+        serde_json::json!({
+            "data": { "repository": { "pullRequests": { "nodes": nodes } } }
+        })
+    }
+
+    #[test]
+    fn test_parse_native_stack_member_with_ordered_roster() {
+        // Response order is position-descending; roster must come back sorted.
+        let response = wrap_nodes(vec![
+            stack_node(12, "feat/layer-2", 2, "ST_abc"),
+            stack_node(11, "feat/layer-1", 1, "ST_abc"),
+        ]);
+        let map = parse_native_stack_response(&response);
+        assert_eq!(map.len(), 2);
+
+        let info = map.get(&11).unwrap();
+        assert_eq!(info.id, "ST_abc");
+        assert_eq!(info.number, 7);
+        assert_eq!(info.position, 1);
+        assert_eq!(info.size, 2);
+        let roster: Vec<(u64, u32)> = info.members.iter().map(|m| (m.number, m.position)).collect();
+        assert_eq!(roster, vec![(11, 1), (12, 2)]);
+        assert_eq!(info.members[0].branch, "feat/layer-1");
+        assert_eq!(info.members[0].title, "PR #11");
+        assert_eq!(info.members[0].state, "OPEN");
+        assert_eq!(info.members[0].url, "https://github.com/o/r/pull/11");
+
+        // Every member's entry carries the same full roster, with its own position.
+        let upper = map.get(&12).unwrap();
+        assert_eq!(upper.position, 2);
+        assert_eq!(upper.members, info.members);
+    }
+
+    #[test]
+    fn test_parse_native_stack_null_entry_absent() {
+        let response = wrap_nodes(vec![
+            serde_json::json!({
+                "number": 40,
+                "title": "Solo PR",
+                "headRefName": "feat/solo",
+                "state": "OPEN",
+                "url": "https://github.com/o/r/pull/40",
+                "stackEntry": null
+            }),
+            stack_node(11, "feat/layer-1", 1, "ST_abc"),
+        ]);
+        let map = parse_native_stack_response(&response);
+        assert!(!map.contains_key(&40));
+        assert!(map.contains_key(&11));
+    }
+
+    #[test]
+    fn test_parse_native_stack_errors_only_response() {
+        let response = serde_json::json!({
+            "errors": [{ "message": "Field 'stackEntry' doesn't exist on type 'PullRequest'" }]
+        });
+        assert!(parse_native_stack_response(&response).is_empty());
+    }
+
+    #[test]
+    fn test_parse_native_stack_missing_field_skips_node() {
+        // stack object lost its `id` (schema drift) → node skipped, fail-open.
+        let response = wrap_nodes(vec![serde_json::json!({
+            "number": 11,
+            "title": "PR #11",
+            "headRefName": "feat/layer-1",
+            "state": "OPEN",
+            "url": "https://github.com/o/r/pull/11",
+            "stackEntry": {
+                "position": 1,
+                "stack": { "number": 7, "size": 2 }
+            }
+        })]);
+        assert!(parse_native_stack_response(&response).is_empty());
     }
 
     // --- parse_workflow_logs tests ---
