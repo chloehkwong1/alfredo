@@ -406,6 +406,49 @@ pub async fn dump_pty_buffer(
     })
 }
 
+/// Rename a worktree's persisted session artifacts — the session blob and the
+/// resume-id sidecar — from one worktree id to another. Absent files are fine:
+/// a worktree that never spawned an agent has nothing to move.
+async fn migrate_session_files_in(
+    dir: &std::path::Path,
+    old_id: &str,
+    new_id: &str,
+) -> Result<()> {
+    let blob = |id: &str| dir.join(format!("{}.json", sanitise_id(id)));
+    for (from, to) in [
+        (blob(old_id), blob(new_id)),
+        (resume_sidecar_path(dir, old_id), resume_sidecar_path(dir, new_id)),
+    ] {
+        match tokio::fs::rename(&from, &to).await {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Ok(())
+}
+
+/// A branch switch re-ids a worktree (`{repo}::{branch}`); the frontend rekeys
+/// its in-memory stores and calls this so the on-disk session blob and resume
+/// sidecar follow. Without it, a Force Quit before the next 30s autosave
+/// leaves nothing under the new id and restore comes up empty.
+#[tauri::command]
+pub async fn migrate_session_files(
+    app: tauri::AppHandle,
+    lock: tauri::State<'_, ResumeSidecarLock>,
+    repo_path: String,
+    old_worktree_id: String,
+    new_worktree_id: String,
+) -> Result<()> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("no app data dir: {e}")))?;
+    let dir = sessions_dir(&app_data_dir, &repo_path);
+    // Hold the sidecar lock so a discovery tick can't write the old-id sidecar
+    // between the rename pair.
+    let _guard = lock.0.lock().await;
+    migrate_session_files_in(&dir, &old_worktree_id, &new_worktree_id).await
+}
+
 #[tauri::command]
 pub async fn delete_session_file(
     app: tauri::AppHandle,
@@ -432,8 +475,49 @@ pub async fn delete_session_file(
 
 #[cfg(test)]
 mod tests {
-    use super::{latest_session, read_resume_map, resume_sidecar_path, scan_sessions_in, upsert_resume_id};
+    use super::{
+        latest_session, migrate_session_files_in, read_resume_map, resume_sidecar_path,
+        sanitise_id, scan_sessions_in, upsert_resume_id,
+    };
     use std::time::{Duration, SystemTime};
+
+    /// A branch switch re-ids a worktree; the persisted blob and resume
+    /// sidecar must follow, or a Force Quit before the next autosave restores
+    /// nothing under the new id (the loss 2dd89449's eager sidecar closed).
+    #[tokio::test]
+    async fn migrate_session_files_moves_blob_and_sidecar() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let old_id = "/repo::feature-1";
+        let new_id = "/repo::feature-2";
+
+        tokio::fs::write(dir.join(format!("{}.json", sanitise_id(old_id))), "{\"tabs\":[]}")
+            .await
+            .unwrap();
+        upsert_resume_id(dir, old_id, "tab-1", "sess-1").await.unwrap();
+
+        migrate_session_files_in(dir, old_id, new_id).await.unwrap();
+
+        let blob = tokio::fs::read_to_string(dir.join(format!("{}.json", sanitise_id(new_id))))
+            .await
+            .unwrap();
+        assert_eq!(blob, "{\"tabs\":[]}");
+        let map = read_resume_map(&resume_sidecar_path(dir, new_id)).await.unwrap();
+        assert_eq!(map.get("tab-1").map(String::as_str), Some("sess-1"));
+        // Nothing left under the dead id for a future same-id worktree to inherit.
+        assert!(!dir.join(format!("{}.json", sanitise_id(old_id))).exists());
+        assert!(!resume_sidecar_path(dir, old_id).exists());
+    }
+
+    /// A worktree that never spawned an agent has no files — migration must be
+    /// a no-op, not an error, or every rekey of a fresh worktree fails.
+    #[tokio::test]
+    async fn migrate_session_files_tolerates_missing_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        migrate_session_files_in(tmp.path(), "/repo::a", "/repo::b")
+            .await
+            .unwrap();
+    }
 
     #[tokio::test]
     async fn resume_sidecar_missing_reads_empty() {

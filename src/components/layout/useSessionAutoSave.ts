@@ -153,6 +153,22 @@ export function useSessionAutoSave(repoPath: string | null, hasWorktrees: boolea
     };
   }, [repoPath, hasWorktrees]);
 
+  // Save immediately after a branch switch re-ids a worktree (event fired by
+  // workspaceStore's rekey). The migrated blob still holds pre-switch state,
+  // and a Force Quit inside the normal 30s autosave window would restore it
+  // under the new id with the old branch's tab ids.
+  useEffect(() => {
+    if (!repoPath || !hasWorktrees) return;
+
+    const handleRekey = () => {
+      collectAndSaveAllSessionsOnce().catch((e) =>
+        console.error(`${LOG_PREFIX} session save after rekey failed:`, e),
+      );
+    };
+    window.addEventListener("worktree-rekeyed", handleRekey);
+    return () => window.removeEventListener("worktree-rekeyed", handleRekey);
+  }, [repoPath, hasWorktrees]);
+
   // Save on page refresh — beforeunload fires on Cmd+R but onCloseRequested
   // does not, so without this handler session data can be up to 30s stale.
   // Best-effort: the browser may not wait for async IPC to complete.

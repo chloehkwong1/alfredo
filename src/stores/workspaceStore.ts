@@ -3,6 +3,7 @@ import { useTabStore } from "./tabStore";
 import { useLayoutStore } from "./layoutStore";
 import { usePrStore } from "./prStore";
 import { rekeyRecord, rekeySet, type WorktreeRekey } from "./rekeyWorktreeId";
+import { migrateSessionFiles } from "../api";
 import type {
   Annotation,
   DiffViewMode,
@@ -177,7 +178,7 @@ function detectRekeys(fresh: Worktree[], existing: Worktree[]): WorktreeRekey[] 
   return fresh.flatMap((wt) => {
     const prev = lookup(wt);
     if (!prev || prev.id === wt.id) return [];
-    return [{ oldId: prev.id, newId: wt.id }];
+    return [{ oldId: prev.id, newId: wt.id, repoPath: wt.repoPath }];
   });
 }
 
@@ -216,10 +217,22 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
 
 /** Tabs, panes and PR data live in sibling stores and must follow the same ids. */
 function rekeySiblingStores(rekeys: WorktreeRekey[]) {
-  for (const { oldId, newId } of rekeys) {
+  for (const { oldId, newId, repoPath } of rekeys) {
     useTabStore.getState().rekeyWorktree(oldId, newId);
     useLayoutStore.getState().rekeyWorktree(oldId, newId);
     usePrStore.getState().rekeyWorktree(oldId, newId);
+    // The persisted session blob and resume sidecar are keyed by the same id
+    // on disk. Rename them now — a Force Quit before the next 30s autosave
+    // would otherwise restore nothing under the new id.
+    migrateSessionFiles(repoPath, oldId, newId).catch((e) =>
+      console.warn(`[workspaceStore] session-file migration failed for ${oldId} → ${newId}:`, e),
+    );
+  }
+  if (rekeys.length > 0) {
+    // Ask useSessionAutoSave for an immediate save pass (same window-event
+    // pattern as `config-changed`): the renamed blob still holds pre-switch
+    // state, and 30s is a wide crash window to leave it stale.
+    window.dispatchEvent(new CustomEvent("worktree-rekeyed"));
   }
 }
 

@@ -427,6 +427,7 @@ pub fn run() {
             session::save_session_file,
             session::load_session_file,
             session::delete_session_file,
+            session::migrate_session_files,
             session::record_resume_session_id,
             session::load_resume_session_ids,
             session::find_claude_session,

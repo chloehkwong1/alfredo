@@ -623,6 +623,16 @@ export function loadResumeSessionIds(
   return invoke("load_resume_session_ids", { repoPath, worktreeId });
 }
 
+/** Rename a worktree's persisted session blob + resume sidecar to a new
+ *  worktree id after a branch switch re-ids it. Missing files are a no-op. */
+export function migrateSessionFiles(
+  repoPath: string,
+  oldWorktreeId: string,
+  newWorktreeId: string,
+): Promise<void> {
+  return invoke("migrate_session_files", { repoPath, oldWorktreeId, newWorktreeId });
+}
+
 export function deleteSessionFile(
   repoPath: string,
   worktreeId: string,

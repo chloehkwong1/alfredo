@@ -32,4 +32,6 @@ export function rekeySet(set: Set<string>, oldId: string, newId: string): Set<st
 export interface WorktreeRekey {
   oldId: string;
   newId: string;
+  /** Needed to locate the on-disk session files that must follow the id. */
+  repoPath: string;
 }
