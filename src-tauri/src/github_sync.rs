@@ -6,7 +6,7 @@ use tokio::time;
 use crate::config_manager;
 use crate::github_manager::{dedup_reviews, derive_review_decision, determine_column, GithubManager};
 use crate::platform::gh_command;
-use crate::types::{PrStatus, CheckRun, PrReview, PrComment, KanbanColumn};
+use crate::types::{PrStatus, CheckRun, NativeStackInfo, PrReview, PrComment, KanbanColumn};
 
 /// Window during which a just-merged PR is still worth enriching (reviews, checks,
 /// comments). Covers the common case of a cubic/human reviewer leaving a comment
@@ -117,6 +117,11 @@ pub struct PrStatusWithColumn {
     pub requested_reviewers: Vec<String>,
     /// The base (target) branch for this PR (e.g. "develop", "main").
     pub base_branch: Option<String>,
+    /// Native GitHub Stack membership (public preview). `Some` means this PR
+    /// belongs to a server-side stack: Alfredo's override-driven automation
+    /// stands down and overrides become display-only for this branch. Carries
+    /// the full sibling roster since siblings usually have no local worktree.
+    pub native_stack: Option<NativeStackInfo>,
 }
 
 /// Serialize a `KanbanColumn` to its camelCase string form (e.g. "needsReview").
@@ -163,6 +168,7 @@ impl PrStatusWithColumn {
             author: pr.author.clone(),
             requested_reviewers: pr.requested_reviewers.clone(),
             base_branch: pr.base_branch.clone(),
+            native_stack: pr.native_stack.clone(),
         }
     }
 }
@@ -456,10 +462,21 @@ async fn poll_repo(
         .await
         .map_err(|e| format!("{e}"))?;
 
-    let prs = manager
+    let mut prs = manager
         .sync_prs(&owner, &repo)
         .await
         .map_err(|e| format!("{e}"))?;
+
+    // Stamp native GitHub Stack membership (GraphQL-only preview field) onto
+    // the REST payload before `from_pr` so the flag + sibling roster reach
+    // both the frontend `github:pr-update` payload and `check_merged_parents`.
+    // Fail-soft: on any error the map is empty and every PR stays `None`.
+    let native_stacks = manager.fetch_native_stack_entries(&owner, &repo).await;
+    if !native_stacks.is_empty() {
+        for pr in prs.iter_mut() {
+            pr.native_stack = native_stacks.get(&pr.number).cloned();
+        }
+    }
 
     // Resolve the authenticated GitHub username so we can distinguish
     // "In Review" (own PRs) from "Needs Review" (others' PRs).
@@ -1023,6 +1040,7 @@ mod tests {
             updated_at: None,
             author: Some("chloe".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "draftPr");
@@ -1046,6 +1064,7 @@ mod tests {
             updated_at: None,
             author: Some("chloe".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "openPr");
@@ -1069,6 +1088,7 @@ mod tests {
             updated_at: None,
             author: Some("teammate".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "needsReview");
@@ -1092,6 +1112,7 @@ mod tests {
             updated_at: None,
             author: Some("chloe".into()),
             requested_reviewers: vec![],
+            native_stack: None,
         };
         let with_col = PrStatusWithColumn::from_pr(&pr, "/test/repo", Some("chloe"));
         assert_eq!(with_col.auto_column, "done");

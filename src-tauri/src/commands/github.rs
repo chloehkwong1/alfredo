@@ -70,6 +70,7 @@ mod tests {
             updated_at: Some(updated_at.into()),
             author: Some(author.into()),
             requested_reviewers: reviewers.into_iter().map(String::from).collect(),
+            native_stack: None,
         }
     }
 

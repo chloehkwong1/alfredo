@@ -256,6 +256,43 @@ pub struct PrStatus {
     /// GitHub logins of users requested to review this PR.
     #[serde(default)]
     pub requested_reviewers: Vec<String>,
+    /// Native GitHub Stack membership (public preview, undocumented GraphQL).
+    /// `Some` when this PR belongs to a server-side stack — Alfredo's
+    /// override-driven stack automation stands down for those branches.
+    /// Detection is fail-open: any parse issue leaves this `None`.
+    #[serde(default)]
+    pub native_stack: Option<NativeStackInfo>,
+}
+
+/// One PR in a native GitHub Stack roster. Sibling PRs usually have no local
+/// worktree, so their metadata rides along here rather than coming from
+/// worktree-attached `PrStatus`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeStackMember {
+    pub number: u64,
+    pub title: String,
+    pub branch: String,
+    pub state: String,
+    pub url: String,
+    /// 1-based position within the stack (base-most first).
+    pub position: u32,
+}
+
+/// A PR's membership in a native GitHub Stack (public preview).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeStackInfo {
+    /// GraphQL node id of the stack.
+    pub id: String,
+    /// The stack's user-facing number.
+    pub number: u64,
+    /// This PR's 1-based position within the stack.
+    pub position: u32,
+    /// Total number of PRs in the stack.
+    pub size: u32,
+    /// Full ordered roster (sorted by position, includes this PR).
+    pub members: Vec<NativeStackMember>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
