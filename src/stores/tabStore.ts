@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { AGENT_TAB_TYPES, isAgentTab } from "../types";
 import type { TabType, WorkspaceTab } from "../types";
+import { rekeyRecord } from "./rekeyWorktreeId";
 
 /** Read the default agent from localStorage. Falls back to "claude". */
 function getDefaultAgent(): TabType {
@@ -68,6 +69,8 @@ interface TabState {
   setActiveTabId: (worktreeId: string, tabId: string) => void;
   updateTab: (worktreeId: string, tabId: string, patch: Partial<WorkspaceTab>) => void;
   ensureDefaultTabs: (worktreeId: string) => void;
+  /** Follow a worktree whose id changed under it (branch switch). */
+  rekeyWorktree: (oldId: string, newId: string) => void;
   restoreTabs: (worktreeId: string, tabs: WorkspaceTab[], activeTabId: string) => void;
   addDisconnectedTab: (tabId: string) => void;
   removeDisconnectedTab: (tabId: string) => void;
@@ -194,6 +197,13 @@ export const useTabStore = create<TabState>((set, get) => ({
         activeTabId: { ...state.activeTabId, [worktreeId]: tab.id },
       };
     }),
+
+  rekeyWorktree: (oldId, newId) =>
+    set((state) => ({
+      tabs: rekeyRecord(state.tabs, oldId, newId),
+      activeTabId: rekeyRecord(state.activeTabId, oldId, newId),
+      labelInputs: rekeyRecord(state.labelInputs, oldId, newId),
+    })),
 
   removeTab: (worktreeId, tabId) =>
     set((state) => {

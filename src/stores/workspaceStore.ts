@@ -1,4 +1,8 @@
 import { create } from "zustand";
+import { useTabStore } from "./tabStore";
+import { useLayoutStore } from "./layoutStore";
+import { usePrStore } from "./prStore";
+import { rekeyRecord, rekeySet, type WorktreeRekey } from "./rekeyWorktreeId";
 import type {
   Annotation,
   DiffViewMode,
@@ -129,6 +133,64 @@ function previousWorktreeLookup(existing: Worktree[]): (wt: Worktree) => Worktre
   const byId = new Map(existing.map((w) => [w.id, w]));
   const byPath = new Map(existing.filter((w) => w.path).map((w) => [w.path, w]));
   return (wt) => byId.get(wt.id) ?? (wt.path ? byPath.get(wt.path) : undefined);
+}
+
+/**
+ * Worktrees whose id changed while their directory stayed put — i.e. someone
+ * ran `git checkout` inside them. Everything keyed by the old id has to move.
+ */
+function detectRekeys(fresh: Worktree[], existing: Worktree[]): WorktreeRekey[] {
+  const freshIds = new Set(fresh.map((wt) => wt.id));
+  const byPath = new Map(existing.filter((wt) => wt.path).map((wt) => [wt.path, wt]));
+  return fresh.flatMap((wt) => {
+    const prev = wt.path ? byPath.get(wt.path) : undefined;
+    // `freshIds.has(prev.id)` guards the case where the old id still exists as
+    // a separate worktree — then nothing moved and re-keying would clobber it.
+    if (!prev || prev.id === wt.id || freshIds.has(prev.id)) return [];
+    return [{ oldId: prev.id, newId: wt.id }];
+  });
+}
+
+/** Move the per-worktree state owned by *this* store onto the new ids. */
+function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<WorkspaceState> {
+  if (rekeys.length === 0) return {};
+  let next: Partial<WorkspaceState> = {
+    annotations: state.annotations,
+    diffViewMode: state.diffViewMode,
+    changesViewMode: state.changesViewMode,
+    changesPanelCollapsed: state.changesPanelCollapsed,
+    showPrComments: state.showPrComments,
+    runningServers: state.runningServers,
+    seenWorktrees: state.seenWorktrees,
+    unreadWorktrees: state.unreadWorktrees,
+    pinnedWorktrees: state.pinnedWorktrees,
+    activeWorktreeId: state.activeWorktreeId,
+  };
+  for (const { oldId, newId } of rekeys) {
+    next = {
+      annotations: rekeyRecord(next.annotations!, oldId, newId),
+      diffViewMode: rekeyRecord(next.diffViewMode!, oldId, newId),
+      changesViewMode: rekeyRecord(next.changesViewMode!, oldId, newId),
+      changesPanelCollapsed: rekeyRecord(next.changesPanelCollapsed!, oldId, newId),
+      showPrComments: rekeyRecord(next.showPrComments!, oldId, newId),
+      runningServers: rekeyRecord(next.runningServers!, oldId, newId),
+      seenWorktrees: rekeySet(next.seenWorktrees!, oldId, newId),
+      unreadWorktrees: rekeySet(next.unreadWorktrees!, oldId, newId),
+      pinnedWorktrees: rekeySet(next.pinnedWorktrees!, oldId, newId),
+      // Losing this deselects the worktree the user is looking at.
+      activeWorktreeId: next.activeWorktreeId === oldId ? newId : next.activeWorktreeId,
+    };
+  }
+  return next;
+}
+
+/** Tabs, panes and PR data live in sibling stores and must follow the same ids. */
+function rekeySiblingStores(rekeys: WorktreeRekey[]) {
+  for (const { oldId, newId } of rekeys) {
+    useTabStore.getState().rekeyWorktree(oldId, newId);
+    useLayoutStore.getState().rekeyWorktree(oldId, newId);
+    usePrStore.getState().rekeyWorktree(oldId, newId);
+  }
 }
 
 /**
@@ -457,10 +519,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       };
     }),
 
-  setWorktrees: (freshWorktrees) =>
+  setWorktrees: (freshWorktrees) => {
+    const rekeys = detectRekeys(freshWorktrees, useWorkspaceStore.getState().worktrees);
     set((state) => ({
       worktrees: mergeWorktreeState(freshWorktrees, state.worktrees),
-    })),
+      ...rekeyOwnState(state, rekeys),
+    }));
+    rekeySiblingStores(rekeys);
+  },
 
   applyWorktreePatches: (patches) =>
     set((state) => {
@@ -581,7 +647,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   setSidebarCollapsed: (collapsed) =>
     set({ sidebarCollapsed: collapsed }),
 
-  setWorktreesForRepo: (repoPath, freshArg) =>
+  setWorktreesForRepo: (repoPath, freshArg) => {
+    // Assigned inside the updater because `freshArg` can be a function of the
+    // current per-repo list; read back after `set` to notify sibling stores.
+    let rekeys: WorktreeRekey[] = [];
     set((state) => {
       const otherRepoWorktrees = state.worktrees.filter((wt) => wt.repoPath !== repoPath);
       const existingForRepo = state.worktrees.filter((wt) => wt.repoPath === repoPath);
@@ -591,19 +660,26 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
         ...otherRepoWorktrees,
         ...mergeWorktreeState(freshWorktrees, existingForRepo),
       ];
-      // A worktree can leave the store without removeWorktree running: a re-id
-      // (branch switch, or a rebase that finishes on a detached HEAD) gives the
-      // same directory a new id, so the old row is merge-dropped here.
-      // removeWorktree is the only other place that nulls the selection, so
-      // without this the active id dangles and AppShell renders the main pane
-      // against a worktree the store no longer holds.
+      // A re-id (branch switch, or a rebase finishing on a detached HEAD) gives
+      // the same directory a new id, so per-worktree state has to move with it
+      // — including the selection, which used to be nulled here instead.
+      rekeys = detectRekeys(freshWorktrees, existingForRepo);
+      const own = rekeyOwnState(state, rekeys);
+      const activeWorktreeId = own.activeWorktreeId ?? state.activeWorktreeId;
+      // A worktree can still leave the store without removeWorktree running
+      // (deleted on disk). removeWorktree is the only other place that nulls
+      // the selection, so without this the active id dangles and AppShell
+      // renders the main pane against a worktree the store no longer holds.
       const selectionSurvives =
-        !state.activeWorktreeId || worktrees.some((wt) => wt.id === state.activeWorktreeId);
+        !activeWorktreeId || worktrees.some((wt) => wt.id === activeWorktreeId);
       return {
         worktrees,
-        activeWorktreeId: selectionSurvives ? state.activeWorktreeId : null,
+        ...own,
+        activeWorktreeId: selectionSurvives ? activeWorktreeId : null,
       };
-    }),
+    });
+    rekeySiblingStores(rekeys);
+  },
 
   clearWorktreesForRepo: (repoPath) =>
     set((state) => ({

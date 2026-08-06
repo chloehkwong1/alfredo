@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useWorkspaceStore } from "./workspaceStore";
+import { useTabStore } from "./tabStore";
+import { useLayoutStore } from "./layoutStore";
+import { usePrStore } from "./prStore";
 import type { Worktree } from "../types";
 
 function makeWorktree(overrides: Partial<Worktree> = {}): Worktree {
@@ -110,6 +113,46 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.column).toBe("needsReview");
     expect(wt.agentStatus).toBe("busy");
     expect(wt.linearTicketIdentifier).toBe("ROS-42");
+  });
+
+  it("re-keys per-worktree state when a branch switch changes the id", () => {
+    const store = useWorkspaceStore;
+    const oldId = "/repo::feature-1";
+    const newId = "/repo::feature-2";
+
+    store.setState({
+      worktrees: [makeWorktree({ id: oldId, path: "/path/wt-1", branch: "feature-1" })],
+      activeWorktreeId: oldId,
+      pinnedWorktrees: new Set([oldId]),
+      unreadWorktrees: new Set([oldId]),
+      diffViewMode: { [oldId]: "side-by-side" },
+      changesPanelCollapsed: { [oldId]: true },
+    });
+    useTabStore.setState({
+      tabs: { [oldId]: [{ id: "tab-1", type: "claude", label: "Claude" }] },
+      activeTabId: { [oldId]: "tab-1" },
+    });
+    useLayoutStore.setState({ activePaneId: { [oldId]: "pane-1" } });
+    usePrStore.setState({ prSummary: { [oldId]: { merged: false, closed: false } } });
+
+    store.getState().setWorktrees([
+      makeWorktree({ id: newId, path: "/path/wt-1", branch: "feature-2" }),
+    ]);
+
+    // The terminal tabs and their running agent belong to the directory — left
+    // under the old key they vanish from the UI while the PTY keeps running.
+    expect(useTabStore.getState().tabs[newId]).toHaveLength(1);
+    expect(useTabStore.getState().tabs[oldId]).toBeUndefined();
+    expect(useTabStore.getState().activeTabId[newId]).toBe("tab-1");
+    expect(useLayoutStore.getState().activePaneId[newId]).toBe("pane-1");
+    expect(usePrStore.getState().prSummary[newId]).toBeDefined();
+
+    expect(store.getState().activeWorktreeId).toBe(newId);
+    expect(store.getState().pinnedWorktrees.has(newId)).toBe(true);
+    expect(store.getState().pinnedWorktrees.has(oldId)).toBe(false);
+    expect(store.getState().unreadWorktrees.has(newId)).toBe(true);
+    expect(store.getState().diffViewMode[newId]).toBe("side-by-side");
+    expect(store.getState().changesPanelCollapsed[newId]).toBe(true);
   });
 
   it("preserves in-flight setupInProgress across a git refresh", () => {
@@ -666,10 +709,11 @@ describe("setWorktreesForRepo", () => {
     expect(ids).toContain("wt-real");
   });
 
-  it("clears the selection when the active worktree is no longer listed", () => {
+  it("moves the selection onto the new id when the active worktree is re-id'd", () => {
     // A re-id (branch switch, or a rebase that finishes on a detached HEAD)
-    // gives the same directory a new id, so the old row is merge-dropped
-    // without removeWorktree — the only other place that nulls the selection.
+    // gives the same directory a new id. The selection used to be nulled here
+    // to stop it dangling; now it follows the directory, so the user stays on
+    // the worktree they were looking at.
     const store = useWorkspaceStore;
     store.setState({
       worktrees: [makeWorktree({ id: "repo::old", repoPath: "/repo-a", path: "/wt/x" })],
@@ -678,6 +722,23 @@ describe("setWorktreesForRepo", () => {
 
     store.getState().setWorktreesForRepo("/repo-a", [
       makeWorktree({ id: "repo::new", repoPath: "/repo-a", path: "/wt/x" }),
+    ]);
+
+    expect(store.getState().activeWorktreeId).toBe("repo::new");
+  });
+
+  it("clears the selection when the active worktree is gone entirely", () => {
+    // No replacement at the same path — the directory really is gone, so there
+    // is nothing to follow and a dangling id would render the main pane
+    // against a worktree the store no longer holds.
+    const store = useWorkspaceStore;
+    store.setState({
+      worktrees: [makeWorktree({ id: "repo::old", repoPath: "/repo-a", path: "/wt/x" })],
+      activeWorktreeId: "repo::old",
+    });
+
+    store.getState().setWorktreesForRepo("/repo-a", [
+      makeWorktree({ id: "repo::other", repoPath: "/repo-a", path: "/wt/y" }),
     ]);
 
     expect(store.getState().activeWorktreeId).toBeNull();

@@ -8,6 +8,7 @@ import type {
   Worktree,
 } from "../types";
 import { setWorktreeColumn, clearWorktreeColumn } from "../api";
+import { rekeyRecord } from "./rekeyWorktreeId";
 import { stopServerAndReleasePort } from "../services/portReclaim";
 
 interface ColumnOverride {
@@ -41,6 +42,8 @@ interface PrState {
   setCheckRuns: (worktreeId: string, runs: CheckRun[]) => void;
   setPrDetail: (worktreeId: string, detail: PrDetailedStatus) => void;
   setPrPanelState: (worktreeId: string, panelState: PrPanelState) => void;
+  /** Follow a worktree whose id changed under it (branch switch). */
+  rekeyWorktree: (oldId: string, newId: string) => void;
   toggleReviewedFile: (worktreeId: string, filePath: string) => void;
   clearReviewedFiles: (worktreeId: string) => void;
   setJumpToComment: (worktreeId: string, fn: (path: string, line: number) => void) => void;
@@ -85,6 +88,16 @@ export const usePrStore = create<PrState>((set, get) => ({
   setPrPanelState: (worktreeId, panelState) =>
     set((state) => ({
       prPanelState: { ...state.prPanelState, [worktreeId]: panelState },
+    })),
+
+  rekeyWorktree: (oldId, newId) =>
+    set((state) => ({
+      prSummary: rekeyRecord(state.prSummary, oldId, newId),
+      checkRuns: rekeyRecord(state.checkRuns, oldId, newId),
+      prDetail: rekeyRecord(state.prDetail, oldId, newId),
+      prPanelState: rekeyRecord(state.prPanelState, oldId, newId),
+      reviewedFiles: rekeyRecord(state.reviewedFiles, oldId, newId),
+      jumpToComment: rekeyRecord(state.jumpToComment, oldId, newId),
     })),
 
   toggleReviewedFile: (worktreeId, filePath) =>

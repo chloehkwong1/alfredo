@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { LayoutNode, Pane } from "../types";
 import { isAgentTab } from "../types";
 import { useTabStore } from "./tabStore";
+import { rekeyRecord } from "./rekeyWorktreeId";
 
 const MAX_SPLIT_DEPTH = 1;
 
@@ -26,6 +27,8 @@ interface LayoutState {
     activePaneId: string,
   ) => void;
   removeLayout: (worktreeId: string) => void;
+  /** Follow a worktree whose id changed under it (branch switch). */
+  rekeyWorktree: (oldId: string, newId: string) => void;
 
   // ── Split actions ──
   splitPane: (
@@ -194,6 +197,16 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         lastFocusedNonAgentTabId: restLastNonAgent,
       };
     });
+  },
+
+  rekeyWorktree: (oldId, newId) => {
+    set((s) => ({
+      layout: rekeyRecord(s.layout, oldId, newId),
+      panes: rekeyRecord(s.panes, oldId, newId),
+      activePaneId: rekeyRecord(s.activePaneId, oldId, newId),
+      lastFocusedAgentTabId: rekeyRecord(s.lastFocusedAgentTabId, oldId, newId),
+      lastFocusedNonAgentTabId: rekeyRecord(s.lastFocusedNonAgentTabId, oldId, newId),
+    }));
   },
 
   splitPane: (worktreeId, paneId, tabId, direction) => {
