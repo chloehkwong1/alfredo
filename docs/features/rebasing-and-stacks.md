@@ -48,3 +48,13 @@ doc set.
 worktree. **Detach from stack** (shown once a stack parent is set)
 drops the parent relationship, so future restacks target the repo's
 default branch again.
+
+**Native GitHub Stacks.** When a branch belongs to a stack managed by
+GitHub itself, Alfredo detects it and stands down its own automation
+for that branch: no auto-restack, no base retargeting, no stack table
+spliced into the PR body, and no dissolution rebase or stale-parent
+prompts — GitHub owns the restacking. When a parent merges, GitHub
+restacks the branch remotely and Alfredo shows a "GitHub restacked
+this branch remotely" notice instead of rebasing locally. Manually
+changing the base branch of a native member warns first, since that
+re-parents a branch GitHub is managing.

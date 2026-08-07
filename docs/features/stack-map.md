@@ -1,6 +1,6 @@
 ---
 title: Stack map — see and manage a whole stack at a glance
-keywords: [stack map, stack glyph, pos/total, restack stack, stack popover, conflict resolve]
+keywords: [stack map, stack glyph, pos/total, restack stack, stack popover, conflict resolve, native stack, github stack, managed by github]
 ui_path: Sidebar → stack glyph (e.g. "2/4") on a stacked worktree row
 ---
 
@@ -32,3 +32,10 @@ conflict, two extra actions appear:
   session a ready-made resolution prompt.
 - **Retry restack** — re-runs the rebase from scratch, for when the
   parent has already moved past the conflict.
+
+Members of a **native GitHub Stack** show the same N/M chip (beside
+the PR pill) and the popover switches to a GitHub-parity roster: a
+"Stack #N" header marked **Managed by GitHub**, every member in stack
+order — including siblings with no local worktree — and the base
+branch. Alfredo's restack actions don't apply to native members;
+GitHub handles restacking (see the rebasing-and-stacks doc).

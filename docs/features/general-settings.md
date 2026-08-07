@@ -1,6 +1,6 @@
 ---
 title: General settings — theme, editor, terminal, updates, diff view, archive cleanup
-keywords: [general settings, theme, dark mode, light mode, warm dark, appearance, default editor, default terminal, auto update, default diff view, archive after days, delete after days, auto archive, auto delete]
+keywords: [general settings, theme, dark mode, light mode, warm dark, catppuccin, mocha, latte, everforest, gruvbox, github dark, synthwave, tokyo night, solarized, honeycomb, appearance, default editor, default terminal, auto update, default diff view, review requests, auto-pull, archive after days, delete after days, auto archive, auto delete]
 ui_path: Sidebar → ⚙ Settings → General tab
 ---
 
@@ -8,7 +8,13 @@ The **General** tab of the global Settings dialog (gear icon at the
 bottom of the sidebar, or "Go to settings" from the command palette)
 groups settings that apply across every repo:
 
-- **Theme** — swatches for dark / light / warm-dark. Applied instantly.
+- **Theme** — a swatch grid of 12 themes: nine dark (Warm Dark,
+  Catppuccin Mocha, Gruvbox, GitHub Dark, Synthwave '84, Sunset
+  Boulevard, Tokyo Night, Solarized Dark, Honeycomb) and three light
+  (Light, Catppuccin Latte, Everforest Light). Applied instantly —
+  diffs, syntax highlighting and the window titlebar follow the
+  theme, so light themes get proper light-surface rendering
+  everywhere, including already-open diff editors.
 - **Editor** — which external editor to open worktrees in. Options are
   VS Code, Cursor, Zed, Vim / Neovim, or **Custom…** for an
   absolute path to a binary.
@@ -18,6 +24,9 @@ groups settings that apply across every repo:
   "You're up to date" when current.
 - **Receive beta updates** — toggle that opts into the pre-release
   channel (see beta-releases doc for the full flow).
+- **Auto-pull review requests** — when someone requests your review
+  on GitHub, Alfredo creates a worktree for the PR automatically
+  (default on). See [review-requests](review-requests.md).
 - **Default diff view** — Unified or Split. Used when a worktree has
   no explicit view mode set.
 - **Archive & Cleanup** — two day-count fields that apply across all
