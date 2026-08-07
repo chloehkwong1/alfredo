@@ -615,11 +615,21 @@ pub async fn restack_now(
     app: AppHandle,
     repo_path: String,
     worktree_name: String,
-) -> Result<()> {
+) -> Result<String> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    crate::stack_manager::restack_child(&app, &app_data_dir, &repo_path, &worktree_name)
+    let outcome = crate::stack_manager::restack_child(&app, &app_data_dir, &repo_path, &worktree_name)
         .await
-        .map_err(AppError::Git)
+        .map_err(AppError::Git)?;
+    // Wire strings consumed by `restackNow` in src/api.ts — the frontend
+    // toasts what actually happened instead of assuming a rebase ran.
+    Ok(match outcome {
+        crate::stack_manager::RestackOutcome::Rebased => "rebased",
+        crate::stack_manager::RestackOutcome::AlreadyOnTarget => "alreadyUpToDate",
+        crate::stack_manager::RestackOutcome::SkippedDirty => "skippedDirty",
+        // `restack_child` maps refusals to Err before returning.
+        crate::stack_manager::RestackOutcome::RefusedStaleBaseline => "alreadyUpToDate",
+    }
+    .to_string())
 }
 
 /// Sync a stack with the default branch: rebase the anchor's stack root onto a

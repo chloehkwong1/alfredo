@@ -201,7 +201,11 @@ export function setStackParent(
   return invoke("set_stack_parent", { repoPath, worktreeName, parentBranch });
 }
 
-export function restackNow(repoPath: string, worktreeName: string): Promise<void> {
+/** What `restack_now` actually did — `commands/worktree.rs` maps the backend
+ *  `RestackOutcome` onto these wire strings. */
+export type RestackOutcome = "rebased" | "alreadyUpToDate" | "skippedDirty";
+
+export function restackNow(repoPath: string, worktreeName: string): Promise<RestackOutcome> {
   return invoke("restack_now", { repoPath, worktreeName });
 }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeEffectiveStatus } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
-import { hiddenMembersNote } from "./StackMapPopover";
+import { hiddenMembersNote, restackOutcomeMessage, originCue } from "./StackMapPopover";
 import type { PrStatus } from "../../types";
 
 describe("computeEffectiveStatus", () => {
@@ -105,5 +105,43 @@ describe("hiddenMembersNote", () => {
 
   it("stays null if the roster somehow exceeds the recorded size", () => {
     expect(hiddenMembersNote(2, 3)).toBeNull();
+  });
+});
+
+// The toast after a manual restack must describe what the backend actually
+// did — "Restacked ✓" on a real rebase only, never on a dirty-skip or no-op.
+describe("restackOutcomeMessage", () => {
+  it("celebrates only an actual rebase", () => {
+    expect(restackOutcomeMessage("rebased", "feat/x")).toBe("Restacked feat/x ✓");
+  });
+
+  it("reports a no-op as already up to date", () => {
+    expect(restackOutcomeMessage("alreadyUpToDate", "feat/x")).toBe("feat/x is already up to date");
+  });
+
+  it("says why a dirty tree paused the restack", () => {
+    expect(restackOutcomeMessage("skippedDirty", "feat/x")).toBe(
+      "Restack paused — uncommitted changes in feat/x",
+    );
+  });
+});
+
+// Popover cue for local commits origin doesn't have. Counted when origin is a
+// strict ancestor; uncounted "needs force-push" after a rewrite (ahead AND
+// behind, where the count would include rewritten commits); silent otherwise.
+describe("originCue", () => {
+  it("is null when in sync, unpublished, or only behind", () => {
+    expect(originCue([0, 0])).toBeNull();
+    expect(originCue(null)).toBeNull();
+    expect(originCue(undefined)).toBeNull();
+    expect(originCue([0, 4])).toBeNull();
+  });
+
+  it("counts commits to push on a fast-forwardable branch", () => {
+    expect(originCue([2, 0])).toBe("2 to push");
+  });
+
+  it("flags a diverged branch as needing a force-push, uncounted", () => {
+    expect(originCue([8, 8])).toBe("needs force-push");
   });
 });

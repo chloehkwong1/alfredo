@@ -1,12 +1,59 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { restackStack, restackNow, resolveStackPending } from "../../api";
+import { useToastStore } from "../../stores/toastStore";
+import { restackStack, restackNow, resolveStackPending, getAheadBehindOrigin } from "../../api";
+import type { RestackOutcome } from "../../api";
 import { resolveStackConflict } from "../../services/stackConflictHandoff";
 import { formatRelativeTime } from "../changes/formatRelativeTime";
 import type { StackChain } from "../../lib/stackChain";
 import type { NativeStackInfo, Worktree, StackRebaseStatus } from "../../types";
+
+/** Toast copy for a manual restack that succeeded at the git level — the
+ *  outcome says whether a rebase actually ran, so the message can't claim
+ *  work that a dirty-skip or no-op didn't do. */
+function restackOutcomeMessage(outcome: RestackOutcome, branch: string): string {
+  switch (outcome) {
+    case "rebased": return `Restacked ${branch} ✓`;
+    case "alreadyUpToDate": return `${branch} is already up to date`;
+    case "skippedDirty": return `Restack paused — uncommitted changes in ${branch}`;
+  }
+}
+
+/** "N to push" / "needs force-push" label for a member whose local tip has
+ *  commits origin lacks. Null when in sync, never published, or only behind
+ *  (that's pull territory, not this cue's job). After a local rewrite the
+ *  branch is ahead AND behind origin, where a count would double-count the
+ *  rewritten commits — hence the uncounted force-push wording. */
+function originCue(ab: [number, number] | null | undefined): string | null {
+  if (!ab || ab[0] === 0) return null;
+  return ab[1] === 0 ? `${ab[0]} to push` : "needs force-push";
+}
+
+/** worktree.id → [ahead, behind] vs origin for every local stack member,
+ *  fetched once per popover open (the backend throttles the actual fetch). */
+function useOriginSync(members: Worktree[]): Record<string, [number, number] | null> {
+  const [sync, setSync] = useState<Record<string, [number, number] | null>>({});
+  const memberKey = members.map((w) => w.id).join("\n");
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      members.map(async (w) => {
+        try {
+          return [w.id, await getAheadBehindOrigin(w.path, w.repoPath)] as const;
+        } catch {
+          return [w.id, null] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (!cancelled) setSync(Object.fromEntries(entries));
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberKey]);
+  return sync;
+}
 
 interface StackMapPopoverProps {
   anchorWorktree: Worktree;
@@ -59,6 +106,7 @@ interface NativeStackPopoverProps {
  *  Shared by both popover skins: a conflict is always local, so the actions
  *  apply even when GitHub manages the stack itself. */
 function ConflictActions({ conflicted, onClose }: { conflicted: Worktree; onClose: () => void }) {
+  const showToast = useToastStore((s) => s.show);
   const handleHaveClaudeResolve = async () => {
     onClose();
     try {
@@ -71,12 +119,20 @@ function ConflictActions({ conflicted, onClose }: { conflicted: Worktree; onClos
 
   const handleRetryRestack = async () => {
     onClose();
-    // A conflicted ROOT has no stack parent, so `restackNow` (restack_child)
-    // would reject it outright — its retry is the sync that conflicted.
-    const retry = conflicted.stackParent
-      ? restackNow(conflicted.repoPath, conflicted.name)
-      : restackStack(conflicted.repoPath, conflicted.name);
-    await retry.catch(console.error);
+    try {
+      // A conflicted ROOT has no stack parent, so `restackNow` (restack_child)
+      // would reject it outright — its retry is the sync that conflicted.
+      if (conflicted.stackParent) {
+        const outcome = await restackNow(conflicted.repoPath, conflicted.name);
+        showToast({ message: restackOutcomeMessage(outcome, conflicted.branch) });
+      } else {
+        await restackStack(conflicted.repoPath, conflicted.name);
+        showToast({ message: `Synced ${conflicted.branch}'s stack ✓` });
+      }
+    } catch (e) {
+      console.error("Retry restack failed:", e);
+      showToast({ message: `Restack failed: ${e instanceof Error ? e.message : e}` });
+    }
   };
 
   return (
@@ -127,25 +183,33 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
   // with the base branch at the bottom, so display order is reversed.
   const rows = [...nativeStack.members].sort((a, b) => b.position - a.position);
   const hiddenNote = hiddenMembersNote(nativeStack.size, rows.length);
+  const localByBranch = new Map(
+    rows
+      .map((m) =>
+        worktrees.find(
+          (w) => w.repoPath === anchorWorktree.repoPath && w.branch === m.branch && !w.archived,
+        ),
+      )
+      .filter((w): w is Worktree => Boolean(w))
+      .map((w) => [w.branch, w] as const),
+  );
   // A rebase conflict is always a local-tree problem, so the resolve/retry
   // actions stay reachable here. First conflicted local member in tip-first
   // display order, mirroring AlfredoStackPopover's pick.
   const conflicted = rows
-    .map((m) =>
-      worktrees.find(
-        (w) => w.repoPath === anchorWorktree.repoPath && w.branch === m.branch && !w.archived,
-      ),
-    )
-    .filter((w): w is Worktree => Boolean(w))
-    .find((w) => w.stackRebaseStatus?.kind === "conflict");
+    .map((m) => localByBranch.get(m.branch))
+    .find((w) => w?.stackRebaseStatus?.kind === "conflict");
+  const originSync = useOriginSync([...localByBranch.values()]);
+  const showToast = useToastStore((s) => s.show);
 
   const handleRestackNow = async () => {
     onClose();
     try {
-      await restackNow(anchorWorktree.repoPath, anchorWorktree.name);
+      const outcome = await restackNow(anchorWorktree.repoPath, anchorWorktree.name);
+      showToast({ message: restackOutcomeMessage(outcome, anchorWorktree.branch) });
     } catch (e) {
       console.error("Restack failed:", e);
-      new Notification("Alfredo", { body: `Restack failed: ${e instanceof Error ? e.message : e}` });
+      showToast({ message: `Restack failed: ${e instanceof Error ? e.message : e}` });
     }
   };
 
@@ -218,6 +282,11 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
           </span>
           <span className="flex items-center gap-2 text-[10px] text-text-tertiary">
             <span className="truncate font-mono">{m.branch}</span>
+            {(() => {
+              const local = localByBranch.get(m.branch);
+              const cue = local && originCue(originSync[local.id]);
+              return cue && <span className="flex-shrink-0 text-amber-400">{cue}</span>;
+            })()}
             {m.state === "MERGED" && <span className="flex-shrink-0">merged ✓</span>}
             {m.state === "CLOSED" && <span className="flex-shrink-0">closed</span>}
             {m.number === anchorWorktree.prStatus?.number && (
@@ -283,6 +352,8 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
     .map((member) => ({ member, worktree: worktrees.find((w) => w.id === member.id) }))
     .filter((r): r is { member: (typeof chain.members)[number]; worktree: Worktree } => Boolean(r.worktree));
   const conflicted = rows.map((r) => r.worktree).find((m) => m.stackRebaseStatus?.kind === "conflict");
+  const originSync = useOriginSync(rows.map((r) => r.worktree));
+  const showToast = useToastStore((s) => s.show);
   // Conflict owns the popover's action slot (buttons below); the pending
   // banner yields to it. Forked stacks: first blocked child in tree order.
   const pendingMember = conflicted
@@ -297,6 +368,7 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
     onClose();
     try {
       await restackStack(anchorWorktree.repoPath, anchorWorktree.name);
+      showToast({ message: "Stack synced with main ✓" });
     } catch (e) {
       console.error("Sync stack with main failed:", e);
       new Notification("Alfredo", { body: `Sync stack with main failed: ${e instanceof Error ? e.message : e}` });
@@ -349,6 +421,10 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
             {member.prefix}
           </span>
           <span className="truncate flex-1">{m.branch}</span>
+          {(() => {
+            const cue = originCue(originSync[m.id]);
+            return cue && <span className="flex-shrink-0 text-[10px] text-amber-400">{cue} ·</span>;
+          })()}
           <span className={`flex-shrink-0 text-[10px] ${m.stackRebaseStatus?.kind === "conflict" || m.stackRebaseStatus?.kind === "pushFailed" || m.stackRebaseStatus?.kind === "rewrittenExternally" ? "text-status-error" : "text-text-tertiary"}`}>
             {m.id === anchorWorktree.id
               ? memberStateText(m) === "up to date"
@@ -377,4 +453,4 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
   );
 }
 
-export { StackMapPopover, hiddenMembersNote };
+export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, originCue };

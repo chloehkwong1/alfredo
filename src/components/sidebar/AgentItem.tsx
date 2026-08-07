@@ -35,7 +35,8 @@ import { ChangeBaseBranchDialog } from "./ChangeBaseBranchDialog";
 import { columnIcon, columnLabel, COLUMN_ORDER } from "./StatusGroup";
 import { copyText } from "../../lib/clipboard";
 import { StackGlyph, NativeStackChip } from "./StackGlyph";
-import { StackMapPopover } from "./StackMapPopover";
+import { StackMapPopover, restackOutcomeMessage } from "./StackMapPopover";
+import { useToastStore } from "../../stores/toastStore";
 import { computeStackChain, type StackChain } from "../../lib/stackChain";
 
 const THINKING_VERBS = [
@@ -783,9 +784,11 @@ const AgentItem = memo(function AgentItem({
   const handleRebase = async () => {
     try {
       if (worktree.stackParent) {
-        await restackNow(worktree.repoPath, worktree.name);
+        const outcome = await restackNow(worktree.repoPath, worktree.name);
+        useToastStore.getState().show({ message: restackOutcomeMessage(outcome, worktree.branch) });
       } else {
         await rebaseWorktree(worktree.path, null);
+        useToastStore.getState().show({ message: `Rebased ${worktree.branch} ✓` });
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

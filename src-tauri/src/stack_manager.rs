@@ -1172,7 +1172,7 @@ pub async fn restack_child(
     app_data_dir: &Path,
     repo_path: &str,
     worktree_name: &str,
-) -> Result<(), String> {
+) -> Result<RestackOutcome, String> {
     clear_conflict_memo(repo_path, worktree_name);
     restack_child_inner(app_handle, app_data_dir, repo_path, worktree_name, false).await
 }
@@ -1186,7 +1186,7 @@ async fn restack_child_inner(
     repo_path: &str,
     worktree_name: &str,
     auto: bool,
-) -> Result<(), String> {
+) -> Result<RestackOutcome, String> {
     let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
@@ -1209,7 +1209,7 @@ async fn restack_child_inner(
     // when `auto` is false so a moved parent tip invalidates the memo.
     let memoised_conflict = conflict_memo_should_skip(repo_path, worktree_name, &parent_tip);
     if auto && memoised_conflict {
-        return Ok(());
+        return Ok(RestackOutcome::AlreadyOnTarget);
     }
 
     // Baseline: persisted, else one-time merge-base fallback (pre-existing stacks).
@@ -1250,7 +1250,7 @@ async fn restack_child_inner(
             // since `compute_stack_statuses` re-emits the sticky one moments later.
             Some(_) => {}
         }
-        return Ok(());
+        return Ok(RestackOutcome::AlreadyOnTarget);
     }
 
     match run_restack(app_handle, repo_path, &worktree_path, worktree_name, &parent_tip, &baseline).await {
@@ -1259,7 +1259,7 @@ async fn restack_child_inner(
         // branch — may advance the persisted baseline. A dirty-skip performs
         // no rebase at all, so persisting here would make every later poll
         // short-circuit `UpToDate` forever and desync the baseline from HEAD.
-        Ok(RestackOutcome::Rebased | RestackOutcome::AlreadyOnTarget) => {
+        Ok(outcome @ (RestackOutcome::Rebased | RestackOutcome::AlreadyOnTarget)) => {
             // Reload rather than reuse the snapshot taken before the rebase: the
             // rebase + push above take seconds, and any config write that landed
             // meanwhile (port claim, column drag, a sibling's baseline) would be
@@ -1271,9 +1271,9 @@ async fn restack_child_inner(
             if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &config).await {
                 eprintln!("[stack_manager] failed to persist baseline for {worktree_name}: {e}");
             }
-            Ok(())
+            Ok(outcome)
         }
-        Ok(RestackOutcome::SkippedDirty) => Ok(()),
+        Ok(RestackOutcome::SkippedDirty) => Ok(RestackOutcome::SkippedDirty),
         // Refusals reuse the conflict memo: a stale baseline stays stale until
         // the branch or the parent tip changes, so retrying it every poll only
         // re-runs two git calls to re-set the same badge. "Restack now" clears
@@ -1298,7 +1298,10 @@ async fn restack_child_inner(
 
 /// Outcome of `run_restack`'s attempt, distinct from a bare `Result<(), _>` so
 /// callers can gate baseline persistence on an actual rebase having happened.
-enum RestackOutcome {
+/// `restack_child` surfaces it so manual "Restack now" can report what really
+/// happened instead of a silent no-op.
+#[derive(Clone, Copy)]
+pub enum RestackOutcome {
     Rebased,
     SkippedDirty,
     /// The baseline is dangling but HEAD already contains the target tip (the
