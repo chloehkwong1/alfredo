@@ -55,6 +55,50 @@ interface NativeStackPopoverProps {
   onClose: () => void;
 }
 
+/** "Have Claude resolve" + "Retry restack" for a conflicted stack member.
+ *  Shared by both popover skins: a conflict is always local, so the actions
+ *  apply even when GitHub manages the stack itself. */
+function ConflictActions({ conflicted, onClose }: { conflicted: Worktree; onClose: () => void }) {
+  const handleHaveClaudeResolve = async () => {
+    onClose();
+    try {
+      await resolveStackConflict(conflicted);
+    } catch (e) {
+      console.error("Conflict handoff failed:", e);
+      new Notification("Alfredo", { body: `Handoff failed: ${e instanceof Error ? e.message : e}` });
+    }
+  };
+
+  const handleRetryRestack = async () => {
+    onClose();
+    // A conflicted ROOT has no stack parent, so `restackNow` (restack_child)
+    // would reject it outright — its retry is the sync that conflicted.
+    const retry = conflicted.stackParent
+      ? restackNow(conflicted.repoPath, conflicted.name)
+      : restackStack(conflicted.repoPath, conflicted.name);
+    await retry.catch(console.error);
+  };
+
+  return (
+    <div className="px-2 pt-2 flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={handleHaveClaudeResolve}
+        className="w-full flex items-center justify-center gap-1.5 rounded border border-accent-primary/40 bg-accent-muted/30 py-1 text-[11px] text-accent-primary hover:bg-accent-muted"
+      >
+        ✳ Have Claude resolve
+      </button>
+      <button
+        type="button"
+        onClick={handleRetryRestack}
+        className="w-full flex items-center justify-center gap-1.5 rounded border border-border-default py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
+      >
+        <RefreshCw className="h-3 w-3" /> Retry restack
+      </button>
+    </div>
+  );
+}
+
 /** Roster note for native-stack members the backend query can't return: it
  *  only fetches OPEN PRs, so merged/closed members vanish from `members`
  *  while `size` still counts them. Null when the full roster is present. */
@@ -68,8 +112,10 @@ function hiddenMembersNote(size: number, shownCount: number): string | null {
  *  "Managed by GitHub" label, full roster in stack order (tip first, base-most
  *  last — mirroring GitHub's popover), current PR highlighted, base branch as
  *  the bottom row. Members with a local worktree focus it on click; siblings
- *  without one open their PR on GitHub. No restack actions — GitHub manages
- *  this stack server-side, Alfredo's automation stands down. */
+ *  without one open their PR on GitHub. GitHub's automation only restacks
+ *  around merges — local parent rewrites still need Alfredo's restack, so
+ *  members that keep a local stack link get restack/conflict actions in the
+ *  footer; pure native members (no local link) get none. */
 function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClose }: NativeStackPopoverProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
@@ -81,6 +127,27 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
   // with the base branch at the bottom, so display order is reversed.
   const rows = [...nativeStack.members].sort((a, b) => b.position - a.position);
   const hiddenNote = hiddenMembersNote(nativeStack.size, rows.length);
+  // A rebase conflict is always a local-tree problem, so the resolve/retry
+  // actions stay reachable here. First conflicted local member in tip-first
+  // display order, mirroring AlfredoStackPopover's pick.
+  const conflicted = rows
+    .map((m) =>
+      worktrees.find(
+        (w) => w.repoPath === anchorWorktree.repoPath && w.branch === m.branch && !w.archived,
+      ),
+    )
+    .filter((w): w is Worktree => Boolean(w))
+    .find((w) => w.stackRebaseStatus?.kind === "conflict");
+
+  const handleRestackNow = async () => {
+    onClose();
+    try {
+      await restackNow(anchorWorktree.repoPath, anchorWorktree.name);
+    } catch (e) {
+      console.error("Restack failed:", e);
+      new Notification("Alfredo", { body: `Restack failed: ${e instanceof Error ? e.message : e}` });
+    }
+  };
 
   const handleDismissPending = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -165,6 +232,22 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
       <div className="px-3 pt-1.5 mt-1 border-t border-border-subtle text-[11px] text-text-tertiary">
         ↳ {defaultBranch ?? "main"}
       </div>
+      {conflicted ? (
+        <ConflictActions conflicted={conflicted} onClose={onClose} />
+      ) : (
+        anchorWorktree.stackParent && (
+          <div className="px-2 pt-2">
+            <button
+              type="button"
+              onClick={handleRestackNow}
+              title={`Rebase this branch onto its local parent (${anchorWorktree.stackParent}) — GitHub only restacks around merges`}
+              className="w-full flex items-center justify-center gap-1.5 rounded border border-border-default py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
+            >
+              <RefreshCw className="h-3 w-3" /> Restack now
+            </button>
+          </div>
+        )
+      )}
     </div>
   );
 }
@@ -209,28 +292,6 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
     .map((r) => r.worktree.lastStackAction)
     .filter((t): t is { action: string; at: number } => Boolean(t))
     .sort((x, y) => y.at - x.at)[0];
-
-  const handleHaveClaudeResolve = async () => {
-    if (!conflicted) return;
-    onClose();
-    try {
-      await resolveStackConflict(conflicted);
-    } catch (e) {
-      console.error("Conflict handoff failed:", e);
-      new Notification("Alfredo", { body: `Handoff failed: ${e instanceof Error ? e.message : e}` });
-    }
-  };
-
-  const handleRetryRestack = async () => {
-    if (!conflicted) return;
-    onClose();
-    // A conflicted ROOT has no stack parent, so `restackNow` (restack_child)
-    // would reject it outright — its retry is the sync that conflicted.
-    const retry = conflicted.stackParent
-      ? restackNow(conflicted.repoPath, conflicted.name)
-      : restackStack(conflicted.repoPath, conflicted.name);
-    await retry.catch(console.error);
-  };
 
   const handleRestackStack = async () => {
     onClose();
@@ -297,24 +358,7 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
           </span>
         </button>
       ))}
-      {conflicted && (
-        <div className="px-2 pt-2 flex flex-col gap-1">
-          <button
-            type="button"
-            onClick={handleHaveClaudeResolve}
-            className="w-full flex items-center justify-center gap-1.5 rounded border border-accent-primary/40 bg-accent-muted/30 py-1 text-[11px] text-accent-primary hover:bg-accent-muted"
-          >
-            ✳ Have Claude resolve
-          </button>
-          <button
-            type="button"
-            onClick={handleRetryRestack}
-            className="w-full flex items-center justify-center gap-1.5 rounded border border-border-default py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
-          >
-            <RefreshCw className="h-3 w-3" /> Retry restack
-          </button>
-        </div>
-      )}
+      {conflicted && <ConflictActions conflicted={conflicted} onClose={onClose} />}
       <div className="px-2 pt-2">
         <button
           type="button"
