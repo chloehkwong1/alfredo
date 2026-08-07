@@ -1,0 +1,30 @@
+docs/features/review-requests.md
+  s_7d53e7e06cc27a::t_dff15f4688f78e 17-19
+  s_7d53e7e06cc27a::t_4a591dd7ffcac6 28-32
+  s_7d53e7e06cc27a::t_9333daa6e33b93 1-16,20-27
+docs/features/general-settings.md
+  s_7d53e7e06cc27a::t_8e715d17056f6b 11-17
+  s_7d53e7e06cc27a::t_48f8c1cd0899e5 27-29
+  s_7d53e7e06cc27a::t_3f0bc4c3d16d09 3
+docs/features/stack-map.md
+  s_7d53e7e06cc27a::t_5f56bf30c5801e 35-41
+  s_7d53e7e06cc27a::t_5580f35a521320 3
+docs/features/rebasing-and-stacks.md
+  s_7d53e7e06cc27a::t_bc5fe2ebf2f0df 51-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9548743692aeee09b8e267192cc27b800c791f7f",
+  "prompts": {},
+  "sessions": {
+    "s_7d53e7e06cc27a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2f6ca2e-ff83-4d92-8b9f-9e4a22ca5d34",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
