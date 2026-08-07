@@ -317,6 +317,10 @@ function AgentItemContent({
   // position) are the card's information payload, and tertiary only clears
   // WCAG AA by a hair. Tertiary is reserved for decorative/hover-revealed text.
   const mutedTextClass = "text-text-secondary";
+  // Once GitHub owns the stack, the title-row native chip is the single stack
+  // indicator — the Alfredo chain row below would duplicate it (and imply
+  // Alfredo still restacks a stack it has stood down on).
+  const isNativeStackMember = Boolean(worktree.prStatus?.nativeStack);
   return (
     <>
       <span
@@ -365,7 +369,11 @@ function AgentItemContent({
           {/* GitHub-parity "N/M" stack-count chip for native GitHub Stack
               members — opens the same stack popover as the glyph. Renders
               nothing for non-members. */}
-          <NativeStackChip prStatus={worktree.prStatus} onOpenMap={onOpenStackMap} />
+          <NativeStackChip
+            prStatus={worktree.prStatus}
+            onOpenMap={onOpenStackMap}
+            peekRootId={stackChain?.rootId}
+          />
           <span className="flex items-center gap-1.5 ml-auto flex-shrink-0">
             <RelativeTime
               timestamp={worktree.lastActivityAt}
@@ -437,8 +445,9 @@ function AgentItemContent({
             )}
           </span>
         </div>
-        {/* Stack indicator: glyph + position + current status */}
-        {stackChain && (
+        {/* Stack indicator: glyph + position + current status. Suppressed for
+            native GitHub Stack members — the title-row chip covers it. */}
+        {stackChain && !isNativeStackMember && (
           <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
             <StackGlyph worktree={worktree} chain={stackChain} onOpenMap={onOpenStackMap} />
             <span className="truncate" title={worktree.stackParent ?? undefined}>
@@ -470,10 +479,11 @@ function AgentItemContent({
             )}
           </div>
         )}
-        {/* Native-stack members lose their Alfredo chain when a merged parent
-            dissolves the local stack, so the block above never renders for
-            them — surface the nativeRestacked notice on its own row. */}
-        {!stackChain && worktree.stackPending?.blockedBy === "nativeRestacked" && (
+        {/* The chain row never renders for native-stack members (suppressed
+            above, or the chain dissolved with a merged parent) — surface the
+            nativeRestacked notice on its own row. */}
+        {(!stackChain || isNativeStackMember) &&
+          worktree.stackPending?.blockedBy === "nativeRestacked" && (
           <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
             <span className="truncate">restacked by GitHub — local branch may be behind</span>
           </div>

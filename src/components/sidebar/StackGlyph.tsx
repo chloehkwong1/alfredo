@@ -15,8 +15,6 @@ interface StackGlyphProps {
 function StackGlyph({ worktree, chain, onOpenMap }: StackGlyphProps) {
   const setPeeked = useWorkspaceStore((s) => s.setPeekedStackRoot);
   const rebasing = worktree.stackRebaseStatus?.kind === "rebasing";
-  // Roots carry the whole stack — give them a filled chip so "other branches
-  // depend on this one" is visible at a glance; children stay muted.
   const isRoot = !worktree.stackParent;
   // Forked stacks swap the layers icon for a fork: position is a depth (shared
   // by siblings), and the map is where the tree shape lives.
@@ -33,11 +31,7 @@ function StackGlyph({ worktree, chain, onOpenMap }: StackGlyphProps) {
       onKeyDown={(e) => e.stopPropagation()}
       onMouseEnter={() => setPeeked(chain.rootId)}
       onMouseLeave={() => setPeeked(null)}
-      className={`relative flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded text-[10px] text-accent-primary transition-colors cursor-pointer ${
-        isRoot
-          ? "bg-accent-primary/20 border border-accent-primary/40 font-medium hover:bg-accent-primary/30"
-          : "bg-accent-muted/40 hover:bg-accent-muted"
-      }`}
+      className="relative flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded text-[10px] text-accent-primary bg-accent-muted/40 hover:bg-accent-muted transition-colors cursor-pointer"
       aria-label={
         (isRoot
           ? `Stack root, position 1 of ${chain.total}`
@@ -69,6 +63,9 @@ function nativeStackChipLabel(prStatus: PrStatus | null | undefined): string | n
 interface NativeStackChipProps {
   prStatus: PrStatus | null | undefined;
   onOpenMap: () => void;
+  /** Root id of the worktree's local Alfredo chain, when one still exists —
+   *  converted stacks keep StackGlyph's hover-peek through this chip. */
+  peekRootId?: string;
 }
 
 /** GitHub-parity `⧉ pos/size` chip for PRs in a native GitHub Stack — mirrors
@@ -76,7 +73,8 @@ interface NativeStackChipProps {
  *  the worktree has no Alfredo stack override (native members usually don't).
  *  Click opens the same stack map popover as StackGlyph. Lives inside a
  *  dnd-kit sortable row — every handler stops propagation. */
-function NativeStackChip({ prStatus, onOpenMap }: NativeStackChipProps) {
+function NativeStackChip({ prStatus, onOpenMap, peekRootId }: NativeStackChipProps) {
+  const setPeeked = useWorkspaceStore((s) => s.setPeekedStackRoot);
   const label = nativeStackChipLabel(prStatus);
   if (!label) return null;
   const ns = prStatus!.nativeStack!;
@@ -90,6 +88,8 @@ function NativeStackChip({ prStatus, onOpenMap }: NativeStackChipProps) {
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
+      onMouseEnter={() => peekRootId && setPeeked(peekRootId)}
+      onMouseLeave={() => peekRootId && setPeeked(null)}
       className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded text-[10px] text-accent-primary bg-accent-muted/40 hover:bg-accent-muted transition-colors cursor-pointer"
       aria-label={`Stack position ${ns.position} of ${ns.size} in GitHub stack #${ns.number} — open stack map`}
       title={`Stack #${ns.number} · ${ns.position}/${ns.size} — managed by GitHub`}
