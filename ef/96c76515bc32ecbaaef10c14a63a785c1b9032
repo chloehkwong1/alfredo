@@ -1,0 +1,25 @@
+src/components/sidebar/StackGlyph.tsx
+  s_5fea249a63a88a::t_fc859bde95a2f1 66-68,76-77,91-92
+  s_5fea249a63a88a::t_97f33710f062e4 34
+src/components/sidebar/AgentItem.tsx
+  s_5fea249a63a88a::t_3826502078f694 482-486
+  s_5fea249a63a88a::t_c858926fc23d79 320-323
+  s_5fea249a63a88a::t_eb701578494509 448-450
+  s_5fea249a63a88a::t_fdb6c8739ff6e5 372-376
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ef96c76515bc32ecbaaef10c14a63a785c1b9032",
+  "prompts": {},
+  "sessions": {
+    "s_5fea249a63a88a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a1647795-7672-419f-8aa8-077a41a306d6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
