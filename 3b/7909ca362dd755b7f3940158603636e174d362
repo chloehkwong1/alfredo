@@ -1,0 +1,19 @@
+src/components/sidebar/StackGlyph.tsx
+  s_5fea249a63a88a::t_0beccb4204904c 43,49,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "3b7909ca362dd755b7f3940158603636e174d362",
+  "prompts": {},
+  "sessions": {
+    "s_5fea249a63a88a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a1647795-7672-419f-8aa8-077a41a306d6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
