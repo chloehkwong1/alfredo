@@ -40,18 +40,18 @@ function StackGlyph({ worktree, chain, onOpenMap }: StackGlyphProps) {
       }`}
       aria-label={
         (isRoot
-          ? `Stack root, ${chain.total} branches in this stack`
+          ? `Stack root, position 1 of ${chain.total}`
           : `Stack position ${chain.position} of ${chain.total}`)
         + (chain.needsAttention ? ", a branch needs attention" : "")
         + " — open stack map"
       }
       title={
-        (isRoot ? `Stack root — ${chain.total} branches in this stack` : `Stack ${chain.position}/${chain.total}`)
+        (isRoot ? `Stack root — ${chain.position}/${chain.total}` : `Stack ${chain.position}/${chain.total}`)
         + (chain.needsAttention ? " — a branch in this stack needs attention, click for details" : "")
       }
     >
       <Icon className={`h-3 w-3 ${rebasing ? "animate-spin" : ""}`} />
-      {isRoot ? "root" : `${chain.position}/${chain.total}`}
+      {`${chain.position}/${chain.total}`}
       {chain.needsAttention && (
         <span className="absolute -top-1 -right-1 text-[10px] font-bold text-amber-400">!</span>
       )}
