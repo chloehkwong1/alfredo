@@ -550,13 +550,11 @@ pub fn set_linear_ticket(config: &mut AppConfig, worktree_name: &str, ticket: Li
 }
 
 /// Get the persisted PR association for a specific worktree, if any.
-#[allow(dead_code)]
 pub fn get_pr_association(config: &AppConfig, worktree_name: &str) -> Option<PrAssociationRef> {
     config.pr_associations.get(worktree_name).cloned()
 }
 
 /// Persist the last-known PR association for a specific worktree.
-#[allow(dead_code)]
 pub fn set_pr_association(config: &mut AppConfig, worktree_name: &str, assoc: PrAssociationRef) {
     config.pr_associations.insert(worktree_name.to_string(), assoc);
 }

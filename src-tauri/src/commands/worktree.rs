@@ -400,6 +400,33 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
                 wt.linear_ticket_identifier = Some(ticket.identifier);
             }
         }
+        // Hydrate last-known PR status from persisted associations so the
+        // sidebar PR link survives restarts even when the PR has aged out of
+        // the sync window. Live sync data always wins — this only fills gaps.
+        for wt in &mut wts {
+            if wt.pr_status.is_none() {
+                if let Some(assoc) = config_manager::get_pr_association(&config, &wt.name) {
+                    wt.pr_status = Some(crate::types::PrStatus {
+                        number: assoc.number,
+                        state: assoc.state,
+                        title: assoc.title,
+                        url: assoc.url,
+                        draft: false,
+                        merged: assoc.merged,
+                        branch: wt.branch.clone(),
+                        base_branch: None,
+                        merged_at: None,
+                        head_sha: None,
+                        merge_commit_sha: None,
+                        body: None,
+                        updated_at: None,
+                        author: None,
+                        requested_reviewers: Vec::new(),
+                        native_stack: None,
+                    });
+                }
+            }
+        }
         // Hydrate assigned port from config only when auto-assign is enabled.
         // Leaving stored assignments in place means toggling the feature back
         // on restores prior ports; toggling off hides them so dev servers fall
@@ -1144,7 +1171,33 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
     }
 
     // 6. Create the worktree from the PR's head branch, using the PR's base for stack detection
-    create_worktree(app.clone(), app.state::<PortConfigLock>(), repo_path, branch_name, base).await
+    let assoc = crate::types::PrAssociationRef {
+        number: pr.number,
+        url: pr.url.clone(),
+        title: pr.title.clone(),
+        state: pr.state.clone(),
+        merged: pr.merged,
+    };
+    let worktree =
+        create_worktree(app.clone(), app.state::<PortConfigLock>(), repo_path, branch_name, base).await?;
+
+    // Persist the PR association so the sidebar link survives restarts even if
+    // this PR ages out of the sync window before the next launch. Best-effort:
+    // the worktree is already usable, and the next sync tick re-persists.
+    {
+        let port_lock = app.state::<PortConfigLock>();
+        let _guard = port_lock.0.lock().await;
+        match config_manager::load_personal_config(&app_data_dir, &worktree.repo_path).await {
+            Ok(mut config) => {
+                config_manager::set_pr_association(&mut config, &worktree.name, assoc);
+                if let Err(e) = config_manager::save_config(&app_data_dir, &worktree.repo_path, &config).await {
+                    tracing::warn!(worktree = %worktree.name, error = %e, "[pr-association] save failed");
+                }
+            }
+            Err(e) => tracing::warn!(worktree = %worktree.name, error = %e, "[pr-association] config load failed"),
+        }
+    }
+    Ok(worktree)
 }
 
 /// Resolve `app_data_dir` from an `AppHandle`.
