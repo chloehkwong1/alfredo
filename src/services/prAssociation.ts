@@ -95,10 +95,19 @@ export async function reconcileStalePrs(payloadPrs: PrStatusWithColumn[]): Promi
 
     const terminal = pr.merged || pr.state === "closed";
     const wasDone = wt.column === "done";
+    // Non-terminal reconciles must not disturb an active manual column
+    // override. applyPrUpdates only keeps an override when its
+    // autoColumnWhenSet still matches the PR's autoColumn (prStore.ts) — so
+    // passing wt.column verbatim here would look like a real auto-column
+    // change and silently delete the user's manual placement. Pass the
+    // override's own autoColumnWhenSet instead, so the comparison sees no
+    // change and the override survives.
+    const activeOverride = usePrStore.getState().columnOverrides[wt.id];
+    const autoColumn = terminal ? "done" : (activeOverride ? activeOverride.autoColumnWhenSet : wt.column);
     const prWithColumn: PrStatusWithColumn = {
       ...pr,
       branch: wt.branch, // fetched-by-number PRs must key back to this worktree
-      autoColumn: terminal ? "done" : wt.column,
+      autoColumn,
       repoPath: wt.repoPath,
       checkRuns: [],
       reviews: [],

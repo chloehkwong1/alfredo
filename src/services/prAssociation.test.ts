@@ -122,6 +122,25 @@ describe("reconcileStalePrs", () => {
     expect(useWorkspaceStore.getState().worktrees[0].column).toBe("openPr");
   });
 
+  it("preserves an active manual column override on a non-terminal reconcile", async () => {
+    // User dragged this card to "toDo" while the PR's real auto-column was
+    // "openPr" — that's the override's whole premise (column !== autoColumnWhenSet).
+    const wt = makeWorktree({ column: "toDo", prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    usePrStore.setState((s) => ({
+      columnOverrides: { ...s.columnOverrides, [wt.id]: { column: "toDo", autoColumnWhenSet: "openPr" } },
+    }));
+    vi.mocked(getPrByNumber).mockResolvedValue(makePr({ state: "open" }));
+
+    await reconcileStalePrs([]);
+
+    expect(useWorkspaceStore.getState().worktrees[0].column).toBe("toDo");
+    expect(usePrStore.getState().columnOverrides[wt.id]).toEqual({
+      column: "toDo",
+      autoColumnWhenSet: "openPr",
+    });
+  });
+
   it("counts a mixed batch in one toast", async () => {
     const a = makeWorktree({ id: "/repo::a", name: "a", branch: "a", prStatus: makePr({ number: 1, branch: "a", state: "open" }) });
     const b = makeWorktree({ id: "/repo::b", name: "b", branch: "b", prStatus: makePr({ number: 2, branch: "b", state: "open" }) });
