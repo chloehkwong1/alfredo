@@ -45,6 +45,13 @@ function makePr(over: Partial<PrStatus>): PrStatus {
   } as PrStatus;
 }
 
+// Marks "/repo" as a repo the payload actually heard from, on a branch no
+// test worktree uses. Since reconcileStalePrs now requires a worktree's repo
+// to be present in the payload before treating it as a genuine stale
+// candidate (fix 5 — partial poll failure must not burn the retry budget),
+// every call below that used to pass `[]` now passes this instead.
+const SYNCED_REPO_PAYLOAD = [{ repoPath: "/repo", branch: "unrelated-branch" } as never];
+
 beforeEach(() => {
   _resetForTests();
   useWorkspaceStore.setState({ worktrees: [] });
@@ -59,7 +66,7 @@ describe("reconcileStalePrs", () => {
     useWorkspaceStore.setState({ worktrees: [wt] });
     vi.mocked(getPrByNumber).mockResolvedValue(makePr({ state: "closed" }));
 
-    await reconcileStalePrs([]);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
 
     const after = useWorkspaceStore.getState().worktrees[0];
     expect(after.column).toBe("done");
@@ -76,7 +83,7 @@ describe("reconcileStalePrs", () => {
     useWorkspaceStore.setState({ worktrees: [wt] });
     vi.mocked(findPrForBranch).mockResolvedValue(makePr({ merged: true, state: "closed" }));
 
-    await reconcileStalePrs([]);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
 
     expect(findPrForBranch).toHaveBeenCalledWith("/repo", "feat/x");
     expect(useWorkspaceStore.getState().worktrees[0].column).toBe("done");
@@ -92,8 +99,8 @@ describe("reconcileStalePrs", () => {
     expect(getPrByNumber).not.toHaveBeenCalled();
 
     vi.mocked(getPrByNumber).mockResolvedValue(makePr({ state: "open" }));
-    await reconcileStalePrs([]);
-    await reconcileStalePrs([]);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
     expect(getPrByNumber).toHaveBeenCalledTimes(1);
   });
 
@@ -102,7 +109,7 @@ describe("reconcileStalePrs", () => {
     useWorkspaceStore.setState({ worktrees: [wt] });
     vi.mocked(getPrByNumber).mockResolvedValue(makePr({ state: "open" }));
 
-    await reconcileStalePrs([]);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
 
     expect(useWorkspaceStore.getState().worktrees[0].column).toBe("openPr");
     expect(useToastStore.getState().toasts).toHaveLength(0);
@@ -113,10 +120,10 @@ describe("reconcileStalePrs", () => {
     useWorkspaceStore.setState({ worktrees: [wt] });
     vi.mocked(getPrByNumber).mockRejectedValue(new Error("offline"));
 
-    await reconcileStalePrs([]);
-    await reconcileStalePrs([]);
-    await reconcileStalePrs([]);
-    await reconcileStalePrs([]);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
 
     expect(getPrByNumber).toHaveBeenCalledTimes(3);
     expect(useWorkspaceStore.getState().worktrees[0].column).toBe("openPr");
@@ -132,7 +139,7 @@ describe("reconcileStalePrs", () => {
     }));
     vi.mocked(getPrByNumber).mockResolvedValue(makePr({ state: "open" }));
 
-    await reconcileStalePrs([]);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
 
     expect(useWorkspaceStore.getState().worktrees[0].column).toBe("toDo");
     expect(usePrStore.getState().columnOverrides[wt.id]).toEqual({
@@ -151,11 +158,75 @@ describe("reconcileStalePrs", () => {
       .mockResolvedValueOnce(makePr({ number: 2, branch: "b", state: "closed" }))
       .mockResolvedValueOnce(makePr({ number: 3, branch: "c", state: "closed", merged: true }));
 
-    await reconcileStalePrs([]);
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
 
     const toasts = useToastStore.getState().toasts;
     expect(toasts).toHaveLength(1);
     expect(toasts[0].message).toBe("While you were away: 2 PRs closed, 1 merged — moved to Done");
+  });
+
+  it("does not toast when a manual override keeps a terminal PR's card out of Done", async () => {
+    // A prior sync auto-Doned this card (autoColumn was "done" at the time),
+    // then the user dragged it back to "inProgress" — the override's
+    // autoColumnWhenSet records that prior "done" auto-column. On this
+    // reconcile the PR is (still) terminal, so the incoming autoColumn is
+    // "done" too, which matches autoColumnWhenSet — the override survives
+    // and the card stays in "inProgress". Regression coverage for fix 1:
+    // the old code toasted "moved to Done" here every launch regardless.
+    const wt = makeWorktree({ column: "inProgress", prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    usePrStore.setState((s) => ({
+      columnOverrides: { ...s.columnOverrides, [wt.id]: { column: "inProgress", autoColumnWhenSet: "done" } },
+    }));
+    vi.mocked(getPrByNumber).mockResolvedValue(makePr({ state: "closed" }));
+
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    expect(useWorkspaceStore.getState().worktrees[0].column).toBe("inProgress");
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it("skips the fetch entirely for a worktree already Done with a terminal hydrated prStatus", async () => {
+    const wt = makeWorktree({ column: "done", prStatus: makePr({ state: "closed" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+
+    await reconcileStalePrs([]);
+
+    expect(getPrByNumber).not.toHaveBeenCalled();
+    expect(findPrForBranch).not.toHaveBeenCalled();
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it("does not call the branch fallback for a plain worktree with no prStatus", async () => {
+    const wt = makeWorktree({ column: "toDo", prStatus: null });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    expect(findPrForBranch).not.toHaveBeenCalled();
+    expect(getPrByNumber).not.toHaveBeenCalled();
+  });
+
+  it("guards against overlapping reconcile passes double-fetching and double-toasting", async () => {
+    const wt = makeWorktree({ prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    let resolveFetch!: (pr: PrStatus) => void;
+    vi.mocked(getPrByNumber).mockReturnValue(
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    // Fire two passes without awaiting the first — mirrors the fast + enriched
+    // github:pr-update emits both calling reconcileStalePrs fire-and-forget.
+    const first = reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+    const second = reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    resolveFetch(makePr({ state: "closed" }));
+    await Promise.all([first, second]);
+
+    expect(getPrByNumber).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toasts).toHaveLength(1);
   });
 });
 
