@@ -527,6 +527,9 @@ pub struct AppConfig {
     /// Maps worktree name → Linear ticket reference for worktrees created from a Linear ticket.
     #[serde(default)]
     pub linear_tickets: HashMap<String, LinearTicketRef>,
+    /// Maps worktree name → PR association reference for the last-known associated PR.
+    #[serde(default)]
+    pub pr_associations: HashMap<String, PrAssociationRef>,
     /// Maps worktree name → assigned dev server port.
     #[serde(default)]
     pub port_assignments: HashMap<String, u16>,
@@ -566,6 +569,18 @@ pub struct AppConfig {
 pub struct LinearTicketRef {
     pub url: String,
     pub identifier: String,
+}
+
+/// Last-known PR association for a worktree, persisted so the sidebar PR link
+/// survives restarts even when the PR has aged out of the sync window.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PrAssociationRef {
+    pub number: u64,
+    pub url: String,
+    pub title: String,
+    pub state: String,
+    pub merged: bool,
 }
 
 pub fn default_archive_days() -> Option<u32> { Some(2) }

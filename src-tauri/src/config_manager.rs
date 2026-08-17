@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use tokio::process::Command;
 
-use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, LinearTicketRef, NotificationConfig, RunScript, SetupScript};
+use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, LinearTicketRef, NotificationConfig, PrAssociationRef, RunScript, SetupScript};
 
 /// Legacy filename — used only for migration from in-repo config.
 const CONFIG_FILE: &str = ".alfredo.json";
@@ -68,6 +68,8 @@ struct ConfigFile {
     pub archive_script: Option<String>,
     #[serde(default)]
     pub linear_tickets: HashMap<String, LinearTicketRef>,
+    #[serde(default)]
+    pub pr_associations: HashMap<String, PrAssociationRef>,
     #[serde(default)]
     pub port_assignments: HashMap<String, u16>,
     #[serde(default)]
@@ -200,6 +202,7 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
             stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
+            pr_associations: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: None,
@@ -253,6 +256,7 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
         stack_baselines: file.stack_baselines,
         archive_script: file.archive_script,
         linear_tickets: file.linear_tickets,
+        pr_associations: file.pr_associations,
         port_assignments: file.port_assignments,
         auto_assign_ports: file.auto_assign_ports,
         port_env_var: file.port_env_var,
@@ -389,6 +393,7 @@ async fn write_personal_config_file(
         stack_baselines: config.stack_baselines.clone(),
         archive_script: config.archive_script.clone(),
         linear_tickets: config.linear_tickets.clone(),
+        pr_associations: config.pr_associations.clone(),
         port_assignments: config.port_assignments.clone(),
         auto_assign_ports: config.auto_assign_ports,
         port_env_var: config.port_env_var.clone(),
@@ -542,6 +547,18 @@ pub fn get_linear_ticket(config: &AppConfig, worktree_name: &str) -> Option<Line
 
 pub fn set_linear_ticket(config: &mut AppConfig, worktree_name: &str, ticket: LinearTicketRef) {
     config.linear_tickets.insert(worktree_name.to_string(), ticket);
+}
+
+/// Get the persisted PR association for a specific worktree, if any.
+#[allow(dead_code)]
+pub fn get_pr_association(config: &AppConfig, worktree_name: &str) -> Option<PrAssociationRef> {
+    config.pr_associations.get(worktree_name).cloned()
+}
+
+/// Persist the last-known PR association for a specific worktree.
+#[allow(dead_code)]
+pub fn set_pr_association(config: &mut AppConfig, worktree_name: &str, assoc: PrAssociationRef) {
+    config.pr_associations.insert(worktree_name.to_string(), assoc);
 }
 
 /// Get the assigned port for a worktree, if any.
@@ -857,6 +874,7 @@ mod tests {
             stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
+            pr_associations: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: None,
@@ -887,6 +905,31 @@ mod tests {
             assert_eq!(value["branchMode"], serde_json::Value::Bool(true));
         }
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_pr_association_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+        let app_data = tempfile::TempDir::new()?;
+        let repo = tempfile::TempDir::new()?;
+        let repo_path = repo.path().to_str().unwrap_or_default();
+
+        let mut config = load_personal_config(app_data.path(), repo_path).await?;
+        set_pr_association(&mut config, "bugbasaur-core-2892", crate::types::PrAssociationRef {
+            number: 23277,
+            url: "https://github.com/team-florence/florence/pull/23277".into(),
+            title: "CORE-2892: stop stale rate change requests".into(),
+            state: "open".into(),
+            merged: false,
+        });
+        save_config(app_data.path(), repo_path, &config).await?;
+
+        let loaded = load_personal_config(app_data.path(), repo_path).await?;
+        let assoc = get_pr_association(&loaded, "bugbasaur-core-2892").expect("association persisted");
+        assert_eq!(assoc.number, 23277);
+        assert_eq!(assoc.state, "open");
+        assert!(!assoc.merged);
+        assert!(get_pr_association(&loaded, "other-worktree").is_none());
         Ok(())
     }
 
@@ -1045,6 +1088,7 @@ mod tests {
             stack_baselines: HashMap::new(),
             archive_script: Some("".into()),
             linear_tickets: HashMap::new(),
+            pr_associations: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: Some("".into()),
@@ -1251,6 +1295,7 @@ mod tests {
             stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
+            pr_associations: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: None,
@@ -1330,6 +1375,7 @@ mod tests {
             stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
+            pr_associations: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: None,
@@ -1377,6 +1423,7 @@ mod tests {
             stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
+            pr_associations: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: None,
@@ -1437,6 +1484,7 @@ mod tests {
             stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
+            pr_associations: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: None,

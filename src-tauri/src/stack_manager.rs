@@ -2623,6 +2623,7 @@ mod tests {
             stack_baselines: HashMap::new(),
             archive_script: None,
             linear_tickets: HashMap::new(),
+            pr_associations: HashMap::new(),
             port_assignments: HashMap::new(),
             auto_assign_ports: false,
             port_env_var: None,
