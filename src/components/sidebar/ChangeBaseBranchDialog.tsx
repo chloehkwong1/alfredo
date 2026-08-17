@@ -10,6 +10,7 @@ import {
 import { Input } from "../ui/Input";
 import { listBranches, changeStackBase, getDefaultBranch, getCommitsBehindMain, getWorktreeDiffStats } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { isTerminalPr } from "../../lib/prStatus";
 import type { Worktree } from "../../types";
 
 interface ChangeBaseBranchDialogProps {
@@ -130,10 +131,12 @@ function ChangeBaseBranchDialog({ open, onOpenChange, worktree }: ChangeBaseBran
 
       // Re-scope the +/- diff badge to the new base now, instead of waiting for
       // the next agent busy→idle transition. Fire on any real parent change
-      // (including clearing back to the default branch). Skip when a PR exists —
-      // that badge is driven by the GitHub PR diff (getPrFiles in usePty), which
-      // the local stack parent must not override.
-      if (nextParent !== prevParent && !worktree.prStatus?.number) {
+      // (including clearing back to the default branch). Skip when a live PR
+      // exists — that badge is driven by the GitHub PR diff (getPrFiles in
+      // usePty), which the local stack parent must not override. A terminal
+      // (possibly stale) hydrated prStatus doesn't count as "a PR exists" here —
+      // usePty falls back to the local diff for it too, so this refresh must run.
+      if (nextParent !== prevParent && !(worktree.prStatus?.number && !isTerminalPr(worktree.prStatus))) {
         getWorktreeDiffStats(worktree.path, nextParent)
           .then(([additions, deletions]) => {
             // Drop a stale response if the parent changed again meanwhile.

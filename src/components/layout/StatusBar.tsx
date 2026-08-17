@@ -1,7 +1,16 @@
 import { ExternalLink, Copy, Check } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { Worktree } from "../../types";
+import type { PrStatus, Worktree } from "../../types";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
+
+/** Label + color token for a PR's current state, terminal states first so a
+ *  merged/closed PR is never mislabeled "Open". */
+function prStatusLabel(pr: PrStatus): { text: string; className: string } {
+  if (pr.merged) return { text: "Merged", className: "text-accent-primary" };
+  if (pr.state === "closed") return { text: "Closed", className: "text-text-secondary" };
+  if (pr.draft) return { text: "Draft", className: "text-status-busy" };
+  return { text: "Open", className: "text-status-idle" };
+}
 
 interface StatusBarProps {
   worktree: Worktree | undefined;
@@ -16,6 +25,7 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
   }
 
   const pr = worktree.prStatus;
+  const prLabel = pr ? prStatusLabel(pr) : null;
 
   return (
     <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-b border-border-subtle text-xs text-text-tertiary flex-shrink-0">
@@ -55,15 +65,13 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
             <ExternalLink size={12} />
           </button>
         )}
-        {pr && (
+        {pr && prLabel && (
           <button
             type="button"
             onClick={() => openUrl(pr.url)}
             className="flex items-center gap-1 hover:text-text-secondary transition-colors cursor-pointer"
           >
-            <span className={pr.draft ? "text-status-busy" : "text-status-idle"}>
-              {pr.draft ? "Draft" : "Open"} PR #{pr.number}
-            </span>
+            <span className={prLabel.className}>{prLabel.text} PR #{pr.number}</span>
             <ExternalLink size={12} />
           </button>
         )}

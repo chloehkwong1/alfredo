@@ -7,6 +7,7 @@ import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
 import { sessionManager } from "../services/sessionManager";
 import { registerSelectToCopy } from "../services/terminalFactory";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { isTerminalPr } from "../lib/prStatus";
 import type { ManagedSession } from "../services/sessionManager";
 
 export const STALE_BUSY_MS = 60_000;
@@ -305,7 +306,10 @@ export function usePty({
           // Refresh diff stats when agent finishes work (busy/waitingForInput → idle)
           if (currentState === "idle" && prevAgentState && prevAgentState !== "idle" && prevAgentState !== "notRunning") {
             const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
-            if (wt?.prStatus?.number) {
+            // A hydrated prStatus can be stale (the PR merged/closed after the
+            // app last hydrated it) — only a live PR's diff is worth fetching
+            // from GitHub; a terminal one falls through to the local diff below.
+            if (wt?.prStatus?.number && !isTerminalPr(wt.prStatus)) {
               getPrFiles(wt.repoPath, wt.prStatus.number)
                 .then((files) => {
                   const additions = files.reduce((sum, f) => sum + f.additions, 0);

@@ -38,6 +38,7 @@ import { StackGlyph, NativeStackChip } from "./StackGlyph";
 import { StackMapPopover, restackNowWithToast } from "./StackMapPopover";
 import { useToastStore } from "../../stores/toastStore";
 import { computeStackChain, type StackChain } from "../../lib/stackChain";
+import { isTerminalPr } from "../../lib/prStatus";
 
 const THINKING_VERBS = [
   "Thinking…",
@@ -267,7 +268,7 @@ function useAgentItemState(worktree: Worktree) {
   // first sync tick — derive the terminal chips (Merged/Cancelled) locally.
   const prSummary =
     storeSummary ??
-    (worktree.prStatus && (worktree.prStatus.merged || worktree.prStatus.state === "closed")
+    (worktree.prStatus && isTerminalPr(worktree.prStatus)
       ? { merged: worktree.prStatus.merged, closed: !worktree.prStatus.merged }
       : undefined);
   const serverEntry = useWorkspaceStore(
