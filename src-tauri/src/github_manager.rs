@@ -597,6 +597,23 @@ impl GithubManager {
         Ok(page.items.into_iter().next().map(pr_status_from_octocrab))
     }
 
+    /// Fetch a single PR by number (any state). Used to reconcile worktrees
+    /// whose PR has aged out of the sync window.
+    pub async fn get_pr_by_number(
+        &self,
+        owner: &str,
+        repo: &str,
+        number: u64,
+    ) -> Result<PrStatus, AppError> {
+        let pr = self
+            .client
+            .pulls(owner, repo)
+            .get(number)
+            .await
+            .map_err(|e| format_octocrab_error("failed to fetch PR by number", &e))?;
+        Ok(pr_status_from_octocrab(pr))
+    }
+
     /// Fetch check runs for a given git ref (branch, SHA, or tag).
     pub async fn get_check_runs(
         &self,

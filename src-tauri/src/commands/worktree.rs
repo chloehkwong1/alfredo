@@ -739,6 +739,25 @@ pub async fn set_worktree_column(
     Ok(())
 }
 
+/// Persist the last-known PR association for a worktree (number/url/title/state).
+#[tauri::command]
+pub async fn set_pr_association(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+    worktree_name: String,
+    association: crate::types::PrAssociationRef,
+) -> Result<()> {
+    // Mirror set_worktree_column: hold port_lock to serialize the whole-config
+    // save against concurrent port claims/releases.
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    config_manager::set_pr_association(&mut config, &worktree_name, association);
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    Ok(())
+}
+
 /// Persist the manual display order of worktree names for the given kanban
 /// columns in one write. Each column's list is wholesale-replaced with exactly
 /// what the frontend sends, so stale names are pruned on every save. A single

@@ -342,6 +342,7 @@ pub fn run() {
             worktree::get_worktree_diff_stats,
             worktree::get_worktree_status,
             worktree::set_worktree_column,
+            worktree::set_pr_association,
             worktree::clear_worktree_column,
             worktree::set_worktree_orders,
             worktree::get_worktree_order,
@@ -365,6 +366,8 @@ pub fn run() {
             // GitHub
             github::sync_pr_status,
             github::get_pr_for_branch,
+            github::get_pr_by_number,
+            github::find_pr_for_branch,
             checks::get_check_runs,
             checks::rerun_failed_checks,
             checks::get_job_log,

@@ -12,6 +12,7 @@ import type {
   LinearTicket,
   PortClaimResult,
   TakePortResult,
+  PrAssociationRef,
   PrStatus,
   PtyEvent,
   RepoMode,
@@ -260,6 +261,14 @@ export function setWorktreeColumn(
   return invoke("set_worktree_column", { repoPath, worktreeName, column });
 }
 
+export function setPrAssociation(
+  repoPath: string,
+  worktreeName: string,
+  association: PrAssociationRef,
+): Promise<void> {
+  return invoke("set_pr_association", { repoPath, worktreeName, association });
+}
+
 /** Persist the manual sidebar card order for one or more kanban columns of a
  *  repo (personal config layer). Order is worktree names, top-first. */
 export function setWorktreeOrders(
@@ -332,6 +341,14 @@ export function getActiveBranch(repoPath: string): Promise<string | null> {
 
 export function syncPrStatus(repoPath: string): Promise<PrStatus[]> {
   return invoke("sync_pr_status", { repoPath });
+}
+
+export function getPrByNumber(repoPath: string, number: number): Promise<PrStatus> {
+  return invoke("get_pr_by_number", { repoPath, number });
+}
+
+export function findPrForBranch(repoPath: string, branch: string): Promise<PrStatus | null> {
+  return invoke("find_pr_for_branch", { repoPath, branch });
 }
 
 // ── GitHub Auth ─────────────────────────────────────────────────

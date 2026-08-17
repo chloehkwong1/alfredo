@@ -49,6 +49,25 @@ pub async fn sync_pr_status(app: tauri::AppHandle, repo_path: String) -> Result<
     Ok(prs)
 }
 
+/// Fetch a single PR by number (any state), resolving auth from repo config.
+#[tauri::command]
+pub async fn get_pr_by_number(app: tauri::AppHandle, repo_path: String, number: u64) -> Result<PrStatus> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let (manager, owner, repo) = github_manager::github_context(&app_data_dir, &repo_path).await?;
+    manager.get_pr_by_number(&owner, &repo, number).await
+}
+
+/// Find the PR (any state) whose head is `branch`, resolving auth from repo
+/// config. Legacy-orphan fallback for worktrees with no persisted association.
+#[tauri::command]
+pub async fn find_pr_for_branch(app: tauri::AppHandle, repo_path: String, branch: String) -> Result<Option<PrStatus>> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
+    let (manager, owner, repo) = github_manager::github_context(&app_data_dir, &repo_path).await?;
+    manager.get_pr_for_branch(&owner, &repo, &branch).await
+}
+
 #[cfg(test)]
 mod tests {
     use crate::types::PrStatus;

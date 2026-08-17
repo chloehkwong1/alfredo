@@ -227,6 +227,15 @@ export interface PrUpdatePayload {
   prs: PrStatusWithColumn[];
 }
 
+/** Last-known PR association persisted per worktree (survives restarts). */
+export interface PrAssociationRef {
+  number: number;
+  url: string;
+  title: string;
+  state: string;
+  merged: boolean;
+}
+
 /** A PR status annotated with the auto-determined kanban column. */
 export interface PrStatusWithColumn extends PrStatus {
   autoColumn: KanbanColumn;
