@@ -1,0 +1,69 @@
+src/lib/stackChain.test.ts
+  s_00eb7f7c5b1535::t_022dbf5e9d6571 106-136,141-142,157
+  s_00eb7f7c5b1535::t_c7b02651cbcf29 2
+  s_00eb7f7c5b1535::t_38e7667babfeb1 137-140
+  s_00eb7f7c5b1535::t_2f6e9e36bf1449 3
+  s_00eb7f7c5b1535::t_31200d3db7b458 143-156,158-169
+  s_00eb7f7c5b1535::t_e7b521f85b45a0 170
+src/styles/globals.css
+  s_00eb7f7c5b1535::t_8d44d5f15293a8 369-371
+  s_00eb7f7c5b1535::t_71ee9f186fed46 368,372-387
+src/components/sidebar/AgentItemOverlay.tsx
+  s_00eb7f7c5b1535::t_2cbe0b63dd6e17 34
+  s_00eb7f7c5b1535::t_e05ca288eebd1c 13-15
+  s_00eb7f7c5b1535::t_05bec52fdce3bc 2
+src/styles/theme.css
+  s_00eb7f7c5b1535::t_9254447a1ca39e 32-35,37,39-43
+  s_9ca70c7598328d::t_8ff28379e024bc 36
+  s_00eb7f7c5b1535::t_d1bd914ce4ef12 31,38,44
+src/components/sidebar/AgentItem.tsx
+  s_00eb7f7c5b1535::t_b8e1457cbb068d 1138
+  s_00eb7f7c5b1535::t_cff5b6b9207a89 40
+  s_00eb7f7c5b1535::t_158cfd8a2f02b0 711-725
+  s_00eb7f7c5b1535::t_5fdd53a6f0a193 324
+  s_00eb7f7c5b1535::t_c3c742bea1d779 313
+  s_00eb7f7c5b1535::t_fe0a9d4ca690a4 784
+  s_00eb7f7c5b1535::t_56dfb455f651ff 396
+  s_00eb7f7c5b1535::t_1a2b11b4daacf9 913
+  s_00eb7f7c5b1535::t_c33b8e318c6446 474
+src/lib/stackChain.ts
+  s_00eb7f7c5b1535::t_bca2b2014c7dbf 107,110-122
+  s_00eb7f7c5b1535::t_74cba86b2ae71f 72
+  s_00eb7f7c5b1535::t_13ec2a9da3dff0 105-106,108-109,123-154
+  s_00eb7f7c5b1535::t_00e76e0ed2f85f 33-45
+src/components/sidebar/StackGlyph.tsx
+  s_00eb7f7c5b1535::t_c1b6a72ec71abc 7,10-12,14,19-20,25-27,33
+  s_00eb7f7c5b1535::t_efe546509fa566 52
+  s_00eb7f7c5b1535::t_e5fbd7eb509a7e 1
+  s_00eb7f7c5b1535::t_9cb0236f72d7cd 92-94
+  s_00eb7f7c5b1535::t_2faec4b3b19976 102
+  s_00eb7f7c5b1535::t_38e0350ea9340c 8-9,13,15-16,18
+  s_00eb7f7c5b1535::t_29e0c129615fc8 53
+  s_00eb7f7c5b1535::t_2e26bf214f7aed 119
+  s_00eb7f7c5b1535::t_d74dc42a09d1c0 120
+  s_00eb7f7c5b1535::t_e45f4928ec3685 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8a87027dfab62fbe5f03f769a077c05ae9159dae",
+  "prompts": {},
+  "sessions": {
+    "s_00eb7f7c5b1535": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "faa9a400-fc5d-45c5-ac46-cec857312471",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_9ca70c7598328d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "333f57c8-c18d-47e8-ad6c-32f19fe38e9b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
