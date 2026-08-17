@@ -1,0 +1,62 @@
+src-tauri/src/git_manager.rs
+  s_133d2eaeadf88a::t_e99b238c3609ae 851-856,889-904
+  s_133d2eaeadf88a::t_6676fc4185ea3e 829
+src/components/sidebar/AgentItem.tsx
+  s_133d2eaeadf88a::t_72780832fa872e 393
+  s_133d2eaeadf88a::t_fa3883950e7a54 332-340
+  s_133d2eaeadf88a::t_c3a3b12852a3cd 467-469
+  s_133d2eaeadf88a::t_67943b401fbb45 9
+  s_133d2eaeadf88a::t_1a667fc52e252c 38
+  s_133d2eaeadf88a::t_95a5ab50930ab2 804-809,811-816
+  s_133d2eaeadf88a::t_fdc5101ea4e339 501-504
+src/components/sidebar/StackGlyph.tsx
+  s_133d2eaeadf88a::t_6aba2f34024ffd 69-72,80,97-106,110-112
+src-tauri/src/commands/worktree.rs
+  s_133d2eaeadf88a::t_7d5ce9de7e4bbf 593-596,601-607
+  s_133d2eaeadf88a::t_5ffc2b202d5c50 647-650,656,658,660
+  s_133d2eaeadf88a::t_7ce0f44a3453bc 672
+src-tauri/src/stack_manager.rs
+  s_133d2eaeadf88a::t_70e1d796dc5a11 708
+  s_133d2eaeadf88a::t_47a1a306a26387 699-702
+  s_133d2eaeadf88a::t_d5ced576368b48 800-812,821,826,829-833,840-848,852-857,861
+  s_133d2eaeadf88a::t_4d920c249c323f 734,737-740
+  s_133d2eaeadf88a::t_5402a72cc3f1f6 1334-1337,1345
+src/components/sidebar/StackMapPopover.tsx
+  s_133d2eaeadf88a::t_532ebc8241c6ea 366,371
+  s_133d2eaeadf88a::t_c8ec71a2232901 78-82,88-100,107-133
+  s_133d2eaeadf88a::t_2c7340f78ba528 345
+  s_133d2eaeadf88a::t_92af1a074d93a6 472-473
+  s_133d2eaeadf88a::t_f213f3c6a959f6 2,8,22-24,26-63
+  s_133d2eaeadf88a::t_357d0b8c1aae76 134
+  s_133d2eaeadf88a::t_de1e348b551b9e 498
+  s_133d2eaeadf88a::t_4ea8eaabb34dd8 285
+  s_133d2eaeadf88a::t_dc80e17b4ef1a1 485,487
+  s_133d2eaeadf88a::t_e6a034abed4429 25
+  s_133d2eaeadf88a::t_082c1adb19fb2a 196,198-203,216,218
+  s_133d2eaeadf88a::t_478a76774924c8 421,423
+  s_133d2eaeadf88a::t_b77deca2be4e29 251-256,259,271,273
+src/api.ts
+  s_133d2eaeadf88a::t_2a4f66821f828e 205-209,216-225
+  s_133d2eaeadf88a::t_4d4a29e2a2c79b 161
+src/components/sidebar/AgentItem.test.ts
+  s_133d2eaeadf88a::t_917e0f2f2501af 127-161
+  s_133d2eaeadf88a::t_2b6445c4fa2541 4
+src/components/changes/ChangesPanel.tsx
+  s_133d2eaeadf88a::t_f921636656df4a 59-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "72da409268732ef5e7438193eb712707f592ff27",
+  "prompts": {},
+  "sessions": {
+    "s_133d2eaeadf88a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8646d4ef-25da-4c7b-8712-52e93b2dbcde",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
