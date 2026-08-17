@@ -262,7 +262,14 @@ export function computeEffectiveStatus(
 function useAgentItemState(worktree: Worktree) {
   const isSeen = useWorkspaceStore((s) => s.seenWorktrees.has(worktree.id));
   const isUnread = useWorkspaceStore((s) => s.unreadWorktrees.has(worktree.id));
-  const prSummary = usePrStore((s) => s.prSummary[worktree.id]);
+  const storeSummary = usePrStore((s) => s.prSummary[worktree.id]);
+  // Restored cards have a hydrated prStatus but no live summary until the
+  // first sync tick — derive the terminal chips (Merged/Cancelled) locally.
+  const prSummary =
+    storeSummary ??
+    (worktree.prStatus && (worktree.prStatus.merged || worktree.prStatus.state === "closed")
+      ? { merged: worktree.prStatus.merged, closed: !worktree.prStatus.merged }
+      : undefined);
   const serverEntry = useWorkspaceStore(
     (s) => s.runningServers[worktree.id],
   );

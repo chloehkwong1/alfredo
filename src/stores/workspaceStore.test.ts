@@ -384,6 +384,30 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(worktrees).toHaveLength(1);
     expect(worktrees[0].creating).toBeUndefined();
   });
+
+  it("keeps hydrated prStatus from the backend when the store has none", () => {
+    const store = useWorkspaceStore;
+    const base = makeWorktree();
+    store.getState().setWorktrees([{ ...base, prStatus: null }]);
+    const hydrated = {
+      number: 23277, state: "closed", title: "CORE-2892", url: "https://github.com/x/y/pull/23277",
+      draft: false, merged: false, branch: base.branch,
+    };
+    store.getState().setWorktrees([{ ...base, prStatus: hydrated }]);
+    expect(store.getState().worktrees[0].prStatus?.number).toBe(23277);
+  });
+
+  it("prefers the store's live prStatus over a backend refresh", () => {
+    const store = useWorkspaceStore;
+    const base = makeWorktree();
+    const live = {
+      number: 1, state: "open", title: "live", url: "https://github.com/x/y/pull/1",
+      draft: false, merged: false, branch: base.branch,
+    };
+    store.getState().setWorktrees([{ ...base, prStatus: live }]);
+    store.getState().setWorktrees([{ ...base, prStatus: null }]);
+    expect(store.getState().worktrees[0].prStatus?.number).toBe(1);
+  });
 });
 
 // ── withActivityTimestamps (via setWorktrees) ─────────────────────

@@ -278,7 +278,9 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
     if (old) {
       return {
         ...wt,
-        prStatus: old.prStatus,
+        // Live sync data wins, but a restart-hydrated prStatus (from persisted
+        // PR associations) must survive refreshes that arrive before first sync.
+        prStatus: old.prStatus ?? wt.prStatus,
         column: old.column,
         agentStatus: old.agentStatus,
         channelAlive: old.channelAlive,
