@@ -1,0 +1,21 @@
+src/services/prAssociation.test.ts
+  s_9ca70c7598328d::t_684f4cbe78a767 125-143
+src/services/prAssociation.ts
+  s_9ca70c7598328d::t_ff3bb3680b77df 98-106,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "62ad7aeae4f011618cb103626b6df723417a9433",
+  "prompts": {},
+  "sessions": {
+    "s_9ca70c7598328d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "333f57c8-c18d-47e8-ad6c-32f19fe38e9b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
