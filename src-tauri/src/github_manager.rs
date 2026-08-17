@@ -598,20 +598,24 @@ impl GithubManager {
     }
 
     /// Fetch a single PR by number (any state). Used to reconcile worktrees
-    /// whose PR has aged out of the sync window.
+    /// whose PR has aged out of the sync window. `Ok(None)` means the PR is
+    /// gone (404) — deleted, or a number that never existed — which is a fact
+    /// to reconcile toward, not a transient failure to retry.
     pub async fn get_pr_by_number(
         &self,
         owner: &str,
         repo: &str,
         number: u64,
-    ) -> Result<PrStatus, AppError> {
-        let pr = self
-            .client
-            .pulls(owner, repo)
-            .get(number)
-            .await
-            .map_err(|e| format_octocrab_error("failed to fetch PR by number", &e))?;
-        Ok(pr_status_from_octocrab(pr))
+    ) -> Result<Option<PrStatus>, AppError> {
+        match self.client.pulls(owner, repo).get(number).await {
+            Ok(pr) => Ok(Some(pr_status_from_octocrab(pr))),
+            Err(octocrab::Error::GitHub { source, .. })
+                if source.status_code == reqwest::StatusCode::NOT_FOUND =>
+            {
+                Ok(None)
+            }
+            Err(e) => Err(format_octocrab_error("failed to fetch PR by number", &e)),
+        }
     }
 
     /// Fetch check runs for a given git ref (branch, SHA, or tag).

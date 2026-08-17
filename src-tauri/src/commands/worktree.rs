@@ -220,6 +220,13 @@ pub async fn create_worktree(
         if let Some(sha) = base_sha {
             config_manager::set_stack_baseline(&mut config, &dir_name, sha);
         }
+        // A pre-existing pr_associations entry under this name can only be a
+        // dead predecessor's (delete_worktree prunes on removal, but a worktree
+        // created outside Alfredo, or before that pruning existed, can leave one
+        // behind) — piggyback on this save rather than opening a second one.
+        // `create_worktree_from_pr` overwrites this with the real association
+        // right after this function returns, so ordering is preserved either way.
+        config_manager::clear_pr_association(&mut config, &dir_name);
         config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     }
     let stack_parent = stack_parent.map(|(parent, _)| parent);
@@ -284,6 +291,27 @@ pub async fn adopt_worktree(
         .filter(|s| s.run_on == "create")
         .cloned()
         .collect();
+
+    // Best-effort: a pre-existing pr_associations entry under this name can
+    // only be a dead predecessor's (an adopted worktree was never created
+    // through Alfredo, so nothing pruned it on removal last time). Don't fail
+    // the adopt over this — the worktree is already usable either way.
+    if let Some(worktree_name) =
+        std::path::Path::new(&worktree_path).file_name().and_then(|n| n.to_str())
+    {
+        let port_lock = app.state::<PortConfigLock>();
+        let _guard = port_lock.0.lock().await;
+        match config_manager::load_personal_config(&app_data_dir, &repo_path).await {
+            Ok(mut config) => {
+                config_manager::clear_pr_association(&mut config, worktree_name);
+                if let Err(e) = config_manager::save_config(&app_data_dir, &repo_path, &config).await {
+                    tracing::warn!(worktree = worktree_name, error = %e, "[pr-association] adopt prune save failed");
+                }
+            }
+            Err(e) => tracing::warn!(worktree = worktree_name, error = %e, "[pr-association] adopt prune config load failed"),
+        }
+    }
+
     Ok(provision_worktree(&app, &repo_path, &worktree_path, worktree_id, create_scripts).await)
 }
 
@@ -759,6 +787,26 @@ pub async fn set_pr_association(
     let app_data_dir = resolve_app_data_dir(&app)?;
     let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
     config_manager::set_pr_association(&mut config, &worktree_name, association);
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    Ok(())
+}
+
+/// Drop a worktree's persisted PR association — the tracked PR turned out to
+/// be gone (404 on `get_pr_by_number`), so the dangling number must not
+/// rehydrate a dead chip on a future launch.
+#[tauri::command]
+pub async fn clear_pr_association(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<()> {
+    // Mirror set_pr_association: hold port_lock to serialize the whole-config
+    // save against concurrent port claims/releases.
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    config_manager::clear_pr_association(&mut config, &worktree_name);
     config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     Ok(())
 }

@@ -343,6 +343,7 @@ pub fn run() {
             worktree::get_worktree_status,
             worktree::set_worktree_column,
             worktree::set_pr_association,
+            worktree::clear_pr_association,
             worktree::clear_worktree_column,
             worktree::set_worktree_orders,
             worktree::get_worktree_order,

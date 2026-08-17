@@ -559,6 +559,12 @@ pub fn set_pr_association(config: &mut AppConfig, worktree_name: &str, assoc: Pr
     config.pr_associations.insert(worktree_name.to_string(), assoc);
 }
 
+/// Drop a worktree's persisted PR association (the tracked PR turned out to
+/// be gone — 404 — so the number must not rehydrate a dead chip later).
+pub fn clear_pr_association(config: &mut AppConfig, worktree_name: &str) {
+    config.pr_associations.remove(worktree_name);
+}
+
 /// Get the assigned port for a worktree, if any.
 pub fn get_assigned_port(config: &AppConfig, worktree_name: &str) -> Option<u16> {
     config.port_assignments.get(worktree_name).copied()

@@ -50,8 +50,9 @@ pub async fn sync_pr_status(app: tauri::AppHandle, repo_path: String) -> Result<
 }
 
 /// Fetch a single PR by number (any state), resolving auth from repo config.
+/// `None` means the PR is gone (404), not a transient error.
 #[tauri::command]
-pub async fn get_pr_by_number(app: tauri::AppHandle, repo_path: String, number: u64) -> Result<PrStatus> {
+pub async fn get_pr_by_number(app: tauri::AppHandle, repo_path: String, number: u64) -> Result<Option<PrStatus>> {
     let app_data_dir = app.path().app_data_dir()
         .map_err(|e| AppError::Config(format!("failed to resolve app data dir: {e}")))?;
     let (manager, owner, repo) = github_manager::github_context(&app_data_dir, &repo_path).await?;
