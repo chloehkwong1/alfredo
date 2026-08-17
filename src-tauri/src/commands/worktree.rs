@@ -308,6 +308,10 @@ pub async fn delete_worktree(
         // deletion succeeds. Leaving a stale entry behind risks it rehydrating onto
         // an unrelated worktree that later reuses the same name.
         config.linear_tickets.remove(&worktree_name);
+        // Same rationale for the persisted PR association: a dead entry
+        // rehydrating onto a future worktree that reuses this name would
+        // resurrect a stale PR chip and could auto-Done it falsely.
+        config.pr_associations.remove(&worktree_name);
         // Same rationale for the column override: a persisted auto-Done (or manual
         // placement) must not rehydrate onto a future worktree that reuses the name.
         config_manager::clear_column_override(&mut config, &worktree_name);
