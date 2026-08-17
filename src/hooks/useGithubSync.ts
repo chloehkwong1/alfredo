@@ -10,6 +10,7 @@ import { stopServerAndReleasePort } from "../services/portReclaim";
 import { shouldAutoArchive } from "../lib/autoArchive";
 import { lifecycleManager } from "../services/lifecycleManager";
 import { resolveStackConflict } from "../services/stackConflictHandoff";
+import { persistAssociationsFromPatches, reconcileStalePrs } from "../services/prAssociation";
 
 /** Worktree name → the id of its open conflict toast. A rebase conflict blocks
  *  the whole stack, so the toast never times out — which means something has to
@@ -55,7 +56,13 @@ export function useGithubSync() {
         event.payload.prs,
         useWorkspaceStore.getState().worktrees,
       );
+      // Before applyWorktreePatches: the store must still hold the previous
+      // prStatus for the changed-association diff.
+      persistAssociationsFromPatches(patches);
       useWorkspaceStore.getState().applyWorktreePatches(patches);
+      // Fire-and-forget: reconcile PRs that aged out of the sync window while
+      // the app was off. No-ops after the first successful pass per worktree.
+      void reconcileStalePrs(event.payload.prs);
 
       // Update diff stats for worktrees that have PRs — use GitHub API for accuracy.
       // Skip the IPC when the PR's headSha matches the last successful fetch:
