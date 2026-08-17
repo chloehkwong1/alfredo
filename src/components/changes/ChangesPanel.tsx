@@ -57,10 +57,14 @@ function RebaseBanner({ repoPath, worktreePath, worktreeName, stackParent }: { r
         // parent commits after a parent rewrite, and leaves the baseline
         // stale for the next auto-restack.
         const outcome = await restackNow(repoPath, worktreeName);
-        if (outcome === "skippedDirty") {
+        if (outcome === "skippedDirty" || outcome === "skippedRebaseInProgress") {
           // No rebase ran — zeroing the count here would flash the banner
           // away as if it had, only for it to reappear on the next poll.
-          setError("Restack paused — uncommitted changes in this worktree. Commit or stash them, then retry.");
+          setError(
+            outcome === "skippedDirty"
+              ? "Restack paused — uncommitted changes in this worktree. Commit or stash them, then retry."
+              : "Restack paused — conflict resolution already in progress in this worktree.",
+          );
           return;
         }
       } else {

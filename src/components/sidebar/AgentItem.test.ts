@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeEffectiveStatus } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
 import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue } from "./StackMapPopover";
+import type { RestackStackSummary } from "../../api";
 import type { PrStatus } from "../../types";
 
 describe("computeEffectiveStatus", () => {
@@ -125,6 +126,12 @@ describe("restackOutcomeMessage", () => {
     );
   });
 
+  it("distinguishes an in-progress rebase from uncommitted changes", () => {
+    expect(restackOutcomeMessage("skippedRebaseInProgress", "feat/x")).toBe(
+      "Restack paused — conflict resolution in progress in feat/x",
+    );
+  });
+
   it("reports an unknown wire string verbatim instead of guessing a meaning", () => {
     expect(restackOutcomeMessage("refusedStaleBaseline" as never, "feat/x")).toBe(
       "Restack finished: refusedStaleBaseline",
@@ -135,35 +142,60 @@ describe("restackOutcomeMessage", () => {
 // The whole-stack sync toast reads the backend summary — `restack_stack`
 // resolves Ok even when members were dirty-skipped or there was nothing to
 // sync, so "✓" is earned only when neither happened.
+function makeSummary(over: Partial<RestackStackSummary>): RestackStackSummary {
+  return { skippedDirty: [], rebaseInProgress: [], noStack: false, rootSkipReason: null, ...over };
+}
+
 describe("stackSyncMessage", () => {
   it("celebrates a clean sync", () => {
-    expect(stackSyncMessage({ skippedDirty: [], noStack: false }, "Stack synced with main")).toBe(
+    expect(stackSyncMessage(makeSummary({}), "Stack synced with main")).toBe(
       "Stack synced with main ✓",
     );
   });
 
   it("names a single dirty-skipped branch", () => {
-    expect(stackSyncMessage({ skippedDirty: ["feat/x"], noStack: false }, "Stack synced with main")).toBe(
+    expect(stackSyncMessage(makeSummary({ skippedDirty: ["feat/x"] }), "Stack synced with main")).toBe(
       "Stack synced with main — feat/x paused (uncommitted changes)",
     );
   });
 
   it("counts multiple dirty-skipped branches", () => {
     expect(
-      stackSyncMessage({ skippedDirty: ["feat/x", "feat/y"], noStack: false }, "Stack synced with main"),
+      stackSyncMessage(makeSummary({ skippedDirty: ["feat/x", "feat/y"] }), "Stack synced with main"),
     ).toBe("Stack synced with main — 2 branches paused (uncommitted changes)");
   });
 
   it("says so when there was nothing to sync", () => {
-    expect(stackSyncMessage({ skippedDirty: [], noStack: true }, "Stack synced with main")).toBe(
+    expect(stackSyncMessage(makeSummary({ noStack: true }), "Stack synced with main")).toBe(
       "Nothing to sync — no stacked branches",
     );
+  });
+
+  // Regression coverage for fix H: a rebase-in-progress skip must not read as
+  // "uncommitted changes" in the whole-stack toast either.
+  it("distinguishes a rebase-in-progress branch from a dirty one", () => {
+    expect(
+      stackSyncMessage(makeSummary({ rebaseInProgress: ["feat/x"] }), "Stack synced with main"),
+    ).toBe("Stack synced with main — feat/x paused (conflict resolution in progress)");
+  });
+
+  // Regression coverage for fix I: a root skip whose state is unknown (not the
+  // benign "already synced" case) must not be silently folded into "✓".
+  it("surfaces an unknown root-skip reason as a caveat instead of a bare ✓", () => {
+    expect(
+      stackSyncMessage(
+        makeSummary({ rootSkipReason: "default branch has no remote-tracking ref" }),
+        "Stack synced with main",
+      ),
+    ).toBe("Stack synced with main — root skipped: default branch has no remote-tracking ref");
   });
 });
 
 // Popover cue for local commits origin doesn't have. Counted when origin is a
-// strict ancestor; uncounted "needs force-push" after a rewrite (ahead AND
-// behind, where the count would include rewritten commits); silent otherwise.
+// strict ancestor; uncounted "diverged from origin" when both ahead and
+// behind — that shape has two causes (a local rewrite, or origin gaining a
+// teammate's commits on a shared branch) we can't cheaply distinguish, so the
+// label stays neutral instead of prescribing force-push; silent otherwise.
 describe("originCue", () => {
   it("is null when in sync, unpublished, or only behind", () => {
     expect(originCue([0, 0])).toBeNull();
@@ -176,7 +208,7 @@ describe("originCue", () => {
     expect(originCue([2, 0])).toBe("2 to push");
   });
 
-  it("flags a diverged branch as needing a force-push, uncounted", () => {
-    expect(originCue([8, 8])).toBe("needs force-push");
+  it("flags a diverged branch neutrally, uncounted", () => {
+    expect(originCue([8, 8])).toBe("diverged from origin");
   });
 });

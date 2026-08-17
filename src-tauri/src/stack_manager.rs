@@ -514,9 +514,12 @@ pub async fn check_merged_parents(
                 // here would strand it with a base it never got rebased onto.
                 // The parent stays merged, so this child reappears in `affected`
                 // on the next poll and dissolves once the tree is clean.
-                Ok(RestackOutcome::SkippedDirty) => {
+                // A rebase already in progress (conflict handoff) gets the same
+                // deferral — it isn't uncommitted changes, but it's just as
+                // unsafe to touch, and the next poll retries once it resolves.
+                Ok(RestackOutcome::SkippedDirty | RestackOutcome::SkippedRebaseInProgress) => {
                     eprintln!(
-                        "[stack_manager] merged-parent restack deferred for {child_name}: worktree dirty"
+                        "[stack_manager] merged-parent restack deferred for {child_name}: worktree not clean"
                     );
                     let pending = StackPendingAction {
                         merged_parent: merged_parent.clone(),
@@ -697,15 +700,29 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
 /// writing it a `stack_baseline` would later be picked up by `change_base` as an
 /// `--onto` floor it must derive fresh.
 ///
-/// Returns the resolved root and what `run_restack` actually did when a rebase
-/// was planned, `None` on a skip — so `restack_repo`'s summary can report a
-/// dirty-skipped root instead of folding it into "synced".
+/// What `sync_stack_root` found/did, for `restack_repo`'s summary.
+enum RootSyncOutcome {
+    /// A rebase was attempted — carries the resolved root and what
+    /// `run_restack` actually did.
+    Attempted(ResolvedRoot, RestackOutcome),
+    /// Skipped for a reason that's a known fact (root already synced, or root
+    /// IS the default branch) — nothing to report, sync genuinely wasn't needed.
+    Benign,
+    /// Skipped because the root's state could not be determined (no resolvable
+    /// root, no checkout, no remote-tracking ref for the default branch) — NOT
+    /// safe to fold into "synced ✓". Carries the reason for the summary.
+    Unknown(String),
+}
+
+/// Returns what happened so `restack_repo`'s summary can report a
+/// dirty-skipped, rebase-in-progress, or state-unknown root instead of
+/// folding it into "synced".
 async fn sync_stack_root(
     app_handle: &AppHandle,
     repo_path: &str,
     config: &AppConfig,
     anchor_worktree: &str,
-) -> Result<Option<(ResolvedRoot, RestackOutcome)>, String> {
+) -> Result<RootSyncOutcome, String> {
     // Force past the 30s throttle: syncing onto a remote-tracking ref that
     // happens to be stale is the exact failure this feature exists to fix.
     // Best-effort, though: `fetch_upstream_throttled` returns `()` and
@@ -720,24 +737,29 @@ async fn sync_stack_root(
     {
         RootSyncPlan::Skip { root, reason } => {
             eprintln!("[stack_manager] root sync skipped for {anchor_worktree}: {reason}");
-            // Only the "already synced" reason is a fact we can act on — every
-            // other skip reason (no resolvable root, no checkout, root is the
-            // default branch, no remote-tracking ref) means we don't actually
-            // know the branch's state, so healing there would emit a false
-            // `UpToDate`. See `heal_root_sticky_status` for why healing must
+            // Only the "already synced" reason is a fact we can act on for
+            // healing — see `heal_root_sticky_status` for why healing must
             // happen here at all.
             if reason == ROOT_ALREADY_SYNCED_REASON {
-                if let Some(root) = root {
-                    heal_root_sticky_status(app_handle, repo_path, &root).await;
+                if let Some(root) = &root {
+                    heal_root_sticky_status(app_handle, repo_path, root).await;
                 }
             }
-            Ok(None)
+            if root_skip_is_benign(reason) {
+                Ok(RootSyncOutcome::Benign)
+            } else {
+                // Every other skip reason (no resolvable root, no checkout, no
+                // remote-tracking ref) means we don't actually know the
+                // branch's state, so a caller reporting "synced ✓" here would
+                // be a false positive — surface the reason instead.
+                Ok(RootSyncOutcome::Unknown(reason.to_string()))
+            }
         }
         RootSyncPlan::Rebase { root, target_tip, baseline } => {
             let outcome =
                 run_restack(app_handle, repo_path, &root.path, &root.name, &target_tip, &baseline)
                     .await?;
-            Ok(Some((root, outcome)))
+            Ok(RootSyncOutcome::Attempted(root, outcome))
         }
     }
 }
@@ -806,8 +828,18 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
 pub struct RestackStackSummary {
     /// Branches whose restack was skipped over uncommitted changes.
     pub skipped_dirty: Vec<String>,
+    /// Branches whose restack was skipped because a rebase was already in
+    /// progress (conflict handoff) — distinct from `skipped_dirty` so the
+    /// toast doesn't give "commit or stash" advice mid conflict-resolution.
+    pub rebase_in_progress: Vec<String>,
     /// True when the repo has no stack overrides — there was nothing to sync.
     pub no_stack: bool,
+    /// Set when the root's sync was skipped or refused for a reason that
+    /// means its state relative to the default branch is NOT actually known
+    /// (unresolvable root, no remote-tracking ref, rewritten outside Alfredo)
+    /// — as opposed to a benign skip like "already synced". A bare "Stack
+    /// synced with main ✓" would be a false positive here.
+    pub root_skip_reason: Option<String>,
 }
 
 /// Run the full dependency-ordered cascade for one repo (used by the
@@ -838,10 +870,26 @@ pub async fn restack_repo(
     // restacking the children against it stays correct (and mostly no-ops).
     let mut first_err: Option<String> = None;
     match sync_stack_root(app_handle, repo_path, &config, anchor_worktree).await {
-        Ok(Some((root, RestackOutcome::SkippedDirty))) => {
+        Ok(RootSyncOutcome::Attempted(root, RestackOutcome::SkippedDirty)) => {
             summary.skipped_dirty.push(branch_of(&root.name));
         }
-        Ok(_) => {}
+        Ok(RootSyncOutcome::Attempted(root, RestackOutcome::SkippedRebaseInProgress)) => {
+            summary.rebase_in_progress.push(branch_of(&root.name));
+        }
+        // Nothing moved — the root was rewritten outside Alfredo and no longer
+        // contains a safe `--onto` floor. Not "synced": surface it rather than
+        // silently folding it into a bare success toast.
+        Ok(RootSyncOutcome::Attempted(root, RestackOutcome::RefusedStaleBaseline)) => {
+            summary.root_skip_reason = Some(format!(
+                "{} was rebased outside Alfredo and could not be synced automatically",
+                branch_of(&root.name)
+            ));
+        }
+        Ok(RootSyncOutcome::Attempted(_, RestackOutcome::Rebased | RestackOutcome::AlreadyOnTarget)) => {}
+        Ok(RootSyncOutcome::Benign) => {}
+        Ok(RootSyncOutcome::Unknown(reason)) => {
+            summary.root_skip_reason = Some(reason);
+        }
         Err(e) => {
             eprintln!("[stack_manager] root sync failed for {anchor_worktree}: {e}");
             first_err = Some(e);
@@ -851,6 +899,9 @@ pub async fn restack_repo(
     for child in restack_order(&config.stack_parent_overrides, &name_to_branch) {
         match restack_child(app_handle, app_data_dir, repo_path, &child).await {
             Ok(RestackOutcome::SkippedDirty) => summary.skipped_dirty.push(branch_of(&child)),
+            Ok(RestackOutcome::SkippedRebaseInProgress) => {
+                summary.rebase_in_progress.push(branch_of(&child));
+            }
             Ok(_) => {}
             Err(e) => {
                 first_err.get_or_insert(e);
@@ -1034,9 +1085,10 @@ pub async fn detect_stale_parents(
             // already) — the relationship is over.
             Ok(RestackOutcome::Rebased | RestackOutcome::AlreadyOnTarget) => {}
             // Nothing moved. The parent stays stale, so this retries next poll.
-            Ok(RestackOutcome::SkippedDirty) => {
+            // A rebase already in progress (conflict handoff) defers the same way.
+            Ok(RestackOutcome::SkippedDirty | RestackOutcome::SkippedRebaseInProgress) => {
                 eprintln!(
-                    "[stack_manager] stale-parent restack deferred for {child_name}: worktree dirty"
+                    "[stack_manager] stale-parent restack deferred for {child_name}: worktree not clean"
                 );
                 let pending = StackPendingAction {
                     merged_parent: stale_parent.clone(),
@@ -1304,7 +1356,9 @@ async fn restack_child_inner(
             }
             Ok(outcome)
         }
-        Ok(RestackOutcome::SkippedDirty) => Ok(RestackOutcome::SkippedDirty),
+        Ok(outcome @ (RestackOutcome::SkippedDirty | RestackOutcome::SkippedRebaseInProgress)) => {
+            Ok(outcome)
+        }
         // Refusals reuse the conflict memo: a stale baseline stays stale until
         // the branch or the parent tip changes, so retrying it every poll only
         // re-runs two git calls to re-set the same badge. "Restack now" clears
@@ -1338,6 +1392,12 @@ async fn restack_child_inner(
 pub enum RestackOutcome {
     Rebased,
     SkippedDirty,
+    /// A `git rebase` is already in progress in the worktree — conflict
+    /// markers left for the user/agent to resolve via `git rebase
+    /// --continue`, NOT uncommitted changes to commit or stash. Distinct from
+    /// `SkippedDirty` so callers don't give destructive "commit or stash"
+    /// advice mid conflict-handoff.
+    SkippedRebaseInProgress,
     /// The baseline is dangling but HEAD already contains the target tip (the
     /// branch was restacked by hand in a terminal). Nothing to rebase; callers
     /// may adopt the target tip as the new baseline — `check_baseline` just
@@ -1441,7 +1501,7 @@ async fn run_restack(
     // `compute_stack_statuses` keep re-emitting `Conflict` until the agent's
     // `rebase --continue` actually finishes it (or the rebase is aborted).
     if rebase_in_progress(worktree_path).await {
-        return Ok(RestackOutcome::SkippedDirty);
+        return Ok(RestackOutcome::SkippedRebaseInProgress);
     }
 
     match check_baseline(worktree_path, baseline, target_tip).await {
@@ -2057,6 +2117,20 @@ struct ResolvedRoot {
 /// returns it and the place that matches on it.
 const ROOT_ALREADY_SYNCED_REASON: &str = "root already sits on the default branch tip";
 
+/// The other skip reason that's a known fact rather than an unknown state:
+/// the root IS the default branch, so "sync with main" has nothing to do by
+/// construction. Named for the same reason as `ROOT_ALREADY_SYNCED_REASON`.
+const ROOT_IS_DEFAULT_BRANCH_REASON: &str = "stack root is the default branch";
+
+/// A root skip is benign — genuinely nothing to sync — only for the two
+/// reasons above. Every other `RootSyncPlan::Skip` reason (no resolvable
+/// root, no checkout, no remote-tracking ref) means the root's state relative
+/// to the default branch is simply unknown, not confirmed current, so a
+/// caller must not fold it into a bare "synced ✓".
+fn root_skip_is_benign(reason: &str) -> bool {
+    reason == ROOT_ALREADY_SYNCED_REASON || reason == ROOT_IS_DEFAULT_BRANCH_REASON
+}
+
 /// What a root sync should do, decided before any history is touched so the
 /// decision is testable without an `AppHandle`.
 enum RootSyncPlan {
@@ -2118,7 +2192,7 @@ async fn plan_root_sync(
             .map_err(|e| e.to_string())?;
     let default_short = default_remote.strip_prefix("origin/").unwrap_or(&default_remote);
     if root_branch == default_short {
-        return Ok(RootSyncPlan::Skip { root: Some(root), reason: "stack root is the default branch" });
+        return Ok(RootSyncPlan::Skip { root: Some(root), reason: ROOT_IS_DEFAULT_BRANCH_REASON });
     }
 
     let Some(target_tip) = remote_branch_tip(repo_path, default_short).await else {
@@ -2192,6 +2266,19 @@ mod tests {
 
     fn map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         pairs.iter().map(|(a, b)| ((*a).to_string(), (*b).to_string())).collect()
+    }
+
+    // Regression coverage for fix I: `sync_stack_root` itself needs an
+    // `AppHandle` fixture this test module doesn't have, so the benign/unknown
+    // classification that decides whether a root skip earns a false "synced ✓"
+    // is tested at the pure-function level instead.
+    #[test]
+    fn root_skip_is_benign_only_for_known_no_op_reasons() {
+        assert!(root_skip_is_benign(ROOT_ALREADY_SYNCED_REASON));
+        assert!(root_skip_is_benign(ROOT_IS_DEFAULT_BRANCH_REASON));
+        assert!(!root_skip_is_benign("no resolvable stack root (missing checkout or cycle)"));
+        assert!(!root_skip_is_benign("stack root has no checkout"));
+        assert!(!root_skip_is_benign("default branch has no remote-tracking ref"));
     }
 
     #[test]

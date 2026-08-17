@@ -19,6 +19,10 @@ function restackOutcomeMessage(outcome: RestackOutcome, branch: string): string 
     case "rebased": return `Restacked ${branch} ✓`;
     case "alreadyUpToDate": return `${branch} is already up to date`;
     case "skippedDirty": return `Restack paused — uncommitted changes in ${branch}`;
+    // Conflict resolution in progress, NOT uncommitted changes to commit or
+    // stash — the copy must not tell the user to do something destructive
+    // mid conflict-handoff.
+    case "skippedRebaseInProgress": return `Restack paused — conflict resolution in progress in ${branch}`;
     // A wire string this build doesn't know — a newer backend variant, or one
     // that today only surfaces as Err. Report it verbatim rather than guess at
     // a friendlier (and possibly opposite) meaning.
@@ -31,9 +35,21 @@ function restackOutcomeMessage(outcome: RestackOutcome, branch: string): string 
  *  message must consult the summary instead of celebrating unconditionally. */
 function stackSyncMessage(summary: RestackStackSummary, subject: string): string {
   if (summary.noStack) return "Nothing to sync — no stacked branches";
+  const caveats: string[] = [];
   const dirty = summary.skippedDirty;
-  if (dirty.length === 1) return `${subject} — ${dirty[0]} paused (uncommitted changes)`;
-  if (dirty.length > 1) return `${subject} — ${dirty.length} branches paused (uncommitted changes)`;
+  if (dirty.length === 1) caveats.push(`${dirty[0]} paused (uncommitted changes)`);
+  else if (dirty.length > 1) caveats.push(`${dirty.length} branches paused (uncommitted changes)`);
+  // Conflict resolution in progress, NOT uncommitted changes — kept as its own
+  // caveat so the copy never gives "commit or stash" advice mid conflict-handoff.
+  const conflicting = summary.rebaseInProgress;
+  if (conflicting.length === 1) caveats.push(`${conflicting[0]} paused (conflict resolution in progress)`);
+  else if (conflicting.length > 1) {
+    caveats.push(`${conflicting.length} branches paused (conflict resolution in progress)`);
+  }
+  // The root's own sync state is unknown (not a benign "already synced" skip)
+  // — a bare "✓" would be a false positive, so it always earns a caveat.
+  if (summary.rootSkipReason) caveats.push(`root skipped: ${summary.rootSkipReason}`);
+  if (caveats.length > 0) return `${subject} — ${caveats.join("; ")}`;
   return `${subject} ✓`;
 }
 
@@ -64,14 +80,18 @@ async function syncStackWithToast(repoPath: string, worktreeName: string, subjec
   }
 }
 
-/** "N to push" / "needs force-push" label for a member whose local tip has
- *  commits origin lacks. Null when in sync, never published, or only behind
- *  (that's pull territory, not this cue's job). After a local rewrite the
- *  branch is ahead AND behind origin, where a count would double-count the
- *  rewritten commits — hence the uncounted force-push wording. */
+/** "N to push" / "diverged from origin" label for a member whose local tip
+ *  has commits origin lacks. Null when in sync, never published, or only
+ *  behind (that's pull territory, not this cue's job). Ahead AND behind
+ *  origin has two distinct causes we can't cheaply tell apart: a local
+ *  rewrite (autosquash), where force-push is genuinely the fix, or origin
+ *  having gained a teammate's commits on the same branch (e.g. a
+ *  review-request worktree tracking someone else's PR branch), where
+ *  force-pushing would destroy their work. The wording stays neutral rather
+ *  than prescribing force-push. */
 function originCue(ab: [number, number] | null | undefined): string | null {
   if (!ab || ab[0] === 0) return null;
-  return ab[1] === 0 ? `${ab[0]} to push` : "needs force-push";
+  return ab[1] === 0 ? `${ab[0]} to push` : "diverged from origin";
 }
 
 /** worktree.id → [ahead, behind] vs origin for every local stack member,
