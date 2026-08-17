@@ -37,7 +37,7 @@ import { copyText } from "../../lib/clipboard";
 import { StackGlyph, NativeStackChip } from "./StackGlyph";
 import { StackMapPopover, restackNowWithToast } from "./StackMapPopover";
 import { useToastStore } from "../../stores/toastStore";
-import { computeStackChain, type StackChain } from "../../lib/stackChain";
+import { assignStackHues, collectStackIdentities, computeStackChain, type StackChain } from "../../lib/stackChain";
 import { isTerminalPr } from "../../lib/prStatus";
 
 const THINKING_VERBS = [
@@ -310,6 +310,7 @@ interface AgentItemContentProps {
   repoIndex?: number;
   showRepoTag?: boolean;
   stackChain?: StackChain | null;
+  stackHue?: number | null;
   onOpenStackMap?: () => void;
 }
 
@@ -320,7 +321,7 @@ function getDotColor(status: AgentState | string): string {
 function AgentItemContent({
   worktree, effectiveStatus, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
-  repoIndex = 0, showRepoTag = false, stackChain = null, onOpenStackMap = () => {},
+  repoIndex = 0, showRepoTag = false, stackChain = null, stackHue = null, onOpenStackMap = () => {},
 }: AgentItemContentProps) {
   // Secondary, not tertiary: these lines (status, PR title, timestamp, stack
   // position) are the card's information payload, and tertiary only clears
@@ -392,6 +393,7 @@ function AgentItemContent({
             onOpenMap={onOpenStackMap}
             peekRootId={stackChain?.rootId}
             needsAttention={Boolean(stackChain?.needsAttention) || stackTrouble}
+            hue={stackHue}
           />
           <span className="flex items-center gap-1.5 ml-auto flex-shrink-0">
             <RelativeTime
@@ -469,7 +471,7 @@ function AgentItemContent({
             covers position — but never while in trouble (see stackTrouble). */}
         {stackChain && (!isNativeStackMember || stackTrouble) && (
           <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
-            <StackGlyph worktree={worktree} chain={stackChain} onOpenMap={onOpenStackMap} />
+            <StackGlyph worktree={worktree} chain={stackChain} onOpenMap={onOpenStackMap} hue={stackHue} />
             <span className="truncate" title={worktree.stackParent ?? undefined}>
               {worktree.stackParent
                 ? `on ${worktree.stackParent}`
@@ -706,6 +708,21 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
   );
 }
 
+/** Palette slot for this worktree's stack chips, or null for the accent tint.
+ *  Hue-codes only when ≥2 stacks coexist *on screen* — counted over the same
+ *  visibility filter the sidebar renders with, so archived or branch-mode
+ *  worktrees (which keep their stack fields) can't activate hue mode. Shared
+ *  with AgentItemOverlay so the dragged card matches its row. */
+function useStackHue(worktreeId: string): number | null {
+  const allWorktrees = useWorkspaceStore((s) => s.worktrees);
+  return useMemo(() => {
+    const visible = allWorktrees.filter((wt) => !wt.archived && !wt.isBranchMode);
+    const identities = collectStackIdentities(visible);
+    if (new Set(identities.values()).size < 2) return null;
+    return assignStackHues(identities).get(worktreeId) ?? null;
+  }, [allWorktrees, worktreeId]);
+}
+
 const AgentItem = memo(function AgentItem({
   worktree, isSelected, isPinned, isDimmed, onClick, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, label, onRename, repoIndex = 0, showRepoTag = false,
@@ -764,6 +781,7 @@ const AgentItem = memo(function AgentItem({
     () => computeStackChain(allWorktrees, worktree.id),
     [allWorktrees, worktree.id],
   );
+  const stackHue = useStackHue(worktree.id);
   const isPeeked = stackChain != null && peekedStackRootId === stackChain.rootId;
 
   // Close the stack map popover on outside click or Escape. The popover's own
@@ -892,6 +910,7 @@ const AgentItem = memo(function AgentItem({
       repoIndex={repoIndex}
       showRepoTag={showRepoTag}
       stackChain={stackChain}
+      stackHue={stackHue}
       onOpenStackMap={() => setStackMapOpen(true)}
     />
   );
@@ -1116,5 +1135,5 @@ const AgentItem = memo(function AgentItem({
   );
 });
 
-export { AgentItem, AgentItemContent, useAgentItemState, getBorderClass };
+export { AgentItem, AgentItemContent, useAgentItemState, useStackHue, getBorderClass };
 export type { AgentItemProps };

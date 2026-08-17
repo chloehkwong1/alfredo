@@ -365,6 +365,26 @@ body {
   border-left: 3px dashed var(--status-error);
 }
 
+/* Per-stack hue chips — StackGlyph/NativeStackChip swap their accent tint for
+   `.stack-hue` when ≥2 stacks coexist, so interleaved sidebar rows read as
+   distinct stacks at a glance. The chip sets `--stack-chip-hue` inline to one
+   of the `--stack-hue-N` palette slots in theme.css. */
+.stack-hue {
+  color: var(--stack-chip-hue);
+  background: color-mix(in srgb, var(--stack-chip-hue) 14%, transparent);
+}
+.stack-hue:hover {
+  background: color-mix(in srgb, var(--stack-chip-hue) 26%, transparent);
+}
+
+/* Light themes: darken the chip text — mid-tier hues are tuned for dark
+   backgrounds. Selector list mirrors LIGHT_THEMES in src/lib/themeMeta.ts. */
+html[data-theme="light"] .stack-hue,
+html[data-theme="catppuccin-latte"] .stack-hue,
+html[data-theme="everforest-light"] .stack-hue {
+  color: color-mix(in srgb, var(--stack-chip-hue) 72%, black);
+}
+
 @keyframes thinking-dot {
   0%, 60%, 100% { opacity: 0.25; transform: scale(0.8); }
   30% { opacity: 1; transform: scale(1); }

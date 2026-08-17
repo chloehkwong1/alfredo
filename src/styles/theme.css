@@ -28,6 +28,20 @@
   --accent-secondary: #7e22ce;
   --accent-muted: rgba(147, 51, 234, 0.15);
 
+  /* ── Stack hues (per-stack chip coding) ──────── */
+  /* Categorical palette for telling coexisting stacks apart; slot count
+     matches STACK_HUE_COUNT in stackChain.ts. Slots are assigned
+     sequentially, so early entries co-occur most — ordered most-distinct
+     first. Amber, red, and the accent purple are deliberately absent (they
+     carry status/attention/brand meaning), as is the repo-chip palette below
+     (a --chip-teal-bg repo tag must not look like a stack chip). */
+  --stack-hue-0: #3b82f6; /* blue */
+  --stack-hue-1: #f97316; /* orange */
+  --stack-hue-2: #ec4899; /* pink */
+  --stack-hue-3: #22c55e; /* green */
+  --stack-hue-4: #06b6d4; /* cyan */
+  --stack-hue-5: #a3e635; /* lime */
+
   /* ── Status ──────────────────────────────────── */
   --status-idle: #4ade80;
   --status-busy: #fbbf24;

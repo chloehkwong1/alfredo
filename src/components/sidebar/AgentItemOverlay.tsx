@@ -1,5 +1,5 @@
 import type { Worktree } from "../../types";
-import { AgentItemContent, useAgentItemState, getBorderClass } from "./AgentItem";
+import { AgentItemContent, useAgentItemState, useStackHue, getBorderClass } from "./AgentItem";
 import { worktreeDisplayLabel } from "../../lib/worktreeDisplayLabel";
 
 interface AgentItemOverlayProps {
@@ -10,6 +10,9 @@ interface AgentItemOverlayProps {
 
 function AgentItemOverlay({ worktree, width, label }: AgentItemOverlayProps) {
   const { prSummary, isServerRunning, serverPort, effectiveStatus, shouldPulse, isUnread } = useAgentItemState(worktree);
+  // Keeps the native-stack chip's hue during drag — without it the dragged
+  // card's chip falls back to the accent tint while its row is hue-coded.
+  const stackHue = useStackHue(worktree.id);
 
   return (
     <div
@@ -28,6 +31,7 @@ function AgentItemOverlay({ worktree, width, label }: AgentItemOverlayProps) {
         serverPort={serverPort}
         prSummary={prSummary}
         displayLabel={worktreeDisplayLabel(worktree, label)}
+        stackHue={stackHue}
         isEditing={false}
         onStartEdit={() => {}}
         onCommitEdit={() => {}}

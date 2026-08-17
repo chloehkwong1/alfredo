@@ -30,6 +30,19 @@ const ATTENTION_KINDS = new Set([
   "rewrittenExternally",
 ]);
 
+/** Follow `stackParent` edges up to the stack root (cycle-guarded). */
+function resolveRoot(byBranch: Map<string, Worktree>, self: Worktree, maxHops: number): Worktree {
+  let root = self;
+  const seen = new Set<string>([root.id]);
+  for (let hops = 0; hops < maxHops; hops++) {
+    const parent = root.stackParent ? byBranch.get(root.stackParent) : undefined;
+    if (!parent || seen.has(parent.id)) break;
+    seen.add(parent.id);
+    root = parent;
+  }
+  return root;
+}
+
 /**
  * Resolve the full stack tree containing `worktreeId`. `stackParent` stores a
  * *branch name*; edges resolve via each worktree's own `branch`. Null when the
@@ -56,15 +69,7 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
   const isStacked = Boolean(self.stackParent) || (childrenOf.get(self.branch)?.length ?? 0) > 0;
   if (!isStacked) return null;
 
-  // Walk up to the root (cycle-guarded).
-  let root = self;
-  const seen = new Set<string>([root.id]);
-  for (let hops = 0; hops < worktrees.length; hops++) {
-    const parent = root.stackParent ? byBranch.get(root.stackParent) : undefined;
-    if (!parent || seen.has(parent.id)) break;
-    seen.add(parent.id);
-    root = parent;
-  }
+  const root = resolveRoot(byBranch, self, repoWorktrees.length);
 
   // DFS over the whole tree (cycle-guarded), children sorted for determinism,
   // collecting depth and file-tree guide prefixes for the stack map.
@@ -96,4 +101,54 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
         m.stackPending != null,
     ),
   };
+}
+
+/** Palette size for per-stack hue coding — keep in sync with the
+ *  `--stack-hue-N` variables in theme.css. */
+export const STACK_HUE_COUNT = 6;
+
+/**
+ * Assign a palette slot per stack, sequentially over sorted identities.
+ * Sequential (not hashed) so coexisting stacks never share a hue until the
+ * palette is exhausted — a hash collides ~1/6 of the time at exactly two
+ * stacks, which is the feature's minimum case. The cost is that a stack's hue
+ * can shift when another stack appears or disappears.
+ */
+export function assignStackHues(identities: Map<string, string>): Map<string, number> {
+  const distinct = [...new Set(identities.values())].sort();
+  const slotByIdentity = new Map(distinct.map((identity, i) => [identity, i % STACK_HUE_COUNT]));
+  return new Map(
+    [...identities].map(([worktreeId, identity]) => [worktreeId, slotByIdentity.get(identity)!]),
+  );
+}
+
+/**
+ * Map worktree id → stable stack identity for every stacked worktree: the
+ * local chain's root worktree id when a chain exists, else the native GitHub
+ * stack id. Unstacked worktrees are absent, so the number of distinct values
+ * is the number of stacks on screen.
+ */
+export function collectStackIdentities(worktrees: Worktree[]): Map<string, string> {
+  const identities = new Map<string, string>();
+  const byRepo = new Map<string, Worktree[]>();
+  for (const w of worktrees) {
+    const list = byRepo.get(w.repoPath) ?? [];
+    list.push(w);
+    byRepo.set(w.repoPath, list);
+  }
+  for (const repoWorktrees of byRepo.values()) {
+    const byBranch = new Map(repoWorktrees.map((w) => [w.branch, w]));
+    const parentBranches = new Set<string>();
+    for (const w of repoWorktrees) {
+      if (w.stackParent) parentBranches.add(w.stackParent);
+    }
+    for (const w of repoWorktrees) {
+      if (w.stackParent || parentBranches.has(w.branch)) {
+        identities.set(w.id, resolveRoot(byBranch, w, repoWorktrees.length).id);
+      } else if (w.prStatus?.nativeStack) {
+        identities.set(w.id, `native:${w.prStatus.nativeStack.id}`);
+      }
+    }
+  }
+  return identities;
 }

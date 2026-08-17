@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { computeStackChain } from "./stackChain";
-import type { Worktree } from "../types";
+import { assignStackHues, collectStackIdentities, computeStackChain, STACK_HUE_COUNT } from "./stackChain";
+import type { NativeStackInfo, Worktree } from "../types";
 
 function wt(partial: Partial<Worktree> & { id: string; branch: string }): Worktree {
   return {
@@ -101,6 +101,71 @@ describe("computeStackChain", () => {
     // The other repo's stack resolves independently.
     const other = computeStackChain([root, child, otherRoot, otherChild], "oc")!;
     expect(other.members.map((m) => m.id)).toEqual(["or", "oc"]);
+  });
+
+  it("collectStackIdentities maps chain members to their root id and skips unstacked", () => {
+    const ids = collectStackIdentities([c, a, b, lone]);
+    expect(ids.get("a")).toBe("a");
+    expect(ids.get("b")).toBe("a");
+    expect(ids.get("c")).toBe("a");
+    expect(ids.has("x")).toBe(false);
+  });
+
+  it("collectStackIdentities keeps same-named branches in different repos apart", () => {
+    const root = wt({ id: "r", branch: "feat/root" });
+    const child = wt({ id: "ch", branch: "feat/child", stackParent: "feat/root" });
+    const otherRoot = wt({ id: "or", branch: "feat/root", repoPath: "/tmp/other" });
+    const otherChild = wt({ id: "oc", branch: "feat/child", stackParent: "feat/root", repoPath: "/tmp/other" });
+    const ids = collectStackIdentities([root, child, otherRoot, otherChild]);
+    expect(ids.get("ch")).toBe("r");
+    expect(ids.get("oc")).toBe("or");
+    expect(new Set(ids.values()).size).toBe(2);
+  });
+
+  it("collectStackIdentities groups native-stack members by stack id, local chain winning", () => {
+    const native = (id: string): NativeStackInfo => ({ id, number: 1, position: 1, size: 2, members: [] });
+    const prStatus = (stackId: string) =>
+      ({ number: 1, state: "OPEN", title: "t", url: "u", draft: false, merged: false, branch: "b", nativeStack: native(stackId) }) as Worktree["prStatus"];
+    const nativeA1 = wt({ id: "n1", branch: "feat/n1", prStatus: prStatus("stack-a") });
+    const nativeA2 = wt({ id: "n2", branch: "feat/n2", prStatus: prStatus("stack-a") });
+    const nativeB = wt({ id: "n3", branch: "feat/n3", prStatus: prStatus("stack-b") });
+    // Converted stack: local chain exists alongside native info → root id wins.
+    const converted = wt({ id: "cv", branch: "feat/cv", stackParent: "feat/n1", prStatus: prStatus("stack-a") });
+    const ids = collectStackIdentities([nativeA1, nativeA2, nativeB, converted]);
+    // n1 gained a stacked child, so it roots a local chain shared with cv.
+    expect(ids.get("n1")).toBe("n1");
+    expect(ids.get("cv")).toBe("n1");
+    // Pure native members key off the native stack id.
+    expect(ids.get("n2")).toBe("native:stack-a");
+    expect(ids.get("n3")).toBe("native:stack-b");
+  });
+
+  it("assignStackHues gives every stack a distinct hue up to the palette size", () => {
+    const identities = new Map([
+      ["w1", "root-b"], ["w2", "root-b"],
+      ["w3", "root-a"],
+      ["w4", "native:stack-z"],
+    ]);
+    const hues = assignStackHues(identities);
+    // Members of the same stack share a hue; distinct stacks never collide
+    // while ≤ STACK_HUE_COUNT of them coexist.
+    expect(hues.get("w1")).toBe(hues.get("w2"));
+    expect(new Set([hues.get("w1"), hues.get("w3"), hues.get("w4")]).size).toBe(3);
+    for (const h of hues.values()) {
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThan(STACK_HUE_COUNT);
+    }
+  });
+
+  it("assignStackHues is order-independent and wraps past the palette", () => {
+    const forward = new Map([["w1", "a"], ["w2", "b"]]);
+    const reversed = new Map([["w2", "b"], ["w1", "a"]]);
+    expect(assignStackHues(forward).get("w1")).toBe(assignStackHues(reversed).get("w1"));
+    const many = new Map(
+      Array.from({ length: STACK_HUE_COUNT + 1 }, (_, i) => [`w${i}`, `id-${String(i).padStart(2, "0")}`] as const),
+    );
+    const hues = assignStackHues(many);
+    expect(hues.get(`w${STACK_HUE_COUNT}`)).toBe(hues.get("w0"));
   });
 
   it("computes file-tree guide prefixes across a fork", () => {
