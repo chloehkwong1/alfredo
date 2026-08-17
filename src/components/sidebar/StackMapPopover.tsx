@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useToastStore } from "../../stores/toastStore";
 import { restackStack, restackNow, resolveStackPending, getAheadBehindOrigin } from "../../api";
-import type { RestackOutcome } from "../../api";
+import type { RestackOutcome, RestackStackSummary } from "../../api";
 import { resolveStackConflict } from "../../services/stackConflictHandoff";
 import { formatRelativeTime } from "../changes/formatRelativeTime";
 import type { StackChain } from "../../lib/stackChain";
@@ -18,6 +19,48 @@ function restackOutcomeMessage(outcome: RestackOutcome, branch: string): string 
     case "rebased": return `Restacked ${branch} ✓`;
     case "alreadyUpToDate": return `${branch} is already up to date`;
     case "skippedDirty": return `Restack paused — uncommitted changes in ${branch}`;
+    // A wire string this build doesn't know — a newer backend variant, or one
+    // that today only surfaces as Err. Report it verbatim rather than guess at
+    // a friendlier (and possibly opposite) meaning.
+    default: return `Restack finished: ${String(outcome)}`;
+  }
+}
+
+/** Toast copy for a whole-stack sync. `restack_stack` resolves Ok even when
+ *  members were dirty-skipped or there was nothing to sync, so the success
+ *  message must consult the summary instead of celebrating unconditionally. */
+function stackSyncMessage(summary: RestackStackSummary, subject: string): string {
+  if (summary.noStack) return "Nothing to sync — no stacked branches";
+  const dirty = summary.skippedDirty;
+  if (dirty.length === 1) return `${subject} — ${dirty[0]} paused (uncommitted changes)`;
+  if (dirty.length > 1) return `${subject} — ${dirty.length} branches paused (uncommitted changes)`;
+  return `${subject} ✓`;
+}
+
+/** Run a manual single-branch restack and toast the outcome. The one path for
+ *  every "Restack now"-shaped action (popover footer, conflict retry, sidebar
+ *  context menu) so the toast choreography can't drift between call sites. */
+async function restackNowWithToast(repoPath: string, worktreeName: string, branch: string): Promise<void> {
+  const showToast = useToastStore.getState().show;
+  try {
+    const outcome = await restackNow(repoPath, worktreeName);
+    showToast({ message: restackOutcomeMessage(outcome, branch) });
+  } catch (e) {
+    console.error("Restack failed:", e);
+    showToast({ message: `Restack failed: ${e instanceof Error ? e.message : e}` });
+  }
+}
+
+/** Whole-stack counterpart of `restackNowWithToast`, shared by the Alfredo
+ *  skin's footer and the conflicted-root retry. */
+async function syncStackWithToast(repoPath: string, worktreeName: string, subject: string): Promise<void> {
+  const showToast = useToastStore.getState().show;
+  try {
+    const summary = await restackStack(repoPath, worktreeName);
+    showToast({ message: stackSyncMessage(summary, subject) });
+  } catch (e) {
+    console.error("Stack sync failed:", e);
+    showToast({ message: `Stack sync failed: ${e instanceof Error ? e.message : e}` });
   }
 }
 
@@ -32,27 +75,61 @@ function originCue(ab: [number, number] | null | undefined): string | null {
 }
 
 /** worktree.id → [ahead, behind] vs origin for every local stack member,
- *  fetched once per popover open (the backend throttles the actual fetch). */
+ *  fetched once per popover open. The first member goes alone: the backend's
+ *  per-repo fetch throttle only stamps its 30s slot AFTER a successful fetch,
+ *  so a straight fan-out would race N `git fetch` subprocesses past the check
+ *  on every cold open. Once the first call has stamped the slot, the rest run
+ *  in parallel and coalesce onto it. */
 function useOriginSync(members: Worktree[]): Record<string, [number, number] | null> {
   const [sync, setSync] = useState<Record<string, [number, number] | null>>({});
   const memberKey = members.map((w) => w.id).join("\n");
   useEffect(() => {
     let cancelled = false;
-    Promise.all(
-      members.map(async (w) => {
-        try {
-          return [w.id, await getAheadBehindOrigin(w.path, w.repoPath)] as const;
-        } catch {
-          return [w.id, null] as const;
-        }
-      }),
-    ).then((entries) => {
-      if (!cancelled) setSync(Object.fromEntries(entries));
-    });
+    const fetchOne = async (w: Worktree) => {
+      try {
+        return [w.id, await getAheadBehindOrigin(w.path, w.repoPath)] as const;
+      } catch {
+        return [w.id, null] as const;
+      }
+    };
+    (async () => {
+      if (members.length === 0) return;
+      const first = await fetchOne(members[0]);
+      const rest = await Promise.all(members.slice(1).map(fetchOne));
+      if (!cancelled) setSync(Object.fromEntries([first, ...rest]));
+    })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberKey]);
   return sync;
+}
+
+/** Amber push-state cue for a stack-member row — one rendering for both
+ *  popover skins. `sep` adds the Alfredo skin's trailing dot separator.
+ *  Renders nothing when the member is in sync with origin. */
+function OriginCue({ ab, sep = false }: { ab: [number, number] | null | undefined; sep?: boolean }) {
+  const cue = originCue(ab);
+  if (!cue) return null;
+  return <span className="flex-shrink-0 text-[10px] text-amber-400">{cue}{sep ? " ·" : ""}</span>;
+}
+
+/** Dense footer action shared by every popover action row — deliberately
+ *  smaller than the ui/Button sizes, which are dialog-scaled. */
+function PopoverActionButton({ onClick, title, children }: {
+  onClick: () => void;
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className="w-full flex items-center justify-center gap-1.5 rounded border border-border-default py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
+    >
+      {children}
+    </button>
+  );
 }
 
 interface StackMapPopoverProps {
@@ -106,7 +183,6 @@ interface NativeStackPopoverProps {
  *  Shared by both popover skins: a conflict is always local, so the actions
  *  apply even when GitHub manages the stack itself. */
 function ConflictActions({ conflicted, onClose }: { conflicted: Worktree; onClose: () => void }) {
-  const showToast = useToastStore((s) => s.show);
   const handleHaveClaudeResolve = async () => {
     onClose();
     try {
@@ -117,21 +193,14 @@ function ConflictActions({ conflicted, onClose }: { conflicted: Worktree; onClos
     }
   };
 
-  const handleRetryRestack = async () => {
+  const handleRetryRestack = () => {
     onClose();
-    try {
-      // A conflicted ROOT has no stack parent, so `restackNow` (restack_child)
-      // would reject it outright — its retry is the sync that conflicted.
-      if (conflicted.stackParent) {
-        const outcome = await restackNow(conflicted.repoPath, conflicted.name);
-        showToast({ message: restackOutcomeMessage(outcome, conflicted.branch) });
-      } else {
-        await restackStack(conflicted.repoPath, conflicted.name);
-        showToast({ message: `Synced ${conflicted.branch}'s stack ✓` });
-      }
-    } catch (e) {
-      console.error("Retry restack failed:", e);
-      showToast({ message: `Restack failed: ${e instanceof Error ? e.message : e}` });
+    // A conflicted ROOT has no stack parent, so `restackNow` (restack_child)
+    // would reject it outright — its retry is the sync that conflicted.
+    if (conflicted.stackParent) {
+      void restackNowWithToast(conflicted.repoPath, conflicted.name, conflicted.branch);
+    } else {
+      void syncStackWithToast(conflicted.repoPath, conflicted.name, `Synced ${conflicted.branch}'s stack`);
     }
   };
 
@@ -144,13 +213,9 @@ function ConflictActions({ conflicted, onClose }: { conflicted: Worktree; onClos
       >
         ✳ Have Claude resolve
       </button>
-      <button
-        type="button"
-        onClick={handleRetryRestack}
-        className="w-full flex items-center justify-center gap-1.5 rounded border border-border-default py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
-      >
+      <PopoverActionButton onClick={handleRetryRestack}>
         <RefreshCw className="h-3 w-3" /> Retry restack
-      </button>
+      </PopoverActionButton>
     </div>
   );
 }
@@ -183,13 +248,15 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
   // with the base branch at the bottom, so display order is reversed.
   const rows = [...nativeStack.members].sort((a, b) => b.position - a.position);
   const hiddenNote = hiddenMembersNote(nativeStack.size, rows.length);
+  // The one branch→local-worktree predicate for this skin — row cues and
+  // click-to-focus must agree on what counts as "local".
+  const localFor = (branch: string) =>
+    worktrees.find(
+      (w) => w.repoPath === anchorWorktree.repoPath && w.branch === branch && !w.archived,
+    );
   const localByBranch = new Map(
     rows
-      .map((m) =>
-        worktrees.find(
-          (w) => w.repoPath === anchorWorktree.repoPath && w.branch === m.branch && !w.archived,
-        ),
-      )
+      .map((m) => localFor(m.branch))
       .filter((w): w is Worktree => Boolean(w))
       .map((w) => [w.branch, w] as const),
   );
@@ -200,17 +267,10 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
     .map((m) => localByBranch.get(m.branch))
     .find((w) => w?.stackRebaseStatus?.kind === "conflict");
   const originSync = useOriginSync([...localByBranch.values()]);
-  const showToast = useToastStore((s) => s.show);
 
-  const handleRestackNow = async () => {
+  const handleRestackNow = () => {
     onClose();
-    try {
-      const outcome = await restackNow(anchorWorktree.repoPath, anchorWorktree.name);
-      showToast({ message: restackOutcomeMessage(outcome, anchorWorktree.branch) });
-    } catch (e) {
-      console.error("Restack failed:", e);
-      showToast({ message: `Restack failed: ${e instanceof Error ? e.message : e}` });
-    }
+    void restackNowWithToast(anchorWorktree.repoPath, anchorWorktree.name, anchorWorktree.branch);
   };
 
   const handleDismissPending = (e: React.MouseEvent) => {
@@ -222,9 +282,7 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
   };
 
   const handleSelect = (member: NativeStackInfo["members"][number]) => {
-    const local = worktrees.find(
-      (w) => w.repoPath === anchorWorktree.repoPath && w.branch === member.branch && !w.archived,
-    );
+    const local = localFor(member.branch);
     onClose();
     if (local) {
       setActiveWorktree(local.id);
@@ -284,8 +342,7 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
             <span className="truncate font-mono">{m.branch}</span>
             {(() => {
               const local = localByBranch.get(m.branch);
-              const cue = local && originCue(originSync[local.id]);
-              return cue && <span className="flex-shrink-0 text-amber-400">{cue}</span>;
+              return local && <OriginCue ab={originSync[local.id]} />;
             })()}
             {m.state === "MERGED" && <span className="flex-shrink-0">merged ✓</span>}
             {m.state === "CLOSED" && <span className="flex-shrink-0">closed</span>}
@@ -306,14 +363,12 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
       ) : (
         anchorWorktree.stackParent && (
           <div className="px-2 pt-2">
-            <button
-              type="button"
+            <PopoverActionButton
               onClick={handleRestackNow}
               title={`Rebase this branch onto its local parent (${anchorWorktree.stackParent}) — GitHub only restacks around merges`}
-              className="w-full flex items-center justify-center gap-1.5 rounded border border-border-default py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
             >
               <RefreshCw className="h-3 w-3" /> Restack now
-            </button>
+            </PopoverActionButton>
           </div>
         )
       )}
@@ -353,7 +408,6 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
     .filter((r): r is { member: (typeof chain.members)[number]; worktree: Worktree } => Boolean(r.worktree));
   const conflicted = rows.map((r) => r.worktree).find((m) => m.stackRebaseStatus?.kind === "conflict");
   const originSync = useOriginSync(rows.map((r) => r.worktree));
-  const showToast = useToastStore((s) => s.show);
   // Conflict owns the popover's action slot (buttons below); the pending
   // banner yields to it. Forked stacks: first blocked child in tree order.
   const pendingMember = conflicted
@@ -364,15 +418,9 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
     .filter((t): t is { action: string; at: number } => Boolean(t))
     .sort((x, y) => y.at - x.at)[0];
 
-  const handleRestackStack = async () => {
+  const handleRestackStack = () => {
     onClose();
-    try {
-      await restackStack(anchorWorktree.repoPath, anchorWorktree.name);
-      showToast({ message: "Stack synced with main ✓" });
-    } catch (e) {
-      console.error("Sync stack with main failed:", e);
-      new Notification("Alfredo", { body: `Sync stack with main failed: ${e instanceof Error ? e.message : e}` });
-    }
+    void syncStackWithToast(anchorWorktree.repoPath, anchorWorktree.name, "Stack synced with main");
   };
 
   return (
@@ -421,10 +469,8 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
             {member.prefix}
           </span>
           <span className="truncate flex-1">{m.branch}</span>
-          {(() => {
-            const cue = originCue(originSync[m.id]);
-            return cue && <span className="flex-shrink-0 text-[10px] text-amber-400">{cue} ·</span>;
-          })()}
+          <OriginCue ab={originSync[m.id]} sep />
+
           <span className={`flex-shrink-0 text-[10px] ${m.stackRebaseStatus?.kind === "conflict" || m.stackRebaseStatus?.kind === "pushFailed" || m.stackRebaseStatus?.kind === "rewrittenExternally" ? "text-status-error" : "text-text-tertiary"}`}>
             {m.id === anchorWorktree.id
               ? memberStateText(m) === "up to date"
@@ -436,13 +482,9 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
       ))}
       {conflicted && <ConflictActions conflicted={conflicted} onClose={onClose} />}
       <div className="px-2 pt-2">
-        <button
-          type="button"
-          onClick={handleRestackStack}
-          className="w-full flex items-center justify-center gap-1.5 rounded border border-border-default py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
-        >
+        <PopoverActionButton onClick={handleRestackStack}>
           <RefreshCw className="h-3 w-3" /> Sync stack with main
-        </button>
+        </PopoverActionButton>
       </div>
       {lastTrace && (
         <div className="px-3 pt-1.5 text-[10px] text-text-tertiary">
@@ -453,4 +495,4 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
   );
 }
 
-export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, originCue };
+export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, restackNowWithToast, originCue };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeEffectiveStatus } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
-import { hiddenMembersNote, restackOutcomeMessage, originCue } from "./StackMapPopover";
+import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue } from "./StackMapPopover";
 import type { PrStatus } from "../../types";
 
 describe("computeEffectiveStatus", () => {
@@ -122,6 +122,41 @@ describe("restackOutcomeMessage", () => {
   it("says why a dirty tree paused the restack", () => {
     expect(restackOutcomeMessage("skippedDirty", "feat/x")).toBe(
       "Restack paused — uncommitted changes in feat/x",
+    );
+  });
+
+  it("reports an unknown wire string verbatim instead of guessing a meaning", () => {
+    expect(restackOutcomeMessage("refusedStaleBaseline" as never, "feat/x")).toBe(
+      "Restack finished: refusedStaleBaseline",
+    );
+  });
+});
+
+// The whole-stack sync toast reads the backend summary — `restack_stack`
+// resolves Ok even when members were dirty-skipped or there was nothing to
+// sync, so "✓" is earned only when neither happened.
+describe("stackSyncMessage", () => {
+  it("celebrates a clean sync", () => {
+    expect(stackSyncMessage({ skippedDirty: [], noStack: false }, "Stack synced with main")).toBe(
+      "Stack synced with main ✓",
+    );
+  });
+
+  it("names a single dirty-skipped branch", () => {
+    expect(stackSyncMessage({ skippedDirty: ["feat/x"], noStack: false }, "Stack synced with main")).toBe(
+      "Stack synced with main — feat/x paused (uncommitted changes)",
+    );
+  });
+
+  it("counts multiple dirty-skipped branches", () => {
+    expect(
+      stackSyncMessage({ skippedDirty: ["feat/x", "feat/y"], noStack: false }, "Stack synced with main"),
+    ).toBe("Stack synced with main — 2 branches paused (uncommitted changes)");
+  });
+
+  it("says so when there was nothing to sync", () => {
+    expect(stackSyncMessage({ skippedDirty: [], noStack: true }, "Stack synced with main")).toBe(
+      "Nothing to sync — no stacked branches",
     );
   });
 });

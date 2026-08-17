@@ -696,12 +696,16 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
 /// Nothing is persisted: a root has no `stack_parent_overrides` entry, and
 /// writing it a `stack_baseline` would later be picked up by `change_base` as an
 /// `--onto` floor it must derive fresh.
+///
+/// Returns the resolved root and what `run_restack` actually did when a rebase
+/// was planned, `None` on a skip — so `restack_repo`'s summary can report a
+/// dirty-skipped root instead of folding it into "synced".
 async fn sync_stack_root(
     app_handle: &AppHandle,
     repo_path: &str,
     config: &AppConfig,
     anchor_worktree: &str,
-) -> Result<(), String> {
+) -> Result<Option<(ResolvedRoot, RestackOutcome)>, String> {
     // Force past the 30s throttle: syncing onto a remote-tracking ref that
     // happens to be stale is the exact failure this feature exists to fix.
     // Best-effort, though: `fetch_upstream_throttled` returns `()` and
@@ -727,12 +731,13 @@ async fn sync_stack_root(
                     heal_root_sticky_status(app_handle, repo_path, &root).await;
                 }
             }
-            Ok(())
+            Ok(None)
         }
         RootSyncPlan::Rebase { root, target_tip, baseline } => {
-            run_restack(app_handle, repo_path, &root.path, &root.name, &target_tip, &baseline)
-                .await
-                .map(|_| ())
+            let outcome =
+                run_restack(app_handle, repo_path, &root.path, &root.name, &target_tip, &baseline)
+                    .await?;
+            Ok(Some((root, outcome)))
         }
     }
 }
@@ -792,6 +797,19 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
     }
 }
 
+/// What a repo-wide restack actually did, serialized to the `restackStack`
+/// caller in src/api.ts. Dirty-skips are `Ok` at the git level (nothing ran,
+/// nothing broke) but must not be toasted as "synced ✓" — the same
+/// silent-no-op class `restack_now`'s `RestackOutcome` exists to surface.
+#[derive(Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestackStackSummary {
+    /// Branches whose restack was skipped over uncommitted changes.
+    pub skipped_dirty: Vec<String>,
+    /// True when the repo has no stack overrides — there was nothing to sync.
+    pub no_stack: bool,
+}
+
 /// Run the full dependency-ordered cascade for one repo (used by the
 /// restack_stack command; same body as the per-repo loop in check_and_rebase
 /// but without the quiet gate — the user explicitly asked).
@@ -800,13 +818,18 @@ pub async fn restack_repo(
     app_data_dir: &Path,
     repo_path: &str,
     anchor_worktree: &str,
-) -> Result<(), String> {
+) -> Result<RestackStackSummary, String> {
     let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
     if config.stack_parent_overrides.is_empty() {
-        return Ok(());
+        return Ok(RestackStackSummary { no_stack: true, ..Default::default() });
     }
+
+    let checkouts = checkout_paths(repo_path).await;
+    let name_to_branch = names_to_branches(&checkouts);
+    let branch_of = |name: &str| name_to_branch.get(name).cloned().unwrap_or_else(|| name.to_string());
+    let mut summary = RestackStackSummary::default();
 
     // Root first: children re-resolve their parent's tip per child, so moving
     // the root here is picked up by the cascade below with no extra plumbing.
@@ -814,20 +837,28 @@ pub async fn restack_repo(
     // `run_restack` aborts the rebase, so the root's history is untouched and
     // restacking the children against it stays correct (and mostly no-ops).
     let mut first_err: Option<String> = None;
-    if let Err(e) = sync_stack_root(app_handle, repo_path, &config, anchor_worktree).await {
-        eprintln!("[stack_manager] root sync failed for {anchor_worktree}: {e}");
-        first_err = Some(e);
+    match sync_stack_root(app_handle, repo_path, &config, anchor_worktree).await {
+        Ok(Some((root, RestackOutcome::SkippedDirty))) => {
+            summary.skipped_dirty.push(branch_of(&root.name));
+        }
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("[stack_manager] root sync failed for {anchor_worktree}: {e}");
+            first_err = Some(e);
+        }
     }
 
-    let checkouts = checkout_paths(repo_path).await;
-    let name_to_branch = names_to_branches(&checkouts);
     for child in restack_order(&config.stack_parent_overrides, &name_to_branch) {
-        if let Err(e) = restack_child(app_handle, app_data_dir, repo_path, &child).await {
-            first_err.get_or_insert(e);
+        match restack_child(app_handle, app_data_dir, repo_path, &child).await {
+            Ok(RestackOutcome::SkippedDirty) => summary.skipped_dirty.push(branch_of(&child)),
+            Ok(_) => {}
+            Err(e) => {
+                first_err.get_or_insert(e);
+            }
         }
     }
     match first_err {
-        None => Ok(()),
+        None => Ok(summary),
         Some(e) => Err(e),
     }
 }
@@ -1300,7 +1331,10 @@ async fn restack_child_inner(
 /// callers can gate baseline persistence on an actual rebase having happened.
 /// `restack_child` surfaces it so manual "Restack now" can report what really
 /// happened instead of a silent no-op.
-#[derive(Clone, Copy)]
+/// Serialized straight over the wire to `RestackOutcome` in src/api.ts — serde
+/// owns the strings, so the Rust enum and the TS union can't silently drift.
+#[derive(Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum RestackOutcome {
     Rebased,
     SkippedDirty,
@@ -1308,6 +1342,7 @@ pub enum RestackOutcome {
     /// branch was restacked by hand in a terminal). Nothing to rebase; callers
     /// may adopt the target tip as the new baseline — `check_baseline` just
     /// verified that containment against the branch's actual history.
+    #[serde(rename = "alreadyUpToDate")]
     AlreadyOnTarget,
     /// The baseline is dangling and HEAD does NOT contain the target tip. No
     /// automatic `--onto` floor is safe (see `check_baseline`), so no rebase

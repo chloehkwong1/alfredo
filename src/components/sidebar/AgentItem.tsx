@@ -6,7 +6,7 @@ import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy,
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, restackNow, setStackParent, runSetupScripts, setWorktreeColumn } from "../../api";
+import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn } from "../../api";
 import { stopServerAndReleasePort } from "../../services/portReclaim";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
@@ -35,7 +35,7 @@ import { ChangeBaseBranchDialog } from "./ChangeBaseBranchDialog";
 import { columnIcon, columnLabel, COLUMN_ORDER } from "./StatusGroup";
 import { copyText } from "../../lib/clipboard";
 import { StackGlyph, NativeStackChip } from "./StackGlyph";
-import { StackMapPopover, restackOutcomeMessage } from "./StackMapPopover";
+import { StackMapPopover, restackNowWithToast } from "./StackMapPopover";
 import { useToastStore } from "../../stores/toastStore";
 import { computeStackChain, type StackChain } from "../../lib/stackChain";
 
@@ -329,6 +329,15 @@ function AgentItemContent({
   // indicator — the Alfredo chain row below would duplicate it (and imply
   // Alfredo still restacks a stack it has stood down on).
   const isNativeStackMember = Boolean(worktree.prStatus?.nativeStack);
+  // ...except when this card's own restack machinery needs eyes: conflict,
+  // push-failed, behind, dirty-pause, queued restack. The chain row is the
+  // card's only surface for those, so suppressing it for native members would
+  // leave e.g. a background-restack conflict invisible until the popover is
+  // opened. (`nativeRestacked` is excluded — it has its own notice row below.)
+  const ownStackKind = worktree.stackRebaseStatus?.kind;
+  const stackTrouble =
+    (ownStackKind != null && ownStackKind !== "upToDate") ||
+    (worktree.stackPending != null && worktree.stackPending.blockedBy !== "nativeRestacked");
   return (
     <>
       <span
@@ -381,6 +390,7 @@ function AgentItemContent({
             prStatus={worktree.prStatus}
             onOpenMap={onOpenStackMap}
             peekRootId={stackChain?.rootId}
+            needsAttention={Boolean(stackChain?.needsAttention) || stackTrouble}
           />
           <span className="flex items-center gap-1.5 ml-auto flex-shrink-0">
             <RelativeTime
@@ -454,8 +464,9 @@ function AgentItemContent({
           </span>
         </div>
         {/* Stack indicator: glyph + position + current status. Suppressed for
-            native GitHub Stack members — the title-row chip covers it. */}
-        {stackChain && !isNativeStackMember && (
+            native GitHub Stack members while healthy — the title-row chip
+            covers position — but never while in trouble (see stackTrouble). */}
+        {stackChain && (!isNativeStackMember || stackTrouble) && (
           <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
             <StackGlyph worktree={worktree} chain={stackChain} onOpenMap={onOpenStackMap} />
             <span className="truncate" title={worktree.stackParent ?? undefined}>
@@ -487,9 +498,10 @@ function AgentItemContent({
             )}
           </div>
         )}
-        {/* The chain row never renders for native-stack members (suppressed
-            above, or the chain dissolved with a merged parent) — surface the
-            nativeRestacked notice on its own row. */}
+        {/* The chain row has no nativeRestacked span (and for native-stack
+            members usually doesn't render at all, or the chain dissolved with
+            a merged parent) — surface the nativeRestacked notice on its own
+            row. */}
         {(!stackChain || isNativeStackMember) &&
           worktree.stackPending?.blockedBy === "nativeRestacked" && (
           <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
@@ -789,14 +801,19 @@ const AgentItem = memo(function AgentItem({
   }
 
   const handleRebase = async () => {
+    if (worktree.stackParent) {
+      // Shared restack path — outcome + errors toast like every other
+      // "Restack now" surface, so the choreography can't drift.
+      await restackNowWithToast(worktree.repoPath, worktree.name, worktree.branch);
+      return;
+    }
     try {
-      if (worktree.stackParent) {
-        const outcome = await restackNow(worktree.repoPath, worktree.name);
-        useToastStore.getState().show({ message: restackOutcomeMessage(outcome, worktree.branch) });
-      } else {
-        await rebaseWorktree(worktree.path, null);
-        useToastStore.getState().show({ message: `Rebased ${worktree.branch} ✓` });
-      }
+      const outcome = await rebaseWorktree(worktree.path, null);
+      useToastStore.getState().show({
+        message: outcome === "alreadyUpToDate"
+          ? `${worktree.branch} is already up to date`
+          : `Rebased ${worktree.branch} ✓`,
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("Rebase failed:", msg);

@@ -56,7 +56,13 @@ function RebaseBanner({ repoPath, worktreePath, worktreeName, stackParent }: { r
         // would target a possibly-stale remote ref, can replay duplicate
         // parent commits after a parent rewrite, and leaves the baseline
         // stale for the next auto-restack.
-        await restackNow(repoPath, worktreeName);
+        const outcome = await restackNow(repoPath, worktreeName);
+        if (outcome === "skippedDirty") {
+          // No rebase ran — zeroing the count here would flash the banner
+          // away as if it had, only for it to reappear on the next poll.
+          setError("Restack paused — uncommitted changes in this worktree. Commit or stash them, then retry.");
+          return;
+        }
       } else {
         await rebaseWorktree(worktreePath, null);
       }

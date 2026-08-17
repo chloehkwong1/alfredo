@@ -590,13 +590,21 @@ pub async fn get_ahead_behind_origin(
         .map_err(|e| AppError::Git(format!("task join error: {e}")))?
 }
 
-/// Rebase a worktree's branch onto a target branch (or the default branch if None).
+/// Rebase a worktree's branch onto a target branch (or the default branch if
+/// None). Reports whether the rebase actually moved HEAD so callers can toast
+/// "Rebased ✓" vs "already up to date" instead of claiming work a no-op didn't
+/// do (serde on `RestackOutcome` owns the wire strings).
 #[tauri::command]
 pub async fn rebase_worktree(
     worktree_path: String,
     stack_parent: Option<String>,
-) -> Result<()> {
-    git_manager::rebase_onto(&worktree_path, stack_parent.as_deref()).await
+) -> Result<crate::stack_manager::RestackOutcome> {
+    let moved = git_manager::rebase_onto(&worktree_path, stack_parent.as_deref()).await?;
+    Ok(if moved {
+        crate::stack_manager::RestackOutcome::Rebased
+    } else {
+        crate::stack_manager::RestackOutcome::AlreadyOnTarget
+    })
 }
 
 /// Drop a single commit from a worktree's branch history (dirty-tree-safe).
@@ -636,27 +644,20 @@ pub async fn set_stack_parent(
     Ok(())
 }
 
-/// Restack a single worktree onto its stack parent now.
+/// Restack a single worktree onto its stack parent now. The outcome enum
+/// serializes itself (`RestackOutcome`'s serde attrs are the wire contract
+/// with `restackNow` in src/api.ts) — the frontend toasts what actually
+/// happened instead of assuming a rebase ran.
 #[tauri::command]
 pub async fn restack_now(
     app: AppHandle,
     repo_path: String,
     worktree_name: String,
-) -> Result<String> {
+) -> Result<crate::stack_manager::RestackOutcome> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    let outcome = crate::stack_manager::restack_child(&app, &app_data_dir, &repo_path, &worktree_name)
+    crate::stack_manager::restack_child(&app, &app_data_dir, &repo_path, &worktree_name)
         .await
-        .map_err(AppError::Git)?;
-    // Wire strings consumed by `restackNow` in src/api.ts — the frontend
-    // toasts what actually happened instead of assuming a rebase ran.
-    Ok(match outcome {
-        crate::stack_manager::RestackOutcome::Rebased => "rebased",
-        crate::stack_manager::RestackOutcome::AlreadyOnTarget => "alreadyUpToDate",
-        crate::stack_manager::RestackOutcome::SkippedDirty => "skippedDirty",
-        // `restack_child` maps refusals to Err before returning.
-        crate::stack_manager::RestackOutcome::RefusedStaleBaseline => "alreadyUpToDate",
-    }
-    .to_string())
+        .map_err(AppError::Git)
 }
 
 /// Sync a stack with the default branch: rebase the anchor's stack root onto a
@@ -668,7 +669,7 @@ pub async fn restack_stack(
     app: AppHandle,
     repo_path: String,
     worktree_name: String,
-) -> Result<()> {
+) -> Result<crate::stack_manager::RestackStackSummary> {
     let app_data_dir = resolve_app_data_dir(&app)?;
     crate::stack_manager::restack_repo(&app, &app_data_dir, &repo_path, &worktree_name)
         .await

@@ -158,7 +158,7 @@ export function getCommitsBehindMain(
 export function rebaseWorktree(
   worktreePath: string,
   stackParent?: string | null,
-): Promise<void> {
+): Promise<RestackOutcome> {
   return invoke("rebase_worktree", { worktreePath, stackParent: stackParent ?? null });
 }
 
@@ -202,15 +202,27 @@ export function setStackParent(
   return invoke("set_stack_parent", { repoPath, worktreeName, parentBranch });
 }
 
-/** What `restack_now` actually did — `commands/worktree.rs` maps the backend
- *  `RestackOutcome` onto these wire strings. */
+/** What `restack_now` / `rebase_worktree` actually did — serde on the backend
+ *  `RestackOutcome` enum (stack_manager.rs) owns these wire strings. The union
+ *  lists the values current commands can emit; consumers must still keep a
+ *  fallback arm for strings a future backend adds (e.g. a leaked
+ *  "refusedStaleBaseline"), rather than mislabeling them. */
 export type RestackOutcome = "rebased" | "alreadyUpToDate" | "skippedDirty";
 
 export function restackNow(repoPath: string, worktreeName: string): Promise<RestackOutcome> {
   return invoke("restack_now", { repoPath, worktreeName });
 }
 
-export function restackStack(repoPath: string, worktreeName: string): Promise<void> {
+/** What `restack_stack` actually did — mirrors `RestackStackSummary` in
+ *  stack_manager.rs. A dirty-skipped member resolves Ok (nothing ran, nothing
+ *  broke), so success toasts must consult `skippedDirty` before claiming the
+ *  whole stack synced. */
+export interface RestackStackSummary {
+  skippedDirty: string[];
+  noStack: boolean;
+}
+
+export function restackStack(repoPath: string, worktreeName: string): Promise<RestackStackSummary> {
   return invoke("restack_stack", { repoPath, worktreeName });
 }
 

@@ -66,6 +66,10 @@ interface NativeStackChipProps {
   /** Root id of the worktree's local Alfredo chain, when one still exists —
    *  converted stacks keep StackGlyph's hover-peek through this chip. */
   peekRootId?: string;
+  /** A branch in the stack (or this card's own restack machinery) needs
+   *  action — renders StackGlyph's amber "!" badge so the trouble is visible
+   *  from the card, not only inside the popover. */
+  needsAttention?: boolean;
 }
 
 /** GitHub-parity `⧉ pos/size` chip for PRs in a native GitHub Stack — mirrors
@@ -73,7 +77,7 @@ interface NativeStackChipProps {
  *  the worktree has no Alfredo stack override (native members usually don't).
  *  Click opens the same stack map popover as StackGlyph. Lives inside a
  *  dnd-kit sortable row — every handler stops propagation. */
-function NativeStackChip({ prStatus, onOpenMap, peekRootId }: NativeStackChipProps) {
+function NativeStackChip({ prStatus, onOpenMap, peekRootId, needsAttention = false }: NativeStackChipProps) {
   const setPeeked = useWorkspaceStore((s) => s.setPeekedStackRoot);
   const label = nativeStackChipLabel(prStatus);
   if (!label) return null;
@@ -90,12 +94,22 @@ function NativeStackChip({ prStatus, onOpenMap, peekRootId }: NativeStackChipPro
       onKeyDown={(e) => e.stopPropagation()}
       onMouseEnter={() => peekRootId && setPeeked(peekRootId)}
       onMouseLeave={() => peekRootId && setPeeked(null)}
-      className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded text-[10px] text-accent-primary bg-accent-muted/40 hover:bg-accent-muted transition-colors cursor-pointer"
-      aria-label={`Stack position ${ns.position} of ${ns.size} in GitHub stack #${ns.number} — open stack map`}
-      title={`Stack #${ns.number} · ${ns.position}/${ns.size} — managed by GitHub`}
+      className="relative flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded text-[10px] text-accent-primary bg-accent-muted/40 hover:bg-accent-muted transition-colors cursor-pointer"
+      aria-label={
+        `Stack position ${ns.position} of ${ns.size} in GitHub stack #${ns.number}`
+        + (needsAttention ? ", a branch needs attention" : "")
+        + " — open stack map"
+      }
+      title={
+        `Stack #${ns.number} · ${ns.position}/${ns.size} — managed by GitHub`
+        + (needsAttention ? " — a branch in this stack needs attention, click for details" : "")
+      }
     >
       <Layers className="h-3 w-3" />
       {label}
+      {needsAttention && (
+        <span className="absolute -top-1 -right-1 text-[10px] font-bold text-amber-400">!</span>
+      )}
     </button>
   );
 }

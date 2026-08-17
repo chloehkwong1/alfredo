@@ -826,7 +826,7 @@ async fn unwip(worktree_path: &str, marker: &str) -> Result<(), AppError> {
 /// Rebase the current branch onto a target branch (or the default remote branch if None).
 /// Fetches origin first, then runs `git rebase origin/<target>`.
 /// Returns Ok(()) on success, or an error with stderr on failure.
-pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<(), AppError> {
+pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<bool, AppError> {
     let (fetch_ref, rebase_ref) = if let Some(parent) = target {
         (parent.to_string(), format!("origin/{parent}"))
     } else {
@@ -847,6 +847,12 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
         let stderr = String::from_utf8_lossy(&fetch.stderr);
         return Err(AppError::Git(format!("git fetch failed: {stderr}")));
     }
+
+    // HEAD before any wip/rebase vs HEAD after unwip tells the caller whether
+    // the rebase moved anything: a no-op rebase (already on the target tip)
+    // replays nothing, so unwip lands HEAD back on the exact starting sha,
+    // while a real rebase rewrites every sha including the pre-wip ones.
+    let head_before = rev_parse_head(worktree_path).await?;
 
     let wip_marker = wip_stash(worktree_path).await?;
 
@@ -880,7 +886,22 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<()
     // Surface the rebase error first if there was one; otherwise surface any unwip error.
     rebase_result?;
     unwip_result?;
-    Ok(())
+    Ok(rev_parse_head(worktree_path).await? != head_before)
+}
+
+/// Current HEAD sha of a checkout.
+async fn rev_parse_head(worktree_path: &str) -> Result<String, AppError> {
+    let out = git_command()
+        .args(["rev-parse", "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git rev-parse: {e}")))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(AppError::Git(format!("git rev-parse HEAD failed: {stderr}")));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 /// Rebase the current branch's commits since `baseline_sha` onto `target_sha`:
