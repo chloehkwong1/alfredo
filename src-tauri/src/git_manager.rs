@@ -886,7 +886,19 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<bo
     // Surface the rebase error first if there was one; otherwise surface any unwip error.
     rebase_result?;
     unwip_result?;
-    Ok(rev_parse_head(worktree_path).await? != head_before)
+
+    // Best-effort: the rebase itself already succeeded above, so a spawn
+    // failure here (fd exhaustion is a documented failure mode) must not turn
+    // a successful rebase into a reported error. Assume HEAD moved — the
+    // caller only uses this to decide whether to refresh, and a false
+    // "changed" just triggers a harmless extra refresh.
+    match rev_parse_head(worktree_path).await {
+        Ok(head_after) => Ok(head_after != head_before),
+        Err(e) => {
+            tracing::warn!(error = %e, "[rebase_onto] post-rebase rev-parse failed; assuming HEAD moved");
+            Ok(true)
+        }
+    }
 }
 
 /// Current HEAD sha of a checkout.
