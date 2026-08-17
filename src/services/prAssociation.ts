@@ -1,7 +1,8 @@
-import { setPrAssociation, getPrByNumber, findPrForBranch } from "../api";
+import { setPrAssociation, getPrByNumber, findPrForBranch, clearPrAssociation } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
 import { useToastStore } from "../stores/toastStore";
+import { isTerminalPr } from "../lib/prStatus";
 import type { KanbanColumn, PrStatus, PrStatusWithColumn, Worktree } from "../types";
 
 // Worktrees already reconciled this app run (success or "no PR exists"), and
@@ -15,8 +16,13 @@ const MAX_ATTEMPTS = 3;
 // fallback (findPrForBranch) is only safe to fire for these — a plain
 // toDo/inProgress/blocked worktree may sit on a branch that once had a
 // closed PR (reused branch name), and firing the fallback there would
-// auto-Done a card that was never associated with that PR.
-const PR_TRACKING_COLUMNS: ReadonlySet<KanbanColumn> = new Set(["draftPr", "openPr", "needsReview", "done"]);
+// auto-Done a card that was never associated with that PR. "done" is
+// deliberately excluded too: a manually-Doned worktree that never had a PR
+// can sit on a reused branch name whose old PR closed long ago, and the
+// `state=All` branch lookup would bind that dead PR and persist it — a Done
+// card's chip is restored from the persisted association alone, never from
+// this fallback.
+const PR_TRACKING_COLUMNS: ReadonlySet<KanbanColumn> = new Set(["draftPr", "openPr", "needsReview"]);
 
 // Guards a single in-flight reconcile pass. Every `github:pr-update` emit
 // (fast + enriched phases) fires reconcileStalePrs fire-and-forget, so
@@ -101,14 +107,18 @@ async function runReconcile(payloadPrs: PrStatusWithColumn[]): Promise<void> {
     (wt) => !wt.archived && !wt.creating && !wt.isBranchMode && !reconciled.has(wt.id),
   );
 
-  // Already-settled cards: hydrated prStatus is terminal AND the column is
-  // already Done. Nothing left to reconcile — a reopened PR reappears in a
-  // future payload's open set and is handled by live sync. Skip the fetch
-  // entirely rather than re-confirming the same terminal state every launch.
+  // Already-settled cards: ANY hydrated prStatus that's terminal, regardless
+  // of column. Terminal is final — a terminal-hydrated card either already
+  // auto-Doned in a prior run, or the user deliberately moved it out of Done,
+  // and both mean reconcile has nothing to do. Consulting only "column ===
+  // done" here is unsafe: a Force-Quit can lose the in-memory override that
+  // keeps a user-moved card out of Done (the backend-persisted column
+  // survives, the override map doesn't), and re-fetching then would yank that
+  // card back to Done as if the override never existed. A reopened PR
+  // re-enters the live payload's open set and is handled by normal sync, so
+  // skipping the fetch here never strands a genuinely-reopened PR.
   const alreadySettledIds = new Set(
-    eligible
-      .filter((wt) => wt.column === "done" && wt.prStatus && (wt.prStatus.merged || wt.prStatus.state === "closed"))
-      .map((wt) => wt.id),
+    eligible.filter((wt) => wt.prStatus && isTerminalPr(wt.prStatus)).map((wt) => wt.id),
   );
   for (const id of alreadySettledIds) reconciled.add(id);
 
@@ -125,13 +135,14 @@ async function runReconcile(payloadPrs: PrStatusWithColumn[]): Promise<void> {
   for (const wt of candidates) {
     attempts.set(wt.id, (attempts.get(wt.id) ?? 0) + 1);
     let pr: PrStatus | null;
+    const byNumber = !!wt.prStatus?.number;
     try {
       // The branch fallback (no persisted PR number) is only safe for
       // worktrees already in a PR-tracking column — a plain toDo/inProgress
       // worktree can sit on a reused branch name that once had a closed PR,
       // and firing the fallback there would auto-Done it falsely.
-      if (wt.prStatus?.number) {
-        pr = await getPrByNumber(wt.repoPath, wt.prStatus.number);
+      if (byNumber) {
+        pr = await getPrByNumber(wt.repoPath, wt.prStatus!.number);
       } else if (PR_TRACKING_COLUMNS.has(wt.column)) {
         pr = await findPrForBranch(wt.repoPath, wt.branch);
       } else {
@@ -143,9 +154,22 @@ async function runReconcile(payloadPrs: PrStatusWithColumn[]): Promise<void> {
       continue; // stays un-reconciled — retried next tick, capped by MAX_ATTEMPTS
     }
     reconciled.add(wt.id);
-    if (!pr) continue; // no PR for this branch — plain worktree, nothing to do
+    if (!pr) {
+      // findPrForBranch's null just means "no PR on this branch" — a plain
+      // worktree, nothing was ever associated. getPrByNumber's null is a 404:
+      // the PR this worktree was tracking is gone (deleted, or the number was
+      // never real), so the persisted association is now dangling and must
+      // not survive to rehydrate a dead chip on the next launch.
+      if (byNumber) {
+        clearPrAssociation(wt.repoPath, wt.name).catch((e) =>
+          console.warn("[pr-association] clear failed:", wt.id, e),
+        );
+        useWorkspaceStore.getState().updateWorktree(wt.id, { prStatus: null });
+      }
+      continue;
+    }
 
-    const terminal = pr.merged || pr.state === "closed";
+    const terminal = isTerminalPr(pr);
     const wasDone = wt.column === "done";
     // Non-terminal reconciles must not disturb an active manual column
     // override. applyPrUpdates only keeps an override when its
@@ -162,7 +186,11 @@ async function runReconcile(payloadPrs: PrStatusWithColumn[]): Promise<void> {
       autoColumn,
       repoPath: wt.repoPath,
       checkRuns: [],
-      reviews: [],
+      // Absent (not an empty array) — an explicit `[]` is indistinguishable
+      // from "really has zero reviews" downstream, and prStore's enrichment
+      // preserve (`pr.reviews ?? prevDetail?.reviews`) would treat it as
+      // authoritative and wipe any cached reviews this reconcile never fetched.
+      reviews: undefined,
       comments: null,
       reviewRequested: false,
     };

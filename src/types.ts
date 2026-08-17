@@ -248,8 +248,11 @@ export interface PrStatusWithColumn extends PrStatus {
   repoPath: string;
   /** Full check run objects for the PR panel. */
   checkRuns: CheckRun[];
-  /** Full review objects (deduplicated, latest per reviewer). */
-  reviews: PrReview[];
+  /** Full review objects (deduplicated, latest per reviewer). Absent (not `[]`)
+   *  means "not fetched in this batch" — prStore's enrichment preserve falls
+   *  back to cached reviews only when this is absent, so a real empty result
+   *  from a full fetch must still be represented as `[]`, never omitted. */
+  reviews?: PrReview[];
   /** Line comments + issue comments merged. null = not fetched yet in this batch. */
   comments: PrComment[] | null;
   /** ISO 8601 timestamp of the last update to this PR. */

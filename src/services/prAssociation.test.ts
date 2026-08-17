@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../api", () => ({
   setPrAssociation: vi.fn().mockResolvedValue(undefined),
+  clearPrAssociation: vi.fn().mockResolvedValue(undefined),
   getPrByNumber: vi.fn(),
   findPrForBranch: vi.fn(),
   setWorktreeColumn: vi.fn().mockResolvedValue(undefined),
   clearWorktreeColumn: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { setPrAssociation, getPrByNumber, findPrForBranch } from "../api";
+import { setPrAssociation, clearPrAssociation, getPrByNumber, findPrForBranch } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
 import { useToastStore } from "../stores/toastStore";
@@ -195,6 +196,83 @@ describe("reconcileStalePrs", () => {
     expect(getPrByNumber).not.toHaveBeenCalled();
     expect(findPrForBranch).not.toHaveBeenCalled();
     expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  // Regression coverage for fix A: a Force-Quit can lose the in-memory column
+  // override that keeps a user-moved card out of Done, but the backend
+  // column ("inProgress" here) survives. A terminal hydrated prStatus must
+  // skip the fetch regardless of column, or this card would get yanked back
+  // to Done as if the user never moved it.
+  it("skips the fetch for a terminal-hydrated card the user moved out of Done", async () => {
+    const wt = makeWorktree({ column: "inProgress", prStatus: makePr({ state: "closed" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+
+    await reconcileStalePrs([]);
+
+    expect(getPrByNumber).not.toHaveBeenCalled();
+    expect(findPrForBranch).not.toHaveBeenCalled();
+    expect(useWorkspaceStore.getState().worktrees[0].column).toBe("inProgress");
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  // Regression coverage for fix B: "done" is no longer a PR-tracking column,
+  // so a manually-Doned worktree with no persisted PR never fires the branch
+  // fallback — a reused branch name could otherwise bind a long-dead PR.
+  it("does not call the branch fallback for a Done worktree with no persisted PR", async () => {
+    const wt = makeWorktree({ column: "done", prStatus: null });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    expect(findPrForBranch).not.toHaveBeenCalled();
+    expect(getPrByNumber).not.toHaveBeenCalled();
+    // Marked settled/skipped without a fetch: a second pass doesn't retry it.
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+    expect(findPrForBranch).not.toHaveBeenCalled();
+  });
+
+  // Regression coverage for fix C: a 404 on the by-number fetch means the PR
+  // is gone, not a transient failure — reconcile must not toast, must clear
+  // the dangling association, and must not retry it on a later tick.
+  it("clears the association and does not retry when getPrByNumber 404s", async () => {
+    const wt = makeWorktree({ prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    vi.mocked(getPrByNumber).mockResolvedValue(null);
+
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    expect(getPrByNumber).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+    expect(clearPrAssociation).toHaveBeenCalledWith("/repo", "feat-x");
+
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+    expect(getPrByNumber).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression coverage for fix E: reconcile passes `reviews: undefined` (not
+  // `[]`), so prStore's enrichment preserve must keep cached reviews from an
+  // earlier full sync instead of wiping them.
+  it("preserves cached reviews across a non-terminal reconcile", async () => {
+    const wt = makeWorktree({ prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    usePrStore.getState().applyPrUpdates(
+      [{
+        ...makePr({ state: "open" }),
+        autoColumn: "openPr",
+        repoPath: "/repo",
+        checkRuns: [],
+        reviews: [{ author: "reviewer", state: "APPROVED" } as never],
+        comments: [],
+        reviewRequested: false,
+      }],
+      [wt],
+    );
+    expect(usePrStore.getState().prDetail[wt.id].reviews).toHaveLength(1);
+
+    vi.mocked(getPrByNumber).mockResolvedValue(makePr({ state: "open" }));
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    expect(usePrStore.getState().prDetail[wt.id].reviews).toHaveLength(1);
   });
 
   it("does not call the branch fallback for a plain worktree with no prStatus", async () => {

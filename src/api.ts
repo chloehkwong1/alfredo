@@ -207,7 +207,7 @@ export function setStackParent(
  *  lists the values current commands can emit; consumers must still keep a
  *  fallback arm for strings a future backend adds (e.g. a leaked
  *  "refusedStaleBaseline"), rather than mislabeling them. */
-export type RestackOutcome = "rebased" | "alreadyUpToDate" | "skippedDirty";
+export type RestackOutcome = "rebased" | "alreadyUpToDate" | "skippedDirty" | "skippedRebaseInProgress";
 
 export function restackNow(repoPath: string, worktreeName: string): Promise<RestackOutcome> {
   return invoke("restack_now", { repoPath, worktreeName });
@@ -216,10 +216,15 @@ export function restackNow(repoPath: string, worktreeName: string): Promise<Rest
 /** What `restack_stack` actually did — mirrors `RestackStackSummary` in
  *  stack_manager.rs. A dirty-skipped member resolves Ok (nothing ran, nothing
  *  broke), so success toasts must consult `skippedDirty` before claiming the
- *  whole stack synced. */
+ *  whole stack synced. `rootSkipReason` is set when the root's own sync was
+ *  skipped/refused for a reason that leaves its state relative to the default
+ *  branch unknown (as opposed to a benign "already synced" skip) — a bare
+ *  success toast would be a false positive in that case. */
 export interface RestackStackSummary {
   skippedDirty: string[];
+  rebaseInProgress: string[];
   noStack: boolean;
+  rootSkipReason: string | null;
 }
 
 export function restackStack(repoPath: string, worktreeName: string): Promise<RestackStackSummary> {
@@ -279,6 +284,13 @@ export function setPrAssociation(
   association: PrAssociationRef,
 ): Promise<void> {
   return invoke("set_pr_association", { repoPath, worktreeName, association });
+}
+
+/** Drop a worktree's persisted PR association — used when the tracked PR
+ *  turns out to be gone (404) so a dangling number can't rehydrate a dead
+ *  chip on the next launch. */
+export function clearPrAssociation(repoPath: string, worktreeName: string): Promise<void> {
+  return invoke("clear_pr_association", { repoPath, worktreeName });
 }
 
 /** Persist the manual sidebar card order for one or more kanban columns of a
@@ -355,7 +367,8 @@ export function syncPrStatus(repoPath: string): Promise<PrStatus[]> {
   return invoke("sync_pr_status", { repoPath });
 }
 
-export function getPrByNumber(repoPath: string, number: number): Promise<PrStatus> {
+/** Null means the PR is gone (404) — deleted, or a number that never existed. */
+export function getPrByNumber(repoPath: string, number: number): Promise<PrStatus | null> {
   return invoke("get_pr_by_number", { repoPath, number });
 }
 
