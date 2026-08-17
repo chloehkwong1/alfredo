@@ -228,6 +228,29 @@ pub async fn create_worktree(
         // right after this function returns, so ordering is preserved either way.
         config_manager::clear_pr_association(&mut config, &dir_name);
         config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    } else {
+        // The non-stacked path has no existing config write to piggyback on.
+        // Best-effort (warn, don't fail the create), and only touches disk
+        // when there's actually something to prune — a plain create is the
+        // hot path and must not pay for a config rewrite on every call.
+        // Same hazard as the stacked branch above: a worktree removed outside
+        // Alfredo (`git worktree remove`, no in-app delete prune) leaves a
+        // dead pr_associations entry behind, and a plain create reusing that
+        // branch name would rehydrate it onto the fresh worktree — reconcile
+        // then fetches it by number, finds it terminal, and falsely auto-Dones
+        // a worktree that never had a PR.
+        let _guard = port_lock.0.lock().await;
+        match config_manager::load_personal_config(&app_data_dir, &repo_path).await {
+            Ok(mut config) => {
+                if config_manager::get_pr_association(&config, &dir_name).is_some() {
+                    config_manager::clear_pr_association(&mut config, &dir_name);
+                    if let Err(e) = config_manager::save_config(&app_data_dir, &repo_path, &config).await {
+                        tracing::warn!(worktree = %dir_name, error = %e, "[pr-association] create prune save failed");
+                    }
+                }
+            }
+            Err(e) => tracing::warn!(worktree = %dir_name, error = %e, "[pr-association] create prune config load failed"),
+        }
     }
     let stack_parent = stack_parent.map(|(parent, _)| parent);
 
