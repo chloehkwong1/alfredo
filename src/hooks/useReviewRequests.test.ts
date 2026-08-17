@@ -7,7 +7,6 @@ import type { PrStatusWithColumn } from "../types";
 
 vi.mock("../services/reviewRequestFlow", () => ({
   handleReviewRequests: vi.fn(),
-  pasteReviewPromptOnActivation: vi.fn(),
 }));
 vi.mock("./useAppConfig", () => ({
   useAppConfig: vi.fn(),

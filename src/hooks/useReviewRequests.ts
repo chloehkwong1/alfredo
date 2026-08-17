@@ -1,14 +1,12 @@
 import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useAppConfig } from "./useAppConfig";
-import { useWorkspaceStore } from "../stores/workspaceStore";
-import { handleReviewRequests, pasteReviewPromptOnActivation } from "../services/reviewRequestFlow";
+import { handleReviewRequests } from "../services/reviewRequestFlow";
 import type { PrUpdatePayload } from "../types";
 
 /**
  * Auto-pull review requests: watches the PR sync feed for PRs flagged
- * `reviewRequested` and creates their worktrees, and pastes the review prompt
- * the first time such a worktree is activated. Gated on the
+ * `reviewRequested` and creates their worktrees. Gated on the
  * autoPullReviewRequests setting (default on).
  */
 export function useReviewRequests(): void {
@@ -25,13 +23,5 @@ export function useReviewRequests(): void {
     return () => {
       void unlisten.then((f) => f());
     };
-  }, []);
-
-  useEffect(() => {
-    return useWorkspaceStore.subscribe((state, prev) => {
-      if (state.activeWorktreeId && state.activeWorktreeId !== prev.activeWorktreeId) {
-        void pasteReviewPromptOnActivation(state.activeWorktreeId);
-      }
-    });
   }, []);
 }
