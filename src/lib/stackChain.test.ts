@@ -1,5 +1,8 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { assignStackHues, collectStackIdentities, computeStackChain, STACK_HUE_COUNT } from "./stackChain";
+import { collectStackIdentities, computeStackChain, computeStackHues, STACK_HUE_COUNT } from "./stackChain";
+import { LIGHT_THEMES } from "./themeMeta";
 import type { NativeStackInfo, Worktree } from "../types";
 
 function wt(partial: Partial<Worktree> & { id: string; branch: string }): Worktree {
@@ -132,40 +135,78 @@ describe("computeStackChain", () => {
     // Converted stack: local chain exists alongside native info → root id wins.
     const converted = wt({ id: "cv", branch: "feat/cv", stackParent: "feat/n1", prStatus: prStatus("stack-a") });
     const ids = collectStackIdentities([nativeA1, nativeA2, nativeB, converted]);
-    // n1 gained a stacked child, so it roots a local chain shared with cv.
-    expect(ids.get("n1")).toBe("n1");
-    expect(ids.get("cv")).toBe("n1");
-    // Pure native members key off the native stack id.
+    // n1 roots a local chain but is itself a native member of stack-a, so the
+    // whole chain keys off the native id — a partially-converted stack must
+    // stay ONE identity, not split into chain-half and native-half.
+    expect(ids.get("n1")).toBe("native:stack-a");
+    expect(ids.get("cv")).toBe("native:stack-a");
     expect(ids.get("n2")).toBe("native:stack-a");
     expect(ids.get("n3")).toBe("native:stack-b");
   });
 
-  it("assignStackHues gives every stack a distinct hue up to the palette size", () => {
-    const identities = new Map([
-      ["w1", "root-b"], ["w2", "root-b"],
-      ["w3", "root-a"],
-      ["w4", "native:stack-z"],
-    ]);
-    const hues = assignStackHues(identities);
-    // Members of the same stack share a hue; distinct stacks never collide
-    // while ≤ STACK_HUE_COUNT of them coexist.
-    expect(hues.get("w1")).toBe(hues.get("w2"));
-    expect(new Set([hues.get("w1"), hues.get("w3"), hues.get("w4")]).size).toBe(3);
+  it("computeStackHues gives coexisting stacks distinct hues and skips unstacked rows", () => {
+    const r1 = wt({ id: "r1", branch: "feat/r1" });
+    const c1 = wt({ id: "c1", branch: "feat/c1", stackParent: "feat/r1" });
+    const r2 = wt({ id: "r2", branch: "feat/r2" });
+    const c2 = wt({ id: "c2", branch: "feat/c2", stackParent: "feat/r2" });
+    const hues = computeStackHues([r1, c1, r2, c2, lone]);
+    expect(hues.get("r1")).toBe(hues.get("c1"));
+    expect(hues.get("r2")).toBe(hues.get("c2"));
+    expect(hues.get("r1")).not.toBe(hues.get("r2"));
+    expect(hues.has("x")).toBe(false);
     for (const h of hues.values()) {
       expect(h).toBeGreaterThanOrEqual(0);
       expect(h).toBeLessThan(STACK_HUE_COUNT);
     }
   });
 
-  it("assignStackHues is order-independent and wraps past the palette", () => {
-    const forward = new Map([["w1", "a"], ["w2", "b"]]);
-    const reversed = new Map([["w2", "b"], ["w1", "a"]]);
-    expect(assignStackHues(forward).get("w1")).toBe(assignStackHues(reversed).get("w1"));
-    const many = new Map(
-      Array.from({ length: STACK_HUE_COUNT + 1 }, (_, i) => [`w${i}`, `id-${String(i).padStart(2, "0")}`] as const),
-    );
-    const hues = assignStackHues(many);
-    expect(hues.get(`w${STACK_HUE_COUNT}`)).toBe(hues.get("w0"));
+  it("computeStackHues returns empty when fewer than 2 stacks have a visible member", () => {
+    const r1 = wt({ id: "r1", branch: "feat/r1" });
+    const c1 = wt({ id: "c1", branch: "feat/c1", stackParent: "feat/r1" });
+    // Second stack exists but is entirely archived — must not activate hues.
+    const r2 = wt({ id: "r2", branch: "feat/r2", archived: true });
+    const c2 = wt({ id: "c2", branch: "feat/c2", stackParent: "feat/r2", archived: true });
+    expect(computeStackHues([r1, c1]).size).toBe(0);
+    expect(computeStackHues([r1, c1, r2, c2]).size).toBe(0);
+  });
+
+  it("computeStackHues keeps a chain whole across an archived middle member", () => {
+    const root = wt({ id: "r", branch: "feat/root" });
+    const mid = wt({ id: "m", branch: "feat/mid", stackParent: "feat/root", archived: true });
+    const leaf = wt({ id: "l", branch: "feat/leaf", stackParent: "feat/mid" });
+    const other = wt({ id: "o1", branch: "feat/o1" });
+    const otherChild = wt({ id: "o2", branch: "feat/o2", stackParent: "feat/o1" });
+    const hues = computeStackHues([root, mid, leaf, other, otherChild]);
+    // Root and leaf stay one stack (identity resolves through the archived
+    // member), and archived rows themselves get no hue entry.
+    expect(hues.get("r")).toBe(hues.get("l"));
+    expect(hues.get("r")).not.toBe(hues.get("o1"));
+    expect(hues.has("m")).toBe(false);
+  });
+
+  it("computeStackHues wraps past the palette deterministically", () => {
+    const wts = Array.from({ length: STACK_HUE_COUNT + 1 }, (_, i) => [
+      wt({ id: `r${String(i).padStart(2, "0")}`, branch: `feat/r${String(i).padStart(2, "0")}` }),
+      wt({ id: `c${i}`, branch: `feat/c${i}`, stackParent: `feat/r${String(i).padStart(2, "0")}` }),
+    ]).flat();
+    const hues = computeStackHues(wts);
+    expect(hues.get(`r${String(STACK_HUE_COUNT).padStart(2, "0")}`)).toBe(hues.get("r00"));
+  });
+
+  it("CSS palettes define exactly STACK_HUE_COUNT slots (base + every light theme)", () => {
+    // fs, not a `?raw` import — the tailwind vite plugin intercepts CSS
+    // imports in the test pipeline; cwd-relative because import.meta.url is
+    // not a file: URL under vitest's jsdom environment.
+    const css = (name: string) => readFileSync(join(process.cwd(), "src/styles", name), "utf8");
+    const themeCss = css("theme.css");
+    const themesCss = css("themes.css");
+    const slots = (s: string) => s.match(/--stack-hue-\d+\s*:/g) ?? [];
+    // Base palette: one definition per slot.
+    expect(new Set(slots(themeCss)).size).toBe(STACK_HUE_COUNT);
+    expect(slots(themeCss).length).toBe(STACK_HUE_COUNT);
+    // Each light theme block overrides the full palette with light-tuned
+    // values — a new light theme that skips this ships illegible chips.
+    expect(slots(themesCss).length).toBe(LIGHT_THEMES.size * STACK_HUE_COUNT);
   });
 
   it("computes file-tree guide prefixes across a fork", () => {

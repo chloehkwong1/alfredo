@@ -62,7 +62,7 @@ export function useGithubSync() {
       useWorkspaceStore.getState().applyWorktreePatches(patches);
       // Fire-and-forget: reconcile PRs that aged out of the sync window while
       // the app was off. No-ops after the first successful pass per worktree.
-      void reconcileStalePrs(event.payload.prs);
+      void reconcileStalePrs(event.payload.prs, event.payload.succeededRepos ?? []);
 
       // Update diff stats for worktrees that have PRs — use GitHub API for accuracy.
       // Skip the IPC when the PR's headSha matches the last successful fetch:

@@ -14,6 +14,7 @@ import { lifecycleManager } from "../../services/lifecycleManager";
 import { useChangesData } from "../../hooks/useChangesData";
 import { useGitUser } from "../../hooks/useGitUser";
 import { discardFile, discardAllUncommitted, dropCommit, getAheadBehindOrigin, getCommitsBehindMain, gitPublishBranch, gitPullRebase, gitPush, isCommitPushed, rebaseWorktree, restackNow } from "../../api";
+import { restackOutcomeMessage } from "../sidebar/StackMapPopover";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { shouldShowSimplifiedMainView } from "../../lib/cardViewMode";
 import type { ViewMode } from "./FileSidebar";
@@ -60,10 +61,11 @@ function RebaseBanner({ repoPath, worktreePath, worktreeName, stackParent }: { r
         if (outcome === "skippedDirty" || outcome === "skippedRebaseInProgress") {
           // No rebase ran — zeroing the count here would flash the banner
           // away as if it had, only for it to reappear on the next poll.
+          // Copy comes from the shared outcome→message table so this banner
+          // can't drift from the toast wording; only the retry advice is ours.
           setError(
-            outcome === "skippedDirty"
-              ? "Restack paused — uncommitted changes in this worktree. Commit or stash them, then retry."
-              : "Restack paused — conflict resolution already in progress in this worktree.",
+            restackOutcomeMessage(outcome, "this worktree") +
+              (outcome === "skippedDirty" ? ". Commit or stash them, then retry." : "."),
           );
           return;
         }

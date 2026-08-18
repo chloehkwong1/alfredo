@@ -517,13 +517,17 @@ pub async fn check_merged_parents(
                 // A rebase already in progress (conflict handoff) gets the same
                 // deferral — it isn't uncommitted changes, but it's just as
                 // unsafe to touch, and the next poll retries once it resolves.
-                Ok(RestackOutcome::SkippedDirty | RestackOutcome::SkippedRebaseInProgress) => {
+                Ok(outcome @ (RestackOutcome::SkippedDirty | RestackOutcome::SkippedRebaseInProgress)) => {
                     eprintln!(
                         "[stack_manager] merged-parent restack deferred for {child_name}: worktree not clean"
                     );
                     let pending = StackPendingAction {
                         merged_parent: merged_parent.clone(),
-                        blocked_by: StackPendingBlocker::Dirty,
+                        blocked_by: if matches!(outcome, RestackOutcome::SkippedRebaseInProgress) {
+                            StackPendingBlocker::RebaseInProgress
+                        } else {
+                            StackPendingBlocker::Dirty
+                        },
                     };
                     record_pending(app_handle, repo_path, child_name, pending);
                     continue;
@@ -840,6 +844,11 @@ pub struct RestackStackSummary {
     /// — as opposed to a benign skip like "already synced". A bare "Stack
     /// synced with main ✓" would be a false positive here.
     pub root_skip_reason: Option<String>,
+    /// Per-branch failures ("branch: error"). Carried IN the summary rather
+    /// than as an `Err` so caveats accumulated before a failure (dirty-skips,
+    /// conflict pauses) still reach the toast — an `Err` return would discard
+    /// the whole summary and report only the first error.
+    pub errors: Vec<String>,
 }
 
 /// Run the full dependency-ordered cascade for one repo (used by the
@@ -868,7 +877,6 @@ pub async fn restack_repo(
     // A conflicted root sync is reported but does NOT abort the cascade —
     // `run_restack` aborts the rebase, so the root's history is untouched and
     // restacking the children against it stays correct (and mostly no-ops).
-    let mut first_err: Option<String> = None;
     match sync_stack_root(app_handle, repo_path, &config, anchor_worktree).await {
         Ok(RootSyncOutcome::Attempted(root, RestackOutcome::SkippedDirty)) => {
             summary.skipped_dirty.push(branch_of(&root.name));
@@ -892,7 +900,8 @@ pub async fn restack_repo(
         }
         Err(e) => {
             eprintln!("[stack_manager] root sync failed for {anchor_worktree}: {e}");
-            first_err = Some(e);
+            // No resolved root here — the failure may be resolution itself.
+            summary.errors.push(format!("root sync: {e}"));
         }
     }
 
@@ -903,15 +912,10 @@ pub async fn restack_repo(
                 summary.rebase_in_progress.push(branch_of(&child));
             }
             Ok(_) => {}
-            Err(e) => {
-                first_err.get_or_insert(e);
-            }
+            Err(e) => summary.errors.push(format!("{}: {e}", branch_of(&child))),
         }
     }
-    match first_err {
-        None => Ok(summary),
-        Some(e) => Err(e),
-    }
+    Ok(summary)
 }
 
 // ── Task 13 ──────────────────────────────────────────────────────
@@ -1086,13 +1090,17 @@ pub async fn detect_stale_parents(
             Ok(RestackOutcome::Rebased | RestackOutcome::AlreadyOnTarget) => {}
             // Nothing moved. The parent stays stale, so this retries next poll.
             // A rebase already in progress (conflict handoff) defers the same way.
-            Ok(RestackOutcome::SkippedDirty | RestackOutcome::SkippedRebaseInProgress) => {
+            Ok(outcome @ (RestackOutcome::SkippedDirty | RestackOutcome::SkippedRebaseInProgress)) => {
                 eprintln!(
                     "[stack_manager] stale-parent restack deferred for {child_name}: worktree not clean"
                 );
                 let pending = StackPendingAction {
                     merged_parent: stale_parent.clone(),
-                    blocked_by: StackPendingBlocker::Dirty,
+                    blocked_by: if matches!(outcome, RestackOutcome::SkippedRebaseInProgress) {
+                        StackPendingBlocker::RebaseInProgress
+                    } else {
+                        StackPendingBlocker::Dirty
+                    },
                 };
                 record_pending(app_handle, repo_path, child_name, pending);
                 continue;

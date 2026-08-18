@@ -146,6 +146,10 @@ pub struct StackPendingAction {
 #[serde(rename_all = "camelCase")]
 pub enum StackPendingBlocker {
     Dirty,
+    /// A rebase is already in progress in the worktree (conflict handoff, or
+    /// a rebase started outside Alfredo). Distinct from `Dirty` so the banner
+    /// never gives "commit or stash" advice mid-rebase.
+    RebaseInProgress,
     AgentBusy,
     /// Not a blocker but a notice: the merged parent belonged to a native
     /// GitHub Stack, which retargets and rebases upper layers server-side.
@@ -581,6 +585,13 @@ pub struct PrAssociationRef {
     pub title: String,
     pub state: String,
     pub merged: bool,
+    /// The PR's head branch — hydration refuses associations whose branch no
+    /// longer matches the worktree (dir name reused by a different branch).
+    /// Empty on entries persisted before this field existed.
+    #[serde(default)]
+    pub branch: String,
+    #[serde(default)]
+    pub draft: bool,
 }
 
 pub fn default_archive_days() -> Option<u32> { Some(2) }

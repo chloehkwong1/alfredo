@@ -37,8 +37,8 @@ import { copyText } from "../../lib/clipboard";
 import { StackGlyph, NativeStackChip } from "./StackGlyph";
 import { StackMapPopover, restackNowWithToast } from "./StackMapPopover";
 import { useToastStore } from "../../stores/toastStore";
-import { assignStackHues, collectStackIdentities, computeStackChain, type StackChain } from "../../lib/stackChain";
-import { isTerminalPr } from "../../lib/prStatus";
+import { computeStackChain, stackHuesFor, type StackChain } from "../../lib/stackChain";
+import { isTerminalPr, toTerminalFlags } from "../../lib/prStatus";
 
 const THINKING_VERBS = [
   "Thinking…",
@@ -269,7 +269,7 @@ function useAgentItemState(worktree: Worktree) {
   const prSummary =
     storeSummary ??
     (worktree.prStatus && isTerminalPr(worktree.prStatus)
-      ? { merged: worktree.prStatus.merged, closed: !worktree.prStatus.merged }
+      ? toTerminalFlags(worktree.prStatus)
       : undefined);
   const serverEntry = useWorkspaceStore(
     (s) => s.runningServers[worktree.id],
@@ -709,18 +709,14 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
 }
 
 /** Palette slot for this worktree's stack chips, or null for the accent tint.
- *  Hue-codes only when ≥2 stacks coexist *on screen* — counted over the same
- *  visibility filter the sidebar renders with, so archived or branch-mode
- *  worktrees (which keep their stack fields) can't activate hue mode. Shared
- *  with AgentItemOverlay so the dragged card matches its row. */
+ *  Hue-codes only when ≥2 stacks have at least one non-archived, non-branch-
+ *  mode member (the gate deliberately counts rows hidden by collapse or the
+ *  pin filter — they're one toggle from view, and excluding them would make
+ *  hues flicker on collapse). Shared with AgentItemOverlay so the dragged
+ *  card matches its row; stackHuesFor memoizes per store update. */
 function useStackHue(worktreeId: string): number | null {
   const allWorktrees = useWorkspaceStore((s) => s.worktrees);
-  return useMemo(() => {
-    const visible = allWorktrees.filter((wt) => !wt.archived && !wt.isBranchMode);
-    const identities = collectStackIdentities(visible);
-    if (new Set(identities.values()).size < 2) return null;
-    return assignStackHues(identities).get(worktreeId) ?? null;
-  }, [allWorktrees, worktreeId]);
+  return stackHuesFor(allWorktrees).get(worktreeId) ?? null;
 }
 
 const AgentItem = memo(function AgentItem({

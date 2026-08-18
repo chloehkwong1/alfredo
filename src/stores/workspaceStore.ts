@@ -279,8 +279,12 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
       return {
         ...wt,
         // Live sync data wins, but a restart-hydrated prStatus (from persisted
-        // PR associations) must survive refreshes that arrive before first sync.
-        prStatus: old.prStatus ?? wt.prStatus,
+        // PR associations) must survive refreshes that arrive before first
+        // sync. prStatusCleared marks a deliberate null (reconcile found the
+        // PR dead) — without it a refresh racing the unawaited config clear
+        // would re-adopt the dead association from backend hydration.
+        prStatus: old.prStatus ?? (old.prStatusCleared ? null : wt.prStatus),
+        prStatusCleared: old.prStatusCleared,
         column: old.column,
         agentStatus: old.agentStatus,
         channelAlive: old.channelAlive,
@@ -593,7 +597,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       return {
         worktrees: state.worktrees.map((wt) => {
           const patch = patches.get(wt.id);
-          return patch ? { ...wt, ...patch } : wt;
+          if (!patch) return wt;
+          // A real prStatus arriving supersedes an earlier deliberate clear.
+          return patch.prStatus
+            ? { ...wt, ...patch, prStatusCleared: false }
+            : { ...wt, ...patch };
         }),
         pinnedWorktrees,
       };

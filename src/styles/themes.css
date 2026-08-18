@@ -98,6 +98,16 @@ html[data-theme="light"] {
   --chip-ochre-text:   #8a5a06;
   --chip-slate-bg:     rgba(71, 85, 105, 0.12);
   --chip-slate-text:   #475569;
+
+  /* Stack hue palette, light-tuned (700-tier — the :root defaults are for
+     dark surfaces). Every light theme must override all slots; a vitest in
+     stackChain.test.ts enforces the count. */
+  --stack-hue-0: #1d4ed8; /* blue */
+  --stack-hue-1: #c2410c; /* orange */
+  --stack-hue-2: #be185d; /* pink */
+  --stack-hue-3: #15803d; /* green */
+  --stack-hue-4: #0e7490; /* cyan */
+  --stack-hue-5: #4d7c0f; /* lime */
 }
 
 /* ── Synthwave ───────────────────────────────────── */
@@ -605,6 +615,14 @@ html[data-theme="catppuccin-latte"] {
   --chip-ochre-text:   #9a4a04;
   --chip-slate-bg:     rgba(108, 111, 133, 0.12);
   --chip-slate-text:   #5c5f77;
+
+  /* Stack hue palette, light-tuned (see the light theme block above). */
+  --stack-hue-0: #1d4ed8; /* blue */
+  --stack-hue-1: #c2410c; /* orange */
+  --stack-hue-2: #be185d; /* pink */
+  --stack-hue-3: #15803d; /* green */
+  --stack-hue-4: #0e7490; /* cyan */
+  --stack-hue-5: #4d7c0f; /* lime */
 }
 
 /* ── Everforest (Light, medium) ──────────────────────
@@ -687,4 +705,12 @@ html[data-theme="everforest-light"] {
   --chip-ochre-text:   #8f6700;
   --chip-slate-bg:     rgba(92, 106, 114, 0.12);
   --chip-slate-text:   #5c6a72;
+
+  /* Stack hue palette, light-tuned (see the light theme block above). */
+  --stack-hue-0: #1d4ed8; /* blue */
+  --stack-hue-1: #c2410c; /* orange */
+  --stack-hue-2: #be185d; /* pink */
+  --stack-hue-3: #15803d; /* green */
+  --stack-hue-4: #0e7490; /* cyan */
+  --stack-hue-5: #4d7c0f; /* lime */
 }

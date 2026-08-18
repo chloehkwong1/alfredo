@@ -4,8 +4,21 @@ vi.mock("../api", () => ({
   createWorktreeFrom: vi.fn(),
   listWorktrees: vi.fn().mockResolvedValue([]),
 }));
+// Session machinery mocked solely so the no-spawn invariant below can assert
+// against it — the flow must never import/call these (usePty is the sole
+// spawner; these worktrees are auto-created for the whole team every poll).
+vi.mock("./agentMessenger", () => ({
+  writeToSession: vi.fn(),
+  focusAgentTab: vi.fn(),
+}));
+vi.mock("./openIssueFlow", () => ({
+  waitForSpawnedSession: vi.fn(),
+  waitForAgentReady: vi.fn().mockResolvedValue(true),
+}));
 
 import { createWorktreeFrom, listWorktrees } from "../api";
+import { writeToSession } from "./agentMessenger";
+import { waitForSpawnedSession } from "./openIssueFlow";
 import { handleReviewRequests } from "./reviewRequestFlow";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
@@ -94,6 +107,17 @@ describe("handleReviewRequests", () => {
       additions: null, deletions: null, repoPath: "/repos/app" });
     await Promise.all([first, second]);
     expect(createWorktreeFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it("never spawns an agent session", async () => {
+    vi.mocked(createWorktreeFrom).mockResolvedValue({
+      id: "/repos/app::feat/flux", name: "feat/flux", path: "/p", branch: "feat/flux",
+      prStatus: null, agentStatus: "notRunning", column: "inProgress", isBranchMode: false,
+      additions: null, deletions: null, repoPath: "/repos/app",
+    } as never);
+    await handleReviewRequests([makePr()]);
+    expect(waitForSpawnedSession).not.toHaveBeenCalled();
+    expect(writeToSession).not.toHaveBeenCalled();
   });
 
   it("marks the placeholder failed when creation throws", async () => {

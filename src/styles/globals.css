@@ -376,14 +376,8 @@ body {
 .stack-hue:hover {
   background: color-mix(in srgb, var(--stack-chip-hue) 26%, transparent);
 }
-
-/* Light themes: darken the chip text — mid-tier hues are tuned for dark
-   backgrounds. Selector list mirrors LIGHT_THEMES in src/lib/themeMeta.ts. */
-html[data-theme="light"] .stack-hue,
-html[data-theme="catppuccin-latte"] .stack-hue,
-html[data-theme="everforest-light"] .stack-hue {
-  color: color-mix(in srgb, var(--stack-chip-hue) 72%, black);
-}
+/* No light-theme rule here: light themes override --stack-hue-N themselves
+   in themes.css, following the --chip-* per-theme token pattern. */
 
 @keyframes thinking-dot {
   0%, 60%, 100% { opacity: 0.25; transform: scale(0.8); }

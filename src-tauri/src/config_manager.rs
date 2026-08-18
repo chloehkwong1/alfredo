@@ -925,6 +925,8 @@ mod tests {
             title: "CORE-2892: stop stale rate change requests".into(),
             state: "open".into(),
             merged: false,
+            branch: "core-2892-stale-rate-changes".into(),
+            draft: false,
         });
         save_config(app_data.path(), repo_path, &config).await?;
 

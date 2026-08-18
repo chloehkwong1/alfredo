@@ -366,7 +366,6 @@ pub fn run() {
             worktree::get_assigned_worktree_port,
             // GitHub
             github::sync_pr_status,
-            github::get_pr_for_branch,
             github::get_pr_by_number,
             github::find_pr_for_branch,
             checks::get_check_runs,

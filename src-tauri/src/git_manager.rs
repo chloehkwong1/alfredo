@@ -889,14 +889,17 @@ pub async fn rebase_onto(worktree_path: &str, target: Option<&str>) -> Result<bo
 
     // Best-effort: the rebase itself already succeeded above, so a spawn
     // failure here (fd exhaustion is a documented failure mode) must not turn
-    // a successful rebase into a reported error. Assume HEAD moved — the
-    // caller only uses this to decide whether to refresh, and a false
-    // "changed" just triggers a harmless extra refresh.
+    // a successful rebase into a reported error. Assume HEAD did NOT move —
+    // callers map the bool to Rebased/AlreadyOnTarget and toast "Rebased ✓"
+    // on `true`, so guessing `true` for a rebase that was actually a no-op
+    // would claim work that never happened. "Already up to date" for a rebase
+    // that did move is the safer lie: the work is done either way, and the
+    // next status poll shows the real state.
     match rev_parse_head(worktree_path).await {
         Ok(head_after) => Ok(head_after != head_before),
         Err(e) => {
-            tracing::warn!(error = %e, "[rebase_onto] post-rebase rev-parse failed; assuming HEAD moved");
-            Ok(true)
+            tracing::warn!(error = %e, "[rebase_onto] post-rebase rev-parse failed; reporting no-op");
+            Ok(false)
         }
     }
 }

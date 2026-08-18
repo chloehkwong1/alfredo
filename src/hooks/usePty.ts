@@ -306,10 +306,14 @@ export function usePty({
           // Refresh diff stats when agent finishes work (busy/waitingForInput → idle)
           if (currentState === "idle" && prevAgentState && prevAgentState !== "idle" && prevAgentState !== "notRunning") {
             const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId);
-            // A hydrated prStatus can be stale (the PR merged/closed after the
-            // app last hydrated it) — only a live PR's diff is worth fetching
-            // from GitHub; a terminal one falls through to the local diff below.
-            if (wt?.prStatus?.number && !isTerminalPr(wt.prStatus)) {
+            // A terminal PR's file stats can never change again — refreshing
+            // would swap the badge to the LOCAL diff, which is ~+0/−0 once the
+            // merge landed on main, zeroing a badge that honestly showed the
+            // PR's size (and the headSha dedupe in useGithubSync would never
+            // restore it). Keep whatever the badge already shows.
+            if (wt?.prStatus && isTerminalPr(wt.prStatus)) {
+              // no-op: stats frozen at the PR's final numbers
+            } else if (wt?.prStatus?.number) {
               getPrFiles(wt.repoPath, wt.prStatus.number)
                 .then((files) => {
                   const additions = files.reduce((sum, f) => sum + f.additions, 0);

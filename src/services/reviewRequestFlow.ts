@@ -35,7 +35,9 @@ export async function handleReviewRequests(prs: PrStatusWithColumn[]): Promise<v
         branch: pr.branch,
         prStatus: null,
         agentStatus: "notRunning",
-        column: pr.autoColumn,
+        // autoColumn is null only on reconcile-built partial updates, never
+        // on the live review-request payloads this flow consumes.
+        column: pr.autoColumn ?? "needsReview",
         isBranchMode: false,
         additions: null,
         deletions: null,
@@ -54,7 +56,7 @@ export async function handleReviewRequests(prs: PrStatusWithColumn[]): Promise<v
         // Seed prStatus/column from the PR we already hold so the card sits in
         // the right column immediately instead of waiting for the next sync tick.
         useWorkspaceStore.getState().updateWorktree(worktreeId, {
-          column: pr.autoColumn,
+          column: pr.autoColumn ?? "needsReview",
           prStatus: {
             number: pr.number,
             state: pr.state,

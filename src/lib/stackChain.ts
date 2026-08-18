@@ -1,4 +1,5 @@
 import type { Worktree } from "../types";
+import { isVisibleWorktree } from "./worktreeVisibility";
 
 export interface StackMember {
   id: string;
@@ -108,18 +109,40 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
 export const STACK_HUE_COUNT = 6;
 
 /**
- * Assign a palette slot per stack, sequentially over sorted identities.
- * Sequential (not hashed) so coexisting stacks never share a hue until the
- * palette is exhausted — a hash collides ~1/6 of the time at exactly two
- * stacks, which is the feature's minimum case. The cost is that a stack's hue
+ * Hue slots for every visible stacked worktree, or an empty map when fewer
+ * than 2 stacks have a visible member (single-stack sidebars keep the accent
+ * tint). Identities resolve over the FULL worktree list so a chain stays one
+ * stack across archived members; visibility (the sidebar's own filter) only
+ * gates which stacks count and get slots. Slots are assigned sequentially
+ * over sorted identities — sequential (not hashed) so coexisting stacks never
+ * share a hue until the palette is exhausted; the cost is that a stack's hue
  * can shift when another stack appears or disappears.
  */
-export function assignStackHues(identities: Map<string, string>): Map<string, number> {
-  const distinct = [...new Set(identities.values())].sort();
+export function computeStackHues(worktrees: Worktree[]): Map<string, number> {
+  const identities = collectStackIdentities(worktrees);
+  const visibleIdentities = new Map(
+    worktrees
+      .filter((wt) => isVisibleWorktree(wt) && identities.has(wt.id))
+      .map((wt) => [wt.id, identities.get(wt.id)!]),
+  );
+  const distinct = [...new Set(visibleIdentities.values())].sort();
+  if (distinct.length < 2) return new Map();
   const slotByIdentity = new Map(distinct.map((identity, i) => [identity, i % STACK_HUE_COUNT]));
   return new Map(
-    [...identities].map(([worktreeId, identity]) => [worktreeId, slotByIdentity.get(identity)!]),
+    [...visibleIdentities].map(([worktreeId, identity]) => [worktreeId, slotByIdentity.get(identity)!]),
   );
+}
+
+/** Per-array memo so N sidebar rows (and the drag overlay) share one
+ *  computation per store update instead of each redoing the O(N) pass. */
+const hueCache = new WeakMap<Worktree[], Map<string, number>>();
+export function stackHuesFor(worktrees: Worktree[]): Map<string, number> {
+  let hues = hueCache.get(worktrees);
+  if (!hues) {
+    hues = computeStackHues(worktrees);
+    hueCache.set(worktrees, hues);
+  }
+  return hues;
 }
 
 /**
@@ -144,7 +167,13 @@ export function collectStackIdentities(worktrees: Worktree[]): Map<string, strin
     }
     for (const w of repoWorktrees) {
       if (w.stackParent || parentBranches.has(w.branch)) {
-        identities.set(w.id, resolveRoot(byBranch, w, repoWorktrees.length).id);
+        // A chain rooted at a native GitHub Stack member is a *partially
+        // converted* native stack — key the whole chain off the native id so
+        // it shares an identity with pure-native stack-mates instead of
+        // splitting one stack into two identities.
+        const root = resolveRoot(byBranch, w, repoWorktrees.length);
+        const nativeId = root.prStatus?.nativeStack?.id;
+        identities.set(w.id, nativeId != null ? `native:${nativeId}` : root.id);
       } else if (w.prStatus?.nativeStack) {
         identities.set(w.id, `native:${w.prStatus.nativeStack.id}`);
       }

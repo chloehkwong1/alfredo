@@ -408,6 +408,26 @@ describe("setWorktrees / mergeWorktreeState", () => {
     store.getState().setWorktrees([{ ...base, prStatus: null }]);
     expect(store.getState().worktrees[0].prStatus?.number).toBe(1);
   });
+
+  it("does not resurrect a deliberately-cleared prStatus from backend hydration", () => {
+    const store = useWorkspaceStore;
+    const base = makeWorktree();
+    const dead = {
+      number: 404, state: "closed", title: "dead", url: "https://github.com/x/y/pull/404",
+      draft: false, merged: true, branch: base.branch,
+    };
+    store.getState().setWorktrees([{ ...base, prStatus: dead }]);
+    // Reconcile 404-clears the chip; the backend config clear is unawaited,
+    // so the next refresh can still deliver the hydrated dead association.
+    store.getState().updateWorktree(base.id, { prStatus: null, prStatusCleared: true });
+    store.getState().setWorktrees([{ ...base, prStatus: dead }]);
+    expect(store.getState().worktrees[0].prStatus).toBeNull();
+    // A real PR arriving via patches supersedes the clear.
+    const live = { ...dead, number: 500, state: "open", merged: false };
+    store.getState().applyWorktreePatches(new Map([[base.id, { prStatus: live }]]));
+    store.getState().setWorktrees([{ ...base, prStatus: dead }]);
+    expect(store.getState().worktrees[0].prStatus?.number).toBe(500);
+  });
 });
 
 // ── withActivityTimestamps (via setWorktrees) ─────────────────────

@@ -49,6 +49,13 @@ function stackSyncMessage(summary: RestackStackSummary, subject: string): string
   // The root's own sync state is unknown (not a benign "already synced" skip)
   // — a bare "✓" would be a false positive, so it always earns a caveat.
   if (summary.rootSkipReason) caveats.push(`root skipped: ${summary.rootSkipReason}`);
+  // Failures ride in the summary (not a rejected promise) precisely so the
+  // caveats above still reach the user alongside them — and they replace the
+  // subject's success claim with an honest "incomplete".
+  const failed = summary.errors ?? [];
+  if (failed.length === 1) caveats.push(`failed — ${failed[0]}`);
+  else if (failed.length > 1) caveats.push(`${failed.length} branches failed — ${failed[0]}`);
+  if (failed.length > 0) return `Stack sync incomplete — ${caveats.join("; ")}`;
   if (caveats.length > 0) return `${subject} — ${caveats.join("; ")}`;
   return `${subject} ✓`;
 }
@@ -469,7 +476,9 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
               {pendingMember.stackPending.mergedParent} was merged —{" "}
               {pendingMember.stackPending.blockedBy === "dirty"
                 ? `waiting for uncommitted changes in ${pendingMember.branch} to clear`
-                : `waiting for ${pendingMember.branch}'s agent to finish`}
+                : pendingMember.stackPending.blockedBy === "rebaseInProgress"
+                  ? `waiting for ${pendingMember.branch}'s in-progress rebase to finish`
+                  : `waiting for ${pendingMember.branch}'s agent to finish`}
               , then this stack rebases onto {defaultBranch ?? "main"}.
             </>
           )}

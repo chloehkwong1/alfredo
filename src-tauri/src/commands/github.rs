@@ -1,6 +1,6 @@
 use tauri::Manager;
 
-use crate::github_manager::{self, GithubManager};
+use crate::github_manager::{self};
 use crate::github_sync;
 use crate::types::{AppError, PrStatus};
 
@@ -126,15 +126,3 @@ mod tests {
     }
 }
 
-/// Get the PR associated with a specific branch, if any.
-#[tauri::command]
-pub async fn get_pr_for_branch(
-    owner: String,
-    repo: String,
-    branch: String,
-) -> Result<Option<PrStatus>> {
-    let token = std::env::var("GITHUB_TOKEN")
-        .map_err(|_| AppError::Github("no GitHub token available".into()))?;
-    let manager = GithubManager::shared(&token)?;
-    manager.get_pr_for_branch(&owner, &repo, &branch).await
-}

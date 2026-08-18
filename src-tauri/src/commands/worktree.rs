@@ -461,12 +461,22 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
         for wt in &mut wts {
             if wt.pr_status.is_none() {
                 if let Some(assoc) = config_manager::get_pr_association(&config, &wt.name) {
+                    // Associations are keyed by worktree NAME; a dir name can be
+                    // reused by a different branch (worktree removed + re-added
+                    // outside Alfredo). Hydrating the predecessor's PR onto the
+                    // new branch paints a wrong chip that reconcile then locks
+                    // in as settled — refuse the mismatch instead. Pre-branch
+                    // entries (empty) hydrate as before and self-heal via the
+                    // reconcile pass's own head-branch check.
+                    if !assoc.branch.is_empty() && assoc.branch != wt.branch {
+                        continue;
+                    }
                     wt.pr_status = Some(crate::types::PrStatus {
                         number: assoc.number,
                         state: assoc.state,
                         title: assoc.title,
                         url: assoc.url,
-                        draft: false,
+                        draft: assoc.draft,
                         merged: assoc.merged,
                         branch: wt.branch.clone(),
                         base_branch: None,
@@ -1272,6 +1282,8 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
         title: pr.title.clone(),
         state: pr.state.clone(),
         merged: pr.merged,
+        branch: pr.branch.clone(),
+        draft: pr.draft,
     };
     let worktree =
         create_worktree(app.clone(), app.state::<PortConfigLock>(), repo_path, branch_name, base).await?;

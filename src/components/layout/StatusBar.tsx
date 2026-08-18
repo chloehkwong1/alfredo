@@ -1,16 +1,8 @@
 import { ExternalLink, Copy, Check } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { PrStatus, Worktree } from "../../types";
+import type { Worktree } from "../../types";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
-
-/** Label + color token for a PR's current state, terminal states first so a
- *  merged/closed PR is never mislabeled "Open". */
-function prStatusLabel(pr: PrStatus): { text: string; className: string } {
-  if (pr.merged) return { text: "Merged", className: "text-accent-primary" };
-  if (pr.state === "closed") return { text: "Closed", className: "text-text-secondary" };
-  if (pr.draft) return { text: "Draft", className: "text-status-busy" };
-  return { text: "Open", className: "text-status-idle" };
-}
+import { prStatusLabel } from "../../lib/prStatus";
 
 interface StatusBarProps {
   worktree: Worktree | undefined;
@@ -25,7 +17,6 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
   }
 
   const pr = worktree.prStatus;
-  const prLabel = pr ? prStatusLabel(pr) : null;
 
   return (
     <div className="h-8 flex items-center justify-between px-4 bg-bg-bar border-b border-border-subtle text-xs text-text-tertiary flex-shrink-0">
@@ -65,16 +56,19 @@ function StatusBar({ worktree, annotationCount }: StatusBarProps) {
             <ExternalLink size={12} />
           </button>
         )}
-        {pr && prLabel && (
-          <button
-            type="button"
-            onClick={() => openUrl(pr.url)}
-            className="flex items-center gap-1 hover:text-text-secondary transition-colors cursor-pointer"
-          >
-            <span className={prLabel.className}>{prLabel.text} PR #{pr.number}</span>
-            <ExternalLink size={12} />
-          </button>
-        )}
+        {pr && (() => {
+          const prLabel = prStatusLabel(pr);
+          return (
+            <button
+              type="button"
+              onClick={() => openUrl(pr.url)}
+              className="flex items-center gap-1 hover:text-text-secondary transition-colors cursor-pointer"
+            >
+              <span className={prLabel.className}>{prLabel.text} PR #{pr.number}</span>
+              <ExternalLink size={12} />
+            </button>
+          );
+        })()}
         {annotationCount > 0 && (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-accent-primary/15 text-accent-primary text-2xs font-medium">
             <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-accent-primary text-text-on-accent text-2xs font-semibold">

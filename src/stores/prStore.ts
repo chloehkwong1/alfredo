@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { setWorktreeColumn, clearWorktreeColumn } from "../api";
 import { rekeyRecord } from "./rekeyWorktreeId";
+import { toTerminalFlags } from "../lib/prStatus";
 import { stopServerAndReleasePort } from "../services/portReclaim";
 
 interface ColumnOverride {
@@ -207,20 +208,26 @@ export const usePrStore = create<PrState>((set, get) => ({
       const pr = prByKey.get(`${wt.repoPath}::${wt.branch}`);
       if (!pr) continue;
 
-      newAutoColumn[wt.id] = pr.autoColumn;
+      // autoColumn === null means "unknown" (partial update, e.g. reconcile
+      // without live sync data): skip all column/override bookkeeping — only
+      // the prStatus payload below applies — so a partial update can never
+      // pollute lastAutoColumn or invalidate a manual override.
+      if (pr.autoColumn != null) {
+        newAutoColumn[wt.id] = pr.autoColumn;
 
-      // Clear manual override when the PR's autoColumn has changed since
-      // the override was set — a real state transition happened, so let
-      // the new autoColumn take over. If autoColumn hasn't changed, the
-      // user's manual placement persists (like Linear).
-      const override = newOverrides[wt.id];
-      if (override) {
-        if (override.needsMigration) {
-          // Legacy override from pre-v0.3.5 session — migrate by recording
-          // the current autoColumn so it persists on subsequent syncs.
-          newOverrides[wt.id] = { column: override.column, autoColumnWhenSet: pr.autoColumn };
-        } else if (override.autoColumnWhenSet !== pr.autoColumn) {
-          delete newOverrides[wt.id];
+        // Clear manual override when the PR's autoColumn has changed since
+        // the override was set — a real state transition happened, so let
+        // the new autoColumn take over. If autoColumn hasn't changed, the
+        // user's manual placement persists (like Linear).
+        const override = newOverrides[wt.id];
+        if (override) {
+          if (override.needsMigration) {
+            // Legacy override from pre-v0.3.5 session — migrate by recording
+            // the current autoColumn so it persists on subsequent syncs.
+            newOverrides[wt.id] = { column: override.column, autoColumnWhenSet: pr.autoColumn };
+          } else if (override.autoColumnWhenSet !== pr.autoColumn) {
+            delete newOverrides[wt.id];
+          }
         }
       }
 
@@ -240,8 +247,11 @@ export const usePrStore = create<PrState>((set, get) => ({
         nativeStack: pr.nativeStack ?? null,
       };
 
-      // Use manual override if still active, otherwise auto-assign
-      const column = newOverrides[wt.id]?.column ?? pr.autoColumn;
+      // Use manual override if still active, otherwise auto-assign; with an
+      // unknown auto-column, keep the worktree where it already sits.
+      const column = pr.autoColumn == null
+        ? wt.column
+        : (newOverrides[wt.id]?.column ?? pr.autoColumn);
 
       // Use the PR's updatedAt as the activity timestamp when available
       const prUpdatedAtMs = pr.updatedAt ? new Date(pr.updatedAt).getTime() : undefined;
@@ -309,8 +319,7 @@ export const usePrStore = create<PrState>((set, get) => ({
         mergeable: pr.mergeable ?? prev?.mergeable,
         requestedReviewers: pr.requestedReviewers ?? prev?.requestedReviewers,
         // merged / closed always present on PrStatus — no Phase-1/2 fallback needed
-        merged: pr.merged,
-        closed: pr.state === "closed" && !pr.merged,
+        ...toTerminalFlags(pr),
       };
 
       // PR panel full data (only update if enrichment data is present)

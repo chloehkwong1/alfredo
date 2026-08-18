@@ -225,6 +225,9 @@ export interface RestackStackSummary {
   rebaseInProgress: string[];
   noStack: boolean;
   rootSkipReason: string | null;
+  /** Per-branch failures ("branch: error") — the command resolves Ok even
+   *  when members failed, so caveats gathered before a failure still arrive. */
+  errors: string[];
 }
 
 export function restackStack(repoPath: string, worktreeName: string): Promise<RestackStackSummary> {

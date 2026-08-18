@@ -72,6 +72,11 @@ fn check_run_is_failing(cr: &CheckRun) -> bool {
 pub struct PrUpdatePayload {
     /// All PR statuses fetched from GitHub (matched to branches).
     pub prs: Vec<PrStatusWithColumn>,
+    /// Repos whose poll succeeded this round — including ones with zero PRs.
+    /// The reconcile pass keys repo trust off this, not off PR presence: a
+    /// repo whose PRs all aged out of the sync window returns an empty list
+    /// yet still needs its stale worktrees reconciled.
+    pub succeeded_repos: Vec<String>,
 }
 
 /// A PR status annotated with the auto-determined kanban column.
@@ -378,9 +383,15 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
 
     // Emit immediately — frontend gets prStatus/prNumber/baseBranch and can start loading files.
     // comments is None in these payloads; the frontend will preserve its cached comment data.
-    if !all_prs.is_empty() {
+    // Emitted whenever any repo succeeded, even with zero PRs — an empty
+    // successful round is exactly the aged-out case the reconcile pass exists
+    // for, so skipping the emit would silence it.
+    if any_repo_succeeded {
         app_handle
-            .emit("github:pr-update", &PrUpdatePayload { prs: all_prs.clone() })
+            .emit(
+                "github:pr-update",
+                &PrUpdatePayload { prs: all_prs.clone(), succeeded_repos: succeeded_repos.clone() },
+            )
             .map_err(|e| format!("failed to emit event: {e}"))?;
     }
 
@@ -401,8 +412,8 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     }
 
     // Emit again with comment data populated
-    let payload = PrUpdatePayload { prs: all_prs };
-    if !payload.prs.is_empty() {
+    let payload = PrUpdatePayload { prs: all_prs, succeeded_repos: succeeded_repos.clone() };
+    if any_repo_succeeded {
         app_handle
             .emit("github:pr-update", &payload)
             .map_err(|e| format!("failed to emit event: {e}"))?;

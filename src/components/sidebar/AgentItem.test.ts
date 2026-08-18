@@ -143,13 +143,23 @@ describe("restackOutcomeMessage", () => {
 // resolves Ok even when members were dirty-skipped or there was nothing to
 // sync, so "✓" is earned only when neither happened.
 function makeSummary(over: Partial<RestackStackSummary>): RestackStackSummary {
-  return { skippedDirty: [], rebaseInProgress: [], noStack: false, rootSkipReason: null, ...over };
+  return { skippedDirty: [], rebaseInProgress: [], noStack: false, rootSkipReason: null, errors: [], ...over };
 }
 
 describe("stackSyncMessage", () => {
   it("celebrates a clean sync", () => {
     expect(stackSyncMessage(makeSummary({}), "Stack synced with main")).toBe(
       "Stack synced with main ✓",
+    );
+  });
+
+  it("reports member failures WITH the caveats gathered before them, never a bare success", () => {
+    const summary = makeSummary({
+      skippedDirty: ["feat/a"],
+      errors: ["feat/b: rebase exploded"],
+    });
+    expect(stackSyncMessage(summary, "Stack synced with main")).toBe(
+      "Stack sync incomplete — feat/a paused (uncommitted changes); failed — feat/b: rebase exploded",
     );
   });
 

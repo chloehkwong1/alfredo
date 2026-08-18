@@ -308,6 +308,87 @@ describe("reconcileStalePrs", () => {
   });
 });
 
+describe("reconcileStalePrs — post-review fixes", () => {
+  it("reconciles a repo whose successful poll returned zero PRs (aged-out case)", async () => {
+    const wt = makeWorktree({ prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    vi.mocked(getPrByNumber).mockResolvedValue(makePr({ merged: true, state: "closed" }));
+
+    // Empty payload, but the repo's poll succeeded — the pre-fix derivation
+    // (syncedRepos from payload PRs) would skip this worktree forever.
+    await reconcileStalePrs([], ["/repo"]);
+
+    expect(useWorkspaceStore.getState().worktrees[0].column).toBe("done");
+  });
+
+  it("still skips repos absent from succeededRepos (failed poll)", async () => {
+    const wt = makeWorktree({ prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+
+    await reconcileStalePrs([], ["/some-other-repo"]);
+
+    expect(getPrByNumber).not.toHaveBeenCalled();
+    expect(useWorkspaceStore.getState().worktrees[0].column).toBe("openPr");
+  });
+
+  it("refuses a by-number PR whose head branch is not this worktree's branch", async () => {
+    const wt = makeWorktree({ prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    // The association belonged to a dead predecessor: the real PR lives on
+    // another branch and has since merged.
+    vi.mocked(getPrByNumber).mockResolvedValue(
+      makePr({ merged: true, state: "closed", branch: "someone/elses-branch" }),
+    );
+
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    const after = useWorkspaceStore.getState().worktrees[0];
+    expect(after.column).toBe("openPr"); // NOT auto-Doned
+    expect(after.prStatus).toBeNull();
+    expect(after.prStatusCleared).toBe(true);
+    expect(clearPrAssociation).toHaveBeenCalledWith("/repo", "feat-x");
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it("marks a 404-cleared prStatus as deliberately cleared", async () => {
+    const wt = makeWorktree({ prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    vi.mocked(getPrByNumber).mockResolvedValue(null);
+
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    const after = useWorkspaceStore.getState().worktrees[0];
+    expect(after.prStatus).toBeNull();
+    expect(after.prStatusCleared).toBe(true);
+  });
+
+  it("does not pollute lastAutoColumn on a non-terminal reconcile with no override", async () => {
+    // Worktree sits in a column that is NOT the PR's true auto-column.
+    const wt = makeWorktree({ column: "inProgress", prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    vi.mocked(getPrByNumber).mockResolvedValue(makePr({ state: "open" }));
+
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    const after = useWorkspaceStore.getState().worktrees[0];
+    expect(after.column).toBe("inProgress"); // placement preserved
+    // The poisoning vector: recording wt.column as if it were an auto-column
+    // would make the user's next drag snapshot a fake autoColumnWhenSet.
+    expect(usePrStore.getState().lastAutoColumn[wt.id]).toBeUndefined();
+  });
+
+  it("persists head branch and draftness in the association", async () => {
+    const wt = makeWorktree({ prStatus: makePr({ state: "open" }) });
+    useWorkspaceStore.setState({ worktrees: [wt] });
+    vi.mocked(getPrByNumber).mockResolvedValue(makePr({ state: "open", draft: true }));
+
+    await reconcileStalePrs(SYNCED_REPO_PAYLOAD);
+
+    expect(setPrAssociation).toHaveBeenCalledWith("/repo", "feat-x",
+      expect.objectContaining({ branch: "feat/x", draft: true }));
+  });
+});
+
 describe("persistAssociationsFromPatches", () => {
   it("persists only when the association actually changed", () => {
     const unchanged = makeWorktree({ prStatus: makePr({ state: "open" }) });

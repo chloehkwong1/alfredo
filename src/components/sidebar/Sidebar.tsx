@@ -18,6 +18,7 @@ import { useAppConfig } from "../../hooks/useAppConfig";
 import { runArchiveScript, countWorktrees, notificationPermissionStatus, requestNotificationPermission } from "../../api";
 import { stopServerAndReleasePort } from "../../services/portReclaim";
 import { sortColumnWorktrees, type WorktreeOrderMap } from "../../lib/worktreeOrder";
+import { isVisibleWorktree } from "../../lib/worktreeVisibility";
 import { LifecycleNudge } from "./LifecycleNudge";
 
 const COLUMNS: KanbanColumn[] = [
@@ -213,7 +214,7 @@ function Sidebar({
   // section once the auto-column re-classification fires.
   const seenColumnsByIdRef = useRef<Map<string, KanbanColumn> | null>(null);
   useEffect(() => {
-    const activeNow = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode);
+    const activeNow = worktrees.filter(isVisibleWorktree);
     const seen = seenColumnsByIdRef.current;
 
     const nextSnapshot = new Map<string, KanbanColumn>();
@@ -277,7 +278,7 @@ function Sidebar({
     if (archivingAll) return;
     setArchivingAll(true);
     try {
-      const done = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode && wt.column === "done");
+      const done = worktrees.filter((wt) => isVisibleWorktree(wt) && wt.column === "done");
       for (const wt of done) {
         await handleArchiveWorktree(wt.id);
       }
@@ -286,11 +287,11 @@ function Sidebar({
     }
   }, [worktrees, handleArchiveWorktree, archivingAll]);
 
-  const activeWorktrees = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode);
+  const activeWorktrees = worktrees.filter(isVisibleWorktree);
   const archivedWorktrees = worktrees.filter((wt) => wt.archived);
   const grouped = groupByColumn(activeWorktrees, worktreeOrder);
 
-  const doneWorktrees = worktrees.filter((wt) => !wt.archived && !wt.isBranchMode && wt.column === "done");
+  const doneWorktrees = worktrees.filter((wt) => isVisibleWorktree(wt) && wt.column === "done");
   const showLifecycleNudge =
     !config?.dismissedLifecycleNudge &&
     doneWorktrees.length >= 3 &&

@@ -72,7 +72,7 @@ export type StackRebaseStatus =
  *  only cleared its local bookkeeping. */
 export interface StackPendingAction {
   mergedParent: string;
-  blockedBy: "dirty" | "agentBusy" | "nativeRestacked";
+  blockedBy: "dirty" | "rebaseInProgress" | "agentBusy" | "nativeRestacked";
 }
 
 export interface Worktree {
@@ -81,6 +81,9 @@ export interface Worktree {
   path: string;
   branch: string;
   prStatus: PrStatus | null;
+  /** Frontend-only: reconcile deliberately cleared prStatus (dead PR). Blocks
+   *  mergeWorktreeState from re-adopting a stale backend-hydrated status. */
+  prStatusCleared?: boolean;
   agentStatus: AgentState;
   channelAlive?: boolean;
   staleBusy?: boolean;
@@ -225,6 +228,9 @@ export interface PrStatus {
 /** Payload emitted by the `github:pr-update` Tauri event. */
 export interface PrUpdatePayload {
   prs: PrStatusWithColumn[];
+  /** Repos whose poll succeeded this round, including ones with zero PRs —
+   *  the reconcile pass keys repo trust off this, not off PR presence. */
+  succeededRepos?: string[];
 }
 
 /** Last-known PR association persisted per worktree (survives restarts). */
@@ -234,11 +240,18 @@ export interface PrAssociationRef {
   title: string;
   state: string;
   merged: boolean;
+  /** The PR's head branch — hydration refuses associations whose branch no
+   *  longer matches the worktree (name reused by a different branch). Empty
+   *  on entries persisted before this field existed. */
+  branch?: string;
+  draft?: boolean;
 }
 
 /** A PR status annotated with the auto-determined kanban column. */
 export interface PrStatusWithColumn extends PrStatus {
-  autoColumn: KanbanColumn;
+  /** null = unknown (partial update, e.g. reconcile without live sync data):
+   *  preserve the worktree's current placement and skip override bookkeeping. */
+  autoColumn: KanbanColumn | null;
   failingCheckCount?: number;
   pendingCheckCount?: number;
   unresolvedCommentCount?: number;

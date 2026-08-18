@@ -36,7 +36,15 @@ export function _resetForTests(): void {
 }
 
 function toAssociation(pr: PrStatus) {
-  return { number: pr.number, url: pr.url, title: pr.title, state: pr.state, merged: pr.merged };
+  return {
+    number: pr.number,
+    url: pr.url,
+    title: pr.title,
+    state: pr.state,
+    merged: pr.merged,
+    branch: pr.branch,
+    draft: pr.draft,
+  };
 }
 
 function associationChanged(prev: PrStatus | null | undefined, next: PrStatus): boolean {
@@ -84,24 +92,30 @@ function toastMessage(resolved: { number: number; merged: boolean }[]): string {
  * the SAME applyPrUpdates path a live sync uses, so auto-Done, the persisted
  * Done column, and the sidebar summary behave identically.
  */
-export async function reconcileStalePrs(payloadPrs: PrStatusWithColumn[]): Promise<void> {
+export async function reconcileStalePrs(
+  payloadPrs: PrStatusWithColumn[],
+  succeededRepos: string[] = [],
+): Promise<void> {
   if (inFlight) return; // an overlapping pass is already running; the next tick retries
   inFlight = true;
   try {
-    await runReconcile(payloadPrs);
+    await runReconcile(payloadPrs, succeededRepos);
   } finally {
     inFlight = false;
   }
 }
 
-async function runReconcile(payloadPrs: PrStatusWithColumn[]): Promise<void> {
+async function runReconcile(payloadPrs: PrStatusWithColumn[], succeededRepos: string[]): Promise<void> {
   const inPayload = new Set(payloadPrs.map((pr) => `${pr.repoPath}::${pr.branch}`));
-  // Repos actually present in this payload. A repo's poll can fail
-  // independently (e.g. transient rate limit) — when it does, its PRs are
-  // simply absent, and every one of its worktrees would otherwise look
-  // "stale" and burn its retry budget on nothing. Only treat a worktree as
-  // a genuine reconcile candidate when we heard from its repo at all.
-  const syncedRepos = new Set(payloadPrs.map((pr) => pr.repoPath));
+  // Repos whose poll succeeded this round — from the payload's explicit list,
+  // NOT derived from PR presence: a repo whose PRs all aged out returns zero
+  // payload PRs yet is exactly the repo this reconcile exists for. A repo
+  // whose poll failed (rate limit, auth) is absent here, so its worktrees
+  // don't burn their retry budget on nothing. The PR-presence fallback covers
+  // payloads from backends predating succeededRepos.
+  const syncedRepos = new Set(
+    succeededRepos.length > 0 ? succeededRepos : payloadPrs.map((pr) => pr.repoPath),
+  );
 
   const eligible = useWorkspaceStore.getState().worktrees.filter(
     (wt) => !wt.archived && !wt.creating && !wt.isBranchMode && !reconciled.has(wt.id),
@@ -164,8 +178,23 @@ async function runReconcile(payloadPrs: PrStatusWithColumn[]): Promise<void> {
         clearPrAssociation(wt.repoPath, wt.name).catch((e) =>
           console.warn("[pr-association] clear failed:", wt.id, e),
         );
-        useWorkspaceStore.getState().updateWorktree(wt.id, { prStatus: null });
+        // prStatusCleared marks the null as deliberate — without it a
+        // listWorktrees refresh racing the (best-effort, unawaited) config
+        // clear re-hydrates the dead association and resurrects the chip.
+        useWorkspaceStore.getState().updateWorktree(wt.id, { prStatus: null, prStatusCleared: true });
       }
+      continue;
+    }
+
+    // A by-number fetch returns the PR's real head branch — if it isn't this
+    // worktree's branch, the association belonged to a dead predecessor that
+    // happened to reuse the worktree name. Applying it would auto-Done (and
+    // stop the dev server of) a worktree the PR never belonged to.
+    if (byNumber && pr.branch && pr.branch !== wt.branch) {
+      clearPrAssociation(wt.repoPath, wt.name).catch((e) =>
+        console.warn("[pr-association] clear foreign failed:", wt.id, e),
+      );
+      useWorkspaceStore.getState().updateWorktree(wt.id, { prStatus: null, prStatusCleared: true });
       continue;
     }
 
@@ -178,8 +207,13 @@ async function runReconcile(payloadPrs: PrStatusWithColumn[]): Promise<void> {
     // change and silently delete the user's manual placement. Pass the
     // override's own autoColumnWhenSet instead, so the comparison sees no
     // change and the override survives.
+    // With no override, pass null — "auto-column unknown, preserve current
+    // placement". Passing wt.column here would stamp a possibly-manual column
+    // into prStore.lastAutoColumn, and the user's NEXT drag would snapshot
+    // that fake value as autoColumnWhenSet — silently deleted (with the drag)
+    // on the first live sync whose real auto-column differs.
     const activeOverride = usePrStore.getState().columnOverrides[wt.id];
-    const autoColumn = terminal ? "done" : (activeOverride ? activeOverride.autoColumnWhenSet : wt.column);
+    const autoColumn = terminal ? "done" : (activeOverride ? activeOverride.autoColumnWhenSet : null);
     const prWithColumn: PrStatusWithColumn = {
       ...pr,
       branch: wt.branch, // fetched-by-number PRs must key back to this worktree
