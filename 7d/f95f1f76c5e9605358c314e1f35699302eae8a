@@ -1,0 +1,31 @@
+src/components/sidebar/StackMapPopover.tsx
+  s_458e71e9a99b81::t_a8abba42fadabf 12
+  s_458e71e9a99b81::t_66ab3ad86018fb 171-179
+  s_458e71e9a99b81::t_6f1c9dbf56bbc6 201
+  s_458e71e9a99b81::t_d6489f77841383 319-325,335,337
+  s_458e71e9a99b81::t_174fd06f50d42d 407-421
+  s_458e71e9a99b81::t_17926c598d9437 561
+  s_458e71e9a99b81::t_6269455c09c642 366,369,371-386
+  s_458e71e9a99b81::t_571ab760a97ee7 537
+  s_458e71e9a99b81::t_ccbb9a808f9ad7 210-225
+  s_458e71e9a99b81::t_3ba03116922623 518
+src/components/sidebar/AgentItem.test.ts
+  s_458e71e9a99b81::t_fc0814c052008a 4,6
+  s_458e71e9a99b81::t_8ea9a83c19653a 225-304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "7df95f1f76c5e9605358c314e1f35699302eae8a",
+  "prompts": {},
+  "sessions": {
+    "s_458e71e9a99b81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5df0cccc-779e-48dc-8391-8ac6ad96a4ac",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
