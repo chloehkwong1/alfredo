@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeEffectiveStatus } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
-import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, stackPendingNotice } from "./StackMapPopover";
+import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
 import type { PrStatus, Worktree } from "../../types";
 
@@ -267,6 +267,35 @@ describe("memberStateText", () => {
         makeMember({ stackPending: { mergedParent: "feat/a", blockedBy: "nativeRestacked" } }),
       ),
     ).toBe("restacked by GitHub");
+  });
+});
+
+// The row colour must visually tie the state text to the cue it explains: the
+// chip's "!" is amber, so attention states are amber (grey text next to an
+// amber badge hides the answer in plain sight), errors red, benign muted.
+describe("memberStateClass", () => {
+  it("mutes benign states", () => {
+    expect(memberStateClass(makeMember({}))).toBe("text-text-tertiary");
+    expect(memberStateClass(makeMember({ prStatus: { merged: true } as PrStatus }))).toBe(
+      "text-text-tertiary",
+    );
+  });
+
+  it("ambers attention states like behind and queued restacks", () => {
+    expect(
+      memberStateClass(makeMember({ stackRebaseStatus: { kind: "behind", count: 143 } })),
+    ).toBe("text-amber-400");
+    expect(
+      memberStateClass(makeMember({ stackPending: { mergedParent: "feat/a", blockedBy: "dirty" } })),
+    ).toBe("text-amber-400");
+  });
+
+  it("reds error states, even on a merged PR", () => {
+    const m = makeMember({
+      stackRebaseStatus: { kind: "pushFailed" },
+      prStatus: { merged: true } as PrStatus,
+    });
+    expect(memberStateClass(m)).toBe("text-status-error");
   });
 });
 

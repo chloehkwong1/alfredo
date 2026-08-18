@@ -207,6 +207,16 @@ function memberStateText(m: Worktree): string {
   return "up to date";
 }
 
+/** Row-state colour, shared by both skins: error states red, benign states
+ *  ("up to date", "merged ✓") muted — and everything in between amber, so the
+ *  text explaining the chip's amber "!" is visually tied to it instead of
+ *  hiding in the same grey as the branch name. */
+function memberStateClass(m: Worktree): string {
+  if (isStackErrorKind(m.stackRebaseStatus?.kind)) return "text-status-error";
+  const st = memberStateText(m);
+  return st === "up to date" || st === "merged ✓" ? "text-text-tertiary" : "text-amber-400";
+}
+
 /** Banner copy for a merged-parent pending — one wording for both popover
  *  skins, covering every blockedBy variant so no pending can light the chip's
  *  amber "!" without the popover explaining it. */
@@ -413,7 +423,7 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
                 <>
                   <OriginCue ab={originSync[local.id]} />
                   {st !== "up to date" && st !== "merged ✓" && (
-                    <span className={`flex-shrink-0 ${isStackErrorKind(local.stackRebaseStatus?.kind) ? "text-status-error" : "text-text-tertiary"}`}>
+                    <span className={`flex-shrink-0 ${memberStateClass(local)}`}>
                       {st}
                     </span>
                   )}
@@ -534,7 +544,7 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
           <span className="truncate flex-1">{m.branch}</span>
           <OriginCue ab={originSync[m.id]} sep />
 
-          <span className={`flex-shrink-0 text-[10px] ${isStackErrorKind(m.stackRebaseStatus?.kind) ? "text-status-error" : "text-text-tertiary"}`}>
+          <span className={`flex-shrink-0 text-[10px] ${memberStateClass(m)}`}>
             {m.id === anchorWorktree.id
               ? memberStateText(m) === "up to date"
                 ? "← here"
@@ -558,4 +568,4 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
   );
 }
 
-export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, restackNowWithToast, originCue, memberStateText, stackPendingNotice };
+export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, restackNowWithToast, originCue, memberStateText, memberStateClass, stackPendingNotice };
