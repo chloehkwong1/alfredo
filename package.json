@@ -37,7 +37,7 @@
     "@tiptap/extension-task-list": "^3.29.2",
     "@tiptap/react": "^3.29.2",
     "@tiptap/starter-kit": "^3.29.2",
-    "@xterm/addon-fit": "0.12.0-beta.220",
+    "@xterm/addon-fit": "0.12.0-beta.299",
     "@xterm/addon-search": "0.17.0-beta.220",
     "@xterm/addon-serialize": "0.15.0-beta.220",
     "@xterm/addon-unicode11": "0.10.0-beta.220",
