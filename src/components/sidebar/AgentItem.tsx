@@ -332,10 +332,11 @@ function AgentItemContent({
   // Alfredo still restacks a stack it has stood down on).
   const isNativeStackMember = Boolean(worktree.prStatus?.nativeStack);
   // ...except when this card's own restack machinery needs eyes: conflict,
-  // push-failed, behind, dirty-pause, queued restack. The chain row is the
-  // card's only surface for those, so suppressing it for native members would
-  // leave e.g. a background-restack conflict invisible until the popover is
-  // opened. (`nativeRestacked` is excluded — it has its own notice row below.)
+  // push-failed, behind, dirty-pause, queued restack. The popover names those
+  // too, but the chain row is the card's only at-a-glance surface for them —
+  // suppressing it for native members would hide e.g. a background-restack
+  // conflict behind a click. (`nativeRestacked` is excluded — it has its own
+  // notice row below.)
   const ownStackKind = worktree.stackRebaseStatus?.kind;
   const stackTrouble =
     (ownStackKind != null && ownStackKind !== "upToDate") ||
@@ -468,10 +469,18 @@ function AgentItemContent({
         </div>
         {/* Stack indicator: glyph + position + current status. Suppressed for
             native GitHub Stack members while healthy — the title-row chip
-            covers position — but never while in trouble (see stackTrouble). */}
+            covers position — but never while in trouble (see stackTrouble).
+            When it does render for a native member, the glyph is omitted: the
+            local chain's pos/total counts only live worktrees, so it disagrees
+            with the native chip's roster count (which includes merged PRs) and
+            a second chip reads as membership in a second stack. The native
+            chip stays the card's one stack identity; this row is status only,
+            like the nativeRestacked notice below. */}
         {stackChain && (!isNativeStackMember || stackTrouble) && (
           <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
-            <StackGlyph worktree={worktree} chain={stackChain} onOpenMap={onOpenStackMap} hue={stackHue} />
+            {!isNativeStackMember && (
+              <StackGlyph worktree={worktree} chain={stackChain} onOpenMap={onOpenStackMap} hue={stackHue} />
+            )}
             <span className="truncate" title={worktree.stackParent ?? undefined}>
               {worktree.stackParent
                 ? `on ${worktree.stackParent}`
