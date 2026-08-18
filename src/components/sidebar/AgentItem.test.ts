@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { computeEffectiveStatus } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
-import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue } from "./StackMapPopover";
+import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, stackPendingNotice } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
-import type { PrStatus } from "../../types";
+import type { PrStatus, Worktree } from "../../types";
 
 describe("computeEffectiveStatus", () => {
   it("returns busy when agent is busy and not stale", () => {
@@ -220,5 +220,85 @@ describe("originCue", () => {
 
   it("flags a diverged branch neutrally, uncounted", () => {
     expect(originCue([8, 8])).toBe("diverged from origin");
+  });
+});
+
+// Row-state label shared by both popover skins. The native skin's chip lights
+// an amber "!" for every one of these states, so the popover must be able to
+// name each of them — the badge-with-no-explanation bug was exactly this text
+// missing from the native rendering.
+function makeMember(over: Partial<Worktree>): Worktree {
+  return { stackRebaseStatus: null, stackPending: null, prStatus: null, ...over } as Worktree;
+}
+
+describe("memberStateText", () => {
+  it("defaults to up to date", () => {
+    expect(memberStateText(makeMember({}))).toBe("up to date");
+  });
+
+  it("counts a behind branch", () => {
+    expect(memberStateText(makeMember({ stackRebaseStatus: { kind: "behind", count: 3 } }))).toBe(
+      "3 behind",
+    );
+  });
+
+  it("lets merged outrank a stale self-resolving state like behind", () => {
+    const m = makeMember({
+      stackRebaseStatus: { kind: "behind", count: 5 },
+      prStatus: { merged: true } as PrStatus,
+    });
+    expect(memberStateText(m)).toBe("merged ✓");
+  });
+
+  it("lets an error state outrank merged", () => {
+    const m = makeMember({
+      stackRebaseStatus: { kind: "conflict" },
+      prStatus: { merged: true } as PrStatus,
+    });
+    expect(memberStateText(m)).toBe("conflict on rebase");
+  });
+
+  it("labels a queued pending, distinguishing GitHub's remote restack", () => {
+    expect(
+      memberStateText(makeMember({ stackPending: { mergedParent: "feat/a", blockedBy: "dirty" } })),
+    ).toBe("restack queued");
+    expect(
+      memberStateText(
+        makeMember({ stackPending: { mergedParent: "feat/a", blockedBy: "nativeRestacked" } }),
+      ),
+    ).toBe("restacked by GitHub");
+  });
+});
+
+// Banner copy for a queued/remote merged-parent restack — one wording for both
+// popover skins, covering every blockedBy variant so no pending state can
+// light the chip's "!" without the popover explaining it.
+describe("stackPendingNotice", () => {
+  it("explains a remote GitHub restack", () => {
+    expect(
+      stackPendingNotice({ mergedParent: "feat/a", blockedBy: "nativeRestacked" }, "feat/b", "main"),
+    ).toBe("feat/a was merged — GitHub restacked feat/b remotely; the local branch may be behind.");
+  });
+
+  it("explains a dirty-blocked deferral", () => {
+    expect(stackPendingNotice({ mergedParent: "feat/a", blockedBy: "dirty" }, "feat/b", "main")).toBe(
+      "feat/a was merged — waiting for uncommitted changes in feat/b to clear, then this stack rebases onto main.",
+    );
+  });
+
+  it("explains a rebase-in-progress deferral", () => {
+    expect(
+      stackPendingNotice({ mergedParent: "feat/a", blockedBy: "rebaseInProgress" }, "feat/b", "main"),
+    ).toBe(
+      "feat/a was merged — waiting for feat/b's in-progress rebase to finish, then this stack rebases onto main.",
+    );
+  });
+
+  it("explains a busy-agent deferral, falling back to main when the default branch is unknown", () => {
+    expect(
+      stackPendingNotice({ mergedParent: "feat/a", blockedBy: "agentBusy" }, "feat/b", null),
+    ).toBe(
+      "feat/a was merged — waiting for feat/b's agent to finish, then this stack rebases onto main.",
+    );
   });
 });

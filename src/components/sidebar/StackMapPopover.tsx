@@ -9,7 +9,7 @@ import type { RestackOutcome, RestackStackSummary } from "../../api";
 import { resolveStackConflict } from "../../services/stackConflictHandoff";
 import { formatRelativeTime } from "../changes/formatRelativeTime";
 import type { StackChain } from "../../lib/stackChain";
-import type { NativeStackInfo, Worktree, StackRebaseStatus } from "../../types";
+import type { NativeStackInfo, Worktree, StackRebaseStatus, StackPendingAction } from "../../types";
 
 /** Toast copy for a manual restack that succeeded at the git level — the
  *  outcome says whether a rebase actually ran, so the message can't claim
@@ -168,6 +168,15 @@ interface StackMapPopoverProps {
   onClose: () => void;
 }
 
+/** States that mean the branch needs action (rendered error-red) rather than
+ *  merely being in flux — shared by both skins' row colouring and the
+ *  merged-outranking rule in `memberStateText`. */
+const STACK_ERROR_KINDS = new Set(["conflict", "pushFailed", "rewrittenExternally"]);
+
+function isStackErrorKind(kind: string | undefined): boolean {
+  return kind != null && STACK_ERROR_KINDS.has(kind);
+}
+
 function stateText(s: StackRebaseStatus | null | undefined): string {
   switch (s?.kind) {
     case "behind": return `${s.count} behind`;
@@ -189,14 +198,29 @@ function stateText(s: StackRebaseStatus | null | undefined): string {
  *  the row's className still rendered error-red — a contradictory row. */
 function memberStateText(m: Worktree): string {
   const kind = m.stackRebaseStatus?.kind;
-  const isErrorState = kind === "conflict" || kind === "pushFailed" || kind === "rewrittenExternally";
-  if (isErrorState) return stateText(m.stackRebaseStatus);
+  if (isStackErrorKind(kind)) return stateText(m.stackRebaseStatus);
   if (m.prStatus?.merged) return "merged ✓";
   if (kind && kind !== "upToDate") return stateText(m.stackRebaseStatus);
   if (m.stackPending) {
     return m.stackPending.blockedBy === "nativeRestacked" ? "restacked by GitHub" : "restack queued";
   }
   return "up to date";
+}
+
+/** Banner copy for a merged-parent pending — one wording for both popover
+ *  skins, covering every blockedBy variant so no pending can light the chip's
+ *  amber "!" without the popover explaining it. */
+function stackPendingNotice(pending: StackPendingAction, branch: string, defaultBranch: string | null): string {
+  if (pending.blockedBy === "nativeRestacked") {
+    return `${pending.mergedParent} was merged — GitHub restacked ${branch} remotely; the local branch may be behind.`;
+  }
+  const waiting =
+    pending.blockedBy === "dirty"
+      ? `waiting for uncommitted changes in ${branch} to clear`
+      : pending.blockedBy === "rebaseInProgress"
+        ? `waiting for ${branch}'s in-progress rebase to finish`
+        : `waiting for ${branch}'s agent to finish`;
+  return `${pending.mergedParent} was merged — ${waiting}, then this stack rebases onto ${defaultBranch ?? "main"}.`;
 }
 
 interface NativeStackPopoverProps {
@@ -270,7 +294,6 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
   // The backend no longer auto-sweeps nativeRestacked pendings — the notice
   // persists until the user dismisses it here (resolve_stack_pending).
   const [pendingDismissed, setPendingDismissed] = useState(false);
-  const pending = anchorWorktree.stackPending;
   // Backend sends the roster base-most first; GitHub renders tip-most on top
   // with the base branch at the bottom, so display order is reversed.
   const rows = [...nativeStack.members].sort((a, b) => b.position - a.position);
@@ -293,6 +316,13 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
   const conflicted = rows
     .map((m) => localByBranch.get(m.branch))
     .find((w) => w?.stackRebaseStatus?.kind === "conflict");
+  // Conflict owns the popover's action slot, so the pending banner yields to
+  // it (mirroring AlfredoStackPopover). The anchor's pending wins, then roster
+  // locals in tip-first order — the chip's "!" scans the whole local chain, so
+  // the pending that lit it may belong to a sibling, not the anchor.
+  const pendingWt = conflicted
+    ? undefined
+    : [anchorWorktree, ...localByBranch.values()].find((w) => w.stackPending);
   const originSync = useOriginSync([...localByBranch.values()]);
 
   const handleRestackNow = () => {
@@ -302,8 +332,9 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
 
   const handleDismissPending = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!pendingWt) return;
     setPendingDismissed(true);
-    resolveStackPending(anchorWorktree.repoPath, anchorWorktree.name).catch((err) => {
+    resolveStackPending(pendingWt.repoPath, pendingWt.name).catch((err) => {
       console.error("Failed to resolve stack pending:", err);
     });
   };
@@ -332,23 +363,27 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
       <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-tertiary">
         Managed by GitHub
       </div>
-      {pending?.blockedBy === "nativeRestacked" && !pendingDismissed && (
+      {pendingWt?.stackPending && !pendingDismissed && (
         <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-secondary leading-snug flex items-start gap-2">
           <span className="flex-1">
-            {pending.mergedParent} was merged — GitHub restacked this branch remotely; your
-            local branch may be behind.
+            {stackPendingNotice(pendingWt.stackPending, pendingWt.branch, defaultBranch)}
           </span>
-          <button
-            type="button"
-            aria-label="Dismiss restacked notice"
-            onClick={handleDismissPending}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-            className="flex-shrink-0 px-1 -mr-1 text-text-tertiary hover:text-text-primary"
-          >
-            ×
-          </button>
+          {/* Deferred restacks auto-clear when the restack runs; only the
+              nativeRestacked notice persists until dismissed, so only it gets
+              the × (matching the Alfredo skin, which has no dismiss at all). */}
+          {pendingWt.stackPending.blockedBy === "nativeRestacked" && (
+            <button
+              type="button"
+              aria-label="Dismiss restacked notice"
+              onClick={handleDismissPending}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="flex-shrink-0 px-1 -mr-1 text-text-tertiary hover:text-text-primary"
+            >
+              ×
+            </button>
+          )}
         </div>
       )}
       {rows.map((m) => (
@@ -369,7 +404,21 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
             <span className="truncate font-mono">{m.branch}</span>
             {(() => {
               const local = localByBranch.get(m.branch);
-              return local && <OriginCue ab={originSync[local.id]} />;
+              if (!local) return null;
+              // Same row-state text as the Alfredo skin — every state that can
+              // light the chip's "!" must be nameable here. "merged ✓" is
+              // skipped: the roster's own MERGED label below already covers it.
+              const st = memberStateText(local);
+              return (
+                <>
+                  <OriginCue ab={originSync[local.id]} />
+                  {st !== "up to date" && st !== "merged ✓" && (
+                    <span className={`flex-shrink-0 ${isStackErrorKind(local.stackRebaseStatus?.kind) ? "text-status-error" : "text-text-tertiary"}`}>
+                      {st}
+                    </span>
+                  )}
+                </>
+              );
             })()}
             {m.state === "MERGED" && <span className="flex-shrink-0">merged ✓</span>}
             {m.state === "CLOSED" && <span className="flex-shrink-0">closed</span>}
@@ -466,22 +515,7 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
       </div>
       {pendingMember?.stackPending && (
         <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-secondary leading-snug">
-          {pendingMember.stackPending.blockedBy === "nativeRestacked" ? (
-            <>
-              {pendingMember.stackPending.mergedParent} was merged — GitHub restacked{" "}
-              {pendingMember.branch} remotely; the local branch may be behind.
-            </>
-          ) : (
-            <>
-              {pendingMember.stackPending.mergedParent} was merged —{" "}
-              {pendingMember.stackPending.blockedBy === "dirty"
-                ? `waiting for uncommitted changes in ${pendingMember.branch} to clear`
-                : pendingMember.stackPending.blockedBy === "rebaseInProgress"
-                  ? `waiting for ${pendingMember.branch}'s in-progress rebase to finish`
-                  : `waiting for ${pendingMember.branch}'s agent to finish`}
-              , then this stack rebases onto {defaultBranch ?? "main"}.
-            </>
-          )}
+          {stackPendingNotice(pendingMember.stackPending, pendingMember.branch, defaultBranch)}
         </div>
       )}
       {rows.map(({ member, worktree: m }) => (
@@ -500,7 +534,7 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
           <span className="truncate flex-1">{m.branch}</span>
           <OriginCue ab={originSync[m.id]} sep />
 
-          <span className={`flex-shrink-0 text-[10px] ${m.stackRebaseStatus?.kind === "conflict" || m.stackRebaseStatus?.kind === "pushFailed" || m.stackRebaseStatus?.kind === "rewrittenExternally" ? "text-status-error" : "text-text-tertiary"}`}>
+          <span className={`flex-shrink-0 text-[10px] ${isStackErrorKind(m.stackRebaseStatus?.kind) ? "text-status-error" : "text-text-tertiary"}`}>
             {m.id === anchorWorktree.id
               ? memberStateText(m) === "up to date"
                 ? "← here"
@@ -524,4 +558,4 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
   );
 }
 
-export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, restackNowWithToast, originCue };
+export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, restackNowWithToast, originCue, memberStateText, stackPendingNotice };
