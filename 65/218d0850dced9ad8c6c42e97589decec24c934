@@ -1,0 +1,134 @@
+src-tauri/src/github_sync.rs
+  s_00eb7f7c5b1535::t_66acc56af0a123 415
+  s_00eb7f7c5b1535::t_b9844edeb7e383 416
+  s_00eb7f7c5b1535::t_343c51138a5f46 386-389,391-394
+  s_00eb7f7c5b1535::t_3518ebae11a5aa 75-79
+src/components/sidebar/AgentItem.tsx
+  s_00eb7f7c5b1535::t_0309d72a4f63f5 41
+  s_00eb7f7c5b1535::t_fdb0a902fef048 272
+  s_00eb7f7c5b1535::t_ce8261adb77802 712-716,719
+  s_00eb7f7c5b1535::t_08896b0c7e0bbe 40
+src/stores/workspaceStore.test.ts
+  s_00eb7f7c5b1535::t_d2ba57d877c2aa 411-430
+tsconfig.json
+  s_00eb7f7c5b1535::t_bdc20edc90cf5a 13
+src/hooks/useGithubSync.ts
+  s_00eb7f7c5b1535::t_014ace188f1fc3 65
+src/components/sidebar/AgentItem.test.ts
+  s_00eb7f7c5b1535::t_d22290e8e8839a 146
+  s_00eb7f7c5b1535::t_cf12e60887e95e 156-165
+src/types.ts
+  s_00eb7f7c5b1535::t_6b0ea52a6a3119 231-233,243-247,252-254
+  s_00eb7f7c5b1535::t_36742cd3cec5f7 84-86
+  s_00eb7f7c5b1535::t_591d585b163812 75
+src-tauri/src/git_manager.rs
+  s_00eb7f7c5b1535::t_cff22f189f0b5c 892-897,901-902
+src/components/changes/ChangesPanel.tsx
+  s_00eb7f7c5b1535::t_d2785eff32bf32 64-65,67-68
+  s_00eb7f7c5b1535::t_c957f71ada1285 17
+src-tauri/src/commands/github.rs
+  s_00eb7f7c5b1535::t_822d0efb472059 3
+src/services/reviewRequestFlow.ts
+  s_00eb7f7c5b1535::t_48538be062a2b6 38-40,59
+src-tauri/src/config_manager.rs
+  s_00eb7f7c5b1535::t_98e774c0e937c5 928-929
+src/lib/prStatus.ts
+  s_00eb7f7c5b1535::t_bb6cbf328cc99f 10-29
+src/lib/stackChain.test.ts
+  s_00eb7f7c5b1535::t_6857954e1be72d 201-202
+  s_00eb7f7c5b1535::t_683b6ecd0bc5df 196,203-204,207-208
+  s_00eb7f7c5b1535::t_7b166a2100d59b 205-206,209
+  s_00eb7f7c5b1535::t_8bd21649eb2985 2
+  s_00eb7f7c5b1535::t_b5ca6afbd31e66 4
+  s_00eb7f7c5b1535::t_aef68c3981dca7 5
+  s_00eb7f7c5b1535::t_ba6cef848b4edb 138-142
+  s_00eb7f7c5b1535::t_9b9a0248cb7d63 1
+  s_00eb7f7c5b1535::t_e172769dbb4d39 147-156,163-194
+  s_00eb7f7c5b1535::t_b41af2755b012a 197-200
+  s_00eb7f7c5b1535::t_fe265a0abbd9b8 195
+package.json
+  s_00eb7f7c5b1535::t_3e942932c4b2e0 69
+src/styles/globals.css
+  s_00eb7f7c5b1535::t_b4acb009ef9873 379-380
+src/components/sidebar/Sidebar.tsx
+  s_00eb7f7c5b1535::t_896f827169d61e 217,281,290,294
+  s_00eb7f7c5b1535::t_6346deffbcc1af 21
+src/services/prAssociation.test.ts
+  s_00eb7f7c5b1535::t_26ce1862c46713 311-391
+src/api.ts
+  s_00eb7f7c5b1535::t_e83429a54a6bc0 228-230
+src/stores/prStore.ts
+  s_00eb7f7c5b1535::t_f414f0a6e5c30f 12
+  s_00eb7f7c5b1535::t_8d29564cb6458a 250-254
+  s_00eb7f7c5b1535::t_e4287a04977c45 211-230
+  s_00eb7f7c5b1535::t_0bee19016085bf 322
+src/lib/stackChain.ts
+  s_00eb7f7c5b1535::t_4ec15e9f5cc7b0 112-118,121-129,132,136-145
+  s_00eb7f7c5b1535::t_a73c703902c803 2
+  s_00eb7f7c5b1535::t_fbd6d70d574bc8 170-176
+  s_00eb7f7c5b1535::t_40d9833c2a990f 146-147
+src/components/sidebar/StackMapPopover.tsx
+  s_00eb7f7c5b1535::t_c50bb9539bc24d 53-54,58
+  s_00eb7f7c5b1535::t_f1e7fd6f998b37 52,55-57
+  s_00eb7f7c5b1535::t_1a2c92ad774ece 479-481
+src/styles/themes.css
+  s_00eb7f7c5b1535::t_1239b34e6dbf2f 618-625
+  s_00eb7f7c5b1535::t_695ebc430474ed 708-715
+  s_00eb7f7c5b1535::t_5f737c80b60ec9 101-110
+src/stores/workspaceStore.ts
+  s_00eb7f7c5b1535::t_60a5adfe831fba 282-287
+  s_00eb7f7c5b1535::t_b91bdaf359d704 600-604
+src/components/layout/StatusBar.tsx
+  s_00eb7f7c5b1535::t_00f023acee95b8 3,5
+  s_00eb7f7c5b1535::t_ff9e514876830d 59-71
+src-tauri/src/stack_manager.rs
+  s_00eb7f7c5b1535::t_35cebdfb84d20c 847-851
+  s_00eb7f7c5b1535::t_661bb62b255999 915,918
+  s_00eb7f7c5b1535::t_61d7a861d0140e 520,526-530,1093,1099-1103
+  s_00eb7f7c5b1535::t_7139cae712c0ea 903-904
+src/lib/worktreeVisibility.ts
+  s_00eb7f7c5b1535::t_941377eac8f869 1-9
+src-tauri/src/types.rs
+  s_00eb7f7c5b1535::t_7321ed948c716b 149-152
+  s_00eb7f7c5b1535::t_a182269e786097 588-594
+src-tauri/src/commands/worktree.rs
+  s_00eb7f7c5b1535::t_23951c4a5668da 1285-1286
+  s_00eb7f7c5b1535::t_8b88a429d4f2e0 464-473,479
+src/services/prAssociation.ts
+  s_00eb7f7c5b1535::t_70e3898d5cb5fb 39-47
+  s_00eb7f7c5b1535::t_263d56c00e36a9 95-98,102,108,110-118
+  s_00eb7f7c5b1535::t_10b860ad1af057 181-184,189-197
+  s_00eb7f7c5b1535::t_d5d2b0819033ba 210-214,216
+  s_4dc86a1e15da81::t_176c436debba12 198-200
+src/services/reviewRequestFlow.test.ts
+  s_00eb7f7c5b1535::t_bedbd25de2d528 7-17,20-21
+  s_00eb7f7c5b1535::t_b0dece56bfda79 112-122
+src/hooks/usePty.ts
+  s_00eb7f7c5b1535::t_aca5cbc080ea3e 309-316
+package-lock.json
+  s_00eb7f7c5b1535::t_7d75ab7354c43d 3,9,61,2687-2696,6000-6006
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "65218d0850dced9ad8c6c42e97589decec24c934",
+  "prompts": {},
+  "sessions": {
+    "s_00eb7f7c5b1535": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "faa9a400-fc5d-45c5-ac46-cec857312471",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_4dc86a1e15da81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e2f95514-2c23-43c6-bfd4-97ae995e553e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
