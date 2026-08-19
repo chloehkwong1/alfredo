@@ -256,6 +256,11 @@ pub fn run() {
             // Migrate dev-build secrets from JSON file to OS keychain
             keychain::migrate_dev_secrets();
 
+            // Hydrate durable NeedsPush/PushFailed state BEFORE the sync loop
+            // starts: the first poll's decide_follow_action needs the sticky
+            // tiebreaker in place or it can adopt a stale origin copy.
+            stack_manager::init_sticky_persistence(&app_data);
+
             // Start the background GitHub PR sync loop
             github_sync::start_sync_loop(app.handle().clone());
 

@@ -222,7 +222,9 @@ function memberStateText(m: Worktree): string {
   if (m.prStatus?.merged) return "merged ✓";
   if (kind && kind !== "upToDate") return stateText(m.stackRebaseStatus);
   if (m.stackPending) {
-    return m.stackPending.blockedBy === "nativeRestacked" ? "restacked by GitHub" : "restack queued";
+    if (m.stackPending.blockedBy === "nativeRestacked") return "restacked by GitHub";
+    if (m.stackPending.blockedBy === "foreignPrNotPushed") return "PR not pushed";
+    return "restack queued";
   }
   return "up to date";
 }
@@ -243,6 +245,9 @@ function memberStateClass(m: Worktree): string {
 function stackPendingNotice(pending: StackPendingAction, branch: string, defaultBranch: string | null): string {
   if (pending.blockedBy === "nativeRestacked") {
     return `${pending.mergedParent} was merged — GitHub restacked ${branch} remotely; the local branch may be behind.`;
+  }
+  if (pending.blockedBy === "foreignPrNotPushed") {
+    return `${branch} was rebased onto ${defaultBranch ?? "main"} locally, but its PR belongs to someone else — nothing was pushed, so the remote PR branch is stale.`;
   }
   const waiting =
     pending.blockedBy === "dirty"

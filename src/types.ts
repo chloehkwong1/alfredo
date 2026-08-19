@@ -70,10 +70,12 @@ export type StackRebaseStatus =
  *  (`stack:pending-update`) — the backend never returns it from listWorktrees.
  *  `nativeRestacked` is a notice, not a deferral: the parent belonged to a
  *  native GitHub Stack, so GitHub restacked the branch server-side and Alfredo
- *  only cleared its local bookkeeping. */
+ *  only cleared its local bookkeeping. `foreignPrNotPushed` is also a notice:
+ *  a dissolve rebased the branch locally but its PR belongs to someone else,
+ *  so the auto-push was refused and the remote PR branch is stale. */
 export interface StackPendingAction {
   mergedParent: string;
-  blockedBy: "dirty" | "rebaseInProgress" | "agentBusy" | "nativeRestacked";
+  blockedBy: "dirty" | "rebaseInProgress" | "agentBusy" | "nativeRestacked" | "foreignPrNotPushed";
 }
 
 export interface Worktree {

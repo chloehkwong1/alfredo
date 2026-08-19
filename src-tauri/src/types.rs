@@ -160,6 +160,13 @@ pub enum StackPendingBlocker {
     /// Alfredo cleared its local override bookkeeping without rebasing — the
     /// local branch may be behind the remote. Swept like other pendings.
     NativeRestacked,
+    /// Notice: a dissolve rebased this branch locally, but the auto-push was
+    /// refused because its PR belongs to someone else — the remote PR branch
+    /// is now stale. Recorded because dissolving also wipes the sticky
+    /// `NeedsPush` (the worktree leaves the stack system, so nothing could
+    /// ever clear it); without this notice the refusal would be invisible.
+    /// Exempt from the sweep, like `NativeRestacked` — dismiss-only.
+    ForeignPrNotPushed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

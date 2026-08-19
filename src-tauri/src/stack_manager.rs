@@ -106,16 +106,24 @@ fn set_sticky_status(repo_path: &str, worktree_name: &str, status: StackRebaseSt
     if let Ok(mut map) = STICKY_STATUS.lock() {
         map.insert(memo_key(repo_path, worktree_name), status);
     }
+    schedule_sticky_persist();
 }
 
 fn clear_sticky_status(repo_path: &str, worktree_name: &str) {
+    let mut removed = false;
     if let Ok(mut map) = STICKY_STATUS.lock() {
-        map.remove(&memo_key(repo_path, worktree_name));
+        removed |= map.remove(&memo_key(repo_path, worktree_name)).is_some();
     }
     // The recorded push lease describes the push the sticky was inviting; it
     // must not outlive it.
     if let Ok(mut map) = NEEDS_PUSH_LEASE.lock() {
-        map.remove(&memo_key(repo_path, worktree_name));
+        removed |= map.remove(&memo_key(repo_path, worktree_name)).is_some();
+    }
+    // Clearing an absent entry persists nothing — poll paths clear
+    // opportunistically (e.g. every merged PR, every poll) and must not
+    // rewrite the file each time.
+    if removed {
+        schedule_sticky_persist();
     }
 }
 
@@ -144,6 +152,101 @@ async fn record_push_lease(repo_path: &str, worktree_name: &str, worktree_path: 
 
 fn push_lease(repo_path: &str, worktree_name: &str) -> Option<(String, String)> {
     NEEDS_PUSH_LEASE.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
+}
+
+// ── Durable sticky state ─────────────────────────────────────────
+//
+// `NeedsPush`/`PushFailed` are debts to the remote, not facts about the last
+// attempt: losing them on restart converts "owe a push" into "up to date" —
+// the badge and Push-now vanish while the PR sits stale, and with the
+// `decide_follow_action` tiebreaker gone, AdoptOrigin can reset the branch
+// back to the stale origin copy, silently undoing the restack. The durable
+// subset (and its pinned leases) therefore round-trips through
+// `stack_sticky.json` in the app-data dir. Transient attempt-facts
+// (SkippedDirty, Conflict, Rebasing) stay process-local by design.
+
+/// Unset in tests (and until setup wires it) — persistence is then a no-op.
+static STICKY_PERSIST_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+const STICKY_FILE_NAME: &str = "stack_sticky.json";
+
+/// On-disk shape. Keys are memo keys; an entry for a since-deleted worktree
+/// is harmless residue that the merged-PR sweep or a later clear prunes.
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct DurableSticky {
+    sticky: HashMap<String, String>,
+    leases: HashMap<String, (String, String)>,
+}
+
+fn durable_kind(status: &StackRebaseStatus) -> Option<&'static str> {
+    match status {
+        StackRebaseStatus::NeedsPush => Some("needsPush"),
+        StackRebaseStatus::PushFailed => Some("pushFailed"),
+        _ => None,
+    }
+}
+
+/// Snapshot the durable subset of the sticky/lease maps into `dir`.
+/// Atomic (tmp + rename) so a crash mid-write can't leave a truncated file.
+fn persist_sticky_to(dir: &std::path::Path) {
+    let mut file = DurableSticky::default();
+    if let Ok(map) = STICKY_STATUS.lock() {
+        for (key, status) in map.iter() {
+            if let Some(kind) = durable_kind(status) {
+                file.sticky.insert(key.clone(), kind.to_string());
+            }
+        }
+    }
+    if let Ok(map) = NEEDS_PUSH_LEASE.lock() {
+        for (key, lease) in map.iter() {
+            // A lease is only meaningful alongside the debt it pins.
+            if file.sticky.contains_key(key) {
+                file.leases.insert(key.clone(), lease.clone());
+            }
+        }
+    }
+    let Ok(json) = serde_json::to_vec_pretty(&file) else { return };
+    let tmp = dir.join(format!("{STICKY_FILE_NAME}.tmp"));
+    if std::fs::write(&tmp, json).is_ok() {
+        let _ = std::fs::rename(&tmp, dir.join(STICKY_FILE_NAME));
+    }
+}
+
+/// Merge the durable file UNDER live state — hydration is a cold-start
+/// backstop, never an overwrite of anything this process already decided.
+fn hydrate_sticky_from(dir: &std::path::Path) {
+    let Ok(bytes) = std::fs::read(dir.join(STICKY_FILE_NAME)) else { return };
+    let Ok(file) = serde_json::from_slice::<DurableSticky>(&bytes) else { return };
+    if let Ok(mut map) = STICKY_STATUS.lock() {
+        for (key, kind) in &file.sticky {
+            let status = match kind.as_str() {
+                "needsPush" => StackRebaseStatus::NeedsPush,
+                "pushFailed" => StackRebaseStatus::PushFailed,
+                _ => continue,
+            };
+            map.entry(key.clone()).or_insert(status);
+        }
+    }
+    if let Ok(mut map) = NEEDS_PUSH_LEASE.lock() {
+        for (key, lease) in &file.leases {
+            map.entry(key.clone()).or_insert_with(|| lease.clone());
+        }
+    }
+}
+
+/// Wire persistence to `dir` and hydrate whatever a previous run left there.
+/// Called once from setup, before the first sync poll — the poll's
+/// `decide_follow_action` needs the hydrated tiebreaker in place.
+pub fn init_sticky_persistence(dir: &std::path::Path) {
+    let _ = STICKY_PERSIST_DIR.set(dir.to_path_buf());
+    hydrate_sticky_from(dir);
+}
+
+/// Write-behind on a helper thread: sticky changes are user-action/poll-event
+/// rare, and the save must not block an async executor on file IO.
+fn schedule_sticky_persist() {
+    let Some(dir) = STICKY_PERSIST_DIR.get().cloned() else { return };
+    std::thread::spawn(move || persist_sticky_to(&dir));
 }
 
 /// Repo path → names of branches whose PR is authored by someone else. Feeds
@@ -186,6 +289,47 @@ fn is_foreign_pr_name(repo_path: &str, name: &str) -> bool {
         .ok()
         .and_then(|map| map.get(&canonicalized_repo(repo_path)).map(|s| s.contains(name)))
         .unwrap_or(false)
+}
+
+/// Whether a successful poll has ever fed this repo's foreign set. An absent
+/// entry is NOT "no foreign branches" — it's "nobody has looked yet", and the
+/// gate must not treat the two the same: from launch until the first
+/// successful PR poll, `is_foreign_pr_name` would wave every push through.
+fn foreign_pr_map_primed(repo_path: &str) -> bool {
+    FOREIGN_PR_NAMES
+        .lock()
+        .ok()
+        .is_some_and(|map| map.contains_key(&canonicalized_repo(repo_path)))
+}
+
+/// Ownership verdict from the one-shot `gh pr view` author probe — the
+/// launch-window fallback while the map is unprimed. Everything unknowable
+/// fails closed: a refused auto-push is recoverable (Push-now), a rewound
+/// colleague branch is not. Offline costs nothing extra — the push the
+/// refusal skips would have failed on the same dead network.
+fn probe_marks_foreign(author: Result<Option<String>, ()>, me: Option<&str>) -> bool {
+    match author {
+        Ok(None) => false,
+        Ok(Some(author)) => me != Some(author.as_str()),
+        Err(()) => true,
+    }
+}
+
+/// The ownership gate's question: primed map → poll-fed answer; unprimed →
+/// probe, failing closed.
+async fn auto_push_blocked(repo_path: &str, worktree_path: &str, worktree_name: &str) -> bool {
+    if foreign_pr_map_primed(repo_path) {
+        return is_foreign_pr_worktree(repo_path, worktree_path, worktree_name).await;
+    }
+    let me = crate::github_sync::resolve_github_username().await;
+    let author = crate::github_sync::pr_author_for_checkout(worktree_path).await;
+    let blocked = probe_marks_foreign(author, me.as_deref());
+    if blocked {
+        eprintln!(
+            "[stack_manager] ownership gate unprimed for {worktree_name}: probe says foreign or unknown — refusing auto-push"
+        );
+    }
+    blocked
 }
 
 /// Repo path → names (raw branch + mangled dir form) of native GitHub Stack
@@ -311,7 +455,12 @@ fn sweep_stale_pending(repo_path: &str, affected: &[String]) -> Vec<String> {
     let Ok(mut map) = PENDING_ACTION.lock() else { return Vec::new() };
     let stale: Vec<(String, String)> = map
         .iter()
-        .filter(|(_, pending)| pending.blocked_by != StackPendingBlocker::NativeRestacked)
+        .filter(|(_, pending)| {
+            !matches!(
+                pending.blocked_by,
+                StackPendingBlocker::NativeRestacked | StackPendingBlocker::ForeignPrNotPushed
+            )
+        })
         .filter_map(|(k, _)| k.strip_prefix(&prefix).map(|child| (k.clone(), child.to_string())))
         .filter(|(_, child)| !affected.contains(child))
         .collect();
@@ -417,6 +566,15 @@ enum FollowAction {
 /// `needs_push_sticky` marks an Alfredo-authored local divergence awaiting an
 /// explicit push — patch-equivalence alone cannot tell "GitHub rewrote
 /// origin" from "we rewrote local", so the sticky flag is the tiebreaker.
+/// Whether a `NeedsPush` debt is spent: nothing local remains to push
+/// (ahead == 0). Converged and origin-moved-past both qualify — in both
+/// shapes the only thing the badge's forced push could add is a rewind, so
+/// keeping the flag pins a "push to update PR" that must never be obeyed.
+/// `None` (failed read) keeps the flag: absence of evidence is not a push.
+fn needs_push_spent(ahead_behind: Option<(u32, u32)>) -> bool {
+    matches!(ahead_behind, Some((0, _)))
+}
+
 fn decide_follow_action(ahead: u32, behind: u32, unpushed: u32, needs_push_sticky: bool) -> FollowAction {
     if needs_push_sticky || behind == 0 {
         return FollowAction::None;
@@ -479,6 +637,21 @@ async fn follow_native_rewrites(
             Some(StackRebaseStatus::NeedsPush | StackRebaseStatus::PushFailed)
         );
 
+        // Snapshot HEAD before any of the decision inputs are computed: the
+        // ahead/behind + `git cherry` reads below describe THIS commit, and
+        // the reset must not fire if HEAD has moved since (a commit landed
+        // mid-pass leaves the tree clean, so the dirty re-check alone can't
+        // see it — and `--keep` does not protect committed work).
+        let wt = worktree_path.clone();
+        let Some(pre_sha) = tokio::task::spawn_blocking(move || git_manager::head_sha(&wt))
+            .await
+            .ok()
+            .flatten()
+        else {
+            eprintln!("[stack_manager] follow origin skipped for {branch}: could not resolve HEAD");
+            continue;
+        };
+
         let origin_ref = format!("origin/{branch}");
         let wt = worktree_path.clone();
         let oref = origin_ref.clone();
@@ -510,32 +683,53 @@ async fn follow_native_rewrites(
         };
 
         match decide_follow_action(ahead, behind, unpushed, needs_push) {
-            FollowAction::None => {}
+            FollowAction::None => {
+                // Diverged with local-only work and no sticky guard: the
+                // fail-safe hold with no escape hatch (`reset_keep_to_ref` has
+                // no other caller). Say so — a silently disabled follow reads
+                // as "auto-sync is broken" with nothing to debug from.
+                if ahead > 0 && behind > 0 && !needs_push {
+                    if unpushed == u32::MAX {
+                        eprintln!(
+                            "[stack_manager] follow origin held for {worktree_name}: safety predicate failed — not adopting {origin_ref}"
+                        );
+                    } else {
+                        eprintln!(
+                            "[stack_manager] follow origin held for {worktree_name}: {unpushed} local commit(s)/merge(s) have no upstream patch — not adopting {origin_ref}"
+                        );
+                    }
+                }
+            }
             FollowAction::FastForward | FollowAction::AdoptOrigin => {
-                // TOCTOU guard: up to three git subprocesses (ahead/behind,
-                // two `git cherry` calls) ran between the dirty check above
-                // and here — re-check immediately before the destructive
-                // reset so a change that landed mid-pass can't slip through.
+                // TOCTOU guard: several git subprocesses (ahead/behind, two
+                // `git cherry` calls) ran between the checks above and here —
+                // re-check immediately before the destructive reset so a
+                // change that landed mid-pass can't slip through. Dirty catches
+                // uncommitted work, the `pre_sha` compare catches commits;
                 // `--keep` below is a second line of defense, not a
-                // substitute for this.
+                // substitute for either.
                 if worktree_is_dirty(worktree_path, true).await {
                     eprintln!(
                         "[stack_manager] follow origin skipped for {worktree_name}: became dirty before reset"
                     );
                     continue;
                 }
-
                 let wt = worktree_path.clone();
-                let old_sha = tokio::task::spawn_blocking(move || git_manager::head_sha(&wt))
+                let now_sha = tokio::task::spawn_blocking(move || git_manager::head_sha(&wt))
                     .await
                     .ok()
                     .flatten();
+                if now_sha.as_deref() != Some(pre_sha.as_str()) {
+                    eprintln!(
+                        "[stack_manager] follow origin skipped for {worktree_name}: HEAD moved during the safety checks"
+                    );
+                    continue;
+                }
 
                 match git_manager::reset_keep_to_ref(worktree_path, &origin_ref).await {
                     Ok(()) => {
                         eprintln!(
-                            "[stack_manager] followed {origin_ref} for {worktree_name}: {} -> reset",
-                            old_sha.as_deref().unwrap_or("unknown")
+                            "[stack_manager] followed {origin_ref} for {worktree_name}: {pre_sha} -> reset"
                         );
                         // Pending first (it emits only while the entry exists),
                         // then the memo sweep that also clears it silently.
@@ -590,6 +784,16 @@ pub async fn check_and_rebase(
     // clean-tree-only gating — restacks must not be blocked forever by a
     // missing CLI.
     let mut registry: Option<HashMap<String, String>> = None;
+
+    // A merged PR's branch owes the remote nothing. The convergence heal can
+    // never clear its NeedsPush/PushFailed — GitHub deletes the head branch,
+    // so ahead/behind reads `None` forever — and a merged leaf appears in no
+    // dissolve path, so the debt (and the amber chip it lights) would be
+    // immortal. Both name forms, mirroring the maps that set them.
+    for pr in prs.iter().filter(|p| p.merged) {
+        clear_sticky_status(&pr.repo_path, &pr.branch);
+        clear_sticky_status(&pr.repo_path, &pr.branch.replace('/', "-"));
+    }
 
     // Fail safe, not open: `load` already returns defaults (auto-sync ON) for
     // a missing app.json, so an Err here is a real read/parse failure — and a
@@ -958,12 +1162,40 @@ pub async fn check_merged_parents(
                 continue;
             }
         };
+        // A dissolve whose auto-push the ownership gate refused leaves the
+        // colleague's PR branch stale — and the batched forget below wipes the
+        // NeedsPush that says so, while `clear_stack_entry` removes the child
+        // from every path that could ever re-derive it. Capture the refusals
+        // first; they become dismiss-only notices after the forget.
+        let foreign_stale: Vec<String> = dissolved
+            .iter()
+            .filter(|child| {
+                matches!(sticky_status(repo_path, child), Some(StackRebaseStatus::NeedsPush))
+            })
+            .cloned()
+            .collect();
         for child_name in &dissolved {
             config_manager::clear_stack_entry(&mut config, child_name);
             forget_stack_memos(repo_path, child_name);
         }
         if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &config).await {
             eprintln!("[stack_manager] failed to save config after clearing merged parents: {e}");
+        }
+        for child_name in &foreign_stale {
+            let merged_parent = affected
+                .iter()
+                .find(|(c, _)| c == child_name)
+                .map(|(_, p)| p.clone())
+                .unwrap_or_else(|| default_short.clone());
+            record_pending(
+                app_handle,
+                repo_path,
+                child_name,
+                StackPendingAction {
+                    merged_parent,
+                    blocked_by: StackPendingBlocker::ForeignPrNotPushed,
+                },
+            );
         }
 
         // Recorded after `forget_stack_memos` (which clears pending entries) so
@@ -1010,19 +1242,23 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
             }
 
             let status = match sticky_status(repo_path, worktree_name) {
-                // Self-heal: the user pushed from a terminal (or the branch
-                // otherwise converged with its upstream) — the flag is done.
+                // Self-heal: nothing is left to push — the user pushed from a
+                // terminal, or origin moved past local (the owner force-pushed
+                // a rewrite that includes these commits). Either way the flag
+                // is done; keeping it would pin a badge whose forced push
+                // could only rewind the remote.
                 Some(StackRebaseStatus::NeedsPush) => {
                     let wt_path = worktree_path.clone();
-                    let converged = tokio::task::spawn_blocking(move || {
-                        git_manager::ahead_behind_vs_upstream(&wt_path)
-                    })
-                    .await
-                    .ok()
-                    .and_then(std::result::Result::ok)
-                    .flatten()
-                        == Some((0, 0));
-                    if converged {
+                    let spent = needs_push_spent(
+                        tokio::task::spawn_blocking(move || {
+                            git_manager::ahead_behind_vs_upstream(&wt_path)
+                        })
+                        .await
+                        .ok()
+                        .and_then(std::result::Result::ok)
+                        .flatten(),
+                    );
+                    if spent {
                         clear_sticky_status(repo_path, worktree_name);
                         StackRebaseStatus::UpToDate
                     } else {
@@ -1128,16 +1364,19 @@ async fn sync_stack_root(
             }
         }
         RootSyncPlan::Rebase { root, target_tip, baseline } => {
-            let outcome = run_restack(
-                app_handle,
-                repo_path,
-                &root.path,
-                &root.name,
-                &target_tip,
-                &baseline,
-                PushMode::LeasePush,
-            )
-            .await?;
+            // A partially-converted native stack can root a local chain in a
+            // native member — the rebase-locally/push-explicitly contract
+            // holds for it here exactly as it does for children in
+            // `restack_child`: NoPush surfaces NeedsPush, Push-now stays the
+            // deliberate way through.
+            let native = is_native_member_name(repo_path, &root.name)
+                || current_branch(&root.path)
+                    .await
+                    .is_some_and(|b| is_native_member_name(repo_path, &b));
+            let push = if native { PushMode::NoPush } else { PushMode::LeasePush };
+            let outcome =
+                run_restack(app_handle, repo_path, &root.path, &root.name, &target_tip, &baseline, push)
+                    .await?;
             Ok(RootSyncOutcome::Attempted(root, outcome))
         }
     }
@@ -1199,18 +1438,19 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
         // iterates `stack_parent_overrides` — roots have no entry — so the
         // same convergence rule must live here or the badge persists forever.
         // A rebase leaves the tree clean immediately, so never clear on clean:
-        // only convergence with the upstream clears it.
+        // only "nothing left to push" (ahead == 0) clears it.
         Some(StackRebaseStatus::NeedsPush) => {
             let path = root.path.clone();
-            let converged = tokio::task::spawn_blocking(move || {
-                git_manager::ahead_behind_vs_upstream(&path)
-            })
-            .await
-            .ok()
-            .and_then(std::result::Result::ok)
-            .flatten()
-                == Some((0, 0));
-            if converged {
+            let spent = needs_push_spent(
+                tokio::task::spawn_blocking(move || {
+                    git_manager::ahead_behind_vs_upstream(&path)
+                })
+                .await
+                .ok()
+                .and_then(std::result::Result::ok)
+                .flatten(),
+            );
+            if spent {
                 clear_sticky_status(repo_path, &root.name);
                 emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
             }
@@ -2136,7 +2376,7 @@ async fn push_with_lease_or_flag(
     // (that's the sync contract), but the remote stays theirs. Surface the
     // divergence as NeedsPush — the explicit Push-now action is the deliberate
     // way through.
-    if gate == PushGate::Auto && is_foreign_pr_worktree(repo_path, worktree_path, worktree_name).await {
+    if gate == PushGate::Auto && auto_push_blocked(repo_path, worktree_path, worktree_name).await {
         eprintln!(
             "[stack_manager] auto-push refused for {worktree_name}: its PR is authored by someone else"
         );
@@ -2464,7 +2704,26 @@ pub async fn change_base(
             // any sticky entry (including a `PushFailed` just set above) would
             // outlive every path that could clear it.
             if new_parent.is_none() {
+                // If the push above was refused by the ownership gate, the
+                // wipe below erases the only record that a colleague's PR
+                // branch was left stale — replace it with a dismiss-only
+                // notice (recorded after the forget, which clears pendings).
+                let foreign_refused = matches!(
+                    sticky_status(repo_path, worktree_name),
+                    Some(StackRebaseStatus::NeedsPush)
+                );
                 forget_stack_memos(repo_path, worktree_name);
+                if foreign_refused {
+                    record_pending(
+                        app_handle,
+                        repo_path,
+                        worktree_name,
+                        StackPendingAction {
+                            merged_parent: target_branch.clone(),
+                            blocked_by: StackPendingBlocker::ForeignPrNotPushed,
+                        },
+                    );
+                }
             }
             Ok(())
         }
@@ -4019,5 +4278,145 @@ mod tests {
         let head = run_git(repo_path, &["rev-parse", "HEAD"]);
         run_git(repo_path, &["checkout", &head]);
         assert_eq!(current_branch(repo_path).await, None);
+    }
+
+    // A NeedsPush whose branch has nothing left to push (ahead == 0) is spent:
+    // origin either converged or moved past local, and the only thing the
+    // badge's Push button could do is refuse (or, before the lease pin,
+    // rewind the owner's newer commits). Unknown counts must NOT clear —
+    // a failed read is not evidence the push happened.
+    #[test]
+    fn needs_push_spent_only_when_nothing_is_left_to_push() {
+        assert!(needs_push_spent(Some((0, 0))));
+        assert!(needs_push_spent(Some((0, 3))), "origin moved past local: nothing to push");
+        assert!(!needs_push_spent(Some((2, 0))));
+        assert!(!needs_push_spent(Some((2, 5))));
+        assert!(!needs_push_spent(None), "unknown state must not clear the flag");
+    }
+
+    // The ownership gate's launch-window fallback: with no poll-primed map,
+    // a one-shot `gh pr view` probe decides. Everything unknowable fails
+    // closed — refusing an auto-push is recoverable (Push-now), rewinding a
+    // colleague's branch is not.
+    #[test]
+    fn probe_marks_foreign_fails_closed_on_every_unknown() {
+        assert!(!probe_marks_foreign(Ok(None), Some("chloe")), "no PR — nothing to protect");
+        assert!(!probe_marks_foreign(Ok(Some("chloe".into())), Some("chloe")));
+        assert!(probe_marks_foreign(Ok(Some("seb".into())), Some("chloe")));
+        assert!(probe_marks_foreign(Err(()), Some("chloe")), "probe failure fails closed");
+        assert!(probe_marks_foreign(Ok(Some("seb".into())), None), "unknown self fails closed");
+        assert!(!probe_marks_foreign(Ok(None), None), "no PR needs no ownership answer");
+    }
+
+    #[test]
+    fn foreign_pr_map_reports_primed_per_repo() {
+        let repo = "/tmp/alfredo-test-primed";
+        assert!(!foreign_pr_map_primed(repo));
+        update_foreign_pr_branches(&[repo.to_string()], &[], "chloe");
+        assert!(
+            foreign_pr_map_primed(repo),
+            "an empty foreign set from a successful poll still counts as primed"
+        );
+    }
+
+    // The dissolve paths wipe every memo, so a foreign-PR push refusal during
+    // dissolve records this notice instead — it must survive the poll sweep
+    // (like NativeRestacked) or it retires before anyone sees it.
+    #[test]
+    fn sweep_exempts_the_foreign_pr_notice() {
+        let repo = "/tmp/alfredo-test-foreign-notice";
+        let name = "wt-foreign-notice";
+        set_pending_action(
+            repo,
+            name,
+            StackPendingAction {
+                merged_parent: "main".into(),
+                blocked_by: StackPendingBlocker::ForeignPrNotPushed,
+            },
+        );
+        let cleared = sweep_stale_pending(repo, &[]);
+        assert!(!cleared.contains(&name.to_string()), "notice must survive the sweep");
+        assert!(pending_action(repo, name).is_some());
+        clear_pending_action(repo, name);
+    }
+
+    // ── Durable sticky state (survives restart) ──────────────────────
+    //
+    // NeedsPush/PushFailed are debts to the remote: losing them on restart
+    // converts "owe a push" into "up to date" and re-enables AdoptOrigin,
+    // which would reset the branch back to the stale origin copy. Transient
+    // attempt-facts (SkippedDirty, Conflict, …) stay process-local by design.
+
+    #[test]
+    fn durable_sticky_and_lease_survive_a_simulated_restart() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = "/tmp/alfredo-test-persist";
+
+        set_sticky_status(repo, "wt-np", StackRebaseStatus::NeedsPush);
+        if let Ok(mut map) = NEEDS_PUSH_LEASE.lock() {
+            map.insert(memo_key(repo, "wt-np"), ("feat/np".into(), "abc123".into()));
+        }
+        set_sticky_status(repo, "wt-pf", StackRebaseStatus::PushFailed);
+        set_sticky_status(repo, "wt-transient", StackRebaseStatus::SkippedDirty);
+        persist_sticky_to(dir.path());
+
+        // Simulated restart: the process-global maps empty out.
+        clear_sticky_status(repo, "wt-np");
+        clear_sticky_status(repo, "wt-pf");
+        clear_sticky_status(repo, "wt-transient");
+
+        hydrate_sticky_from(dir.path());
+        assert_eq!(sticky_status(repo, "wt-np"), Some(StackRebaseStatus::NeedsPush));
+        assert_eq!(
+            push_lease(repo, "wt-np"),
+            Some(("feat/np".into(), "abc123".into())),
+            "the pinned lease must survive with the sticky it belongs to"
+        );
+        assert_eq!(sticky_status(repo, "wt-pf"), Some(StackRebaseStatus::PushFailed));
+        assert_eq!(
+            sticky_status(repo, "wt-transient"),
+            None,
+            "transient attempt-facts must not survive restart"
+        );
+
+        clear_sticky_status(repo, "wt-np");
+        clear_sticky_status(repo, "wt-pf");
+    }
+
+    #[test]
+    fn hydrate_never_overwrites_live_state() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = "/tmp/alfredo-test-persist-live";
+
+        set_sticky_status(repo, "wt-live", StackRebaseStatus::NeedsPush);
+        persist_sticky_to(dir.path());
+
+        // The process moved on since the file was written.
+        set_sticky_status(repo, "wt-live", StackRebaseStatus::Conflict);
+        hydrate_sticky_from(dir.path());
+        assert_eq!(
+            sticky_status(repo, "wt-live"),
+            Some(StackRebaseStatus::Conflict),
+            "hydration is a backstop for cold starts, never an overwrite"
+        );
+        clear_sticky_status(repo, "wt-live");
+    }
+
+    #[test]
+    fn clearing_a_sticky_also_clears_its_persisted_copy() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = "/tmp/alfredo-test-persist-clear";
+
+        set_sticky_status(repo, "wt-gone", StackRebaseStatus::NeedsPush);
+        persist_sticky_to(dir.path());
+        clear_sticky_status(repo, "wt-gone");
+        persist_sticky_to(dir.path());
+
+        hydrate_sticky_from(dir.path());
+        assert_eq!(
+            sticky_status(repo, "wt-gone"),
+            None,
+            "a cleared debt must not resurrect on the next restart"
+        );
     }
 }

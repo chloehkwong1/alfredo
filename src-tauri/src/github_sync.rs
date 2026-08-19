@@ -789,6 +789,26 @@ pub async fn update_pr_base_branch(
     Ok(())
 }
 
+/// Author login of the open PR for the branch checked out at `worktree_path`,
+/// via `gh pr view` (which resolves the PR from the cwd's current branch).
+/// `Ok(None)` = the branch has no PR; `Err(())` = could not determine (gh
+/// missing, unauthed, offline) — callers fail closed on it.
+pub async fn pr_author_for_checkout(worktree_path: &str) -> Result<Option<String>, ()> {
+    let output = gh_command()
+        .args(["pr", "view", "--json", "author", "--jq", ".author.login"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|_| ())?;
+    if output.status.success() {
+        let login = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if login.is_empty() { Err(()) } else { Ok(Some(login)) }
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("no pull requests found") { Ok(None) } else { Err(()) }
+    }
+}
+
 /// Resolve the authenticated GitHub username via `gh api user`.
 /// Caches only a successful lookup for the lifetime of the process — a failure
 /// (gh not authed yet, transient network) must be retried on the next call,

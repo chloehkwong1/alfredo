@@ -58,6 +58,19 @@ describe("computeStackChain", () => {
     expect(computeStackChain([a, bb, c], "a")!.needsAttention).toBe(true);
   });
 
+  // A merged member's sticky needsPush can never heal (its upstream head is
+  // deleted), and the popover already renders it as muted "merged ✓" with no
+  // Push button — so it must not light the chip's amber "!" either, or the
+  // chip points at nothing actionable forever.
+  it("ignores leftover statuses on merged members when flagging attention", () => {
+    const mergedB = {
+      ...b,
+      prStatus: { merged: true } as Worktree["prStatus"],
+      stackRebaseStatus: { kind: "needsPush" as const },
+    };
+    expect(computeStackChain([a, mergedB, c], "a")!.needsAttention).toBe(false);
+  });
+
   it("survives a dangling parent (branch deleted) by rooting at the orphan", () => {
     const orphan = wt({ id: "o", branch: "feat/o", stackParent: "gone/branch" });
     const child = wt({ id: "p", branch: "feat/p", stackParent: "feat/o" });

@@ -335,12 +335,14 @@ function AgentItemContent({
   // push-failed, behind, dirty-pause, queued restack. The popover names those
   // too, but the chain row is the card's only at-a-glance surface for them —
   // suppressing it for native members would hide e.g. a background-restack
-  // conflict behind a click. (`nativeRestacked` is excluded — it has its own
-  // notice row below.)
+  // conflict behind a click. (`nativeRestacked` and `foreignPrNotPushed` are
+  // excluded — each has its own notice row below.)
   const ownStackKind = worktree.stackRebaseStatus?.kind;
   const stackTrouble =
     (ownStackKind != null && ownStackKind !== "upToDate") ||
-    (worktree.stackPending != null && worktree.stackPending.blockedBy !== "nativeRestacked");
+    (worktree.stackPending != null &&
+      worktree.stackPending.blockedBy !== "nativeRestacked" &&
+      worktree.stackPending.blockedBy !== "foreignPrNotPushed");
   return (
     <>
       <span
@@ -521,6 +523,14 @@ function AgentItemContent({
           worktree.stackPending?.blockedBy === "nativeRestacked" && (
           <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
             <span className="truncate">restacked by GitHub — local branch may be behind</span>
+          </div>
+        )}
+        {/* A dissolve always ends the chain, so this notice can never rely on
+            the chain row — it gets its own, amber because the colleague's PR
+            is stale until someone pushes deliberately. */}
+        {worktree.stackPending?.blockedBy === "foreignPrNotPushed" && (
+          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-amber-400 min-w-0">
+            <span className="truncate">someone else's PR — restacked locally, not pushed</span>
           </div>
         )}
         {/* Line 4: PR stats row — separated by border */}

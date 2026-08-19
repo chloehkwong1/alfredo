@@ -99,8 +99,12 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
     forked: memberWts.some((w) => (childrenOf.get(w.branch)?.length ?? 0) > 1),
     needsAttention: memberWts.some(
       (m) =>
-        (m.stackRebaseStatus != null && ATTENTION_KINDS.has(m.stackRebaseStatus.kind)) ||
-        m.stackPending != null,
+        // Merged members render muted "merged ✓" with no actions — a leftover
+        // status on one (e.g. a needsPush whose deleted upstream can never
+        // heal it) would light an amber "!" that points at nothing.
+        !m.prStatus?.merged &&
+        ((m.stackRebaseStatus != null && ATTENTION_KINDS.has(m.stackRebaseStatus.kind)) ||
+          m.stackPending != null),
     ),
   };
 }
