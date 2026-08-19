@@ -373,7 +373,15 @@ pub async fn check_and_rebase(
             }
 
             // (restack_child no-ops with UpToDate when baseline == parent tip.)
-            let _ = restack_child_inner(app_handle, app_data_dir, repo_path, &child_name, true).await;
+            let _ = restack_child_inner(
+                app_handle,
+                app_data_dir,
+                repo_path,
+                &child_name,
+                true,
+                PushMode::LeasePush,
+            )
+            .await;
         }
     }
 }
@@ -661,6 +669,25 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
             }
 
             let status = match sticky_status(repo_path, worktree_name) {
+                // Self-heal: the user pushed from a terminal (or the branch
+                // otherwise converged with its upstream) — the flag is done.
+                Some(StackRebaseStatus::NeedsPush) => {
+                    let wt_path = worktree_path.clone();
+                    let converged = tokio::task::spawn_blocking(move || {
+                        git_manager::ahead_behind_vs_upstream(&wt_path)
+                    })
+                    .await
+                    .ok()
+                    .and_then(std::result::Result::ok)
+                    .flatten()
+                        == Some((0, 0));
+                    if converged {
+                        clear_sticky_status(repo_path, worktree_name);
+                        StackRebaseStatus::UpToDate
+                    } else {
+                        StackRebaseStatus::NeedsPush
+                    }
+                }
                 Some(sticky) => sticky,
                 None => {
                     let wt_path = worktree_path.clone();
@@ -760,9 +787,16 @@ async fn sync_stack_root(
             }
         }
         RootSyncPlan::Rebase { root, target_tip, baseline } => {
-            let outcome =
-                run_restack(app_handle, repo_path, &root.path, &root.name, &target_tip, &baseline)
-                    .await?;
+            let outcome = run_restack(
+                app_handle,
+                repo_path,
+                &root.path,
+                &root.name,
+                &target_tip,
+                &baseline,
+                PushMode::LeasePush,
+            )
+            .await?;
             Ok(RootSyncOutcome::Attempted(root, outcome))
         }
     }
@@ -1271,7 +1305,7 @@ pub async fn restack_child(
     worktree_name: &str,
 ) -> Result<RestackOutcome, String> {
     clear_conflict_memo(repo_path, worktree_name);
-    restack_child_inner(app_handle, app_data_dir, repo_path, worktree_name, false).await
+    restack_child_inner(app_handle, app_data_dir, repo_path, worktree_name, false, PushMode::LeasePush).await
 }
 
 /// `auto = true` marks the 60s background poll: it skips children whose current
@@ -1283,6 +1317,7 @@ async fn restack_child_inner(
     repo_path: &str,
     worktree_name: &str,
     auto: bool,
+    push: PushMode,
 ) -> Result<RestackOutcome, String> {
     let config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
@@ -1350,7 +1385,7 @@ async fn restack_child_inner(
         return Ok(RestackOutcome::AlreadyOnTarget);
     }
 
-    match run_restack(app_handle, repo_path, &worktree_path, worktree_name, &parent_tip, &baseline).await {
+    match run_restack(app_handle, repo_path, &worktree_path, worktree_name, &parent_tip, &baseline, push).await {
         // Only an outcome that verified HEAD sits on `parent_tip` — a real
         // rebase, or `AlreadyOnTarget`'s ancestry check of a hand-restacked
         // branch — may advance the persisted baseline. A dirty-skip performs
@@ -1491,6 +1526,18 @@ async fn rebase_in_progress(worktree_path: &str) -> bool {
     false
 }
 
+/// Whether a successful rebase is followed by a lease push. Native GitHub
+/// Stack members always use `NoPush`: their remote writes stay explicit.
+#[derive(Clone, Copy, PartialEq)]
+enum PushMode {
+    LeasePush,
+    // Not constructed yet — Task 5 wires the native-member caller that passes
+    // this. Allowed here so the clippy gate doesn't block landing the plumbing
+    // ahead of its only producer.
+    #[allow(dead_code)]
+    NoPush,
+}
+
 /// Shared restack sequence (Tasks 5/7 reuse this verbatim): dirty-check, rebase
 /// `--onto`, and — on success — auto-push with lease when an upstream exists.
 /// Baseline resolution/persistence is the caller's job since it varies per caller.
@@ -1501,6 +1548,7 @@ async fn run_restack(
     worktree_name: &str,
     target_tip: &str,
     baseline: &str,
+    push: PushMode,
 ) -> Result<RestackOutcome, String> {
     // Checked BEFORE the sticky-clear/dirty-check below, and deliberately
     // returns early without touching sticky status or emitting anything: a
@@ -1555,7 +1603,17 @@ async fn run_restack(
     match git_manager::rebase_onto_sha(worktree_path, target_tip, baseline, true).await {
         Ok(()) => {
             let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
-            push_with_lease_or_flag(app_handle, repo_path, worktree_path, worktree_name).await;
+            match push {
+                PushMode::LeasePush => {
+                    push_with_lease_or_flag(app_handle, repo_path, worktree_path, worktree_name).await;
+                }
+                // The status event lands after rebase-complete, so the
+                // frontend's transient upToDate is immediately corrected.
+                PushMode::NoPush => {
+                    set_sticky_status(repo_path, worktree_name, StackRebaseStatus::NeedsPush);
+                    emit_status(app_handle, worktree_name, StackRebaseStatus::NeedsPush);
+                }
+            }
             Ok(RestackOutcome::Rebased)
         }
         Err(e) => {
@@ -1654,9 +1712,17 @@ async fn restack_onto_default(
             .map_err(|e| DissolveFailure::NotAttempted(e.to_string()))?;
     }
 
-    run_restack(app_handle, repo_path, &worktree_path, worktree_name, &target_tip, &baseline)
-        .await
-        .map_err(DissolveFailure::Conflicted)
+    run_restack(
+        app_handle,
+        repo_path,
+        &worktree_path,
+        worktree_name,
+        &target_tip,
+        &baseline,
+        PushMode::LeasePush,
+    )
+    .await
+    .map_err(DissolveFailure::Conflicted)
 }
 
 /// `git merge-base --is-ancestor a b` — true when `a` is reachable from `b`.
@@ -2957,6 +3023,16 @@ mod tests {
 
         clear_sticky_status(repo, name);
         assert!(sticky_status(repo, name).is_none(), "a new attempt supersedes the last one");
+    }
+
+    #[test]
+    fn needs_push_sticky_roundtrip() {
+        let repo = "/tmp/needs-push-test-repo";
+        clear_sticky_status(repo, "wt-a");
+        set_sticky_status(repo, "wt-a", StackRebaseStatus::NeedsPush);
+        assert_eq!(sticky_status(repo, "wt-a"), Some(StackRebaseStatus::NeedsPush));
+        clear_sticky_status(repo, "wt-a");
+        assert_eq!(sticky_status(repo, "wt-a"), None);
     }
 
     // Dissolution removes the `stack_parent_overrides` entry, so no later poll
