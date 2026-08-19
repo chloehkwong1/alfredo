@@ -735,10 +735,6 @@ pub fn ahead_behind_vs_upstream(worktree_path: &str) -> Result<Option<(u32, u32)
 /// Ahead/behind of the worktree's HEAD vs an arbitrary ref (e.g. a native
 /// member's "origin/<branch>"). `Ok(None)` when the ref doesn't resolve —
 /// unpublished branches are the caller's no-op case, not an error.
-///
-/// `#[allow(dead_code)]` because callers land in later native-stack-auto-sync
-/// tasks; keeping it here avoids churn there.
-#[allow(dead_code)]
 pub fn ahead_behind_vs_ref(
     worktree_path: &str,
     ref_name: &str,
@@ -774,10 +770,6 @@ pub fn ahead_behind_vs_ref(
 /// `default_ref` — genuinely unpushed work. The default-ref clause matters:
 /// after GitHub restacks around a merge, an absorbed parent's commits vanish
 /// from the PR branch but their patches live on in the default branch.
-///
-/// `#[allow(dead_code)]` because callers land in later native-stack-auto-sync
-/// tasks; keeping it here avoids churn there.
-#[allow(dead_code)]
 pub fn unpushed_patch_count(
     worktree_path: &str,
     upstream_ref: &str,
@@ -816,10 +808,6 @@ fn cherry_unmatched_shas(
 
 /// Move the worktree's current branch to `ref_name`. Destructive by design —
 /// callers must have proven safety first (clean tree, no unpushed patches).
-///
-/// `#[allow(dead_code)]` because callers land in later native-stack-auto-sync
-/// tasks; keeping it here avoids churn there.
-#[allow(dead_code)]
 pub async fn reset_hard_to_ref(worktree_path: &str, ref_name: &str) -> Result<(), AppError> {
     let output = git_command()
         .args(["reset", "--hard", ref_name])

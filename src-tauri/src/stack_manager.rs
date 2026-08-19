@@ -276,6 +276,131 @@ fn native_member_worktrees(
     names
 }
 
+// ── Native-stack auto-sync: Behavior 1 (follow server-side rewrites) ──────
+
+/// What Behavior 1 of native auto-sync does to a member's local checkout,
+/// given its relationship to `origin/<branch>`.
+#[derive(Debug, PartialEq)]
+enum FollowAction {
+    None,
+    /// Local strictly behind its remote branch — plain catch-up.
+    FastForward,
+    /// Diverged, but every local commit's patch is present upstream (PR
+    /// branch or default branch) — adopt GitHub's rewrite.
+    AdoptOrigin,
+}
+
+/// Pure decision table (unit-tested; the async wrapper only gathers inputs).
+/// `needs_push_sticky` marks an Alfredo-authored local divergence awaiting an
+/// explicit push — patch-equivalence alone cannot tell "GitHub rewrote
+/// origin" from "we rewrote local", so the sticky flag is the tiebreaker.
+fn decide_follow_action(ahead: u32, behind: u32, unpushed: u32, needs_push_sticky: bool) -> FollowAction {
+    if needs_push_sticky || behind == 0 {
+        return FollowAction::None;
+    }
+    if ahead == 0 {
+        return FollowAction::FastForward;
+    }
+    if unpushed == 0 {
+        return FollowAction::AdoptOrigin;
+    }
+    FollowAction::None
+}
+
+/// Behavior 1 of native-stack auto-sync: adopt GitHub's server-side branch
+/// rewrites into the local checkouts, when provably safe. Local-only — the
+/// remote is never written. Baselines are cleared (not recomputed) after an
+/// adopt: the next restack's one-time merge-base fallback rebuilds them, and
+/// a stale one would trip the RewrittenExternally refusal.
+async fn follow_native_rewrites(
+    app_handle: &AppHandle,
+    app_data_dir: &Path,
+    repo_path: &str,
+    native_branches: &std::collections::HashSet<String>,
+    checkouts: &HashMap<String, String>,
+    registry: &Option<HashMap<String, String>>,
+) {
+    git_manager::fetch_upstream_throttled(repo_path, false).await;
+    for branch in native_branches {
+        let Some(worktree_path) = checkouts.get(branch) else { continue };
+        let Some(worktree_name) = std::path::Path::new(worktree_path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(str::to_string)
+        else { continue };
+
+        if path_is_busy(registry.as_ref(), worktree_path) {
+            continue;
+        }
+        if rebase_in_progress(worktree_path).await || worktree_is_dirty(worktree_path, true).await {
+            continue;
+        }
+        let needs_push = matches!(
+            sticky_status(repo_path, &worktree_name),
+            Some(StackRebaseStatus::NeedsPush)
+        );
+
+        let origin_ref = format!("origin/{branch}");
+        let wt = worktree_path.clone();
+        let oref = origin_ref.clone();
+        let Some((ahead, behind)) = tokio::task::spawn_blocking(move || {
+            git_manager::ahead_behind_vs_ref(&wt, &oref)
+        })
+        .await
+        .ok()
+        .and_then(std::result::Result::ok)
+        .flatten()
+        else { continue };
+
+        // The predicate spawns two `git cherry` calls — only pay for them on
+        // the one shape that needs them (diverged, no sticky guard).
+        let unpushed = if ahead > 0 && behind > 0 && !needs_push {
+            let wt = worktree_path.clone();
+            let oref = origin_ref.clone();
+            tokio::task::spawn_blocking(move || {
+                let default_ref = git_manager::resolve_default_remote_branch(&wt);
+                git_manager::unpushed_patch_count(&wt, &oref, &default_ref)
+            })
+            .await
+            .ok()
+            .and_then(std::result::Result::ok)
+            // Unknown safety = unsafe: never adopt on a failed predicate.
+            .unwrap_or(u32::MAX)
+        } else {
+            0
+        };
+
+        match decide_follow_action(ahead, behind, unpushed, needs_push) {
+            FollowAction::None => {}
+            FollowAction::FastForward | FollowAction::AdoptOrigin => {
+                match git_manager::reset_hard_to_ref(worktree_path, &origin_ref).await {
+                    Ok(()) => {
+                        // Pending first (it emits only while the entry exists),
+                        // then the memo sweep that also clears it silently.
+                        resolve_pending(app_handle, repo_path, &worktree_name);
+                        forget_stack_memos(repo_path, &worktree_name);
+                        if let Ok(mut config) =
+                            config_manager::load_personal_config(app_data_dir, repo_path).await
+                        {
+                            config_manager::clear_stack_baseline(&mut config, &worktree_name);
+                            if let Err(e) =
+                                config_manager::save_config(app_data_dir, repo_path, &config).await
+                            {
+                                eprintln!("[stack_manager] baseline clear failed for {worktree_name}: {e}");
+                            }
+                        }
+                        emit_status(app_handle, &worktree_name, StackRebaseStatus::UpToDate);
+                        let _ = app_handle.emit("stack:native-followed", worktree_name.clone());
+                    }
+                    Err(e) => {
+                        eprintln!("[stack_manager] follow origin failed for {worktree_name}: {e}");
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ── Public entry points ──────────────────────────────────────────
 
 /// Called at the end of each sync poll. Baseline-tracked (no in-memory SHA
@@ -316,6 +441,26 @@ pub async fn check_and_rebase(
                 continue;
             }
         };
+
+        // Behavior 1: follow GitHub's server-side rewrites into the local
+        // checkouts before anything else. Runs even for a repo with no
+        // `stack_parent_overrides` — a pure-native repo has none of Alfredo's
+        // own overrides but still needs following.
+        let native_branches = crate::github_sync::native_member_branches(prs, repo_path);
+        if auto_sync_native && !native_branches.is_empty() {
+            ensure_registry(&mut registry).await;
+            let checkouts = checkout_paths(repo_path).await;
+            follow_native_rewrites(
+                app_handle,
+                app_data_dir,
+                repo_path,
+                &native_branches,
+                &checkouts,
+                &registry,
+            )
+            .await;
+        }
+
         if config.stack_parent_overrides.is_empty() {
             continue;
         }
@@ -325,6 +470,9 @@ pub async fn check_and_rebase(
         ensure_registry(&mut registry).await;
         let agent_busy = |path: &str| path_is_busy(registry.as_ref(), path);
 
+        // Re-derived rather than reused: `follow_native_rewrites` above may
+        // have just reset a checkout to a new tip, so the snapshot taken
+        // before it can be stale.
         let checkouts = checkout_paths(repo_path).await;
         let name_to_branch = names_to_branches(&checkouts);
         // Worktree dir name → its checkout path, the same dir-name match
@@ -2354,6 +2502,23 @@ mod tests {
 
     fn map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         pairs.iter().map(|(a, b)| ((*a).to_string(), (*b).to_string())).collect()
+    }
+
+    #[test]
+    fn decide_follow_action_table() {
+        use FollowAction::*;
+        // In sync / ahead-only: nothing to follow.
+        assert_eq!(decide_follow_action(0, 0, 0, false), None);
+        assert_eq!(decide_follow_action(2, 0, 2, false), None);
+        // Strictly behind: plain catch-up.
+        assert_eq!(decide_follow_action(0, 3, 0, false), FastForward);
+        // Diverged with nothing genuinely local: adopt GitHub's rewrite.
+        assert_eq!(decide_follow_action(2, 3, 0, false), AdoptOrigin);
+        // Diverged with real local work: never discard.
+        assert_eq!(decide_follow_action(2, 3, 1, false), None);
+        // Alfredo-authored divergence awaiting push: adopting would undo it.
+        assert_eq!(decide_follow_action(2, 3, 0, true), None);
+        assert_eq!(decide_follow_action(0, 3, 0, true), None);
     }
 
     // Regression coverage for fix I: `sync_stack_root` itself needs an
