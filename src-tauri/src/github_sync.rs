@@ -401,6 +401,15 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     // Task 14: keep the "Stack" navigation section in stacked PR bodies in sync
     sync_pr_stack_sections(&app_data_dir, &repo_paths, &all_prs).await;
 
+    // Refresh the auto-push ownership gate before anything below restacks or
+    // dissolves: branches whose PR belongs to someone else must never be
+    // lease-pushed as a side effect. Scoped to `succeeded_repos` for the same
+    // staleness reason; skipped when the gh user is unknown (no username → no
+    // basis to call anything foreign, and stale entries beat none).
+    if let Some(me) = resolve_github_username().await {
+        crate::stack_manager::update_foreign_pr_branches(&succeeded_repos, &all_prs, &me);
+    }
+
     // Task 11: check for merged parents and auto-clear stack parent config.
     // Scoped to `succeeded_repos`, not `repo_paths` — see the sweep-hazard
     // comment above.
