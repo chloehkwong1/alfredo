@@ -1060,6 +1060,68 @@ async fn rev_parse_head(worktree_path: &str) -> Result<String, AppError> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
+/// Where the current branch forked from `base_branch`: merge-base of HEAD and
+/// `origin/<base>` (falling back to the local base ref). This is the correct
+/// restack baseline for a worktree created on `base_branch`: for a freshly cut
+/// branch it equals HEAD (the base tip it was cut from), but for a pre-existing
+/// branch (a PR import) HEAD is the branch's *own* tip — recording that as the
+/// baseline makes the next `rebase --onto <parent> <baseline>` replay nothing
+/// and silently graft the branch's entire history away.
+pub async fn fork_point_sha(worktree_path: &str, base_branch: &str) -> Option<String> {
+    let short = base_branch.strip_prefix("origin/").unwrap_or(base_branch);
+    // Both the tracking ref and the local base are candidates, and either can
+    // lag the other (stale origin/<base> after an offline creation, stale
+    // local base after a fetch). Keep the newest fork point: a too-old
+    // baseline makes the next restack replay parent commits as the branch's own.
+    let mut fork: Option<String> = None;
+    for candidate in [format!("origin/{short}"), short.to_string()] {
+        let out = git_command()
+            .args(["merge-base", "HEAD", &candidate])
+            .current_dir(worktree_path)
+            .output()
+            .await
+            .ok()?;
+        if !out.status.success() {
+            continue;
+        }
+        let mb = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        fork = match fork {
+            Some(prev) if !is_ancestor(worktree_path, &prev, &mb).await => Some(prev),
+            _ => Some(mb),
+        };
+    }
+    fork
+}
+
+/// True iff `ancestor` is an ancestor of (or equal to) `descendant`.
+async fn is_ancestor(worktree_path: &str, ancestor: &str, descendant: &str) -> bool {
+    git_command()
+        .args(["merge-base", "--is-ancestor", ancestor, descendant])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Record `origin/<branch>` as the branch's upstream. For imported branches
+/// (fetched from the remote, so genuinely published) this is the honest
+/// tracking state — without it `@{upstream}` fails and the origin-sync banner
+/// misreads the branch as unpublished, offering a bogus "Publish" CTA.
+pub async fn set_branch_upstream(worktree_path: &str, branch: &str) -> Result<(), AppError> {
+    let out = git_command()
+        .args(["branch", &format!("--set-upstream-to=origin/{branch}"), branch])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git branch: {e}")))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(AppError::Git(format!("git branch --set-upstream-to failed: {stderr}")));
+    }
+    Ok(())
+}
+
 /// Rebase the current branch's commits since `baseline_sha` onto `target_sha`:
 /// `git rebase --onto <target> <baseline>`. Replays only the child's own commits,
 /// so it survives parent history rewrites and squash-merged parents.
@@ -2275,6 +2337,125 @@ mod tests {
         );
 
         delete_worktree(repo_path, "stacked-child", true, Some(base_path))
+            .await
+            .expect("delete should succeed");
+    }
+
+    #[tokio::test]
+    async fn fork_point_sha_is_fork_point_for_preexisting_branch() {
+        // The PR-import graft regression: a branch that already exists (fetched
+        // at its own tip) forked from its base earlier in history. The restack
+        // baseline must be that fork point — recording HEAD instead makes the
+        // next `rebase --onto <parent> <baseline>` replay nothing and silently
+        // discard every commit on the branch.
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+
+        let remote = TempDir::new().expect("remote dir");
+        StdCommand::new("git")
+            .args(["init", "--bare", "-b", "main"])
+            .current_dir(remote.path())
+            .output()
+            .expect("git init --bare");
+        run_git(root, &["remote", "add", "origin", remote.path().to_str().unwrap()]);
+        run_git(root, &["push", "-u", "origin", "main"]);
+
+        run_git(root, &["checkout", "-b", "parent"]);
+        let parent_tip = commit_file(dir.path(), "p.txt", "p1", "p1");
+        run_git(root, &["push", "origin", "parent"]);
+
+        run_git(root, &["checkout", "-b", "feature"]);
+        commit_file(dir.path(), "f.txt", "f1", "f1");
+        let head = commit_file(dir.path(), "f.txt", "f2", "f2");
+
+        let fork = fork_point_sha(root, "parent").await;
+        assert_eq!(fork.as_deref(), Some(parent_tip.as_str()));
+        assert_ne!(fork.as_deref(), Some(head.as_str()), "baseline must never be the branch's own tip");
+    }
+
+    #[tokio::test]
+    async fn fork_point_sha_equals_head_for_freshly_cut_branch() {
+        // A branch cut from the base tip has its fork point AT the base tip,
+        // which is also HEAD — the pre-fix baseline behavior must be preserved.
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+        run_git(root, &["checkout", "-b", "parent"]);
+        commit_file(dir.path(), "p.txt", "p1", "p1");
+        run_git(root, &["checkout", "-b", "fresh", "parent"]);
+
+        let fork = fork_point_sha(root, "parent").await;
+        assert_eq!(fork, Some(rev_parse(root, "HEAD")));
+    }
+
+    #[tokio::test]
+    async fn fork_point_sha_prefers_newest_fork_point_over_stale_tracking_ref() {
+        // Offline shape: the branch was cut from the *local* parent tip while
+        // origin/parent is a stale tracking ref further back. Taking the stale
+        // ref's merge-base would set the baseline before commits the branch
+        // already sits on, making the next restack replay parent commits.
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+
+        run_git(root, &["checkout", "-b", "parent"]);
+        let p1 = commit_file(dir.path(), "p.txt", "p1", "p1");
+        let p2 = commit_file(dir.path(), "p.txt", "p2", "p2");
+        run_git(root, &["update-ref", "refs/remotes/origin/parent", &p1]);
+        run_git(root, &["checkout", "-b", "fresh", "parent"]);
+
+        let fork = fork_point_sha(root, "parent").await;
+        assert_eq!(fork.as_deref(), Some(p2.as_str()), "must use the newest fork point, not the stale origin/parent");
+    }
+
+    #[tokio::test]
+    async fn imported_branch_upstream_points_at_its_remote_copy() {
+        // PR-import shape: `git fetch origin X:X` creates the local branch with
+        // no tracking config, so the panel shows a bogus "No upstream branch /
+        // Publish". After set_branch_upstream the branch must count as
+        // published and in sync with its remote copy.
+        let dir = init_test_repo();
+        let root = dir.path().to_str().unwrap();
+
+        let remote = TempDir::new().expect("remote dir");
+        StdCommand::new("git")
+            .args(["init", "--bare", "-b", "main"])
+            .current_dir(remote.path())
+            .output()
+            .expect("git init --bare");
+        run_git(root, &["remote", "add", "origin", remote.path().to_str().unwrap()]);
+        run_git(root, &["push", "-u", "origin", "main"]);
+
+        // Someone else's branch: exists on the remote, not locally.
+        run_git(root, &["checkout", "-b", "feature"]);
+        commit_file(dir.path(), "f.txt", "f1", "f1");
+        run_git(root, &["push", "origin", "feature"]);
+        run_git(root, &["checkout", "main"]);
+        run_git(root, &["branch", "-D", "feature"]);
+        run_git(root, &["update-ref", "-d", "refs/remotes/origin/feature"]);
+
+        // The import flow's fetch, then a worktree on the existing branch.
+        run_git(root, &["fetch", "origin", "feature:feature"]);
+        let base_dir = TempDir::new().expect("create base temp dir");
+        let base_path = base_dir.path().to_str().unwrap();
+        let wt_path = create_worktree(root, "feature", "main", Some(base_path))
+            .await
+            .expect("create_worktree should succeed");
+        let wt = wt_path.to_str().unwrap();
+
+        assert_eq!(
+            ahead_behind_vs_upstream(wt).unwrap(),
+            None,
+            "sanity: the imported branch starts with no upstream"
+        );
+
+        set_branch_upstream(wt, "feature").await.expect("set upstream");
+
+        assert_eq!(
+            ahead_behind_vs_upstream(wt).unwrap(),
+            Some((0, 0)),
+            "imported branch must track its own remote copy"
+        );
+
+        delete_worktree(root, "feature", true, Some(base_path))
             .await
             .expect("delete should succeed");
     }

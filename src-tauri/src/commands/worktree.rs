@@ -186,19 +186,14 @@ pub async fn create_worktree(
     let stack_parent = if is_stacked {
         let parent = base_branch.strip_prefix("origin/").unwrap_or(&base_branch);
 
-        // Record the restack baseline: the parent tip the new branch was cut from.
-        // `HEAD^{}` of the fresh worktree == the base tip at creation time.
-        let mut base_sha: Option<String> = None;
-        if let Ok(output) = git_command()
-            .args(["rev-parse", "HEAD"])
-            .current_dir(&worktree_path)
-            .output()
-            .await
-        {
-            if output.status.success() {
-                base_sha = Some(String::from_utf8_lossy(&output.stdout).trim().to_string());
-            }
-        }
+        // Record the restack baseline: where this branch forked from the parent.
+        // For a freshly cut branch that's HEAD (the base tip it was cut from), but
+        // for a pre-existing branch (PR import) HEAD is the branch's own tip —
+        // recording that would make the next restack's `--onto <parent> <baseline>`
+        // replay nothing and graft the branch's history away. merge-base covers
+        // both. None (unrelated histories) just skips the write; the restack
+        // machinery derives an adoption baseline later.
+        let base_sha = git_manager::fork_point_sha(&path_str, &base_branch).await;
 
         Some((parent.to_string(), base_sha))
     } else {
@@ -1286,7 +1281,15 @@ async fn create_worktree_from_pr(app: &AppHandle, repo_path: String, pr_number: 
         draft: pr.draft,
     };
     let worktree =
-        create_worktree(app.clone(), app.state::<PortConfigLock>(), repo_path, branch_name, base).await?;
+        create_worktree(app.clone(), app.state::<PortConfigLock>(), repo_path, branch_name.clone(), base).await?;
+
+    // The fetch above created the local branch with no tracking config, so the
+    // origin-sync banner would misread this genuinely-published branch as
+    // "No upstream branch" with a Publish CTA. Best-effort: the worktree is
+    // already usable, and a failure here only leaves that cosmetic banner.
+    if let Err(e) = git_manager::set_branch_upstream(&worktree.path, &branch_name).await {
+        tracing::warn!(error = %e, branch = %branch_name, "[create_worktree_from_pr] set upstream failed");
+    }
 
     // Persist the PR association so the sidebar link survives restarts even if
     // this PR ages out of the sync window before the next launch. Best-effort:
