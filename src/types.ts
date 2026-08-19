@@ -63,6 +63,7 @@ export type StackRebaseStatus =
   | { kind: "conflict" }
   | { kind: "skippedDirty" }
   | { kind: "pushFailed" }
+  | { kind: "needsPush" }
   | { kind: "rewrittenExternally" };
 
 /** A merged-parent restack Alfredo has queued but deferred. Event-fed

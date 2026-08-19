@@ -28,6 +28,7 @@ const ATTENTION_KINDS = new Set([
   "pushFailed",
   "behind",
   "rebasing",
+  "needsPush",
   "rewrittenExternally",
 ]);
 

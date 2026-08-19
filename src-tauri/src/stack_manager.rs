@@ -808,9 +808,14 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
         // derived fresh per sync, never persisted), but if one ever appears,
         // "the sync just verified this branch is on the default tip" is
         // exactly the evidence that clears it.
+        // `NeedsPush` persists until the user manually pushes (the tree becomes
+        // clean or the branch reaches the remote), so the badge survives like
+        // `PushFailed` but without automatic retry — native members never
+        // auto-push.
         Some(
             StackRebaseStatus::Conflict
             | StackRebaseStatus::SkippedDirty
+            | StackRebaseStatus::NeedsPush
             | StackRebaseStatus::RewrittenExternally,
         ) => {
             if !worktree_is_dirty(&root.path, true).await {

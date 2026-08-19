@@ -268,6 +268,12 @@ describe("memberStateText", () => {
       ),
     ).toBe("restacked by GitHub");
   });
+
+  it("labels a local restack awaiting explicit push", () => {
+    expect(memberStateText(makeMember({ stackRebaseStatus: { kind: "needsPush" } }))).toBe(
+      "restacked · push to update PR",
+    );
+  });
 });
 
 // The row colour must visually tie the state text to the cue it explains: the
@@ -296,6 +302,12 @@ describe("memberStateClass", () => {
       prStatus: { merged: true } as PrStatus,
     });
     expect(memberStateClass(m)).toBe("text-status-error");
+  });
+
+  it("ambers needsPush — an attention state, not an error", () => {
+    expect(memberStateClass(makeMember({ stackRebaseStatus: { kind: "needsPush" } }))).toBe(
+      "text-amber-400",
+    );
   });
 });
 

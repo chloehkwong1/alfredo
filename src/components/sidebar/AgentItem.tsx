@@ -505,6 +505,9 @@ function AgentItemContent({
             {worktree.stackRebaseStatus?.kind === "pushFailed" && (
               <span className="flex-shrink-0 text-status-error">· restacked, push failed</span>
             )}
+            {worktree.stackRebaseStatus?.kind === "needsPush" && (
+              <span className="flex-shrink-0 text-amber-400">· restacked — push to update PR</span>
+            )}
             {worktree.stackRebaseStatus?.kind === "rewrittenExternally" && (
               <span className="flex-shrink-0 text-status-error">· rebased outside Alfredo</span>
             )}

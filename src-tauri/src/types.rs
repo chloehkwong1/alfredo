@@ -124,6 +124,10 @@ pub enum StackRebaseStatus {
     Conflict,
     SkippedDirty,
     PushFailed,
+    /// Alfredo rebased this native-stack member locally but did not push —
+    /// native members never get automatic remote writes. The PR is stale
+    /// until the user pushes explicitly.
+    NeedsPush,
     /// The branch was rebased/rewritten outside Alfredo: the persisted stack
     /// baseline is no longer an ancestor of HEAD, so no automatic `--onto`
     /// floor is trustworthy. Auto-restack refuses; recovery is manual.

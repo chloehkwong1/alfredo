@@ -184,6 +184,7 @@ function stateText(s: StackRebaseStatus | null | undefined): string {
     case "conflict": return "conflict on rebase";
     case "skippedDirty": return "paused — uncommitted changes";
     case "pushFailed": return "restacked · push failed";
+    case "needsPush": return "restacked · push to update PR";
     case "rewrittenExternally": return "rebased outside Alfredo — restack manually";
     default: return "up to date";
   }
