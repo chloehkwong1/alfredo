@@ -295,6 +295,11 @@ pub async fn check_and_rebase(
     // missing CLI.
     let mut registry: Option<HashMap<String, String>> = None;
 
+    let auto_sync_native = crate::app_config_manager::load(app_data_dir)
+        .await
+        .map(|c| c.auto_sync_native_stacks)
+        .unwrap_or(true);
+
     for repo_path in repo_paths {
         // Task 13: detect stale parents (merged into main) first. Shares this
         // poll's registry slot so the two paths never poll `claude` twice.
@@ -339,12 +344,19 @@ pub async fn check_and_rebase(
         // Full-repo dependency order; a mid-cascade parent's new tip is picked up
         // because restack_child re-resolves the parent tip per child.
         for child_name in restack_order(&config.stack_parent_overrides, &name_to_branch) {
-            // Native GitHub Stack member: GitHub rebases it server-side, so the
-            // auto path must not touch it (and must not advance its baseline,
-            // which would silently mark it clean). Manual "Restack now" still works.
-            if native_children.contains(&child_name) {
-                continue;
-            }
+            // Native GitHub Stack member: GitHub rewrites it server-side, but
+            // only around merges and only on the remote — between merges the
+            // local tree drifts behind its moved parent with nobody fixing it.
+            // With auto-sync on, rebase it locally like any stacked child, in
+            // NoPush mode: remote writes for native members stay explicit.
+            let push_mode = if native_children.contains(&child_name) {
+                if !auto_sync_native {
+                    continue;
+                }
+                PushMode::NoPush
+            } else {
+                PushMode::LeasePush
+            };
             let Some(parent_branch) = config.stack_parent_overrides.get(&child_name) else {
                 continue;
             };
@@ -379,7 +391,7 @@ pub async fn check_and_rebase(
                 repo_path,
                 &child_name,
                 true,
-                PushMode::LeasePush,
+                push_mode,
             )
             .await;
         }
@@ -1531,10 +1543,6 @@ async fn rebase_in_progress(worktree_path: &str) -> bool {
 #[derive(Clone, Copy, PartialEq)]
 enum PushMode {
     LeasePush,
-    // Not constructed yet — Task 5 wires the native-member caller that passes
-    // this. Allowed here so the clippy gate doesn't block landing the plumbing
-    // ahead of its only producer.
-    #[allow(dead_code)]
     NoPush,
 }
 
