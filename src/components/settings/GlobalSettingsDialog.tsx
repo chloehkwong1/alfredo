@@ -398,6 +398,21 @@ function GlobalSettingsDialog({
                   </div>
                 </div>
 
+                <div className="flex items-start justify-between gap-4 mt-4">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-medium text-text-primary">Keep native GitHub stacks in sync locally</div>
+                    <p className="text-xs text-text-tertiary mt-[5px]">
+                      Follow GitHub's server-side restacks in your local checkouts when it's provably safe, and rebase stacked branches onto moved parents. Never pushes — updating the PR stays a click.
+                    </p>
+                  </div>
+                  <div className="shrink-0 pt-0.5">
+                    <Toggle
+                      checked={appConfig.autoSyncNativeStacks !== false}
+                      onChange={(v) => updateAppConfig({ autoSyncNativeStacks: v })}
+                    />
+                  </div>
+                </div>
+
                 <SectionTitle>Diff View</SectionTitle>
                 <Field label="Default diff view" hint="Applied when a worktree has no explicit view mode set.">
                   <div className="flex border border-border-default rounded overflow-hidden w-fit">

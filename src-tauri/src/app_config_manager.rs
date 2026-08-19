@@ -51,6 +51,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
             auto_pull_review_requests: true,
+            auto_sync_native_stacks: true,
             whats_new_last_seen: None,
         });
     }
@@ -221,6 +222,7 @@ pub async fn migrate_if_needed(
         dismissed_lifecycle_nudge: false,
         receive_beta_updates: false,
         auto_pull_review_requests: true,
+        auto_sync_native_stacks: true,
         whats_new_last_seen: None,
     };
 
@@ -294,6 +296,7 @@ mod tests {
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
             auto_pull_review_requests: true,
+            auto_sync_native_stacks: true,
             whats_new_last_seen: None,
         };
         save(dir.path(), &config).await?;
@@ -346,6 +349,7 @@ mod tests {
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
             auto_pull_review_requests: true,
+            auto_sync_native_stacks: true,
             whats_new_last_seen: None,
         };
         let result = add_repo(&mut config, "/tmp/repo".into(), RepoMode::Branch);
@@ -395,6 +399,7 @@ mod tests {
             dismissed_lifecycle_nudge: false,
             receive_beta_updates: false,
             auto_pull_review_requests: true,
+            auto_sync_native_stacks: true,
             whats_new_last_seen: None,
         };
         remove_repo(&mut config, "/tmp/a");
@@ -478,5 +483,11 @@ mod tests {
     fn test_auto_pull_review_requests_defaults_true() {
         let config: crate::types::GlobalAppConfig = serde_json::from_str("{}").unwrap();
         assert!(config.auto_pull_review_requests);
+    }
+
+    #[test]
+    fn test_auto_sync_native_stacks_defaults_true() {
+        let config: crate::types::GlobalAppConfig = serde_json::from_str("{}").unwrap();
+        assert!(config.auto_sync_native_stacks);
     }
 }

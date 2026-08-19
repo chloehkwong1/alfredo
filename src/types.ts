@@ -636,6 +636,8 @@ export interface GlobalAppConfig {
   receiveBetaUpdates?: boolean;
   /** Auto-create worktrees for PRs awaiting your review. Default true. */
   autoPullReviewRequests?: boolean;
+  /** Native GitHub Stack members: follow server-side branch rewrites locally. Default true. */
+  autoSyncNativeStacks?: boolean;
   /** First-time worktree-lifecycle nudge has been dismissed by the user. */
   dismissedLifecycleNudge?: boolean;
   /** Newest what's-new entry version the user has dismissed, e.g. "0.19.0". */

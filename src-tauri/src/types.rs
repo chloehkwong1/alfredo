@@ -704,6 +704,10 @@ pub struct GlobalAppConfig {
     /// Auto-create worktrees for PRs where the user is a requested reviewer.
     #[serde(default = "default_true")]
     pub auto_pull_review_requests: bool,
+    /// Native GitHub Stack members: follow server-side branch rewrites
+    /// locally and auto-rebase onto moved local parents — never auto-push.
+    #[serde(default = "default_true")]
+    pub auto_sync_native_stacks: bool,
     /// Newest `whats-new.md` entry version the user has dismissed, e.g.
     /// "0.19.0". Absent means never shown — see `decideWhatsNew` on the
     /// frontend for how a fresh install is distinguished from an upgrade.
