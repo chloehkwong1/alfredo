@@ -1,0 +1,37 @@
+src/api.ts
+  s_458e71e9a99b81::t_0c734a001384fe 216-221
+src-tauri/src/stack_manager.rs
+  s_458e71e9a99b81::t_ea4cd19f8e5524 1480-1505
+src-tauri/src/lib.rs
+  s_458e71e9a99b81::t_5de093c25f67a7 358
+src/components/sidebar/AgentItem.test.ts
+  s_458e71e9a99b81::t_77844c77ecd996 4
+  s_458e71e9a99b81::t_a503b91095a1dd 346-354
+src/components/sidebar/StackMapPopover.tsx
+  s_458e71e9a99b81::t_460565634b6393 599-608
+  s_458e71e9a99b81::t_15e9d870efcc65 530-532
+  s_458e71e9a99b81::t_417a14be9bc487 348-352
+  s_458e71e9a99b81::t_7edf1360f51d28 618
+  s_458e71e9a99b81::t_cb15608ae11183 3,7
+  s_458e71e9a99b81::t_e5b5f5c6c93442 485-494
+  s_458e71e9a99b81::t_c4477310b57a5d 90-107
+src-tauri/src/commands/worktree.rs
+  s_458e71e9a99b81::t_74af47b49b52ed 723-733
+  s_458e71e9a99b81::t_0ed4340af4fd98 720-722
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a4d2c95a44f31d20768a0d2963678866d3637b4c",
+  "prompts": {},
+  "sessions": {
+    "s_458e71e9a99b81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5df0cccc-779e-48dc-8391-8ac6ad96a4ac",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
