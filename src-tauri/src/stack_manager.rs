@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::{LazyLock, Mutex};
 
@@ -107,6 +107,48 @@ fn clear_sticky_status(repo_path: &str, worktree_name: &str) {
 
 fn sticky_status(repo_path: &str, worktree_name: &str) -> Option<StackRebaseStatus> {
     STICKY_STATUS.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
+}
+
+/// Repo path → names of branches whose PR is authored by someone else. Feeds
+/// the auto-push ownership gate in `push_with_lease_or_flag`: Alfredo must
+/// never rewrite a colleague's PR branch on the remote as a side effect of a
+/// restack (the explicit Push-now action stays available for deliberate
+/// pushes). Refreshed from each sync poll's PR payload; holds both the mangled
+/// dir-name form and the raw branch, mirroring `native_member_worktrees`.
+static FOREIGN_PR_NAMES: LazyLock<Mutex<HashMap<String, HashSet<String>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Rebuild the foreign-branch sets for the repos this poll actually covered.
+/// Repos absent from `repo_paths` keep their last known sets — a failed poll
+/// contributed no PRs, and wiping its entries would un-gate exactly when the
+/// data went stale. Unknown authors are not foreign: local-only stacks have no
+/// PR at all, and blocking their auto-push would regress the core flow.
+pub fn update_foreign_pr_branches(
+    repo_paths: &[String],
+    prs: &[crate::github_sync::PrStatusWithColumn],
+    me: &str,
+) {
+    let Ok(mut map) = FOREIGN_PR_NAMES.lock() else { return };
+    for repo_path in repo_paths {
+        let names: HashSet<String> = prs
+            .iter()
+            .filter(|pr| {
+                pr.repo_path == *repo_path
+                    && pr.author.as_deref().is_some_and(|a| !a.eq_ignore_ascii_case(me))
+            })
+            .flat_map(|pr| [pr.branch.clone(), pr.branch.replace('/', "-")])
+            .collect();
+        map.insert(canonicalized_repo(repo_path), names);
+    }
+}
+
+/// Whether `name` (worktree dir name or raw branch) belongs to someone else's PR.
+fn is_foreign_pr_name(repo_path: &str, name: &str) -> bool {
+    FOREIGN_PR_NAMES
+        .lock()
+        .ok()
+        .and_then(|map| map.get(&canonicalized_repo(repo_path)).map(|s| s.contains(name)))
+        .unwrap_or(false)
 }
 
 /// Worktree → a merged-parent restack that is queued but deferred (dirty tree
@@ -1017,7 +1059,7 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
 
     match sticky_status(repo_path, &root.name) {
         Some(StackRebaseStatus::PushFailed) => {
-            push_with_lease_or_flag(app_handle, repo_path, &root.path, &root.name).await;
+            push_with_lease_or_flag(app_handle, repo_path, &root.path, &root.name, PushGate::Auto).await;
             if sticky_status(repo_path, &root.name).is_none() {
                 emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
             }
@@ -1477,6 +1519,28 @@ async fn worktree_checkout_path(
         .unwrap_or_else(|| resolve_worktree_path(repo_path, worktree_name, config))
 }
 
+/// Current branch of a worktree checkout. Mirrors the `symbolic-ref` parsing
+/// `has_matching_upstream` does internally — that function only returns a
+/// bool, but `push_branch` below needs the actual branch name to hand to
+/// `set_branch_upstream`.
+async fn current_branch(worktree_path: &str) -> Option<String> {
+    let output = git_command()
+        .args(["symbolic-ref", "--quiet", "--short", "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if branch.is_empty() {
+        None
+    } else {
+        Some(branch)
+    }
+}
+
 /// Explicit push for a `NeedsPush` member — the user's half of native
 /// auto-sync's rebase-locally/push-explicitly contract. Success clears the
 /// sticky flag (inside `push_with_lease_or_flag`); failure leaves the
@@ -1494,7 +1558,24 @@ pub async fn push_branch(
     if !std::path::Path::new(&worktree_path).exists() {
         return Err(format!("worktree path does not exist: {worktree_path}"));
     }
-    push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name).await;
+
+    // `push_with_lease_or_flag` treats "no upstream" as "nothing to push" and
+    // clears sticky — correct for the background auto-sync poll, wrong here:
+    // this is the user's explicit "Push" action on a `NeedsPush` member, and a
+    // branch that's missing tracking config (PR imports made before the fix in
+    // 0278c987 set it up automatically) would otherwise read as a silent
+    // success while the PR stays stale. Set the upstream first so the push
+    // actually runs, or fail loudly instead of faking a "Pushed" toast.
+    if !git_manager::has_matching_upstream(&worktree_path).await {
+        let Some(branch) = current_branch(&worktree_path).await else {
+            return Err(format!("could not resolve current branch for {worktree_name}"));
+        };
+        git_manager::set_branch_upstream(&worktree_path, &branch)
+            .await
+            .map_err(|_| format!("no upstream for {branch} — publish the branch first"))?;
+    }
+
+    push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name, PushGate::Explicit).await;
     if sticky_status(repo_path, worktree_name).is_none() {
         emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
         Ok(())
@@ -1585,7 +1666,7 @@ async fn restack_child_inner(
             // successful no-op. Poll-driven calls skip it: silently retrying a
             // failing push every 60s is network churn with no new information.
             Some(StackRebaseStatus::PushFailed) if !auto => {
-                push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name).await;
+                push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name, PushGate::Auto).await;
                 if sticky_status(repo_path, worktree_name).is_none() {
                     emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
                 }
@@ -1813,7 +1894,7 @@ async fn run_restack(
             let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
             match push {
                 PushMode::LeasePush => {
-                    push_with_lease_or_flag(app_handle, repo_path, worktree_path, worktree_name).await;
+                    push_with_lease_or_flag(app_handle, repo_path, worktree_path, worktree_name, PushGate::Auto).await;
                 }
                 // The status event lands after rebase-complete, so the
                 // frontend's transient upToDate is immediately corrected.
@@ -1845,12 +1926,57 @@ async fn run_restack(
 /// A failure is also recorded as sticky, because `compute_stack_statuses` runs
 /// moments later in the same poll and would otherwise replace it with the
 /// commit-count status of a branch that is, locally, perfectly up to date.
+/// Whether a push was requested by the user for this exact branch, or is a
+/// side effect of a restack/heal. `Auto` pushes are refused for branches whose
+/// PR belongs to someone else — see `FOREIGN_PR_NAMES`.
+#[derive(Clone, Copy, PartialEq)]
+enum PushGate {
+    Auto,
+    Explicit,
+}
+
+/// True when this worktree's branch belongs to someone else's PR. Checks the
+/// dir name and, for adopted worktrees whose dir name no mangling reproduces,
+/// the actual checked-out branch.
+async fn is_foreign_pr_worktree(repo_path: &str, worktree_path: &str, worktree_name: &str) -> bool {
+    if is_foreign_pr_name(repo_path, worktree_name) {
+        return true;
+    }
+    let Ok(out) = git_command()
+        .args(["symbolic-ref", "--quiet", "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+        .await
+    else {
+        return false;
+    };
+    if !out.status.success() {
+        return false; // detached HEAD — nothing pushable anyway
+    }
+    let head = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    head.strip_prefix("refs/heads/")
+        .is_some_and(|branch| is_foreign_pr_name(repo_path, branch))
+}
+
 async fn push_with_lease_or_flag(
     app_handle: &AppHandle,
     repo_path: &str,
     worktree_path: &str,
     worktree_name: &str,
+    gate: PushGate,
 ) {
+    // Ownership gate: a restack may rewrite a colleague's PR branch locally
+    // (that's the sync contract), but the remote stays theirs. Surface the
+    // divergence as NeedsPush — the explicit Push-now action is the deliberate
+    // way through.
+    if gate == PushGate::Auto && is_foreign_pr_worktree(repo_path, worktree_path, worktree_name).await {
+        eprintln!(
+            "[stack_manager] auto-push refused for {worktree_name}: its PR is authored by someone else"
+        );
+        set_sticky_status(repo_path, worktree_name, StackRebaseStatus::NeedsPush);
+        emit_status(app_handle, worktree_name, StackRebaseStatus::NeedsPush);
+        return;
+    }
     if git_manager::has_matching_upstream(worktree_path).await {
         if let Err(e) =
             crate::commands::git_ops::git_push_force_with_lease(worktree_path.to_string()).await
@@ -2132,7 +2258,7 @@ pub async fn change_base(
             if new_parent.is_none() {
                 let _ = app_handle.emit("stack:parent-merged", worktree_name.to_string());
             }
-            push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name).await;
+            push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name, PushGate::Auto).await;
             // Dissolved: no `stack_parent_overrides` entry survives, so
             // `compute_stack_statuses` will never visit this worktree again and
             // any sticky entry (including a `PushFailed` just set above) would
@@ -3456,6 +3582,59 @@ mod tests {
         }
     }
 
+    fn pr_authored(
+        branch: &str,
+        repo_path: &str,
+        author: Option<&str>,
+    ) -> crate::github_sync::PrStatusWithColumn {
+        let mut pr = pr_with_native(branch, repo_path, false);
+        pr.author = author.map(Into::into);
+        pr
+    }
+
+    // Auto-push ownership gate: only branches whose PR is authored by someone
+    // else are foreign. Unknown authors stay pushable (local-only stacks have
+    // no PR at all), the login comparison is case-insensitive like every other
+    // login comparison in github_sync, and both name forms are gated (mangled
+    // dir name and raw branch, mirroring native_member_worktrees).
+    #[test]
+    fn foreign_pr_branches_flag_other_authors_only() {
+        update_foreign_pr_branches(
+            &["/repo/fga".into()],
+            &[
+                pr_authored("feat/mine", "/repo/fga", Some("chloe")),
+                pr_authored("feat/theirs", "/repo/fga", Some("josh")),
+                pr_authored("feat/unknown", "/repo/fga", None),
+            ],
+            "Chloe",
+        );
+
+        assert!(!is_foreign_pr_name("/repo/fga", "feat-mine"), "own PR is not foreign");
+        assert!(is_foreign_pr_name("/repo/fga", "feat-theirs"), "someone else's PR is foreign");
+        assert!(is_foreign_pr_name("/repo/fga", "feat/theirs"), "raw branch form is gated too");
+        assert!(!is_foreign_pr_name("/repo/fga", "feat-unknown"), "unknown author must not block");
+        assert!(!is_foreign_pr_name("/repo/other", "feat-theirs"), "scoped per repo");
+    }
+
+    // A poll that succeeded for one repo must not wipe another repo's knowledge:
+    // only the repos named in `repo_paths` are rewritten.
+    #[test]
+    fn foreign_pr_update_rewrites_only_polled_repos() {
+        update_foreign_pr_branches(
+            &["/repo/fgb1".into(), "/repo/fgb2".into()],
+            &[
+                pr_authored("feat/one", "/repo/fgb1", Some("josh")),
+                pr_authored("feat/two", "/repo/fgb2", Some("josh")),
+            ],
+            "chloe",
+        );
+        // Second poll: fgb1 succeeded (its PR merged away → no PRs), fgb2 failed.
+        update_foreign_pr_branches(&["/repo/fgb1".into()], &[], "chloe");
+
+        assert!(!is_foreign_pr_name("/repo/fgb1", "feat-one"), "polled repo is rewritten");
+        assert!(is_foreign_pr_name("/repo/fgb2", "feat-two"), "unpolled repo keeps its entries");
+    }
+
     // The stand-down guard predicate, in the shape the dissolve/restack loops
     // key on: worktree names, scoped to one repo. Union of two signals — the
     // mangled branch form (`/` → `-`) and the actual checked-out branch, so
@@ -3583,5 +3762,27 @@ mod tests {
             check_baseline(repo_path, &old_parent_tip, &new_parent_tip).await,
             BaselineCheck::AlreadyOnTarget
         ));
+    }
+
+    // `push_branch` itself needs an `AppHandle` fixture this test module
+    // doesn't have, so the upstream-repair branch-name lookup it depends on is
+    // covered at the helper level: `current_branch` must resolve the checked
+    // out branch (the PR-import shape `push_branch` repairs is a branch with no
+    // upstream but a real HEAD) and must not misreport during detached HEAD.
+    #[tokio::test]
+    async fn current_branch_resolves_the_checked_out_branch() {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+        run_git(repo_path, &["checkout", "-b", "feat/no-upstream"]);
+        assert_eq!(current_branch(repo_path).await, Some("feat/no-upstream".to_string()));
+    }
+
+    #[tokio::test]
+    async fn current_branch_is_none_when_head_is_detached() {
+        let repo = init_test_repo();
+        let repo_path = repo.path().to_str().expect("utf8 path");
+        let head = run_git(repo_path, &["rev-parse", "HEAD"]);
+        run_git(repo_path, &["checkout", &head]);
+        assert_eq!(current_branch(repo_path).await, None);
     }
 }

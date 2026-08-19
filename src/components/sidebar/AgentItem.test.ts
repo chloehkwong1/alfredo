@@ -351,4 +351,14 @@ describe("firstNeedsPush", () => {
     expect(firstNeedsPush([a, b])).toBe(b);
     expect(firstNeedsPush([a])).toBeUndefined();
   });
+
+  it("skips a merged member with a lingering needsPush sticky", () => {
+    const merged = makeMember({
+      stackRebaseStatus: { kind: "needsPush" },
+      prStatus: { merged: true } as PrStatus,
+    });
+    const open = makeMember({ stackRebaseStatus: { kind: "needsPush" } });
+    expect(firstNeedsPush([merged, open])).toBe(open);
+    expect(firstNeedsPush([merged])).toBeUndefined();
+  });
 });

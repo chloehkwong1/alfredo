@@ -91,7 +91,7 @@ async function syncStackWithToast(repoPath: string, worktreeName: string, subjec
 /** First member (display order) whose local restack awaits an explicit push
  *  — the popover's Push-now target. */
 function firstNeedsPush(members: Worktree[]): Worktree | undefined {
-  return members.find((w) => w.stackRebaseStatus?.kind === "needsPush");
+  return members.find((w) => w.stackRebaseStatus?.kind === "needsPush" && !w.prStatus?.merged);
 }
 
 /** Run the explicit push for a NeedsPush member and toast the outcome. */
@@ -352,6 +352,13 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
   const needsPushWt = conflicted
     ? undefined
     : firstNeedsPush([anchorWorktree, ...localByBranch.values()]);
+  // Same trace the Alfredo skin shows (see `lastTrace` there) — Behavior-1
+  // resets only ever happen to native members, so this skin needs the footer
+  // too, not just AlfredoStackPopover's.
+  const lastTrace = [anchorWorktree, ...localByBranch.values()]
+    .map((w) => w.lastStackAction)
+    .filter((t): t is { action: string; at: number } => Boolean(t))
+    .sort((x, y) => y.at - x.at)[0];
   // Conflict owns the popover's action slot, so the pending banner yields to
   // it (mirroring AlfredoStackPopover). The anchor's pending wins, then roster
   // locals in tip-first order — the chip's "!" scans the whole local chain, so
@@ -501,6 +508,11 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
           >
             <ArrowUp className="h-3 w-3" /> Push {needsPushWt.branch}
           </PopoverActionButton>
+        </div>
+      )}
+      {lastTrace && (
+        <div className="px-3 pt-1.5 text-[10px] text-text-tertiary">
+          ↻ {lastTrace.action} · {formatRelativeTime(lastTrace.at / 1000)}
         </div>
       )}
     </div>
