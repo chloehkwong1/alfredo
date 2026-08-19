@@ -4,6 +4,7 @@ import { RefreshCw, ArrowUp } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useToastStore } from "../../stores/toastStore";
+import { useAppConfig } from "../../hooks/useAppConfig";
 import { restackStack, restackNow, resolveStackPending, getAheadBehindOrigin, pushStackBranch } from "../../api";
 import type { RestackOutcome, RestackStackSummary } from "../../api";
 import { resolveStackConflict } from "../../services/stackConflictHandoff";
@@ -320,6 +321,7 @@ function hiddenMembersNote(size: number, shownCount: number): string | null {
 function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClose }: NativeStackPopoverProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
+  const { config: appConfig } = useAppConfig();
   // The backend no longer auto-sweeps nativeRestacked pendings — the notice
   // persists until the user dismisses it here (resolve_stack_pending).
   const [pendingDismissed, setPendingDismissed] = useState(false);
@@ -447,7 +449,16 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
                 <>
                   <OriginCue ab={originSync[local.id]} />
                   {st !== "up to date" && st !== "merged ✓" && (
-                    <span className={`flex-shrink-0 ${memberStateClass(local)}`}>
+                    <span
+                      className={`flex-shrink-0 ${memberStateClass(local)}`}
+                      title={
+                        local.stackRebaseStatus?.kind === "behind"
+                          ? appConfig?.autoSyncNativeStacks !== false
+                            ? "GitHub only restacks on merge — Alfredo will rebase this locally on its next pass"
+                            : "Auto-sync is off — use Restack now"
+                          : undefined
+                      }
+                    >
                       {st}
                     </span>
                   )}

@@ -165,6 +165,23 @@ export function useGithubSync() {
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
+  // stack:native-followed — local checkout adopted GitHub's server-side rewrite
+  useEffect(() => {
+    const unlisten = listen<string>("stack:native-followed", (event) => {
+      const worktreeName = event.payload;
+      const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+      if (wt) {
+        useWorkspaceStore.getState().updateWorktree(wt.id, {
+          stackRebaseStatus: { kind: "upToDate" },
+          stackPending: null,
+          lastStackAction: { action: "followed GitHub restack", at: Date.now() },
+        });
+        refreshDiffStats(wt.id, wt.path, wt.stackParent);
+      }
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
   // stack:rebase-conflict — mark worktree status as conflict
   useEffect(() => {
     const unlisten = listen<string>("stack:rebase-conflict", (event) => {
