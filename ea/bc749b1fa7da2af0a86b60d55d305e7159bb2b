@@ -1,0 +1,32 @@
+src/components/sidebar/StackMapPopover.tsx
+  s_458e71e9a99b81::t_bb47a3177bf01d 187
+src/lib/stackChain.ts
+  s_458e71e9a99b81::t_a5b253e28e38f0 31
+src/components/sidebar/AgentItem.tsx
+  s_458e71e9a99b81::t_001d4113b1d957 508-510
+src/types.ts
+  s_458e71e9a99b81::t_a056fd247be4a3 66
+src-tauri/src/stack_manager.rs
+  s_458e71e9a99b81::t_d54daf39e24cb3 811-814,818
+src/components/sidebar/AgentItem.test.ts
+  s_458e71e9a99b81::t_00eba643f0800e 306-311
+  s_458e71e9a99b81::t_5860ad5e3fba01 271-276
+src-tauri/src/types.rs
+  s_458e71e9a99b81::t_96262b264f15b6 127-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "eabc749b1fa7da2af0a86b60d55d305e7159bb2b",
+  "prompts": {},
+  "sessions": {
+    "s_458e71e9a99b81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5df0cccc-779e-48dc-8391-8ac6ad96a4ac",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
