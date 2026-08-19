@@ -808,14 +808,9 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
         // derived fresh per sync, never persisted), but if one ever appears,
         // "the sync just verified this branch is on the default tip" is
         // exactly the evidence that clears it.
-        // `NeedsPush` persists until the user manually pushes (the tree becomes
-        // clean or the branch reaches the remote), so the badge survives like
-        // `PushFailed` but without automatic retry — native members never
-        // auto-push.
         Some(
             StackRebaseStatus::Conflict
             | StackRebaseStatus::SkippedDirty
-            | StackRebaseStatus::NeedsPush
             | StackRebaseStatus::RewrittenExternally,
         ) => {
             if !worktree_is_dirty(&root.path, true).await {
@@ -823,7 +818,13 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
                 emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
             }
         }
-        Some(StackRebaseStatus::UpToDate | StackRebaseStatus::Behind { .. } | StackRebaseStatus::Rebasing)
+        // `NeedsPush` persists until either a successful push (Task 4's
+        // convergence-based clearing in `compute_stack_statuses`) or upstream
+        // reaches the commit (no push needed). A rebase leaves the tree clean
+        // immediately, so we must NOT clear on clean — only push can clear it.
+        // Roots can't realistically be NeedsPush (only stack-parent children get
+        // it), so the no-op arm is both safe and semantically correct.
+        Some(StackRebaseStatus::UpToDate | StackRebaseStatus::Behind { .. } | StackRebaseStatus::Rebasing | StackRebaseStatus::NeedsPush)
         | None => {}
     }
 }
