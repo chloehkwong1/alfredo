@@ -167,9 +167,13 @@ export function useGithubSync() {
 
   // stack:native-followed — local checkout adopted GitHub's server-side rewrite
   useEffect(() => {
-    const unlisten = listen<string>("stack:native-followed", (event) => {
-      const worktreeName = event.payload;
-      const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+    const unlisten = listen<{ repoPath: string; worktreeName: string }>("stack:native-followed", (event) => {
+      const { repoPath, worktreeName } = event.payload;
+      // Matched on repo too: worktree names aren't unique across repos, and
+      // matching on name alone can mark another repo's worktree upToDate.
+      const wt = useWorkspaceStore
+        .getState()
+        .worktrees.find((w) => w.name === worktreeName && w.repoPath === repoPath);
       if (wt) {
         useWorkspaceStore.getState().updateWorktree(wt.id, {
           stackRebaseStatus: { kind: "upToDate" },

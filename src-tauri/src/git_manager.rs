@@ -717,11 +717,18 @@ pub fn ahead_behind_vs_upstream(worktree_path: &str) -> Result<Option<(u32, u32)
         return Err(AppError::Git(format!("git rev-list --left-right failed: {stderr}")));
     }
 
-    let s = String::from_utf8_lossy(&counts.stdout);
+    // HEAD...@{upstream}: left = ahead, right = behind.
+    let (ahead, behind) = parse_left_right_counts(&counts.stdout)?;
+    Ok(Some((ahead, behind)))
+}
+
+/// Parse `git rev-list --left-right --count` output into `(left, right)`.
+/// Both tokens must parse — otherwise the output format isn't what we expect
+/// and silently coercing to (0, 0) would mask a real failure as "in sync".
+fn parse_left_right_counts(stdout: &[u8]) -> Result<(u32, u32), AppError> {
+    let s = String::from_utf8_lossy(stdout);
     let mut parts = s.split_whitespace();
-    // Both tokens must parse — otherwise the output format isn't what we expect
-    // and silently coercing to (0, 0) would mask a real failure as "in sync".
-    let (Some(ahead), Some(behind)) = (
+    let (Some(left), Some(right)) = (
         parts.next().and_then(|n| n.parse::<u32>().ok()),
         parts.next().and_then(|n| n.parse::<u32>().ok()),
     ) else {
@@ -729,7 +736,7 @@ pub fn ahead_behind_vs_upstream(worktree_path: &str) -> Result<Option<(u32, u32)
             "git rev-list --left-right --count returned unexpected output: {s:?}"
         )));
     };
-    Ok(Some((ahead, behind)))
+    Ok((left, right))
 }
 
 /// Ahead/behind of the worktree's HEAD vs an arbitrary ref (e.g. a native
@@ -758,11 +765,11 @@ pub fn ahead_behind_vs_ref(
             String::from_utf8_lossy(&output.stderr)
         )));
     }
-    let text = String::from_utf8_lossy(&output.stdout);
-    let mut parts = text.split_whitespace();
-    // left = commits only on `ref_name` (we're behind by these), right = only on HEAD (ahead).
-    let behind = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
-    let ahead = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    // {ref_name}...HEAD: left = commits only on `ref_name` (we're behind by
+    // these), right = only on HEAD (ahead). Strict parse — a silent (0, 0)
+    // here would make `follow_native_rewrites` treat a diverged member as in
+    // sync and skip a needed follow.
+    let (behind, ahead) = parse_left_right_counts(&output.stdout)?;
     Ok(Some((ahead, behind)))
 }
 

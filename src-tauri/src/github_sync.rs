@@ -790,14 +790,17 @@ pub async fn update_pr_base_branch(
 }
 
 /// Resolve the authenticated GitHub username via `gh api user`.
-/// Caches the result for the lifetime of the process.
+/// Caches only a successful lookup for the lifetime of the process — a failure
+/// (gh not authed yet, transient network) must be retried on the next call,
+/// because an unknown username disables the auto-push ownership gate and
+/// caching the failure would disable it for the whole session.
 pub async fn resolve_github_username() -> Option<String> {
     use tokio::sync::OnceCell;
 
-    static CACHED_USERNAME: OnceCell<Option<String>> = OnceCell::const_new();
+    static CACHED_USERNAME: OnceCell<String> = OnceCell::const_new();
 
     CACHED_USERNAME
-        .get_or_init(|| async {
+        .get_or_try_init(|| async {
             gh_command()
                 .args(["api", "user", "--jq", ".login"])
                 .output()
@@ -805,14 +808,19 @@ pub async fn resolve_github_username() -> Option<String> {
                 .ok()
                 .and_then(|o| {
                     if o.status.success() {
-                        String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+                        String::from_utf8(o.stdout)
+                            .ok()
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty())
                     } else {
                         None
                     }
                 })
+                .ok_or(())
         })
         .await
-        .clone()
+        .ok()
+        .cloned()
 }
 
 const STACK_START: &str = "<!-- alfredo-stack-start -->";

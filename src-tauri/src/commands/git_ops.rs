@@ -173,6 +173,30 @@ pub async fn git_push_force_with_lease(repo_path: String) -> Result<()> {
     Ok(())
 }
 
+/// Run `git push --force-with-lease=<branch>:<expected>` — a pinned lease.
+/// The bare form leases on the remote-tracking ref, which every fetch silently
+/// advances; pinning the expectation keeps a deferred push honest about the
+/// remote state it was armed against (not a `#[tauri::command]` — backend-only).
+pub async fn git_push_force_with_lease_expect(
+    repo_path: &str,
+    branch: &str,
+    expected: &str,
+) -> Result<()> {
+    let output = git_command()
+        .args(["push", &format!("--force-with-lease={branch}:{expected}")])
+        .current_dir(repo_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git push: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Git(format!("git push failed: {stderr}")));
+    }
+
+    Ok(())
+}
+
 /// Run plain `git push` in the given repo (no force).
 #[tauri::command]
 pub async fn git_push(repo_path: String) -> Result<()> {

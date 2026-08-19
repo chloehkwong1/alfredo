@@ -29,6 +29,15 @@ struct StackPendingPayload {
     pending: Option<StackPendingAction>,
 }
 
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct NativeFollowedPayload {
+    // Same reason as `StackPendingPayload`: worktree dir names collide across
+    // repos, so the listener must be able to match on the repo too.
+    repo_path: String,
+    worktree_name: String,
+}
+
 // ── In-process memos ─────────────────────────────────────────────
 //
 // Both maps are keyed `<repo_path>::<worktree_name>` and deliberately live only
@@ -103,10 +112,38 @@ fn clear_sticky_status(repo_path: &str, worktree_name: &str) {
     if let Ok(mut map) = STICKY_STATUS.lock() {
         map.remove(&memo_key(repo_path, worktree_name));
     }
+    // The recorded push lease describes the push the sticky was inviting; it
+    // must not outlive it.
+    if let Ok(mut map) = NEEDS_PUSH_LEASE.lock() {
+        map.remove(&memo_key(repo_path, worktree_name));
+    }
 }
 
 fn sticky_status(repo_path: &str, worktree_name: &str) -> Option<StackRebaseStatus> {
     STICKY_STATUS.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
+}
+
+/// `(branch, origin tip)` recorded at the moment a `NeedsPush` sticky was set
+/// — the explicit push that sticky invites expects THIS remote state. A bare
+/// `--force-with-lease` leases on the remote-tracking ref, which every later
+/// sync fetch silently advances, so by click time it no longer protects the
+/// owner's newer commits; pinning the expectation here keeps the push honest.
+static NEEDS_PUSH_LEASE: LazyLock<Mutex<HashMap<String, (String, String)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Record the remote tip the pending `NeedsPush` push expects. Best-effort:
+/// when the branch or its origin ref can't be resolved, any previous entry is
+/// left as-is and the explicit push falls back to the bare-lease form.
+async fn record_push_lease(repo_path: &str, worktree_name: &str, worktree_path: &str) {
+    let Some(branch) = current_branch(worktree_path).await else { return };
+    let Some(sha) = remote_branch_tip(repo_path, &branch).await else { return };
+    if let Ok(mut map) = NEEDS_PUSH_LEASE.lock() {
+        map.insert(memo_key(repo_path, worktree_name), (branch, sha));
+    }
+}
+
+fn push_lease(repo_path: &str, worktree_name: &str) -> Option<(String, String)> {
+    NEEDS_PUSH_LEASE.lock().ok()?.get(&memo_key(repo_path, worktree_name)).cloned()
 }
 
 /// Repo path → names of branches whose PR is authored by someone else. Feeds
@@ -149,6 +186,50 @@ fn is_foreign_pr_name(repo_path: &str, name: &str) -> bool {
         .ok()
         .and_then(|map| map.get(&canonicalized_repo(repo_path)).map(|s| s.contains(name)))
         .unwrap_or(false)
+}
+
+/// Repo path → names (raw branch + mangled dir form) of native GitHub Stack
+/// member branches, refreshed every poll by `check_and_rebase`. Consulted by
+/// the manual restack path (`restack_child`), which has no PR payload of its
+/// own: native members follow the rebase-locally/push-explicitly contract on
+/// the manual path too, so it must not lease-push them. Same staleness rule as
+/// `FOREIGN_PR_NAMES`: entries persist until the next poll that covers the repo.
+static NATIVE_MEMBER_NAMES: LazyLock<Mutex<HashMap<String, HashSet<String>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn update_native_member_names(repo_path: &str, branches: &std::collections::HashSet<String>) {
+    let Ok(mut map) = NATIVE_MEMBER_NAMES.lock() else { return };
+    let names: HashSet<String> = branches
+        .iter()
+        .flat_map(|b| [b.clone(), b.replace('/', "-")])
+        .collect();
+    map.insert(canonicalized_repo(repo_path), names);
+}
+
+/// Whether `name` (worktree dir name or raw branch) is a native-stack member branch.
+fn is_native_member_name(repo_path: &str, name: &str) -> bool {
+    NATIVE_MEMBER_NAMES
+        .lock()
+        .ok()
+        .and_then(|map| map.get(&canonicalized_repo(repo_path)).map(|s| s.contains(name)))
+        .unwrap_or(false)
+}
+
+/// Native-member check for paths that only have a worktree name: dir-name
+/// match first, then the actual checked-out branch (adopted external worktrees
+/// have arbitrary dir names no mangling reproduces) — the same over-blocking
+/// union as `native_member_worktrees` and `is_foreign_pr_worktree`.
+async fn is_native_member_worktree(app_data_dir: &Path, repo_path: &str, worktree_name: &str) -> bool {
+    if is_native_member_name(repo_path, worktree_name) {
+        return true;
+    }
+    let Ok(config) = config_manager::load_personal_config(app_data_dir, repo_path).await else {
+        return false;
+    };
+    let path = worktree_checkout_path(repo_path, worktree_name, &config).await;
+    current_branch(&path)
+        .await
+        .is_some_and(|branch| is_native_member_name(repo_path, &branch))
 }
 
 /// Worktree → a merged-parent restack that is queued but deferred (dirty tree
@@ -363,8 +444,21 @@ async fn follow_native_rewrites(
     registry: &Option<HashMap<String, String>>,
 ) {
     git_manager::fetch_upstream_throttled(repo_path, false).await;
+    // `checkout_paths` includes the repo's main checkout, but Behavior 1 must
+    // never touch it: a background reset of the primary clone (possibly with a
+    // dev server running out of it) is out of the sync contract, and its dir
+    // name matches no sidebar worktree, so no status/trace would ever surface.
+    let repo_canonical = std::fs::canonicalize(repo_path).ok();
     for branch in native_branches {
         let Some(worktree_path) = checkouts.get(branch) else { continue };
+        if repo_canonical.is_some()
+            && std::fs::canonicalize(worktree_path).ok() == repo_canonical
+        {
+            eprintln!(
+                "[stack_manager] follow origin skipped for {branch}: checked out in the main repo checkout"
+            );
+            continue;
+        }
         let Some(worktree_name) = std::path::Path::new(worktree_path)
             .file_name()
             .and_then(|n| n.to_str())
@@ -377,9 +471,12 @@ async fn follow_native_rewrites(
         if rebase_in_progress(worktree_path).await || worktree_is_dirty(worktree_path, true).await {
             continue;
         }
+        // `PushFailed` counts too: it marks the same Alfredo-authored local
+        // divergence awaiting a (re)push — a failed explicit push must not
+        // downgrade the guard and let AdoptOrigin discard the local restack.
         let needs_push = matches!(
             sticky_status(repo_path, &worktree_name),
-            Some(StackRebaseStatus::NeedsPush)
+            Some(StackRebaseStatus::NeedsPush | StackRebaseStatus::PushFailed)
         );
 
         let origin_ref = format!("origin/{branch}");
@@ -455,7 +552,13 @@ async fn follow_native_rewrites(
                             }
                         }
                         emit_status(app_handle, &worktree_name, StackRebaseStatus::UpToDate);
-                        let _ = app_handle.emit("stack:native-followed", worktree_name.clone());
+                        let _ = app_handle.emit(
+                            "stack:native-followed",
+                            NativeFollowedPayload {
+                                repo_path: repo_path.to_string(),
+                                worktree_name: worktree_name.clone(),
+                            },
+                        );
                     }
                     Err(e) => {
                         // `--keep` refusing (untracked-file collision, local
@@ -488,10 +591,17 @@ pub async fn check_and_rebase(
     // missing CLI.
     let mut registry: Option<HashMap<String, String>> = None;
 
-    let auto_sync_native = crate::app_config_manager::load(app_data_dir)
-        .await
-        .map(|c| c.auto_sync_native_stacks)
-        .unwrap_or(true);
+    // Fail safe, not open: `load` already returns defaults (auto-sync ON) for
+    // a missing app.json, so an Err here is a real read/parse failure — and a
+    // user who explicitly disabled auto-sync must not get destructive local
+    // resets back because of one bad config read. Skip native sync this poll.
+    let auto_sync_native = match crate::app_config_manager::load(app_data_dir).await {
+        Ok(c) => c.auto_sync_native_stacks,
+        Err(e) => {
+            eprintln!("[stack_manager] app config load failed — treating native auto-sync as off this poll: {e}");
+            false
+        }
+    };
 
     for repo_path in repo_paths {
         // Task 13: detect stale parents (merged into main) first. Shares this
@@ -515,6 +625,9 @@ pub async fn check_and_rebase(
         // `stack_parent_overrides` — a pure-native repo has none of Alfredo's
         // own overrides but still needs following.
         let native_branches = crate::github_sync::native_member_branches(prs, repo_path);
+        // Refreshed unconditionally (even with auto-sync off): the manual
+        // "Restack now" path consults this to keep native members NoPush.
+        update_native_member_names(repo_path, &native_branches);
         if auto_sync_native && !native_branches.is_empty() {
             ensure_registry(&mut registry).await;
             let checkouts = checkout_paths(repo_path).await;
@@ -1080,13 +1193,29 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
                 emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
             }
         }
-        // `NeedsPush` persists until either a successful push (Task 4's
-        // convergence-based clearing in `compute_stack_statuses`) or upstream
-        // reaches the commit (no push needed). A rebase leaves the tree clean
-        // immediately, so we must NOT clear on clean — only push can clear it.
-        // Roots can't realistically be NeedsPush (only stack-parent children get
-        // it), so the no-op arm is both safe and semantically correct.
-        Some(StackRebaseStatus::UpToDate | StackRebaseStatus::Behind { .. } | StackRebaseStatus::Rebasing | StackRebaseStatus::NeedsPush)
+        // Roots DO earn `NeedsPush`: `sync_stack_root` reuses `run_restack`,
+        // whose lease push refuses foreign-authored branches (ownership gate)
+        // and flags them. `compute_stack_statuses`' convergence self-heal only
+        // iterates `stack_parent_overrides` — roots have no entry — so the
+        // same convergence rule must live here or the badge persists forever.
+        // A rebase leaves the tree clean immediately, so never clear on clean:
+        // only convergence with the upstream clears it.
+        Some(StackRebaseStatus::NeedsPush) => {
+            let path = root.path.clone();
+            let converged = tokio::task::spawn_blocking(move || {
+                git_manager::ahead_behind_vs_upstream(&path)
+            })
+            .await
+            .ok()
+            .and_then(std::result::Result::ok)
+            .flatten()
+                == Some((0, 0));
+            if converged {
+                clear_sticky_status(repo_path, &root.name);
+                emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
+            }
+        }
+        Some(StackRebaseStatus::UpToDate | StackRebaseStatus::Behind { .. } | StackRebaseStatus::Rebasing)
         | None => {}
     }
 }
@@ -1575,6 +1704,31 @@ pub async fn push_branch(
             .map_err(|_| format!("no upstream for {branch} — publish the branch first"))?;
     }
 
+    // A force-push with nothing local to push can only rewind the remote —
+    // the sticky that armed this button was stale. Converged is a benign
+    // no-op; strictly behind means origin has commits we don't, and pushing
+    // would discard them (on a foreign PR branch, someone else's work).
+    let wt = worktree_path.clone();
+    let ahead_behind = tokio::task::spawn_blocking(move || git_manager::ahead_behind_vs_upstream(&wt))
+        .await
+        .ok()
+        .and_then(std::result::Result::ok)
+        .flatten();
+    match ahead_behind {
+        Some((0, 0)) => {
+            clear_sticky_status(repo_path, worktree_name);
+            emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+            return Ok(());
+        }
+        Some((0, behind)) => {
+            clear_sticky_status(repo_path, worktree_name);
+            return Err(format!(
+                "nothing to push — origin is {behind} commit(s) ahead of {worktree_name}; refusing to rewind it"
+            ));
+        }
+        _ => {}
+    }
+
     push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name, PushGate::Explicit).await;
     if sticky_status(repo_path, worktree_name).is_none() {
         emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
@@ -1598,7 +1752,17 @@ pub async fn restack_child(
     worktree_name: &str,
 ) -> Result<RestackOutcome, String> {
     clear_conflict_memo(repo_path, worktree_name);
-    restack_child_inner(app_handle, app_data_dir, repo_path, worktree_name, false, PushMode::LeasePush).await
+    // Native GitHub Stack members keep the rebase-locally/push-explicitly
+    // contract on the manual path too: the popover sends auto-sync-off users
+    // here ("Auto-sync is off — use Restack now") while the settings copy
+    // promises no automatic remote writes for native stacks. NoPush surfaces
+    // NeedsPush; the explicit Push-now action stays the deliberate way through.
+    let push = if is_native_member_worktree(app_data_dir, repo_path, worktree_name).await {
+        PushMode::NoPush
+    } else {
+        PushMode::LeasePush
+    };
+    restack_child_inner(app_handle, app_data_dir, repo_path, worktree_name, false, push).await
 }
 
 /// `auto = true` marks the 60s background poll: it skips children whose current
@@ -1899,6 +2063,9 @@ async fn run_restack(
                 // The status event lands after rebase-complete, so the
                 // frontend's transient upToDate is immediately corrected.
                 PushMode::NoPush => {
+                    // Pin the remote tip this deferred push expects — see
+                    // `NEEDS_PUSH_LEASE`.
+                    record_push_lease(repo_path, worktree_name, worktree_path).await;
                     set_sticky_status(repo_path, worktree_name, StackRebaseStatus::NeedsPush);
                     emit_status(app_handle, worktree_name, StackRebaseStatus::NeedsPush);
                 }
@@ -1973,14 +2140,47 @@ async fn push_with_lease_or_flag(
         eprintln!(
             "[stack_manager] auto-push refused for {worktree_name}: its PR is authored by someone else"
         );
-        set_sticky_status(repo_path, worktree_name, StackRebaseStatus::NeedsPush);
-        emit_status(app_handle, worktree_name, StackRebaseStatus::NeedsPush);
+        // Only arm the Push-now escape hatch when there is local work to push:
+        // a refusal with nothing ahead (e.g. a heal retry) would pin a stale
+        // "push to update PR" badge whose later explicit force-push can only
+        // rewind the owner's branch. Unknown ahead counts as nothing — never
+        // arm a destructive button on a failed read.
+        let wt = worktree_path.to_string();
+        let ahead = tokio::task::spawn_blocking(move || git_manager::ahead_behind_vs_upstream(&wt))
+            .await
+            .ok()
+            .and_then(std::result::Result::ok)
+            .flatten()
+            .map_or(0, |(a, _)| a);
+        if ahead > 0 {
+            record_push_lease(repo_path, worktree_name, worktree_path).await;
+            set_sticky_status(repo_path, worktree_name, StackRebaseStatus::NeedsPush);
+            emit_status(app_handle, worktree_name, StackRebaseStatus::NeedsPush);
+        } else {
+            clear_sticky_status(repo_path, worktree_name);
+        }
         return;
     }
     if git_manager::has_matching_upstream(worktree_path).await {
-        if let Err(e) =
-            crate::commands::git_ops::git_push_force_with_lease(worktree_path.to_string()).await
-        {
+        // An explicit push consumes the lease recorded when its NeedsPush was
+        // armed, so a remote that moved since then refuses instead of rewinding.
+        // No recorded lease (e.g. app restarted since arming) falls back to the
+        // bare form, matching the auto path.
+        let pinned = (gate == PushGate::Explicit)
+            .then(|| push_lease(repo_path, worktree_name))
+            .flatten();
+        let push_result = match &pinned {
+            Some((branch, expected)) => {
+                crate::commands::git_ops::git_push_force_with_lease_expect(
+                    worktree_path,
+                    branch,
+                    expected,
+                )
+                .await
+            }
+            None => crate::commands::git_ops::git_push_force_with_lease(worktree_path.to_string()).await,
+        };
+        if let Err(e) = push_result {
             eprintln!("[stack_manager] lease push failed for {worktree_name}: {e}");
             set_sticky_status(repo_path, worktree_name, StackRebaseStatus::PushFailed);
             emit_status(app_handle, worktree_name, StackRebaseStatus::PushFailed);
@@ -3389,6 +3589,41 @@ mod tests {
     // Dissolution removes the `stack_parent_overrides` entry, so no later poll
     // would ever visit this worktree to clear its memos. A name that re-joins a
     // stack must not inherit a conflict badge or a suppressed rebase.
+    #[test]
+    fn clear_sticky_status_also_drops_recorded_push_lease() {
+        let repo = "/tmp/lease-test-repo";
+        let name = "lease-child";
+
+        if let Ok(mut map) = NEEDS_PUSH_LEASE.lock() {
+            map.insert(memo_key(repo, name), ("feat/x".into(), "abc123".into()));
+        }
+        set_sticky_status(repo, name, StackRebaseStatus::NeedsPush);
+        assert!(push_lease(repo, name).is_some());
+
+        // A `PushFailed` overwrite keeps the lease — the retry must stay pinned.
+        set_sticky_status(repo, name, StackRebaseStatus::PushFailed);
+        assert!(push_lease(repo, name).is_some(), "failed push must not unpin the retry's lease");
+
+        clear_sticky_status(repo, name);
+        assert!(push_lease(repo, name).is_none(), "the lease must not outlive the sticky it belongs to");
+    }
+
+    #[test]
+    fn native_member_names_match_raw_branch_and_mangled_dir_form() {
+        let repo = "/tmp/native-names-test-repo";
+        let branches: std::collections::HashSet<String> =
+            ["feat/native-top".to_string()].into_iter().collect();
+
+        update_native_member_names(repo, &branches);
+        assert!(is_native_member_name(repo, "feat/native-top"), "raw branch must match");
+        assert!(is_native_member_name(repo, "feat-native-top"), "mangled dir name must match");
+        assert!(!is_native_member_name(repo, "feat/other"));
+
+        // A later poll with no native members clears the set.
+        update_native_member_names(repo, &std::collections::HashSet::new());
+        assert!(!is_native_member_name(repo, "feat/native-top"));
+    }
+
     #[test]
     fn forget_stack_memos_clears_conflict_and_sticky_together() {
         let repo = "/tmp/forget-test-repo";

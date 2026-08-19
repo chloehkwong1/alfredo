@@ -548,8 +548,16 @@ impl GithubManager {
             .await
             .map_err(|e| format_octocrab_error("failed to fetch PRs", &e))?;
 
-        let mut prs: Vec<PrStatus> = open_page
-            .items
+        // All pages, not just the first: the result authoritatively rewrites
+        // the foreign-PR ownership set and the native-stack membership set, so
+        // a PR silently dropped past page 1 loses its auto-push protection.
+        let open_prs = self
+            .client
+            .all_pages(open_page)
+            .await
+            .map_err(|e| format_octocrab_error("failed to fetch PR pages", &e))?;
+
+        let mut prs: Vec<PrStatus> = open_prs
             .into_iter()
             .map(pr_status_from_octocrab)
             .collect();
