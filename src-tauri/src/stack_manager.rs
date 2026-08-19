@@ -373,8 +373,31 @@ async fn follow_native_rewrites(
         match decide_follow_action(ahead, behind, unpushed, needs_push) {
             FollowAction::None => {}
             FollowAction::FastForward | FollowAction::AdoptOrigin => {
-                match git_manager::reset_hard_to_ref(worktree_path, &origin_ref).await {
+                // TOCTOU guard: up to three git subprocesses (ahead/behind,
+                // two `git cherry` calls) ran between the dirty check above
+                // and here — re-check immediately before the destructive
+                // reset so a change that landed mid-pass can't slip through.
+                // `--keep` below is a second line of defense, not a
+                // substitute for this.
+                if worktree_is_dirty(worktree_path, true).await {
+                    eprintln!(
+                        "[stack_manager] follow origin skipped for {worktree_name}: became dirty before reset"
+                    );
+                    continue;
+                }
+
+                let wt = worktree_path.clone();
+                let old_sha = tokio::task::spawn_blocking(move || git_manager::head_sha(&wt))
+                    .await
+                    .ok()
+                    .flatten();
+
+                match git_manager::reset_keep_to_ref(worktree_path, &origin_ref).await {
                     Ok(()) => {
+                        eprintln!(
+                            "[stack_manager] followed {origin_ref} for {worktree_name}: {} -> reset",
+                            old_sha.as_deref().unwrap_or("unknown")
+                        );
                         // Pending first (it emits only while the entry exists),
                         // then the memo sweep that also clears it silently.
                         resolve_pending(app_handle, repo_path, &worktree_name);
@@ -393,6 +416,9 @@ async fn follow_native_rewrites(
                         let _ = app_handle.emit("stack:native-followed", worktree_name.clone());
                     }
                     Err(e) => {
+                        // `--keep` refusing (untracked-file collision, local
+                        // change) lands here too — same as any other failure,
+                        // no action taken and the tree is left untouched.
                         eprintln!("[stack_manager] follow origin failed for {worktree_name}: {e}");
                     }
                 }

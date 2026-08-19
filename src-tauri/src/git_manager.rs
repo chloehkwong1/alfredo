@@ -767,20 +767,48 @@ pub fn ahead_behind_vs_ref(
 }
 
 /// Commits on HEAD whose patch exists on neither `upstream_ref` nor
-/// `default_ref` — genuinely unpushed work. The default-ref clause matters:
-/// after GitHub restacks around a merge, an absorbed parent's commits vanish
-/// from the PR branch but their patches live on in the default branch.
+/// `default_ref` — genuinely unpushed work — plus any merge commits in
+/// `upstream_ref..HEAD`. The default-ref clause matters: after GitHub
+/// restacks around a merge, an absorbed parent's commits vanish from the PR
+/// branch but their patches live on in the default branch. The merge-commit
+/// addition matters separately: `git cherry` (via `cherry_unmatched_shas`)
+/// only ever reports non-merge patches, so a local merge commit — e.g. one
+/// resolving a conflict while catching up to origin/main — is invisible to
+/// the patch-equivalence check and must not be counted as free to discard.
 pub fn unpushed_patch_count(
     worktree_path: &str,
     upstream_ref: &str,
     default_ref: &str,
 ) -> Result<u32, AppError> {
     let vs_upstream = cherry_unmatched_shas(worktree_path, upstream_ref)?;
-    if vs_upstream.is_empty() {
-        return Ok(0);
+    let patch_count = if vs_upstream.is_empty() {
+        0
+    } else {
+        let vs_default = cherry_unmatched_shas(worktree_path, default_ref)?;
+        vs_upstream.iter().filter(|sha| vs_default.contains(*sha)).count() as u32
+    };
+    let merge_count = merge_commit_count(worktree_path, upstream_ref)?;
+    Ok(patch_count + merge_count)
+}
+
+/// Merge commits on HEAD not reachable from `upstream_ref`, invisible to
+/// `git cherry`'s non-merge patch comparison (see `unpushed_patch_count`).
+fn merge_commit_count(worktree_path: &str, upstream_ref: &str) -> Result<u32, AppError> {
+    let output = git_command_sync()
+        .args(["rev-list", "--count", "--merges", &format!("{upstream_ref}..HEAD")])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git rev-list --merges: {e}")))?;
+    if !output.status.success() {
+        return Err(AppError::Git(format!(
+            "git rev-list --count --merges failed against {upstream_ref}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
-    let vs_default = cherry_unmatched_shas(worktree_path, default_ref)?;
-    Ok(vs_upstream.iter().filter(|sha| vs_default.contains(*sha)).count() as u32)
+    String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse::<u32>()
+        .map_err(|e| AppError::Git(format!("unexpected rev-list --merges output: {e}")))
 }
 
 /// SHAs `git cherry <upstream> HEAD` marks `+`: on HEAD with no
@@ -806,18 +834,39 @@ fn cherry_unmatched_shas(
         .collect())
 }
 
-/// Move the worktree's current branch to `ref_name`. Destructive by design —
-/// callers must have proven safety first (clean tree, no unpushed patches).
-pub async fn reset_hard_to_ref(worktree_path: &str, ref_name: &str) -> Result<(), AppError> {
+/// The worktree's current HEAD SHA, or `None` if it can't be resolved.
+/// Best-effort — callers use this for logging (e.g. recording the pre-reset
+/// pointer before a destructive operation), not as a safety gate.
+pub fn head_sha(worktree_path: &str) -> Option<String> {
+    let output = git_command_sync()
+        .args(["rev-parse", "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+/// Move the worktree's current branch to `ref_name` via `git reset --keep`,
+/// not `--hard`. `--keep` refuses cleanly — leaving the tree untouched and
+/// returning `Err` — when the reset would overwrite an uncommitted change or
+/// an untracked file that also exists in `ref_name`'s tree; `--hard` would
+/// silently and unrecoverably clobber it. Alfredo worktrees routinely carry
+/// untracked files (`.claude/plans/`, `.envrc`) this matters for. Callers
+/// must still have proven safety first (clean tree, no unpushed patches) —
+/// `--keep`'s refusal is a second line of defense, not a substitute.
+pub async fn reset_keep_to_ref(worktree_path: &str, ref_name: &str) -> Result<(), AppError> {
     let output = git_command()
-        .args(["reset", "--hard", ref_name])
+        .args(["reset", "--keep", ref_name])
         .current_dir(worktree_path)
         .output()
         .await
         .map_err(|e| AppError::Git(format!("failed to spawn git reset: {e}")))?;
     if !output.status.success() {
         return Err(AppError::Git(format!(
-            "git reset --hard {ref_name} failed: {}",
+            "git reset --keep {ref_name} failed: {}",
             String::from_utf8_lossy(&output.stderr)
         )));
     }
@@ -3166,7 +3215,7 @@ mod tests {
             .expect("delete should succeed");
     }
 
-    // ── ahead_behind_vs_ref / unpushed_patch_count / reset_hard_to_ref ──────
+    // ── ahead_behind_vs_ref / unpushed_patch_count / reset_keep_to_ref ──────
 
     fn clone_repo(remote: &std::path::Path) -> TempDir {
         let dir = TempDir::new().expect("clone dir");
@@ -3267,14 +3316,58 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reset_hard_to_ref_moves_branch_to_ref() {
+    async fn reset_keep_to_ref_moves_branch_to_ref() {
         let remote = init_test_repo();
         commit_file(remote.path(), "base.txt", "base", "base");
         let clone = clone_repo(remote.path());
         let target = commit_file(remote.path(), "new.txt", "n", "remote advance");
         git_in(clone.path(), &["fetch", "origin"]);
-        reset_hard_to_ref(clone.path().to_str().unwrap(), "origin/main").await.expect("reset");
+        reset_keep_to_ref(clone.path().to_str().unwrap(), "origin/main").await.expect("reset");
         let out = StdCommand::new("git").args(["rev-parse", "HEAD"]).current_dir(clone.path()).output().expect("rev-parse");
         assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), target);
+    }
+
+    #[tokio::test]
+    async fn reset_keep_to_ref_refuses_to_clobber_an_untracked_file() {
+        // The target ref carries a tracked file at a path the local worktree
+        // has an *untracked* file at — `--hard` would silently overwrite it;
+        // `--keep` must refuse instead, leaving the untracked file intact.
+        let remote = init_test_repo();
+        commit_file(remote.path(), "base.txt", "base", "base");
+        let clone = clone_repo(remote.path());
+        // Remote advances and adds a tracked file at "u.txt".
+        commit_file(remote.path(), "u.txt", "from-origin", "adds u.txt");
+        git_in(clone.path(), &["fetch", "origin"]);
+        // Locally, "u.txt" exists but was never `git add`ed — untracked.
+        std::fs::write(clone.path().join("u.txt"), "local-untracked").expect("write untracked file");
+
+        let result = reset_keep_to_ref(clone.path().to_str().unwrap(), "origin/main").await;
+        assert!(result.is_err(), "expected --keep to refuse, got {result:?}");
+
+        let contents = std::fs::read_to_string(clone.path().join("u.txt")).expect("read u.txt");
+        assert_eq!(contents, "local-untracked", "untracked file must survive a refused reset");
+    }
+
+    #[test]
+    fn unpushed_patch_count_counts_local_merge_commits() {
+        // `git cherry` is blind to merge commits — a local merge (e.g.
+        // resolving a conflict while catching up to origin/main) must still
+        // count as unpushed work, or AdoptOrigin would discard it.
+        let remote = init_test_repo();
+        commit_file(remote.path(), "base.txt", "base", "base");
+        let clone = clone_repo(remote.path());
+        git_in(clone.path(), &["checkout", "-b", "feat"]);
+        commit_file(clone.path(), "f.txt", "f", "feat work");
+        git_in(clone.path(), &["push", "-u", "origin", "feat"]);
+        // Remote main advances independently.
+        git_in(remote.path(), &["checkout", "main"]);
+        commit_file(remote.path(), "m.txt", "m", "main moves");
+        git_in(clone.path(), &["fetch", "origin"]);
+        // Locally merge origin/main into feat instead of rebasing — produces
+        // a merge commit `git cherry` will never see.
+        git_in(clone.path(), &["merge", "--no-gpg-sign", "-m", "merge main", "origin/main"]);
+        let n = unpushed_patch_count(clone.path().to_str().unwrap(), "origin/feat", "origin/main")
+            .expect("ok");
+        assert!(n >= 1, "expected merge commit to count as unpushed work, got {n}");
     }
 }
