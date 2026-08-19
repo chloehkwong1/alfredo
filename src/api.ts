@@ -213,6 +213,12 @@ export function restackNow(repoPath: string, worktreeName: string): Promise<Rest
   return invoke("restack_now", { repoPath, worktreeName });
 }
 
+/** Explicit push for a `needsPush` member — the user's half of native
+ *  auto-sync's rebase-locally/push-explicitly contract. */
+export async function pushStackBranch(repoPath: string, worktreeName: string): Promise<void> {
+  return invoke("push_stack_branch", { repoPath, worktreeName });
+}
+
 /** What `restack_stack` actually did — mirrors `RestackStackSummary` in
  *  stack_manager.rs. A dirty-skipped member resolves Ok (nothing ran, nothing
  *  broke), so success toasts must consult `skippedDirty` before claiming the

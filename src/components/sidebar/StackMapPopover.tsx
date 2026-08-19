@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ArrowUp } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useToastStore } from "../../stores/toastStore";
-import { restackStack, restackNow, resolveStackPending, getAheadBehindOrigin } from "../../api";
+import { restackStack, restackNow, resolveStackPending, getAheadBehindOrigin, pushStackBranch } from "../../api";
 import type { RestackOutcome, RestackStackSummary } from "../../api";
 import { resolveStackConflict } from "../../services/stackConflictHandoff";
 import { formatRelativeTime } from "../changes/formatRelativeTime";
@@ -84,6 +84,24 @@ async function syncStackWithToast(repoPath: string, worktreeName: string, subjec
   } catch (e) {
     console.error("Stack sync failed:", e);
     showToast({ message: `Stack sync failed: ${e instanceof Error ? e.message : e}` });
+  }
+}
+
+/** First member (display order) whose local restack awaits an explicit push
+ *  — the popover's Push-now target. */
+function firstNeedsPush(members: Worktree[]): Worktree | undefined {
+  return members.find((w) => w.stackRebaseStatus?.kind === "needsPush");
+}
+
+/** Run the explicit push for a NeedsPush member and toast the outcome. */
+async function pushNowWithToast(wt: Worktree): Promise<void> {
+  const showToast = useToastStore.getState().show;
+  try {
+    await pushStackBranch(wt.repoPath, wt.name);
+    showToast({ message: `Pushed ${wt.branch} ✓` });
+  } catch (e) {
+    console.error("Push failed:", e);
+    showToast({ message: `Push failed: ${e instanceof Error ? e.message : e}` });
   }
 }
 
@@ -327,6 +345,11 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
   const conflicted = rows
     .map((m) => localByBranch.get(m.branch))
     .find((w) => w?.stackRebaseStatus?.kind === "conflict");
+  // A local restack that hasn't been pushed yet — the popover's other
+  // footer-eligible action. Conflict takes precedence over it too.
+  const needsPushWt = conflicted
+    ? undefined
+    : firstNeedsPush([anchorWorktree, ...localByBranch.values()]);
   // Conflict owns the popover's action slot, so the pending banner yields to
   // it (mirroring AlfredoStackPopover). The anchor's pending wins, then roster
   // locals in tip-first order — the chip's "!" scans the whole local chain, so
@@ -459,6 +482,16 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
           </div>
         )
       )}
+      {needsPushWt && (
+        <div className="px-2 pt-2">
+          <PopoverActionButton
+            onClick={() => { onClose(); void pushNowWithToast(needsPushWt); }}
+            title={`Push ${needsPushWt.branch} (with lease) to update its PR`}
+          >
+            <ArrowUp className="h-3 w-3" /> Push {needsPushWt.branch}
+          </PopoverActionButton>
+        </div>
+      )}
     </div>
   );
 }
@@ -494,6 +527,9 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
     .map((member) => ({ member, worktree: worktrees.find((w) => w.id === member.id) }))
     .filter((r): r is { member: (typeof chain.members)[number]; worktree: Worktree } => Boolean(r.worktree));
   const conflicted = rows.map((r) => r.worktree).find((m) => m.stackRebaseStatus?.kind === "conflict");
+  // A local restack that hasn't been pushed yet — conflict still takes
+  // precedence over it for the footer's action slot.
+  const needsPushWt = conflicted ? undefined : firstNeedsPush(rows.map((r) => r.worktree));
   const originSync = useOriginSync(rows.map((r) => r.worktree));
   // Conflict owns the popover's action slot (buttons below); the pending
   // banner yields to it. Forked stacks: first blocked child in tree order.
@@ -560,6 +596,16 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
           <RefreshCw className="h-3 w-3" /> Sync stack with main
         </PopoverActionButton>
       </div>
+      {needsPushWt && (
+        <div className="px-2 pt-2">
+          <PopoverActionButton
+            onClick={() => { onClose(); void pushNowWithToast(needsPushWt); }}
+            title={`Push ${needsPushWt.branch} (with lease) to update its PR`}
+          >
+            <ArrowUp className="h-3 w-3" /> Push {needsPushWt.branch}
+          </PopoverActionButton>
+        </div>
+      )}
       {lastTrace && (
         <div className="px-3 pt-1.5 text-[10px] text-text-tertiary">
           ↻ {lastTrace.action} · {formatRelativeTime(lastTrace.at / 1000)}
@@ -569,4 +615,4 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
   );
 }
 
-export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, restackNowWithToast, originCue, memberStateText, memberStateClass, stackPendingNotice };
+export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, restackNowWithToast, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush };

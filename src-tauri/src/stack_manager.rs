@@ -1477,6 +1477,32 @@ async fn worktree_checkout_path(
         .unwrap_or_else(|| resolve_worktree_path(repo_path, worktree_name, config))
 }
 
+/// Explicit push for a `NeedsPush` member — the user's half of native
+/// auto-sync's rebase-locally/push-explicitly contract. Success clears the
+/// sticky flag (inside `push_with_lease_or_flag`); failure leaves the
+/// existing `PushFailed` flow in charge.
+pub async fn push_branch(
+    app_handle: &AppHandle,
+    app_data_dir: &Path,
+    repo_path: &str,
+    worktree_name: &str,
+) -> Result<(), String> {
+    let config = config_manager::load_personal_config(app_data_dir, repo_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    let worktree_path = worktree_checkout_path(repo_path, worktree_name, &config).await;
+    if !std::path::Path::new(&worktree_path).exists() {
+        return Err(format!("worktree path does not exist: {worktree_path}"));
+    }
+    push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name).await;
+    if sticky_status(repo_path, worktree_name).is_none() {
+        emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+        Ok(())
+    } else {
+        Err("push failed — origin moved or auth failed; see the stack badge".into())
+    }
+}
+
 /// The single restack path, as invoked by the user ("Restack now", or the
 /// repo-wide cascade). Emits status events; returns Err only for
 /// conflicts/system failures the caller may want to surface.

@@ -355,6 +355,7 @@ pub fn run() {
             worktree::is_commit_pushed,
             worktree::set_stack_parent,
             worktree::restack_now,
+            worktree::push_stack_branch,
             worktree::restack_stack,
             worktree::change_stack_base,
             worktree::resolve_stack_pending,

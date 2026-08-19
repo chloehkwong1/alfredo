@@ -720,6 +720,20 @@ pub async fn restack_now(
         .map_err(AppError::Git)
 }
 
+/// Explicit push for a `NeedsPush` member — the user's half of native
+/// auto-sync's rebase-locally/push-explicitly contract.
+#[tauri::command]
+pub async fn push_stack_branch(
+    app: AppHandle,
+    repo_path: String,
+    worktree_name: String,
+) -> Result<()> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    crate::stack_manager::push_branch(&app, &app_data_dir, &repo_path, &worktree_name)
+        .await
+        .map_err(AppError::Git)
+}
+
 /// Sync a stack with the default branch: rebase the anchor's stack root onto a
 /// freshly-fetched `origin/<default>`, then restack every stacked worktree of
 /// the repo in dependency order. `worktree_name` anchors the root walk (and the

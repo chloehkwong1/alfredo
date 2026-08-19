@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeEffectiveStatus } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
-import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice } from "./StackMapPopover";
+import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
 import type { PrStatus, Worktree } from "../../types";
 
@@ -341,5 +341,14 @@ describe("stackPendingNotice", () => {
     ).toBe(
       "feat/a was merged — waiting for feat/b's agent to finish, then this stack rebases onto main.",
     );
+  });
+});
+
+describe("firstNeedsPush", () => {
+  it("returns the first member with a needsPush status, in given order", () => {
+    const a = makeMember({ stackRebaseStatus: { kind: "behind", count: 2 } });
+    const b = makeMember({ stackRebaseStatus: { kind: "needsPush" } });
+    expect(firstNeedsPush([a, b])).toBe(b);
+    expect(firstNeedsPush([a])).toBeUndefined();
   });
 });
