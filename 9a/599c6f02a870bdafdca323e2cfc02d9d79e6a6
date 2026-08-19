@@ -1,0 +1,23 @@
+src/hooks/useGithubSync.ts
+  s_458e71e9a99b81::t_29e21642f80fe1 168-184
+src/components/sidebar/StackMapPopover.tsx
+  s_458e71e9a99b81::t_9a3973a42c1da7 452-461
+  s_458e71e9a99b81::t_42b918abf8f83f 7
+  s_458e71e9a99b81::t_66736b6ebe8d3f 324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "9a599c6f02a870bdafdca323e2cfc02d9d79e6a6",
+  "prompts": {},
+  "sessions": {
+    "s_458e71e9a99b81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5df0cccc-779e-48dc-8391-8ac6ad96a4ac",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
