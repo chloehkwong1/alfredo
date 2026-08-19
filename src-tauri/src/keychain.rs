@@ -132,6 +132,12 @@ fn save_secrets(secrets: &std::collections::HashMap<String, String>) -> Result<(
 #[cfg(debug_assertions)]
 pub fn store(account: &str, secret: &str) -> Result<(), AppError> {
     let mut secrets = load_secrets()?;
+    // No-ops must not touch the file: `save_config` store/deletes both token
+    // accounts on every call, and concurrent writers share one `.tmp` path —
+    // an unconditional rewrite turns every config save into a race.
+    if secrets.get(account).map(String::as_str) == Some(secret) {
+        return Ok(());
+    }
     secrets.insert(account.to_string(), secret.to_string());
     save_secrets(&secrets)
 }
@@ -144,7 +150,10 @@ pub fn retrieve(account: &str) -> Result<Option<String>, AppError> {
 #[cfg(debug_assertions)]
 pub fn delete(account: &str) -> Result<(), AppError> {
     let mut secrets = load_secrets()?;
-    secrets.remove(account);
+    // See `store`: a delete of an absent account must not rewrite the file.
+    if secrets.remove(account).is_none() {
+        return Ok(());
+    }
     save_secrets(&secrets)
 }
 
@@ -194,6 +203,37 @@ mod tests {
         let _ = delete(account);
         let result = delete(account);
         assert!(result.is_ok(), "delete of nonexistent entry should succeed");
+    }
+
+    // `save_config` unconditionally store/deletes both token accounts, so a
+    // no-op that still rewrites the file makes every config save a secrets
+    // write — and two concurrent writers race on the shared `.tmp` path
+    // ("failed to write secrets file: No such file or directory"). A no-op
+    // must not touch the file at all.
+    #[test]
+    #[serial]
+    fn delete_of_absent_account_does_not_rewrite_the_file() {
+        let account = "alfredo-test-delete-no-write";
+        let _ = delete(account); // ensure absent (this call may legitimately write)
+        let path = secrets_path().expect("secrets path resolves");
+        let before = std::fs::metadata(&path).ok().map(|m| m.modified().expect("mtime"));
+        delete(account).expect("delete should succeed");
+        let after = std::fs::metadata(&path).ok().map(|m| m.modified().expect("mtime"));
+        assert_eq!(before, after, "deleting an absent account must not write the secrets file");
+    }
+
+    #[test]
+    #[serial]
+    fn storing_an_unchanged_secret_does_not_rewrite_the_file() {
+        let account = "alfredo-test-store-no-write";
+        let _ = delete(account);
+        store(account, "same-value").expect("store should succeed");
+        let path = secrets_path().expect("secrets path resolves");
+        let before = std::fs::metadata(&path).expect("file exists").modified().expect("mtime");
+        store(account, "same-value").expect("store should succeed");
+        let after = std::fs::metadata(&path).expect("file exists").modified().expect("mtime");
+        assert_eq!(before, after, "re-storing the same value must not write the secrets file");
+        let _ = delete(account);
     }
 
     #[test]
