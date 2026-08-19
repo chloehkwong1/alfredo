@@ -1,0 +1,21 @@
+src-tauri/src/keychain.rs
+  s_3f25545b16f044::t_63d781698c8bef 208-238
+  s_3f25545b16f044::t_96faab452b1139 135-140
+  s_3f25545b16f044::t_7f1c7be3a11c04 153-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ef576405eca951c73e84f0e64cc97252921b22cd",
+  "prompts": {},
+  "sessions": {
+    "s_3f25545b16f044": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8642778-5a19-4c0f-b047-861e5af3d07b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
