@@ -732,6 +732,110 @@ pub fn ahead_behind_vs_upstream(worktree_path: &str) -> Result<Option<(u32, u32)
     Ok(Some((ahead, behind)))
 }
 
+/// Ahead/behind of the worktree's HEAD vs an arbitrary ref (e.g. a native
+/// member's "origin/<branch>"). `Ok(None)` when the ref doesn't resolve —
+/// unpublished branches are the caller's no-op case, not an error.
+///
+/// `#[allow(dead_code)]` because callers land in later native-stack-auto-sync
+/// tasks; keeping it here avoids churn there.
+#[allow(dead_code)]
+pub fn ahead_behind_vs_ref(
+    worktree_path: &str,
+    ref_name: &str,
+) -> Result<Option<(u32, u32)>, AppError> {
+    let check = git_command_sync()
+        .args(["rev-parse", "--verify", "--quiet", ref_name])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git rev-parse: {e}")))?;
+    if !check.status.success() {
+        return Ok(None);
+    }
+    let output = git_command_sync()
+        .args(["rev-list", "--left-right", "--count", &format!("{ref_name}...HEAD")])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git rev-list: {e}")))?;
+    if !output.status.success() {
+        return Err(AppError::Git(format!(
+            "rev-list --left-right failed for {ref_name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut parts = text.split_whitespace();
+    // left = commits only on `ref_name` (we're behind by these), right = only on HEAD (ahead).
+    let behind = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let ahead = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    Ok(Some((ahead, behind)))
+}
+
+/// Commits on HEAD whose patch exists on neither `upstream_ref` nor
+/// `default_ref` — genuinely unpushed work. The default-ref clause matters:
+/// after GitHub restacks around a merge, an absorbed parent's commits vanish
+/// from the PR branch but their patches live on in the default branch.
+///
+/// `#[allow(dead_code)]` because callers land in later native-stack-auto-sync
+/// tasks; keeping it here avoids churn there.
+#[allow(dead_code)]
+pub fn unpushed_patch_count(
+    worktree_path: &str,
+    upstream_ref: &str,
+    default_ref: &str,
+) -> Result<u32, AppError> {
+    let vs_upstream = cherry_unmatched_shas(worktree_path, upstream_ref)?;
+    if vs_upstream.is_empty() {
+        return Ok(0);
+    }
+    let vs_default = cherry_unmatched_shas(worktree_path, default_ref)?;
+    Ok(vs_upstream.iter().filter(|sha| vs_default.contains(*sha)).count() as u32)
+}
+
+/// SHAs `git cherry <upstream> HEAD` marks `+`: on HEAD with no
+/// patch-equivalent commit on `upstream`.
+fn cherry_unmatched_shas(
+    worktree_path: &str,
+    upstream: &str,
+) -> Result<std::collections::HashSet<String>, AppError> {
+    let output = git_command_sync()
+        .args(["cherry", upstream, "HEAD"])
+        .current_dir(worktree_path)
+        .output()
+        .map_err(|e| AppError::Git(format!("failed to spawn git cherry: {e}")))?;
+    if !output.status.success() {
+        return Err(AppError::Git(format!(
+            "git cherry failed against {upstream}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|l| l.strip_prefix("+ ").map(str::to_string))
+        .collect())
+}
+
+/// Move the worktree's current branch to `ref_name`. Destructive by design —
+/// callers must have proven safety first (clean tree, no unpushed patches).
+///
+/// `#[allow(dead_code)]` because callers land in later native-stack-auto-sync
+/// tasks; keeping it here avoids churn there.
+#[allow(dead_code)]
+pub async fn reset_hard_to_ref(worktree_path: &str, ref_name: &str) -> Result<(), AppError> {
+    let output = git_command()
+        .args(["reset", "--hard", ref_name])
+        .current_dir(worktree_path)
+        .output()
+        .await
+        .map_err(|e| AppError::Git(format!("failed to spawn git reset: {e}")))?;
+    if !output.status.success() {
+        return Err(AppError::Git(format!(
+            "git reset --hard {ref_name} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    Ok(())
+}
+
 /// `git wip`: stash uncommitted + untracked changes as a throwaway commit so
 /// a history-rewriting operation runs on a clean tree. Tags the commit message
 /// with the pre-wip HEAD SHA so we can unambiguously identify it later — even
@@ -3072,5 +3176,117 @@ mod tests {
         delete_worktree(repo_path, "status-branch", true, None)
             .await
             .expect("delete should succeed");
+    }
+
+    // ── ahead_behind_vs_ref / unpushed_patch_count / reset_hard_to_ref ──────
+
+    fn clone_repo(remote: &std::path::Path) -> TempDir {
+        let dir = TempDir::new().expect("clone dir");
+        StdCommand::new("git")
+            .args(["clone", remote.to_str().unwrap(), dir.path().to_str().unwrap()])
+            .output()
+            .expect("git clone");
+        for (k, v) in [("user.name", "Test"), ("user.email", "test@test.com")] {
+            StdCommand::new("git").args(["config", k, v]).current_dir(dir.path()).output().expect("git config");
+        }
+        dir
+    }
+
+    #[test]
+    fn ahead_behind_vs_ref_none_for_missing_ref() {
+        let dir = init_test_repo();
+        let result = ahead_behind_vs_ref(dir.path().to_str().unwrap(), "origin/nope").expect("ok");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn ahead_behind_vs_ref_counts_divergence() {
+        let remote = init_test_repo();
+        commit_file(remote.path(), "base.txt", "base", "base");
+        let clone = clone_repo(remote.path());
+        // Local-only commit → ahead 1; remote-only commit → behind 1.
+        commit_file(clone.path(), "local.txt", "l", "local work");
+        commit_file(remote.path(), "remote.txt", "r", "remote work");
+        git_in(clone.path(), &["fetch", "origin"]);
+        let (ahead, behind) = ahead_behind_vs_ref(clone.path().to_str().unwrap(), "origin/main")
+            .expect("ok")
+            .expect("ref exists");
+        assert_eq!((ahead, behind), (1, 1));
+    }
+
+    #[test]
+    fn unpushed_patch_count_zero_after_server_side_rebase() {
+        // GitHub-restack shape: origin/feat is rewritten but every local commit's
+        // patch survives on it — nothing local is lost by adopting origin.
+        let remote = init_test_repo();
+        commit_file(remote.path(), "base.txt", "base", "base");
+        let clone = clone_repo(remote.path());
+        git_in(clone.path(), &["checkout", "-b", "feat"]);
+        commit_file(clone.path(), "f.txt", "f", "feat work");
+        git_in(clone.path(), &["push", "-u", "origin", "feat"]);
+        // "Server" rewrites feat: new base commit on main, feat rebased onto it.
+        git_in(remote.path(), &["checkout", "main"]);
+        commit_file(remote.path(), "m.txt", "m", "main moves");
+        git_in(remote.path(), &["checkout", "feat"]);
+        git_in(remote.path(), &["rebase", "main"]);
+        git_in(remote.path(), &["checkout", "main"]);
+        git_in(clone.path(), &["fetch", "origin"]);
+        let n = unpushed_patch_count(clone.path().to_str().unwrap(), "origin/feat", "origin/main")
+            .expect("ok");
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn unpushed_patch_count_zero_for_merge_absorbed_parent_commits() {
+        // Parent's commits vanish from origin/feat after GitHub's merge-restack,
+        // but their patches live on origin/main — the default-ref clause makes
+        // the common case followable.
+        let remote = init_test_repo();
+        commit_file(remote.path(), "base.txt", "base", "base");
+        let clone = clone_repo(remote.path());
+        git_in(clone.path(), &["checkout", "-b", "feat"]);
+        let _parent_commit = commit_file(clone.path(), "p.txt", "p", "parent work");
+        commit_file(clone.path(), "f.txt", "f", "feat work");
+        git_in(clone.path(), &["push", "-u", "origin", "feat"]);
+        // "Server": parent work merges to main; feat rewritten without it.
+        git_in(remote.path(), &["checkout", "main"]);
+        std::fs::write(remote.path().join("p.txt"), "p").expect("write");
+        git_in(remote.path(), &["add", "-A"]);
+        git_in(remote.path(), &["commit", "--no-gpg-sign", "-m", "parent work"]);
+        git_in(remote.path(), &["branch", "-f", "feat", "main"]);
+        git_in(remote.path(), &["checkout", "feat"]);
+        std::fs::write(remote.path().join("f.txt"), "f").expect("write");
+        git_in(remote.path(), &["add", "-A"]);
+        git_in(remote.path(), &["commit", "--no-gpg-sign", "-m", "feat work"]);
+        git_in(remote.path(), &["checkout", "main"]);
+        git_in(clone.path(), &["fetch", "origin"]);
+        let n = unpushed_patch_count(clone.path().to_str().unwrap(), "origin/feat", "origin/main")
+            .expect("ok");
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn unpushed_patch_count_counts_real_local_work() {
+        let remote = init_test_repo();
+        commit_file(remote.path(), "base.txt", "base", "base");
+        let clone = clone_repo(remote.path());
+        git_in(clone.path(), &["checkout", "-b", "feat"]);
+        git_in(clone.path(), &["push", "-u", "origin", "feat"]);
+        commit_file(clone.path(), "mine.txt", "mine", "genuinely local");
+        let n = unpushed_patch_count(clone.path().to_str().unwrap(), "origin/feat", "origin/main")
+            .expect("ok");
+        assert_eq!(n, 1);
+    }
+
+    #[tokio::test]
+    async fn reset_hard_to_ref_moves_branch_to_ref() {
+        let remote = init_test_repo();
+        commit_file(remote.path(), "base.txt", "base", "base");
+        let clone = clone_repo(remote.path());
+        let target = commit_file(remote.path(), "new.txt", "n", "remote advance");
+        git_in(clone.path(), &["fetch", "origin"]);
+        reset_hard_to_ref(clone.path().to_str().unwrap(), "origin/main").await.expect("reset");
+        let out = StdCommand::new("git").args(["rev-parse", "HEAD"]).current_dir(clone.path()).output().expect("rev-parse");
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), target);
     }
 }
