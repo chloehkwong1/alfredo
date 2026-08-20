@@ -224,6 +224,9 @@ export interface PrStatus {
   body?: string;
   author?: string;
   requestedReviewers?: string[];
+  /** True when the authenticated user is a requested reviewer on someone
+   *  else's open PR (computed backend-side with the real username). */
+  reviewRequested?: boolean;
   /** Native GitHub Stack membership; null/absent when not a member. */
   nativeStack?: NativeStackInfo | null;
 }

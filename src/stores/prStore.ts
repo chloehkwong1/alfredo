@@ -245,6 +245,7 @@ export const usePrStore = create<PrState>((set, get) => ({
         headSha: pr.headSha,
         body: pr.body,
         nativeStack: pr.nativeStack ?? null,
+        reviewRequested: pr.reviewRequested,
       };
 
       // Use manual override if still active, otherwise auto-assign; with an

@@ -69,6 +69,7 @@ export async function handleReviewRequests(prs: PrStatusWithColumn[]): Promise<v
             headSha: pr.headSha,
             body: pr.body,
             mergedAt: pr.mergedAt,
+            reviewRequested: true,
           },
         });
       } catch (err) {

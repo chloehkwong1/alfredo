@@ -253,4 +253,18 @@ describe("applyPrUpdates — native GitHub Stack membership", () => {
     const patches = usePrStore.getState().applyPrUpdates([openPr()], [makeWorktree()]);
     expect(patches.get(WT_ID)?.prStatus?.nativeStack).toBeNull();
   });
+
+  it("carries reviewRequested onto the worktree's prStatus patch", () => {
+    const patches = usePrStore
+      .getState()
+      .applyPrUpdates([openPr({ reviewRequested: true })], [makeWorktree()]);
+    expect(patches.get(WT_ID)?.prStatus?.reviewRequested).toBe(true);
+  });
+
+  it("carries reviewRequested=false for own PRs", () => {
+    const patches = usePrStore
+      .getState()
+      .applyPrUpdates([openPr({ reviewRequested: false })], [makeWorktree()]);
+    expect(patches.get(WT_ID)?.prStatus?.reviewRequested).toBe(false);
+  });
 });
