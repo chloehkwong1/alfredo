@@ -8,9 +8,8 @@ import {
   DialogDescription,
 } from "../ui/Dialog";
 import { Input } from "../ui/Input";
-import { listBranches, changeStackBase, getDefaultBranch, getCommitsBehindMain, getWorktreeDiffStats } from "../../api";
-import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { isTerminalPr } from "../../lib/prStatus";
+import { listBranches, getDefaultBranch } from "../../api";
+import { applyStackBaseChange } from "../../services/stackBase";
 import type { Worktree } from "../../types";
 
 interface ChangeBaseBranchDialogProps {
@@ -79,73 +78,9 @@ function ChangeBaseBranchDialog({ open, onOpenChange, worktree }: ChangeBaseBran
     if (saving || defaultBranch === null) return;
     setSaving(branch);
     const nextParent = branch === defaultBranch ? null : branch;
-    const prevParent = worktree.stackParent ?? null;
     try {
-      await changeStackBase(worktree.repoPath, worktree.name, nextParent);
-
-      // Optimistically update child + both parents' stackChildren so the
-      // sidebar reflects the new shape without waiting for the next
-      // list_worktrees refresh or stack-status poll.
-      const store = useWorkspaceStore.getState();
-      store.updateWorktree(worktree.id, {
-        stackParent: nextParent,
-        stackRebaseStatus: null,
-      });
-      if (prevParent && prevParent !== nextParent) {
-        const oldParent = store.worktrees.find((w) => w.branch === prevParent);
-        if (oldParent) {
-          store.updateWorktree(oldParent.id, {
-            stackChildren: (oldParent.stackChildren ?? []).filter((id) => id !== worktree.id),
-          });
-        }
-      }
-      if (nextParent && nextParent !== prevParent) {
-        const newParent = store.worktrees.find((w) => w.branch === nextParent);
-        if (newParent) {
-          const existing = newParent.stackChildren ?? [];
-          if (!existing.includes(worktree.id)) {
-            store.updateWorktree(newParent.id, {
-              stackChildren: [...existing, worktree.id],
-            });
-          }
-        }
-      }
-
+      await applyStackBaseChange(worktree, nextParent);
       onOpenChange(false);
-
-      // Populate the "· N behind" indicator now instead of waiting on the
-      // next poll. Best-effort: log on failure, the poll will fill it in.
-      if (nextParent && nextParent !== prevParent) {
-        getCommitsBehindMain(worktree.path, nextParent)
-          .then((count) => {
-            // Guard against an older response landing after the parent has
-            // been changed again — only write if our nextParent is still current.
-            const current = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktree.id);
-            if (current?.stackParent !== nextParent) return;
-            useWorkspaceStore.getState().updateWorktree(worktree.id, {
-              stackRebaseStatus: count === 0 ? { kind: "upToDate" } : { kind: "behind", count },
-            });
-          })
-          .catch((e) => console.warn("[change-base] commits-behind probe failed:", e));
-      }
-
-      // Re-scope the +/- diff badge to the new base now, instead of waiting for
-      // the next agent busy→idle transition. Fire on any real parent change
-      // (including clearing back to the default branch). Skip when a live PR
-      // exists — that badge is driven by the GitHub PR diff (getPrFiles in
-      // usePty), which the local stack parent must not override. A terminal
-      // (possibly stale) hydrated prStatus doesn't count as "a PR exists" here —
-      // usePty falls back to the local diff for it too, so this refresh must run.
-      if (nextParent !== prevParent && !(worktree.prStatus?.number && !isTerminalPr(worktree.prStatus))) {
-        getWorktreeDiffStats(worktree.path, nextParent)
-          .then(([additions, deletions]) => {
-            // Drop a stale response if the parent changed again meanwhile.
-            const current = useWorkspaceStore.getState().worktrees.find((w) => w.id === worktree.id);
-            if (current?.stackParent !== nextParent) return;
-            useWorkspaceStore.getState().updateWorktree(worktree.id, { additions, deletions });
-          })
-          .catch((e) => console.warn("[change-base] diff-stats refresh failed:", e));
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setSaving(null);
