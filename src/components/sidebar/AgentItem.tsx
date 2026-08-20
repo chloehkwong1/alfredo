@@ -37,8 +37,9 @@ import { copyText } from "../../lib/clipboard";
 import { StackGlyph, NativeStackChip } from "./StackGlyph";
 import { StackMapPopover, restackNowWithToast } from "./StackMapPopover";
 import { useToastStore } from "../../stores/toastStore";
-import { computeStackChain, stackHuesFor, type StackChain } from "../../lib/stackChain";
+import { computeStackChain, stackHuesFor, detectAdoptableParent, type StackChain } from "../../lib/stackChain";
 import { isTerminalPr, toTerminalFlags } from "../../lib/prStatus";
+import { applyStackBaseChange } from "../../services/stackBase";
 
 const THINKING_VERBS = [
   "Thinking…",
@@ -312,6 +313,10 @@ interface AgentItemContentProps {
   stackChain?: StackChain | null;
   stackHue?: number | null;
   onOpenStackMap?: () => void;
+  adoptableParent?: string | null;
+  adoptingStack?: boolean;
+  onAdoptStack?: () => void;
+  onDismissAdoptCue?: () => void;
 }
 
 function getDotColor(status: AgentState | string): string {
@@ -322,6 +327,7 @@ function AgentItemContent({
   worktree, effectiveStatus, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
   repoIndex = 0, showRepoTag = false, stackChain = null, stackHue = null, onOpenStackMap = () => {},
+  adoptableParent = null, adoptingStack = false, onAdoptStack = () => {}, onDismissAdoptCue = () => {},
 }: AgentItemContentProps) {
   // Secondary, not tertiary: these lines (status, PR title, timestamp, stack
   // position) are the card's information payload, and tertiary only clears
@@ -531,6 +537,44 @@ function AgentItemContent({
         {worktree.stackPending?.blockedBy === "foreignPrNotPushed" && (
           <div className="flex items-center gap-1.5 mt-1 text-[10px] text-amber-400 min-w-0">
             <span className="truncate">someone else's PR — restacked locally, not pushed</span>
+          </div>
+        )}
+        {/* GitHub says this PR is stacked (base = a sibling worktree's branch)
+            but no local stack is recorded — offer one-click adoption through
+            change_base. Detection never auto-adopts; see detectAdoptableParent. */}
+        {adoptableParent && (
+          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-amber-400 min-w-0">
+            <span className="truncate" title={`PR base is ${adoptableParent} on GitHub`}>
+              stacked on {adoptableParent} on GitHub
+            </span>
+            {adoptingStack ? (
+              <span className="flex-shrink-0 animate-pulse">· adopting...</span>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="flex-shrink-0 underline underline-offset-2 hover:text-amber-300 cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); onAdoptStack(); }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  aria-label={`Adopt stack: set ${adoptableParent} as this branch's base`}
+                >
+                  adopt
+                </button>
+                <button
+                  type="button"
+                  className="flex-shrink-0 text-text-tertiary hover:text-text-secondary cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); onDismissAdoptCue(); }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  aria-label="Dismiss"
+                >
+                  ✕
+                </button>
+              </>
+            )}
           </div>
         )}
         {/* Line 4: PR stats row — separated by border */}
@@ -799,6 +843,14 @@ const AgentItem = memo(function AgentItem({
     () => computeStackChain(allWorktrees, worktree.id),
     [allWorktrees, worktree.id],
   );
+  const adoptableParent = useMemo(
+    () => detectAdoptableParent(allWorktrees, worktree.id, defaultBranch),
+    [allWorktrees, worktree.id, defaultBranch],
+  );
+  const dismissedAdoptions = useWorkspaceStore((s) => s.dismissedStackAdoptions);
+  const showAdoptCue =
+    adoptableParent != null && !dismissedAdoptions.has(`${worktree.id}:${adoptableParent}`);
+  const [adoptingStack, setAdoptingStack] = useState(false);
   const stackHue = useStackHue(worktree.id);
   const isPeeked = stackChain != null && peekedStackRootId === stackChain.rootId;
 
@@ -856,6 +908,27 @@ const AgentItem = memo(function AgentItem({
       console.error("Rebase failed:", msg);
       // Surface the error since the user needs to know
       new Notification("Alfredo", { body: `Rebase failed for ${worktree.branch}: ${msg}` });
+    }
+  };
+
+  const handleAdoptStack = async () => {
+    if (!adoptableParent || adoptingStack) return;
+    setAdoptingStack(true);
+    try {
+      await applyStackBaseChange(worktree, adoptableParent);
+      // Success: the optimistic stackParent update makes detection return null,
+      // so the cue disappears and the normal stack row takes over.
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Adopt stack failed:", msg);
+      new Notification("Alfredo", { body: `Adopt stack failed for ${worktree.branch}: ${msg}` });
+    } finally {
+      setAdoptingStack(false);
+    }
+  };
+  const handleDismissAdoptCue = () => {
+    if (adoptableParent) {
+      useWorkspaceStore.getState().dismissStackAdoption(worktree.id, adoptableParent);
     }
   };
 
@@ -930,6 +1003,10 @@ const AgentItem = memo(function AgentItem({
       stackChain={stackChain}
       stackHue={stackHue}
       onOpenStackMap={() => setStackMapOpen(true)}
+      adoptableParent={showAdoptCue ? adoptableParent : null}
+      adoptingStack={adoptingStack}
+      onAdoptStack={handleAdoptStack}
+      onDismissAdoptCue={handleDismissAdoptCue}
     />
   );
 
