@@ -245,11 +245,13 @@ export const usePrStore = create<PrState>((set, get) => ({
         headSha: pr.headSha,
         body: pr.body,
         nativeStack: pr.nativeStack ?? null,
-        // Sticky: once a worktree's PR was review-requested, it stays marked —
-        // GitHub clears requested_reviewers the moment a review is submitted,
-        // and this flag gates "is this someone else's PR", which must not
-        // flip back merely because the review went in.
-        reviewRequested: pr.reviewRequested || wt.prStatus?.reviewRequested === true,
+        // Sticky only within the same PR: GitHub clears requested_reviewers the
+        // moment a review is submitted, and this flag gates "is this someone
+        // else's PR" — it must not flip back merely because the review went in.
+        // A NEW PR reusing the branch starts fresh from its own flag.
+        reviewRequested:
+          pr.reviewRequested ||
+          (wt.prStatus?.number === pr.number && wt.prStatus?.reviewRequested === true),
       };
 
       // Use manual override if still active, otherwise auto-assign; with an

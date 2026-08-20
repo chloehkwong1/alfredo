@@ -292,4 +292,27 @@ describe("applyPrUpdates — native GitHub Stack membership", () => {
     // The patch should keep reviewRequested true because the worktree had it
     expect(secondPatches.get(WT_ID)?.prStatus?.reviewRequested).toBe(true);
   });
+
+  it("does not inherit reviewRequested when a new PR reuses the branch", () => {
+    // First sync: PR #1 is review-requested
+    const firstPatches = usePrStore
+      .getState()
+      .applyPrUpdates([openPr({ number: 1, reviewRequested: true })], [makeWorktree()]);
+
+    expect(firstPatches.get(WT_ID)?.prStatus?.reviewRequested).toBe(true);
+
+    // Branch reused by a new PR #2. Worktree's prStatus still carries #1's data.
+    const firstPatch = firstPatches.get(WT_ID)!;
+    const updatedWt = makeWorktree({
+      prStatus: firstPatch.prStatus,
+    });
+
+    // Second sync: new PR #2 with reviewRequested=false (it's our own PR)
+    const secondPatches = usePrStore
+      .getState()
+      .applyPrUpdates([openPr({ number: 2, reviewRequested: false })], [updatedWt]);
+
+    // The patch should start fresh for the new PR, not inherit #1's stickiness
+    expect(secondPatches.get(WT_ID)?.prStatus?.reviewRequested).toBe(false);
+  });
 });
