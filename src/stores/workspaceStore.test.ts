@@ -1010,6 +1010,17 @@ describe("restoredRepos", () => {
   });
 });
 
+// ── dismissStackAdoption ─────────────────────────────────────────
+
+describe("dismissStackAdoption", () => {
+  it("records a worktree+parent key without touching other keys", () => {
+    useWorkspaceStore.getState().dismissStackAdoption("wt-1", "feat/parent");
+    const dismissed = useWorkspaceStore.getState().dismissedStackAdoptions;
+    expect(dismissed.has("wt-1:feat/parent")).toBe(true);
+    expect(dismissed.has("wt-1:feat/other")).toBe(false);
+  });
+});
+
 // ── worktreeOrder (manual sidebar ordering) ───────────────────────
 
 describe("worktreeOrder", () => {

@@ -26,6 +26,10 @@ interface WorkspaceState {
   unreadWorktrees: Set<string>;
   /** Tracks worktrees the user has pinned to the top of their column. */
   pinnedWorktrees: Set<string>;
+  /** Session-scoped "adopt stack?" cue dismissals, keyed `${worktreeId}:${parentBranch}`
+   *  so a different future base re-prompts. Deliberately not persisted. */
+  dismissedStackAdoptions: Set<string>;
+  dismissStackAdoption: (worktreeId: string, parentBranch: string) => void;
   /** Manual sidebar card order per repo per kanban column (worktree names,
    *  top-first). Hydrated from personal config; persisted via setWorktreeOrders. */
   worktreeOrder: Record<string, Partial<Record<KanbanColumn, string[]>>>;
@@ -347,6 +351,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   seenWorktrees: new Set<string>(),
   unreadWorktrees: new Set<string>(),
   pinnedWorktrees: new Set<string>(),
+  dismissedStackAdoptions: new Set(),
   worktreeOrder: {},
   setWorktreeOrderForRepo: (repoPath, order) =>
     set((state) => ({
@@ -637,6 +642,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   clearAllPins: () => set({ pinnedWorktrees: new Set<string>() }),
 
+  dismissStackAdoption: (worktreeId, parentBranch) =>
+    set((state) => {
+      const next = new Set(state.dismissedStackAdoptions);
+      next.add(`${worktreeId}:${parentBranch}`);
+      return { dismissedStackAdoptions: next };
+    }),
+
   addAnnotation: (annotation) =>
     set((state) => ({
       annotations: {
@@ -746,6 +758,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       seenWorktrees: new Set<string>(),
       unreadWorktrees: new Set<string>(),
       pinnedWorktrees: new Set<string>(),
+      dismissedStackAdoptions: new Set(),
       worktreeOrder: {},
       annotations: {},
       diffViewMode: {},
