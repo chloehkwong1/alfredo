@@ -1,5 +1,6 @@
 import type { Worktree } from "../types";
 import { isVisibleWorktree } from "./worktreeVisibility";
+import { isTerminalPr } from "./prStatus";
 
 export interface StackMember {
   id: string;
@@ -185,4 +186,33 @@ export function collectStackIdentities(worktrees: Worktree[]): Map<string, strin
     }
   }
   return identities;
+}
+
+/** A PR whose GitHub base points at a sibling worktree's branch, with no local
+ *  stack relationship recorded (e.g. an agent ran `gh pr edit --base` in the
+ *  terminal). Returns the adoptable parent branch, or null. Excluded: native
+ *  GitHub Stack members (Alfredo's automation stands down for those) and
+ *  review-request pulls of other people's PRs. Detection only — adoption is
+ *  always an explicit user click routed through change_base. */
+export function detectAdoptableParent(
+  worktrees: Worktree[],
+  worktreeId: string,
+  defaultBranch: string | null,
+): string | null {
+  if (!defaultBranch) return null;
+  const w = worktrees.find((x) => x.id === worktreeId);
+  const pr = w?.prStatus;
+  if (!w || !pr) return null;
+  if (w.stackParent || isTerminalPr(pr) || pr.nativeStack || pr.reviewRequested) return null;
+  const base = pr.baseBranch;
+  if (!base || base === defaultBranch) return null;
+  const parent = worktrees.find(
+    (x) =>
+      x.id !== w.id &&
+      x.repoPath === w.repoPath &&
+      x.branch === base &&
+      !x.creating &&
+      !x.createError,
+  );
+  return parent ? base : null;
 }

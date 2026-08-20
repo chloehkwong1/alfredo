@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { collectStackIdentities, computeStackChain, computeStackHues, STACK_HUE_COUNT } from "./stackChain";
+import { collectStackIdentities, computeStackChain, computeStackHues, detectAdoptableParent, STACK_HUE_COUNT } from "./stackChain";
 import { LIGHT_THEMES } from "./themeMeta";
 import type { NativeStackInfo, Worktree } from "../types";
 
@@ -231,5 +231,54 @@ describe("computeStackChain", () => {
     expect(chain.members.map((m) => m.id)).toEqual(["r", "l", "lc", "rt"]);
     expect(chain.members.map((m) => m.prefix)).toEqual(["└", "  ├", "  │ └", "  └"]);
     expect(chain.members.map((m) => m.depth)).toEqual([1, 2, 3, 2]);
+  });
+});
+
+describe("detectAdoptableParent", () => {
+  const pr = (over: Partial<NonNullable<Worktree["prStatus"]>> = {}) =>
+    ({
+      number: 9, state: "open", title: "t", url: "u", draft: false,
+      merged: false, branch: "feat/child", baseBranch: "feat/parent", ...over,
+    }) as Worktree["prStatus"];
+  const parent = wt({ id: "p", branch: "feat/parent" });
+  const child = wt({ id: "c", branch: "feat/child", prStatus: pr() });
+
+  it("returns the base branch when it matches a sibling worktree", () => {
+    expect(detectAdoptableParent([parent, child], "c", "main")).toBe("feat/parent");
+  });
+
+  it("returns null when a stack parent is already recorded", () => {
+    const stacked = { ...child, stackParent: "feat/parent" };
+    expect(detectAdoptableParent([parent, stacked], "c", "main")).toBeNull();
+  });
+
+  it("returns null without a PR, or with a terminal PR", () => {
+    expect(detectAdoptableParent([parent, wt({ id: "c", branch: "feat/child" })], "c", "main")).toBeNull();
+    expect(detectAdoptableParent([parent, { ...child, prStatus: pr({ merged: true }) }], "c", "main")).toBeNull();
+    expect(detectAdoptableParent([parent, { ...child, prStatus: pr({ state: "closed" }) }], "c", "main")).toBeNull();
+  });
+
+  it("returns null for native GitHub Stack members", () => {
+    const native: NativeStackInfo = { id: "s", number: 1, position: 1, size: 2, members: [] };
+    expect(detectAdoptableParent([parent, { ...child, prStatus: pr({ nativeStack: native }) }], "c", "main")).toBeNull();
+  });
+
+  it("returns null for review-request pulls of someone else's PR", () => {
+    expect(detectAdoptableParent([parent, { ...child, prStatus: pr({ reviewRequested: true }) }], "c", "main")).toBeNull();
+  });
+
+  it("returns null when the base is the default branch or default is unresolved", () => {
+    const mainWt = wt({ id: "m", branch: "main" });
+    const onMain = { ...child, prStatus: pr({ baseBranch: "main" }) };
+    expect(detectAdoptableParent([mainWt, onMain], "c", "main")).toBeNull();
+    expect(detectAdoptableParent([parent, child], "c", null)).toBeNull();
+  });
+
+  it("returns null when no sibling has the base branch, or it is in another repo / still creating", () => {
+    expect(detectAdoptableParent([child], "c", "main")).toBeNull();
+    const otherRepo = wt({ id: "p2", branch: "feat/parent", repoPath: "/tmp/other" });
+    expect(detectAdoptableParent([otherRepo, child], "c", "main")).toBeNull();
+    const creating = { ...parent, creating: true };
+    expect(detectAdoptableParent([creating, child], "c", "main")).toBeNull();
   });
 });
