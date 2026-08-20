@@ -1,0 +1,23 @@
+src/lib/stackChain.test.ts
+  s_6a16ba77d11c92::t_152f8c1a7fb9c1 4
+  s_6a16ba77d11c92::t_6e482e64b22b81 236-284
+src/lib/stackChain.ts
+  s_6a16ba77d11c92::t_af0b202db16039 3
+  s_6a16ba77d11c92::t_da1f1a79471b29 190-218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d5c9e61543a3194b22a1b68b8d6ffe54659e07ba",
+  "prompts": {},
+  "sessions": {
+    "s_6a16ba77d11c92": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "95c29005-21ab-47e4-8d27-3d0c6729b98e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
