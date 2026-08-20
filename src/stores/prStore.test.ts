@@ -267,4 +267,29 @@ describe("applyPrUpdates — native GitHub Stack membership", () => {
       .applyPrUpdates([openPr({ reviewRequested: false })], [makeWorktree()]);
     expect(patches.get(WT_ID)?.prStatus?.reviewRequested).toBe(false);
   });
+
+  it("keeps reviewRequested sticky after user submits review (GitHub clears requested_reviewers)", () => {
+    // First sync: PR is review-requested
+    const firstPatches = usePrStore
+      .getState()
+      .applyPrUpdates([openPr({ reviewRequested: true })], [makeWorktree()]);
+
+    expect(firstPatches.get(WT_ID)?.prStatus?.reviewRequested).toBe(true);
+
+    // User submits review; GitHub removes them from requested_reviewers.
+    // The worktree should still remember it was review-requested.
+    // Construct a worktree that reflects the first patch.
+    const firstPatch = firstPatches.get(WT_ID)!;
+    const updatedWt = makeWorktree({
+      prStatus: firstPatch.prStatus,
+    });
+
+    // Second sync: reviewRequested is now false (GitHub cleared it)
+    const secondPatches = usePrStore
+      .getState()
+      .applyPrUpdates([openPr({ reviewRequested: false })], [updatedWt]);
+
+    // The patch should keep reviewRequested true because the worktree had it
+    expect(secondPatches.get(WT_ID)?.prStatus?.reviewRequested).toBe(true);
+  });
 });
