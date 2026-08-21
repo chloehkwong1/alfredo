@@ -6,9 +6,10 @@ import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy,
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn } from "../../api";
+import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn, getCommitsBehindMain } from "../../api";
 import { stopServerAndReleasePort } from "../../services/portReclaim";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
+import { useGithubUsername } from "../../hooks/useGithubUsername";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
 import { openInApp } from "../../api";
 import { CATEGORY_ICON } from "../ui/OpenInDropdown";
@@ -314,8 +315,12 @@ interface AgentItemContentProps {
   stackHue?: number | null;
   onOpenStackMap?: () => void;
   adoptableParent?: string | null;
-  adoptingStack?: boolean;
+  adoptStage?: "idle" | "probing" | "confirm" | "adopting";
+  /** Commits the branch is behind the adoptable parent, shown in the confirm
+   *  copy; null = probe failed (copy hedges instead of naming a count). */
+  adoptConfirmBehind?: number | null;
   onAdoptStack?: () => void;
+  onCancelAdoptConfirm?: () => void;
   onDismissAdoptCue?: () => void;
 }
 
@@ -327,7 +332,8 @@ function AgentItemContent({
   worktree, effectiveStatus, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
   repoIndex = 0, showRepoTag = false, stackChain = null, stackHue = null, onOpenStackMap = () => {},
-  adoptableParent = null, adoptingStack = false, onAdoptStack = () => {}, onDismissAdoptCue = () => {},
+  adoptableParent = null, adoptStage = "idle", adoptConfirmBehind = null,
+  onAdoptStack = () => {}, onCancelAdoptConfirm = () => {}, onDismissAdoptCue = () => {},
 }: AgentItemContentProps) {
   // Secondary, not tertiary: these lines (status, PR title, timestamp, stack
   // position) are the card's information payload, and tertiary only clears
@@ -540,17 +546,20 @@ function AgentItemContent({
           </div>
         )}
         {/* GitHub says this PR is stacked (base = a sibling worktree's branch)
-            but no local stack is recorded — offer one-click adoption through
-            change_base. Detection never auto-adopts; see detectAdoptableParent. */}
+            but no local stack is recorded — offer adoption through change_base.
+            One click when the branch already sits on the parent tip; when the
+            parent has advanced, adoption rebases (and lease-pushes) the branch,
+            so a confirm step names that before anything runs. Detection never
+            auto-adopts; see detectAdoptableParent. */}
         {adoptableParent && (
           <div className="flex items-center gap-1.5 mt-1 text-[10px] text-amber-400 min-w-0">
-            <span className="truncate" title={`PR base is ${adoptableParent} on GitHub`}>
-              stacked on {adoptableParent} on GitHub
-            </span>
-            {adoptingStack ? (
-              <span className="flex-shrink-0 animate-pulse">· adopting...</span>
-            ) : (
+            {adoptStage === "confirm" ? (
               <>
+                <span className="truncate" title={`Adopting rebases this branch onto ${adoptableParent} and updates the PR`}>
+                  {adoptConfirmBehind != null
+                    ? `adopt rebases onto ${adoptableParent} (${adoptConfirmBehind} behind)`
+                    : `adopt may rebase onto ${adoptableParent}`}
+                </span>
                 <button
                   type="button"
                   className="flex-shrink-0 underline underline-offset-2 hover:text-amber-300 cursor-pointer"
@@ -558,21 +567,57 @@ function AgentItemContent({
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
-                  aria-label={`Adopt stack: set ${adoptableParent} as this branch's base`}
+                  aria-label={`Confirm: rebase onto ${adoptableParent} and adopt the stack`}
                 >
-                  adopt
+                  confirm
                 </button>
                 <button
                   type="button"
                   className="flex-shrink-0 text-text-tertiary hover:text-text-secondary cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); onDismissAdoptCue(); }}
+                  onClick={(e) => { e.stopPropagation(); onCancelAdoptConfirm(); }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
-                  aria-label="Dismiss"
+                  aria-label="Cancel"
                 >
                   ✕
                 </button>
+              </>
+            ) : (
+              <>
+                <span className="truncate" title={`PR base is ${adoptableParent} on GitHub`}>
+                  stacked on {adoptableParent} on GitHub
+                </span>
+                {adoptStage !== "idle" ? (
+                  <span className="flex-shrink-0 animate-pulse">
+                    · {adoptStage === "probing" ? "checking..." : "adopting..."}
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="flex-shrink-0 underline underline-offset-2 hover:text-amber-300 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); onAdoptStack(); }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      aria-label={`Adopt stack: set ${adoptableParent} as this branch's base`}
+                    >
+                      adopt
+                    </button>
+                    <button
+                      type="button"
+                      className="flex-shrink-0 text-text-tertiary hover:text-text-secondary cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); onDismissAdoptCue(); }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      aria-label="Dismiss"
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -843,14 +888,17 @@ const AgentItem = memo(function AgentItem({
     () => computeStackChain(allWorktrees, worktree.id),
     [allWorktrees, worktree.id],
   );
+  const githubUsername = useGithubUsername();
   const adoptableParent = useMemo(
-    () => detectAdoptableParent(allWorktrees, worktree.id, defaultBranch),
-    [allWorktrees, worktree.id, defaultBranch],
+    () => detectAdoptableParent(allWorktrees, worktree.id, defaultBranch, githubUsername),
+    [allWorktrees, worktree.id, defaultBranch, githubUsername],
   );
   const dismissedAdoptions = useWorkspaceStore((s) => s.dismissedStackAdoptions);
   const showAdoptCue =
     adoptableParent != null && !dismissedAdoptions.has(`${worktree.id}:${adoptableParent}`);
-  const [adoptingStack, setAdoptingStack] = useState(false);
+  const [adoptState, setAdoptState] = useState<
+    { stage: "idle" | "probing" | "adopting" } | { stage: "confirm"; behind: number | null }
+  >({ stage: "idle" });
   const stackHue = useStackHue(worktree.id);
   const isPeeked = stackChain != null && peekedStackRootId === stackChain.rootId;
 
@@ -911,21 +959,48 @@ const AgentItem = memo(function AgentItem({
     }
   };
 
-  const handleAdoptStack = async () => {
-    if (!adoptableParent || adoptingStack) return;
-    setAdoptingStack(true);
+  const runAdopt = async (parent: string) => {
+    setAdoptState({ stage: "adopting" });
     try {
-      await applyStackBaseChange(worktree, adoptableParent);
+      await applyStackBaseChange(worktree, parent);
       // Success: the optimistic stackParent update makes detection return null,
       // so the cue disappears and the normal stack row takes over.
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("Adopt stack failed:", msg);
-      new Notification("Alfredo", { body: `Adopt stack failed for ${worktree.branch}: ${msg}` });
+      // In-app toast, matching every other stack surface — a raw Notification
+      // is gated by macOS permission/DND and dead in dev builds. A rebase
+      // conflict additionally gets the sticky stack:rebase-conflict toast, and
+      // its status write suppresses the cue (see detectAdoptableParent).
+      useToastStore.getState().show({ message: `Adopt stack failed for ${worktree.branch}: ${msg}` });
     } finally {
-      setAdoptingStack(false);
+      setAdoptState({ stage: "idle" });
     }
   };
+  const handleAdoptStack = async () => {
+    if (!adoptableParent) return;
+    if (adoptState.stage === "confirm") {
+      // Second click on the warning row — the user has seen the rebase copy.
+      await runAdopt(adoptableParent);
+      return;
+    }
+    if (adoptState.stage !== "idle") return;
+    // Adoption is metadata-only when the branch already sits on the parent tip,
+    // but rebases (and lease-pushes) when the parent has advanced — probe first
+    // and only skip the confirm step in the provably-clean case. A failed
+    // probe (null) still confirms, with hedged copy.
+    setAdoptState({ stage: "probing" });
+    const behind = await getCommitsBehindMain(worktree.path, adoptableParent).catch((e) => {
+      console.warn("[adopt-stack] behind-count probe failed:", e);
+      return null;
+    });
+    if (behind === 0) {
+      await runAdopt(adoptableParent);
+      return;
+    }
+    setAdoptState({ stage: "confirm", behind });
+  };
+  const handleCancelAdoptConfirm = () => setAdoptState({ stage: "idle" });
   const handleDismissAdoptCue = () => {
     if (adoptableParent) {
       useWorkspaceStore.getState().dismissStackAdoption(worktree.id, adoptableParent);
@@ -954,6 +1029,15 @@ const AgentItem = memo(function AgentItem({
         stackParent: null,
         stackRebaseStatus: null,
       });
+      // Detach never retargets the PR base on GitHub, so the adopt cue would
+      // immediately re-offer the stack the user just left — pre-dismiss it for
+      // this session. (After a restart the cue returns: local and GitHub
+      // genuinely disagree until the PR base is retargeted, so re-offering
+      // then is honest.)
+      const prBase = worktree.prStatus?.baseBranch;
+      if (prBase) {
+        useWorkspaceStore.getState().dismissStackAdoption(worktree.id, prBase);
+      }
     } catch (e) {
       console.error("Failed to detach from stack:", e);
     }
@@ -1004,8 +1088,10 @@ const AgentItem = memo(function AgentItem({
       stackHue={stackHue}
       onOpenStackMap={() => setStackMapOpen(true)}
       adoptableParent={showAdoptCue ? adoptableParent : null}
-      adoptingStack={adoptingStack}
+      adoptStage={adoptState.stage}
+      adoptConfirmBehind={adoptState.stage === "confirm" ? adoptState.behind : null}
       onAdoptStack={handleAdoptStack}
+      onCancelAdoptConfirm={handleCancelAdoptConfirm}
       onDismissAdoptCue={handleDismissAdoptCue}
     />
   );

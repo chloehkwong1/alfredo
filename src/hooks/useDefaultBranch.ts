@@ -18,6 +18,12 @@ export function useDefaultBranch(
     }
     if (!repoPath) return;
 
+    // Reset synchronously before fetching: when an override clears (stack
+    // dissolved or detached), the previous value would otherwise linger as a
+    // stale "default" until the invoke resolves — consumers must see null,
+    // not the old stack parent, during that window.
+    setBranch(null);
+
     let cancelled = false;
     getDefaultBranch(repoPath)
       .then((b) => { if (!cancelled) setBranch(b); })

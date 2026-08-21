@@ -11,13 +11,19 @@ export async function applyStackBaseChange(
   worktree: Worktree,
   nextParent: string | null,
 ): Promise<void> {
-  const prevParent = worktree.stackParent ?? null;
   await changeStackBase(worktree.repoPath, worktree.name, nextParent);
+
+  // Re-read the live store AFTER the backend call: a concurrent writer
+  // (stack:parent-merged handler, detach) may have changed stackParent during
+  // the await, and the stackChildren surgery below must run against current
+  // facts, not the caller's render-time snapshot.
+  const store = useWorkspaceStore.getState();
+  const prevParent =
+    store.worktrees.find((w) => w.id === worktree.id)?.stackParent ?? worktree.stackParent ?? null;
 
   // Optimistically update child + both parents' stackChildren so the
   // sidebar reflects the new shape without waiting for the next
   // list_worktrees refresh or stack-status poll.
-  const store = useWorkspaceStore.getState();
   store.updateWorktree(worktree.id, {
     stackParent: nextParent,
     stackRebaseStatus: null,
