@@ -254,6 +254,13 @@ describe("applyPrUpdates — native GitHub Stack membership", () => {
     expect(patches.get(WT_ID)?.prStatus?.nativeStack).toBeNull();
   });
 
+  it("carries author onto the worktree's prStatus patch (adopt-cue ownership gate)", () => {
+    const patches = usePrStore
+      .getState()
+      .applyPrUpdates([openPr({ author: "colleague" })], [makeWorktree()]);
+    expect(patches.get(WT_ID)?.prStatus?.author).toBe("colleague");
+  });
+
   it("carries reviewRequested onto the worktree's prStatus patch", () => {
     const patches = usePrStore
       .getState()

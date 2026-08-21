@@ -245,6 +245,9 @@ export const usePrStore = create<PrState>((set, get) => ({
         headSha: pr.headSha,
         body: pr.body,
         nativeStack: pr.nativeStack ?? null,
+        // Ownership fact for the adopt-stack cue's foreign-PR gate — the gate
+        // fails closed when this is absent, so it must ride every live sync.
+        author: pr.author,
         // Sticky only within the same PR: GitHub clears requested_reviewers the
         // moment a review is submitted, and this flag gates "is this someone
         // else's PR" — it must not flip back merely because the review went in.

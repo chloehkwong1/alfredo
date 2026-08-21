@@ -238,47 +238,68 @@ describe("detectAdoptableParent", () => {
   const pr = (over: Partial<NonNullable<Worktree["prStatus"]>> = {}) =>
     ({
       number: 9, state: "open", title: "t", url: "u", draft: false,
-      merged: false, branch: "feat/child", baseBranch: "feat/parent", ...over,
+      merged: false, branch: "feat/child", baseBranch: "feat/parent",
+      author: "chloe", ...over,
     }) as Worktree["prStatus"];
   const parent = wt({ id: "p", branch: "feat/parent" });
   const child = wt({ id: "c", branch: "feat/child", prStatus: pr() });
+  const detect = (worktrees: Worktree[], id = "c", def: string | null = "main", user: string | null = "chloe") =>
+    detectAdoptableParent(worktrees, id, def, user);
 
   it("returns the base branch when it matches a sibling worktree", () => {
-    expect(detectAdoptableParent([parent, child], "c", "main")).toBe("feat/parent");
+    expect(detect([parent, child])).toBe("feat/parent");
   });
 
   it("returns null when a stack parent is already recorded", () => {
     const stacked = { ...child, stackParent: "feat/parent" };
-    expect(detectAdoptableParent([parent, stacked], "c", "main")).toBeNull();
+    expect(detect([parent, stacked])).toBeNull();
   });
 
   it("returns null without a PR, or with a terminal PR", () => {
-    expect(detectAdoptableParent([parent, wt({ id: "c", branch: "feat/child" })], "c", "main")).toBeNull();
-    expect(detectAdoptableParent([parent, { ...child, prStatus: pr({ merged: true }) }], "c", "main")).toBeNull();
-    expect(detectAdoptableParent([parent, { ...child, prStatus: pr({ state: "closed" }) }], "c", "main")).toBeNull();
+    expect(detect([parent, wt({ id: "c", branch: "feat/child" })])).toBeNull();
+    expect(detect([parent, { ...child, prStatus: pr({ merged: true }) }])).toBeNull();
+    expect(detect([parent, { ...child, prStatus: pr({ state: "closed" }) }])).toBeNull();
   });
 
   it("returns null for native GitHub Stack members", () => {
     const native: NativeStackInfo = { id: "s", number: 1, position: 1, size: 2, members: [] };
-    expect(detectAdoptableParent([parent, { ...child, prStatus: pr({ nativeStack: native }) }], "c", "main")).toBeNull();
+    expect(detect([parent, { ...child, prStatus: pr({ nativeStack: native }) }])).toBeNull();
   });
 
   it("returns null for review-request pulls of someone else's PR", () => {
-    expect(detectAdoptableParent([parent, { ...child, prStatus: pr({ reviewRequested: true }) }], "c", "main")).toBeNull();
+    expect(detect([parent, { ...child, prStatus: pr({ reviewRequested: true }) }])).toBeNull();
+  });
+
+  it("ownership gate: null when the PR author differs, is missing, or the username is unknown", () => {
+    expect(detect([parent, { ...child, prStatus: pr({ author: "colleague" }) }])).toBeNull();
+    expect(detect([parent, { ...child, prStatus: pr({ author: undefined }) }])).toBeNull();
+    expect(detect([parent, child], "c", "main", null)).toBeNull();
+    // Case-insensitive: GitHub logins are case-preserving but not case-sensitive.
+    expect(detect([parent, child], "c", "main", "Chloe")).toBe("feat/parent");
+  });
+
+  it("returns null while the worktree has any live stack-rebase status", () => {
+    const conflicted = { ...child, stackRebaseStatus: { kind: "conflict" as const } };
+    expect(detect([parent, conflicted])).toBeNull();
   });
 
   it("returns null when the base is the default branch or default is unresolved", () => {
     const mainWt = wt({ id: "m", branch: "main" });
     const onMain = { ...child, prStatus: pr({ baseBranch: "main" }) };
-    expect(detectAdoptableParent([mainWt, onMain], "c", "main")).toBeNull();
-    expect(detectAdoptableParent([parent, child], "c", null)).toBeNull();
+    expect(detect([mainWt, onMain])).toBeNull();
+    expect(detect([parent, child], "c", null)).toBeNull();
   });
 
   it("returns null when no sibling has the base branch, or it is in another repo / still creating", () => {
-    expect(detectAdoptableParent([child], "c", "main")).toBeNull();
+    expect(detect([child])).toBeNull();
     const otherRepo = wt({ id: "p2", branch: "feat/parent", repoPath: "/tmp/other" });
-    expect(detectAdoptableParent([otherRepo, child], "c", "main")).toBeNull();
+    expect(detect([otherRepo, child])).toBeNull();
     const creating = { ...parent, creating: true };
-    expect(detectAdoptableParent([creating, child], "c", "main")).toBeNull();
+    expect(detect([creating, child])).toBeNull();
+  });
+
+  it("returns null when the only sibling with the branch is archived or branch-mode", () => {
+    expect(detect([{ ...parent, archived: true }, child])).toBeNull();
+    expect(detect([{ ...parent, isBranchMode: true }, child])).toBeNull();
   });
 });

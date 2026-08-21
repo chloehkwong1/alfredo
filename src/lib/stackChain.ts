@@ -188,31 +188,53 @@ export function collectStackIdentities(worktrees: Worktree[]): Map<string, strin
   return identities;
 }
 
+/** Per-array index of visible, materialized worktrees by repo+branch, so N
+ *  sidebar rows share one O(N) pass per store update instead of each redoing
+ *  a linear sibling scan (same memo pattern as stackHuesFor). Archived and
+ *  branch-mode/synthetic entries are excluded up front: neither is a parent a
+ *  user can see or should adopt onto. First-encountered wins. */
+const branchIndexCache = new WeakMap<Worktree[], Map<string, Worktree>>();
+function branchIndexFor(worktrees: Worktree[]): Map<string, Worktree> {
+  let index = branchIndexCache.get(worktrees);
+  if (!index) {
+    index = new Map();
+    for (const wt of worktrees) {
+      if (!isVisibleWorktree(wt) || wt.creating || wt.createError) continue;
+      const key = `${wt.repoPath}::${wt.branch}`;
+      if (!index.has(key)) index.set(key, wt);
+    }
+    branchIndexCache.set(worktrees, index);
+  }
+  return index;
+}
+
 /** A PR whose GitHub base points at a sibling worktree's branch, with no local
  *  stack relationship recorded (e.g. an agent ran `gh pr edit --base` in the
- *  terminal). Returns the adoptable parent branch, or null. Excluded: native
- *  GitHub Stack members (Alfredo's automation stands down for those) and
- *  review-request pulls of other people's PRs. Detection only — adoption is
- *  always an explicit user click routed through change_base. */
+ *  terminal). Returns the adoptable parent branch, or null. Only the user's
+ *  OWN PRs qualify (author must match the authenticated login — the durable
+ *  ownership fact; `reviewRequested` is just a fast-path for review pulls, and
+ *  a missing author fails closed). Also excluded: native GitHub Stack members
+ *  (Alfredo's automation stands down for those), worktrees with any live
+ *  stack-rebase status (the backend already treats those as stack-involved,
+ *  e.g. change_base persisted a parent then conflicted before the store
+ *  learned of it), and invisible siblings (archived / branch-mode). Detection
+ *  only — adoption is always an explicit user click routed through
+ *  change_base. */
 export function detectAdoptableParent(
   worktrees: Worktree[],
   worktreeId: string,
   defaultBranch: string | null,
+  githubUsername: string | null,
 ): string | null {
-  if (!defaultBranch) return null;
+  if (!defaultBranch || !githubUsername) return null;
   const w = worktrees.find((x) => x.id === worktreeId);
   const pr = w?.prStatus;
   if (!w || !pr) return null;
   if (w.stackParent || isTerminalPr(pr) || pr.nativeStack || pr.reviewRequested) return null;
+  if (w.stackRebaseStatus) return null;
+  if (!pr.author || pr.author.toLowerCase() !== githubUsername.toLowerCase()) return null;
   const base = pr.baseBranch;
   if (!base || base === defaultBranch) return null;
-  const parent = worktrees.find(
-    (x) =>
-      x.id !== w.id &&
-      x.repoPath === w.repoPath &&
-      x.branch === base &&
-      !x.creating &&
-      !x.createError,
-  );
-  return parent ? base : null;
+  const parent = branchIndexFor(worktrees).get(`${w.repoPath}::${base}`);
+  return parent && parent.id !== w.id ? base : null;
 }
