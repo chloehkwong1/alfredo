@@ -1,0 +1,27 @@
+src/services/terminalFactory.test.ts
+  s_d361a97d343ccf::t_376c0cdc58d6ae 3
+  s_d361a97d343ccf::t_1a2aa7d3241cea 262-285
+src/hooks/usePty.ts
+  s_d361a97d343ccf::t_2af56a162f69ce 123-127
+  s_d361a97d343ccf::t_03291c29fc49a1 8
+  s_d361a97d343ccf::t_2e71131aca1285 357-362
+src/services/terminalFactory.ts
+  s_d361a97d343ccf::t_ac5ee4982cde87 262
+  s_d361a97d343ccf::t_ae90d40741433c 230-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c41f85b84ba6982b44d685f360996cb73f575775",
+  "prompts": {},
+  "sessions": {
+    "s_d361a97d343ccf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24b06977-8266-411c-be59-3c6fe3071c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
