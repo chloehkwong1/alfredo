@@ -227,6 +227,18 @@ export function stripClearScrollback(bytes: Uint8Array): Uint8Array {
   return result;
 }
 
+// ── Tiered scrollback ──────────────────────────────────────────
+// Every tab's Terminal stays resident in the SessionManager for the app's
+// lifetime, and ESC[3J stripping means agent TUIs saturate whatever cap they
+// are given (~12 bytes/cell in xterm's buffer — a saturated 10k-line wide
+// terminal holds ~30 MB). With tens of tabs open that multiplied into
+// gigabyte-scale webview footprints, so only the attached (visible) terminal
+// gets deep scrollback; detached ones are trimmed to the background cap
+// (usePty raises/lowers on attach/detach — xterm trims the buffer live when
+// the option is lowered).
+export const ACTIVE_SCROLLBACK = 10_000;
+export const BACKGROUND_SCROLLBACK = 1_000;
+
 /**
  * Create a Terminal instance with:
  * - Kitty keyboard protocol support (Shift+Enter for newline in Claude Code)
@@ -247,7 +259,7 @@ export function createTerminal(opts: { cwd?: string } = {}): { terminal: Termina
   const prefs = loadTerminalPreferences();
   const terminal = new Terminal({
     allowProposedApi: true,
-    scrollback: 10_000,
+    scrollback: BACKGROUND_SCROLLBACK,
     fontFamily: `"${prefs.fontFamily}", monospace`,
     fontSize: prefs.fontSize,
     lineHeight: prefs.lineHeight,

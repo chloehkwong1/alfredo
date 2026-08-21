@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Terminal } from "@xterm/xterm";
-import { registerSelectToCopy, handleTerminalKeyEvent, splitLineSuffix, opensInOsDefaultApp } from "./terminalFactory";
+import { registerSelectToCopy, handleTerminalKeyEvent, splitLineSuffix, opensInOsDefaultApp, createTerminal, ACTIVE_SCROLLBACK, BACKGROUND_SCROLLBACK } from "./terminalFactory";
 import { copyText } from "../lib/clipboard";
 
 // Copy goes through the native-pasteboard helper (not navigator.clipboard),
@@ -256,6 +256,30 @@ describe("splitLineSuffix", () => {
 
   it("returns the path unchanged when there is no suffix", () => {
     expect(splitLineSuffix("app/services/foo.rb")).toEqual({ path: "app/services/foo.rb" });
+  });
+});
+
+describe("tiered scrollback", () => {
+  it("creates terminals at the background cap (raised only while attached)", () => {
+    const { terminal } = createTerminal();
+    expect(BACKGROUND_SCROLLBACK).toBeLessThan(ACTIVE_SCROLLBACK);
+    expect(terminal.options.scrollback).toBe(BACKGROUND_SCROLLBACK);
+    terminal.dispose();
+  });
+
+  it("trims the buffer live when scrollback is lowered", async () => {
+    const { terminal } = createTerminal();
+    terminal.options.scrollback = ACTIVE_SCROLLBACK;
+
+    const lines = BACKGROUND_SCROLLBACK + 500;
+    await new Promise<void>((resolve) => {
+      terminal.write("x\r\n".repeat(lines), resolve);
+    });
+    expect(terminal.buffer.active.length).toBeGreaterThan(BACKGROUND_SCROLLBACK + terminal.rows);
+
+    terminal.options.scrollback = BACKGROUND_SCROLLBACK;
+    expect(terminal.buffer.active.length).toBeLessThanOrEqual(BACKGROUND_SCROLLBACK + terminal.rows);
+    terminal.dispose();
   });
 });
 

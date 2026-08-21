@@ -5,7 +5,7 @@ import type { SearchAddon } from "@xterm/addon-search";
 import type { AgentState, SessionType } from "../types";
 import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
 import { sessionManager } from "../services/sessionManager";
-import { registerSelectToCopy } from "../services/terminalFactory";
+import { registerSelectToCopy, ACTIVE_SCROLLBACK, BACKGROUND_SCROLLBACK } from "../services/terminalFactory";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { isTerminalPr } from "../lib/prStatus";
 import type { ManagedSession } from "../services/sessionManager";
@@ -119,6 +119,11 @@ export function usePty({
 
       sessionRef.current = session;
       const { terminal: term, fitAddon } = session;
+
+      // Attached terminals get deep scrollback; detach (cleanup below) trims
+      // back to the background cap so tens of hidden tabs can't each hold a
+      // saturated 10k-line buffer (~30 MB apiece) for days.
+      term.options.scrollback = ACTIVE_SCROLLBACK;
 
       if (term.element) {
         container.appendChild(term.element);
@@ -348,6 +353,12 @@ export function usePty({
       if (session) session.onFirstOutput = undefined;
       if (session?.terminal.element && container.contains(session.terminal.element)) {
         container.removeChild(session.terminal.element);
+      }
+      // Trim scrollback to the background cap now that the terminal is
+      // detached. Guarded: restart flows dispose the session before this
+      // cleanup runs, and xterm throws on a disposed terminal.
+      if (session && !session.disposed) {
+        session.terminal.options.scrollback = BACKGROUND_SCROLLBACK;
       }
 
       sessionRef.current = null;
