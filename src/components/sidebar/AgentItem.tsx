@@ -6,7 +6,7 @@ import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy,
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn, getCommitsBehindMain } from "../../api";
+import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn, getCommitsBehindMain, STACK_ADOPT_NOT_CLEAN } from "../../api";
 import { stopServerAndReleasePort } from "../../services/portReclaim";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { useGithubUsername } from "../../hooks/useGithubUsername";
@@ -893,12 +893,25 @@ const AgentItem = memo(function AgentItem({
     () => detectAdoptableParent(allWorktrees, worktree.id, defaultBranch, githubUsername),
     [allWorktrees, worktree.id, defaultBranch, githubUsername],
   );
-  const dismissedAdoptions = useWorkspaceStore((s) => s.dismissedStackAdoptions);
-  const showAdoptCue =
-    adoptableParent != null && !dismissedAdoptions.has(`${worktree.id}:${adoptableParent}`);
+  const showAdoptCue = useWorkspaceStore(
+    (s) => adoptableParent != null && !s.isStackAdoptionDismissed(worktree.id, adoptableParent),
+  );
+  // Every non-idle stage carries the parent it was armed against, so a
+  // detection flip (PR sync retargeting baseBranch) can't leave a stale
+  // confirm armed for a parent that was never probed — the effect below
+  // resets the flow whenever the armed parent no longer matches detection.
   const [adoptState, setAdoptState] = useState<
-    { stage: "idle" | "probing" | "adopting" } | { stage: "confirm"; behind: number | null }
+    | { stage: "idle" }
+    | { stage: "probing" | "adopting"; parent: string }
+    | { stage: "confirm"; parent: string; behind: number | null }
   >({ stage: "idle" });
+  useEffect(() => {
+    setAdoptState((s) =>
+      s.stage !== "idle" && s.stage !== "adopting" && s.parent !== adoptableParent
+        ? { stage: "idle" }
+        : s,
+    );
+  }, [adoptableParent]);
   const stackHue = useStackHue(worktree.id);
   const isPeeked = stackChain != null && peekedStackRootId === stackChain.rootId;
 
@@ -959,46 +972,63 @@ const AgentItem = memo(function AgentItem({
     }
   };
 
-  const runAdopt = async (parent: string) => {
-    setAdoptState({ stage: "adopting" });
+  const runAdopt = async (parent: string, expectNoRebase: boolean) => {
+    setAdoptState({ stage: "adopting", parent });
     try {
-      await applyStackBaseChange(worktree, parent);
+      await applyStackBaseChange(worktree, parent, { expectNoRebase });
       // Success: the optimistic stackParent update makes detection return null,
       // so the cue disappears and the normal stack row takes over.
+      setAdoptState({ stage: "idle" });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // The backend re-checks the "no rebase will happen" claim against the
+      // tips it resolves at adopt time and refuses when the parent moved
+      // since our probe (or the probe was wrong). Not a failure — fall back
+      // to the confirm step with hedged copy, exactly as an inconclusive
+      // probe would have.
+      if (expectNoRebase && msg.includes(STACK_ADOPT_NOT_CLEAN)) {
+        setAdoptState({ stage: "confirm", parent, behind: null });
+        return;
+      }
       console.error("Adopt stack failed:", msg);
       // In-app toast, matching every other stack surface — a raw Notification
       // is gated by macOS permission/DND and dead in dev builds. A rebase
       // conflict additionally gets the sticky stack:rebase-conflict toast, and
       // its status write suppresses the cue (see detectAdoptableParent).
       useToastStore.getState().show({ message: `Adopt stack failed for ${worktree.branch}: ${msg}` });
-    } finally {
       setAdoptState({ stage: "idle" });
     }
   };
   const handleAdoptStack = async () => {
-    if (!adoptableParent) return;
     if (adoptState.stage === "confirm") {
       // Second click on the warning row — the user has seen the rebase copy.
-      await runAdopt(adoptableParent);
+      // Adopt the ARMED parent (the one the copy described), not whatever
+      // detection currently returns.
+      await runAdopt(adoptState.parent, false);
       return;
     }
-    if (adoptState.stage !== "idle") return;
+    if (adoptState.stage !== "idle" || !adoptableParent) return;
     // Adoption is metadata-only when the branch already sits on the parent tip,
     // but rebases (and lease-pushes) when the parent has advanced — probe first
     // and only skip the confirm step in the provably-clean case. A failed
-    // probe (null) still confirms, with hedged copy.
-    setAdoptState({ stage: "probing" });
-    const behind = await getCommitsBehindMain(worktree.path, adoptableParent).catch((e) => {
+    // probe (null) still confirms, with hedged copy. The clean fast path
+    // passes expectNoRebase so the backend refuses (→ confirm) rather than
+    // rebasing if the parent moved between probe and adopt.
+    const parent = adoptableParent;
+    setAdoptState({ stage: "probing", parent });
+    const behind = await getCommitsBehindMain(worktree.path, parent).catch((e) => {
       console.warn("[adopt-stack] behind-count probe failed:", e);
       return null;
     });
     if (behind === 0) {
-      await runAdopt(adoptableParent);
+      await runAdopt(parent, true);
       return;
     }
-    setAdoptState({ stage: "confirm", behind });
+    // Arm the confirm only if the flow wasn't reset while the probe ran
+    // (detection may have flipped to a different parent mid-await).
+    setAdoptState((s) =>
+      s.stage === "probing" && s.parent === parent ? { stage: "confirm", parent, behind } : s,
+    );
   };
   const handleCancelAdoptConfirm = () => setAdoptState({ stage: "idle" });
   const handleDismissAdoptCue = () => {

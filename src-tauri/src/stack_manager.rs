@@ -2564,12 +2564,19 @@ async fn adoption_baseline(
 /// wip-stashes any uncommitted changes instead. It shares only the lease-push
 /// tail (`push_with_lease_or_flag`) with `run_restack`; the surrounding
 /// persist-then-emit ordering is bespoke to this caller.
+/// Sentinel prefix for the `expect_no_rebase` refusal — the frontend's adopt
+/// fast path matches on it to fall back to the confirm step instead of
+/// toasting a generic failure. Keep in sync with `STACK_ADOPT_NOT_CLEAN` in
+/// `src/api.ts`.
+pub const ADOPT_NOT_CLEAN: &str = "adopt-not-clean:";
+
 pub async fn change_base(
     app_handle: &AppHandle,
     app_data_dir: &Path,
     repo_path: &str,
     worktree_name: &str,
     new_parent: Option<&str>,
+    expect_no_rebase: bool,
 ) -> Result<(), String> {
     // Explicit user action: always retry, never honour a memoised conflict, and
     // supersede whatever the last background attempt reported.
@@ -2627,6 +2634,18 @@ pub async fn change_base(
             }
         }
     };
+
+    // The caller's probe said "no rebase will happen" (behind == 0). Re-check
+    // against the tips resolved HERE, before anything is persisted or
+    // rewritten: the parent can advance between the probe and this call, and
+    // the probe itself can be wrong. Refusing (rather than silently rebasing
+    // + lease-pushing) keeps the one-click adopt path honestly metadata-only;
+    // the frontend falls back to the confirm step on this error.
+    if expect_no_rebase && old_baseline != target_tip {
+        return Err(format!(
+            "{ADOPT_NOT_CLEAN} {target_branch} advanced since the probe — adopting now would rebase"
+        ));
+    }
 
     // Re-parenting persists the new parent FIRST (see the doc comment), and
     // pins `old_baseline` alongside it. Pinning matters for the stack that had

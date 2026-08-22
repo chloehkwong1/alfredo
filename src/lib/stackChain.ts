@@ -236,5 +236,11 @@ export function detectAdoptableParent(
   const base = pr.baseBranch;
   if (!base || base === defaultBranch) return null;
   const parent = branchIndexFor(worktrees).get(`${w.repoPath}::${base}`);
-  return parent && parent.id !== w.id ? base : null;
+  if (!parent || parent.id === w.id) return null;
+  // A parent whose own PR is terminal is a dead base: GitHub only retargets
+  // dependent PRs when the branch is DELETED, so a merged-but-kept branch
+  // still shows as this PR's base — offering adoption would rebase the child
+  // onto a merged branch and keep the PR pointed at it.
+  if (parent.prStatus && isTerminalPr(parent.prStatus)) return null;
+  return base;
 }

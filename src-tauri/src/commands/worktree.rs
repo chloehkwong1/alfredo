@@ -758,11 +758,19 @@ pub async fn change_stack_base(
     repo_path: String,
     worktree_name: String,
     new_parent: Option<String>,
+    expect_no_rebase: Option<bool>,
 ) -> Result<()> {
     let app_data_dir = resolve_app_data_dir(&app)?;
-    crate::stack_manager::change_base(&app, &app_data_dir, &repo_path, &worktree_name, new_parent.as_deref())
-        .await
-        .map_err(AppError::Git)
+    crate::stack_manager::change_base(
+        &app,
+        &app_data_dir,
+        &repo_path,
+        &worktree_name,
+        new_parent.as_deref(),
+        expect_no_rebase.unwrap_or(false),
+    )
+    .await
+    .map_err(AppError::Git)
 }
 
 /// Dismiss a worktree's pending stack banner. Exists for the

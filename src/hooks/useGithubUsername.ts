@@ -12,9 +12,20 @@ function fetchUsername(): Promise<string | null> {
   fetchPromise ??= githubAuthStatus()
     .then((s) => {
       cached = s.username;
+      // Unauthenticated is retryable state, not a session-long fact: the user
+      // may run `gh auth login` mid-session. Clear the latch so the next
+      // mount re-asks instead of re-awaiting this settled null forever.
+      if (cached === null) fetchPromise = null;
       return cached;
     })
-    .catch(() => null);
+    .catch((e) => {
+      // A transient flake (the keychain race at cold launch) must not
+      // disable every username-gated surface until app restart — log it and
+      // clear the latch so the next mount retries.
+      console.warn("[useGithubUsername] gh auth status failed (will retry on next mount):", e);
+      fetchPromise = null;
+      return null;
+    });
   return fetchPromise;
 }
 

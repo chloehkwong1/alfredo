@@ -16,6 +16,24 @@ import {
 import type { ClaudeRegistryEntry } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
+import { ACTIVE_SCROLLBACK, BACKGROUND_SCROLLBACK } from "./terminalFactory";
+
+describe("loadScrollbackOnly tiered-scrollback restore", () => {
+  it("raises the cap above the background tier before replaying, so restored history isn't trimmed", async () => {
+    const manager = new SessionManager();
+    const lines = BACKGROUND_SCROLLBACK + 200;
+    const scrollback = btoa("x\r\n".repeat(lines));
+    const session = manager.loadScrollbackOnly("wt-sb", "wt-sb", scrollback, "/wt/sb");
+
+    expect(session.terminal.options.scrollback).toBe(ACTIVE_SCROLLBACK);
+
+    // Wait for xterm's async write to flush, then confirm nothing was trimmed.
+    await new Promise<void>((resolve) => session.terminal.write("", resolve));
+    expect(session.terminal.buffer.active.length).toBeGreaterThan(BACKGROUND_SCROLLBACK);
+
+    await manager.closeAll();
+  });
+});
 
 describe("shouldAcceptDetectorState", () => {
   it("accepts detector events when hooks are not active", () => {

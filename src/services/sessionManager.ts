@@ -12,7 +12,7 @@ import { computeStaleBusy } from "../hooks/usePty";
 
 import type { ManagedSession } from "./sessionTypes";
 import { OUTPUT_BUFFER_CAPACITY } from "./sessionTypes";
-import { createTerminal, registerKittyProtocol } from "./terminalFactory";
+import { createTerminal, registerKittyProtocol, ACTIVE_SCROLLBACK } from "./terminalFactory";
 import {
   AGENT_TYPE_MAP,
   RECONCILE_INTERVAL_MS,
@@ -555,10 +555,15 @@ export class SessionManager implements SessionWriter {
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
 
-    // Replay saved scrollback BEFORE spawning the PTY
+    // Replay saved scrollback BEFORE spawning the PTY. Raise the cap first:
+    // terminals are created at the background cap, and xterm trims at write
+    // time — replaying under the low cap would permanently drop restored
+    // history that the attach-time raise can never recover. The cap stays
+    // raised until the first detach normalises it.
     if (initialScrollback) {
       try {
         const bytes = Uint8Array.from(atob(initialScrollback), (c) => c.charCodeAt(0));
+        terminal.options.scrollback = ACTIVE_SCROLLBACK;
         terminal.write(bytes);
       } catch {
         // Invalid base64 — skip replay
@@ -699,6 +704,11 @@ export class SessionManager implements SessionWriter {
     if (initialScrollback) {
       try {
         const bytes = Uint8Array.from(atob(initialScrollback), (c) => c.charCodeAt(0));
+        // Raise before replay — same rationale as getOrSpawn: xterm trims at
+        // write time, so restoring under the background cap would permanently
+        // truncate saved history. No PTY exists here, so the raised cap can't
+        // grow the buffer past the restored content before attach.
+        terminal.options.scrollback = ACTIVE_SCROLLBACK;
         terminal.write(bytes);
 
         // Populate the output buffer so auto-save can re-persist scrollback

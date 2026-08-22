@@ -10,16 +10,21 @@ import type { Worktree } from "../types";
 export async function applyStackBaseChange(
   worktree: Worktree,
   nextParent: string | null,
+  opts: { expectNoRebase?: boolean } = {},
 ): Promise<void> {
-  await changeStackBase(worktree.repoPath, worktree.name, nextParent);
+  await changeStackBase(worktree.repoPath, worktree.name, nextParent, opts.expectNoRebase ?? false);
 
   // Re-read the live store AFTER the backend call: a concurrent writer
   // (stack:parent-merged handler, detach) may have changed stackParent during
   // the await, and the stackChildren surgery below must run against current
-  // facts, not the caller's render-time snapshot.
+  // facts, not the caller's render-time snapshot. The snapshot is only a
+  // fallback for a worktree missing from the store entirely — when the live
+  // row exists, its stackParent wins even when that value is null (`??` here
+  // would resurrect the stale snapshot exactly when a concurrent writer
+  // legitimately cleared it).
   const store = useWorkspaceStore.getState();
-  const prevParent =
-    store.worktrees.find((w) => w.id === worktree.id)?.stackParent ?? worktree.stackParent ?? null;
+  const live = store.worktrees.find((w) => w.id === worktree.id);
+  const prevParent = (live ? live.stackParent : worktree.stackParent) ?? null;
 
   // Optimistically update child + both parents' stackChildren so the
   // sidebar reflects the new shape without waiting for the next
@@ -28,8 +33,14 @@ export async function applyStackBaseChange(
     stackParent: nextParent,
     stackRebaseStatus: null,
   });
+  // Parent lookups must be scoped to this worktree's repo: the store holds
+  // every repo's worktrees in one array, and branch names collide across
+  // repos (detectAdoptableParent keys by `${repoPath}::${branch}` for the
+  // same reason).
+  const findParent = (branch: string) =>
+    store.worktrees.find((w) => w.repoPath === worktree.repoPath && w.branch === branch);
   if (prevParent && prevParent !== nextParent) {
-    const oldParent = store.worktrees.find((w) => w.branch === prevParent);
+    const oldParent = findParent(prevParent);
     if (oldParent) {
       store.updateWorktree(oldParent.id, {
         stackChildren: (oldParent.stackChildren ?? []).filter((id) => id !== worktree.id),
@@ -37,7 +48,7 @@ export async function applyStackBaseChange(
     }
   }
   if (nextParent && nextParent !== prevParent) {
-    const newParent = store.worktrees.find((w) => w.branch === nextParent);
+    const newParent = findParent(nextParent);
     if (newParent) {
       const existing = newParent.stackChildren ?? [];
       if (!existing.includes(worktree.id)) {

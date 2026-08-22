@@ -586,7 +586,9 @@ fn resolve_diff_base(worktree_path: &str, stack_parent: Option<&str>) -> String 
 
 /// Count how many commits the current branch is behind the default remote branch (or stack parent).
 /// Uses the locally cached remote ref (no fetch) for speed.
-/// Returns 0 if up to date or if the remote ref doesn't exist.
+/// Errors when the count can't be established (missing ref, locked repo) —
+/// callers that treat the count as advisory catch and skip; the adopt-stack
+/// probe needs the distinction between "0" and "unknown".
 pub fn commits_behind(worktree_path: &str, stack_parent: Option<&str>) -> Result<u32, AppError> {
     let target = resolve_diff_base(worktree_path, stack_parent);
 
@@ -596,16 +598,20 @@ pub fn commits_behind(worktree_path: &str, stack_parent: Option<&str>) -> Result
         .output()
         .map_err(|e| AppError::Git(format!("failed to spawn git rev-list: {e}")))?;
 
+    // Failure must surface as Err, never Ok(0): the adopt-stack fast path
+    // reads 0 as "provably clean — skip the confirm step", so mapping a
+    // failed probe to 0 would green-light an unannounced rebase + lease-push.
     if !output.status.success() {
-        return Ok(0);
+        return Err(AppError::Git(format!(
+            "rev-list HEAD..{target} failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
     }
 
-    let count = String::from_utf8_lossy(&output.stdout)
+    String::from_utf8_lossy(&output.stdout)
         .trim()
         .parse::<u32>()
-        .unwrap_or(0);
-
-    Ok(count)
+        .map_err(|e| AppError::Git(format!("rev-list HEAD..{target} produced non-numeric output: {e}")))
 }
 
 /// Best-effort `git fetch` for a repo, throttled to once per 30s per repo.

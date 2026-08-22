@@ -240,12 +240,21 @@ export function restackStack(repoPath: string, worktreeName: string): Promise<Re
   return invoke("restack_stack", { repoPath, worktreeName });
 }
 
+/** Error-message prefix the backend returns when `expectNoRebase` was passed
+ *  but the target tip moved since the caller's probe. Keep in sync with
+ *  `ADOPT_NOT_CLEAN` in `src-tauri/src/stack_manager.rs`. */
+export const STACK_ADOPT_NOT_CLEAN = "adopt-not-clean:";
+
+/** `expectNoRebase` makes the backend refuse (with a `STACK_ADOPT_NOT_CLEAN`
+ *  error) instead of rebasing when the branch isn't already on the target tip
+ *  — the adopt fast path's guarantee that one-click adoption is metadata-only. */
 export function changeStackBase(
   repoPath: string,
   worktreeName: string,
   newParent: string | null,
+  expectNoRebase = false,
 ): Promise<void> {
-  return invoke("change_stack_base", { repoPath, worktreeName, newParent });
+  return invoke("change_stack_base", { repoPath, worktreeName, newParent, expectNoRebase });
 }
 
 export function resolveStackPending(repoPath: string, worktreeName: string): Promise<void> {

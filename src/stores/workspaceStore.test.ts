@@ -1070,3 +1070,20 @@ describe("worktreeOrder", () => {
     expect(store.getState().worktreeOrder).toEqual({});
   });
 });
+
+describe("stack-adoption dismissals", () => {
+  it("dismiss and read agree on the key for ids containing ':' separators", () => {
+    const store = useWorkspaceStore;
+    // Realistic worktree id shape: `${repoPath}::${branch}`, plus a branch
+    // with its own colon — the exact inputs that would expose read/write
+    // key-format drift.
+    const worktreeId = "/Users/x/repo::feat/child";
+    const parent = "feat:parent";
+
+    expect(store.getState().isStackAdoptionDismissed(worktreeId, parent)).toBe(false);
+    store.getState().dismissStackAdoption(worktreeId, parent);
+    expect(store.getState().isStackAdoptionDismissed(worktreeId, parent)).toBe(true);
+    // A different parent for the same worktree still re-prompts.
+    expect(store.getState().isStackAdoptionDismissed(worktreeId, "feat/other")).toBe(false);
+  });
+});

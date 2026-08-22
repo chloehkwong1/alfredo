@@ -26,10 +26,13 @@ interface WorkspaceState {
   unreadWorktrees: Set<string>;
   /** Tracks worktrees the user has pinned to the top of their column. */
   pinnedWorktrees: Set<string>;
-  /** Session-scoped "adopt stack?" cue dismissals, keyed `${worktreeId}:${parentBranch}`
-   *  so a different future base re-prompts. Deliberately not persisted. */
+  /** Session-scoped "adopt stack?" cue dismissals, keyed per worktree+parent
+   *  so a different future base re-prompts. Deliberately not persisted. The
+   *  key format is private to this store — read via isStackAdoptionDismissed,
+   *  never by rebuilding the key at a call site. */
   dismissedStackAdoptions: Set<string>;
   dismissStackAdoption: (worktreeId: string, parentBranch: string) => void;
+  isStackAdoptionDismissed: (worktreeId: string, parentBranch: string) => boolean;
   /** Manual sidebar card order per repo per kanban column (worktree names,
    *  top-first). Hydrated from personal config; persisted via setWorktreeOrders. */
   worktreeOrder: Record<string, Partial<Record<KanbanColumn, string[]>>>;
@@ -344,7 +347,14 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
   return [...withActivityTimestamps(merged, existing), ...placeholders];
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set) => ({
+/** Single owner of the dismissal-key format. `worktreeId` itself nests
+ *  `${repoPath}::${branch}` and branch names can contain `:`, so the format
+ *  must never be rebuilt independently at a read site — drift between two
+ *  template literals would silently stop dismissals from matching. */
+const stackAdoptionKey = (worktreeId: string, parentBranch: string) =>
+  `${worktreeId}:${parentBranch}`;
+
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   worktrees: [],
   completedSetups: [],
   activeWorktreeId: null,
@@ -645,9 +655,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   dismissStackAdoption: (worktreeId, parentBranch) =>
     set((state) => {
       const next = new Set(state.dismissedStackAdoptions);
-      next.add(`${worktreeId}:${parentBranch}`);
+      next.add(stackAdoptionKey(worktreeId, parentBranch));
       return { dismissedStackAdoptions: next };
     }),
+
+  isStackAdoptionDismissed: (worktreeId, parentBranch) =>
+    get().dismissedStackAdoptions.has(stackAdoptionKey(worktreeId, parentBranch)),
 
   addAnnotation: (annotation) =>
     set((state) => ({

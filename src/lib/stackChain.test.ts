@@ -302,4 +302,15 @@ describe("detectAdoptableParent", () => {
     expect(detect([{ ...parent, archived: true }, child])).toBeNull();
     expect(detect([{ ...parent, isBranchMode: true }, child])).toBeNull();
   });
+
+  it("returns null when the parent's own PR is terminal (merged-but-kept branch)", () => {
+    const parentPr = pr({ number: 8, branch: "feat/parent", baseBranch: "main" });
+    const merged = { ...parent, prStatus: { ...parentPr!, merged: true } };
+    expect(detect([merged, child])).toBeNull();
+    const closed = { ...parent, prStatus: { ...parentPr!, state: "closed" as const } };
+    expect(detect([closed, child])).toBeNull();
+    // A parent with a live PR (or no PR at all) still qualifies.
+    const open = { ...parent, prStatus: parentPr };
+    expect(detect([open, child])).toBe("feat/parent");
+  });
 });
