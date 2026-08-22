@@ -1,0 +1,56 @@
+src/stores/workspaceStore.ts
+  s_d361a97d343ccf::t_b84d64967fdbbc 29-32,35
+  s_d361a97d343ccf::t_b3e753cf091bf4 350-357
+  s_d361a97d343ccf::t_11d1217dcc4381 658,662-663
+  s_d361a97d343ccf::t_a189f6eeeaaf90 664
+src-tauri/src/commands/worktree.rs
+  s_d361a97d343ccf::t_3777cddd8b58c6 761,764-773
+src/api.ts
+  s_d361a97d343ccf::t_ec11889f28f6a1 243-250,255,257
+src-tauri/src/stack_manager.rs
+  s_d361a97d343ccf::t_4167dca699428f 2567-2572,2579
+  s_d361a97d343ccf::t_2473f5b78ef3eb 2638-2649
+src/lib/stackChain.ts
+  s_d361a97d343ccf::t_17e42cd1bf7d88 239-245
+src/stores/workspaceStore.test.ts
+  s_d361a97d343ccf::t_a33b29463a77c3 1073-1089
+src-tauri/src/git_manager.rs
+  s_d361a97d343ccf::t_79b5158508b2c9 589-591
+  s_d361a97d343ccf::t_dbda81eb0c1bde 601-603,605-608,611,614
+src/hooks/useGithubUsername.ts
+  s_d361a97d343ccf::t_cfff1664796504 15-18,21-28
+src/services/sessionManager.ts
+  s_d361a97d343ccf::t_c6b3e493e33ca7 15
+  s_d361a97d343ccf::t_ce60c26f641088 558-562,566
+  s_d361a97d343ccf::t_b5d07075416c74 707-711
+src/services/stackBase.ts
+  s_d361a97d343ccf::t_ef3c074231ccdd 36-41,43
+  s_d361a97d343ccf::t_789b43920de42e 13,15,20-24,26-27
+  s_d361a97d343ccf::t_eb35eff1b42f99 51
+src/lib/stackChain.test.ts
+  s_d361a97d343ccf::t_e808fabf987542 305-315
+src/hooks/useDefaultBranch.ts
+  s_d361a97d343ccf::t_e64047cdef0a70 4-11,20-22,31-35,39-42
+src/services/sessionManager.test.ts
+  s_d361a97d343ccf::t_80ade7a6f42f24 19-36
+src/components/sidebar/AgentItem.tsx
+  s_d361a97d343ccf::t_329011b52ffdb9 975-976,978,981,984-992,1005-1007,1010,1014-1019,1024,1027-1031
+  s_d361a97d343ccf::t_7a1ad37457e720 9
+  s_d361a97d343ccf::t_eb95ca91a19f6e 896-902,904-906,908-914
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "34863a11560cbdf75dc1515ee214a99421a3f8a1",
+  "prompts": {},
+  "sessions": {
+    "s_d361a97d343ccf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "24b06977-8266-411c-be59-3c6fe3071c26",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
