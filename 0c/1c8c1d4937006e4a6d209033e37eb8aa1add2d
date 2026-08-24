@@ -1,0 +1,41 @@
+src/services/linearPrompt.test.ts
+  s_ebf243856f94a1::t_0c1bad341592d5 2-3
+  s_ebf243856f94a1::t_8b6bbe7303184c 132-241
+src-tauri/src/types.rs
+  s_ebf243856f94a1::t_e10162786c3045 749-762
+src/types.ts
+  s_ebf243856f94a1::t_ed3a2e8f91c9f2 351
+  s_ebf243856f94a1::t_ae140cadb48aa9 397-405
+src-tauri/src/linear_manager.rs
+  s_ebf243856f94a1::t_e9b142efcf8532 724-728
+  s_ebf243856f94a1::t_6b2cfdc63f1fc1 638-644
+  s_ebf243856f94a1::t_bd84b9c18058d4 733-734
+  s_ebf243856f94a1::t_f7582ba0a3abc3 201-203
+  s_ebf243856f94a1::t_c33e36cac9e674 319-321
+  s_ebf243856f94a1::t_dd507ea801d262 531-556
+  s_ebf243856f94a1::t_c72fd46dbce574 568,572-604
+  s_ebf243856f94a1::t_55bf13246e83f6 799-851
+  s_ebf243856f94a1::t_64262cb145f2bf 605-606
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_ebf243856f94a1::t_4eb8160ca8ef19 899
+src/services/linearPrompt.ts
+  s_ebf243856f94a1::t_d7af954e983d29 1,3,10,19-57,62,71-72,81-82,112-113,116-121
+src-tauri/src/commands/linear.rs
+  s_ebf243856f94a1::t_b27bbf9bff8428 120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "0c1c8c1d4937006e4a6d209033e37eb8aa1add2d",
+  "prompts": {},
+  "sessions": {
+    "s_ebf243856f94a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69d887ab-a702-46f9-a11e-feb4021746ef",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
