@@ -896,7 +896,7 @@ function WorkspaceSettingsDialog({
                   />
                   <p className="text-xs text-text-tertiary mt-[5px]">
                     Pasted into Claude when opening a Linear issue in this repo. Variables:{" "}
-                    {"{{identifier}}, {{title}}, {{description}}, {{branch}}, {{url}}"}. Leave empty for the default format.
+                    {"{{identifier}}, {{title}}, {{description}}, {{branch}}, {{url}}, {{comments}}"}. Leave empty for the default format.
                   </p>
                   <label className="flex items-center gap-2 mt-2 text-[13px] text-text-primary cursor-pointer">
                     <input

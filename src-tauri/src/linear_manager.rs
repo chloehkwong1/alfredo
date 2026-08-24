@@ -198,6 +198,9 @@ async fn lookup_by_identifier(
     assignee { name }
     branchName
     updatedAt
+    comments(first: 100) {
+      nodes { body createdAt user { name } botActor { name } }
+    }
   }
 }"#;
 
@@ -313,6 +316,9 @@ pub async fn get_issue(
     assignee { name }
     branchName
     updatedAt
+    comments(first: 100) {
+      nodes { body createdAt user { name } botActor { name } }
+    }
   }
 }"#;
 
@@ -522,6 +528,32 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
         .and_then(|v| v.as_str())
         .map(std::string::ToString::to_string);
 
+    let mut comments = node
+        .pointer("/comments/nodes")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|c| {
+                    let body = c.get("body")?.as_str()?.to_string();
+                    let author = c
+                        .pointer("/user/name")
+                        .and_then(|v| v.as_str())
+                        // App-posted comments (auto-triage bots) have a null
+                        // user; the bot identity lives on botActor instead.
+                        .or_else(|| c.pointer("/botActor/name").and_then(|v| v.as_str()))
+                        .map(String::from);
+                    let created_at = c
+                        .get("createdAt")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+                    Some(crate::types::LinearComment { author, created_at, body })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    // Oldest-first regardless of API order (ISO-8601 sorts lexicographically).
+    comments.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+
     Ok(LinearTicket {
         id,
         identifier,
@@ -533,7 +565,43 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
         assignee,
         branch_name,
         updated_at,
+        comments,
     })
+}
+
+/// Total char budget for the comments section pasted/written into agent
+/// context. Middle-trimmed, not truncated: early comments carry triage
+/// context and late ones the latest decisions, so both ends survive.
+const COMMENT_BUDGET: usize = 10_000;
+
+/// Render ticket comments as a `## Comments` markdown section, oldest-first.
+/// Empty string when there are none. Threads over `budget` chars lose
+/// comments from the middle, replaced by an omission marker.
+pub fn format_comments(comments: &[crate::types::LinearComment], budget: usize) -> String {
+    if comments.is_empty() {
+        return String::new();
+    }
+    let render = |c: &crate::types::LinearComment| {
+        let who = c.author.as_deref().unwrap_or("Unknown");
+        let when = c
+            .created_at
+            .as_deref()
+            .map(|d| format!(" ({})", &d[..d.len().min(10)]))
+            .unwrap_or_default();
+        format!("**{who}{when}:**\n{}", c.body)
+    };
+    let mut kept: Vec<String> = comments.iter().map(render).collect();
+    let mut omitted = 0usize;
+    while kept.len() > 2 && kept.iter().map(|s| s.len() + 2).sum::<usize>() > budget {
+        kept.remove(kept.len() / 2);
+        omitted += 1;
+    }
+    if omitted > 0 {
+        let mid = kept.len() / 2;
+        let plural = if omitted == 1 { "" } else { "s" };
+        kept.insert(mid, format!("[… {omitted} comment{plural} omitted …]"));
+    }
+    format!("## Comments\n\n{}", kept.join("\n\n"))
 }
 
 /// Generate the content for `.claude/CLAUDE.local.md` from a Linear ticket.
@@ -565,6 +633,13 @@ pub fn generate_context_md(ticket: &LinearTicket) -> String {
             content.push_str(desc);
             content.push('\n');
         }
+    }
+
+    let comments_md = format_comments(&ticket.comments, COMMENT_BUDGET);
+    if !comments_md.is_empty() {
+        content.push('\n');
+        content.push_str(&comments_md);
+        content.push('\n');
     }
 
     content.push_str("\n## Context hygiene\n\n");
@@ -646,10 +721,17 @@ mod tests {
             assignee: Some("Chloe".into()),
             branch_name: Some("chloe/ros-42-fix-auth-flow".into()),
             updated_at: Some("2026-03-31T12:00:00.000Z".into()),
+            comments: vec![crate::types::LinearComment {
+                author: Some("Triage Bot".into()),
+                created_at: Some("2026-03-30T09:00:00.000Z".into()),
+                body: "Auto-triage: likely regression from #1234.".into(),
+            }],
         };
 
         let md = generate_context_md(&ticket);
         assert!(md.contains("# ROS-42 Fix auth flow"));
+        assert!(md.contains("## Comments"));
+        assert!(md.contains("**Triage Bot (2026-03-30):**\nAuto-triage: likely regression from #1234."));
         assert!(md.contains("**Link:** https://linear.app/ros/issue/ROS-42"));
         assert!(md.contains("**Status:** In Progress"));
         assert!(md.contains("**Labels:** bug, auth"));
@@ -712,6 +794,59 @@ mod tests {
         };
         assert_eq!(ticket.updated_at, Some("2026-03-31T12:00:00.000Z".into()));
         assert_eq!(ticket.assignee, Some("Chloe".into()));
+    }
+
+    #[test]
+    #[allow(clippy::panic)]
+    fn test_parse_issue_comments_bot_author_and_sort() {
+        let node = serde_json::json!({
+            "id": "issue-1",
+            "identifier": "ALF-1",
+            "title": "Test issue",
+            "url": "https://linear.app/test/issue/ALF-1",
+            "state": { "name": "Todo" },
+            "labels": { "nodes": [] },
+            "comments": { "nodes": [
+                // Newest-first, as Linear returns them — parse must flip to oldest-first.
+                { "body": "later reply", "createdAt": "2026-08-02T10:00:00.000Z",
+                  "user": { "name": "Chloe" }, "botActor": null },
+                { "body": "Auto-triage: needs repro", "createdAt": "2026-08-01T10:00:00.000Z",
+                  "user": null, "botActor": { "name": "Tom's Triage" } },
+            ] }
+        });
+
+        let ticket = match parse_issue_node(&node) {
+            Ok(t) => t,
+            Err(e) => panic!("parse_issue_node failed: {e}"),
+        };
+        assert_eq!(ticket.comments.len(), 2);
+        assert_eq!(ticket.comments[0].author.as_deref(), Some("Tom's Triage"));
+        assert_eq!(ticket.comments[0].body, "Auto-triage: needs repro");
+        assert_eq!(ticket.comments[1].author.as_deref(), Some("Chloe"));
+    }
+
+    #[test]
+    fn test_format_comments_trims_middle_over_budget() {
+        let make = |i: usize| crate::types::LinearComment {
+            author: Some(format!("User{i}")),
+            created_at: Some(format!("2026-08-0{i}T00:00:00.000Z")),
+            body: "x".repeat(100),
+        };
+        let comments: Vec<_> = (1..=5).map(make).collect();
+
+        let full = format_comments(&comments, 10_000);
+        assert!(full.starts_with("## Comments\n\n"));
+        assert!(!full.contains("omitted"));
+        assert!(full.contains("**User1 (2026-08-01):**"));
+        assert!(full.contains("**User5 (2026-08-05):**"));
+
+        let trimmed = format_comments(&comments, 300);
+        assert!(trimmed.contains("**User1 (2026-08-01):**"));
+        assert!(trimmed.contains("**User5 (2026-08-05):**"));
+        assert!(trimmed.contains("[… 3 comments omitted …]"));
+        assert!(!trimmed.contains("User3"));
+
+        assert_eq!(format_comments(&[], 10_000), "");
     }
 
     #[test]

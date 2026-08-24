@@ -348,7 +348,7 @@ export interface AppConfig {
   portRangeEnd?: number | null;
   /** Personal template pasted into Claude when opening a Linear issue.
    *  Variables: {{identifier}}, {{title}}, {{description}}, {{branch}},
-   *  {{url}}. Empty/absent = built-in format. */
+   *  {{url}}, {{comments}}. Empty/absent = built-in format. */
   linearPromptTemplate?: string | null;
   /** Press Enter after pasting the Linear prompt. Default false. */
   linearAutoSubmit?: boolean;
@@ -394,6 +394,15 @@ export interface LinearTicket {
   labels: string[];
   assignee: string | null;
   updatedAt?: string | null;
+  /** Only populated by single-issue lookups; search results omit comments. */
+  comments?: LinearComment[];
+}
+
+export interface LinearComment {
+  /** User name, or bot/app name for integration-posted comments. */
+  author: string | null;
+  createdAt: string | null;
+  body: string;
 }
 
 // ── Diff viewer ──────────────────────────────────────────────────
