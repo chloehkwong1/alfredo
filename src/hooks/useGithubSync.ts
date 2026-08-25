@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { PrUpdatePayload, StackRebaseStatus, StackPendingAction } from "../types";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useAppConfigStore } from "../stores/appConfigStore";
 import { usePrStore } from "../stores/prStore";
 import { useToastStore } from "../stores/toastStore";
 import { getPrFiles, getWorktreeDiffStats, setSyncRepoPaths, runArchiveScript } from "../api";
@@ -320,7 +321,15 @@ export function useGithubSync() {
       const now = Date.now();
       if (now - lastFocusPollAtRef.current < FOCUS_THROTTLE_MS) return;
       const worktrees = useWorkspaceStore.getState().worktrees;
-      const repos = [...new Set(worktrees.map((wt) => wt.repoPath))];
+      // Poll the selected repos, not just repos with live worktrees — this
+      // call overwrites the backend's sync set, and a worktree-derived list
+      // silently evicts worktree-less repos, so review requests in them are
+      // never seen. Mirrors the session-restore setup; worktree repos are the
+      // fallback when nothing is selected.
+      const selectedRepos = useAppConfigStore.getState().config?.selectedRepos ?? [];
+      const repos = selectedRepos.length > 0
+        ? selectedRepos
+        : [...new Set(worktrees.map((wt) => wt.repoPath))];
       if (repos.length === 0) return;
       lastFocusPollAtRef.current = now;
       const branches = worktrees.filter((wt) => !wt.archived).map((wt) => wt.branch);
