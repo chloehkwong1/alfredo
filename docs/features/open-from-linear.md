@@ -34,8 +34,10 @@ first, then runs the flow.
 3. Claude launches in the new worktree, and once its boot output
    settles the issue is pasted into the input. When the Linear
    integration is connected (Settings → Integrations), Alfredo fetches
-   the complete title + description from the API — Linear truncates
-   long issues in the link itself.
+   the complete title + description — plus the issue's comment
+   thread — from the API, so triage notes and discussion land in the
+   prompt too. (Linear truncates long issues in the link itself, and
+   the link never carries comments.)
 4. The worktree gets the Linear ticket chip in its status bar, and
    **Open in Linear** appears in its right-click menu.
 
@@ -52,8 +54,10 @@ again.
 
 In **Repository Settings → General → Linear prompt** you can replace
 the default paste format with your own per-repo template. It supports
-`{{identifier}}`, `{{title}}`, `{{description}}`, `{{branch}}`, and
-`{{url}}`; leave it empty to keep the built-in format. Tick **Submit
+`{{identifier}}`, `{{title}}`, `{{description}}`, `{{branch}}`,
+`{{url}}`, and `{{comments}}` (the issue's comment thread; empty when
+the Linear integration isn't connected); leave it empty to keep the
+built-in format. Tick **Submit
 prompt automatically** to send the rendered prompt straight to Claude
 instead of leaving it in the input box — Alfredo only auto-submits
 when the open flow is healthy (e.g. it won't fire a half-rendered

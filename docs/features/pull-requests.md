@@ -1,6 +1,6 @@
 ---
 title: Reviewing a pull request
-keywords: [pr, pull request, review pr, pr comments, pr panel, github pr]
+keywords: [pr, pull request, review pr, pr comments, pr panel, github pr, while you were away, reconcile, merged while closed, pr chip after restart]
 ui_path: Worktree tab → Changes panel → PR section (⌘⇧C / ⌘I to toggle)
 ---
 
@@ -41,6 +41,14 @@ does **not** flip the PR back; the active approval still wins.
 
 Manual drag-and-drop placements you make after the auto-move are
 respected and won't be overwritten on the next sync.
+
+This catch-up also works across restarts: PR associations are
+persisted, so chips survive a relaunch, and on launch Alfredo checks
+worktrees whose PR merged or closed while the app was off — even ones
+that have aged out of the normal sync window. Anything that settled
+moves to Done with a summary toast ("While you were away: PR #123
+merged — moved to Done"). Manual column placements are respected here
+too.
 Review comments can be sent straight into the agent session as context
 via the inline actions on each comment card, so you can ask Claude or
 Codex to address feedback without copy-pasting.

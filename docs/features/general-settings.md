@@ -1,6 +1,6 @@
 ---
 title: General settings — theme, editor, terminal, updates, diff view, archive cleanup
-keywords: [general settings, theme, dark mode, light mode, warm dark, catppuccin, mocha, latte, everforest, gruvbox, github dark, synthwave, tokyo night, solarized, honeycomb, appearance, default editor, default terminal, auto update, default diff view, review requests, auto-pull, archive after days, delete after days, auto archive, auto delete]
+keywords: [general settings, theme, dark mode, light mode, warm dark, catppuccin, mocha, latte, everforest, gruvbox, github dark, synthwave, tokyo night, solarized, honeycomb, appearance, default editor, default terminal, auto update, default diff view, review requests, auto-pull, native stacks, auto-sync, archive after days, delete after days, auto archive, auto delete]
 ui_path: Sidebar → ⚙ Settings → General tab
 ---
 
@@ -27,6 +27,11 @@ groups settings that apply across every repo:
 - **Auto-pull review requests** — when someone requests your review
   on GitHub, Alfredo creates a worktree for the PR automatically
   (default on). See [review-requests](review-requests.md).
+- **Keep native GitHub stacks in sync locally** — follows GitHub's
+  server-side restacks in your local checkouts when it's provably
+  safe, and rebases stacked branches onto moved parents. Never
+  pushes — updating the PR stays a click (default on). See
+  [rebasing-and-stacks](rebasing-and-stacks.md).
 - **Default diff view** — Unified or Split. Used when a worktree has
   no explicit view mode set.
 - **Archive & Cleanup** — two day-count fields that apply across all
