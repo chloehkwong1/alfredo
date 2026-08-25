@@ -1,0 +1,38 @@
+src-tauri/src/repo_config.rs
+  s_5447a53505cef9::t_91f0d46853f168 138,146
+schemas/alfredo.schema.json
+  s_5447a53505cef9::t_0195e3ad873fd5 13-22
+src-tauri/src/config_manager.rs
+  s_5447a53505cef9::t_2061d9b6e2d63d 308-309
+src-tauri/src/stack_manager.rs
+  s_5447a53505cef9::t_a35effe8e08863 934-943,945-974
+  s_5447a53505cef9::t_1aafe94494ce2a 1665-1666,1672-1677
+  s_5447a53505cef9::t_637366a3f0835e 1015-1019,1021-1025,1027-1028
+  s_5447a53505cef9::t_24bc27c4058cf1 1679,4512-4531
+  s_5447a53505cef9::t_fa9f4827fc66ca 944
+  s_5447a53505cef9::t_0f6365c5fc3fef 1678
+src-tauri/src/types.rs
+  s_5447a53505cef9::t_a5360457873b57 477-483
+src/types.ts
+  s_5447a53505cef9::t_ded98374491bf3 364-366
+src-tauri/src/github_sync.rs
+  s_5447a53505cef9::t_20d3e3d13d534c 704,709-712,716
+src/hooks/useGithubSync.ts
+  s_5447a53505cef9::t_7bb5429135894a 324-329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "ab08ade4100ff90fba26bb2705fae74836d747f3",
+  "prompts": {},
+  "sessions": {
+    "s_5447a53505cef9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5ed26da-3272-4688-bd48-94513be66a02",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
