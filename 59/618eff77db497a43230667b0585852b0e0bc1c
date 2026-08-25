@@ -1,0 +1,44 @@
+src/types.ts
+  s_ebf243856f94a1::t_5f6ab0d82a0df5 397-400
+src/services/openIssueFlow.ts
+  s_ebf243856f94a1::t_4520cfcefb15a1 190-193,195
+  s_ebf243856f94a1::t_0672c82289fb3d 1
+src-tauri/src/commands/linear.rs
+  s_ebf243856f94a1::t_32ef94ed736caa 120
+src-tauri/src/linear_manager.rs
+  s_ebf243856f94a1::t_1fb9b508d9df08 506,513-517
+  s_ebf243856f94a1::t_bd2c7a079766f3 228-236
+  s_ebf243856f94a1::t_8c7d8c482bfacb 72-81
+  s_ebf243856f94a1::t_ffba76919f0674 278-280
+  s_ebf243856f94a1::t_30fc9a205ae0f0 530,534-544,547-549,552-559,563,578-592,598-599
+  s_ebf243856f94a1::t_6823d15ea3646d 635,637
+  s_ebf243856f94a1::t_fb7d25e1005ac8 111-120,125-133
+  s_ebf243856f94a1::t_cdec374cf7d059 720
+  s_ebf243856f94a1::t_dac6078a01cc81 179-185
+  s_ebf243856f94a1::t_9f8064139b3896 600,801-810,817-852,857,864,870,876-890
+src/api.ts
+  s_ebf243856f94a1::t_21ac0e31b887ef 468-473
+src-tauri/src/types.rs
+  s_ebf243856f94a1::t_f37a9ac353fa55 749-752,754
+src/services/linearPrompt.ts
+  s_ebf243856f94a1::t_8e22d1ebae975d 1,22-23,25-30,37-39,48-49,80,85
+src/services/linearPrompt.test.ts
+  s_ebf243856f94a1::t_9bc310a58d8185 2-3
+  s_ebf243856f94a1::t_4dea70fa7ed05f 133,139-140,165,171,178,185,205-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "59618eff77db497a43230667b0585852b0e0bc1c",
+  "prompts": {},
+  "sessions": {
+    "s_ebf243856f94a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69d887ab-a702-46f9-a11e-feb4021746ef",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
