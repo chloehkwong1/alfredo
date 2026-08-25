@@ -1,0 +1,20 @@
+src/hooks/useGithubSync.ts
+  s_5447a53505cef9::t_132367b1dbd99a 324-332
+  s_5447a53505cef9::t_8efbd5973c689c 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "64aaa86b6e5d05b2e9a50c48ced493522323daef",
+  "prompts": {},
+  "sessions": {
+    "s_5447a53505cef9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5ed26da-3272-4688-bd48-94513be66a02",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
