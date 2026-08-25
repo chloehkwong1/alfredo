@@ -701,14 +701,19 @@ async fn sync_pr_base_branches(
         };
 
         let native_members = native_member_branches(all_prs, repo_path);
+        let long_lived = crate::stack_manager::long_lived_branches(repo_path).await;
 
         for (worktree_name, expected_parent) in &config.stack_parent_overrides {
             // Skip if the parent branch has already been merged — check_merged_parents
             // will handle retargeting to main and clearing the stack parent.
+            // Long-lived parents (a release-merged develop) are exempt from the
+            // skip: their stacks aren't ending and check_merged_parents
+            // deliberately won't retarget these children, so base enforcement
+            // must keep running while the release PR sits in the closed window.
             let parent_is_merged = all_prs.iter().any(|p| {
                 p.repo_path == *repo_path && p.merged && p.branch == *expected_parent
             });
-            if parent_is_merged {
+            if parent_is_merged && !long_lived.iter().any(|b| b == expected_parent) {
                 continue;
             }
 

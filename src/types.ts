@@ -361,6 +361,9 @@ export interface RepoSharedConfig {
   portEnvVar?: string;
   portRangeStart?: number;
   portRangeEnd?: number;
+  /** Trunk branches (e.g. git-flow `develop`) that stack automation must
+   *  never dissolve or retarget PRs off. Replaces the built-in defaults. */
+  longLivedBranches?: string[];
 }
 
 export interface RepoOverrideFlags {

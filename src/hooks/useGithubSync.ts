@@ -321,6 +321,12 @@ export function useGithubSync() {
       const now = Date.now();
       if (now - lastFocusPollAtRef.current < FOCUS_THROTTLE_MS) return;
       const worktrees = useWorkspaceStore.getState().worktrees;
+      // An empty store means session restore hasn't hydrated yet: polling now
+      // would run before columnOverrides load (the ordering invariant in
+      // useSessionRestore) and an unenriched early poll can delete manual
+      // column placements. Bail without stamping the throttle so the first
+      // post-restore focus still fires.
+      if (worktrees.length === 0) return;
       // Poll the selected repos, not just repos with live worktrees — this
       // call overwrites the backend's sync set, and a worktree-derived list
       // silently evicts worktree-less repos, so review requests in them are

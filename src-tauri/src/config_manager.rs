@@ -305,6 +305,8 @@ pub async fn load_effective_config(
             port_env_var: personal.port_env_var.clone(),
             port_range_start: personal.port_range_start,
             port_range_end: personal.port_range_end,
+            // No personal-layer counterpart to lift — repo-shared only.
+            long_lived_branches: None,
         };
         let any = migrated.setup_scripts.is_some()
             || migrated.run_script.is_some()

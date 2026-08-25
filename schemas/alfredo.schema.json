@@ -10,6 +10,16 @@
         "null"
       ]
     },
+    "longLivedBranches": {
+      "description": "Branches that are long-lived trunks (e.g. a git-flow `develop`), not stack parents that end when their PR merges. Stack automation never dissolves, rebases away from, or retargets PRs off these branches. When set, this list REPLACES the built-in defaults (develop, development, staging, release, trunk).",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
     "portEnvVar": {
       "type": [
         "string",

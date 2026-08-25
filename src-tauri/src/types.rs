@@ -474,6 +474,13 @@ pub struct RepoSharedConfig {
     pub port_range_start: Option<u16>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port_range_end: Option<u16>,
+    /// Branches that are long-lived trunks (e.g. a git-flow `develop`), not
+    /// stack parents that end when their PR merges. Stack automation never
+    /// dissolves, rebases away from, or retargets PRs off these branches.
+    /// When set, this list REPLACES the built-in defaults
+    /// (develop, development, staging, release, trunk).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub long_lived_branches: Option<Vec<String>>,
 }
 
 /// Per-field flag indicating whether the personal layer overrides the

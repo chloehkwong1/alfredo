@@ -135,6 +135,7 @@ mod tests {
             }]),
             port_range_start: Some(3000),
             port_range_end: Some(3005),
+            long_lived_branches: Some(vec!["develop".into()]),
             ..Default::default()
         };
         save_alfredo_json(dir.path(), &config).await?;
@@ -142,6 +143,7 @@ mod tests {
         assert_eq!(loaded.port_range_start, Some(3000));
         assert_eq!(loaded.port_range_end, Some(3005));
         assert_eq!(loaded.setup_scripts.as_ref().map(|v| v.len()), Some(1));
+        assert_eq!(loaded.long_lived_branches, Some(vec!["develop".to_string()]));
         Ok(())
     }
 

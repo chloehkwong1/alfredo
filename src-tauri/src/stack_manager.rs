@@ -931,6 +931,47 @@ pub async fn check_and_rebase(
     }
 }
 
+/// Trunk names assumed long-lived when `alfredo.json` doesn't say otherwise.
+/// The repo default branch never needs listing — it can't be a stack parent.
+const DEFAULT_LONG_LIVED_BRANCHES: [&str; 5] =
+    ["develop", "development", "staging", "release", "trunk"];
+
+/// The effective long-lived list: the repo's committed `longLivedBranches`
+/// when present (it REPLACES the defaults, so a team can reclaim one of these
+/// names as a real stack parent), the conventional defaults otherwise.
+fn resolve_long_lived_branches(configured: Option<Vec<String>>) -> Vec<String> {
+    configured.unwrap_or_else(|| {
+        DEFAULT_LONG_LIVED_BRANCHES.iter().map(ToString::to_string).collect()
+    })
+}
+
+/// Load the long-lived-branch list for a repo. An unreadable `alfredo.json`
+/// falls back to the defaults: an over-broad list skips a dissolve
+/// (recoverable), an under-broad one rewrites history.
+pub async fn long_lived_branches(repo_path: &str) -> Vec<String> {
+    let configured = match crate::repo_config::load_alfredo_json(Path::new(repo_path)).await {
+        Ok(Some(cfg)) => cfg.long_lived_branches,
+        _ => None,
+    };
+    resolve_long_lived_branches(configured)
+}
+
+/// Dedupe the skipped-dissolve log: the triggering merged release PR sits in
+/// the closed-PR window for days and this check runs every poll — once per
+/// (repo, parent) per app run is signal, 1440 lines a day is noise.
+fn log_skipped_dissolve_once(repo_path: &str, parent: &str) {
+    static LOGGED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+    let key = format!("{repo_path}:{parent}");
+    if let Ok(mut set) = LOGGED.lock() {
+        if set.insert(key) {
+            eprintln!(
+                "[stack_manager] parent {parent} is a long-lived branch: skipping merged-parent dissolve for its children"
+            );
+        }
+    }
+}
+
 /// Called after Phase 1 emit. Checks if any merged PR's branch is a stack parent,
 /// and if so rebases children onto the default branch and clears the stack parent.
 pub async fn check_merged_parents(
@@ -971,27 +1012,20 @@ pub async fn check_merged_parents(
         // the trunk's head in `merged_branches`, which would dissolve — rebase
         // onto the default branch and retarget the PR of — every child stacked
         // on it, even though the branch is alive and still the base of open
-        // PRs. A finished stack parent's branch is deleted when its PR merges;
-        // one that still exists on the remote is not a stack that ended. An
-        // unqueryable remote counts as alive: a skipped dissolve retries next
-        // poll, a wrong dissolve rewrites history.
+        // PRs. Trunks are recognized by name (alfredo.json `longLivedBranches`,
+        // or conventional defaults), not by probing the remote: a probe can't
+        // tell a trunk from a finished parent in repos that don't auto-delete
+        // merged branches, and its failure modes (offline, broken auth) have
+        // no answer that is both safe and converges.
         if !affected.is_empty() {
-            let mut parent_alive: HashMap<String, bool> = HashMap::new();
-            for (_, parent) in &affected {
-                if parent_alive.contains_key(parent) {
-                    continue;
+            let long_lived = long_lived_branches(repo_path).await;
+            affected.retain(|(_, parent)| {
+                let is_trunk = long_lived.iter().any(|b| b == parent);
+                if is_trunk {
+                    log_skipped_dissolve_once(repo_path, parent);
                 }
-                let alive = git_manager::remote_branch_exists(repo_path, parent)
-                    .await
-                    .unwrap_or(true);
-                if alive {
-                    eprintln!(
-                        "[stack_manager] parent {parent} merged but still exists on origin (long-lived branch): skipping dissolve"
-                    );
-                }
-                parent_alive.insert(parent.clone(), alive);
-            }
-            affected.retain(|(_, parent)| !parent_alive.get(parent).copied().unwrap_or(true));
+                !is_trunk
+            });
         }
 
         // Sweep before any of the continues below, and regardless of whether
@@ -1628,9 +1662,19 @@ async fn stale_parent_branches(
         overrides.values().filter(|p| seen.insert((*p).clone())).cloned().collect()
     };
 
+    let long_lived = long_lived_branches(repo_path).await;
+
     let mut stale: Vec<String> = Vec::new();
     for parent_branch in &unique_parents {
         if checkouts.contains_key(parent_branch) {
+            continue;
+        }
+        // Long-lived-branch guard, mirroring check_merged_parents: a
+        // merge-commit release (develop → main) makes the trunk's tip an
+        // ancestor of the default branch, which reads as "merged" here and
+        // would dissolve every child stacked on it — the trunk isn't stale,
+        // the release just happened.
+        if long_lived.iter().any(|b| b == parent_branch) {
             continue;
         }
         // Remote-tracking resolution ONLY here — deliberately not the local-first
@@ -4464,5 +4508,25 @@ mod tests {
             None,
             "a cleared debt must not resurrect on the next restart"
         );
+    }
+
+    /// The built-in trunk list must cover the conventional git-flow names —
+    /// `develop` in particular is the branch behind the release-merge
+    /// dissolve incident this guard exists for.
+    #[test]
+    fn long_lived_defaults_cover_conventional_trunks() {
+        let defaults = resolve_long_lived_branches(None);
+        for name in ["develop", "development", "staging", "release", "trunk"] {
+            assert!(defaults.iter().any(|b| b == name), "missing default trunk {name}");
+        }
+    }
+
+    /// A configured list REPLACES the defaults: a team that genuinely stacks
+    /// on a branch named `staging` can reclaim it by listing only their real
+    /// trunks.
+    #[test]
+    fn configured_long_lived_list_replaces_defaults() {
+        let list = resolve_long_lived_branches(Some(vec!["integration".to_string()]));
+        assert_eq!(list, vec!["integration".to_string()]);
     }
 }
