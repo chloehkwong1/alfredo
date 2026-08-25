@@ -69,6 +69,16 @@ pub async fn resolve_token(
         })
 }
 
+/// Issue selection shared by every query in this module — single source of
+/// truth so the near-identical queries can't drift when a field is added.
+const ISSUE_FIELDS: &str = "id identifier title description url state { name } labels { nodes { name } } assignee { name } branchName updatedAt";
+
+/// Comment selection appended only by `get_issue` (the open-issue and
+/// worktree-creation paths). Search and identifier-typeahead queries stay
+/// comment-free — the picker never reads them. 250 is Linear's max page
+/// size; `hasNextPage` lets the formatter flag fetch-level truncation.
+const COMMENT_FIELDS: &str = "comments(first: 250) { pageInfo { hasNextPage } nodes { body createdAt user { name } botActor { name } } }";
+
 /// Returns true if the string looks like a Linear issue identifier (e.g. "PRO-5196").
 /// Linear's `searchableContent` filter is full-text over title/description/comments
 /// and does not reliably match identifiers, so we route these to `issue(id: ...)`.
@@ -98,49 +108,29 @@ pub async fn search_issues(
 
     let (graphql_query, variables) = if team_id.is_some() {
         (
-            r#"query SearchIssues($term: String!, $teamId: String!) {
-  issues(filter: {
-    searchableContent: { contains: $term },
-    team: { id: { eq: $teamId } }
-  }, first: 25, orderBy: updatedAt) {
-    nodes {
-      id
-      identifier
-      title
-      description
-      url
-      state { name }
-      labels { nodes { name } }
-      assignee { name }
-      branchName
-      updatedAt
-    }
-  }
-}"#
-            .to_string(),
+            format!(
+                "query SearchIssues($term: String!, $teamId: String!) {{
+  issues(filter: {{
+    searchableContent: {{ contains: $term }},
+    team: {{ id: {{ eq: $teamId }} }}
+  }}, first: 25, orderBy: updatedAt) {{
+    nodes {{ {ISSUE_FIELDS} }}
+  }}
+}}"
+            ),
             serde_json::json!({ "term": query, "teamId": team_id }),
         )
     } else {
         (
-            r#"query SearchIssues($term: String!) {
-  issues(filter: {
-    searchableContent: { contains: $term }
-  }, first: 25, orderBy: updatedAt) {
-    nodes {
-      id
-      identifier
-      title
-      description
-      url
-      state { name }
-      labels { nodes { name } }
-      assignee { name }
-      branchName
-      updatedAt
-    }
-  }
-}"#
-            .to_string(),
+            format!(
+                "query SearchIssues($term: String!) {{
+  issues(filter: {{
+    searchableContent: {{ contains: $term }}
+  }}, first: 25, orderBy: updatedAt) {{
+    nodes {{ {ISSUE_FIELDS} }}
+  }}
+}}"
+            ),
             serde_json::json!({ "term": query }),
         )
     };
@@ -186,23 +176,13 @@ async fn lookup_by_identifier(
     api_key: &str,
     identifier: &str,
 ) -> Result<Vec<LinearTicket>, AppError> {
-    let graphql_query = r#"query LookupIssue($id: String!) {
-  issue(id: $id) {
-    id
-    identifier
-    title
-    description
-    url
-    state { name }
-    labels { nodes { name } }
-    assignee { name }
-    branchName
-    updatedAt
-    comments(first: 100) {
-      nodes { body createdAt user { name } botActor { name } }
-    }
-  }
-}"#;
+    // No COMMENT_FIELDS here: this serves the picker's identifier typeahead,
+    // where partials like "PRO-5" resolve to real issues on every debounce —
+    // fetching full comment threads there would be pure waste. The open-issue
+    // flow uses `get_issue` for the comment-bearing fetch.
+    let graphql_query = format!(
+        "query LookupIssue($id: String!) {{ issue(id: $id) {{ {ISSUE_FIELDS} }} }}"
+    );
 
     let body = serde_json::json!({
         "query": graphql_query,
@@ -245,24 +225,15 @@ async fn lookup_by_identifier(
 pub async fn list_assigned_issues(
     api_key: &str,
 ) -> Result<Vec<LinearTicket>, AppError> {
-    let graphql_query = r#"query AssignedIssues {
-  viewer {
-    assignedIssues(first: 50, orderBy: updatedAt, filter: { state: { type: { nin: ["completed", "canceled"] } } }) {
-      nodes {
-        id
-        identifier
-        title
-        description
-        url
-        state { name }
-        labels { nodes { name } }
-        assignee { name }
-        branchName
-        updatedAt
-      }
-    }
-  }
-}"#;
+    let graphql_query = format!(
+        r#"query AssignedIssues {{
+  viewer {{
+    assignedIssues(first: 50, orderBy: updatedAt, filter: {{ state: {{ type: {{ nin: ["completed", "canceled"] }} }} }}) {{
+      nodes {{ {ISSUE_FIELDS} }}
+    }}
+  }}
+}}"#
+    );
 
     let body = serde_json::json!({ "query": graphql_query });
 
@@ -304,23 +275,9 @@ pub async fn get_issue(
     api_key: &str,
     issue_id: &str,
 ) -> Result<LinearTicket, AppError> {
-    let graphql_query = r#"query GetIssue($id: String!) {
-  issue(id: $id) {
-    id
-    identifier
-    title
-    description
-    url
-    state { name }
-    labels { nodes { name } }
-    assignee { name }
-    branchName
-    updatedAt
-    comments(first: 100) {
-      nodes { body createdAt user { name } botActor { name } }
-    }
-  }
-}"#;
+    let graphql_query = format!(
+        "query GetIssue($id: String!) {{ issue(id: $id) {{ {ISSUE_FIELDS} {COMMENT_FIELDS} }} }}"
+    );
 
     let body = serde_json::json!({
         "query": graphql_query,
@@ -546,13 +503,18 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
                         .get("createdAt")
                         .and_then(|v| v.as_str())
                         .map(String::from);
-                    Some(crate::types::LinearComment { author, created_at, body })
+                    Some(LinearComment { author, created_at, body })
                 })
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
     // Oldest-first regardless of API order (ISO-8601 sorts lexicographically).
     comments.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    let fetch_truncated = node
+        .pointer("/comments/pageInfo/hasNextPage")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let comments_md = format_comments(&comments, COMMENT_BUDGET, fetch_truncated);
 
     Ok(LinearTicket {
         id,
@@ -565,23 +527,40 @@ fn parse_issue_node(node: &serde_json::Value) -> Result<LinearTicket, AppError> 
         assignee,
         branch_name,
         updated_at,
-        comments,
+        comments_md,
     })
+}
+
+/// A parsed issue comment — internal to this module; only the rendered
+/// markdown (`LinearTicket::comments_md`) crosses IPC.
+#[derive(Debug, Clone)]
+struct LinearComment {
+    /// Workspace user name, or the bot/app name for integration-posted
+    /// comments (e.g. auto-triage). None when Linear reports neither.
+    author: Option<String>,
+    created_at: Option<String>,
+    body: String,
 }
 
 /// Total char budget for the comments section pasted/written into agent
 /// context. Middle-trimmed, not truncated: early comments carry triage
-/// context and late ones the latest decisions, so both ends survive.
+/// context and late ones the latest decisions, so both ends survive. Also
+/// keeps pathological threads from blowing past the paste-echo settle window
+/// that gates auto-submit on the frontend.
 const COMMENT_BUDGET: usize = 10_000;
 
-/// Render ticket comments as a `## Comments` markdown section, oldest-first.
-/// Empty string when there are none. Threads over `budget` chars lose
-/// comments from the middle, replaced by an omission marker.
-pub fn format_comments(comments: &[crate::types::LinearComment], budget: usize) -> String {
+/// Render ticket comments as a `## Comments` markdown section, oldest-first
+/// (callers sort). Empty string when there are none. Threads over `budget`
+/// chars lose comments from the middle, replaced by an omission marker; if
+/// the survivors are still over budget (one or two giant comments, e.g. a
+/// pasted log), their bodies are truncated to fit. `fetch_truncated` flags
+/// API-level truncation (the thread exceeded the fetch page size), which
+/// gets its own marker since the omitted-count can't know about it.
+fn format_comments(comments: &[LinearComment], budget: usize, fetch_truncated: bool) -> String {
     if comments.is_empty() {
         return String::new();
     }
-    let render = |c: &crate::types::LinearComment| {
+    let render = |c: &LinearComment| {
         let who = c.author.as_deref().unwrap_or("Unknown");
         let when = c
             .created_at
@@ -596,10 +575,28 @@ pub fn format_comments(comments: &[crate::types::LinearComment], budget: usize) 
         kept.remove(kept.len() / 2);
         omitted += 1;
     }
+    // Middle-trim bottoms out at 2 comments; a single giant body can still
+    // exceed the budget, so cap each survivor at an even share.
+    if kept.iter().map(|s| s.len() + 2).sum::<usize>() > budget {
+        let per = budget / kept.len();
+        for s in &mut kept {
+            if s.len() > per {
+                let mut end = per;
+                while !s.is_char_boundary(end) {
+                    end -= 1;
+                }
+                s.truncate(end);
+                s.push_str("\n[… comment truncated …]");
+            }
+        }
+    }
     if omitted > 0 {
         let mid = kept.len() / 2;
         let plural = if omitted == 1 { "" } else { "s" };
         kept.insert(mid, format!("[… {omitted} comment{plural} omitted …]"));
+    }
+    if fetch_truncated {
+        kept.push("[… thread has more comments than the 250 fetched …]".to_string());
     }
     format!("## Comments\n\n{}", kept.join("\n\n"))
 }
@@ -635,10 +632,9 @@ pub fn generate_context_md(ticket: &LinearTicket) -> String {
         }
     }
 
-    let comments_md = format_comments(&ticket.comments, COMMENT_BUDGET);
-    if !comments_md.is_empty() {
+    if !ticket.comments_md.is_empty() {
         content.push('\n');
-        content.push_str(&comments_md);
+        content.push_str(&ticket.comments_md);
         content.push('\n');
     }
 
@@ -721,11 +717,7 @@ mod tests {
             assignee: Some("Chloe".into()),
             branch_name: Some("chloe/ros-42-fix-auth-flow".into()),
             updated_at: Some("2026-03-31T12:00:00.000Z".into()),
-            comments: vec![crate::types::LinearComment {
-                author: Some("Triage Bot".into()),
-                created_at: Some("2026-03-30T09:00:00.000Z".into()),
-                body: "Auto-triage: likely regression from #1234.".into(),
-            }],
+            comments_md: "## Comments\n\n**Triage Bot (2026-03-30):**\nAuto-triage: likely regression from #1234.".into(),
         };
 
         let md = generate_context_md(&ticket);
@@ -806,47 +798,96 @@ mod tests {
             "url": "https://linear.app/test/issue/ALF-1",
             "state": { "name": "Todo" },
             "labels": { "nodes": [] },
-            "comments": { "nodes": [
-                // Newest-first, as Linear returns them — parse must flip to oldest-first.
-                { "body": "later reply", "createdAt": "2026-08-02T10:00:00.000Z",
-                  "user": { "name": "Chloe" }, "botActor": null },
-                { "body": "Auto-triage: needs repro", "createdAt": "2026-08-01T10:00:00.000Z",
-                  "user": null, "botActor": { "name": "Tom's Triage" } },
-            ] }
+            "comments": {
+                "pageInfo": { "hasNextPage": false },
+                "nodes": [
+                    // Newest-first, as Linear returns them — parse must flip to oldest-first.
+                    { "body": "later reply", "createdAt": "2026-08-02T10:00:00.000Z",
+                      "user": { "name": "Chloe" }, "botActor": null },
+                    { "body": "Auto-triage: needs repro", "createdAt": "2026-08-01T10:00:00.000Z",
+                      "user": null, "botActor": { "name": "Tom's Triage" } },
+                ]
+            }
         });
 
         let ticket = match parse_issue_node(&node) {
             Ok(t) => t,
             Err(e) => panic!("parse_issue_node failed: {e}"),
         };
-        assert_eq!(ticket.comments.len(), 2);
-        assert_eq!(ticket.comments[0].author.as_deref(), Some("Tom's Triage"));
-        assert_eq!(ticket.comments[0].body, "Auto-triage: needs repro");
-        assert_eq!(ticket.comments[1].author.as_deref(), Some("Chloe"));
+        let bot = match ticket.comments_md.find("**Tom's Triage (2026-08-01):**\nAuto-triage: needs repro") {
+            Some(i) => i,
+            None => panic!("bot comment missing from: {}", ticket.comments_md),
+        };
+        let reply = match ticket.comments_md.find("**Chloe (2026-08-02):**\nlater reply") {
+            Some(i) => i,
+            None => panic!("user comment missing from: {}", ticket.comments_md),
+        };
+        assert!(bot < reply, "comments must render oldest-first");
+        assert!(!ticket.comments_md.contains("more comments than"));
+    }
+
+    #[test]
+    #[allow(clippy::panic)]
+    fn test_parse_issue_flags_fetch_truncation() {
+        let node = serde_json::json!({
+            "id": "issue-1",
+            "identifier": "ALF-1",
+            "title": "Test issue",
+            "url": "https://linear.app/test/issue/ALF-1",
+            "state": { "name": "Todo" },
+            "labels": { "nodes": [] },
+            "comments": {
+                "pageInfo": { "hasNextPage": true },
+                "nodes": [
+                    { "body": "one of many", "createdAt": "2026-08-01T10:00:00.000Z",
+                      "user": { "name": "Chloe" }, "botActor": null },
+                ]
+            }
+        });
+
+        let ticket = match parse_issue_node(&node) {
+            Ok(t) => t,
+            Err(e) => panic!("parse_issue_node failed: {e}"),
+        };
+        assert!(ticket.comments_md.contains("[… thread has more comments than the 250 fetched …]"));
     }
 
     #[test]
     fn test_format_comments_trims_middle_over_budget() {
-        let make = |i: usize| crate::types::LinearComment {
+        let make = |i: usize| LinearComment {
             author: Some(format!("User{i}")),
             created_at: Some(format!("2026-08-0{i}T00:00:00.000Z")),
             body: "x".repeat(100),
         };
         let comments: Vec<_> = (1..=5).map(make).collect();
 
-        let full = format_comments(&comments, 10_000);
+        let full = format_comments(&comments, 10_000, false);
         assert!(full.starts_with("## Comments\n\n"));
         assert!(!full.contains("omitted"));
         assert!(full.contains("**User1 (2026-08-01):**"));
         assert!(full.contains("**User5 (2026-08-05):**"));
 
-        let trimmed = format_comments(&comments, 300);
+        let trimmed = format_comments(&comments, 300, false);
         assert!(trimmed.contains("**User1 (2026-08-01):**"));
         assert!(trimmed.contains("**User5 (2026-08-05):**"));
         assert!(trimmed.contains("[… 3 comments omitted …]"));
         assert!(!trimmed.contains("User3"));
 
-        assert_eq!(format_comments(&[], 10_000), "");
+        assert_eq!(format_comments(&[], 10_000, true), "");
+    }
+
+    #[test]
+    fn test_format_comments_caps_giant_single_comment() {
+        let giant = LinearComment {
+            author: Some("Chloe".into()),
+            created_at: Some("2026-08-01T00:00:00.000Z".into()),
+            // Multi-byte chars so the cap must respect char boundaries.
+            body: "é".repeat(20_000),
+        };
+        let out = format_comments(std::slice::from_ref(&giant), 1_000, false);
+        assert!(out.len() < 1_200, "giant comment must be capped, got {} chars", out.len());
+        assert!(out.contains("[… comment truncated …]"));
+        assert!(!out.contains("omitted"), "no whole comment was removed");
     }
 
     #[test]

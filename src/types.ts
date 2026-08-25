@@ -394,15 +394,10 @@ export interface LinearTicket {
   labels: string[];
   assignee: string | null;
   updatedAt?: string | null;
-  /** Only populated by single-issue lookups; search results omit comments. */
-  comments?: LinearComment[];
-}
-
-export interface LinearComment {
-  /** User name, or bot/app name for integration-posted comments. */
-  author: string | null;
-  createdAt: string | null;
-  body: string;
+  /** Pre-rendered `## Comments` markdown, or empty. Rendered once in Rust so
+   *  the pasted prompt and CLAUDE.local.md can't drift. Only single-issue
+   *  fetches (`getLinearIssue`) carry it; search results leave it empty. */
+  commentsMd?: string;
 }
 
 // ── Diff viewer ──────────────────────────────────────────────────

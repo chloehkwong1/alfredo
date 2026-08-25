@@ -1,4 +1,4 @@
-import { createWorktreeFrom, debugLog, getConfig, getDefaultBranch, listWorktrees, searchLinearIssues, setWorktreeLinearTicket } from "../api";
+import { createWorktreeFrom, debugLog, getConfig, getDefaultBranch, getLinearIssue, listWorktrees, setWorktreeLinearTicket } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useToastStore } from "../stores/toastStore";
@@ -187,12 +187,12 @@ export async function openIssueInRepo(
   // Fetch the full issue up front so it overlaps worktree creation + Claude boot
   // rather than adding latency before the paste. Linear truncates {{prompt}} in
   // the Custom-link URL for long issues, so we paste the API's complete body —
-  // and reuse the same ticket for the StatusBar chip (one fetch, not two). Falls
-  // back to the (possibly truncated) URL prompt if the lookup fails (offline).
+  // and reuse the same ticket for the StatusBar chip (one fetch, not two).
+  // getLinearIssue (not search) is the only query that carries comments; the
+  // typeahead-shared search stays comment-free. Falls back to the (possibly
+  // truncated) URL prompt if the lookup fails (offline, unknown identifier).
   const ticketPromise: Promise<LinearTicket | null> = issueId
-    ? searchLinearIssues(issueId)
-        .then((m) => m.find((t) => t.identifier === issueId) ?? null)
-        .catch(() => null)
+    ? getLinearIssue(issueId).catch(() => null)
     : Promise.resolve(null);
 
   // Per-repo personal config (linearPromptTemplate / linearAutoSubmit),

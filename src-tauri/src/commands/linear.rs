@@ -117,7 +117,7 @@ mod tests {
             assignee: assignee.map(String::from),
             branch_name: None,
             updated_at: Some(updated_at.into()),
-            comments: vec![],
+            comments_md: String::new(),
         }
     }
 

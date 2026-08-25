@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildPasteMessage, formatComments } from "./linearPrompt";
-import type { LinearComment, LinearTicket } from "../types";
+import { buildPasteMessage } from "./linearPrompt";
+import type { LinearTicket } from "../types";
 
 const ticket: LinearTicket = {
   id: "abc",
@@ -130,19 +130,14 @@ describe("buildPasteMessage", () => {
     ).toBe("the url prompt");
   });
 
-  it("appends a Comments section to the default format when the ticket has comments", () => {
+  it("appends the pre-rendered Comments section to the default format", () => {
     expect(
       buildPasteMessage({
         template: null,
         ticket: {
           ...ticket,
-          comments: [
-            {
-              author: "Tom's Triage",
-              createdAt: "2026-08-01T10:00:00.000Z",
-              body: "Auto-triage: likely a regression.",
-            },
-          ],
+          commentsMd:
+            "## Comments\n\n**Tom's Triage (2026-08-01):**\nAuto-triage: likely a regression.",
         },
         fallbackPrompt: "unused",
         fallbackDescription: "unused",
@@ -167,30 +162,27 @@ describe("buildPasteMessage", () => {
     );
   });
 
-  it("builds from the ticket when it has comments but no description", () => {
+  it("builds from the ticket when it has comments but no description, without a blank-line gap", () => {
     const result = buildPasteMessage({
       template: null,
       ticket: {
         ...ticket,
         description: null,
-        comments: [{ author: "Tom's Triage", createdAt: null, body: "triage note" }],
+        commentsMd: "## Comments\n\n**Tom's Triage:**\ntriage note",
       },
       fallbackPrompt: "the url prompt",
       fallbackDescription: "",
       branch: "b",
       issueId: "ENG-412",
     });
-    expect(result).toContain("## Comments");
+    expect(result).toContain("# Fix the flux capacitor\n\n## Comments");
     expect(result).toContain("**Tom's Triage:**\ntriage note");
   });
 
   it("substitutes {{comments}} in a custom template, empty when there are none", () => {
     const withComments = buildPasteMessage({
       template: "{{identifier}}\n{{comments}}",
-      ticket: {
-        ...ticket,
-        comments: [{ author: "Chloe", createdAt: "2026-08-02T00:00:00.000Z", body: "ship it" }],
-      },
+      ticket: { ...ticket, commentsMd: "## Comments\n\n**Chloe (2026-08-02):**\nship it" },
       fallbackPrompt: "",
       fallbackDescription: "",
       branch: "b",
@@ -209,34 +201,17 @@ describe("buildPasteMessage", () => {
       }),
     ).toBe("ENG-412|");
   });
-});
 
-describe("formatComments", () => {
-  const make = (i: number, body = "x".repeat(100)): LinearComment => ({
-    author: `User${i}`,
-    createdAt: `2026-08-0${i}T00:00:00.000Z`,
-    body,
-  });
-
-  it("keeps every comment when under budget", () => {
-    const out = formatComments([1, 2, 3, 4, 5].map((i) => make(i)));
-    expect(out).not.toContain("omitted");
-    expect(out).toContain("**User1 (2026-08-01):**");
-    expect(out).toContain("**User5 (2026-08-05):**");
-  });
-
-  it("trims the middle over budget, keeping first and last with an omission marker", () => {
-    const out = formatComments([1, 2, 3, 4, 5].map((i) => make(i)), 300);
-    expect(out).toContain("**User1 (2026-08-01):**");
-    expect(out).toContain("**User5 (2026-08-05):**");
-    expect(out).toContain("[… 3 comments omitted …]");
-    expect(out).not.toContain("User3");
-  });
-
-  it("labels authorless comments Unknown and returns empty for no comments", () => {
-    expect(formatComments([{ author: null, createdAt: null, body: "hi" }])).toBe(
-      "## Comments\n\n**Unknown:**\nhi",
-    );
-    expect(formatComments([])).toBe("");
+  it("trims trailing blank lines a custom template's empty {{comments}} slot leaves behind", () => {
+    expect(
+      buildPasteMessage({
+        template: "{{identifier}}\n\n{{description}}\n\n{{comments}}",
+        ticket,
+        fallbackPrompt: "",
+        fallbackDescription: "",
+        branch: "b",
+        issueId: null,
+      }),
+    ).toBe("ENG-412\n\nIt fluxes when it should capacitate.");
   });
 });

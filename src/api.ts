@@ -465,6 +465,12 @@ export function listMyLinearIssues(): Promise<LinearTicket[]> {
   return invoke("list_my_linear_issues");
 }
 
+/** Fetch one issue with full context (including rendered comments).
+ *  Accepts a UUID or a human identifier like "PRO-5196". */
+export function getLinearIssue(issueId: string): Promise<LinearTicket> {
+  return invoke("get_linear_issue", { issueId });
+}
+
 /** Persist a Linear ticket link for a worktree so the StatusBar chip survives restart. */
 export function setWorktreeLinearTicket(
   repoPath: string,

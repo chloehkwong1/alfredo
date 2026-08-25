@@ -746,20 +746,12 @@ pub struct LinearTicket {
     pub branch_name: Option<String>,
     #[serde(default)]
     pub updated_at: Option<String>,
-    /// Only populated by single-issue lookups — search/autocomplete queries
-    /// skip comments to keep typeahead responses light.
+    /// Pre-rendered `## Comments` markdown section, or empty. Rendered once
+    /// in Rust (`linear_manager::format_comments`) so the pasted prompt and
+    /// CLAUDE.local.md can't drift. Only `get_issue` fetches comments —
+    /// search/typeahead queries leave this empty.
     #[serde(default)]
-    pub comments: Vec<LinearComment>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LinearComment {
-    /// Workspace user name, or the bot/app name for integration-posted
-    /// comments (e.g. auto-triage). None when Linear reports neither.
-    pub author: Option<String>,
-    pub created_at: Option<String>,
-    pub body: String,
+    pub comments_md: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
