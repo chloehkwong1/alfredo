@@ -960,12 +960,39 @@ pub async fn check_merged_parents(
             .collect();
 
         // Find entries in stack_parent_overrides whose parent value is a merged branch
-        let affected: Vec<(String, String)> = config
+        let mut affected: Vec<(String, String)> = config
             .stack_parent_overrides
             .iter()
             .filter(|(_, parent)| merged_branches.contains(parent))
             .map(|(child, parent)| (child.clone(), parent.clone()))
             .collect();
+
+        // Long-lived-branch guard: a release merge (e.g. develop → main) puts
+        // the trunk's head in `merged_branches`, which would dissolve — rebase
+        // onto the default branch and retarget the PR of — every child stacked
+        // on it, even though the branch is alive and still the base of open
+        // PRs. A finished stack parent's branch is deleted when its PR merges;
+        // one that still exists on the remote is not a stack that ended. An
+        // unqueryable remote counts as alive: a skipped dissolve retries next
+        // poll, a wrong dissolve rewrites history.
+        if !affected.is_empty() {
+            let mut parent_alive: HashMap<String, bool> = HashMap::new();
+            for (_, parent) in &affected {
+                if parent_alive.contains_key(parent) {
+                    continue;
+                }
+                let alive = git_manager::remote_branch_exists(repo_path, parent)
+                    .await
+                    .unwrap_or(true);
+                if alive {
+                    eprintln!(
+                        "[stack_manager] parent {parent} merged but still exists on origin (long-lived branch): skipping dissolve"
+                    );
+                }
+                parent_alive.insert(parent.clone(), alive);
+            }
+            affected.retain(|(_, parent)| !parent_alive.get(parent).copied().unwrap_or(true));
+        }
 
         // Sweep before any of the continues below, and regardless of whether
         // this poll has overrides/merged branches/affected children at all: a

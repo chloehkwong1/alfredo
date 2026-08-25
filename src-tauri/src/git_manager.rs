@@ -666,6 +666,52 @@ pub async fn fetch_upstream_throttled(repo_path: &str, force: bool) {
     }
 }
 
+/// Answers from `remote_branch_exists`, keyed `<repo_path>:<branch>`. The
+/// merged-parent dissolve check re-runs every sync poll for as long as the
+/// triggering merged PR stays in the closed-PR window, so a confirmed answer
+/// is held for a TTL instead of re-asking the remote each tick.
+static REMOTE_BRANCH_CACHE: std::sync::LazyLock<Mutex<HashMap<String, (bool, Instant)>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Whether `branch` currently exists on `origin`, asked of the remote itself
+/// (`ls-remote`) — NOT the local tracking ref, which lingers after a remote
+/// delete until a prune the sync loop never runs. `None` means the remote
+/// couldn't be queried (offline, no origin); callers pick the safe direction.
+pub async fn remote_branch_exists(repo_path: &str, branch: &str) -> Option<bool> {
+    const TTL: std::time::Duration = std::time::Duration::from_secs(300);
+    let key = format!("{repo_path}:{branch}");
+    if let Ok(cache) = REMOTE_BRANCH_CACHE.lock() {
+        if let Some((exists, at)) = cache.get(&key) {
+            if at.elapsed() < TTL {
+                return Some(*exists);
+            }
+        }
+    }
+
+    let probe = git_command()
+        .args(["ls-remote", "--exit-code", "--heads", "origin", branch])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .current_dir(repo_path)
+        .kill_on_drop(true)
+        .output();
+    let output = tokio::time::timeout(std::time::Duration::from_secs(15), probe)
+        .await
+        .ok()?
+        .ok()?;
+
+    // --exit-code: 0 = ref exists, 2 = remote reachable but no such ref.
+    // Anything else is "couldn't ask" — no answer, nothing cached.
+    let exists = match output.status.code() {
+        Some(0) => true,
+        Some(2) => false,
+        _ => return None,
+    };
+    if let Ok(mut cache) = REMOTE_BRANCH_CACHE.lock() {
+        cache.insert(key, (exists, Instant::now()));
+    }
+    Some(exists)
+}
+
 /// Count how many commits the current branch is ahead/behind its upstream tracking ref.
 /// Returns `Ok(None)` when no upstream is configured (rev-parse fails) or when
 /// the upstream is a *different* branch — worktree branches inherit tracking
@@ -3183,6 +3229,40 @@ mod tests {
 
         let state = worktree_dirty_state(path.to_str().unwrap(), None).await.expect("dirty state");
         assert!(state.untracked.is_empty() && state.uncommitted.is_empty());
+    }
+
+    /// Long-lived-branch guard: `remote_branch_exists` must distinguish a
+    /// branch still alive on the remote (a release trunk like `develop`) from
+    /// one deleted after its PR merged (a finished stack parent).
+    #[tokio::test]
+    async fn remote_branch_exists_distinguishes_live_and_deleted() {
+        let remote_dir = init_test_repo();
+        let remote_path = remote_dir.path().to_str().expect("temp dir path is valid UTF-8");
+        StdCommand::new("git")
+            .args(["branch", "develop"])
+            .current_dir(remote_dir.path())
+            .output()
+            .expect("git branch");
+
+        let local_dir = init_test_repo();
+        let local_path = local_dir.path().to_str().expect("temp dir path is valid UTF-8");
+        StdCommand::new("git")
+            .args(["remote", "add", "origin", remote_path])
+            .current_dir(local_dir.path())
+            .output()
+            .expect("git remote add");
+
+        assert_eq!(remote_branch_exists(local_path, "develop").await, Some(true));
+        assert_eq!(remote_branch_exists(local_path, "finished-stack-parent").await, Some(false));
+    }
+
+    /// No queryable remote → None: the caller must fail safe (skip the
+    /// dissolve and retry next poll), never treat the branch as deleted.
+    #[tokio::test]
+    async fn remote_branch_exists_unqueryable_remote_is_none() {
+        let dir = init_test_repo();
+        let path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+        assert_eq!(remote_branch_exists(path, "develop").await, None);
     }
 
     /// Behind base + uncommitted tracked edit: badge should report only the uncommitted scope,
