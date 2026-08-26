@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeEffectiveStatus } from "./AgentItem";
+import { computeEffectiveStatus, adoptConsequence, adoptActionLabel } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
 import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
@@ -360,5 +360,52 @@ describe("firstNeedsPush", () => {
     const open = makeMember({ stackRebaseStatus: { kind: "needsPush" } });
     expect(firstNeedsPush([merged, open])).toBe(open);
     expect(firstNeedsPush([merged])).toBeUndefined();
+  });
+});
+
+describe("adoptConsequence", () => {
+  it("shows checking copy until the probe resolves", () => {
+    const c = adoptConsequence("api-refactor", false, null);
+    expect(c.tone).toBe("checking");
+    expect(c.text).toMatch(/Checking/);
+  });
+
+  it("is safe and names the non-consequence when level with the parent", () => {
+    const c = adoptConsequence("api-refactor", true, 0);
+    expect(c.tone).toBe("safe");
+    expect(c.text).toBe("Nothing changes now — no rebase, no push.");
+  });
+
+  it("warns with the behind count when the parent has advanced", () => {
+    const c = adoptConsequence("api-refactor", true, 3);
+    expect(c.tone).toBe("warn");
+    expect(c.text).toContain("api-refactor has moved (3 commits)");
+    expect(c.text).toContain("will rebase");
+    expect(c.text).toContain("push the update to the PR");
+  });
+
+  it("uses singular commit wording for exactly one commit behind", () => {
+    expect(adoptConsequence("p", true, 1).text).toContain("(1 commit)");
+  });
+
+  it("fails closed to a hedged warn when the probe failed", () => {
+    const c = adoptConsequence("api-refactor", true, null);
+    expect(c.tone).toBe("warn");
+    expect(c.text).toContain("may rebase");
+  });
+});
+
+describe("adoptActionLabel", () => {
+  it("labels the clean path as a plain set-up", () => {
+    expect(adoptActionLabel(true, 0)).toBe("Set up stack");
+  });
+
+  it("carries the rebase consequence when behind or unproven", () => {
+    expect(adoptActionLabel(true, 3)).toBe("Rebase & set up");
+    expect(adoptActionLabel(true, null)).toBe("Rebase & set up");
+  });
+
+  it("keeps the neutral label while still checking (button is disabled)", () => {
+    expect(adoptActionLabel(false, null)).toBe("Set up stack");
   });
 });

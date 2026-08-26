@@ -41,6 +41,7 @@ import { useToastStore } from "../../stores/toastStore";
 import { computeStackChain, stackHuesFor, detectAdoptableParent, type StackChain } from "../../lib/stackChain";
 import { isTerminalPr, toTerminalFlags } from "../../lib/prStatus";
 import { applyStackBaseChange } from "../../services/stackBase";
+import { Button } from "../ui/Button";
 
 const THINKING_VERBS = [
   "Thinking…",
@@ -315,12 +316,10 @@ interface AgentItemContentProps {
   stackHue?: number | null;
   onOpenStackMap?: () => void;
   adoptableParent?: string | null;
-  adoptStage?: "idle" | "probing" | "confirm" | "adopting";
-  /** Commits the branch is behind the adoptable parent, shown in the confirm
-   *  copy; null = probe failed (copy hedges instead of naming a count). */
-  adoptConfirmBehind?: number | null;
-  onAdoptStack?: () => void;
-  onCancelAdoptConfirm?: () => void;
+  /** True while the popover is open (aria-expanded) and while set-up runs. */
+  adoptOpen?: boolean;
+  adoptWorking?: boolean;
+  onOpenAdopt?: () => void;
   onDismissAdoptCue?: () => void;
 }
 
@@ -332,8 +331,8 @@ function AgentItemContent({
   worktree, effectiveStatus, isPinned, shouldPulse, isServerRunning, serverPort, assignedPort, prSummary,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
   repoIndex = 0, showRepoTag = false, stackChain = null, stackHue = null, onOpenStackMap = () => {},
-  adoptableParent = null, adoptStage = "idle", adoptConfirmBehind = null,
-  onAdoptStack = () => {}, onCancelAdoptConfirm = () => {}, onDismissAdoptCue = () => {},
+  adoptableParent = null, adoptOpen = false, adoptWorking = false,
+  onOpenAdopt = () => {}, onDismissAdoptCue = () => {},
 }: AgentItemContentProps) {
   // Secondary, not tertiary: these lines (status, PR title, timestamp, stack
   // position) are the card's information payload, and tertiary only clears
@@ -546,78 +545,50 @@ function AgentItemContent({
           </div>
         )}
         {/* GitHub says this PR is stacked (base = a sibling worktree's branch)
-            but no local stack is recorded — offer adoption through change_base.
-            One click when the branch already sits on the parent tip; when the
-            parent has advanced, adoption rebases (and lease-pushes) the branch,
-            so a confirm step names that before anything runs. Detection never
-            auto-adopts; see detectAdoptableParent. */}
+            but no local stack is recorded — offer set-up through change_base.
+            The cue itself never mutates: clicking it opens an explainer
+            popover (AdoptStackPopover, rendered by the parent) and the action
+            lives in there, labelled with its consequence. Neutral colour on
+            purpose — this is an offer, not trouble, and amber is reserved for
+            in-flux/attention states. Detection never auto-adopts; see
+            detectAdoptableParent. */}
         {adoptableParent && (
-          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-amber-400 min-w-0">
-            {adoptStage === "confirm" ? (
+          <div className="flex items-center gap-1 mt-1 text-[10px] min-w-0">
+            {adoptWorking ? (
+              <span className="flex items-center gap-1 min-w-0 text-text-tertiary animate-pulse">
+                <GitBranch className="h-2.5 w-2.5 flex-shrink-0" />
+                <span className="truncate">Setting up stack…</span>
+              </span>
+            ) : (
               <>
-                <span className="truncate" title={`Adopting rebases this branch onto ${adoptableParent} and updates the PR`}>
-                  {adoptConfirmBehind != null
-                    ? `adopt rebases onto ${adoptableParent} (${adoptConfirmBehind} behind)`
-                    : `adopt may rebase onto ${adoptableParent}`}
-                </span>
                 <button
                   type="button"
-                  className="flex-shrink-0 underline underline-offset-2 hover:text-amber-300 cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); onAdoptStack(); }}
+                  className="flex items-center gap-1 min-w-0 -ml-1 px-1 py-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-hover-wash cursor-pointer transition-colors"
+                  title={`On GitHub, this PR's base is ${adoptableParent}`}
+                  onClick={(e) => { e.stopPropagation(); onOpenAdopt(); }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
-                  aria-label={`Confirm: rebase onto ${adoptableParent} and adopt the stack`}
+                  aria-haspopup="dialog"
+                  aria-expanded={adoptOpen}
+                  aria-label={`Stacked on ${adoptableParent} on GitHub — open stack set-up`}
                 >
-                  confirm
+                  <GitBranch className="h-2.5 w-2.5 flex-shrink-0" />
+                  <span className="truncate">Stacked on {adoptableParent} — set up?</span>
+                  <span className="flex-shrink-0 opacity-70">›</span>
                 </button>
                 <button
                   type="button"
-                  className="flex-shrink-0 text-text-tertiary hover:text-text-secondary cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); onCancelAdoptConfirm(); }}
+                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-text-tertiary hover:text-text-secondary cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); onDismissAdoptCue(); }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
-                  aria-label="Cancel"
+                  aria-label="Dismiss for this session"
+                  title="Dismiss for this session"
                 >
                   ✕
                 </button>
-              </>
-            ) : (
-              <>
-                <span className="truncate" title={`PR base is ${adoptableParent} on GitHub`}>
-                  stacked on {adoptableParent} on GitHub
-                </span>
-                {adoptStage !== "idle" ? (
-                  <span className="flex-shrink-0 animate-pulse">
-                    · {adoptStage === "probing" ? "checking..." : "adopting..."}
-                  </span>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="flex-shrink-0 underline underline-offset-2 hover:text-amber-300 cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); onAdoptStack(); }}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                      aria-label={`Adopt stack: set ${adoptableParent} as this branch's base`}
-                    >
-                      adopt
-                    </button>
-                    <button
-                      type="button"
-                      className="flex-shrink-0 text-text-tertiary hover:text-text-secondary cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); onDismissAdoptCue(); }}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                      aria-label="Dismiss"
-                    >
-                      ✕
-                    </button>
-                  </>
-                )}
               </>
             )}
           </div>
@@ -638,9 +609,12 @@ function AgentItemContent({
  *  sidebar scroll container can't clip it. Opens below the anchor row,
  *  flipping above when the popover would spill past the viewport bottom.
  *  Hidden until the first measure so the flip never flashes. */
-function StackMapFrame({ anchorRef, frameRef, children }: {
+function StackMapFrame({ anchorRef, frameRef, remeasureKey, children }: {
   anchorRef: React.RefObject<HTMLDivElement | null>;
   frameRef: React.RefObject<HTMLDivElement | null>;
+  /** Change this when the popover's content height changes after mount (e.g.
+   *  an async probe resolving) so the below/above flip is re-decided. */
+  remeasureKey?: unknown;
   children: React.ReactNode;
 }) {
   const [style, setStyle] = useState<React.CSSProperties>({ position: "fixed", visibility: "hidden" });
@@ -656,10 +630,97 @@ function StackMapFrame({ anchorRef, frameRef, children }: {
       ? rect.bottom + 4
       : rect.top - height - 4;
     setStyle({ position: "fixed", top, left: rect.left + 14, zIndex: 50 });
-  }, [anchorRef, frameRef]);
+  }, [anchorRef, frameRef, remeasureKey]);
   return createPortal(
     <div ref={frameRef} style={style}>{children}</div>,
     document.body,
+  );
+}
+
+/** Consequence line for the adopt popover: names exactly what clicking the
+ *  primary will (and won't) do. A failed probe (behind == null) hedges but
+ *  still warns — fail closed, never fail reassuring. Exported for tests. */
+export function adoptConsequence(
+  parent: string,
+  probed: boolean,
+  behind: number | null,
+): { tone: "checking" | "safe" | "warn"; text: string } {
+  if (!probed) return { tone: "checking", text: "Checking whether a rebase is needed…" };
+  if (behind === 0) return { tone: "safe", text: "Nothing changes now — no rebase, no push." };
+  if (behind == null) {
+    return {
+      tone: "warn",
+      text: `Couldn't compare against ${parent} — setting up may rebase this branch onto it and push the update to the PR.`,
+    };
+  }
+  return {
+    tone: "warn",
+    text: `${parent} has moved (${behind} commit${behind === 1 ? "" : "s"}) — setting up will rebase this branch onto it and push the update to the PR.`,
+  };
+}
+
+/** Primary-button label carries the consequence. Exported for tests. */
+export function adoptActionLabel(probed: boolean, behind: number | null): string {
+  return probed && behind !== 0 ? "Rebase & set up" : "Set up stack";
+}
+
+/** Explainer popover behind the "Stacked on <parent> — set up?" cue. The cue
+ *  never mutates; this popover is where the (labelled) action lives. */
+function AdoptStackPopover({ parent, branch, prNumber, defaultBranch, probed, behind, onConfirm, onNotNow }: {
+  parent: string;
+  branch: string;
+  prNumber: number | null;
+  defaultBranch: string | null;
+  probed: boolean;
+  behind: number | null;
+  onConfirm: () => void;
+  onNotNow: () => void;
+}) {
+  const consequence = adoptConsequence(parent, probed, behind);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const primaryRef = useRef<HTMLButtonElement>(null);
+  // Container takes focus on open (the primary is disabled until the probe
+  // resolves, so it can't); the primary takes over once it's actionable.
+  useEffect(() => { containerRef.current?.focus(); }, []);
+  useEffect(() => { if (probed) primaryRef.current?.focus(); }, [probed]);
+  return (
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      role="dialog"
+      aria-label="Set up stack"
+      className="w-[264px] rounded-lg border border-border-default bg-bg-elevated p-3 shadow-lg outline-none"
+    >
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
+        <GitBranch className="h-3 w-3 text-text-secondary" />
+        Stacked pull request
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-text-secondary">
+        On GitHub, {prNumber != null ? `PR #${prNumber}` : "this PR"}&apos;s base is{" "}
+        <code className="text-text-primary">{parent}</code> — it builds on that branch, not{" "}
+        <code className="text-text-primary">{defaultBranch ?? "main"}</code>. Alfredo isn&apos;t
+        tracking this stack yet. Set it up to see both branches in the stack map and have{" "}
+        <code className="text-text-primary">{branch}</code> rebased automatically when{" "}
+        <code className="text-text-primary">{parent}</code> moves.
+      </p>
+      <div className={`mt-2 flex items-start gap-1.5 text-[11px] leading-snug ${consequence.tone === "warn" ? "text-amber-400" : "text-text-tertiary"}`}>
+        {consequence.tone !== "checking" && (
+          <span className="flex-shrink-0">{consequence.tone === "warn" ? "⚠" : "✓"}</span>
+        )}
+        <span>{consequence.text}</span>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <Button ref={primaryRef} size="sm" disabled={!probed} onClick={onConfirm}>
+          {adoptActionLabel(probed, behind)}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onNotNow}>
+          Not now
+        </Button>
+      </div>
+      <div className="mt-2.5 border-t border-border-subtle pt-2 text-[10px] text-text-tertiary">
+        Undo any time: right-click the worktree → Detach from stack.
+      </div>
+    </div>
   );
 }
 
@@ -902,9 +963,10 @@ const AgentItem = memo(function AgentItem({
   // resets the flow whenever the armed parent no longer matches detection.
   const [adoptState, setAdoptState] = useState<
     | { stage: "idle" }
-    | { stage: "probing" | "adopting"; parent: string }
-    | { stage: "confirm"; parent: string; behind: number | null }
+    | { stage: "open"; parent: string; probed: boolean; behind: number | null }
+    | { stage: "adopting"; parent: string }
   >({ stage: "idle" });
+  const adoptFrameRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setAdoptState((s) =>
       s.stage !== "idle" && s.stage !== "adopting" && s.parent !== adoptableParent
@@ -977,17 +1039,21 @@ const AgentItem = memo(function AgentItem({
     try {
       await applyStackBaseChange(worktree, parent, { expectNoRebase });
       // Success: the optimistic stackParent update makes detection return null,
-      // so the cue disappears and the normal stack row takes over.
+      // so the cue disappears and the normal stack row takes over. The toast
+      // names what happened — the 1/N chip appearing is too subtle on its own.
       setAdoptState({ stage: "idle" });
+      useToastStore.getState().show({
+        message: `${worktree.branch} added to the stack — it now follows ${parent}`,
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       // The backend re-checks the "no rebase will happen" claim against the
-      // tips it resolves at adopt time and refuses when the parent moved
-      // since our probe (or the probe was wrong). Not a failure — fall back
-      // to the confirm step with hedged copy, exactly as an inconclusive
-      // probe would have.
+      // tips it resolves at set-up time and refuses when the parent moved
+      // since our probe (or the probe was wrong). Not a failure — reopen the
+      // popover in its hedged-warn variant, exactly as an inconclusive probe
+      // would have shown.
       if (expectNoRebase && msg.includes(STACK_ADOPT_NOT_CLEAN)) {
-        setAdoptState({ stage: "confirm", parent, behind: null });
+        setAdoptState({ stage: "open", parent, probed: true, behind: null });
         return;
       }
       console.error("Adopt stack failed:", msg);
@@ -995,47 +1061,73 @@ const AgentItem = memo(function AgentItem({
       // is gated by macOS permission/DND and dead in dev builds. A rebase
       // conflict additionally gets the sticky stack:rebase-conflict toast, and
       // its status write suppresses the cue (see detectAdoptableParent).
-      useToastStore.getState().show({ message: `Adopt stack failed for ${worktree.branch}: ${msg}` });
+      useToastStore.getState().show({ message: `Stack set-up failed for ${worktree.branch}: ${msg}` });
       setAdoptState({ stage: "idle" });
     }
   };
-  const handleAdoptStack = async () => {
-    if (adoptState.stage === "confirm") {
-      // Second click on the warning row — the user has seen the rebase copy.
-      // Adopt the ARMED parent (the one the copy described), not whatever
-      // detection currently returns.
-      await runAdopt(adoptState.parent, false);
-      return;
-    }
+  // First click never mutates: it opens the explainer popover and starts the
+  // behind-count probe so the consequence line can resolve from "Checking…"
+  // to safe/warn while the user reads. The action itself is inside the
+  // popover, labelled with its consequence (Set up stack / Rebase & set up).
+  const handleOpenAdopt = async () => {
     if (adoptState.stage !== "idle" || !adoptableParent) return;
-    // Adoption is metadata-only when the branch already sits on the parent tip,
-    // but rebases (and lease-pushes) when the parent has advanced — probe first
-    // and only skip the confirm step in the provably-clean case. A failed
-    // probe (null) still confirms, with hedged copy. The clean fast path
-    // passes expectNoRebase so the backend refuses (→ confirm) rather than
-    // rebasing if the parent moved between probe and adopt.
     const parent = adoptableParent;
-    setAdoptState({ stage: "probing", parent });
+    setAdoptState({ stage: "open", parent, probed: false, behind: null });
     const behind = await getCommitsBehindMain(worktree.path, parent).catch((e) => {
       console.warn("[adopt-stack] behind-count probe failed:", e);
       return null;
     });
-    if (behind === 0) {
-      await runAdopt(parent, true);
-      return;
-    }
-    // Arm the confirm only if the flow wasn't reset while the probe ran
-    // (detection may have flipped to a different parent mid-await).
+    // Fold the result in only if the popover is still open on the same parent
+    // (it may have been closed, or detection flipped mid-await).
     setAdoptState((s) =>
-      s.stage === "probing" && s.parent === parent ? { stage: "confirm", parent, behind } : s,
+      s.stage === "open" && s.parent === parent ? { ...s, probed: true, behind } : s,
     );
   };
-  const handleCancelAdoptConfirm = () => setAdoptState({ stage: "idle" });
+  const handleAdoptConfirm = async () => {
+    if (adoptState.stage !== "open" || !adoptState.probed) return;
+    // Set up the ARMED parent (the one the popover described), not whatever
+    // detection currently returns. expectNoRebase only on a provably-clean
+    // probe — the backend re-checks and refuses (→ hedged reopen) if the
+    // parent moved between probe and set-up.
+    await runAdopt(adoptState.parent, adoptState.behind === 0);
+  };
+  // Esc / click-outside close WITHOUT burning the session dismiss — only ✕
+  // and "Not now" are deliberate "stop offering" signals.
+  const handleCloseAdopt = () => {
+    setAdoptState((s) => (s.stage === "open" ? { stage: "idle" } : s));
+    rowContainerRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="dialog"]')?.focus();
+  };
   const handleDismissAdoptCue = () => {
     if (adoptableParent) {
       useWorkspaceStore.getState().dismissStackAdoption(worktree.id, adoptableParent);
     }
   };
+  const handleAdoptNotNow = () => {
+    handleDismissAdoptCue();
+    setAdoptState({ stage: "idle" });
+  };
+
+  // Close the adopt popover on outside click or Escape — same contract as the
+  // stack-map popover's listener above.
+  useEffect(() => {
+    if (adoptState.stage !== "open") return;
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const inRow = rowContainerRef.current?.contains(target) ?? false;
+      const inPopover = adoptFrameRef.current?.contains(target) ?? false;
+      if (!inRow && !inPopover) handleCloseAdopt();
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleCloseAdopt();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adoptState.stage]);
 
   const handleMoveToColumn = async (target: typeof worktree.column) => {
     if (target === worktree.column) return;
@@ -1118,10 +1210,9 @@ const AgentItem = memo(function AgentItem({
       stackHue={stackHue}
       onOpenStackMap={() => setStackMapOpen(true)}
       adoptableParent={showAdoptCue ? adoptableParent : null}
-      adoptStage={adoptState.stage}
-      adoptConfirmBehind={adoptState.stage === "confirm" ? adoptState.behind : null}
-      onAdoptStack={handleAdoptStack}
-      onCancelAdoptConfirm={handleCancelAdoptConfirm}
+      adoptOpen={adoptState.stage === "open"}
+      adoptWorking={adoptState.stage === "adopting"}
+      onOpenAdopt={() => { void handleOpenAdopt(); }}
       onDismissAdoptCue={handleDismissAdoptCue}
     />
   );
@@ -1317,6 +1408,25 @@ const AgentItem = memo(function AgentItem({
             chain={stackChain}
             defaultBranch={defaultBranch}
             onClose={() => setStackMapOpen(false)}
+          />
+        </StackMapFrame>
+      )}
+
+      {adoptState.stage === "open" && (
+        <StackMapFrame
+          anchorRef={rowContainerRef}
+          frameRef={adoptFrameRef}
+          remeasureKey={adoptState.probed}
+        >
+          <AdoptStackPopover
+            parent={adoptState.parent}
+            branch={worktree.branch}
+            prNumber={worktree.prStatus?.number ?? null}
+            defaultBranch={defaultBranch}
+            probed={adoptState.probed}
+            behind={adoptState.behind}
+            onConfirm={() => { void handleAdoptConfirm(); }}
+            onNotNow={handleAdoptNotNow}
           />
         </StackMapFrame>
       )}

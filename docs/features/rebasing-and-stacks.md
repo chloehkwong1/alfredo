@@ -71,5 +71,6 @@ branch of a native member warns first, since that re-parents a branch
 GitHub is managing.
 
 If GitHub shows a stack (PRs based on each other) that Alfredo isn't
-tracking locally yet, an amber **adopt** cue appears on the sidebar
-row — see the "Adopting a stack" doc.
+tracking locally yet, a **"Stacked on \<branch\> — set up?"** cue
+appears on the sidebar row — see the "Setting up a stack that exists
+on GitHub" doc.
