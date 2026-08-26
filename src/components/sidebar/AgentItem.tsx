@@ -319,7 +319,7 @@ interface AgentItemContentProps {
   /** True while the popover is open (aria-expanded) and while set-up runs. */
   adoptOpen?: boolean;
   adoptWorking?: boolean;
-  onOpenAdopt?: () => void;
+  onToggleAdopt?: () => void;
   onDismissAdoptCue?: () => void;
 }
 
@@ -332,7 +332,7 @@ function AgentItemContent({
   repoPath, repoColors, repoDisplayNames, repoShortLabels, displayLabel, isEditing, onStartEdit, onCommitEdit, onCancelEdit,
   repoIndex = 0, showRepoTag = false, stackChain = null, stackHue = null, onOpenStackMap = () => {},
   adoptableParent = null, adoptOpen = false, adoptWorking = false,
-  onOpenAdopt = () => {}, onDismissAdoptCue = () => {},
+  onToggleAdopt = () => {}, onDismissAdoptCue = () => {},
 }: AgentItemContentProps) {
   // Secondary, not tertiary: these lines (status, PR title, timestamp, stack
   // position) are the card's information payload, and tertiary only clears
@@ -565,7 +565,7 @@ function AgentItemContent({
                   type="button"
                   className="flex items-center gap-1 min-w-0 -ml-1 px-1 py-0.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-hover-wash cursor-pointer transition-colors"
                   title={`On GitHub, this PR's base is ${adoptableParent}`}
-                  onClick={(e) => { e.stopPropagation(); onOpenAdopt(); }}
+                  onClick={(e) => { e.stopPropagation(); onToggleAdopt(); }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
@@ -637,6 +637,39 @@ function StackMapFrame({ anchorRef, frameRef, remeasureKey, children }: {
   );
 }
 
+/** Close an anchored row popover on outside click or Escape. Interactions
+ *  inside the anchor row or the popover frame don't count as outside — the
+ *  popovers' own roots stop propagation, so a document-level listener only
+ *  ever sees genuine outside clicks. Shared by the stack-map and adopt
+ *  popovers; with the mutual-exclusion in their open handlers, at most one
+ *  listener pair is ever armed, so Escape can't close two popovers at once. */
+function usePopoverDismiss(
+  active: boolean,
+  anchorRef: React.RefObject<HTMLDivElement | null>,
+  frameRef: React.RefObject<HTMLDivElement | null>,
+  onClose: () => void,
+) {
+  useEffect(() => {
+    if (!active) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const inRow = anchorRef.current?.contains(target) ?? false;
+      const inPopover = frameRef.current?.contains(target) ?? false;
+      if (!inRow && !inPopover) onClose();
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+}
+
 /** Consequence line for the adopt popover: names exactly what clicking the
  *  primary will (and won't) do. A failed probe (behind == null) hedges but
  *  still warns — fail closed, never fail reassuring. Exported for tests. */
@@ -678,11 +711,13 @@ function AdoptStackPopover({ parent, branch, prNumber, defaultBranch, probed, be
 }) {
   const consequence = adoptConsequence(parent, probed, behind);
   const containerRef = useRef<HTMLDivElement>(null);
-  const primaryRef = useRef<HTMLButtonElement>(null);
-  // Container takes focus on open (the primary is disabled until the probe
-  // resolves, so it can't); the primary takes over once it's actionable.
+  // Focus stays on the container; the primary is deliberately NEVER
+  // auto-focused. Moving focus to it when the probe resolves (or on the
+  // not-clean reopen, where it would mount enabled) lets a held or repeated
+  // Enter fire "Rebase & set up" before the warning is read — the exact
+  // acts-without-a-deliberate-read failure this popover exists to prevent.
+  // Reaching the buttons costs one Tab.
   useEffect(() => { containerRef.current?.focus(); }, []);
-  useEffect(() => { if (probed) primaryRef.current?.focus(); }, [probed]);
   return (
     <div
       ref={containerRef}
@@ -710,7 +745,7 @@ function AdoptStackPopover({ parent, branch, prNumber, defaultBranch, probed, be
         <span>{consequence.text}</span>
       </div>
       <div className="mt-3 flex items-center gap-2">
-        <Button ref={primaryRef} size="sm" disabled={!probed} onClick={onConfirm}>
+        <Button size="sm" disabled={!probed} onClick={onConfirm}>
           {adoptActionLabel(probed, behind)}
         </Button>
         <Button size="sm" variant="ghost" onClick={onNotNow}>
@@ -977,27 +1012,7 @@ const AgentItem = memo(function AgentItem({
   const stackHue = useStackHue(worktree.id);
   const isPeeked = stackChain != null && peekedStackRootId === stackChain.rootId;
 
-  // Close the stack map popover on outside click or Escape. The popover's own
-  // root stops propagation for interactions inside it, so a document-level
-  // listener only ever sees genuine outside clicks.
-  useEffect(() => {
-    if (!stackMapOpen) return;
-    const handlePointerDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const inRow = rowContainerRef.current?.contains(target) ?? false;
-      const inPopover = stackMapFrameRef.current?.contains(target) ?? false;
-      if (!inRow && !inPopover) setStackMapOpen(false);
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setStackMapOpen(false);
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [stackMapOpen]);
+  usePopoverDismiss(stackMapOpen, rowContainerRef, stackMapFrameRef, () => setStackMapOpen(false));
 
   const installedApps = useInstalledApps();
 
@@ -1069,9 +1084,19 @@ const AgentItem = memo(function AgentItem({
   // behind-count probe so the consequence line can resolve from "Checking…"
   // to safe/warn while the user reads. The action itself is inside the
   // popover, labelled with its consequence (Set up stack / Rebase & set up).
-  const handleOpenAdopt = async () => {
+  // A second click on the trigger closes it again (standard disclosure
+  // toggle — the cue advertises aria-expanded, so activation must not be
+  // inert while open).
+  const handleToggleAdopt = async () => {
+    if (adoptState.stage === "open") {
+      setAdoptState({ stage: "idle" });
+      return;
+    }
     if (adoptState.stage !== "idle" || !adoptableParent) return;
     const parent = adoptableParent;
+    // The two anchored popovers share the row anchor and coordinates — never
+    // let both be open at once (mirrored in the stack-map open handler).
+    setStackMapOpen(false);
     setAdoptState({ stage: "open", parent, probed: false, behind: null });
     const behind = await getCommitsBehindMain(worktree.path, parent).catch((e) => {
       console.warn("[adopt-stack] behind-count probe failed:", e);
@@ -1101,33 +1126,11 @@ const AgentItem = memo(function AgentItem({
     if (adoptableParent) {
       useWorkspaceStore.getState().dismissStackAdoption(worktree.id, adoptableParent);
     }
+    // Dismissing unmounts the cue row, but the popover renders off
+    // adoptState alone — close it too or it survives its own trigger.
+    setAdoptState((s) => (s.stage === "open" ? { stage: "idle" } : s));
   };
-  const handleAdoptNotNow = () => {
-    handleDismissAdoptCue();
-    setAdoptState({ stage: "idle" });
-  };
-
-  // Close the adopt popover on outside click or Escape — same contract as the
-  // stack-map popover's listener above.
-  useEffect(() => {
-    if (adoptState.stage !== "open") return;
-    const handlePointerDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const inRow = rowContainerRef.current?.contains(target) ?? false;
-      const inPopover = adoptFrameRef.current?.contains(target) ?? false;
-      if (!inRow && !inPopover) handleCloseAdopt();
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleCloseAdopt();
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adoptState.stage]);
+  usePopoverDismiss(adoptState.stage === "open", rowContainerRef, adoptFrameRef, handleCloseAdopt);
 
   const handleMoveToColumn = async (target: typeof worktree.column) => {
     if (target === worktree.column) return;
@@ -1208,11 +1211,16 @@ const AgentItem = memo(function AgentItem({
       showRepoTag={showRepoTag}
       stackChain={stackChain}
       stackHue={stackHue}
-      onOpenStackMap={() => setStackMapOpen(true)}
+      onOpenStackMap={() => {
+        // Mutually exclusive with the adopt popover — both anchor to the same
+        // row coordinates (see handleToggleAdopt's mirror of this).
+        setAdoptState((s) => (s.stage === "open" ? { stage: "idle" } : s));
+        setStackMapOpen(true);
+      }}
       adoptableParent={showAdoptCue ? adoptableParent : null}
       adoptOpen={adoptState.stage === "open"}
       adoptWorking={adoptState.stage === "adopting"}
-      onOpenAdopt={() => { void handleOpenAdopt(); }}
+      onToggleAdopt={() => { void handleToggleAdopt(); }}
       onDismissAdoptCue={handleDismissAdoptCue}
     />
   );
@@ -1426,7 +1434,7 @@ const AgentItem = memo(function AgentItem({
             probed={adoptState.probed}
             behind={adoptState.behind}
             onConfirm={() => { void handleAdoptConfirm(); }}
-            onNotNow={handleAdoptNotNow}
+            onNotNow={handleDismissAdoptCue}
           />
         </StackMapFrame>
       )}
