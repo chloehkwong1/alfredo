@@ -1,0 +1,35 @@
+src/components/sidebar/AgentItem.tsx
+  s_f89ba51c0ff673::t_5e89e359556799 1415-1433
+  s_f89ba51c0ff673::t_5905c531a3e381 334-335
+  s_f89ba51c0ff673::t_f821d196cda2bd 612,615-617,633
+  s_f89ba51c0ff673::t_4819f01cbace8b 1213-1215
+  s_f89ba51c0ff673::t_9b91e59a6095dc 640-726
+  s_f89ba51c0ff673::t_9ecddbae1ded89 548-554,556-562,566-568,572-574,576-578,582-583,587-588
+  s_f89ba51c0ff673::t_50617238c9be25 319-322
+  s_f89ba51c0ff673::t_d5fc00c67f311f 44
+  s_f89ba51c0ff673::t_8056e671520793 1042-1043,1045-1047,1051-1054,1056,1064,1068-1072,1075,1080-1081,1083,1086-1099,1105-1130
+  s_f89ba51c0ff673::t_1e91d5f5f76aa0 966-967,969
+src/components/sidebar/AgentItem.test.ts
+  s_f89ba51c0ff673::t_b46f4cd6cf6f87 365-411
+  s_f89ba51c0ff673::t_68fe0d8ed16136 2
+docs/features/adopting-a-stack.md
+  s_f89ba51c0ff673::t_f428b20986e21c 2-4,12-18,20-26,28-30,34-39
+docs/features/rebasing-and-stacks.md
+  s_f89ba51c0ff673::t_8c2963a134b7f2 74-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "ca502a2a1d56ec12ab1f300bcb167ad6da4b076c",
+  "prompts": {},
+  "sessions": {
+    "s_f89ba51c0ff673": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89b799ed-58e4-4998-aa0a-9d481bf57703",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
