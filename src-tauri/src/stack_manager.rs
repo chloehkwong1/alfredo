@@ -14,6 +14,9 @@ use crate::types::{AppConfig, StackPendingAction, StackPendingBlocker, StackReba
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct StackStatusPayload {
+    // Same reason as `StackPendingPayload`: worktree dir names collide across
+    // repos, so the listener must be able to match on the repo too.
+    repo_path: String,
     worktree_name: String,
     status: StackRebaseStatus,
 }
@@ -29,9 +32,11 @@ struct StackPendingPayload {
     pending: Option<StackPendingAction>,
 }
 
+/// Shared payload for the per-worktree stack events (`stack:native-followed`,
+/// `stack:rebase-complete`, `stack:rebase-conflict`, `stack:parent-merged`).
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct NativeFollowedPayload {
+struct StackWorktreePayload {
     // Same reason as `StackPendingPayload`: worktree dir names collide across
     // repos, so the listener must be able to match on the repo too.
     repo_path: String,
@@ -186,9 +191,18 @@ fn durable_kind(status: &StackRebaseStatus) -> Option<&'static str> {
     }
 }
 
+/// Serializes concurrent `persist_sticky_to` writers: each `schedule_sticky_persist`
+/// spawns its own thread and they share one tmp path — unserialized, writer B can
+/// reopen (truncate) the tmp file while writer A is mid-write, and A's rename then
+/// installs a half-written file as the durable sticky state. Same tmp-race class
+/// as the keychain writer. Held across write+rename; the snapshot is taken under
+/// the lock, so the last writer always lands the freshest state.
+static STICKY_PERSIST_LOCK: Mutex<()> = Mutex::new(());
+
 /// Snapshot the durable subset of the sticky/lease maps into `dir`.
 /// Atomic (tmp + rename) so a crash mid-write can't leave a truncated file.
 fn persist_sticky_to(dir: &std::path::Path) {
+    let _serialize = STICKY_PERSIST_LOCK.lock();
     let mut file = DurableSticky::default();
     if let Ok(map) = STICKY_STATUS.lock() {
         for (key, status) in map.iter() {
@@ -745,14 +759,8 @@ async fn follow_native_rewrites(
                                 eprintln!("[stack_manager] baseline clear failed for {worktree_name}: {e}");
                             }
                         }
-                        emit_status(app_handle, &worktree_name, StackRebaseStatus::UpToDate);
-                        let _ = app_handle.emit(
-                            "stack:native-followed",
-                            NativeFollowedPayload {
-                                repo_path: repo_path.to_string(),
-                                worktree_name: worktree_name.clone(),
-                            },
-                        );
+                        emit_status(app_handle, repo_path, &worktree_name, StackRebaseStatus::UpToDate);
+                        emit_stack_event(app_handle, "stack:native-followed", repo_path, &worktree_name);
                     }
                     Err(e) => {
                         // `--keep` refusing (untracked-file collision, local
@@ -1206,7 +1214,7 @@ pub async fn check_merged_parents(
             }
 
             // Emit parent-merged event
-            let _ = app_handle.emit("stack:parent-merged", child_name.clone());
+            emit_stack_event(app_handle, "stack:parent-merged", repo_path, child_name);
 
             // The stack relationship is dissolved now that the child sits on the
             // default branch; the config write itself is batched below.
@@ -1352,6 +1360,7 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
             };
 
             let payload = StackStatusPayload {
+                repo_path: repo_path.clone(),
                 worktree_name: worktree_name.clone(),
                 status,
             };
@@ -1480,7 +1489,7 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
         Some(StackRebaseStatus::PushFailed) => {
             push_with_lease_or_flag(app_handle, repo_path, &root.path, &root.name, PushGate::Auto).await;
             if sticky_status(repo_path, &root.name).is_none() {
-                emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
+                emit_status(app_handle, repo_path, &root.name, StackRebaseStatus::UpToDate);
             }
         }
         // An unresolved conflict or a dirty tree must keep its badge — only
@@ -1496,7 +1505,7 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
         ) => {
             if !worktree_is_dirty(&root.path, true).await {
                 clear_sticky_status(repo_path, &root.name);
-                emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
+                emit_status(app_handle, repo_path, &root.name, StackRebaseStatus::UpToDate);
             }
         }
         // Roots DO earn `NeedsPush`: `sync_stack_root` reuses `run_restack`,
@@ -1519,7 +1528,7 @@ async fn heal_root_sticky_status(app_handle: &AppHandle, repo_path: &str, root: 
             );
             if spent {
                 clear_sticky_status(repo_path, &root.name);
-                emit_status(app_handle, &root.name, StackRebaseStatus::UpToDate);
+                emit_status(app_handle, repo_path, &root.name, StackRebaseStatus::UpToDate);
             }
         }
         Some(StackRebaseStatus::UpToDate | StackRebaseStatus::Behind { .. } | StackRebaseStatus::Rebasing)
@@ -1857,9 +1866,36 @@ pub async fn detect_stale_parents(
     let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
+    // A dissolve whose auto-push the ownership gate refused leaves the
+    // colleague's PR branch stale — and the batched forget below wipes the
+    // NeedsPush that says so. Capture the refusals first; they become
+    // dismiss-only notices after the forget (same as `check_merged_parents`).
+    let foreign_stale: Vec<String> = dissolved
+        .iter()
+        .filter(|child| {
+            matches!(sticky_status(repo_path, child), Some(StackRebaseStatus::NeedsPush))
+        })
+        .cloned()
+        .collect();
     for child in &dissolved {
         config_manager::clear_stack_entry(&mut config, child);
         forget_stack_memos(repo_path, child);
+    }
+    for child_name in &foreign_stale {
+        let stale_parent = affected
+            .iter()
+            .find(|(c, _)| c == child_name)
+            .map(|(_, p)| p.clone())
+            .unwrap_or_else(|| default_short.clone());
+        record_pending(
+            app_handle,
+            repo_path,
+            child_name,
+            StackPendingAction {
+                merged_parent: stale_parent,
+                blocked_by: StackPendingBlocker::ForeignPrNotPushed,
+            },
+        );
     }
 
     // Recorded after `forget_stack_memos` (which clears pending entries) so
@@ -2036,7 +2072,7 @@ pub async fn push_branch(
     match ahead_behind {
         Some((0, 0)) => {
             clear_sticky_status(repo_path, worktree_name);
-            emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+            emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::UpToDate);
             return Ok(());
         }
         Some((0, behind)) => {
@@ -2050,7 +2086,7 @@ pub async fn push_branch(
 
     push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name, PushGate::Explicit).await;
     if sticky_status(repo_path, worktree_name).is_none() {
-        emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+        emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::UpToDate);
         Ok(())
     } else {
         Err("push failed — origin moved or auth failed; see the stack badge".into())
@@ -2145,7 +2181,7 @@ async fn restack_child_inner(
         match sticky_status(repo_path, worktree_name) {
             Some(StackRebaseStatus::SkippedDirty | StackRebaseStatus::Conflict) | None => {
                 clear_sticky_status(repo_path, worktree_name);
-                emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+                emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::UpToDate);
             }
             // "Restack now" on a branch with nothing to rebase is the recovery
             // action for a failed push: retry the push itself rather than
@@ -2158,7 +2194,7 @@ async fn restack_child_inner(
             Some(StackRebaseStatus::PushFailed) if !auto => {
                 push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name, PushGate::Auto).await;
                 if sticky_status(repo_path, worktree_name).is_none() {
-                    emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+                    emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::UpToDate);
                 }
             }
             // Emitting UpToDate here would flicker it in and out every poll,
@@ -2352,7 +2388,7 @@ async fn run_restack(
         // adopts `target_tip` as the baseline.
         BaselineCheck::AlreadyOnTarget => {
             clear_sticky_status(repo_path, worktree_name);
-            emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+            emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::UpToDate);
             return Ok(RestackOutcome::AlreadyOnTarget);
         }
         BaselineCheck::Stale => {
@@ -2360,7 +2396,7 @@ async fn run_restack(
                 "[stack_manager] restack refused for {worktree_name}: baseline {baseline} is not an ancestor of HEAD (branch rewritten outside Alfredo)"
             );
             set_sticky_status(repo_path, worktree_name, StackRebaseStatus::RewrittenExternally);
-            emit_status(app_handle, worktree_name, StackRebaseStatus::RewrittenExternally);
+            emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::RewrittenExternally);
             return Ok(RestackOutcome::RefusedStaleBaseline);
         }
     }
@@ -2373,15 +2409,15 @@ async fn run_restack(
     // uncertain tree.
     if worktree_is_dirty(worktree_path, true).await {
         set_sticky_status(repo_path, worktree_name, StackRebaseStatus::SkippedDirty);
-        emit_status(app_handle, worktree_name, StackRebaseStatus::SkippedDirty);
+        emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::SkippedDirty);
         return Ok(RestackOutcome::SkippedDirty);
     }
 
-    emit_status(app_handle, worktree_name, StackRebaseStatus::Rebasing);
+    emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::Rebasing);
 
     match git_manager::rebase_onto_sha(worktree_path, target_tip, baseline, true).await {
         Ok(()) => {
-            let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
+            emit_stack_event(app_handle, "stack:rebase-complete", repo_path, worktree_name);
             match push {
                 PushMode::LeasePush => {
                     push_with_lease_or_flag(app_handle, repo_path, worktree_path, worktree_name, PushGate::Auto).await;
@@ -2393,16 +2429,16 @@ async fn run_restack(
                     // `NEEDS_PUSH_LEASE`.
                     record_push_lease(repo_path, worktree_name, worktree_path).await;
                     set_sticky_status(repo_path, worktree_name, StackRebaseStatus::NeedsPush);
-                    emit_status(app_handle, worktree_name, StackRebaseStatus::NeedsPush);
+                    emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::NeedsPush);
                 }
             }
             Ok(RestackOutcome::Rebased)
         }
         Err(e) => {
             eprintln!("[stack_manager] restack failed for {worktree_name}: {e}");
-            let _ = app_handle.emit("stack:rebase-conflict", worktree_name.to_string());
+            emit_stack_event(app_handle, "stack:rebase-conflict", repo_path, worktree_name);
             set_sticky_status(repo_path, worktree_name, StackRebaseStatus::Conflict);
-            emit_status(app_handle, worktree_name, StackRebaseStatus::Conflict);
+            emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::Conflict);
             Err(e.to_string())
         }
     }
@@ -2481,7 +2517,7 @@ async fn push_with_lease_or_flag(
         if ahead > 0 {
             record_push_lease(repo_path, worktree_name, worktree_path).await;
             set_sticky_status(repo_path, worktree_name, StackRebaseStatus::NeedsPush);
-            emit_status(app_handle, worktree_name, StackRebaseStatus::NeedsPush);
+            emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::NeedsPush);
         } else {
             clear_sticky_status(repo_path, worktree_name);
         }
@@ -2509,7 +2545,7 @@ async fn push_with_lease_or_flag(
         if let Err(e) = push_result {
             eprintln!("[stack_manager] lease push failed for {worktree_name}: {e}");
             set_sticky_status(repo_path, worktree_name, StackRebaseStatus::PushFailed);
-            emit_status(app_handle, worktree_name, StackRebaseStatus::PushFailed);
+            emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::PushFailed);
             return;
         }
     }
@@ -2767,7 +2803,7 @@ pub async fn change_base(
                 .map_err(|e| e.to_string())?;
             forget_stack_memos(repo_path, worktree_name);
         }
-        emit_status(app_handle, worktree_name, StackRebaseStatus::UpToDate);
+        emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::UpToDate);
         // No rebase runs on this path, so `stack:rebase-complete` (which the
         // frontend also uses to clear `stackPending`) never fires. This is an
         // explicit user action superseding any background attempt, so any
@@ -2777,7 +2813,7 @@ pub async fn change_base(
         return Ok(());
     }
 
-    emit_status(app_handle, worktree_name, StackRebaseStatus::Rebasing);
+    emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::Rebasing);
     match git_manager::rebase_onto_sha(&worktree_path, &target_tip, &old_baseline, true).await {
         Ok(()) => {
             let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
@@ -2791,7 +2827,7 @@ pub async fn change_base(
             config_manager::save_config(app_data_dir, repo_path, &config)
                 .await
                 .map_err(|e| e.to_string())?;
-            let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
+            emit_stack_event(app_handle, "stack:rebase-complete", repo_path, worktree_name);
             // A dissolve onto the default branch is truthfully "moved onto
             // main", not an ordinary restack — `stack:rebase-complete` alone
             // makes the frontend trace it as "restacked". Emitting
@@ -2801,7 +2837,7 @@ pub async fn change_base(
             // rebase conflicted, which can't be true on this success path) to
             // overwrite that with the accurate label.
             if new_parent.is_none() {
-                let _ = app_handle.emit("stack:parent-merged", worktree_name.to_string());
+                emit_stack_event(app_handle, "stack:parent-merged", repo_path, worktree_name);
             }
             push_with_lease_or_flag(app_handle, repo_path, &worktree_path, worktree_name, PushGate::Auto).await;
             // Dissolved: no `stack_parent_overrides` entry survives, so
@@ -2836,9 +2872,9 @@ pub async fn change_base(
         // new parent and pinned baseline it persisted above, and a dissolve still
         // has its old parent, so both remain visible in the stack UI and retryable.
         Err(e) => {
-            let _ = app_handle.emit("stack:rebase-conflict", worktree_name.to_string());
+            emit_stack_event(app_handle, "stack:rebase-conflict", repo_path, worktree_name);
             set_sticky_status(repo_path, worktree_name, StackRebaseStatus::Conflict);
-            emit_status(app_handle, worktree_name, StackRebaseStatus::Conflict);
+            emit_status(app_handle, repo_path, worktree_name, StackRebaseStatus::Conflict);
             Err(format!("re-base migration hit conflicts (aborted; branch unchanged): {e}"))
         }
     }
@@ -2940,7 +2976,7 @@ pub async fn begin_conflict_handoff(
                 config_manager::set_stack_baseline(&mut config, worktree_name, &target_tip);
                 let _ = config_manager::save_config(app_data_dir, repo_path, &config).await;
             }
-            let _ = app_handle.emit("stack:rebase-complete", worktree_name.to_string());
+            emit_stack_event(app_handle, "stack:rebase-complete", repo_path, worktree_name);
             Ok("__no_conflict__".to_string())
         }
         Err(_) => {
@@ -2983,10 +3019,26 @@ async fn worktree_is_dirty(worktree_path: &str, default_if_unknown: bool) -> boo
         .unwrap_or(default_if_unknown)
 }
 
-fn emit_status(app_handle: &AppHandle, worktree_name: &str, status: StackRebaseStatus) {
+fn emit_status(app_handle: &AppHandle, repo_path: &str, worktree_name: &str, status: StackRebaseStatus) {
     let _ = app_handle.emit(
         "stack:status-update",
-        StackStatusPayload { worktree_name: worktree_name.to_string(), status },
+        StackStatusPayload {
+            repo_path: repo_path.to_string(),
+            worktree_name: worktree_name.to_string(),
+            status,
+        },
+    );
+}
+
+/// Emit one of the per-worktree stack events, repo-qualified so same-named
+/// worktrees in other repos can't match.
+fn emit_stack_event(app_handle: &AppHandle, event: &str, repo_path: &str, worktree_name: &str) {
+    let _ = app_handle.emit(
+        event,
+        StackWorktreePayload {
+            repo_path: repo_path.to_string(),
+            worktree_name: worktree_name.to_string(),
+        },
     );
 }
 
@@ -3210,8 +3262,19 @@ async fn prune_ghost_stack_entries(
     if checkouts.is_empty() {
         return;
     }
+    // `checkouts` keys on the porcelain `branch` line, so a worktree mid-rebase
+    // (detached HEAD) is absent from it and reads as a ghost. Re-list by dir
+    // name regardless of branch state: git still listing the checkout rescues
+    // the entry — the dir-exists filter below can't, for an adopted worktree
+    // living outside the conventional path. Empty means the list flaked
+    // between the two calls (the main checkout is always listed): fail closed.
+    let listed_dirs = all_checkout_dir_names(repo_path).await;
+    if listed_dirs.is_empty() {
+        return;
+    }
     let ghosts: Vec<String> = ghost_stack_entries(&config.stack_parent_overrides, name_to_branch)
         .into_iter()
+        .filter(|name| !listed_dirs.contains(name.as_str()))
         // A dir that still exists but that git no longer lists is a
         // half-broken worktree, not a ghost — leave its entry alone so the
         // restack paths surface it as an error instead of dissolving it.
@@ -3239,6 +3302,31 @@ async fn prune_ghost_stack_entries(
     for name in &ghosts {
         config_manager::clear_stack_entry(config, name);
     }
+}
+
+/// Dir names of every checkout `git worktree list` reports, INCLUDING
+/// detached-HEAD ones — `checkout_paths` keys on the `branch` line and so
+/// omits a worktree that is mid-rebase. Empty when git fails; callers treat
+/// that as fail-closed.
+async fn all_checkout_dir_names(repo_path: &str) -> HashSet<String> {
+    let Ok(output) = git_command()
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(repo_path)
+        .output()
+        .await
+    else {
+        return HashSet::new();
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.strip_prefix("worktree "))
+        .filter_map(|path| {
+            std::path::Path::new(path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(str::to_string)
+        })
+        .collect()
 }
 
 /// Stack members with no current checkout — `git worktree list` shows nothing

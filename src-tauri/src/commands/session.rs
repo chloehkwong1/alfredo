@@ -421,7 +421,19 @@ async fn migrate_session_files_in(
     ] {
         match tokio::fs::rename(&from, &to).await {
             Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            // No source file — but a dead predecessor may have left a stale
+            // file under the NEW id (a worktree once held this branch and was
+            // removed outside Alfredo, so its cleanup never ran). Restore is
+            // keyed purely by worktree id; left in place, that blob would
+            // resurrect the dead worktree's tabs and resume ids as this
+            // worktree's session on the next restart. Remove it.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                match tokio::fs::remove_file(&to).await {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(e.into()),
+                }
+            }
             Err(e) => return Err(e.into()),
         }
     }

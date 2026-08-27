@@ -236,6 +236,12 @@ function rekeySiblingStores(rekeys: WorktreeRekey[]) {
     );
   }
   if (rekeys.length > 0) {
+    // Live sessions must follow the id change (sessionManager.rekeyWorktree)
+    // BEFORE the autosave pass below reads them. dispatchEvent runs listeners
+    // synchronously, so the ordering here is deterministic. A window event
+    // rather than a direct call because importing sessionManager from this
+    // store would close an import cycle (sessionManager imports this store).
+    window.dispatchEvent(new CustomEvent("worktree-rekeys", { detail: rekeys }));
     // Ask useSessionAutoSave for an immediate save pass (same window-event
     // pattern as `config-changed`): the renamed blob still holds pre-switch
     // state, and 30s is a wide crash window to leave it stale.

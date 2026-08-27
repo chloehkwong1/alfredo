@@ -14,6 +14,7 @@ import { usePortPickerStore } from "../stores/portPickerStore";
 import { sessionManager } from "../services/sessionManager";
 import { stopDevServer } from "../services/portReclaim";
 import { lifecycleManager } from "../services/lifecycleManager";
+import { normalizeCommand } from "../lib/normalizeCommand";
 import type { RunScript, Session } from "../types";
 
 /** Extract port number from a URL string (e.g. "http://localhost:3000" → 3000). */
@@ -290,7 +291,11 @@ export function useServer(activeWorktreeId: string | null) {
 
       // An empty/whitespace run command would spawn a bare shell with no server
       // (the resolve-args path falls back to []), leaving a dead tab. Don't start.
-      const runCommand = runScript.command.replace(/\s+/g, " ").trim();
+      // Newlines are kept: they're the statement separator in a multi-line run
+      // script (`export PORT=4000\nnpm run dev`), and `$SHELL -c` executes the
+      // lines sequentially. Collapsing them concatenated the script into one
+      // command line that swallowed everything after the first statement.
+      const runCommand = normalizeCommand(runScript.command);
       if (!runCommand) {
         console.warn("[handleToggleServer] run command is empty — not starting server");
         return;

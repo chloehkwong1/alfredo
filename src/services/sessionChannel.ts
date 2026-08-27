@@ -459,6 +459,12 @@ export function createSessionChannel(
 ): ReturnType<typeof createPtyChannel> {
   console.debug(`[chan-created] sessionKey=${sessionKey} worktreeId=${worktreeId} sessionId=${session.sessionId || "(pre-spawn)"}`);
   return createPtyChannel((event) => {
+    // Shadows the creation-time parameter on purpose: a branch checkout rekeys
+    // the worktree and updates session.worktreeId (sessionManager.rekeyWorktree),
+    // and a value captured at channel creation would keep routing tab-title,
+    // store and notification updates to the dead id. sessionKey stays captured —
+    // tab ids never change.
+    const worktreeId = session.worktreeId;
     switch (event.event) {
       case "output": {
         // If the user explicitly sent /clear, allow the next ESC[3J through so

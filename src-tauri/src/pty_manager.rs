@@ -1765,8 +1765,13 @@ fn is_leaked_outer_session_var(key: &str) -> bool {
     };
     // SSE_PORT is the IDE-attach port of the *outer* session — not
     // session-shaped by name, but inherited it points spawned agents at an IDE
-    // server that isn't theirs.
-    suffix.contains("SESSION") || suffix == "ENTRYPOINT" || suffix == "EXECPATH" || suffix == "SSE_PORT"
+    // server that isn't theirs. MESSAGING_* (SOCKET/TOKEN) is the outer
+    // session's agent-messaging endpoint — same cross-session-linkage hazard.
+    suffix.contains("SESSION")
+        || suffix == "ENTRYPOINT"
+        || suffix == "EXECPATH"
+        || suffix == "SSE_PORT"
+        || suffix.starts_with("MESSAGING_")
 }
 
 /// True if the given `ps -o comm=` result is a shell itself (so we should
@@ -1895,6 +1900,10 @@ mod tests {
         // IDE-attach port of the outer session — inherited, it points spawned
         // agents at the outer session's IDE server.
         assert!(is_leaked_outer_session_var("CLAUDE_CODE_SSE_PORT"));
+        // Agent-messaging endpoint of the outer session — inherited, spawned
+        // agents would message through a socket that isn't theirs.
+        assert!(is_leaked_outer_session_var("CLAUDE_CODE_MESSAGING_SOCKET"));
+        assert!(is_leaked_outer_session_var("CLAUDE_CODE_MESSAGING_TOKEN"));
 
         // Must be preserved: Alfredo's own vars, user credentials, generic env.
         assert!(!is_leaked_outer_session_var("ALFREDO_SESSION_ID"));

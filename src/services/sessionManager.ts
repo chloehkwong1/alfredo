@@ -1025,6 +1025,24 @@ export class SessionManager implements SessionWriter {
     this.stopReconciler();
   }
 
+  /** Point live sessions at a worktree's new id after a branch checkout
+   *  re-ids it (see workspaceStore's rekeySiblingStores). Session keys — and
+   *  the tab ids they mirror — are opaque and keep their old prefix; only the
+   *  worktreeId routing changes (the channel reads it live per event).
+   *  Without this, completion notifications, unread marking, tab-title
+   *  routing and the reconciler/registry backstops all project onto the dead
+   *  id for every session spawned before the rekey. */
+  rekeyWorktree(oldId: string, newId: string): void {
+    for (const session of this.sessions.values()) {
+      if (session.worktreeId === oldId) session.worktreeId = newId;
+    }
+    const source = stateSourceMap.get(oldId);
+    if (source !== undefined) {
+      stateSourceMap.delete(oldId);
+      stateSourceMap.set(newId, source);
+    }
+  }
+
   // ── Internal helpers ───────────────────────────────────────────
 
   /**
@@ -1279,6 +1297,14 @@ export const sessionManager: SessionManager =
 // Live-update all terminals when preferences change in settings
 window.addEventListener("terminal-preferences-changed", ((e: CustomEvent<TerminalPreferences>) => {
   sessionManager.applyPreferences(e.detail);
+}) as EventListener);
+
+// A branch checkout re-ids a worktree; workspaceStore's rekeySiblingStores
+// announces the id changes here. A window event rather than a direct call for
+// the same reason as "terminal-preferences-changed": importing sessionManager
+// from the store would close an import cycle (this module imports the store).
+window.addEventListener("worktree-rekeys", ((e: CustomEvent<{ oldId: string; newId: string }[]>) => {
+  for (const { oldId, newId } of e.detail) sessionManager.rekeyWorktree(oldId, newId);
 }) as EventListener);
 
 // On system wake (laptop lid open / display unsleep), refresh lastHeartbeat

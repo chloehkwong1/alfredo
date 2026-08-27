@@ -1246,10 +1246,13 @@ describe("detector mute while hook-derived state is idle", () => {
   // detector events regardless of hook-silence age.
 
   it("rejects detector busy event after idle(none) hook, even with stale lastHookAt", () => {
+    // The channel routes store updates by session.worktreeId (read live so a
+    // worktree rekey is picked up), so the fake session must carry the id.
     const session = makeFakeSession({
       agentState: "busy",
       hooksActive: true,
       lastHookAt: Date.now(),
+      worktreeId: "wt-mute-none",
     });
     const fakeWriter = { scheduleWrite: () => {}, appendToBuffer: () => {} };
     const channel = createSessionChannel(fakeWriter as any, session, "wt-mute-none", "wt-mute-none:main");
@@ -1282,6 +1285,7 @@ describe("detector mute while hook-derived state is idle", () => {
         agentState: "busy",
         hooksActive: true,
         lastHookAt: Date.now(),
+        worktreeId: "wt-mute-te",
       });
       const fakeWriter = { scheduleWrite: () => {}, appendToBuffer: () => {} };
       const channel = createSessionChannel(fakeWriter as any, session, "wt-mute-te", "wt-mute-te:main");

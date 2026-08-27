@@ -11,7 +11,11 @@ import type { PrUpdatePayload } from "../types";
  */
 export function useReviewRequests(): void {
   const { config } = useAppConfig();
-  const enabled = config?.autoPullReviewRequests !== false;
+  // Fail closed while config is unloaded: the backend sync loop starts
+  // emitting pr-update before the config fetch resolves (and the fetch can
+  // fail outright), and auto-creating a worktree against an explicit OFF
+  // setting is worse than missing one poll's worth of review requests.
+  const enabled = config != null && config.autoPullReviewRequests !== false;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 

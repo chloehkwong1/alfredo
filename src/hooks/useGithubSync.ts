@@ -13,11 +13,16 @@ import { lifecycleManager } from "../services/lifecycleManager";
 import { resolveStackConflict } from "../services/stackConflictHandoff";
 import { persistAssociationsFromPatches, reconcileStalePrs } from "../services/prAssociation";
 
-/** Worktree name → the id of its open conflict toast. A rebase conflict blocks
- *  the whole stack, so the toast never times out — which means something has to
- *  take it down. These entries let a resolution (or a repeat conflict on the
- *  same branch) replace the bar instead of stacking identical ones up. */
+/** `${repoPath}::${worktreeName}` → the id of its open conflict toast. A rebase
+ *  conflict blocks the whole stack, so the toast never times out — which means
+ *  something has to take it down. These entries let a resolution (or a repeat
+ *  conflict on the same branch) replace the bar instead of stacking identical
+ *  ones up. Repo-qualified: worktree names collide across repos. */
 const conflictToastIds = new Map<string, string>();
+
+function conflictToastKey(repoPath: string, worktreeName: string): string {
+  return `${repoPath}::${worktreeName}`;
+}
 
 /** Restacks and dissolves are gated on the agent being idle, so they always
  *  land *after* usePty's busy→idle diff-stat refresh — without this, the badge
@@ -30,10 +35,11 @@ function refreshDiffStats(worktreeId: string, worktreePath: string, stackParent?
     .catch((e) => console.warn("[stack] Failed to refresh diff stats after rebase:", e));
 }
 
-function dismissConflictToast(worktreeName: string) {
-  const id = conflictToastIds.get(worktreeName);
+function dismissConflictToast(repoPath: string, worktreeName: string) {
+  const key = conflictToastKey(repoPath, worktreeName);
+  const id = conflictToastIds.get(key);
   if (!id) return;
-  conflictToastIds.delete(worktreeName);
+  conflictToastIds.delete(key);
   useToastStore.getState().dismiss(id);
 }
 
@@ -150,9 +156,13 @@ export function useGithubSync() {
 
   // stack:rebase-complete — mark worktree status as upToDate
   useEffect(() => {
-    const unlisten = listen<string>("stack:rebase-complete", (event) => {
-      const worktreeName = event.payload;
-      const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+    const unlisten = listen<{ repoPath: string; worktreeName: string }>("stack:rebase-complete", (event) => {
+      const { repoPath, worktreeName } = event.payload;
+      // Matched on repo too: worktree names aren't unique across repos, and
+      // matching on name alone can mark another repo's worktree upToDate.
+      const wt = useWorkspaceStore
+        .getState()
+        .worktrees.find((w) => w.name === worktreeName && w.repoPath === repoPath);
       if (wt) {
         useWorkspaceStore.getState().updateWorktree(wt.id, {
           stackRebaseStatus: { kind: "upToDate" },
@@ -161,7 +171,7 @@ export function useGithubSync() {
         });
         refreshDiffStats(wt.id, wt.path, wt.stackParent);
       }
-      dismissConflictToast(worktreeName);
+      dismissConflictToast(repoPath, worktreeName);
     });
     return () => { unlisten.then((fn) => fn()); };
   }, []);
@@ -189,9 +199,12 @@ export function useGithubSync() {
 
   // stack:rebase-conflict — mark worktree status as conflict
   useEffect(() => {
-    const unlisten = listen<string>("stack:rebase-conflict", (event) => {
-      const worktreeName = event.payload;
-      const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+    const unlisten = listen<{ repoPath: string; worktreeName: string }>("stack:rebase-conflict", (event) => {
+      const { repoPath, worktreeName } = event.payload;
+      // Matched on repo too — see stack:rebase-complete above.
+      const wt = useWorkspaceStore
+        .getState()
+        .worktrees.find((w) => w.name === worktreeName && w.repoPath === repoPath);
       if (!wt) return;
       useWorkspaceStore.getState().updateWorktree(wt.id, {
         stackRebaseStatus: { kind: "conflict" },
@@ -199,14 +212,14 @@ export function useGithubSync() {
 
       // The sidebar badge is easy to miss on a long list, and the stack popover
       // that holds the resolve action is two clicks away behind the glyph.
-      dismissConflictToast(worktreeName);
+      dismissConflictToast(repoPath, worktreeName);
       const id = useToastStore.getState().show({
         message: `Rebase conflict on ${wt.branch}`,
         durationMs: 0,
         action: {
           label: "Have Claude resolve",
           onClick: () => {
-            conflictToastIds.delete(worktreeName);
+            conflictToastIds.delete(conflictToastKey(repoPath, worktreeName));
             resolveStackConflict(wt).catch((e) => {
               console.error("Conflict handoff failed:", e);
               useToastStore.getState().show({
@@ -216,16 +229,19 @@ export function useGithubSync() {
           },
         },
       });
-      conflictToastIds.set(worktreeName, id);
+      conflictToastIds.set(conflictToastKey(repoPath, worktreeName), id);
     });
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   // stack:parent-merged — clear stackParent from the worktree
   useEffect(() => {
-    const unlisten = listen<string>("stack:parent-merged", (event) => {
-      const worktreeName = event.payload;
-      const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+    const unlisten = listen<{ repoPath: string; worktreeName: string }>("stack:parent-merged", (event) => {
+      const { repoPath, worktreeName } = event.payload;
+      // Matched on repo too — see stack:rebase-complete above.
+      const wt = useWorkspaceStore
+        .getState()
+        .worktrees.find((w) => w.name === worktreeName && w.repoPath === repoPath);
       if (wt) {
         // A conflicted merged-parent dissolve still fires this event (the
         // stack relationship is dissolved either way — see stack_manager's
@@ -253,17 +269,20 @@ export function useGithubSync() {
 
   // stack:status-update — update stackRebaseStatus for a worktree
   useEffect(() => {
-    const unlisten = listen<{ worktreeName: string; status: StackRebaseStatus }>(
+    const unlisten = listen<{ repoPath: string; worktreeName: string; status: StackRebaseStatus }>(
       "stack:status-update",
       (event) => {
-        const { worktreeName, status } = event.payload;
-        const wt = useWorkspaceStore.getState().worktrees.find((w) => w.name === worktreeName);
+        const { repoPath, worktreeName, status } = event.payload;
+        // Matched on repo too — see stack:rebase-complete above.
+        const wt = useWorkspaceStore
+          .getState()
+          .worktrees.find((w) => w.name === worktreeName && w.repoPath === repoPath);
         if (wt) {
           useWorkspaceStore.getState().updateWorktree(wt.id, { stackRebaseStatus: status });
         }
         // The poll is the authority on whether the conflict still stands: once
         // it reports anything else, a sticky bar offering to resolve it is lying.
-        if (status.kind !== "conflict") dismissConflictToast(worktreeName);
+        if (status.kind !== "conflict") dismissConflictToast(repoPath, worktreeName);
       },
     );
     return () => { unlisten.then((fn) => fn()); };
