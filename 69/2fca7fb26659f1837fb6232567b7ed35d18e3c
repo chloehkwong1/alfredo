@@ -1,0 +1,19 @@
+docs/features/deleting-a-worktree.md
+  s_1ec7485fcf034b::t_d52e0f5cf9a6eb 26-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "692fca7fb26659f1837fb6232567b7ed35d18e3c",
+  "prompts": {},
+  "sessions": {
+    "s_1ec7485fcf034b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c49708a4-8133-477d-beb3-2d482cc2940d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
