@@ -53,6 +53,10 @@ function associationChanged(prev: PrStatus | null | undefined, next: PrStatus): 
     prev.number !== next.number ||
     prev.state !== next.state ||
     prev.merged !== next.merged ||
+    // A draft→ready flip changes nothing else, and restart hydration renders
+    // the stored value — without this the "Draft PR" chip survives the PR
+    // being marked ready until some other field happens to change.
+    prev.draft !== next.draft ||
     prev.title !== next.title ||
     prev.url !== next.url
   );

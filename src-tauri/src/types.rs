@@ -218,6 +218,12 @@ pub struct Worktree {
     /// `None` for branch-mode entries and on filesystems without birthtime.
     #[serde(default)]
     pub created_at_epoch: Option<i64>,
+    /// Inode of the same metadata directory — the physical-identity fallback
+    /// for filesystems without birthtime (`git worktree add` recreates the
+    /// dir, so a recreated same-name worktree always gets a new inode).
+    /// `None` for branch-mode entries and non-unix builds.
+    #[serde(default)]
+    pub admin_dir_ino: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]

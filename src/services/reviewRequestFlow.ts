@@ -1,6 +1,7 @@
 import { createWorktreeFrom, listWorktrees } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
+import { useToastStore } from "../stores/toastStore";
 import type { PrStatusWithColumn, Worktree } from "../types";
 
 // Creations currently in flight — the 60s poll can re-deliver the same PR
@@ -75,8 +76,14 @@ export async function handleReviewRequests(prs: PrStatusWithColumn[]): Promise<v
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         // Failed placeholder stays in the store and blocks re-creation until
-        // the user dismisses it (spec: no dedicated retry loop).
-        useWorkspaceStore.getState().failWorktree(worktreeId, message);
+        // the user dismisses it (spec: no dedicated retry loop). When the
+        // placeholder is already gone, there is no tainted card to carry the
+        // error — toast instead, mirroring openIssueFlow, so the failed pull
+        // isn't completely silent.
+        const marked = useWorkspaceStore.getState().failWorktree(worktreeId, message);
+        if (!marked) {
+          useToastStore.getState().show({ message: `Worktree creation failed: ${message}` });
+        }
       }
     } finally {
       inFlight.delete(worktreeId);

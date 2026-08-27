@@ -99,12 +99,13 @@ interface GlobalSettingsDialogProps {
   onCheckForUpdates?: () => Promise<void>;
   checkingForUpdates?: boolean;
   upToDate?: boolean;
+  checkError?: string | null;
   initialSection?: GlobalTab | null;
   initialFocusIndex?: number | null;
   onDeepLinkConsumed?: () => void;
 }
 
-function CheckForUpdatesButton({ onCheck, checking, upToDate }: { onCheck?: () => Promise<void>; checking?: boolean; upToDate?: boolean }) {
+function CheckForUpdatesButton({ onCheck, checking, upToDate, checkError }: { onCheck?: () => Promise<void>; checking?: boolean; upToDate?: boolean; checkError?: string | null }) {
   return (
     <div className="mb-4 flex items-center gap-2">
       <Button variant="secondary" size="sm" onClick={onCheck} disabled={checking || !onCheck}>
@@ -112,6 +113,11 @@ function CheckForUpdatesButton({ onCheck, checking, upToDate }: { onCheck?: () =
       </Button>
       {upToDate && !checking && (
         <span className="text-xs text-text-tertiary">You're up to date</span>
+      )}
+      {checkError && !checking && (
+        <span className="text-xs text-status-error truncate" title={checkError}>
+          Check failed: {checkError}
+        </span>
       )}
     </div>
   );
@@ -138,6 +144,7 @@ function GlobalSettingsDialog({
   onCheckForUpdates,
   checkingForUpdates,
   upToDate,
+  checkError,
   initialSection,
   initialFocusIndex,
   onDeepLinkConsumed,
@@ -367,7 +374,7 @@ function GlobalSettingsDialog({
                 </Field>
 
                 <SectionTitle>Updates</SectionTitle>
-                <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} upToDate={upToDate} />
+                <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} upToDate={upToDate} checkError={checkError} />
                 <div className="flex items-start justify-between gap-4 mt-4">
                   <div className="min-w-0">
                     <div className="text-[13px] font-medium text-text-primary">Receive beta updates</div>

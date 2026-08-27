@@ -324,7 +324,11 @@ fn foreign_pr_map_primed(repo_path: &str) -> bool {
 fn probe_marks_foreign(author: Result<Option<String>, ()>, me: Option<&str>) -> bool {
     match author {
         Ok(None) => false,
-        Ok(Some(author)) => me != Some(author.as_str()),
+        // Case-insensitive like the primed-map comparison above: GitHub logins
+        // are case-insensitive, and `gh api user` vs `gh pr view` can disagree
+        // on casing for the same account — a case-only mismatch must not mark
+        // the user's own branch foreign.
+        Ok(Some(author)) => !me.is_some_and(|m| m.eq_ignore_ascii_case(&author)),
         Err(()) => true,
     }
 }
@@ -371,6 +375,16 @@ fn is_native_member_name(repo_path: &str, name: &str) -> bool {
         .ok()
         .and_then(|map| map.get(&canonicalized_repo(repo_path)).map(|s| s.contains(name)))
         .unwrap_or(false)
+}
+
+/// Whether a successful poll has ever fed this repo's native-member set —
+/// same absent-vs-empty distinction as `foreign_pr_map_primed`: an absent
+/// entry means "nobody has looked yet", not "no native members".
+fn native_member_map_primed(repo_path: &str) -> bool {
+    NATIVE_MEMBER_NAMES
+        .lock()
+        .ok()
+        .is_some_and(|map| map.contains_key(&canonicalized_repo(repo_path)))
 }
 
 /// Native-member check for paths that only have a worktree name: dir-name
@@ -780,10 +794,20 @@ async fn follow_native_rewrites(
 /// cache — restart-safe): "parent moved" is decided per child inside
 /// `restack_child` by comparing its persisted baseline against the parent's
 /// current tip.
+///
+/// `repo_paths` is EVERY selected repo; `succeeded_repos` the subset whose PR
+/// fetch worked this poll. The PR-derived stages (stale-parent dissolves,
+/// merged sweep, native follow) run only for succeeded repos — acting on
+/// absent PR data would dissolve or reset exactly when sync errors. The
+/// restack cascade itself is purely local git, so it keeps running for
+/// failed-poll repos off the retained native/foreign name caches: a day
+/// offline must not silently stop auto-restack. Repos never polled since
+/// launch stay fully skipped (no basis to tell native members apart).
 pub async fn check_and_rebase(
     app_handle: &AppHandle,
     app_data_dir: &Path,
     repo_paths: &[String],
+    succeeded_repos: &[String],
     prs: &[crate::github_sync::PrStatusWithColumn],
 ) {
     // One registry snapshot per poll, fetched lazily on first actual need (most
@@ -797,10 +821,27 @@ pub async fn check_and_rebase(
     // never clear its NeedsPush/PushFailed — GitHub deletes the head branch,
     // so ahead/behind reads `None` forever — and a merged leaf appears in no
     // dissolve path, so the debt (and the amber chip it lights) would be
-    // immortal. Both name forms, mirroring the maps that set them.
+    // immortal. Both branch-name forms, mirroring the maps that set them —
+    // PLUS the live checkout's dir name: stickies are keyed by dir name, and
+    // an adopted external worktree's arbitrary dir matches no mangling of the
+    // branch, which made its NeedsPush exactly as immortal as the unswept case.
+    let mut merged_by_repo: HashMap<&String, Vec<&crate::github_sync::PrStatusWithColumn>> =
+        HashMap::new();
     for pr in prs.iter().filter(|p| p.merged) {
-        clear_sticky_status(&pr.repo_path, &pr.branch);
-        clear_sticky_status(&pr.repo_path, &pr.branch.replace('/', "-"));
+        merged_by_repo.entry(&pr.repo_path).or_default().push(pr);
+    }
+    for (repo_path, merged) in merged_by_repo {
+        let checkouts = checkout_paths(repo_path).await;
+        for pr in merged {
+            clear_sticky_status(repo_path, &pr.branch);
+            clear_sticky_status(repo_path, &pr.branch.replace('/', "-"));
+            let dir_name = checkouts.get(&pr.branch).and_then(|p| {
+                std::path::Path::new(p).file_name().and_then(|n| n.to_str())
+            });
+            if let Some(dir) = dir_name {
+                clear_sticky_status(repo_path, dir);
+            }
+        }
     }
 
     // Fail safe, not open: `load` already returns defaults (auto-sync ON) for
@@ -816,12 +857,20 @@ pub async fn check_and_rebase(
     };
 
     for repo_path in repo_paths {
+        // PR-derived stages need this poll's data; the local cascade below
+        // runs either way (off retained caches when the poll failed).
+        let polled = succeeded_repos.contains(repo_path);
+
         // Task 13: detect stale parents (merged into main) first. Shares this
         // poll's registry slot so the two paths never poll `claude` twice.
-        if let Err(e) =
-            detect_stale_parents(app_handle, app_data_dir, repo_path, &mut registry, prs).await
-        {
-            eprintln!("[stack_manager] detect_stale_parents failed for {repo_path}: {e}");
+        // Dissolves act on PR facts — never run them off a failed poll's
+        // empty payload.
+        if polled {
+            if let Err(e) =
+                detect_stale_parents(app_handle, app_data_dir, repo_path, &mut registry, prs).await
+            {
+                eprintln!("[stack_manager] detect_stale_parents failed for {repo_path}: {e}");
+            }
         }
 
         let mut config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
@@ -835,23 +884,33 @@ pub async fn check_and_rebase(
         // Behavior 1: follow GitHub's server-side rewrites into the local
         // checkouts before anything else. Runs even for a repo with no
         // `stack_parent_overrides` — a pure-native repo has none of Alfredo's
-        // own overrides but still needs following.
-        let native_branches = crate::github_sync::native_member_branches(prs, repo_path);
-        // Refreshed unconditionally (even with auto-sync off): the manual
-        // "Restack now" path consults this to keep native members NoPush.
-        update_native_member_names(repo_path, &native_branches);
-        if auto_sync_native && !native_branches.is_empty() {
-            ensure_registry(&mut registry).await;
-            let checkouts = checkout_paths(repo_path).await;
-            follow_native_rewrites(
-                app_handle,
-                app_data_dir,
-                repo_path,
-                &native_branches,
-                &checkouts,
-                &registry,
-            )
-            .await;
+        // own overrides but still needs following. Only off fresh PR data:
+        // resetting a checkout to origin per a stale membership list is the
+        // one thing worse than not following.
+        if polled {
+            let native_branches = crate::github_sync::native_member_branches(prs, repo_path);
+            // Refreshed unconditionally (even with auto-sync off): the manual
+            // "Restack now" path consults this to keep native members NoPush.
+            update_native_member_names(repo_path, &native_branches);
+            if auto_sync_native && !native_branches.is_empty() {
+                ensure_registry(&mut registry).await;
+                let checkouts = checkout_paths(repo_path).await;
+                follow_native_rewrites(
+                    app_handle,
+                    app_data_dir,
+                    repo_path,
+                    &native_branches,
+                    &checkouts,
+                    &registry,
+                )
+                .await;
+            }
+        } else if !native_member_map_primed(repo_path) {
+            // Never polled since launch: no basis to tell native members from
+            // plain stacked children, and restacking a native member as if it
+            // were ours rewrites a branch GitHub owns. Fail closed until the
+            // first successful poll primes the cache.
+            continue;
         }
 
         if config.stack_parent_overrides.is_empty() {
@@ -886,7 +945,23 @@ pub async fn check_and_rebase(
             })
             .collect();
 
-        let native_children = native_member_worktrees(prs, repo_path, &name_to_branch);
+        let native_children: std::collections::HashSet<String> = if polled {
+            native_member_worktrees(prs, repo_path, &name_to_branch)
+        } else {
+            // Failed poll: last-known membership from the retained cache (same
+            // staleness rule as FOREIGN_PR_NAMES — stale entries beat none,
+            // and the primed gate above guarantees an entry exists). Checked
+            // by dir name and by resolved branch, matching
+            // `native_member_worktrees`' own over-blocking union.
+            name_to_branch
+                .iter()
+                .filter(|(name, branch)| {
+                    is_native_member_name(repo_path, name)
+                        || is_native_member_name(repo_path, branch)
+                })
+                .map(|(name, _)| name.clone())
+                .collect()
+        };
 
         // Full-repo dependency order; a mid-cascade parent's new tip is picked up
         // because restack_child re-resolves the parent tip per child.
@@ -1365,6 +1440,37 @@ pub async fn compute_stack_statuses(app_handle: &AppHandle, app_data_dir: &Path,
                 status,
             };
             let _ = app_handle.emit("stack:status-update", payload);
+        }
+
+        // Roots never appear in `stack_parent_overrides`, so the loop above
+        // never revisits their sticky status — before this, the only healing
+        // path was the explicit "Sync stack with main" click, and a root
+        // pushed (or conflict-resolved) from a terminal kept its stale amber
+        // badge until the user happened to sync. Heal them here on the same
+        // cadence as members. Gated on a sticky actually being set: the heal
+        // itself probes git (rebase-in-progress, ahead/behind), which is not
+        // worth paying every 60s for the clean-root common case.
+        let checkouts = checkout_paths(repo_path).await;
+        let name_to_branch = names_to_branches(&checkouts);
+        let branch_to_name: HashMap<&String, &String> =
+            name_to_branch.iter().map(|(n, b)| (b, n)).collect();
+        let mut healed: std::collections::HashSet<&String> = std::collections::HashSet::new();
+        for parent_branch in config.stack_parent_overrides.values() {
+            let Some(name) = branch_to_name.get(parent_branch) else { continue };
+            // Mid-stack parents have their own override entry — the member
+            // loop above already owns their status.
+            if config.stack_parent_overrides.contains_key(*name) {
+                continue;
+            }
+            if !healed.insert(*name) {
+                continue;
+            }
+            if sticky_status(repo_path, name).is_none() {
+                continue;
+            }
+            let Some(path) = checkouts.get(parent_branch) else { continue };
+            let root = ResolvedRoot { name: (*name).clone(), path: path.clone() };
+            heal_root_sticky_status(app_handle, repo_path, &root).await;
         }
     }
 }
@@ -3301,6 +3407,11 @@ async fn prune_ghost_stack_entries(
     // The in-memory snapshot drives the caller's cascade either way.
     for name in &ghosts {
         config_manager::clear_stack_entry(config, name);
+        // The memos are keyed by this dir name and nothing else ever clears
+        // them once the checkout is gone — the merged-PR sweep only knows
+        // branch-name forms. Without this, a deleted adopted worktree's
+        // NeedsPush debt and pinned lease live in stack_sticky.json forever.
+        forget_stack_memos(repo_path, name);
     }
 }
 

@@ -6,7 +6,7 @@ import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy,
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn, getCommitsBehindMain, STACK_ADOPT_NOT_CLEAN } from "../../api";
+import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn, getCommitsBehindMain, resolveStackPending, STACK_ADOPT_NOT_CLEAN } from "../../api";
 import { stopServerAndReleasePort } from "../../services/portReclaim";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { useGithubUsername } from "../../hooks/useGithubUsername";
@@ -538,10 +538,31 @@ function AgentItemContent({
         )}
         {/* A dissolve always ends the chain, so this notice can never rely on
             the chain row — it gets its own, amber because the colleague's PR
-            is stale until someone pushes deliberately. */}
+            is stale until someone pushes deliberately. Dismissible here:
+            after the dissolve the worktree has no stack chip, so the
+            StackMapPopover (the other dismiss surface) is unreachable, and
+            sweep_stale_pending deliberately never retires this notice. */}
         {worktree.stackPending?.blockedBy === "foreignPrNotPushed" && (
           <div className="flex items-center gap-1.5 mt-1 text-[10px] text-amber-400 min-w-0">
-            <span className="truncate">someone else's PR — restacked locally, not pushed</span>
+            <span className="truncate flex-1">someone else's PR — restacked locally, not pushed</span>
+            <button
+              type="button"
+              className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-text-tertiary hover:text-text-secondary cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                useWorkspaceStore.getState().updateWorktree(worktree.id, { stackPending: null });
+                resolveStackPending(worktree.repoPath, worktree.name).catch((err) => {
+                  console.error("Failed to resolve stack pending:", err);
+                });
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              aria-label="Dismiss notice"
+              title="Dismiss notice"
+            >
+              ✕
+            </button>
           </div>
         )}
         {/* GitHub says this PR is stacked (base = a sibling worktree's branch)

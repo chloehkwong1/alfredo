@@ -12,6 +12,8 @@ export interface UpdateState {
   progress: number; // 0–100
   checking: boolean;
   upToDate: boolean;
+  /** Failure of an explicit "Check for updates" click (auto-checks stay silent). */
+  checkError: string | null;
   error: string | null;
   update: () => void;
   restart: () => void;
@@ -39,14 +41,16 @@ export function useUpdater(): UpdateState {
   const [pendingUpdate, setPendingUpdate] = useState<{ version: string } | null>(null);
   const [checking, setChecking] = useState(false);
   const [upToDate, setUpToDate] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const checkingRef = useRef(false);
   const upToDateTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const checkForUpdate = useCallback(async () => {
+  const checkForUpdate = useCallback(async (manual = false) => {
     if (checkingRef.current) return;
     checkingRef.current = true;
     setChecking(true);
+    setCheckError(null);
     try {
       const result = await invoke<UpdateInfo | null>("check_for_update_filtered");
       if (!result) {
@@ -61,6 +65,9 @@ export function useUpdater(): UpdateState {
       setDismissed(false);
     } catch (e) {
       console.error("[updater] check failed:", e);
+      // Only the explicit button surfaces the failure — a 30-min auto-check
+      // failing (offline laptop) shouldn't park an error in settings.
+      if (manual) setCheckError(e instanceof Error ? e.message : String(e));
     } finally {
       checkingRef.current = false;
       setChecking(false);
@@ -152,11 +159,12 @@ export function useUpdater(): UpdateState {
     progress,
     checking,
     upToDate,
+    checkError,
     error,
     update,
     restart,
     dismiss,
     openReleaseNotes,
-    checkNow: checkForUpdate,
+    checkNow: () => checkForUpdate(true),
   };
 }

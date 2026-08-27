@@ -34,6 +34,7 @@ pub async fn check_for_update_filtered(
     // stable-only releases answers first and hides a newer stable — beta users
     // sit below current stable and are told they are up to date.
     let mut updates = Vec::new();
+    let mut any_success = false;
     let mut last_error: Option<String> = None;
     for endpoint in crate::updater_endpoint_urls(receive_beta) {
         let built = app
@@ -42,21 +43,26 @@ pub async fn check_for_update_filtered(
             .and_then(tauri_plugin_updater::UpdaterBuilder::build);
         match built {
             Ok(updater) => match updater.check().await {
-                Ok(Some(update)) => updates.push(update),
-                Ok(None) => {}
+                Ok(Some(update)) => {
+                    any_success = true;
+                    updates.push(update);
+                }
+                Ok(None) => any_success = true,
                 Err(e) => last_error = Some(e.to_string()),
             },
             Err(e) => last_error = Some(e.to_string()),
         }
     }
 
-    // Surface an error only when nothing was offered at all: one unreachable
-    // feed must not fail a check the other feed already satisfied.
+    // Surface an error only when NO feed completed at all: one unreachable
+    // feed must not fail a check another feed already answered — a beta user
+    // with a dead beta feed but a healthy stable feed that reported
+    // up-to-date should see "up to date", not a swallowed error.
     if updates.is_empty() {
         *pending.0.lock().await = None;
         return match last_error {
-            Some(e) => Err(e),
-            None => Ok(None),
+            Some(e) if !any_success => Err(e),
+            _ => Ok(None),
         };
     }
 

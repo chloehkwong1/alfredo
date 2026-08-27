@@ -429,11 +429,13 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     }
 
     // Task 10: detect parent HEAD changes and auto-rebase stacked worktrees.
-    // The PR payload rides along so native-stack members can be skipped —
-    // which is exactly why this is scoped to `succeeded_repos` like
-    // `check_merged_parents` above: a repo whose poll failed contributed no
-    // PRs, so its native-member gate would vanish precisely when sync errors.
-    crate::stack_manager::check_and_rebase(app_handle, &app_data_dir, &succeeded_repos, &payload.prs).await;
+    // All repos, not just `succeeded_repos`: the cascade is purely local git,
+    // and scoping it to successful polls silently disabled auto-restack for
+    // exactly as long as gh was down or the laptop offline. check_and_rebase
+    // gates its PR-derived stages (dissolves, merged sweep, native follow) on
+    // the succeeded set internally, and falls back to the retained
+    // native/foreign name caches for the failed-poll repos.
+    crate::stack_manager::check_and_rebase(app_handle, &app_data_dir, &repo_paths, &succeeded_repos, &payload.prs).await;
 
     // Task 12: compute and emit stack rebase statuses
     crate::stack_manager::compute_stack_statuses(app_handle, &app_data_dir, &repo_paths).await;

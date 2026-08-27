@@ -108,6 +108,7 @@ export interface Worktree {
   lastActivityAt?: number; // unix timestamp ms, computed from max(lastCommitEpoch, prUpdatedAt, agentChange)
   lastCommitEpoch?: number; // epoch ms of latest commit on branch (from Rust)
   createdAtEpoch?: number; // epoch ms the worktree directory was created (from Rust)
+  adminDirIno?: number; // inode of the git admin dir — identity fallback when birthtime is unavailable
   repoPath: string;
   /** Claude Code session UUID for `--resume` on next spawn. */
   claudeSessionId?: string;

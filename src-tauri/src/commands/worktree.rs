@@ -250,10 +250,15 @@ pub async fn create_worktree(
     let stack_parent = stack_parent.map(|(parent, _)| parent);
 
     // Populate creation time now so the fresh card sorts correctly before the
-    // first list_worktrees refresh.
-    let created_at_epoch = git2::Repository::open(&repo_path)
-        .ok()
-        .and_then(|repo| git_manager::worktree_created_at_epoch(&repo, &dir_name));
+    // first list_worktrees refresh. The inode rides along as the physical-
+    // identity fallback for filesystems without birthtime.
+    let opened_repo = git2::Repository::open(&repo_path).ok();
+    let created_at_epoch = opened_repo
+        .as_ref()
+        .and_then(|repo| git_manager::worktree_created_at_epoch(repo, &dir_name));
+    let admin_dir_ino = opened_repo
+        .as_ref()
+        .and_then(|repo| git_manager::worktree_admin_dir_ino(repo, &dir_name));
 
     Ok(Worktree {
         id: git_manager::worktree_id(&repo_path, &branch_name),
@@ -283,6 +288,7 @@ pub async fn create_worktree(
         setup_in_progress,
         assigned_port,
         created_at_epoch,
+        admin_dir_ino,
     })
 }
 
@@ -633,6 +639,7 @@ pub async fn get_worktree_status(
         setup_in_progress: false,
         assigned_port: None,
         created_at_epoch: None, // Will be populated by list_worktrees on next refresh
+        admin_dir_ino: None,    // Same — list_worktrees fills it in
     };
     if config.auto_assign_ports {
         wt.assigned_port = config_manager::get_assigned_port(&config, &wt_name);

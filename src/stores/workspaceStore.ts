@@ -140,12 +140,18 @@ interface WorkspaceState {
  * survives checkouts but distinguishes directories; the admin dir's birthtime
  * survives checkouts but distinguishes a recreation at the same basename.
  * Birthtime is unavailable on some filesystems (`createdAtEpoch` is optional),
- * in which case the name alone decides.
+ * in which case the admin dir's inode decides — `git worktree add` recreates
+ * the dir, so a recreation always changes the inode. Only when neither
+ * identity signal exists does the name alone decide (the remaining gap: a
+ * recreated same-name worktree would inherit the dead one's session state).
  */
 function isSamePhysicalWorktree(prev: Worktree, wt: Worktree): boolean {
   if (prev.name !== wt.name) return false;
   if (prev.createdAtEpoch != null && wt.createdAtEpoch != null) {
     return prev.createdAtEpoch === wt.createdAtEpoch;
+  }
+  if (prev.adminDirIno != null && wt.adminDirIno != null) {
+    return prev.adminDirIno === wt.adminDirIno;
   }
   return true;
 }

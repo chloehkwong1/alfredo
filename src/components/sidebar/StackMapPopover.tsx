@@ -416,10 +416,11 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
           <span className="flex-1">
             {stackPendingNotice(pendingWt.stackPending, pendingWt.branch, defaultBranch)}
           </span>
-          {/* Deferred restacks auto-clear when the restack runs; only the
-              nativeRestacked notice persists until dismissed, so only it gets
-              the × (matching the Alfredo skin, which has no dismiss at all). */}
-          {pendingWt.stackPending.blockedBy === "nativeRestacked" && (
+          {/* Deferred restacks auto-clear when the restack runs; the
+              nativeRestacked and foreignPrNotPushed notices persist until
+              dismissed (sweep_stale_pending exempts both), so they get the ×. */}
+          {(pendingWt.stackPending.blockedBy === "nativeRestacked" ||
+            pendingWt.stackPending.blockedBy === "foreignPrNotPushed") && (
             <button
               type="button"
               aria-label="Dismiss restacked notice"

@@ -73,6 +73,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
             setup_in_progress: false,
             assigned_port: None,
             created_at_epoch: None,
+            admin_dir_ino: None,
         });
     }
 
@@ -151,6 +152,7 @@ pub fn list_branches(repo_path: &str, include_default_branches: bool) -> Result<
             setup_in_progress: false,
             assigned_port: None,
             created_at_epoch: None,
+            admin_dir_ino: None,
         });
     }
 
@@ -229,6 +231,7 @@ pub async fn create_branch(
         setup_in_progress: false,
         assigned_port: None,
         created_at_epoch: None,
+        admin_dir_ino: None,
     })
 }
 

@@ -1755,6 +1755,26 @@ pub fn worktree_created_at_epoch(repo: &Repository, name: &str) -> Option<i64> {
         .map(|d| d.as_millis() as i64)
 }
 
+/// Inode of the same metadata directory — the physical-identity fallback for
+/// filesystems where `created()` (birthtime) is unavailable: git recreates
+/// the dir on `worktree add`, so a recreated same-name worktree always gets a
+/// new inode, which is exactly the distinction `isSamePhysicalWorktree`
+/// needs. `None` on non-unix builds (the Windows CI build is disabled).
+pub fn worktree_admin_dir_ino(repo: &Repository, name: &str) -> Option<u64> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        std::fs::metadata(repo.path().join("worktrees").join(name))
+            .ok()
+            .map(|m| m.ino())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (repo, name);
+        None
+    }
+}
+
 /// List worktrees using git2 for reads.
 /// When `base_path` is provided, only worktrees whose path is under that directory are returned.
 /// Skips diff stats for speed — call `get_diff_stats` separately for the active worktree.
@@ -1818,6 +1838,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             setup_in_progress: false,
             assigned_port: None,
             created_at_epoch: worktree_created_at_epoch(&repo, name),
+            admin_dir_ino: worktree_admin_dir_ino(&repo, name),
         });
     }
 
