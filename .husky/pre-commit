@@ -9,10 +9,16 @@ staged() { git diff --cached --name-only --diff-filter=ACMR | grep -E "$1" > /de
 if staged '^src/.*\.(ts|tsx)$'; then
   echo "→ tsc --noEmit"
   npx tsc --noEmit
-  echo "→ eslint (rules-of-hooks)"
-  npx eslint --quiet src
   echo "→ vitest"
   npm test --silent
+fi
+
+# Own block, not folded into the one above: a commit touching only the eslint
+# config must still exercise it, or a broken config lands and fails everyone
+# else's next src commit.
+if staged '^src/.*\.(ts|tsx)$|^eslint\.config\.js$'; then
+  echo "→ eslint (rules-of-hooks)"
+  npx eslint --quiet --cache src
 fi
 
 if staged '^src-tauri/.*\.rs$|^src-tauri/Cargo\.(toml|lock)$'; then

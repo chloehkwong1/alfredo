@@ -25,6 +25,12 @@ jobs:
       - name: TypeScript type check
         run: npx tsc --noEmit
 
+      # Mirrors the husky pre-commit gate — rules-of-hooks catches hook calls
+      # below early returns (the React #310 sidebar crash in v0.21.0-beta.3),
+      # and pre-commit alone doesn't cover --no-verify or husky-less clones.
+      - name: ESLint (react-hooks)
+        run: npx eslint --quiet src
+
       - name: Run tests
         run: npm test
 
