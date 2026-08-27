@@ -1,0 +1,19 @@
+src/components/sidebar/AgentItem.tsx
+  s_d65943a437751d::t_fdcf165c16b4b4 1017-1027
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "93ee4f04e31c187df2ec2a467ea36e6bf55e0bc9",
+  "prompts": {},
+  "sessions": {
+    "s_d65943a437751d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "77fdca84-f5cd-4b56-a047-4fed9814caa5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
