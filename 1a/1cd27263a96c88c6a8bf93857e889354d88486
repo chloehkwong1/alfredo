@@ -1,0 +1,33 @@
+package.json
+  s_d65943a437751d::t_7fd92eaee92ec3 73
+.husky/pre-commit
+  s_d65943a437751d::t_3fe4bbabcb66df 16-21
+  s_d65943a437751d::t_3a57c896729e32 22-23
+.github/workflows/ci.yml
+  s_d65943a437751d::t_3db675dde82ec4 28-33
+eslint.config.js
+  s_d65943a437751d::t_ce8a2ac1b06994 11
+  s_d65943a437751d::t_5d329d1c7c876e 13-16
+  s_d65943a437751d::t_9f5a9a75193534 4
+  s_d65943a437751d::t_b6d856c07487df 12
+.gitignore
+  s_d65943a437751d::t_349b9578b0f089 58
+package-lock.json
+  s_d65943a437751d::t_0ea1fcf835108f 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "1a1cd27263a96c88c6a8bf93857e889354d88486",
+  "prompts": {},
+  "sessions": {
+    "s_d65943a437751d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "77fdca84-f5cd-4b56-a047-4fed9814caa5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
