@@ -816,7 +816,7 @@ pub async fn check_and_rebase(
             eprintln!("[stack_manager] detect_stale_parents failed for {repo_path}: {e}");
         }
 
-        let config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
+        let mut config = match config_manager::load_personal_config(app_data_dir, repo_path).await {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("[stack_manager] load_personal_config failed for {repo_path}: {e}");
@@ -860,6 +860,12 @@ pub async fn check_and_rebase(
         // before it can be stale.
         let checkouts = checkout_paths(repo_path).await;
         let name_to_branch = names_to_branches(&checkouts);
+        // Ghost entries (worktree deleted outside Alfredo) would otherwise fail
+        // silently below on every poll — and keep `check_merged_parents` /
+        // `detect_stale_parents` deferring their dissolves forever. One prune
+        // here heals all three paths by the next poll; after it the map is
+        // clean and no further config writes happen.
+        prune_ghost_stack_entries(app_data_dir, repo_path, &checkouts, &name_to_branch, &mut config).await;
         // Worktree dir name → its checkout path, the same dir-name match
         // `restack_child` uses to find a child's own tree.
         let name_to_path: HashMap<String, String> = checkouts
@@ -1567,43 +1573,7 @@ pub async fn restack_repo(
 
     let checkouts = checkout_paths(repo_path).await;
     let name_to_branch = names_to_branches(&checkouts);
-
-    // Entries for worktrees that no longer have a checkout can never restack —
-    // left alone they re-fail with "worktree path does not exist" on every
-    // sync, for branches deleted long ago (the deletion-path cleanup in
-    // commands/worktree.rs misses worktrees removed outside Alfredo). Fail
-    // closed on an empty checkout map: that means `git worktree list` failed,
-    // not that every worktree vanished — same guard as `stale_parent_branches`.
-    if !checkouts.is_empty() {
-        let ghosts: Vec<String> = ghost_stack_entries(&config.stack_parent_overrides, &name_to_branch)
-            .into_iter()
-            // A dir that still exists but that git no longer lists is a
-            // half-broken worktree, not a ghost — leave its entry alone so the
-            // cascade below surfaces it as an error instead of dissolving it.
-            .filter(|name| !std::path::Path::new(&resolve_worktree_path(repo_path, name, &config)).exists())
-            .collect();
-        if !ghosts.is_empty() {
-            eprintln!("[stack_manager] pruning stack entries for deleted worktrees: {ghosts:?}");
-            // Reload-mutate-save rather than persisting the snapshot above — a
-            // config write landing meanwhile (port claim, column drag) would be
-            // clobbered by saving the stale copy.
-            match config_manager::load_personal_config(app_data_dir, repo_path).await {
-                Ok(mut fresh) => {
-                    for name in &ghosts {
-                        config_manager::clear_stack_entry(&mut fresh, name);
-                    }
-                    if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &fresh).await {
-                        eprintln!("[stack_manager] failed to persist ghost-entry prune: {e}");
-                    }
-                }
-                Err(e) => eprintln!("[stack_manager] failed to reload config for ghost-entry prune: {e}"),
-            }
-            // The in-memory snapshot drives the cascade below either way.
-            for name in &ghosts {
-                config_manager::clear_stack_entry(&mut config, name);
-            }
-        }
-    }
+    prune_ghost_stack_entries(app_data_dir, repo_path, &checkouts, &name_to_branch, &mut config).await;
 
     let branch_of = |name: &str| name_to_branch.get(name).cloned().unwrap_or_else(|| name.to_string());
     let mut summary = RestackStackSummary::default();
@@ -2139,7 +2109,14 @@ async fn restack_child_inner(
     }
 
     let Some(parent_tip) = branch_tip(repo_path, &parent_branch).await else {
-        return Err(format!("could not resolve tip of {parent_branch}"));
+        // No local ref and no (cached or fetchable) remote ref — the parent
+        // branch was likely deleted out from under this child. Not auto-
+        // dissolved: offline with no cached remote ref looks identical, and
+        // dissolving a live stack on a network hiccup is worse than an error.
+        return Err(format!(
+            "stack parent '{parent_branch}' no longer exists locally or on origin — \
+             detach this branch from the stack or set a new parent"
+        ));
     };
 
     // A conflict against this exact parent tip will conflict again identically;
@@ -3213,10 +3190,59 @@ async fn plan_root_sync(
 
 /// Kahn's algorithm over child→parent edges. Returns every stacked worktree name
 /// with parents before children; members of cycles are dropped (logged).
+/// Remove stack entries whose worktree has vanished — no checkout in `git
+/// worktree list` AND no dir on disk — from both the persisted config and the
+/// caller's in-memory snapshot. They can never restack (there is no checkout to
+/// rebase); left alone they re-fail with "worktree path does not exist" on
+/// every manual sync and every background poll, for branches deleted long ago
+/// (the deletion-path cleanup in commands/worktree.rs misses worktrees removed
+/// outside Alfredo). Shared by `restack_repo` and `check_and_rebase` so ghosts
+/// can't outlive either path. Fail-closed on an empty checkout map: that means
+/// `git worktree list` failed, not that every worktree vanished — same guard
+/// as `stale_parent_branches`.
+async fn prune_ghost_stack_entries(
+    app_data_dir: &Path,
+    repo_path: &str,
+    checkouts: &HashMap<String, String>,
+    name_to_branch: &HashMap<String, String>,
+    config: &mut AppConfig,
+) {
+    if checkouts.is_empty() {
+        return;
+    }
+    let ghosts: Vec<String> = ghost_stack_entries(&config.stack_parent_overrides, name_to_branch)
+        .into_iter()
+        // A dir that still exists but that git no longer lists is a
+        // half-broken worktree, not a ghost — leave its entry alone so the
+        // restack paths surface it as an error instead of dissolving it.
+        .filter(|name| !std::path::Path::new(&resolve_worktree_path(repo_path, name, config)).exists())
+        .collect();
+    if ghosts.is_empty() {
+        return;
+    }
+    eprintln!("[stack_manager] pruning stack entries for deleted worktrees: {ghosts:?}");
+    // Reload-mutate-save rather than persisting the caller's snapshot — a
+    // config write landing meanwhile (port claim, column drag) would be
+    // clobbered by saving the stale copy.
+    match config_manager::load_personal_config(app_data_dir, repo_path).await {
+        Ok(mut fresh) => {
+            for name in &ghosts {
+                config_manager::clear_stack_entry(&mut fresh, name);
+            }
+            if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &fresh).await {
+                eprintln!("[stack_manager] failed to persist ghost-entry prune: {e}");
+            }
+        }
+        Err(e) => eprintln!("[stack_manager] failed to reload config for ghost-entry prune: {e}"),
+    }
+    // The in-memory snapshot drives the caller's cascade either way.
+    for name in &ghosts {
+        config_manager::clear_stack_entry(config, name);
+    }
+}
+
 /// Stack members with no current checkout — `git worktree list` shows nothing
-/// named after them. They can never restack (there is no checkout to rebase),
-/// so `restack_repo` prunes their entries instead of re-reporting "worktree
-/// path does not exist" for long-deleted branches on every sync.
+/// named after them. Pure core of `prune_ghost_stack_entries`.
 fn ghost_stack_entries(
     overrides: &HashMap<String, String>,
     name_to_branch: &HashMap<String, String>,
