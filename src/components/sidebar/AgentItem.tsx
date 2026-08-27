@@ -1014,6 +1014,17 @@ const AgentItem = memo(function AgentItem({
 
   usePopoverDismiss(stackMapOpen, rowContainerRef, stackMapFrameRef, () => setStackMapOpen(false));
 
+  // Esc / click-outside close WITHOUT burning the session dismiss — only ✕
+  // and "Not now" are deliberate "stop offering" signals.
+  const handleCloseAdopt = () => {
+    setAdoptState((s) => (s.stage === "open" ? { stage: "idle" } : s));
+    rowContainerRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="dialog"]')?.focus();
+  };
+  // Must stay above the placeholder short-circuits below: usePopoverDismiss is
+  // a hook, and a row that mounts as `creating` and then goes live re-renders
+  // the same fiber with more hooks — React #310 (the beta.3 sidebar crash).
+  usePopoverDismiss(adoptState.stage === "open", rowContainerRef, adoptFrameRef, handleCloseAdopt);
+
   const installedApps = useInstalledApps();
 
   // Short-circuit for placeholder states (after hooks to satisfy Rules of Hooks)
@@ -1116,12 +1127,6 @@ const AgentItem = memo(function AgentItem({
     // parent moved between probe and set-up.
     await runAdopt(adoptState.parent, adoptState.behind === 0);
   };
-  // Esc / click-outside close WITHOUT burning the session dismiss — only ✕
-  // and "Not now" are deliberate "stop offering" signals.
-  const handleCloseAdopt = () => {
-    setAdoptState((s) => (s.stage === "open" ? { stage: "idle" } : s));
-    rowContainerRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="dialog"]')?.focus();
-  };
   const handleDismissAdoptCue = () => {
     if (adoptableParent) {
       useWorkspaceStore.getState().dismissStackAdoption(worktree.id, adoptableParent);
@@ -1130,7 +1135,6 @@ const AgentItem = memo(function AgentItem({
     // adoptState alone — close it too or it survives its own trigger.
     setAdoptState((s) => (s.stage === "open" ? { stage: "idle" } : s));
   };
-  usePopoverDismiss(adoptState.stage === "open", rowContainerRef, adoptFrameRef, handleCloseAdopt);
 
   const handleMoveToColumn = async (target: typeof worktree.column) => {
     if (target === worktree.column) return;
