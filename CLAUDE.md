@@ -54,7 +54,7 @@ Vitest for frontend, inline `#[cfg(test)]` modules for Rust. Existing Vitest fil
 - `#[serde(default)]` is required on new `GlobalAppConfig` fields or existing `app.json` files fail to deserialize.
 - Windows build is disabled in CI (broken). macOS + Linux only.
 - Releases: use the `release-alfredo` skill, do not bump versions manually.
-- Husky pre-commit runs `tsc --noEmit`, `vitest`, and `cargo clippy --lib -- -D warnings` on staged files. Fix the underlying issue rather than bypassing with `--no-verify`.
+- Husky pre-commit runs `tsc --noEmit`, `eslint --quiet` (react-hooks rules only — blocks on `rules-of-hooks` errors, `exhaustive-deps` is warn-only), `vitest`, and `cargo clippy --lib -- -D warnings` on staged files. Fix the underlying issue rather than bypassing with `--no-verify`.
 - Notifications go through `UNUserNotificationCenter` (`src-tauri/src/macos_notifications.rs`); banner is delivered by UN, sound is played in-process via rodio (`commands/audio.rs`). `UN.setSound` is intentionally never called — the daemon-owned playback path is unreliable for ad-hoc-signed bundles. macOS DND suppresses banners but not sounds; toggle Alfredo's notifications setting to silence everything.
 - After every `npm run tauri build` + reinstall to `/Applications`, macOS can hang on to a stale notification permission record keyed to the old signature. If banners stop appearing despite System Settings showing "allowed", run `killall usernoted; killall NotificationCenter` and re-launch. `tccutil reset Notifications com.alfredo.app` does not work — notification permissions aren't in TCC on modern macOS.
 

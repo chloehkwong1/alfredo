@@ -9,6 +9,8 @@ staged() { git diff --cached --name-only --diff-filter=ACMR | grep -E "$1" > /de
 if staged '^src/.*\.(ts|tsx)$'; then
   echo "→ tsc --noEmit"
   npx tsc --noEmit
+  echo "→ eslint (rules-of-hooks)"
+  npx eslint --quiet src
   echo "→ vitest"
   npm test --silent
 fi
