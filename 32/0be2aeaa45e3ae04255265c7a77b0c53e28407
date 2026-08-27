@@ -1,0 +1,19 @@
+src-tauri/Cargo.lock
+  s_f723e704c067c8::t_7b1de40bb9da2c 1162,1378,1974,1976,2891,3018,3488,4377,4433,5041,5763,6194,6223,6684
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "320be2aeaa45e3ae04255265c7a77b0c53e28407",
+  "prompts": {},
+  "sessions": {
+    "s_f723e704c067c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c40d833-ff13-483a-894a-18cb4eb5c14b",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
