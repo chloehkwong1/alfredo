@@ -423,7 +423,7 @@ pub async fn delete_worktree(
 /// `git worktree list --porcelain`. Matches by exact branch name OR by path
 /// basename (the sanitized dir name Alfredo stores as the worktree id).
 /// Falls back to `(computed_path, None)` when git can't find it.
-async fn resolve_worktree(
+pub(crate) async fn resolve_worktree(
     repo_path: &str,
     worktree_name: &str,
     base_path: Option<&str>,

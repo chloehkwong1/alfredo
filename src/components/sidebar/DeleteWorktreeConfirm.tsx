@@ -9,6 +9,7 @@ import {
 } from "../ui/Dialog";
 import { Button } from "../ui";
 import { worktreeDirtyState, type WorktreeDirtyState } from "../../api";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 
 interface DeleteWorktreeConfirmProps {
   open: boolean;
@@ -31,6 +32,17 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoP
   const confirmRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [dirty, setDirty] = useState<WorktreeDirtyState | null>(null);
+
+  // Deleting a mid-stack worktree reconnects the chain (children move onto
+  // this worktree's own parent, keeping its commits) — state the consequence
+  // on the surface rather than letting sibling cards change unexplained.
+  const worktrees = useWorkspaceStore((s) => s.worktrees);
+  const stackChildren = repoPath
+    ? worktrees.filter((w) => w.repoPath === repoPath && w.stackParent === branch)
+    : [];
+  const restackTarget = repoPath
+    ? (worktrees.find((w) => w.repoPath === repoPath && w.branch === branch)?.stackParent ?? null)
+    : null;
 
   // Check for would-be-destroyed work each time the dialog opens. Untracked
   // files (e.g. /research output) never show in the diff badge, so without this
@@ -107,6 +119,34 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoP
               ))}
               {lost.length > MAX_LISTED && (
                 <li className="text-text-tertiary">…and {lost.length - MAX_LISTED} more</li>
+              )}
+            </ul>
+          </div>
+        )}
+
+        {stackChildren.length > 0 && (
+          <div className="rounded-md border border-border-subtle bg-hover-wash px-3 py-2.5 text-xs">
+            <p className="font-medium text-text-primary">
+              {stackChildren.length} stacked {stackChildren.length === 1 ? "branch builds" : "branches build"} on this one
+            </p>
+            <p className="mt-1 text-text-secondary">
+              {restackTarget ? (
+                <>
+                  {stackChildren.length === 1 ? "It" : "They"} will be re-stacked onto{" "}
+                  <code className="font-mono">{restackTarget}</code>, keeping this branch's commits.
+                </>
+              ) : (
+                <>
+                  {stackChildren.length === 1 ? "It" : "They"} will leave the stack and keep this branch's commits.
+                </>
+              )}
+            </p>
+            <ul className="mt-1.5 space-y-0.5 font-mono text-text-secondary">
+              {stackChildren.slice(0, MAX_LISTED).map((w) => (
+                <li key={w.id} className="truncate">{w.branch}</li>
+              ))}
+              {stackChildren.length > MAX_LISTED && (
+                <li className="text-text-tertiary">…and {stackChildren.length - MAX_LISTED} more</li>
               )}
             </ul>
           </div>

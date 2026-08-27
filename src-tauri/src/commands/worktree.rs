@@ -364,6 +364,26 @@ pub async fn delete_worktree(
         // And the manual ordering slot: a worktree recreated under a previously
         // used branch name must not inherit the deleted card's position.
         config_manager::prune_worktree_order_name(&mut config, &worktree_name);
+        // Reconnect the stack chain before dropping this worktree's own entry:
+        // children stacked on its branch move onto its parent (inheriting its
+        // baseline, so their next restack keeps the deleted branch's commits) —
+        // otherwise they'd point at a branch `git branch -D` below is about to
+        // delete and error "no longer exists" on every sync. Resolved here
+        // (worktree still tracked) because after the git delete there is
+        // nothing left to resolve the branch against.
+        let (_, deleted_branch) =
+            git_manager::resolve_worktree(&repo_path, &worktree_name, config.worktree_base_path.as_deref())
+                .await;
+        let reparented = config_manager::reparent_children_of_deleted(
+            &mut config,
+            &worktree_name,
+            deleted_branch.as_deref(),
+        );
+        if !reparented.is_empty() {
+            eprintln!(
+                "[worktree] reparented stack children of deleted {worktree_name}: {reparented:?}"
+            );
+        }
         // And for the stack relationship: a surviving parent override would make the
         // next worktree of this name a phantom stack child, and a surviving baseline
         // would be its `--onto` floor. The in-process memos go too, or a recreated

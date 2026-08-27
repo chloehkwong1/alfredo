@@ -543,6 +543,57 @@ pub fn clear_stack_entry(config: &mut AppConfig, worktree_name: &str) {
     clear_stack_baseline(config, worktree_name);
 }
 
+/// Reconnect the stack chain around a worktree that is about to be deleted:
+/// children stacked on its branch move onto the deleted entry's own parent and
+/// inherit its baseline, so the next restack replays the deleted branch's
+/// commits into the child instead of silently dropping them (the children
+/// already contain those commits — deleting a worktree must not rewrite a
+/// sibling branch's history). A deleted entry with no baseline clears the
+/// child's instead: the stale floor (the dead parent's tip) is exactly what
+/// would drop the commits, and the merge-base fallback in `restack_child`
+/// includes them. Deleting a stack root dissolves its children into roots.
+///
+/// `deleted_branch` is the branch resolved from git's porcelain output; when
+/// resolution failed (worktree no longer tracked) the sanitized dir-name match
+/// is the best remaining signal. Returns the reparented children's names.
+/// Call before `clear_stack_entry` — the deleted entry's parent and baseline
+/// are what the children inherit.
+pub fn reparent_children_of_deleted(
+    config: &mut AppConfig,
+    deleted_worktree_name: &str,
+    deleted_branch: Option<&str>,
+) -> Vec<String> {
+    let grandparent = get_stack_parent(config, deleted_worktree_name);
+    let inherited_baseline = get_stack_baseline(config, deleted_worktree_name);
+
+    let children: Vec<String> = config
+        .stack_parent_overrides
+        .iter()
+        .filter(|(child, parent)| {
+            *child != deleted_worktree_name
+                && match deleted_branch {
+                    Some(branch) => parent.as_str() == branch,
+                    None => parent.replace('/', "-") == deleted_worktree_name,
+                }
+        })
+        .map(|(child, _)| child.clone())
+        .collect();
+
+    for child in &children {
+        match &grandparent {
+            Some(g) => {
+                set_stack_parent(config, child, g);
+                match &inherited_baseline {
+                    Some(b) => set_stack_baseline(config, child, b),
+                    None => clear_stack_baseline(config, child),
+                }
+            }
+            None => clear_stack_entry(config, child),
+        }
+    }
+    children
+}
+
 pub fn get_linear_ticket(config: &AppConfig, worktree_name: &str) -> Option<LinearTicketRef> {
     config.linear_tickets.get(worktree_name).cloned()
 }
@@ -1521,6 +1572,82 @@ mod tests {
         );
         assert!(get_stack_baseline(&loaded, "feat-other").is_some());
         Ok(())
+    }
+
+    #[test]
+    fn reparent_children_of_deleted_mid_stack_inherits_parent_and_baseline() {
+        let mut config = AppConfig::default();
+        set_stack_parent(&mut config, "feat-mid", "feat/root");
+        set_stack_baseline(&mut config, "feat-mid", "aaaa000aaaa000aaaa000aaaa000aaaa000aaaa0");
+        set_stack_parent(&mut config, "feat-a", "feat/mid");
+        set_stack_baseline(&mut config, "feat-a", "bbbb111bbbb111bbbb111bbbb111bbbb111bbbb1");
+        set_stack_parent(&mut config, "feat-b", "feat/mid");
+        // A branch that merely sanitizes to the deleted name must not match
+        // when the real branch is known.
+        set_stack_parent(&mut config, "feat-c", "feat-mid");
+
+        let mut affected = reparent_children_of_deleted(&mut config, "feat-mid", Some("feat/mid"));
+        affected.sort();
+        assert_eq!(affected, vec!["feat-a".to_string(), "feat-b".to_string()]);
+        // Children now sit on the grandparent, with the deleted entry's baseline
+        // as their floor — the next restack replays the deleted branch's commits
+        // too instead of silently dropping them.
+        assert_eq!(get_stack_parent(&config, "feat-a").as_deref(), Some("feat/root"));
+        assert_eq!(
+            get_stack_baseline(&config, "feat-a").as_deref(),
+            Some("aaaa000aaaa000aaaa000aaaa000aaaa000aaaa0")
+        );
+        assert_eq!(get_stack_parent(&config, "feat-b").as_deref(), Some("feat/root"));
+        assert_eq!(
+            get_stack_baseline(&config, "feat-b").as_deref(),
+            Some("aaaa000aaaa000aaaa000aaaa000aaaa000aaaa0")
+        );
+        // The lookalike child and the deleted entry itself are untouched (the
+        // delete path clears the deleted entry separately).
+        assert_eq!(get_stack_parent(&config, "feat-c").as_deref(), Some("feat-mid"));
+        assert_eq!(get_stack_parent(&config, "feat-mid").as_deref(), Some("feat/root"));
+    }
+
+    #[test]
+    fn reparent_children_of_deleted_without_baseline_clears_child_floor() {
+        let mut config = AppConfig::default();
+        set_stack_parent(&mut config, "feat-mid", "feat/root");
+        // Deleted entry never restacked — no baseline of its own to inherit.
+        set_stack_parent(&mut config, "feat-a", "feat/mid");
+        set_stack_baseline(&mut config, "feat-a", "bbbb111bbbb111bbbb111bbbb111bbbb111bbbb1");
+
+        reparent_children_of_deleted(&mut config, "feat-mid", Some("feat/mid"));
+        assert_eq!(get_stack_parent(&config, "feat-a").as_deref(), Some("feat/root"));
+        // Keeping the child's old baseline (the dead parent's tip) would make
+        // the next restack drop the deleted branch's commits; clearing it falls
+        // back to the one-time merge-base, which includes them.
+        assert!(get_stack_baseline(&config, "feat-a").is_none());
+    }
+
+    #[test]
+    fn reparent_children_of_deleted_root_dissolves_children() {
+        let mut config = AppConfig::default();
+        // Deleted worktree is a stack root: no entry of its own.
+        set_stack_parent(&mut config, "feat-a", "feat/root");
+        set_stack_baseline(&mut config, "feat-a", "bbbb111bbbb111bbbb111bbbb111bbbb111bbbb1");
+
+        let affected = reparent_children_of_deleted(&mut config, "feat-root", Some("feat/root"));
+        assert_eq!(affected, vec!["feat-a".to_string()]);
+        // Children become roots — entry and baseline both gone, no rebase fires.
+        assert!(get_stack_parent(&config, "feat-a").is_none());
+        assert!(get_stack_baseline(&config, "feat-a").is_none());
+    }
+
+    #[test]
+    fn reparent_children_of_deleted_falls_back_to_sanitized_match() {
+        let mut config = AppConfig::default();
+        set_stack_parent(&mut config, "feat-a", "chloe/mariposa-lm");
+
+        // Branch resolution failed (worktree no longer tracked) — the sanitized
+        // dir-name match is the best remaining signal.
+        let affected = reparent_children_of_deleted(&mut config, "chloe-mariposa-lm", None);
+        assert_eq!(affected, vec!["feat-a".to_string()]);
+        assert!(get_stack_parent(&config, "feat-a").is_none());
     }
 
     #[tokio::test]
