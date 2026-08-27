@@ -1558,7 +1558,7 @@ pub async fn restack_repo(
     repo_path: &str,
     anchor_worktree: &str,
 ) -> Result<RestackStackSummary, String> {
-    let config = config_manager::load_personal_config(app_data_dir, repo_path)
+    let mut config = config_manager::load_personal_config(app_data_dir, repo_path)
         .await
         .map_err(|e| e.to_string())?;
     if config.stack_parent_overrides.is_empty() {
@@ -1567,6 +1567,44 @@ pub async fn restack_repo(
 
     let checkouts = checkout_paths(repo_path).await;
     let name_to_branch = names_to_branches(&checkouts);
+
+    // Entries for worktrees that no longer have a checkout can never restack —
+    // left alone they re-fail with "worktree path does not exist" on every
+    // sync, for branches deleted long ago (the deletion-path cleanup in
+    // commands/worktree.rs misses worktrees removed outside Alfredo). Fail
+    // closed on an empty checkout map: that means `git worktree list` failed,
+    // not that every worktree vanished — same guard as `stale_parent_branches`.
+    if !checkouts.is_empty() {
+        let ghosts: Vec<String> = ghost_stack_entries(&config.stack_parent_overrides, &name_to_branch)
+            .into_iter()
+            // A dir that still exists but that git no longer lists is a
+            // half-broken worktree, not a ghost — leave its entry alone so the
+            // cascade below surfaces it as an error instead of dissolving it.
+            .filter(|name| !std::path::Path::new(&resolve_worktree_path(repo_path, name, &config)).exists())
+            .collect();
+        if !ghosts.is_empty() {
+            eprintln!("[stack_manager] pruning stack entries for deleted worktrees: {ghosts:?}");
+            // Reload-mutate-save rather than persisting the snapshot above — a
+            // config write landing meanwhile (port claim, column drag) would be
+            // clobbered by saving the stale copy.
+            match config_manager::load_personal_config(app_data_dir, repo_path).await {
+                Ok(mut fresh) => {
+                    for name in &ghosts {
+                        config_manager::clear_stack_entry(&mut fresh, name);
+                    }
+                    if let Err(e) = config_manager::save_config(app_data_dir, repo_path, &fresh).await {
+                        eprintln!("[stack_manager] failed to persist ghost-entry prune: {e}");
+                    }
+                }
+                Err(e) => eprintln!("[stack_manager] failed to reload config for ghost-entry prune: {e}"),
+            }
+            // The in-memory snapshot drives the cascade below either way.
+            for name in &ghosts {
+                config_manager::clear_stack_entry(&mut config, name);
+            }
+        }
+    }
+
     let branch_of = |name: &str| name_to_branch.get(name).cloned().unwrap_or_else(|| name.to_string());
     let mut summary = RestackStackSummary::default();
 
@@ -3175,6 +3213,17 @@ async fn plan_root_sync(
 
 /// Kahn's algorithm over child→parent edges. Returns every stacked worktree name
 /// with parents before children; members of cycles are dropped (logged).
+/// Stack members with no current checkout — `git worktree list` shows nothing
+/// named after them. They can never restack (there is no checkout to rebase),
+/// so `restack_repo` prunes their entries instead of re-reporting "worktree
+/// path does not exist" for long-deleted branches on every sync.
+fn ghost_stack_entries(
+    overrides: &HashMap<String, String>,
+    name_to_branch: &HashMap<String, String>,
+) -> Vec<String> {
+    overrides.keys().filter(|name| !name_to_branch.contains_key(*name)).cloned().collect()
+}
+
 fn restack_order(
     overrides: &HashMap<String, String>,
     name_to_branch: &HashMap<String, String>,
@@ -3283,6 +3332,20 @@ mod tests {
         assert_eq!(order.len(), 3);
         let (ix, iy) = (order.iter().position(|n| n == "wt-x").unwrap(), order.iter().position(|n| n == "wt-y").unwrap());
         assert!(ix < iy, "same-parent children sort deterministically");
+    }
+
+    #[test]
+    fn ghost_stack_entries_flags_only_checkoutless_members() {
+        let overrides = map(&[
+            ("live-child", "mariposa-main"),
+            ("ghost-child", "mariposa-main"),
+            ("other-ghost", "mariposa-main"),
+        ]);
+        let name_to_branch = map(&[("live-child", "chloe/live-child")]);
+        let mut ghosts = ghost_stack_entries(&overrides, &name_to_branch);
+        ghosts.sort();
+        assert_eq!(ghosts, vec!["ghost-child".to_string(), "other-ghost".to_string()]);
+        assert!(ghost_stack_entries(&map(&[]), &name_to_branch).is_empty());
     }
 
     #[test]
