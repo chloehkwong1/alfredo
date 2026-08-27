@@ -1,0 +1,71 @@
+src-tauri/src/branch_manager.rs
+  s_f723e704c067c8::t_4394478890ac48 76,155,234
+src-tauri/src/commands/worktree.rs
+  s_f723e704c067c8::t_e2bd7c21fbd374 253-261
+  s_f723e704c067c8::t_ce267be00a94b9 291
+  s_f723e704c067c8::t_69e5bbafb14ae8 642
+src/components/sidebar/StackMapPopover.tsx
+  s_f723e704c067c8::t_55acb9a5458ad6 419-423
+src/services/reviewRequestFlow.ts
+  s_f723e704c067c8::t_70b05e73f86d8b 4
+  s_f723e704c067c8::t_8c26a52af14448 79-86
+src/services/prAssociation.ts
+  s_f723e704c067c8::t_30b1064680531a 56-59
+src/components/settings/GlobalSettingsDialog.tsx
+  s_f723e704c067c8::t_ca3092e3c0645d 147
+  s_f723e704c067c8::t_48aa6301ac430a 102,377
+  s_f723e704c067c8::t_34a0692c9f6cd8 108,117-120
+  s_f723e704c067c8::t_1cd56468df3aa7 121
+src-tauri/src/github_sync.rs
+  s_f723e704c067c8::t_2e2033e1949065 432-438
+src-tauri/src/types.rs
+  s_f723e704c067c8::t_26f5e794e9560d 221-226
+src/types.ts
+  s_f723e704c067c8::t_e73f9c25298be0 111
+src-tauri/src/commands/updater.rs
+  s_f723e704c067c8::t_ff49b4c18bc28d 37,46-50,57-60,64-65
+src/components/sidebar/AgentItem.tsx
+  s_f723e704c067c8::t_8e628dbadb3258 9
+  s_f723e704c067c8::t_58224361530e0a 541-544,547-565
+src/components/layout/AppShell.tsx
+  s_f723e704c067c8::t_fd0ce19f642494 527
+src-tauri/src/stack_manager.rs
+  s_f723e704c067c8::t_057cf43d5f15d6 380-389
+  s_f723e704c067c8::t_0d6a5eaeee771d 948-964
+  s_f723e704c067c8::t_7245313b28e229 887-913
+  s_f723e704c067c8::t_c93ecf60b376bc 327-331
+  s_f723e704c067c8::t_120961d11da3a2 860-863,866-873
+  s_f723e704c067c8::t_f613cdceb6a0d9 3410-3414
+  s_f723e704c067c8::t_355f86bc8cfc79 797-805,810
+  s_f723e704c067c8::t_5d185dcb72683a 824-829,831-844
+  s_f723e704c067c8::t_6e7ceaade50bc1 1444-1474
+src/hooks/useGithubUsername.ts
+  s_f723e704c067c8::t_b6d74b9682689e 11-29,36-43,49-50,52,58-59,63-70,72
+src-tauri/src/git_manager.rs
+  s_f723e704c067c8::t_4e1c86d2e92f24 1758-1777
+  s_f723e704c067c8::t_443c63ae58b7d5 1841
+src/hooks/useUpdater.ts
+  s_f723e704c067c8::t_bac39867a05868 49,53,68-70
+  s_f723e704c067c8::t_e553766da34c27 15-16
+  s_f723e704c067c8::t_a8ef783d634fe2 162,168
+  s_f723e704c067c8::t_0c2e2f324ed66e 44
+src/stores/workspaceStore.ts
+  s_f723e704c067c8::t_76c2856c3df4aa 143-146,153-154
+  s_f723e704c067c8::t_4711d686269042 155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "3acfb8f49a2c1662844d30a8125752997f3276d1",
+  "prompts": {},
+  "sessions": {
+    "s_f723e704c067c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c40d833-ff13-483a-894a-18cb4eb5c14b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
