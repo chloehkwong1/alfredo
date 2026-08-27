@@ -23,6 +23,15 @@ What does NOT get deleted:
   or `gh`.
 - The repo itself.
 
+**Deleting a branch other worktrees are stacked on** reconnects the
+chain instead of breaking it: the stacked children move onto this
+worktree's own stack parent (or leave the stack entirely if it was the
+root), and they keep the deleted branch's commits — nothing is rebased
+away at delete time. The confirmation dialog lists exactly which
+branches are affected and where they will land, so check that block
+before confirming. See "Rebasing and stacks" for how the children
+restack afterwards.
+
 If you want to keep the worktree around but get it out of the main
 board, use **Archive** instead — it hides the worktree while leaving
 the directory and branch intact, and Alfredo can auto-delete archived
