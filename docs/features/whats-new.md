@@ -7,6 +7,38 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.21.0 — 2026-08-28**
+- **GitHub-native stacks sync themselves** — when GitHub restacks a
+  stack server-side after a merge, Alfredo follows the rewrite into
+  your local checkouts (only when provably safe) and drift-rebases
+  members locally between merges. Local rewrites never auto-push:
+  members get a "needs push" badge with an explicit **Push now**
+  action, and Alfredo never pushes a branch whose PR belongs to
+  someone else. Toggle in Settings (default on).
+- **Review requests pull themselves in** — PRs where your review is
+  requested get a worktree automatically, ready to open (default on;
+  toggle in Settings).
+- **GitHub-stacked PRs get a set-up offer** — a worktree whose PR is
+  based on a sibling branch shows a "Stacked on X — set up?" cue that
+  explains what set-up will do before doing anything.
+- **Deleting a mid-stack worktree reconnects the chain** — children
+  re-parent onto the deleted worktree's parent instead of stranding.
+- **Four new themes** — Catppuccin Latte, Everforest Light, Gruvbox,
+  GitHub Dark — and diffs re-tokenize to match the active theme.
+- **Linear tickets bring their comments** — "Open in Alfredo" prompts
+  now include ticket comments.
+- **Memory usage tamed** — background terminals keep a slimmer
+  scrollback, fixing multi-GB growth in long sessions.
+- PR state survives restarts: associations persist per worktree, and
+  aged-out PRs reconcile on launch with a summary toast.
+- Stack chips show their 1/N position and hue-code when multiple
+  stacks coexist; native-stack popovers gained restack/conflict
+  actions and outcome toasts.
+- Various fixes: a 19-finding pre-release review wave (stack-state
+  honesty, session identity across branch checkouts, multi-line run
+  scripts, updater feedback), the cross-column drag crash, and an
+  attention count on collapsed sidebar groups.
+
 **v0.20.1 — 2026-08-05**
 - **Fixed: a worktree could vanish, taking uncommitted work with it** —
   a rebase that finished on a detached HEAD changed how Alfredo
@@ -113,12 +145,5 @@ https://github.com/chloehkwong1/alfredo/releases.
 - Various fixes: the kanban section auto-expands when a worktree arrives
   or changes column; collapsed-rail PR badges match Alfredo's design;
   long commit messages collapse by default in the Changes panel.
-
-**v0.17.1 — 2026-05-24**
-- **Changes panel no longer fails to load** — deleting an empty file
-  (e.g. a Rails `.keep`) could make the Changes panel error out with
-  "couldn't load changes". Uncommitted diffs are now computed natively
-  so they load reliably; this also clears spurious "deleted" rows for
-  files whose paths differ only in case.
 
 Check the releases page for older versions and full detail.
