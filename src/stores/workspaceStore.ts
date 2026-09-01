@@ -775,14 +775,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   editReviewDraftComment: (worktreeId, id, body) =>
     set((state) => {
-      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
-      const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
+      const existing = state.pendingReviews[worktreeId];
+      if (!existing) return state;
       return {
         pendingReviews: {
           ...state.pendingReviews,
           [worktreeId]: {
-            ...current,
-            comments: current.comments.map((c) => (c.id === id ? { ...c, body } : c)),
+            ...existing,
+            comments: existing.comments.map((c) => (c.id === id ? { ...c, body } : c)),
           },
         },
       };
@@ -790,14 +790,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   removeReviewDraftComment: (worktreeId, id) =>
     set((state) => {
-      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
-      const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
+      const existing = state.pendingReviews[worktreeId];
+      if (!existing) return state;
       return {
         pendingReviews: {
           ...state.pendingReviews,
           [worktreeId]: {
-            ...current,
-            comments: current.comments.filter((c) => c.id !== id),
+            ...existing,
+            comments: existing.comments.filter((c) => c.id !== id),
           },
         },
       };

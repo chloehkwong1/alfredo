@@ -1167,4 +1167,16 @@ describe("pendingReviews", () => {
     expect(useWorkspaceStore.getState().pendingReviews["wt-new"].comments).toHaveLength(1);
     expect(useWorkspaceStore.getState().pendingReviews["wt-old"]).toBeUndefined();
   });
+
+  it("editReviewDraftComment is a no-op on unknown worktree", () => {
+    const s = () => useWorkspaceStore.getState();
+    s().editReviewDraftComment("wt-none", "d1", "body");
+    expect(s().pendingReviews["wt-none"]).toBeUndefined();
+  });
+
+  it("removeReviewDraftComment is a no-op on unknown worktree", () => {
+    const s = () => useWorkspaceStore.getState();
+    s().removeReviewDraftComment("wt-none", "d1");
+    expect(s().pendingReviews["wt-none"]).toBeUndefined();
+  });
 });
