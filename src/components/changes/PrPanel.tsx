@@ -100,7 +100,7 @@ export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPane
         )}
 
         {/* Your review section */}
-        <Section title={`Your review${draftCount > 0 ? ` (${draftCount})` : ""}`}>
+        <Section title="Your review" count={draftCount}>
           <ReviewDraftSection worktreeId={worktreeId} repoPath={repoPath} prNumber={pr.number} />
         </Section>
 

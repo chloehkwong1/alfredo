@@ -28,7 +28,7 @@ function DiffCommentThread({ comments, expanded, onToggle, onSendToClaude, repoP
   const threadId = comments[0]?.threadId ?? null;
 
   async function handleReply() {
-    if (repoPath === undefined || prNumber === undefined || !replyText.trim()) return;
+    if (sendingReply || repoPath === undefined || prNumber === undefined || !replyText.trim()) return;
     setSendingReply(true);
     try {
       await replyToPrComment(repoPath, prNumber, comments[0].id, replyText.trim());
