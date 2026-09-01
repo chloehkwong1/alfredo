@@ -17,6 +17,8 @@ import type {
   PtyEvent,
   RepoMode,
   RepoSharedConfig,
+  ReviewCommentInput,
+  ReviewVerdict,
   Session,
   SessionType,
   WhatsNewEntry,
@@ -392,6 +394,29 @@ export function getPrByNumber(repoPath: string, number: number): Promise<PrStatu
 
 export function findPrForBranch(repoPath: string, branch: string): Promise<PrStatus | null> {
   return invoke("find_pr_for_branch", { repoPath, branch });
+}
+
+export function submitPrReview(
+  repoPath: string,
+  prNumber: number,
+  event: ReviewVerdict,
+  body: string,
+  comments: ReviewCommentInput[]
+): Promise<void> {
+  return invoke("submit_pr_review", { repoPath, prNumber, event, body, comments });
+}
+
+export function replyToPrComment(
+  repoPath: string,
+  prNumber: number,
+  commentId: number,
+  body: string
+): Promise<void> {
+  return invoke("reply_to_pr_comment", { repoPath, prNumber, commentId, body });
+}
+
+export function setPrThreadResolved(repoPath: string, threadId: string, resolved: boolean): Promise<void> {
+  return invoke("set_pr_thread_resolved", { repoPath, threadId, resolved });
 }
 
 // ── GitHub Auth ─────────────────────────────────────────────────

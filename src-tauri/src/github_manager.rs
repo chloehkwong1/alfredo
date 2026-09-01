@@ -221,11 +221,6 @@ fn parse_github_timestamp(date: &str) -> i64 {
 // ── Extracted JSON parsers ────────────────────────────────────
 
 /// A single line comment in a review draft, as received from the frontend.
-///
-/// `#[allow(dead_code)]` because the Tauri command layer that constructs
-/// this from the frontend lands in a later task; keeping it here avoids
-/// churn there.
-#[allow(dead_code)]
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewDraftComment {
@@ -237,11 +232,6 @@ pub struct ReviewDraftComment {
 
 /// Build the REST body for POST /pulls/{n}/reviews. GitHub rejects an
 /// explicit empty `body`, so it is omitted when blank.
-///
-/// `#[allow(dead_code)]` because its only production caller
-/// (`submit_pr_review`) has no command-layer caller yet — that wiring
-/// lands in a later task.
-#[allow(dead_code)]
 fn build_review_request_body(
     event: &str,
     body: &str,
@@ -1146,10 +1136,6 @@ impl GithubManager {
     }
 
     /// Submit a complete review (verdict + optional summary + line comments) in one call.
-    ///
-    /// `#[allow(dead_code)]` because its command-layer caller lands in a
-    /// later task; keeping it here avoids churn there.
-    #[allow(dead_code)]
     pub async fn submit_pr_review(
         &self,
         owner: &str,
@@ -1170,10 +1156,6 @@ impl GithubManager {
     }
 
     /// Reply to an existing review comment thread (target = any top-level comment id in it).
-    ///
-    /// `#[allow(dead_code)]` because its command-layer caller lands in a
-    /// later task; keeping it here avoids churn there.
-    #[allow(dead_code)]
     pub async fn reply_to_pr_comment(
         &self,
         owner: &str,
@@ -1194,10 +1176,6 @@ impl GithubManager {
 
     /// Resolve or unresolve a review thread via the GraphQL
     /// `resolveReviewThread`/`unresolveReviewThread` mutations.
-    ///
-    /// `#[allow(dead_code)]` because its command-layer caller lands in a
-    /// later task; keeping it here avoids churn there.
-    #[allow(dead_code)]
     pub async fn set_thread_resolved(&self, thread_id: &str, resolved: bool) -> Result<(), AppError> {
         let mutation = if resolved {
             "mutation($threadId: ID!) { resolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }"

@@ -308,6 +308,15 @@ pub async fn set_sync_repo_paths(
     Ok(())
 }
 
+/// Fire an immediate poll so a just-written review/comment shows up without
+/// waiting for the next 60s tick. Errors are logged, never propagated — the
+/// write itself already succeeded.
+pub async fn trigger_sync(app_handle: &AppHandle) {
+    if let Err(e) = poll_once(app_handle).await {
+        eprintln!("[github_sync] immediate poll after review write: {e}");
+    }
+}
+
 /// Single poll iteration: fetch PRs for all repos and emit two events.
 ///
 /// Phase 1 (fast): Fetches PR list + mergeable/reviews/checks, emits immediately.

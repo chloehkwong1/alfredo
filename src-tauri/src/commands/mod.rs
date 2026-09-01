@@ -18,6 +18,7 @@ pub mod linear;
 pub mod linear_oauth;
 pub mod notes;
 pub mod pr_detail;
+pub mod pr_review;
 pub mod pty;
 pub mod repo;
 pub mod session;

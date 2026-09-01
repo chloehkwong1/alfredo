@@ -96,7 +96,7 @@ fn best_offer_index(candidates: &[String], receive_beta: bool) -> Option<usize> 
         .map(|(i, _)| i)
 }
 
-use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, output_styles, pr_detail, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, output_styles, pr_detail, pr_review, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -382,6 +382,10 @@ pub fn run() {
             pr_detail::get_pr_detail,
             pr_detail::get_pr_files,
             pr_detail::get_pr_commits,
+            // PR Review
+            pr_review::submit_pr_review,
+            pr_review::reply_to_pr_comment,
+            pr_review::set_pr_thread_resolved,
             // GitHub Auth
             github_auth::github_auth_status,
             github_auth::github_auth_token,

@@ -531,6 +531,16 @@ export interface PrComment {
   htmlUrl: string;
 }
 
+export type ReviewVerdict = "approve" | "comment" | "request_changes";
+
+/** Wire shape for submit_pr_review's comments arg (mirrors Rust ReviewDraftComment). */
+export interface ReviewCommentInput {
+  path: string;
+  line: number;
+  side: DiffSide;
+  body: string;
+}
+
 export interface WorkflowRunLog {
   jobName: string;
   stepName: string;
