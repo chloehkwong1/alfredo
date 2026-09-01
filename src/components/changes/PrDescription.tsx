@@ -1,12 +1,19 @@
 import { useMemo, useState } from "react";
 import { MarkdownBody, stripCommentNoise } from "../shared/MarkdownBody";
 
+/** Markdown images in BOTH syntaxes: inline `![alt](url)` and
+ *  reference-style `![alt][ref]` / `![alt][]`. One definition shared by the
+ *  counter and the strip below — with two copies, the reference form was
+ *  stripped by neither, so a full-size screenshot rendered inside the narrow
+ *  panel while the "(media not shown)" footer stayed suppressed. */
+const MD_IMAGE_RE = /!\[[^\]]*\](\([^)]+\)|\[[^\]]*\])/g;
+
 /** Count media items in a PR body string. */
 function countMedia(body: string): { images: number; videos: number } {
   const imgTags = (body.match(/<img[^>]*\/?>/gi) ?? []).length;
   const videoTags = (body.match(/<video[^>]*>[\s\S]*?<\/video>/gi) ?? []).length +
     (body.match(/<video[^>]*\/>/gi) ?? []).length;
-  const mdImages = (body.match(/!\[[^\]]*\]\([^)]+\)/g) ?? []).length;
+  const mdImages = (body.match(MD_IMAGE_RE) ?? []).length;
   return { images: imgTags + mdImages, videos: videoTags };
 }
 
@@ -21,7 +28,7 @@ export function PrDescription({
   const { images, videos } = countMedia(body);
   const hasMedia = images > 0 || videos > 0;
   const clean = useMemo(
-    () => stripCommentNoise(body).replace(/!\[[^\]]*\]\([^)]+\)/g, ""),
+    () => stripCommentNoise(body).replace(MD_IMAGE_RE, ""),
     [body]
   );
   const isLong = clean.split("\n").length > 8;

@@ -109,12 +109,12 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // Cmd+Shift+E: toggle changes-panel focus mode
+      // Cmd+Shift+E: toggle changes-panel focus mode (expands a collapsed
+      // panel into focus rather than flipping an invisible flag)
       if (event.metaKey && event.shiftKey && event.key === "E") {
         event.preventDefault();
         if (activeWorktreeId) {
-          const focused = useWorkspaceStore.getState().changesPanelFocused[activeWorktreeId] ?? false;
-          useWorkspaceStore.getState().setChangesPanelFocused(activeWorktreeId, !focused);
+          useWorkspaceStore.getState().toggleChangesPanelFocused(activeWorktreeId);
         }
         return;
       }

@@ -127,6 +127,9 @@ interface WorkspaceState {
   setChangesViewMode: (worktreeId: string, mode: "changes" | "commits" | "pr") => void;
   setChangesPanelCollapsed: (worktreeId: string, collapsed: boolean) => void;
   setChangesPanelFocused: (worktreeId: string, focused: boolean) => void;
+  /** The one toggle path for shortcut, palette, and panel button — collapsed
+   *  panels expand into focus mode rather than flipping an invisible flag. */
+  toggleChangesPanelFocused: (worktreeId: string) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   /** Pass a `Worktree[]` for the common case, or a builder
@@ -754,6 +757,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set((state) => ({
       changesPanelFocused: { ...state.changesPanelFocused, [worktreeId]: focused },
     })),
+
+  toggleChangesPanelFocused: (worktreeId) =>
+    set((state) => {
+      // With the panel collapsed, a bare flag flip is invisible — ⌘⇧E would
+      // appear to do nothing, then resurface days later as a surprise 70%
+      // layout when the panel expands. Focus is an explicit "show me the
+      // changes big" intent, so expand INTO focus mode instead.
+      if (state.changesPanelCollapsed[worktreeId] ?? false) {
+        return {
+          changesPanelCollapsed: { ...state.changesPanelCollapsed, [worktreeId]: false },
+          changesPanelFocused: { ...state.changesPanelFocused, [worktreeId]: true },
+        };
+      }
+      const focused = state.changesPanelFocused[worktreeId] ?? false;
+      return {
+        changesPanelFocused: { ...state.changesPanelFocused, [worktreeId]: !focused },
+      };
+    }),
 
   setShowPrComments: (worktreeId, show) =>
     set((s) => ({ showPrComments: { ...s.showPrComments, [worktreeId]: show } })),

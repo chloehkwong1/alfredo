@@ -311,10 +311,18 @@ pub async fn set_sync_repo_paths(
 /// Fire an immediate poll so a just-written review/comment shows up without
 /// waiting for the next 60s tick. Errors are logged, never propagated — the
 /// write itself already succeeded.
-pub async fn trigger_sync(app_handle: &AppHandle) {
-    if let Err(e) = poll_once(app_handle).await {
-        eprintln!("[github_sync] immediate poll after review write: {e}");
-    }
+///
+/// Spawned, not awaited: the refreshed data reaches the UI via
+/// `github:pr-update` events, not the caller's return value, so blocking a
+/// review-write invoke on a full multi-repo poll (gh subprocesses and local
+/// rebases included) buys nothing but a seconds-long hung-feeling click.
+pub fn trigger_sync(app_handle: &AppHandle) {
+    let app_handle = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = poll_once(&app_handle).await {
+            eprintln!("[github_sync] immediate poll after review write: {e}");
+        }
+    });
 }
 
 /// Single poll iteration: fetch PRs for all repos and emit two events.
@@ -328,6 +336,17 @@ pub async fn trigger_sync(app_handle: &AppHandle) {
 /// Returns a `PollOutcome` describing success/failure state and any
 /// rate-limit signal. The sync loop uses this to pick the next sleep.
 async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
+    // Serialize polls: `trigger_sync` (review writes) races the 60s tick, and
+    // two concurrent polls can emit `github:pr-update` out of order — the
+    // stale poll's payload landing last makes a just-written comment vanish
+    // until the next tick. Concurrent polls would also double-run the
+    // side-effectful stages (PR-body splices, local rebases → index.lock
+    // contention) and double the API burn. Waiting is the correct behavior
+    // for a queued trigger: it then fetches strictly after the write that
+    // fired it.
+    static POLL_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _serialize = POLL_LOCK.lock().await;
+
     let (repo_paths, active_branches) = get_sync_state(app_handle);
     if repo_paths.is_empty() {
         return Ok(PollOutcome { any_success: true, ..Default::default() });

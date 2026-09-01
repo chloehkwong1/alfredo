@@ -12,6 +12,7 @@ function comment(overrides: Partial<PrComment>): PrComment {
     side: "new",
     resolved: false,
     threadId: null,
+    inReplyToId: null,
     createdAt: "2026-05-19T00:00:00Z",
     updatedAt: "2026-05-19T00:00:00Z",
     htmlUrl: "https://example.test",

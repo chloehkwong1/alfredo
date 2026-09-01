@@ -26,7 +26,7 @@ pub async fn submit_pr_review(
     manager
         .submit_pr_review(&owner, &repo, pr_number, &event, &body, &comments)
         .await?;
-    github_sync::trigger_sync(&app).await;
+    github_sync::trigger_sync(&app);
     Ok(())
 }
 
@@ -42,7 +42,7 @@ pub async fn reply_to_pr_comment(
     manager
         .reply_to_pr_comment(&owner, &repo, pr_number, comment_id, &body)
         .await?;
-    github_sync::trigger_sync(&app).await;
+    github_sync::trigger_sync(&app);
     Ok(())
 }
 
@@ -55,6 +55,6 @@ pub async fn set_pr_thread_resolved(
 ) -> Result<()> {
     let (manager, _owner, _repo) = github_manager::github_context(&app_data_dir(&app)?, &repo_path).await?;
     manager.set_thread_resolved(&thread_id, resolved).await?;
-    github_sync::trigger_sync(&app).await;
+    github_sync::trigger_sync(&app);
     Ok(())
 }

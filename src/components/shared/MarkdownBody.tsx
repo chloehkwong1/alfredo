@@ -100,6 +100,11 @@ export function stripCommentNoise(text: string): string {
     /<img\b[^>]*src\s*=\s*["']https?:\/\/[^"']*["'][^>]*\/?>/gi,
     "",
   );
+  // Strip <video> elements INCLUDING their content: rehype-sanitize deletes
+  // the tag nodes but keeps inner text, so "Your browser does not support
+  // video" fallback prose would otherwise leak into the rendered body.
+  cleaned = cleaned.replace(/<video\b[^>]*>[\s\S]*?<\/video>/gi, "");
+  cleaned = cleaned.replace(/<video\b[^>]*\/>/gi, "");
   return cleaned.trim();
 }
 

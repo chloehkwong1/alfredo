@@ -165,8 +165,7 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
       icon: Maximize2,
       action: () => {
         if (!activeWorktreeId) return;
-        const focused = useWorkspaceStore.getState().changesPanelFocused[activeWorktreeId] ?? false;
-        useWorkspaceStore.getState().setChangesPanelFocused(activeWorktreeId, !focused);
+        useWorkspaceStore.getState().toggleChangesPanelFocused(activeWorktreeId);
       },
       enabled: () => activeWorktreeId !== null,
     },

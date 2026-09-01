@@ -231,7 +231,11 @@ pub struct ReviewDraftComment {
 }
 
 /// Build the REST body for POST /pulls/{n}/reviews. GitHub rejects an
-/// explicit empty `body`, so it is omitted when blank.
+/// explicit empty `body`, so it is omitted when blank — but only APPROVE may
+/// omit it at all: REQUEST_CHANGES and COMMENT 422 without one, which would
+/// take every drafted line comment down with the failed submit. Refuse those
+/// up front with an actionable message instead of letting GitHub reject the
+/// whole review.
 fn build_review_request_body(
     event: &str,
     body: &str,
@@ -243,6 +247,12 @@ fn build_review_request_body(
         "comment" => "COMMENT",
         other => return Err(AppError::Github(format!("unknown review event: {other}"))),
     };
+    if body.trim().is_empty() && api_event != "APPROVE" {
+        return Err(AppError::Github(format!(
+            "a summary is required to {} — GitHub rejects this review type without one",
+            if api_event == "REQUEST_CHANGES" { "request changes" } else { "comment" },
+        )));
+    }
     let api_comments: Vec<serde_json::Value> = comments
         .iter()
         .map(|c| {
@@ -344,6 +354,7 @@ fn parse_pr_comments_response(response: &serde_json::Value) -> Vec<PrComment> {
                         side,
                         resolved: false,
                         thread_id: None,
+                        in_reply_to_id: c.get("in_reply_to_id").and_then(serde_json::Value::as_u64),
                         created_at: c.get("created_at")?.as_str()?.to_string(),
                         updated_at: c.get("updated_at")?.as_str()?.to_string(),
                         html_url: c.get("html_url")?.as_str()?.to_string(),
@@ -370,6 +381,7 @@ fn parse_issue_comments_response(response: &serde_json::Value) -> Vec<PrComment>
                         side: crate::types::DiffSide::default(),
                         resolved: false,
                         thread_id: None,
+                        in_reply_to_id: None,
                         created_at: c.get("created_at")?.as_str()?.to_string(),
                         updated_at: c.get("updated_at")?.as_str()?.to_string(),
                         html_url: c.get("html_url")?.as_str()?.to_string(),
@@ -756,6 +768,50 @@ impl GithubManager {
         Ok(parse_pr_comments_response(&response))
     }
 
+    /// POST a GraphQL payload with the one shared error policy: transport and
+    /// parse failures are Err; a non-empty `errors` array is Err with its
+    /// first message; and a response with neither `errors` nor a non-null
+    /// `data` is Err too — GitHub auth failures return a bare
+    /// `{"message": "Bad credentials"}` document that otherwise parses clean
+    /// and reads as an empty (or successful) result. Before this helper, the
+    /// three GraphQL sites in this file each had their own policy and two of
+    /// them swallowed exactly that case.
+    async fn graphql_post(
+        &self,
+        payload: &serde_json::Value,
+        context: &str,
+    ) -> Result<serde_json::Value, AppError> {
+        let resp = self
+            .http_client
+            .post("https://api.github.com/graphql")
+            .header("Authorization", format!("Bearer {}", self.token()))
+            .header("User-Agent", "alfredo")
+            .json(payload)
+            .send()
+            .await
+            .map_err(|e| AppError::Github(format!("{context}: GraphQL request failed: {e}")))?;
+        let status = resp.status();
+        let response: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| AppError::Github(format!("{context}: GraphQL response parse failed: {e}")))?;
+        if let Some(errors) = response.get("errors").and_then(|e| e.as_array()).filter(|a| !a.is_empty()) {
+            let msg = errors[0]
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("unknown GraphQL error");
+            return Err(AppError::Github(format!("{context}: {msg}")));
+        }
+        if response.get("data").is_none_or(serde_json::Value::is_null) {
+            let msg = response
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("no data in GraphQL response");
+            return Err(AppError::Github(format!("{context} ({status}): {msg}")));
+        }
+        Ok(response)
+    }
+
     /// Fetch review thread resolution status via GitHub GraphQL API.
     /// Returns a map of comment database ID → thread node id + resolved bool.
     /// Keyed by every comment in the thread (not just the first) so replies
@@ -787,19 +843,7 @@ impl GithubManager {
         );
 
         let body = serde_json::json!({ "query": query });
-        let response: serde_json::Value = self
-            .http_client
-            .post("https://api.github.com/graphql")
-            .header("Authorization", format!("Bearer {}", self.token()))
-            .header("User-Agent", "alfredo")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AppError::Github(format!("GraphQL request failed: {e}")))?
-            .json()
-            .await
-            .map_err(|e| AppError::Github(format!("GraphQL response parse failed: {e}")))?;
-
+        let response = self.graphql_post(&body, "review-thread fetch failed").await?;
         Ok(parse_review_threads_response(&response))
     }
 
@@ -868,18 +912,10 @@ impl GithubManager {
             );
 
             let body = serde_json::json!({ "query": query });
-            let request = async {
-                self.http_client
-                    .post("https://api.github.com/graphql")
-                    .header("Authorization", format!("Bearer {}", self.token()))
-                    .header("User-Agent", "alfredo")
-                    .json(&body)
-                    .send()
-                    .await?
-                    .json::<serde_json::Value>()
-                    .await
-            };
-            let response = match request.await {
+            // Errors (transport, GraphQL `errors`, bad-credentials no-data)
+            // all funnel through the shared policy; this site keeps its
+            // warn-once + `None` degrade on top.
+            let response = match self.graphql_post(&body, "native-stack fetch failed").await {
                 Ok(v) => v,
                 Err(e) => {
                     warn_native_stack_once(&format!("request failed for {owner}/{repo}: {e}"));
@@ -1177,44 +1213,12 @@ impl GithubManager {
     /// Resolve or unresolve a review thread via the GraphQL
     /// `resolveReviewThread`/`unresolveReviewThread` mutations.
     pub async fn set_thread_resolved(&self, thread_id: &str, resolved: bool) -> Result<(), AppError> {
-        let mutation = if resolved {
-            "mutation($threadId: ID!) { resolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }"
-        } else {
-            "mutation($threadId: ID!) { unresolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }"
-        };
+        let op = if resolved { "resolveReviewThread" } else { "unresolveReviewThread" };
+        let mutation = format!(
+            "mutation($threadId: ID!) {{ {op}(input: {{ threadId: $threadId }}) {{ thread {{ isResolved }} }} }}"
+        );
         let payload = serde_json::json!({ "query": mutation, "variables": { "threadId": thread_id } });
-        let resp = self
-            .http_client
-            .post("https://api.github.com/graphql")
-            .header("Authorization", format!("Bearer {}", self.token()))
-            .header("User-Agent", "alfredo")
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| AppError::Github(format!("GraphQL request failed: {e}")))?;
-        let status = resp.status();
-        let response: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| AppError::Github(format!("GraphQL response parse failed: {e}")))?;
-        if let Some(errors) = response.get("errors").and_then(|e| e.as_array()).filter(|a| !a.is_empty()) {
-            let msg = errors[0]
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("unknown GraphQL error");
-            return Err(AppError::Github(format!("resolve thread failed: {msg}")));
-        }
-        // A well-formed GraphQL success response always has a non-null `data`.
-        // Auth failures (e.g. 401) return neither `errors` nor `data` — just
-        // `{"message": "Bad credentials", ...}` — which would otherwise parse
-        // clean and fall through to `Ok(())` on a mutation that never ran.
-        if response.get("data").is_none_or(serde_json::Value::is_null) {
-            let msg = response
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("no data in GraphQL response");
-            return Err(AppError::Github(format!("resolve thread failed ({status}): {msg}")));
-        }
+        self.graphql_post(&payload, "resolve thread failed").await?;
         Ok(())
     }
 

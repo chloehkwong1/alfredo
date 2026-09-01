@@ -526,6 +526,11 @@ export interface PrComment {
   side: DiffSide;
   resolved: boolean;
   threadId: string | null;
+  /** Id of the top-level comment this one replies to; null for thread roots.
+   *  Replies must NOT be used as reply targets — GitHub's replies endpoint
+   *  only accepts top-level comment ids, so reply "to" a reply by targeting
+   *  its thread root (the thread member with inReplyToId null). */
+  inReplyToId: number | null;
   createdAt: string;
   updatedAt: string;
   htmlUrl: string;

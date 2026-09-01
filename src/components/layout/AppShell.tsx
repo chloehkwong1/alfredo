@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronsRight } from "lucide-react";
-import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
+import { Group, Panel, Separator, useDefaultLayout, useGroupRef } from "react-resizable-panels";
 import { Sidebar } from "../sidebar/Sidebar";
 import { StatusBar } from "./StatusBar";
 import { RemoteControlBar } from "./RemoteControlBar";
@@ -204,7 +204,6 @@ function AppShell() {
   const setChangesPanelCollapsed = useWorkspaceStore((s) => s.setChangesPanelCollapsed);
   const changesPanelFocused =
     useWorkspaceStore((s) => (activeWorktreeId ? s.changesPanelFocused[activeWorktreeId] : false)) ?? false;
-  const setChangesPanelFocused = useWorkspaceStore((s) => s.setChangesPanelFocused);
   const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
 
@@ -277,11 +276,39 @@ function AppShell() {
     storage: localStorage,
   });
 
-  const changesPanelLayout = useDefaultLayout({
-    id: changesPanelFocused ? "changes-panel-focused" : "changes-panel",
+  // Two persisted layouts, one per focus mode. Switching between them is
+  // imperative (setLayout in the effect below) — an earlier `key` remount on
+  // the Group destroyed WorkspacePanel's local state (file selection, diff
+  // scroll) and every visible xterm's WebGL renderer on each ⌘⇧E toggle.
+  const normalChangesLayout = useDefaultLayout({
+    id: "changes-panel",
     storage: localStorage,
     panelIds: changesPanelCollapsed ? ["content"] : ["content", "changes"],
   });
+  const focusedChangesLayout = useDefaultLayout({
+    id: "changes-panel-focused",
+    storage: localStorage,
+    panelIds: changesPanelCollapsed ? ["content"] : ["content", "changes"],
+  });
+  const changesPanelLayout = changesPanelFocused ? focusedChangesLayout : normalChangesLayout;
+  const changesGroupRef = useGroupRef();
+  // Session-latest layout per mode: `useDefaultLayout`'s defaultLayout is a
+  // mount-time read, so toggling back would otherwise lose resizes made
+  // since launch.
+  const changesLayoutByMode = useRef<{ normal?: Record<string, number>; focused?: Record<string, number> }>({});
+  const prevChangesFocusedRef = useRef(changesPanelFocused);
+  useEffect(() => {
+    if (prevChangesFocusedRef.current === changesPanelFocused) return;
+    prevChangesFocusedRef.current = changesPanelFocused;
+    if (changesPanelCollapsed) return;
+    const mode = changesPanelFocused ? "focused" : "normal";
+    const stored = changesLayoutByMode.current[mode]
+      ?? (changesPanelFocused ? focusedChangesLayout : normalChangesLayout).defaultLayout;
+    changesGroupRef.current?.setLayout(
+      stored ?? (changesPanelFocused ? { content: 30, changes: 70 } : { content: 80, changes: 20 }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changesPanelFocused, changesPanelCollapsed]);
 
   // Show cat logo while loading persisted repo path
   if (loading) {
@@ -388,11 +415,14 @@ function AppShell() {
           {activeWorktreeId ? (
             <>
               <Group
-                key={changesPanelFocused ? "focused" : "normal"}
                 orientation="horizontal"
                 className="flex-1 min-h-0"
+                groupRef={changesGroupRef}
                 defaultLayout={changesPanelLayout.defaultLayout}
-                onLayoutChanged={changesPanelLayout.onLayoutChanged}
+                onLayoutChanged={(layout, meta) => {
+                  changesLayoutByMode.current[changesPanelFocused ? "focused" : "normal"] = layout;
+                  changesPanelLayout.onLayoutChanged(layout, meta);
+                }}
               >
                 <Panel id="content" minSize={changesPanelCollapsed ? "100%" : changesPanelFocused ? "15%" : "30%"}>
                   {/* `relative` so OpenIssueOverlay centers over the terminal/chat
@@ -426,7 +456,7 @@ function AppShell() {
                           repoPath={activeRepoPath ?? "."}
                           onCollapse={() => setChangesPanelCollapsed(activeWorktreeId, true)}
                           focused={changesPanelFocused}
-                          onToggleFocus={() => setChangesPanelFocused(activeWorktreeId, !changesPanelFocused)}
+                          onToggleFocus={() => useWorkspaceStore.getState().toggleChangesPanelFocused(activeWorktreeId)}
                         />
                       </SectionErrorBoundary>
                     </Panel>

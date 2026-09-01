@@ -371,6 +371,13 @@ pub struct PrComment {
     pub resolved: bool,
     #[serde(default)]
     pub thread_id: Option<String>,
+    /// Id of the top-level comment this one replies to, `None` for thread
+    /// roots (and issue comments). Carried because GitHub's reply endpoint
+    /// (`…/comments/{id}/replies`) only accepts a TOP-LEVEL comment id —
+    /// replying "to" a reply must target its thread root, and without this
+    /// marker the UI cannot tell the two apart.
+    #[serde(default)]
+    pub in_reply_to_id: Option<u64>,
     pub created_at: String,
     pub updated_at: String,
     pub html_url: String,
