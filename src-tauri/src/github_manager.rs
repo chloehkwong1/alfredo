@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::bounded_lru::BoundedLru;
 use crate::platform::gh_command;
-use crate::types::{AppError, CheckRun, KanbanColumn, NativeStackInfo, NativeStackMember, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
+use crate::types::{AppError, CheckRun, DiffSide, KanbanColumn, NativeStackInfo, NativeStackMember, PrComment, PrDetailedStatus, PrReview, PrStatus, WorkflowRunLog};
 
 // LOCK ORDER: when both module-level caches need to be touched in the same
 // call, always acquire `token_cache` first and release it before acquiring
@@ -219,6 +219,57 @@ fn parse_github_timestamp(date: &str) -> i64 {
 }
 
 // ── Extracted JSON parsers ────────────────────────────────────
+
+/// A single line comment in a review draft, as received from the frontend.
+///
+/// `#[allow(dead_code)]` because the Tauri command layer that constructs
+/// this from the frontend lands in a later task; keeping it here avoids
+/// churn there.
+#[allow(dead_code)]
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewDraftComment {
+    pub path: String,
+    pub line: u32,
+    pub side: DiffSide,
+    pub body: String,
+}
+
+/// Build the REST body for POST /pulls/{n}/reviews. GitHub rejects an
+/// explicit empty `body`, so it is omitted when blank.
+///
+/// `#[allow(dead_code)]` because its only production caller
+/// (`submit_pr_review`) has no command-layer caller yet — that wiring
+/// lands in a later task.
+#[allow(dead_code)]
+fn build_review_request_body(
+    event: &str,
+    body: &str,
+    comments: &[ReviewDraftComment],
+) -> Result<serde_json::Value, AppError> {
+    let api_event = match event {
+        "approve" => "APPROVE",
+        "request_changes" => "REQUEST_CHANGES",
+        "comment" => "COMMENT",
+        other => return Err(AppError::Github(format!("unknown review event: {other}"))),
+    };
+    let api_comments: Vec<serde_json::Value> = comments
+        .iter()
+        .map(|c| {
+            serde_json::json!({
+                "path": c.path,
+                "line": c.line,
+                "side": match c.side { DiffSide::Old => "LEFT", DiffSide::New => "RIGHT" },
+                "body": c.body,
+            })
+        })
+        .collect();
+    let mut v = serde_json::json!({ "event": api_event, "comments": api_comments });
+    if !body.is_empty() {
+        v["body"] = serde_json::Value::String(body.to_string());
+    }
+    Ok(v)
+}
 
 /// Parse the JSON response from the check-runs API into `Vec<CheckRun>`.
 fn parse_check_runs_response(response: &serde_json::Value) -> Vec<CheckRun> {
@@ -1091,6 +1142,88 @@ impl GithubManager {
             .post(url, None::<&()>)
             .await
             .map_err(|e| format_octocrab_error("failed to re-run failed jobs", &e))?;
+        Ok(())
+    }
+
+    /// Submit a complete review (verdict + optional summary + line comments) in one call.
+    ///
+    /// `#[allow(dead_code)]` because its command-layer caller lands in a
+    /// later task; keeping it here avoids churn there.
+    #[allow(dead_code)]
+    pub async fn submit_pr_review(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+        event: &str,
+        body: &str,
+        comments: &[ReviewDraftComment],
+    ) -> Result<(), AppError> {
+        let url = format!("/repos/{owner}/{repo}/pulls/{pr_number}/reviews");
+        let payload = build_review_request_body(event, body, comments)?;
+        let _: serde_json::Value = self
+            .client
+            .post(url, Some(&payload))
+            .await
+            .map_err(|e| format_octocrab_error("failed to submit review", &e))?;
+        Ok(())
+    }
+
+    /// Reply to an existing review comment thread (target = any top-level comment id in it).
+    ///
+    /// `#[allow(dead_code)]` because its command-layer caller lands in a
+    /// later task; keeping it here avoids churn there.
+    #[allow(dead_code)]
+    pub async fn reply_to_pr_comment(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+        comment_id: u64,
+        body: &str,
+    ) -> Result<(), AppError> {
+        let url = format!("/repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies");
+        let payload = serde_json::json!({ "body": body });
+        let _: serde_json::Value = self
+            .client
+            .post(url, Some(&payload))
+            .await
+            .map_err(|e| format_octocrab_error("failed to reply to comment", &e))?;
+        Ok(())
+    }
+
+    /// Resolve or unresolve a review thread via the GraphQL
+    /// `resolveReviewThread`/`unresolveReviewThread` mutations.
+    ///
+    /// `#[allow(dead_code)]` because its command-layer caller lands in a
+    /// later task; keeping it here avoids churn there.
+    #[allow(dead_code)]
+    pub async fn set_thread_resolved(&self, thread_id: &str, resolved: bool) -> Result<(), AppError> {
+        let mutation = if resolved {
+            "mutation($threadId: ID!) { resolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }"
+        } else {
+            "mutation($threadId: ID!) { unresolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }"
+        };
+        let payload = serde_json::json!({ "query": mutation, "variables": { "threadId": thread_id } });
+        let response: serde_json::Value = self
+            .http_client
+            .post("https://api.github.com/graphql")
+            .header("Authorization", format!("Bearer {}", self.token()))
+            .header("User-Agent", "alfredo")
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| AppError::Github(format!("GraphQL request failed: {e}")))?
+            .json()
+            .await
+            .map_err(|e| AppError::Github(format!("GraphQL response parse failed: {e}")))?;
+        if let Some(errors) = response.get("errors").and_then(|e| e.as_array()).filter(|a| !a.is_empty()) {
+            let msg = errors[0]
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("unknown GraphQL error");
+            return Err(AppError::Github(format!("resolve thread failed: {msg}")));
+        }
         Ok(())
     }
 
@@ -2528,6 +2661,32 @@ mod tests {
             ] } } } }
         });
         assert!(parse_review_threads_response(&missing_id).is_empty()); // node without id is skipped
+    }
+
+    // --- build_review_request_body tests ---
+
+    #[test]
+    fn test_build_review_request_body() {
+        let comments = vec![ReviewDraftComment {
+            path: "src/lib.rs".into(),
+            line: 42,
+            side: DiffSide::Old,
+            body: "typo".into(),
+        }];
+        let v = build_review_request_body("request_changes", "overall note", &comments).unwrap();
+        assert_eq!(v["event"], "REQUEST_CHANGES");
+        assert_eq!(v["body"], "overall note");
+        assert_eq!(v["comments"][0]["path"], "src/lib.rs");
+        assert_eq!(v["comments"][0]["line"], 42);
+        assert_eq!(v["comments"][0]["side"], "LEFT");
+    }
+
+    #[test]
+    fn test_build_review_request_body_omits_empty_body_and_rejects_unknown_event() {
+        let v = build_review_request_body("approve", "", &[]).unwrap();
+        assert_eq!(v["event"], "APPROVE");
+        assert!(v.get("body").is_none());
+        assert!(build_review_request_body("merge", "", &[]).is_err());
     }
 
     // --- map_github_file tests ---
