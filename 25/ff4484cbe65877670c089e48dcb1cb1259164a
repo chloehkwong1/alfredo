@@ -1,0 +1,70 @@
+src-tauri/src/github_sync.rs
+  s_f723e704c067c8::t_28005f3c5ead20 314-325
+  s_f723e704c067c8::t_8b045e443eac5b 339-349
+src/types.ts
+  s_f723e704c067c8::t_558c807c9e1072 529-533
+src/hooks/useKeyboardShortcuts.ts
+  s_f723e704c067c8::t_769fb54c79020f 112-113,117
+src-tauri/src/commands/pr_review.rs
+  s_f2ea512178dd98::t_d5ba3e95c30f67 29,45,58
+src-tauri/src/github_manager.rs
+  s_f723e704c067c8::t_d86f1b3dadb1b1 384
+  s_f723e704c067c8::t_17ae5fe2e9e81b 771-812
+  s_f723e704c067c8::t_da866359f366a5 357
+  s_6ab68dbbe2d479::t_e5e8dc12ce2931 846,915-918
+  s_f723e704c067c8::t_b5ce6c2f6218db 1216-1219,1221
+  s_f723e704c067c8::t_3725231c9d3b56 234-238,250-255,813
+  s_f723e704c067c8::t_1dec65066bda57 814
+src/stores/workspaceStore.ts
+  s_f723e704c067c8::t_c45c71464f59bd 761-777
+  s_f723e704c067c8::t_b403341177e000 130-132
+  s_f723e704c067c8::t_677e1e4de25414 778
+src/components/commandPalette/useCommandRegistry.ts
+  s_f723e704c067c8::t_bc8dff1a44d3bc 168
+src/components/layout/AppShell.tsx
+  s_f723e704c067c8::t_c32e658576f557 3
+  s_f723e704c067c8::t_8883292963e61d 459
+  s_f723e704c067c8::t_dea6c0818fd7dc 279-284,288-311
+  s_f723e704c067c8::t_32d774cbcb02eb 420,422-425
+src-tauri/src/types.rs
+  s_f723e704c067c8::t_f98a3110c75a07 374-380
+src/components/changes/prCommentLookup.test.ts
+  s_f723e704c067c8::t_86a4b05b50e2e2 15
+src/components/changes/PrDescription.tsx
+  s_f723e704c067c8::t_f5aa074c8b9e08 31
+  s_f723e704c067c8::t_061563e389153e 4-10,16
+src/components/shared/MarkdownBody.tsx
+  s_f2ea512178dd98::t_02c4bbdd7a460e 103-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "25ff4484cbe65877670c089e48dcb1cb1259164a",
+  "prompts": {},
+  "sessions": {
+    "s_6ab68dbbe2d479": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c299f573-05ea-4318-a34e-1a95c5158247",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_f2ea512178dd98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc1cf497-4f39-4138-b435-42a993bf2111",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_f723e704c067c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c40d833-ff13-483a-894a-18cb4eb5c14b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
