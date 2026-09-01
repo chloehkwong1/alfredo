@@ -1,0 +1,36 @@
+src/components/changes/ChangesView.tsx
+  s_f2ea512178dd98::t_ea771abe7e76df 545
+  s_f2ea512178dd98::t_4c12eed36889aa 245,247
+  s_f2ea512178dd98::t_31b5280b2c8bae 166-169
+  s_f2ea512178dd98::t_bb4b6efa66bd58 258,269
+src/components/changes/PrPanel.tsx
+  s_f2ea512178dd98::t_87807aea67b4f4 436
+src/components/changes/DiffFileCard.tsx
+  s_f2ea512178dd98::t_ef686b0ce6d914 179
+  s_f2ea512178dd98::t_84b254bd5bfa7d 85
+  s_f2ea512178dd98::t_1deaaf5c952115 356
+  s_f2ea512178dd98::t_3ec25f5b70cc3b 60-62
+  s_f2ea512178dd98::t_d7a65e89984b19 108
+  s_f2ea512178dd98::t_21f20f388337e1 152
+  s_f2ea512178dd98::t_f5ccc76df46b5f 201
+src/stores/workspaceStore.ts
+  s_f2ea512178dd98::t_1f91d729ce5857 165-166
+src/components/changes/AnnotationInput.tsx
+  s_f2ea512178dd98::t_70563e7790e4c1 34,36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2b40d6c9bec00391f152a2dbbbd12bd5981d339b",
+  "prompts": {},
+  "sessions": {
+    "s_f2ea512178dd98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc1cf497-4f39-4138-b435-42a993bf2111",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
