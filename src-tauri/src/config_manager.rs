@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use tokio::process::Command;
 
-use crate::types::{AppConfig, AppError, ClaudeDefaults, ClaudeOverrides, KanbanColumn, LinearTicketRef, NotificationConfig, PrAssociationRef, RunScript, SetupScript};
+use crate::types::{AppConfig, AppError, ClaudeDefaults, KanbanColumn, LinearTicketRef, NotificationConfig, PrAssociationRef, RunScript, SetupScript};
 
 /// Legacy filename — used only for migration from in-repo config.
 const CONFIG_FILE: &str = ".alfredo.json";
@@ -56,8 +56,6 @@ struct ConfigFile {
     pub worktree_base_path: Option<String>,
     #[serde(default)]
     pub claude_defaults: Option<ClaudeDefaults>,
-    #[serde(default)]
-    pub worktree_overrides: Option<HashMap<String, ClaudeOverrides>>,
     #[serde(default)]
     pub run_script: Option<RunScript>,
     #[serde(default)]
@@ -196,7 +194,6 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
             notifications: None,
             worktree_base_path: None,
             claude_defaults: None,
-            worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
             stack_baselines: HashMap::new(),
@@ -250,7 +247,6 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
         notifications: file.notifications,
         worktree_base_path: file.worktree_base_path,
         claude_defaults: file.claude_defaults,
-        worktree_overrides: file.worktree_overrides,
         run_script: file.run_script,
         stack_parent_overrides: file.stack_parent_overrides,
         stack_baselines: file.stack_baselines,
@@ -389,7 +385,6 @@ async fn write_personal_config_file(
         notifications: config.notifications.clone(),
         worktree_base_path: config.worktree_base_path.clone(),
         claude_defaults: config.claude_defaults.clone(),
-        worktree_overrides: config.worktree_overrides.clone(),
         run_script: config.run_script.clone(),
         stack_parent_overrides: config.stack_parent_overrides.clone(),
         stack_baselines: config.stack_baselines.clone(),
@@ -925,7 +920,6 @@ mod tests {
                 effort: Some("high".into()),
                 ..Default::default()
             }),
-            worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
             stack_baselines: HashMap::new(),
@@ -1142,7 +1136,6 @@ mod tests {
             notifications: None,
             worktree_base_path: None,
             claude_defaults: None,
-            worktree_overrides: None,
             stack_parent_overrides: HashMap::new(),
             stack_baselines: HashMap::new(),
             archive_script: Some("".into()),
@@ -1344,7 +1337,6 @@ mod tests {
             notifications: None,
             worktree_base_path: Some("/tmp/wt".into()), // genuine personal field
             claude_defaults: None,
-            worktree_overrides: None,
             run_script: Some(crate::types::RunScript {
                 name: "Run".into(),
                 command: "alfie".into(),
@@ -1428,7 +1420,6 @@ mod tests {
             notifications: None,
             worktree_base_path: None,
             claude_defaults: None,
-            worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
             stack_baselines: HashMap::new(),
@@ -1476,7 +1467,6 @@ mod tests {
             notifications: None,
             worktree_base_path: None,
             claude_defaults: None,
-            worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
             stack_baselines: HashMap::new(),
@@ -1537,7 +1527,6 @@ mod tests {
             notifications: None,
             worktree_base_path: None,
             claude_defaults: None,
-            worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
             stack_baselines: HashMap::new(),

@@ -282,7 +282,7 @@ export async function openIssueInRepo(
       // isn't racing us, and when the user switches to it later usePty attaches to
       // this already-spawned session and wires up input/resize.
       try {
-        session = await ensureAgentSession(worktreeId, repoPath, branch);
+        session = await ensureAgentSession(worktreeId, repoPath);
       } catch (e) {
         console.error("[linear] background agent spawn failed:", e);
         return;

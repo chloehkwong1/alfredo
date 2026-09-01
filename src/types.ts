@@ -312,13 +312,6 @@ export interface ClaudeDefaults {
   extraFlags?: string;
 }
 
-export interface ClaudeOverrides {
-  model?: string;
-  effort?: string;
-  permissionMode?: string;
-  outputStyle?: string;
-}
-
 export interface AppConfig {
   repoPath: string;
   setupScripts?: SetupScript[] | null;
@@ -334,7 +327,6 @@ export interface AppConfig {
   notifications?: NotificationConfig;
   worktreeBasePath?: string | null;
   claudeDefaults?: ClaudeDefaults;
-  worktreeOverrides?: Record<string, ClaudeOverrides>;
   defaultAgent?: TabType;
   archiveScript?: string | null;
   stackParentOverrides?: Record<string, string>;

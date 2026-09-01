@@ -44,7 +44,7 @@ const SETTINGS_LOAD_ERROR_MSG = "Couldn't load Claude settings — launching wit
  * then resolve and build Claude launch args from whatever succeeded.
  * Never throws — on total failure returns args built from all-null config.
  */
-async function resolveLaunchArgs(repoPath: string, branch: string): Promise<string[]> {
+async function resolveLaunchArgs(repoPath: string): Promise<string[]> {
   const [appRes, cfgRes] = await Promise.allSettled([getAppConfig(), getConfig(repoPath)]);
   if (appRes.status === "rejected" || cfgRes.status === "rejected") {
     console.error(
@@ -58,11 +58,7 @@ async function resolveLaunchArgs(repoPath: string, branch: string): Promise<stri
   }
   const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
   const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
-  const resolved = resolveSettings(
-    appCfg,
-    config?.claudeDefaults,
-    config?.worktreeOverrides?.[branch],
-  );
+  const resolved = resolveSettings(appCfg, config?.claudeDefaults);
   return buildClaudeArgs(resolved);
 }
 
@@ -154,7 +150,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }
     if (!repoPath) return;
     let aborted = false;
-    resolveLaunchArgs(repoPath, worktree?.branch ?? "").then((args) => {
+    resolveLaunchArgs(repoPath).then((args) => {
       if (aborted) return;
       // On a RESTORED tab (first spawn only): strip any --resume/--resume=<id>/
       // --continue from extra flags so the tab's own session deterministically
@@ -316,7 +312,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       // Claude args, which the shell would mis-parse into a broken process.
       setResolvedArgs(tabCommand ? ["-i", "-c", tabCommand] : []);
     } else {
-      setResolvedArgs(await resolveLaunchArgs(repoPath, worktree.branch ?? ""));
+      setResolvedArgs(await resolveLaunchArgs(repoPath));
 
       // Clear the stale resumeSessionId so the discovery effect can find the
       // new session that the fresh Claude instance will create.

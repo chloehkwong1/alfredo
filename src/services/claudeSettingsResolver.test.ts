@@ -3,27 +3,27 @@ import { resolveSettings, buildClaudeArgs, withResumeSession } from "./claudeSet
 
 describe("resolveSettings extraFlags", () => {
   it("takes extraFlags from the global layer when repo has none", () => {
-    const r = resolveSettings({ extraFlags: "--verbose-logs" }, undefined, undefined);
+    const r = resolveSettings({ extraFlags: "--verbose-logs" }, undefined);
     expect(r.extraFlags).toBe("--verbose-logs");
   });
 
   it("lets the repo layer override the global extraFlags", () => {
-    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "--repo" }, undefined);
+    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "--repo" });
     expect(r.extraFlags).toBe("--repo");
   });
 
   it("falls through to global when repo extraFlags is empty string", () => {
-    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "" }, undefined);
+    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "" });
     expect(r.extraFlags).toBe("--global");
   });
 
   it("falls through to global when repo extraFlags is whitespace-only", () => {
-    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "   " }, undefined);
+    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "   " });
     expect(r.extraFlags).toBe("--global");
   });
 
   it("resolves to undefined when both repo and global extraFlags are blank", () => {
-    const r = resolveSettings({ extraFlags: "" }, { extraFlags: "   " }, undefined);
+    const r = resolveSettings({ extraFlags: "" }, { extraFlags: "   " });
     expect(r.extraFlags).toBeUndefined();
   });
 });

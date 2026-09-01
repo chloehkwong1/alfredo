@@ -267,7 +267,7 @@ function CommentsByFile({
         }
         onSendToClaude={
           worktree
-            ? () => sendPrCommentToClaude(worktreeId, worktree.repoPath, worktree.branch, c)
+            ? () => sendPrCommentToClaude(worktreeId, worktree.repoPath, c)
             : undefined
         }
       />

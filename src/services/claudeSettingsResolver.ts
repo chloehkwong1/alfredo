@@ -1,4 +1,4 @@
-import type { ClaudeDefaults, ClaudeOverrides, GlobalAppConfig } from "../types";
+import type { ClaudeDefaults, GlobalAppConfig } from "../types";
 import { parseLaunchFlags } from "./launchCommand";
 
 export interface ResolvedClaudeSettings {
@@ -12,23 +12,22 @@ export interface ResolvedClaudeSettings {
 }
 
 /**
- * Merge global app defaults → per-repo defaults → per-branch overrides.
+ * Merge global app defaults → per-repo defaults.
  * Each layer overrides the previous; only defined fields are merged.
  */
 export function resolveSettings(
   globalDefaults?: Pick<GlobalAppConfig, "model" | "effort" | "permissionMode" | "dangerouslySkipPermissions" | "outputStyle" | "verbose" | "extraFlags"> | null,
   repoDefaults?: ClaudeDefaults,
-  overrides?: ClaudeOverrides,
 ): ResolvedClaudeSettings {
   // For free-form text fields, treat blank/whitespace-only as absent so a
   // hand-edited empty alfredo.json value doesn't silently shadow the global.
   const cleanFlags = (v?: string | null) => (v && v.trim() ? v : undefined);
   return {
-    model: overrides?.model ?? repoDefaults?.model ?? globalDefaults?.model ?? undefined,
-    effort: overrides?.effort ?? repoDefaults?.effort ?? globalDefaults?.effort ?? undefined,
-    permissionMode: overrides?.permissionMode ?? repoDefaults?.permissionMode ?? globalDefaults?.permissionMode ?? undefined,
+    model: repoDefaults?.model ?? globalDefaults?.model ?? undefined,
+    effort: repoDefaults?.effort ?? globalDefaults?.effort ?? undefined,
+    permissionMode: repoDefaults?.permissionMode ?? globalDefaults?.permissionMode ?? undefined,
     dangerouslySkipPermissions: repoDefaults?.dangerouslySkipPermissions ?? globalDefaults?.dangerouslySkipPermissions ?? undefined,
-    outputStyle: overrides?.outputStyle ?? repoDefaults?.outputStyle ?? globalDefaults?.outputStyle ?? undefined,
+    outputStyle: repoDefaults?.outputStyle ?? globalDefaults?.outputStyle ?? undefined,
     verbose: repoDefaults?.verbose ?? globalDefaults?.verbose ?? undefined,
     extraFlags: cleanFlags(repoDefaults?.extraFlags) ?? cleanFlags(globalDefaults?.extraFlags),
   };

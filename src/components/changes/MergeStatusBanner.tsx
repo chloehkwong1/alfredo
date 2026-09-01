@@ -17,7 +17,6 @@ export function MergeStatusBanner({
   mergeable,
   reviewDecision,
   repoPath,
-  branch,
 }: {
   worktreeId: string;
   pr: PrStatus;
@@ -25,7 +24,6 @@ export function MergeStatusBanner({
   mergeable: boolean | null;
   reviewDecision: string | null;
   repoPath: string;
-  branch: string;
 }) {
   const [loading, setLoading] = useState<"rerun" | "fix" | "merge" | null>(null);
   const [checksExpanded, setChecksExpanded] = useState(false);
@@ -47,7 +45,7 @@ export function MergeStatusBanner({
   const handleFixChecks = async () => {
     setLoading("fix");
     try {
-      const sent = await fixFailingChecks(worktreeId, repoPath, branch, failedChecks);
+      const sent = await fixFailingChecks(worktreeId, repoPath, failedChecks);
       if (sent) focusAgentTab(worktreeId);
     } finally {
       setLoading(null);
@@ -57,7 +55,7 @@ export function MergeStatusBanner({
   const handleMergeAndFix = async () => {
     setLoading("merge");
     try {
-      await mergeAndFix(worktreeId, repoPath, branch, pr.baseBranch ?? "main");
+      await mergeAndFix(worktreeId, repoPath, pr.baseBranch ?? "main");
     } catch (e) {
       console.error("Merge failed:", e);
     } finally {

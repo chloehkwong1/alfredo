@@ -58,12 +58,11 @@ export function getAgentSessionInfo(worktreeId: string) {
 
 /**
  * Get an existing agent session, or spawn one with correctly resolved settings
- * (global app defaults → repo defaults → branch overrides).
+ * (global app defaults → repo defaults).
  */
 export async function ensureAgentSession(
   worktreeId: string,
   repoPath: string,
-  branch: string | undefined,
 ) {
   const { sessionKey } = getAgentSessionInfo(worktreeId);
 
@@ -108,11 +107,7 @@ export async function ensureAgentSession(
   const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
   const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
   const spawnBaseline = baseRes.status === "fulfilled" ? baseRes.value : [];
-  const resolved = resolveSettings(
-    appCfg,
-    config?.claudeDefaults,
-    config?.worktreeOverrides?.[branch ?? ""],
-  );
+  const resolved = resolveSettings(appCfg, config?.claudeDefaults);
   const args = buildClaudeArgs(resolved);
   // "agent" sessionType (not the backend's "shell" default): the orphan
   // sweep and close() grace both branch on it, and background-opened claude

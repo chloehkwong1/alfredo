@@ -238,7 +238,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
 
   const handleSendPrComment = useCallback(
     (comment: PrComment) => {
-      sendPrCommentToClaude(worktreeId, repoPath, worktree?.branch, comment);
+      sendPrCommentToClaude(worktreeId, repoPath, comment);
     },
     [worktreeId, repoPath, worktree?.branch],
   );
@@ -251,7 +251,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
       const message = formatAnnotationsMessage(annotations, displayFiles);
       let session;
       try {
-        session = await ensureAgentSession(worktreeId, repoPath, worktree?.branch);
+        session = await ensureAgentSession(worktreeId, repoPath);
       } catch {
         return;
       }

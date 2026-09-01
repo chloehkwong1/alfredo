@@ -20,7 +20,7 @@ export async function resolveStackConflict(worktree: Worktree): Promise<void> {
   const prompt = await prepareConflictHandoff(worktree.repoPath, worktree.name);
   if (prompt === "__no_conflict__") return;
 
-  const session = await ensureAgentSession(worktree.id, worktree.repoPath, worktree.branch);
+  const session = await ensureAgentSession(worktree.id, worktree.repoPath);
   if (!session?.sessionId) {
     throw new Error("worktree has no live agent session — reopen its terminal first");
   }

@@ -19,7 +19,7 @@ export function useSendToClaude(
     try {
       let session;
       try {
-        session = await ensureAgentSession(worktreeId, repoPath, branch);
+        session = await ensureAgentSession(worktreeId, repoPath);
       } catch {
         return;
       }

@@ -4007,7 +4007,6 @@ mod tests {
             notifications: None,
             worktree_base_path: None,
             claude_defaults: None,
-            worktree_overrides: None,
             run_script: None,
             stack_parent_overrides: HashMap::new(),
             stack_baselines: HashMap::new(),

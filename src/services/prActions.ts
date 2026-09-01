@@ -32,7 +32,6 @@ export async function rerunFailedChecks(
 export async function fixFailingChecks(
   worktreeId: string,
   repoPath: string,
-  branch: string,
   failedCheckRuns: CheckRun[],
 ): Promise<boolean> {
   const checkList = failedCheckRuns
@@ -47,7 +46,7 @@ export async function fixFailingChecks(
     `- If it's a real failure (lint, type error, broken test, build error), read the logs with \`gh run view\` / \`gh run view --log-failed\`, find the root cause, propose the fix, and confirm with me before changing code.\n\n` +
     `Do not blanket-fix. Triage first.\n`;
 
-  return sendToAgent(worktreeId, repoPath, branch, prompt);
+  return sendToAgent(worktreeId, repoPath, prompt);
 }
 
 /**
@@ -57,7 +56,6 @@ export async function fixFailingChecks(
 export async function mergeAndFix(
   worktreeId: string,
   repoPath: string,
-  branch: string,
   baseBranch: string,
 ): Promise<boolean> {
   const prompt =
@@ -65,7 +63,7 @@ export async function mergeAndFix(
     `Rebase onto \`${baseBranch}\` and resolve conflicts. Only force-push with \`--force-with-lease\` if you are **certain** each conflict resolution is correct — i.e. you understand both sides of the conflict and the intended behavior.\n\n` +
     `If any conflict is ambiguous (overlapping logic changes, unclear intent, renamed/moved code, or you'd be guessing), STOP and ask me before resolving. Do not push a guess.\n`;
 
-  const sent = await sendToAgent(worktreeId, repoPath, branch, prompt);
+  const sent = await sendToAgent(worktreeId, repoPath, prompt);
   if (sent) focusAgentTab(worktreeId);
   return sent;
 }
@@ -77,11 +75,10 @@ export async function mergeAndFix(
 async function sendToAgent(
   worktreeId: string,
   repoPath: string,
-  branch: string,
   prompt: string,
 ): Promise<boolean> {
   try {
-    const session = await ensureAgentSession(worktreeId, repoPath, branch);
+    const session = await ensureAgentSession(worktreeId, repoPath);
     if (!session?.sessionId) return false;
     await writeToSession(session.sessionId, prompt);
     return true;

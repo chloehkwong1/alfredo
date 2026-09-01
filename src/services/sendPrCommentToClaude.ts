@@ -8,13 +8,12 @@ let sending = false;
 export async function sendPrCommentToClaude(
   worktreeId: string,
   repoPath: string,
-  branch: string | undefined,
   comment: PrComment,
 ): Promise<void> {
   if (sending) return;
   sending = true;
   try {
-    await _sendPrCommentToClaude(worktreeId, repoPath, branch, comment);
+    await _sendPrCommentToClaude(worktreeId, repoPath, comment);
   } finally {
     sending = false;
   }
@@ -23,12 +22,11 @@ export async function sendPrCommentToClaude(
 async function _sendPrCommentToClaude(
   worktreeId: string,
   repoPath: string,
-  branch: string | undefined,
   comment: PrComment,
 ): Promise<void> {
   let session;
   try {
-    session = await ensureAgentSession(worktreeId, repoPath, branch);
+    session = await ensureAgentSession(worktreeId, repoPath);
   } catch {
     return;
   }

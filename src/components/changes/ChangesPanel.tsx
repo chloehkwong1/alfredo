@@ -672,7 +672,6 @@ function WorkspacePanel({
           mergeable={mergeable}
           reviewDecision={reviewDecision}
           repoPath={repoPath}
-          branch={pr.branch}
         />
       )}
 

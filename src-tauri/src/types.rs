@@ -458,19 +458,6 @@ pub struct ClaudeDefaults {
     pub extra_flags: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct ClaudeOverrides {
-    #[serde(default)]
-    pub model: Option<String>,
-    #[serde(default)]
-    pub effort: Option<String>,
-    #[serde(default)]
-    pub permission_mode: Option<String>,
-    #[serde(default)]
-    pub output_style: Option<String>,
-}
-
 /// Repo-wide config that lives in `<repo>/alfredo.json` (committed). Every
 /// field is optional. `None` means "not specified by the repo" — fall through
 /// to the personal-overrides layer or the code default.
@@ -549,8 +536,6 @@ pub struct AppConfig {
     pub worktree_base_path: Option<String>,
     #[serde(default)]
     pub claude_defaults: Option<ClaudeDefaults>,
-    #[serde(default)]
-    pub worktree_overrides: Option<HashMap<String, ClaudeOverrides>>,
     /// Maps worktree name → parent branch name for stacked branches.
     #[serde(default)]
     pub stack_parent_overrides: HashMap<String, String>,
