@@ -20,7 +20,10 @@ export function PrDescription({
   const [expanded, setExpanded] = useState(false);
   const { images, videos } = countMedia(body);
   const hasMedia = images > 0 || videos > 0;
-  const clean = useMemo(() => stripCommentNoise(body), [body]);
+  const clean = useMemo(
+    () => stripCommentNoise(body).replace(/!\[[^\]]*\]\([^)]+\)/g, ""),
+    [body]
+  );
   const isLong = clean.split("\n").length > 8;
 
   return (
