@@ -541,6 +541,23 @@ export interface ReviewCommentInput {
   body: string;
 }
 
+/** Client-side draft review comment with timestamps and UUIDs. */
+export interface ReviewDraftComment {
+  id: string; // crypto.randomUUID()
+  filePath: string;
+  lineNumber: number;
+  side: DiffSide;
+  body: string;
+  createdAt: number;
+}
+
+/** Pending review draft state per worktree. */
+export interface PendingReview {
+  comments: ReviewDraftComment[];
+  verdict: ReviewVerdict;
+  body: string;
+}
+
 export interface WorkflowRunLog {
   jobName: string;
   stepName: string;

@@ -8,6 +8,9 @@ import type {
   Annotation,
   DiffViewMode,
   KanbanColumn,
+  PendingReview,
+  ReviewDraftComment,
+  ReviewVerdict,
   Worktree,
 } from "../types";
 
@@ -56,6 +59,14 @@ interface WorkspaceState {
   /** Whether to show PR comments inline in the diff view. Keyed by worktreeId. */
   showPrComments: Record<string, boolean>;
   setShowPrComments: (worktreeId: string, show: boolean) => void;
+  /** Pending review draft state per worktree. Keyed by worktreeId. Ephemeral, not persisted. */
+  pendingReviews: Record<string, PendingReview>;
+  addReviewDraftComment: (worktreeId: string, comment: ReviewDraftComment) => void;
+  editReviewDraftComment: (worktreeId: string, id: string, body: string) => void;
+  removeReviewDraftComment: (worktreeId: string, id: string) => void;
+  setReviewVerdict: (worktreeId: string, verdict: ReviewVerdict) => void;
+  setReviewBody: (worktreeId: string, body: string) => void;
+  clearPendingReview: (worktreeId: string) => void;
   /** Whether the sidebar is collapsed. */
   sidebarCollapsed: boolean;
   /** Number of days after merging before a worktree is auto-archived. */
@@ -208,6 +219,7 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
     changesPanelCollapsed: state.changesPanelCollapsed,
     changesPanelFocused: state.changesPanelFocused,
     showPrComments: state.showPrComments,
+    pendingReviews: state.pendingReviews,
     runningServers: state.runningServers,
     seenWorktrees: state.seenWorktrees,
     unreadWorktrees: state.unreadWorktrees,
@@ -222,6 +234,7 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
       changesPanelCollapsed: rekeyRecord(next.changesPanelCollapsed!, oldId, newId),
       changesPanelFocused: rekeyRecord(next.changesPanelFocused!, oldId, newId),
       showPrComments: rekeyRecord(next.showPrComments!, oldId, newId),
+      pendingReviews: rekeyRecord(next.pendingReviews!, oldId, newId),
       runningServers: rekeyRecord(next.runningServers!, oldId, newId),
       seenWorktrees: rekeySet(next.seenWorktrees!, oldId, newId),
       unreadWorktrees: rekeySet(next.unreadWorktrees!, oldId, newId),
@@ -397,6 +410,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   changesPanelCollapsed: {},
   changesPanelFocused: {},
   showPrComments: {},
+  pendingReviews: {},
   sidebarCollapsed: false,
   archiveAfterDays: 2,
   deleteAfterDays: 0,
@@ -490,6 +504,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   removeWorktree: (id) =>
     set((state) => {
       const { [id]: _annotations, ...restAnnotations } = state.annotations;
+      const { [id]: _pending, ...restPending } = state.pendingReviews;
       const newSeen = new Set(state.seenWorktrees);
       newSeen.delete(id);
       const newUnread = new Set(state.unreadWorktrees);
@@ -508,6 +523,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         ),
         activeWorktreeId: state.activeWorktreeId === id ? null : state.activeWorktreeId,
         annotations: restAnnotations,
+        pendingReviews: restPending,
         seenWorktrees: newSeen,
         unreadWorktrees: newUnread,
         pinnedWorktrees: newPinned,
@@ -742,6 +758,81 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setShowPrComments: (worktreeId, show) =>
     set((s) => ({ showPrComments: { ...s.showPrComments, [worktreeId]: show } })),
 
+  addReviewDraftComment: (worktreeId, comment) =>
+    set((state) => {
+      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
+      const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
+      return {
+        pendingReviews: {
+          ...state.pendingReviews,
+          [worktreeId]: {
+            ...current,
+            comments: [...current.comments, comment],
+          },
+        },
+      };
+    }),
+
+  editReviewDraftComment: (worktreeId, id, body) =>
+    set((state) => {
+      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
+      const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
+      return {
+        pendingReviews: {
+          ...state.pendingReviews,
+          [worktreeId]: {
+            ...current,
+            comments: current.comments.map((c) => (c.id === id ? { ...c, body } : c)),
+          },
+        },
+      };
+    }),
+
+  removeReviewDraftComment: (worktreeId, id) =>
+    set((state) => {
+      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
+      const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
+      return {
+        pendingReviews: {
+          ...state.pendingReviews,
+          [worktreeId]: {
+            ...current,
+            comments: current.comments.filter((c) => c.id !== id),
+          },
+        },
+      };
+    }),
+
+  setReviewVerdict: (worktreeId, verdict) =>
+    set((state) => {
+      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
+      const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
+      return {
+        pendingReviews: {
+          ...state.pendingReviews,
+          [worktreeId]: { ...current, verdict },
+        },
+      };
+    }),
+
+  setReviewBody: (worktreeId, body) =>
+    set((state) => {
+      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
+      const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
+      return {
+        pendingReviews: {
+          ...state.pendingReviews,
+          [worktreeId]: { ...current, body },
+        },
+      };
+    }),
+
+  clearPendingReview: (worktreeId) =>
+    set((state) => {
+      const { [worktreeId]: _removed, ...rest } = state.pendingReviews;
+      return { pendingReviews: rest };
+    }),
+
   toggleSidebar: () =>
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
@@ -802,6 +893,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       changesPanelCollapsed: {},
       changesPanelFocused: {},
       showPrComments: {},
+      pendingReviews: {},
       sidebarCollapsed: false,
       archiveAfterDays: 2,
       deleteAfterDays: 0,

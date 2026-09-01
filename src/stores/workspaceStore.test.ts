@@ -1116,3 +1116,55 @@ describe("changesPanelFocused", () => {
     expect(store.getState().changesPanelFocused[oldId]).toBeUndefined();
   });
 });
+
+// ── pendingReviews ─────────────────────────────────────────────────
+
+describe("pendingReviews", () => {
+  const draft = {
+    id: "d1",
+    filePath: "src/a.ts",
+    lineNumber: 10,
+    side: "new" as const,
+    body: "nit",
+    createdAt: 1,
+  };
+
+  it("adds, edits, and removes draft comments", () => {
+    const s = () => useWorkspaceStore.getState();
+    s().addReviewDraftComment("wt-1", draft);
+    expect(s().pendingReviews["wt-1"].comments).toHaveLength(1);
+    expect(s().pendingReviews["wt-1"].verdict).toBe("comment");
+    s().editReviewDraftComment("wt-1", "d1", "bigger nit");
+    expect(s().pendingReviews["wt-1"].comments[0].body).toBe("bigger nit");
+    s().removeReviewDraftComment("wt-1", "d1");
+    expect(s().pendingReviews["wt-1"].comments).toHaveLength(0);
+  });
+
+  it("sets verdict and body, and clears the whole draft", () => {
+    const s = () => useWorkspaceStore.getState();
+    s().setReviewVerdict("wt-1", "approve");
+    s().setReviewBody("wt-1", "LGTM");
+    expect(s().pendingReviews["wt-1"]).toEqual({ comments: [], verdict: "approve", body: "LGTM" });
+    s().clearPendingReview("wt-1");
+    expect(s().pendingReviews["wt-1"]).toBeUndefined();
+  });
+
+  it("is rekeyed on worktree rename", () => {
+    useWorkspaceStore.getState().addReviewDraftComment("wt-old", draft);
+    useWorkspaceStore.getState().setWorktrees([
+      makeWorktree({ id: "wt-new", path: "/path/wt-1", branch: "feature-1" }),
+    ]);
+    // Simulate the rekey by manually triggering setWorktrees with the old id becoming new id
+    // First set up the old state
+    useWorkspaceStore.setState({
+      worktrees: [makeWorktree({ id: "wt-old", path: "/path/wt-1", branch: "feature-1" })],
+      pendingReviews: { "wt-old": { comments: [draft], verdict: "comment", body: "" } },
+    });
+    // Now trigger the rekey by calling setWorktrees with the new id at the same path
+    useWorkspaceStore.getState().setWorktrees([
+      makeWorktree({ id: "wt-new", path: "/path/wt-1", branch: "feature-1" }),
+    ]);
+    expect(useWorkspaceStore.getState().pendingReviews["wt-new"].comments).toHaveLength(1);
+    expect(useWorkspaceStore.getState().pendingReviews["wt-old"]).toBeUndefined();
+  });
+});
