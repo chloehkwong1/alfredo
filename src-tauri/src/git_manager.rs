@@ -1158,7 +1158,7 @@ pub async fn rebase_onto_sha(
             .await
             .map_err(|e| AppError::Git(format!("failed to spawn git rebase: {e}")))?;
         if !rebase.status.success() {
-            let stderr = String::from_utf8_lossy(&rebase.stderr).to_string();
+            let stderr = concise_git_stderr(&rebase.stderr);
             if abort_on_failure {
                 let _ = git_command()
                     .args(["rebase", "--abort"])
@@ -1732,6 +1732,33 @@ fn shortstat_for_range(
             }
             (0, 0)
         }
+    }
+}
+
+/// Compress git's rebase stderr for a user-facing error: keep the lines that
+/// say what actually went wrong (`error:`, `CONFLICT`, `Could not apply`),
+/// drop the advice spam (`hint:`), rerere bookkeeping (`Recorded preimage`),
+/// and `Rebasing (n/m)` progress. Split on `\r` too — git writes progress
+/// with carriage returns, which would otherwise glue a progress fragment onto
+/// the first real error line. Falls back to the raw text when filtering
+/// leaves nothing (an unexpected failure must never become an empty message).
+fn concise_git_stderr(raw: &[u8]) -> String {
+    let text = String::from_utf8_lossy(raw);
+    let kept: Vec<&str> = text
+        .split(['\n', '\r'])
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .filter(|l| {
+            !l.starts_with("hint:")
+                && !l.starts_with("Recorded preimage")
+                && !l.starts_with("Recorded resolution")
+                && !l.starts_with("Rebasing (")
+        })
+        .collect();
+    if kept.is_empty() {
+        text.trim().to_string()
+    } else {
+        kept.join("\n")
     }
 }
 
@@ -3585,5 +3612,30 @@ mod tests {
         let n = unpushed_patch_count(clone.path().to_str().unwrap(), "origin/feat", "origin/main")
             .expect("ok");
         assert!(n >= 1, "expected merge commit to count as unpushed work, got {n}");
+    }
+
+    #[test]
+    fn concise_git_stderr_keeps_errors_drops_hints_and_progress() {
+        // The exact shape a conflicted rebase produces: \r-terminated progress,
+        // the real error, an advice block, and rerere bookkeeping.
+        let raw = b"Rebasing (1/1)\rerror: could not apply fdf4a1590d... --wip-- [skip ci]\n\
+hint: Resolve all conflicts manually, mark them as resolved with\n\
+hint: \"git add/rm <conflicted_files>\", then run \"git rebase --continue\".\n\
+Recorded preimage for 'app/example.tsx'\n\
+Could not apply fdf4a1590d... # --wip-- [skip ci]\n";
+        let concise = concise_git_stderr(raw);
+        assert_eq!(
+            concise,
+            "error: could not apply fdf4a1590d... --wip-- [skip ci]\n\
+             Could not apply fdf4a1590d... # --wip-- [skip ci]"
+        );
+    }
+
+    #[test]
+    fn concise_git_stderr_falls_back_to_raw_when_filtering_empties() {
+        // A failure whose stderr is nothing but filtered shapes must still
+        // produce a message, not an empty string.
+        let raw = b"hint: something advisory\n";
+        assert_eq!(concise_git_stderr(raw), "hint: something advisory");
     }
 }

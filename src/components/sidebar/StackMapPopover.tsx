@@ -71,7 +71,15 @@ async function restackNowWithToast(repoPath: string, worktreeName: string, branc
     showToast({ message: restackOutcomeMessage(outcome, branch) });
   } catch (e) {
     console.error("Restack failed:", e);
-    showToast({ message: `Restack failed: ${e instanceof Error ? e.message : e}` });
+    const message = e instanceof Error ? e.message : String(e);
+    // A failed rebase already fired `stack:rebase-conflict`, whose sticky
+    // toast names the branch and offers the Claude handoff — a second toast
+    // dumping git's stderr on top of it is noise. Only toast failures the
+    // conflict flow doesn't own (pre-rebase errors: unresolvable parent,
+    // missing checkout, config load).
+    if (!message.includes("rebase --onto failed")) {
+      showToast({ message: `Restack failed: ${message}` });
+    }
   }
 }
 

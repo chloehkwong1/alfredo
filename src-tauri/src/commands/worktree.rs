@@ -744,7 +744,13 @@ pub async fn restack_now(
     let app_data_dir = resolve_app_data_dir(&app)?;
     crate::stack_manager::restack_child(&app, &app_data_dir, &repo_path, &worktree_name)
         .await
-        .map_err(AppError::Git)
+        .map_err(|e| {
+            // `restack_child` stringifies an AppError, so `e` usually already
+            // reads "Git error: ..." — wrapping it verbatim rendered a
+            // doubled "Git error: Git error:" in the frontend toast.
+            let msg = e.strip_prefix("Git error: ").map(str::to_string).unwrap_or(e);
+            AppError::Git(msg)
+        })
 }
 
 /// Explicit push for a `NeedsPush` member — the user's half of native
