@@ -1,0 +1,53 @@
+src/components/changes/ChangesView.tsx
+  s_6ab68dbbe2d479::t_8aae0b6452f901 553
+src/components/changes/ChangesPanel.tsx
+  s_6ab68dbbe2d479::t_28ff825f86a21c 628
+src/components/changes/ReviewDraftSection.tsx
+  s_6ab68dbbe2d479::t_98763b124a8c3e 1-168
+src/components/changes/PrPanel.tsx
+  s_6ab68dbbe2d479::t_ed4d2778565254 436
+  s_6ab68dbbe2d479::t_a133fa9aa7321f 54,58,62
+  s_6ab68dbbe2d479::t_28108d69283df2 19
+  s_6ab68dbbe2d479::t_efd03fbc7d8b6c 102-106
+src/components/changes/UnifiedDiffBody.tsx
+  s_6ab68dbbe2d479::t_f8ee6b9f30ab68 28-29,50-51
+  s_6ab68dbbe2d479::t_f9b4d278b16997 133-134
+src/components/changes/DiffCommentThread.tsx
+  s_6ab68dbbe2d479::t_7d35ec99d7e4a3 31,46
+  s_6ab68dbbe2d479::t_ec71188ad99a12 1,5-6,17-18,21,23-30,32-45,47-55
+  s_6ab68dbbe2d479::t_d87be2cc282800 200-260
+src/components/changes/SplitDiffBody.tsx
+  s_6ab68dbbe2d479::t_ad73489ba51b58 29-30,52-53
+  s_6ab68dbbe2d479::t_c7ea8f39f1d7aa 144-145
+  s_6ab68dbbe2d479::t_ccffe0f359a87a 194-195
+src/components/changes/DiffFileCard.tsx
+  s_f2ea512178dd98::t_72bb00ea305427 203,365,429-430
+  s_6ab68dbbe2d479::t_2854c59a75c1bb 68-70
+  s_6ab68dbbe2d479::t_677dbd20e6544b 97,119
+  s_6ab68dbbe2d479::t_5730fbfb6b3806 174-175
+  s_6ab68dbbe2d479::t_32504512d34898 147-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "4a4da1374695e07f17a4df404346a3e3064388d6",
+  "prompts": {},
+  "sessions": {
+    "s_6ab68dbbe2d479": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c299f573-05ea-4318-a34e-1a95c5158247",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_f2ea512178dd98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc1cf497-4f39-4138-b435-42a993bf2111",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
