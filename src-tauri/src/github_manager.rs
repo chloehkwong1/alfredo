@@ -302,6 +302,7 @@ fn parse_pr_comments_response(response: &serde_json::Value) -> Vec<PrComment> {
                         line: c.get("line").and_then(serde_json::Value::as_u64).map(|n| n as u32),
                         side,
                         resolved: false,
+                        thread_id: None,
                         created_at: c.get("created_at")?.as_str()?.to_string(),
                         updated_at: c.get("updated_at")?.as_str()?.to_string(),
                         html_url: c.get("html_url")?.as_str()?.to_string(),
@@ -327,6 +328,7 @@ fn parse_issue_comments_response(response: &serde_json::Value) -> Vec<PrComment>
                         line: None,
                         side: crate::types::DiffSide::default(),
                         resolved: false,
+                        thread_id: None,
                         created_at: c.get("created_at")?.as_str()?.to_string(),
                         updated_at: c.get("updated_at")?.as_str()?.to_string(),
                         html_url: c.get("html_url")?.as_str()?.to_string(),
@@ -335,6 +337,42 @@ fn parse_issue_comments_response(response: &serde_json::Value) -> Vec<PrComment>
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// A review thread's node id (needed by the `resolveReviewThread` mutation)
+/// and resolution state, keyed per-comment in `parse_review_threads_response`.
+#[derive(Debug, Clone)]
+pub struct ThreadMeta {
+    pub thread_id: String,
+    pub resolved: bool,
+}
+
+/// Map every review comment's databaseId to its thread's node id and
+/// resolution state. Comments under a node missing `id` are skipped.
+fn parse_review_threads_response(response: &serde_json::Value) -> HashMap<u64, ThreadMeta> {
+    let mut map = HashMap::new();
+    let Some(nodes) = response
+        .pointer("/data/repository/pullRequest/reviewThreads/nodes")
+        .and_then(|v| v.as_array())
+    else {
+        return map;
+    };
+    for node in nodes {
+        let Some(thread_id) = node.get("id").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let resolved = node.get("isResolved").and_then(serde_json::Value::as_bool).unwrap_or(false);
+        let comment_ids = node
+            .pointer("/comments/nodes")
+            .and_then(|v| v.as_array())
+            .into_iter()
+            .flatten()
+            .filter_map(|c| c.get("databaseId").and_then(serde_json::Value::as_u64));
+        for id in comment_ids {
+            map.insert(id, ThreadMeta { thread_id: thread_id.to_string(), resolved });
+        }
+    }
+    map
 }
 
 /// Map a deserialized `GithubPrFile` into our `DiffFile` type.
@@ -678,21 +716,24 @@ impl GithubManager {
     }
 
     /// Fetch review thread resolution status via GitHub GraphQL API.
-    /// Returns a map of comment database ID → resolved bool.
+    /// Returns a map of comment database ID → thread node id + resolved bool.
+    /// Keyed by every comment in the thread (not just the first) so replies
+    /// in a resolved thread also show as resolved.
     pub async fn get_review_thread_resolution(
         &self,
         owner: &str,
         repo: &str,
         pr_number: u64,
-    ) -> Result<HashMap<u64, bool>, AppError> {
+    ) -> Result<HashMap<u64, ThreadMeta>, AppError> {
         let query = format!(
             r#"{{
   repository(owner: "{owner}", name: "{repo}") {{
     pullRequest(number: {pr_number}) {{
       reviewThreads(first: 100) {{
         nodes {{
+          id
           isResolved
-          comments(first: 1) {{
+          comments(first: 50) {{
             nodes {{
               databaseId
             }}
@@ -718,33 +759,16 @@ impl GithubManager {
             .await
             .map_err(|e| AppError::Github(format!("GraphQL response parse failed: {e}")))?;
 
-        let mut resolution_map = HashMap::new();
-        if let Some(threads) = response
-            .pointer("/data/repository/pullRequest/reviewThreads/nodes")
-            .and_then(|v| v.as_array())
-        {
-            for thread in threads {
-                let is_resolved = thread
-                    .get("isResolved")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false);
-                if let Some(comment_id) = thread
-                    .pointer("/comments/nodes/0/databaseId")
-                    .and_then(serde_json::Value::as_u64)
-                {
-                    resolution_map.insert(comment_id, is_resolved);
-                }
-            }
-        }
-
-        Ok(resolution_map)
+        Ok(parse_review_threads_response(&response))
     }
 
-    /// Apply thread resolution status to a list of comments.
-    pub fn apply_thread_resolution(comments: &mut [PrComment], resolution: &HashMap<u64, bool>) {
+    /// Apply thread resolution status to a list of comments. Issue comments
+    /// (`path: None`) never appear in `resolution` and keep `thread_id: None`.
+    pub fn apply_thread_resolution(comments: &mut [PrComment], resolution: &HashMap<u64, ThreadMeta>) {
         for comment in comments.iter_mut() {
-            if let Some(&resolved) = resolution.get(&comment.id) {
-                comment.resolved = resolved;
+            if let Some(meta) = resolution.get(&comment.id) {
+                comment.resolved = meta.resolved;
+                comment.thread_id = Some(meta.thread_id.clone());
             }
         }
     }
@@ -2466,6 +2490,44 @@ mod tests {
         assert_eq!(comments[0].path, None);
         assert_eq!(comments[0].line, None);
         assert!(!comments[0].resolved);
+    }
+
+    // --- parse_review_threads_response tests ---
+
+    #[test]
+    fn test_parse_review_threads_response() {
+        let json = serde_json::json!({
+            "data": { "repository": { "pullRequest": { "reviewThreads": { "nodes": [
+                {
+                    "id": "PRRT_kwDOABCD",
+                    "isResolved": true,
+                    "comments": { "nodes": [ { "databaseId": 11 }, { "databaseId": 12 } ] }
+                },
+                {
+                    "id": "PRRT_kwDOEFGH",
+                    "isResolved": false,
+                    "comments": { "nodes": [ { "databaseId": 21 } ] }
+                }
+            ] } } } }
+        });
+        let map = parse_review_threads_response(&json);
+        assert_eq!(map.len(), 3);
+        assert_eq!(map[&11].thread_id, "PRRT_kwDOABCD");
+        assert!(map[&11].resolved);
+        assert!(map[&12].resolved); // reply inherits thread resolution
+        assert_eq!(map[&21].thread_id, "PRRT_kwDOEFGH");
+        assert!(!map[&21].resolved);
+    }
+
+    #[test]
+    fn test_parse_review_threads_response_empty_and_malformed() {
+        assert!(parse_review_threads_response(&serde_json::json!({})).is_empty());
+        let missing_id = serde_json::json!({
+            "data": { "repository": { "pullRequest": { "reviewThreads": { "nodes": [
+                { "isResolved": true, "comments": { "nodes": [ { "databaseId": 5 } ] } }
+            ] } } } }
+        });
+        assert!(parse_review_threads_response(&missing_id).is_empty()); // node without id is skipped
     }
 
     // --- map_github_file tests ---

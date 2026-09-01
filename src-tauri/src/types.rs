@@ -369,6 +369,8 @@ pub struct PrComment {
     #[serde(default)]
     pub side: DiffSide,
     pub resolved: bool,
+    #[serde(default)]
+    pub thread_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub html_url: String,

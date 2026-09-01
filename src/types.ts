@@ -525,6 +525,7 @@ export interface PrComment {
   line: number | null;
   side: DiffSide;
   resolved: boolean;
+  threadId: string | null;
   createdAt: string;
   updatedAt: string;
   htmlUrl: string;
