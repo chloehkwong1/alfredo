@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type React from "react";
+import { useMemo, useState } from "react";
+import { MarkdownBody, stripCommentNoise } from "../shared/MarkdownBody";
 
 /** Count media items in a PR body string. */
 function countMedia(body: string): { images: number; videos: number } {
@@ -8,46 +8,6 @@ function countMedia(body: string): { images: number; videos: number } {
     (body.match(/<video[^>]*\/>/gi) ?? []).length;
   const mdImages = (body.match(/!\[[^\]]*\]\([^)]+\)/g) ?? []).length;
   return { images: imgTags + mdImages, videos: videoTags };
-}
-
-/** Lightly format a PR body for display: strip media, render headers as bold, preserve line breaks. */
-function formatPrBody(body: string): React.ReactNode[] {
-  // Strip HTML img tags, video tags, and markdown images
-  const cleaned = body
-    .replace(/<img[^>]*\/?>/gi, "")
-    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, "")
-    .replace(/<video[^>]*\/?>/gi, "")
-    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
-    .replace(/\|[-|]+\|/g, "");
-
-  return cleaned.split("\n").map((line, i) => {
-    // ## Headers → bold
-    const headerMatch = line.match(/^#{1,3}\s+(.+)/);
-    if (headerMatch) {
-      return (
-        <span key={i} className="block text-text-primary font-semibold mt-1 first:mt-0">
-          {headerMatch[1]}
-        </span>
-      );
-    }
-    // Blank lines → small spacer
-    if (line.trim() === "") {
-      return <span key={i} className="block h-1" />;
-    }
-    // **bold** → <strong>
-    const parts = line.split(/(\*\*[^*]+\*\*)/g);
-    return (
-      <span key={i} className="block">
-        {parts.map((part, j) => {
-          const boldMatch = part.match(/^\*\*(.+)\*\*$/);
-          if (boldMatch) {
-            return <strong key={j} className="text-text-primary">{boldMatch[1]}</strong>;
-          }
-          return part;
-        })}
-      </span>
-    );
-  });
 }
 
 export function PrDescription({
@@ -59,16 +19,17 @@ export function PrDescription({
 }) {
   const [expanded, setExpanded] = useState(false);
   const { images, videos } = countMedia(body);
-  const hasMedia = images + videos > 0;
-  const isLong = body.split("\n").length > 6;
-  // "X images not shown" removed — the "Open on GitHub" link is the
-  // actionable escape hatch; surfacing the limitation added cognitive noise.
-  void images; void videos;
+  const hasMedia = images > 0 || videos > 0;
+  const clean = useMemo(() => stripCommentNoise(body), [body]);
+  const isLong = clean.split("\n").length > 8;
 
   return (
-    <div className="px-2.5 py-1.5 text-[13px] text-text-secondary leading-[1.5] overflow-hidden">
-      <div className={expanded || !isLong ? "" : "max-h-[4.5em] overflow-hidden"}>
-        {formatPrBody(body)}
+    <div className="px-2.5 py-1.5 text-text-secondary overflow-x-auto">
+      <div className={expanded || !isLong ? "" : "relative max-h-[160px] overflow-hidden"}>
+        <MarkdownBody text={clean} compact />
+        {!expanded && isLong && (
+          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[var(--bg-primary)] to-transparent pointer-events-none" />
+        )}
       </div>
       {isLong && (
         <button
@@ -83,10 +44,10 @@ export function PrDescription({
           <a
             href={prUrl}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="text-accent-primary text-[11px] hover:underline"
           >
-            Open on GitHub ↗
+            Open on GitHub ↗ (media not shown)
           </a>
         </div>
       )}
