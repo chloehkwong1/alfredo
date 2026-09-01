@@ -16,6 +16,7 @@ import { CheckRunRow, CheckRunSummary, sortCheckRuns } from "./CheckRunRow";
 import { isCheckFailing, isCheckPending } from "./checkRunStatus";
 import { ReviewRow } from "./ReviewRow";
 import { CommentCard } from "./CommentCard";
+import { ReviewDraftSection } from "./ReviewDraftSection";
 
 // ── Shared badge-count helpers ─────────────────────────────────────
 
@@ -50,13 +51,15 @@ export function usePrBadgeCounts(worktreeId: string) {
 
 interface PrPanelContentProps {
   worktreeId: string;
+  repoPath: string;
   onJumpToComment: (filePath: string, line?: number) => void;
 }
 
-export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentProps) {
+export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPanelContentProps) {
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
   const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
+  const draftCount = useWorkspaceStore((s) => s.pendingReviews[worktreeId]?.comments.length ?? 0);
 
   const { checkRuns, reviews, comments } = usePrBadgeCounts(worktreeId);
 
@@ -95,6 +98,11 @@ export function PrPanelContent({ worktreeId, onJumpToComment }: PrPanelContentPr
             <PrDescription body={pr.body} prUrl={pr.url} />
           </Section>
         )}
+
+        {/* Your review section */}
+        <Section title={`Your review${draftCount > 0 ? ` (${draftCount})` : ""}`}>
+          <ReviewDraftSection worktreeId={worktreeId} repoPath={repoPath} prNumber={pr.number} />
+        </Section>
 
         {/* Checks section */}
         <Section title="Checks" count={checkRuns.length} summary={checkRuns.length > 0 ? <CheckRunSummary checkRuns={checkRuns} /> : undefined}>
@@ -425,7 +433,7 @@ function readCollapsedMap(): Record<string, boolean> {
   }
 }
 
-function Section({
+export function Section({
   title,
   count,
   attentionCount,

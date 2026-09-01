@@ -550,6 +550,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
                   highlightComment?.filePath === file.path ? highlightComment.line : null
                 }
                 onSendToClaude={handleSendPrComment}
+                prNumber={pr?.number}
               />
               );
             })}

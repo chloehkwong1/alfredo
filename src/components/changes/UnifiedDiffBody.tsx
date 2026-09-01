@@ -25,6 +25,8 @@ interface UnifiedDiffBodyProps {
   onDeleteAnnotation: (id: string) => void;
   onEditAnnotation: (id: string, text: string) => void;
   onSendToClaude?: (comment: PrComment) => void;
+  repoPath?: string;
+  prNumber?: number;
 }
 
 function UnifiedDiffBody({
@@ -45,6 +47,8 @@ function UnifiedDiffBody({
   onDeleteAnnotation,
   onEditAnnotation,
   onSendToClaude,
+  repoPath,
+  prNumber,
 }: UnifiedDiffBodyProps) {
   return (
     <div className="min-w-max">
@@ -126,6 +130,8 @@ function UnifiedDiffBody({
                         expanded={commentsExpanded}
                         onToggle={() => toggleCommentLine(lineNumber)}
                         onSendToClaude={onSendToClaude}
+                        repoPath={repoPath}
+                        prNumber={prNumber}
                       />
                     </div>
                   )}

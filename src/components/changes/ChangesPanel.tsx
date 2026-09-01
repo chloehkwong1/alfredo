@@ -625,6 +625,7 @@ function WorkspacePanel({
       {panelTab === "pr" && hasPr ? (
         <PrPanelContent
           worktreeId={worktreeId}
+          repoPath={repoPath}
           onJumpToComment={handleJumpToComment}
         />
       ) : (

@@ -26,6 +26,8 @@ interface SplitDiffBodyProps {
   onDeleteAnnotation: (id: string) => void;
   onEditAnnotation: (id: string, text: string) => void;
   onSendToClaude?: (comment: PrComment) => void;
+  repoPath?: string;
+  prNumber?: number;
 }
 
 function SplitDiffBody({
@@ -47,6 +49,8 @@ function SplitDiffBody({
   onDeleteAnnotation,
   onEditAnnotation,
   onSendToClaude,
+  repoPath,
+  prNumber,
 }: SplitDiffBodyProps) {
   return (
     <div className="split-diff-body">
@@ -137,6 +141,8 @@ function SplitDiffBody({
                               expanded={commentsExpanded}
                               onToggle={() => toggleCommentLine(lineNumber)}
                               onSendToClaude={onSendToClaude}
+                              repoPath={repoPath}
+                              prNumber={prNumber}
                             />
                           )}
                           {lineAnnotations.map((ann) => (
@@ -185,6 +191,8 @@ function SplitDiffBody({
                                 expanded={commentsExpanded}
                                 onToggle={() => toggleCommentLine(lineNumber)}
                                 onSendToClaude={onSendToClaude}
+                                repoPath={repoPath}
+                                prNumber={prNumber}
                               />
                             </div>
                           )}

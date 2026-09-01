@@ -65,6 +65,9 @@ interface DiffFileCardProps {
   /** When set, auto-expand the PR comment thread on this line and scroll to it. */
   highlightCommentLine?: number | null;
   onSendToClaude?: (comment: PrComment) => void;
+  /** PR number — when set (alongside repoPath), thread comment replies and
+   *  resolve/unresolve become available. Omitted entirely when there's no PR. */
+  prNumber?: number;
 }
 
 
@@ -91,6 +94,7 @@ interface LegacyDiffBodyProps {
   onDeleteAnnotation: (annotationId: string) => void;
   onEditAnnotation: (annotationId: string, newText: string) => void;
   onSendToClaude?: (comment: PrComment) => void;
+  prNumber?: number;
 }
 
 function LegacyDiffBody({
@@ -112,6 +116,7 @@ function LegacyDiffBody({
   onDeleteAnnotation,
   onEditAnnotation,
   onSendToClaude,
+  prNumber,
 }: LegacyDiffBodyProps) {
   const { gapInfo, expandedGaps, loadingGaps, handleExpandContext } = useContextExpansion(
     file, repoPath, commitHash, autoExpandAll,
@@ -139,6 +144,8 @@ function LegacyDiffBody({
         onDeleteAnnotation={onDeleteAnnotation}
         onEditAnnotation={onEditAnnotation}
         onSendToClaude={onSendToClaude}
+        repoPath={repoPath}
+        prNumber={prNumber}
       />
     );
   }
@@ -164,6 +171,8 @@ function LegacyDiffBody({
       onDeleteAnnotation={onDeleteAnnotation}
       onEditAnnotation={onEditAnnotation}
       onSendToClaude={onSendToClaude}
+      repoPath={repoPath}
+      prNumber={prNumber}
     />
   );
 }
@@ -191,6 +200,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       autoExpandAll,
       highlightCommentLine,
       onSendToClaude,
+      prNumber,
     },
     ref
   ) {
@@ -352,6 +362,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 onDeleteAnnotation={onDeleteAnnotation}
                 onEditAnnotation={onEditAnnotation}
                 onSendToClaude={onSendToClaude}
+                prNumber={prNumber}
               />
             )}
           </div>
@@ -415,7 +426,8 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   prev.onEditAnnotation === next.onEditAnnotation &&
   prev.autoExpandAll === next.autoExpandAll &&
   prev.highlightCommentLine === next.highlightCommentLine &&
-  prev.onSendToClaude === next.onSendToClaude
+  prev.onSendToClaude === next.onSendToClaude &&
+  prev.prNumber === next.prNumber
 );
 
 export { DiffFileCard };

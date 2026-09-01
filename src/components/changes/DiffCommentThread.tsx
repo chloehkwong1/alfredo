@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { Check, ChevronRight, ChevronUp, ExternalLink, GitPullRequest } from "lucide-react";
 import { ClaudeIcon } from "../icons/agents";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { replyToPrComment, setPrThreadResolved } from "../../api";
+import { useToastStore } from "../../stores/toastStore";
 import type { PrComment } from "../../types";
 import { MarkdownBody, stripToPlainText } from "../shared/MarkdownBody";
 import { formatTimeAgo } from "./formatRelativeTime";
@@ -11,10 +14,45 @@ interface DiffCommentThreadProps {
   expanded: boolean;
   onToggle: () => void;
   onSendToClaude?: (comment: PrComment) => void;
+  repoPath?: string;
+  prNumber?: number;
 }
 
-function DiffCommentThread({ comments, expanded, onToggle, onSendToClaude }: DiffCommentThreadProps) {
+function DiffCommentThread({ comments, expanded, onToggle, onSendToClaude, repoPath, prNumber }: DiffCommentThreadProps) {
   const allResolved = comments.length > 0 && comments.every((c) => c.resolved);
+  const [replying, setReplying] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const canReplyOrResolve = repoPath !== undefined && prNumber !== undefined;
+  const threadId = comments[0]?.threadId ?? null;
+
+  async function handleReply() {
+    if (repoPath === undefined || prNumber === undefined || !replyText.trim()) return;
+    setSendingReply(true);
+    try {
+      await replyToPrComment(repoPath, prNumber, comments[0].id, replyText.trim());
+      setReplyText("");
+      setReplying(false);
+      useToastStore.getState().show({ message: "Reply posted" });
+    } catch (e) {
+      useToastStore.getState().show({ message: `Reply failed: ${String(e)}`, durationMs: 0 });
+    } finally {
+      setSendingReply(false);
+    }
+  }
+
+  async function handleToggleResolved() {
+    if (repoPath === undefined || threadId === null) return;
+    setResolving(true);
+    try {
+      await setPrThreadResolved(repoPath, threadId, !allResolved);
+    } catch (e) {
+      useToastStore.getState().show({ message: `${allResolved ? "Unresolve" : "Resolve"} failed: ${String(e)}`, durationMs: 0 });
+    } finally {
+      setResolving(false);
+    }
+  }
 
   // ── Collapsed: preview bar ──
   if (!expanded) {
@@ -159,6 +197,67 @@ function DiffCommentThread({ comments, expanded, onToggle, onSendToClaude }: Dif
           </div>
         </div>
       ))}
+      {canReplyOrResolve && (
+        <div className="px-2.5 py-1.5 bg-[var(--bg-elevated)] border-t border-[var(--border-subtle)] flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setReplying((v) => !v)}
+              className="px-2 py-1 rounded-sm text-[11px] font-medium text-text-secondary hover:bg-bg-hover border border-border-default cursor-pointer bg-transparent"
+            >
+              Reply
+            </button>
+            {threadId !== null && (
+              <button
+                onClick={handleToggleResolved}
+                disabled={resolving}
+                className="px-2 py-1 rounded-sm text-[11px] font-medium text-text-secondary hover:bg-bg-hover border border-border-default cursor-pointer bg-transparent disabled:opacity-40 disabled:cursor-default"
+              >
+                {allResolved ? "Unresolve" : "Resolve"}
+              </button>
+            )}
+          </div>
+          {replying && (
+            <div className="flex flex-col gap-1.5">
+              <textarea
+                autoFocus
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    handleReply();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    setReplying(false);
+                    setReplyText("");
+                  }
+                }}
+                placeholder="Reply to this thread…"
+                rows={2}
+                className="w-full px-2 py-1.5 rounded-sm text-[12px] bg-bg-primary border border-border-default text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20 resize-y leading-relaxed"
+              />
+              <div className="flex justify-end gap-1.5">
+                <button
+                  onClick={() => {
+                    setReplying(false);
+                    setReplyText("");
+                  }}
+                  className="px-2.5 py-1 rounded-md text-[11px] text-text-secondary bg-transparent border border-border-default hover:bg-bg-hover cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReply}
+                  disabled={sendingReply || !replyText.trim()}
+                  className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-on-accent bg-accent-primary hover:bg-accent-hover cursor-pointer border-none disabled:opacity-40 disabled:cursor-default"
+                >
+                  {sendingReply ? "Replying…" : "Reply"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
