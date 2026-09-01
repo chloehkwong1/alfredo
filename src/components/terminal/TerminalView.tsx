@@ -340,21 +340,6 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     return () => window.removeEventListener("focus-terminal", handler);
   }, [tabId, ptyTerminal]);
 
-  // Listen for Restart Session events fired by the worktree-level
-  // SettingsStatusBar — keyed strictly on tabId so cross-pane / cross-tab
-  // events don't trigger the wrong session.
-  useEffect(() => {
-    if (!tabId) return;
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.tabId === tabId) {
-        handleRestartSession();
-      }
-    };
-    window.addEventListener("restart-session", handler);
-    return () => window.removeEventListener("restart-session", handler);
-  }, [tabId, handleRestartSession]);
-
   // Cmd+F to toggle terminal search — gated by activePaneId so it only fires
   // for the currently active pane (split layouts) and works regardless of
   // where focus actually sits in the DOM.
