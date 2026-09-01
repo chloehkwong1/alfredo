@@ -1,0 +1,34 @@
+src/components/layout/AppShell.tsx
+  s_6ab68dbbe2d479::t_96e43974ab5bb0 281
+  s_6ab68dbbe2d479::t_840a7e83867256 391,397,416-421,428-429
+  s_6ab68dbbe2d479::t_bf67c39a0680e0 205-207
+src/components/commandPalette/useCommandRegistry.ts
+  s_6ab68dbbe2d479::t_817209c1a5139e 161-172
+  s_6ab68dbbe2d479::t_067e4211fdb481 11
+  s_6ab68dbbe2d479::t_e6988aad9a7739 160
+src/hooks/useKeyboardShortcuts.ts
+  s_6ab68dbbe2d479::t_9c4ea1226448f0 112-121
+  s_6ab68dbbe2d479::t_73109b5ff46767 23
+src/components/settings/ShortcutsOverlay.tsx
+  s_6ab68dbbe2d479::t_8f04e09f46ec20 38
+src/components/changes/ChangesPanel.tsx
+  s_6ab68dbbe2d479::t_181ad0b979d277 2
+  s_6ab68dbbe2d479::t_100a52ff21d8f2 344-345,350-351
+  s_6ab68dbbe2d479::t_94e2b5655c75e7 543-555
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ea6c85722e46569ab49cc4c923e10e1543f6efa5",
+  "prompts": {},
+  "sessions": {
+    "s_6ab68dbbe2d479": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c299f573-05ea-4318-a34e-1a95c5158247",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
