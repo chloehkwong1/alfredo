@@ -124,9 +124,17 @@ export async function ensureAgentSession(
 
 /**
  * Encode a text message and write it to a PTY session.
+ *
+ * Multi-line messages are framed in bracketed-paste markers (ESC[200~ …
+ * ESC[201~), matching what a terminal emulator sends for a real paste.
+ * Claude Code's input treats an UNframed newline-containing burst as
+ * keystrokes and silently drops everything before the tail, so raw writes
+ * arrive clipped to the last few lines. Single-line writes stay bare — the
+ * auto-submit "\r" must land as a lone Enter keypress, not as pasted text.
  */
 export async function writeToSession(sessionId: string, message: string): Promise<void> {
-  const bytes = Array.from(new TextEncoder().encode(message));
+  const framed = message.includes("\n") ? `\x1b[200~${message}\x1b[201~` : message;
+  const bytes = Array.from(new TextEncoder().encode(framed));
   await writePty(sessionId, bytes);
 }
 
