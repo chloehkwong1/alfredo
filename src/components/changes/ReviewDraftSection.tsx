@@ -33,8 +33,8 @@ export function ReviewDraftSection({
   const comments = pending?.comments ?? [];
   const verdict = pending?.verdict ?? "comment";
   const body = pending?.body ?? "";
-  // GitHub rejects a COMMENT review with nothing in it.
-  const canSubmit = !submitting && (verdict !== "comment" || body.trim() !== "" || comments.length > 0);
+  // Mirrors build_review_request_body (github_manager.rs): only APPROVE may omit the body.
+  const canSubmit = !submitting && (verdict === "approve" || body.trim() !== "");
   const verdictLabel = VERDICTS.find((v) => v.value === verdict)!.label;
 
   async function handleSubmit() {
@@ -151,7 +151,7 @@ export function ReviewDraftSection({
       <textarea
         value={body}
         onChange={(e) => setReviewBody(worktreeId, e.target.value)}
-        placeholder="Leave a summary comment (optional unless the review is just a comment)…"
+        placeholder="Summary — required unless approving…"
         rows={3}
         className="w-full px-2.5 py-2 rounded-md text-[13px] bg-bg-primary border border-border-default text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20 resize-y leading-relaxed"
       />

@@ -2684,6 +2684,13 @@ mod tests {
         assert!(build_review_request_body("merge", "", &[]).is_err());
     }
 
+    #[test]
+    fn test_build_review_request_body_rejects_blank_body_unless_approving() {
+        assert!(build_review_request_body("request_changes", "", &[]).is_err());
+        assert!(build_review_request_body("comment", "", &[]).is_err());
+        assert!(build_review_request_body("comment", "x", &[]).is_ok());
+    }
+
     // --- map_github_file tests ---
 
     #[test]

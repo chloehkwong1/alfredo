@@ -26,12 +26,13 @@ function DiffCommentThread({ comments, expanded, onToggle, onSendToClaude, repoP
   const [resolving, setResolving] = useState(false);
   const canReplyOrResolve = repoPath !== undefined && prNumber !== undefined;
   const threadId = comments[0]?.threadId ?? null;
+  const replyTarget = comments.find((c) => c.inReplyToId === null) ?? comments[0];
 
   async function handleReply() {
     if (sendingReply || repoPath === undefined || prNumber === undefined || !replyText.trim()) return;
     setSendingReply(true);
     try {
-      await replyToPrComment(repoPath, prNumber, comments[0].id, replyText.trim());
+      await replyToPrComment(repoPath, prNumber, replyTarget.id, replyText.trim());
       setReplyText("");
       setReplying(false);
       useToastStore.getState().show({ message: "Reply posted" });

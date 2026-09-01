@@ -420,7 +420,12 @@ function AppShell() {
                 groupRef={changesGroupRef}
                 defaultLayout={changesPanelLayout.defaultLayout}
                 onLayoutChanged={(layout, meta) => {
-                  changesLayoutByMode.current[changesPanelFocused ? "focused" : "normal"] = layout;
+                  // Collapsed-state payloads only carry the `content` panel; recording
+                  // those here would later restore a layout missing `changes` while both
+                  // panels are registered (⌘I → ⌘⇧E → ⌘⇧E), breaking focus-mode width.
+                  if ("changes" in layout) {
+                    changesLayoutByMode.current[changesPanelFocused ? "focused" : "normal"] = layout;
+                  }
                   changesPanelLayout.onLayoutChanged(layout, meta);
                 }}
               >
