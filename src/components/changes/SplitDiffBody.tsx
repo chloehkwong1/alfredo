@@ -3,6 +3,7 @@ import { SplitSideContent } from "./SplitDiffLine";
 import { pairLinesForSplit } from "./splitPairing";
 import { AnnotationBubble } from "./AnnotationBubble";
 import { DiffCommentThread } from "./DiffCommentThread";
+import { splitIntoThreads } from "./prCommentLookup";
 import { ExpandContextButton } from "./ExpandContextButton";
 import type { DiffFile, DiffLine, Annotation, PrComment, DiffSide } from "../../types";
 import type { GapInfo } from "./useContextExpansion";
@@ -135,16 +136,18 @@ function SplitDiffBody({
                             searchQuery={searchQuery}
                             isActiveSearchMatch={isActiveMatch}
                           />
-                          {hasComments && lineNumber !== null && (
-                            <DiffCommentThread
-                              comments={lineComments}
-                              expanded={commentsExpanded}
-                              onToggle={() => toggleCommentLine(lineNumber)}
-                              onSendToClaude={onSendToClaude}
-                              repoPath={repoPath}
-                              prNumber={prNumber}
-                            />
-                          )}
+                          {hasComments && lineNumber !== null &&
+                            splitIntoThreads(lineComments).map((thread) => (
+                              <DiffCommentThread
+                                key={thread[0].id}
+                                comments={thread}
+                                expanded={commentsExpanded}
+                                onToggle={() => toggleCommentLine(lineNumber)}
+                                onSendToClaude={onSendToClaude}
+                                repoPath={repoPath}
+                                prNumber={prNumber}
+                              />
+                            ))}
                           {lineAnnotations.map((ann) => (
                             <AnnotationBubble
                               key={ann.id}
@@ -186,14 +189,17 @@ function SplitDiffBody({
                           />
                           {hasComments && lineNumber !== null && (
                             <div ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}>
-                              <DiffCommentThread
-                                comments={lineComments}
-                                expanded={commentsExpanded}
-                                onToggle={() => toggleCommentLine(lineNumber)}
-                                onSendToClaude={onSendToClaude}
-                                repoPath={repoPath}
-                                prNumber={prNumber}
-                              />
+                              {splitIntoThreads(lineComments).map((thread) => (
+                                <DiffCommentThread
+                                  key={thread[0].id}
+                                  comments={thread}
+                                  expanded={commentsExpanded}
+                                  onToggle={() => toggleCommentLine(lineNumber)}
+                                  onSendToClaude={onSendToClaude}
+                                  repoPath={repoPath}
+                                  prNumber={prNumber}
+                                />
+                              ))}
                             </div>
                           )}
                           {lineAnnotations.map((ann) => (

@@ -1,5 +1,5 @@
-import { writePty, getConfig, getAppConfig, listClaudeSessions } from "../api";
-import { resolveSettings, buildClaudeArgs } from "./claudeSettingsResolver";
+import { writePty, listClaudeSessions } from "../api";
+import { loadLaunchArgs } from "./claudeSettingsResolver";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -78,12 +78,10 @@ export async function ensureAgentSession(
   const worktreePath =
     useWorkspaceStore.getState().worktrees.find((w) => w.id === worktreeId)?.path || repoPath;
 
-  // Load configs resiliently: a transient getConfig/getAppConfig rejection must
-  // not throw here, or the caller silently drops the whole action — e.g. the
-  // background open-issue path creates the worktree but never launches Claude,
-  // and send-to-Claude/PR-comment paths abort mid-flight. Mirror
-  // TerminalView.resolveLaunchArgs: degrade to defaults built from whatever
-  // resolved rather than failing.
+  // loadLaunchArgs never throws: a transient config rejection must not abort
+  // the whole action here — e.g. the background open-issue path creates the
+  // worktree but never launches Claude, and send-to-Claude/PR-comment paths
+  // abort mid-flight. It degrades to defaults built from whatever resolved.
   //
   // We also snapshot the worktree's existing Claude sessions here — a PRE-SPAWN
   // baseline. Because we (a background spawner) start the PTY before the terminal
@@ -91,24 +89,10 @@ export async function ensureAgentSession(
   // already contain this tab's freshly-written session, permanently excluding it
   // from discovery. Capturing it now (before getOrSpawn spawns) lets discovery
   // adopt this tab's own session and persist its resumeSessionId.
-  const [appRes, cfgRes, baseRes] = await Promise.allSettled([
-    getAppConfig(),
-    getConfig(repoPath),
-    listClaudeSessions(worktreePath),
+  const [args, spawnBaseline] = await Promise.all([
+    loadLaunchArgs(repoPath, { logTag: "agentMessenger" }),
+    listClaudeSessions(worktreePath).catch(() => []),
   ]);
-  if (appRes.status === "rejected" || cfgRes.status === "rejected") {
-    console.error(
-      `[agentMessenger] settings resolution failed for ${repoPath}; launching with defaults:`,
-      [appRes, cfgRes]
-        .filter((r) => r.status === "rejected")
-        .map((r) => (r as PromiseRejectedResult).reason),
-    );
-  }
-  const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
-  const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
-  const spawnBaseline = baseRes.status === "fulfilled" ? baseRes.value : [];
-  const resolved = resolveSettings(appCfg, config?.claudeDefaults);
-  const args = buildClaudeArgs(resolved);
   // "agent" sessionType (not the backend's "shell" default): the orphan
   // sweep and close() grace both branch on it, and background-opened claude
   // sessions are exactly the kind that must get the busy-gate.

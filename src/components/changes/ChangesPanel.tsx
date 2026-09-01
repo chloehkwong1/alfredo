@@ -671,7 +671,7 @@ function WorkspacePanel({
           checkRuns={checkRuns}
           mergeable={mergeable}
           reviewDecision={reviewDecision}
-          repoPath={repoPath}
+          repoPath={worktree?.repoPath ?? repoPath}
         />
       )}
 

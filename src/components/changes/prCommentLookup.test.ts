@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PrComment } from "../../types";
-import { groupPrCommentsByLine, getRowComments } from "./prCommentLookup";
+import { groupPrCommentsByLine, getRowComments, splitIntoThreads } from "./prCommentLookup";
 
 function comment(overrides: Partial<PrComment>): PrComment {
   return {
@@ -119,5 +119,38 @@ describe("getRowComments", () => {
     // Comment id 2 is LEFT-side and must only appear on the deletion row.
     expect(deletionRow.find((c) => c.id === 2)).toBeDefined();
     expect(additionRow.find((c) => c.id === 2)).toBeUndefined();
+  });
+});
+
+describe("splitIntoThreads", () => {
+  it("keeps a single thread together, replies included", () => {
+    const threads = splitIntoThreads([
+      comment({ id: 1, threadId: "T1" }),
+      comment({ id: 2, threadId: "T1", inReplyToId: 1 }),
+    ]);
+    expect(threads).toHaveLength(1);
+    expect(threads[0].map((c) => c.id)).toEqual([1, 2]);
+  });
+
+  it("splits two threads sharing the same line", () => {
+    const threads = splitIntoThreads([
+      comment({ id: 1, threadId: "T1" }),
+      comment({ id: 2, threadId: "T2" }),
+      comment({ id: 3, threadId: "T2", inReplyToId: 2 }),
+    ]);
+    expect(threads).toHaveLength(2);
+    expect(threads[0].map((c) => c.id)).toEqual([1]);
+    expect(threads[1].map((c) => c.id)).toEqual([2, 3]);
+  });
+
+  it("falls back to the reply chain's root when threadId is missing", () => {
+    const threads = splitIntoThreads([
+      comment({ id: 1, threadId: null }),
+      comment({ id: 2, threadId: null, inReplyToId: 1 }),
+      comment({ id: 3, threadId: null }),
+    ]);
+    expect(threads).toHaveLength(2);
+    expect(threads[0].map((c) => c.id)).toEqual([1, 2]);
+    expect(threads[1].map((c) => c.id)).toEqual([3]);
   });
 });

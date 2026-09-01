@@ -3,7 +3,7 @@ import { SyntaxDiffLine } from "./SyntaxDiffLine";
 import { AnnotationBubble } from "./AnnotationBubble";
 import { DiffCommentThread } from "./DiffCommentThread";
 import { ExpandContextButton } from "./ExpandContextButton";
-import { getRowComments } from "./prCommentLookup";
+import { getRowComments, splitIntoThreads } from "./prCommentLookup";
 import type { DiffFile, DiffLine, Annotation, PrComment, DiffSide } from "../../types";
 import type { GapInfo } from "./useContextExpansion";
 
@@ -125,14 +125,17 @@ function UnifiedDiffBody({
                 >
                   {hasComments && lineNumber !== null && (
                     <div ref={lineNumber === highlightCommentLine ? highlightLineRef : undefined}>
-                      <DiffCommentThread
-                        comments={lineComments}
-                        expanded={commentsExpanded}
-                        onToggle={() => toggleCommentLine(lineNumber)}
-                        onSendToClaude={onSendToClaude}
-                        repoPath={repoPath}
-                        prNumber={prNumber}
-                      />
+                      {splitIntoThreads(lineComments).map((thread) => (
+                        <DiffCommentThread
+                          key={thread[0].id}
+                          comments={thread}
+                          expanded={commentsExpanded}
+                          onToggle={() => toggleCommentLine(lineNumber)}
+                          onSendToClaude={onSendToClaude}
+                          repoPath={repoPath}
+                          prNumber={prNumber}
+                        />
+                      ))}
                     </div>
                   )}
 

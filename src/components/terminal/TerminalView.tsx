@@ -11,7 +11,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { sessionManager } from "../../services/sessionManager";
-import { writePty, getConfig, getAppConfig, findClaudeSession, listClaudeSessions, recordResumeSessionId, debugLog, dumpPtyBuffer } from "../../api";
+import { writePty, findClaudeSession, listClaudeSessions, recordResumeSessionId, debugLog, dumpPtyBuffer } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { useToastStore } from "../../stores/toastStore";
@@ -19,11 +19,7 @@ import { Button } from "../ui/Button";
 import { CatLogo } from "../ui/CatLogo";
 import { TerminalSearchBar } from "./TerminalSearchBar";
 import { TerminalLoadingScreen } from "./TerminalLoadingScreen";
-import {
-  resolveSettings,
-  buildClaudeArgs,
-  withResumeSession,
-} from "../../services/claudeSettingsResolver";
+import { loadLaunchArgs, withResumeSession } from "../../services/claudeSettingsResolver";
 import type { Annotation, SessionType, TabType } from "../../types";
 
 function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell"; sessionType: SessionType } {
@@ -37,29 +33,8 @@ function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemin
   }
 }
 
-const SETTINGS_LOAD_ERROR_MSG = "Couldn't load Claude settings — launching with defaults.";
-
-/**
- * Load both configs via allSettled, log + toast on any rejection (deduped),
- * then resolve and build Claude launch args from whatever succeeded.
- * Never throws — on total failure returns args built from all-null config.
- */
-async function resolveLaunchArgs(repoPath: string): Promise<string[]> {
-  const [appRes, cfgRes] = await Promise.allSettled([getAppConfig(), getConfig(repoPath)]);
-  if (appRes.status === "rejected" || cfgRes.status === "rejected") {
-    console.error(
-      `[TerminalView] settings resolution failed for ${repoPath}:`,
-      [appRes, cfgRes].filter((r) => r.status === "rejected").map((r) => (r as PromiseRejectedResult).reason),
-    );
-    const { toasts, show } = useToastStore.getState();
-    if (!toasts.some((t) => t.message === SETTINGS_LOAD_ERROR_MSG)) {
-      show({ message: SETTINGS_LOAD_ERROR_MSG });
-    }
-  }
-  const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
-  const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
-  const resolved = resolveSettings(appCfg, config?.claudeDefaults);
-  return buildClaudeArgs(resolved);
+function resolveLaunchArgs(repoPath: string): Promise<string[]> {
+  return loadLaunchArgs(repoPath, { logTag: "TerminalView", toastOnError: true });
 }
 
 interface TerminalViewProps {
@@ -163,7 +138,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       setResolvedArgs(finalArgs);
     });
     return () => { aborted = true; };
-  }, [repoPath, worktree?.branch, mode, claudeSessionId, tabType, tabCommand]);
+  }, [repoPath, mode, claudeSessionId, tabType, tabCommand]);
 
   const [showSearch, setShowSearch] = useState(false);
 

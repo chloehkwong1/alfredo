@@ -1,5 +1,39 @@
 import type { ClaudeDefaults, GlobalAppConfig } from "../types";
+import { getAppConfig, getConfig } from "../api";
+import { useToastStore } from "../stores/toastStore";
 import { parseLaunchFlags } from "./launchCommand";
+
+const SETTINGS_LOAD_ERROR_MSG = "Couldn't load Claude settings — launching with defaults.";
+
+/**
+ * Load global + repo config via allSettled, log (and optionally toast, deduped)
+ * on any rejection, then build Claude launch args from whatever succeeded.
+ * Never throws — on total failure returns args built from all-null config, so
+ * callers can't silently drop their whole action on a transient config error.
+ */
+export async function loadLaunchArgs(
+  repoPath: string,
+  opts: { logTag: string; toastOnError?: boolean },
+): Promise<string[]> {
+  const [appRes, cfgRes] = await Promise.allSettled([getAppConfig(), getConfig(repoPath)]);
+  if (appRes.status === "rejected" || cfgRes.status === "rejected") {
+    console.error(
+      `[${opts.logTag}] settings resolution failed for ${repoPath}; launching with defaults:`,
+      [appRes, cfgRes]
+        .filter((r) => r.status === "rejected")
+        .map((r) => (r as PromiseRejectedResult).reason),
+    );
+    if (opts.toastOnError) {
+      const { toasts, show } = useToastStore.getState();
+      if (!toasts.some((t) => t.message === SETTINGS_LOAD_ERROR_MSG)) {
+        show({ message: SETTINGS_LOAD_ERROR_MSG });
+      }
+    }
+  }
+  const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
+  const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
+  return buildClaudeArgs(resolveSettings(appCfg, config?.claudeDefaults));
+}
 
 export interface ResolvedClaudeSettings {
   model?: string;

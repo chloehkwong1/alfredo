@@ -266,7 +266,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
     } finally {
       sendingAnnotations.current = false;
     }
-  }, [annotations, worktreeId, repoRoot, clearAnnotations]);
+  }, [annotations, displayFiles, worktreeId, repoRoot, clearAnnotations]);
 
   const {
     discardTarget,

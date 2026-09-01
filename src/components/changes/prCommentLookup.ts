@@ -51,3 +51,23 @@ export function getRowComments(
   }
   return out;
 }
+
+/**
+ * Split one diff row's comments into distinct GitHub threads, so replies and
+ * resolves target the right thread when two reviewers each started one on the
+ * same line. Grouped by threadId when the resolution fetch supplied one, else
+ * by the reply chain's root comment id.
+ */
+export function splitIntoThreads(comments: PrComment[]): PrComment[][] {
+  const map = new Map<string, PrComment[]>();
+  for (const comment of comments) {
+    const key = comment.threadId ?? `root:${comment.inReplyToId ?? comment.id}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.push(comment);
+    } else {
+      map.set(key, [comment]);
+    }
+  }
+  return [...map.values()];
+}

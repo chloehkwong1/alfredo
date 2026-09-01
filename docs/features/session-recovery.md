@@ -13,7 +13,6 @@ What survives a restart:
 
 - The list of worktrees and which kanban column each is in.
 - Tab order, which tab is active, and pane splits within a worktree.
-- Per-worktree agent type, model, permission mode, and output style.
 - Linear ticket metadata attached to a worktree.
 
 What does **not** survive:

@@ -58,6 +58,9 @@ function RenderNode({
     <Group
       orientation={node.direction === "horizontal" ? "horizontal" : "vertical"}
       onLayoutChanged={(layout) => {
+        // react-resizable-panels fires partial payloads while panels are
+        // (un)mounting — same invariant as AppShell's changes-panel guard, but
+        // these panels are anonymous, so completeness is a count check here.
         const values = Object.values(layout);
         if (values.length === 2) {
           updateSplitRatio(worktreeId, values[0] / 100);
