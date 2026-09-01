@@ -1,0 +1,49 @@
+src/services/agentMessenger.ts
+  s_6ab68dbbe2d479::t_4240d46c91bcca 92-94
+  s_6ab68dbbe2d479::t_f282b394759a59 1-2
+  s_6ab68dbbe2d479::t_9c66e0892b0bdd 81-84
+src/components/layout/LayoutRenderer.tsx
+  s_6ab68dbbe2d479::t_9bf1c481ebae08 61-63
+docs/features/agent-settings.md
+  s_6ab68dbbe2d479::t_c200ae3222af7d 8-9
+src/components/changes/UnifiedDiffBody.tsx
+  s_6ab68dbbe2d479::t_b2be4d5486a915 6
+  s_6ab68dbbe2d479::t_1e34ee281ce425 128-138
+src/components/changes/prCommentLookup.ts
+  s_6ab68dbbe2d479::t_1f8328eaa5e994 54-73
+src/services/claudeSettingsResolver.ts
+  s_6ab68dbbe2d479::t_3326521c8ec9d7 2-3,6-36
+  s_6ab68dbbe2d479::t_4750be414aab9b 37
+src/components/changes/ChangesPanel.tsx
+  s_6ab68dbbe2d479::t_93708145bd464c 674
+src/components/changes/ChangesView.tsx
+  s_6ab68dbbe2d479::t_613edb0495fa4c 269
+src/components/terminal/TerminalView.tsx
+  s_6ab68dbbe2d479::t_f6962864466d36 141
+  s_6ab68dbbe2d479::t_fa2e87afd970be 36-37
+  s_6ab68dbbe2d479::t_2a3fd5d0695180 14
+  s_6ab68dbbe2d479::t_9c07b7196673c9 22
+src/components/changes/SplitDiffBody.tsx
+  s_6ab68dbbe2d479::t_b04cb4f807e5ca 192-202
+  s_6ab68dbbe2d479::t_f65ba8c17f9157 6
+  s_6ab68dbbe2d479::t_d09ee95caaeb80 139-150
+src/components/changes/prCommentLookup.test.ts
+  s_6ab68dbbe2d479::t_84c47ebd389ca8 124-156
+  s_6ab68dbbe2d479::t_040d3db2034642 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2a69c83661c28583411b206536c07d3cdf02a264",
+  "prompts": {},
+  "sessions": {
+    "s_6ab68dbbe2d479": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c299f573-05ea-4318-a34e-1a95c5158247",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
