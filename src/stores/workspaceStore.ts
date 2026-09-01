@@ -162,6 +162,8 @@ interface WorkspaceState {
  * identity signal exists does the name alone decide (the remaining gap: a
  * recreated same-name worktree would inherit the dead one's session state).
  */
+const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
+
 function isSamePhysicalWorktree(prev: Worktree, wt: Worktree): boolean {
   if (prev.name !== wt.name) return false;
   if (prev.createdAtEpoch != null && wt.createdAtEpoch != null) {
@@ -781,7 +783,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   addReviewDraftComment: (worktreeId, comment) =>
     set((state) => {
-      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
       const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
       return {
         pendingReviews: {
@@ -826,7 +827,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   setReviewVerdict: (worktreeId, verdict) =>
     set((state) => {
-      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
       const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
       return {
         pendingReviews: {
@@ -838,7 +838,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   setReviewBody: (worktreeId, body) =>
     set((state) => {
-      const EMPTY_REVIEW: PendingReview = { comments: [], verdict: "comment", body: "" };
       const current = state.pendingReviews[worktreeId] ?? EMPTY_REVIEW;
       return {
         pendingReviews: {

@@ -31,12 +31,10 @@ function AnnotationInput({ filePath, lineNumber, onSubmit, onCancel, onSubmitRev
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && e.shiftKey && text.trim() && onSubmitReview) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && text.trim()) {
       e.preventDefault();
-      onSubmitReview(text.trim());
-    } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && text.trim()) {
-      e.preventDefault();
-      onSubmit(text.trim());
+      const submit = e.shiftKey && onSubmitReview ? onSubmitReview : onSubmit;
+      submit(text.trim());
     } else if (e.key === "Escape") {
       e.preventDefault();
       onCancel();

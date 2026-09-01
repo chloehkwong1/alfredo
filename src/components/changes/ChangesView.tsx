@@ -163,6 +163,10 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
   const setDiffViewMode = useWorkspaceStore((s) => s.setDiffViewMode);
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments ?? EMPTY_COMMENTS);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
+  // `repoPath` is the worktree's checkout (PaneView passes worktree.path) and is
+  // what git reads need. Config-keyed calls (per-repo config, GitHub token) must
+  // use the repo root instead — hashing the worktree path finds an empty config.
+  const repoRoot = worktree?.repoPath ?? repoPath;
   const pr = worktree?.prStatus ?? null;
   const hasPr = pr !== null;
   const showPrComments = useWorkspaceStore((s) => s.showPrComments[worktreeId] ?? (pr !== null));
@@ -238,9 +242,9 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
 
   const handleSendPrComment = useCallback(
     (comment: PrComment) => {
-      sendPrCommentToClaude(worktreeId, repoPath, comment);
+      sendPrCommentToClaude(worktreeId, repoRoot, comment);
     },
-    [worktreeId, repoPath, worktree?.branch],
+    [worktreeId, repoRoot],
   );
 
   const sendingAnnotations = useRef(false);
@@ -251,7 +255,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
       const message = formatAnnotationsMessage(annotations, displayFiles);
       let session;
       try {
-        session = await ensureAgentSession(worktreeId, repoPath);
+        session = await ensureAgentSession(worktreeId, repoRoot);
       } catch {
         return;
       }
@@ -262,7 +266,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
     } finally {
       sendingAnnotations.current = false;
     }
-  }, [annotations, worktreeId, repoPath, worktree?.branch, clearAnnotations]);
+  }, [annotations, worktreeId, repoRoot, clearAnnotations]);
 
   const {
     discardTarget,
@@ -538,6 +542,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
                 onEditAnnotation={handleEditAnnotation}
                 prComments={showPrComments ? prComments : []}
                 repoPath={repoPath}
+                repoRoot={repoRoot}
                 commitHash={activeCommitHash}
                 searchQuery={searchQuery}
                 activeSearchMatch={

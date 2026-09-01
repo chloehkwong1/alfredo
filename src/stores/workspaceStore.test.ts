@@ -1150,12 +1150,6 @@ describe("pendingReviews", () => {
   });
 
   it("is rekeyed on worktree rename", () => {
-    useWorkspaceStore.getState().addReviewDraftComment("wt-old", draft);
-    useWorkspaceStore.getState().setWorktrees([
-      makeWorktree({ id: "wt-new", path: "/path/wt-1", branch: "feature-1" }),
-    ]);
-    // Simulate the rekey by manually triggering setWorktrees with the old id becoming new id
-    // First set up the old state
     useWorkspaceStore.setState({
       worktrees: [makeWorktree({ id: "wt-old", path: "/path/wt-1", branch: "feature-1" })],
       pendingReviews: { "wt-old": { comments: [draft], verdict: "comment", body: "" } },

@@ -433,7 +433,7 @@ function readCollapsedMap(): Record<string, boolean> {
   }
 }
 
-export function Section({
+function Section({
   title,
   count,
   attentionCount,

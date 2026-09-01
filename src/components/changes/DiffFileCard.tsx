@@ -57,6 +57,9 @@ interface DiffFileCardProps {
   onEditAnnotation: (annotationId: string, newText: string) => void;
   prComments: PrComment[];
   repoPath: string;
+  /** Repo root (not the worktree checkout) — comment-thread reply/resolve
+   *  resolve per-repo config (GitHub token) keyed by this path. */
+  repoRoot: string;
   commitHash?: string;
   searchQuery?: string;
   activeSearchMatch?: { hunkIndex: number; lineIndex: number } | null;
@@ -79,6 +82,7 @@ interface LegacyDiffBodyProps {
   file: DiffFile;
   viewMode: DiffViewMode;
   repoPath: string;
+  repoRoot: string;
   commitHash?: string;
   autoExpandAll?: boolean;
   annotationsByLine: Map<string, Annotation[]>;
@@ -101,6 +105,7 @@ function LegacyDiffBody({
   file,
   viewMode,
   repoPath,
+  repoRoot,
   commitHash,
   autoExpandAll,
   annotationsByLine,
@@ -144,7 +149,7 @@ function LegacyDiffBody({
         onDeleteAnnotation={onDeleteAnnotation}
         onEditAnnotation={onEditAnnotation}
         onSendToClaude={onSendToClaude}
-        repoPath={repoPath}
+        repoPath={repoRoot}
         prNumber={prNumber}
       />
     );
@@ -171,7 +176,7 @@ function LegacyDiffBody({
       onDeleteAnnotation={onDeleteAnnotation}
       onEditAnnotation={onEditAnnotation}
       onSendToClaude={onSendToClaude}
-      repoPath={repoPath}
+      repoPath={repoRoot}
       prNumber={prNumber}
     />
   );
@@ -193,6 +198,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       onEditAnnotation,
       prComments,
       repoPath,
+      repoRoot,
       commitHash,
       searchQuery,
       activeSearchMatch,
@@ -347,6 +353,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                 file={file}
                 viewMode={viewMode}
                 repoPath={repoPath}
+                repoRoot={repoRoot}
                 commitHash={commitHash}
                 autoExpandAll={autoExpandAll}
                 annotationsByLine={annotationsByLine}
