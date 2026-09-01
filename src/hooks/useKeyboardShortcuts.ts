@@ -20,6 +20,7 @@ import type { WorkspaceTab } from "../types";
  * - Cmd+\: split pane right (horizontal)
  * - Cmd+Shift+\: split pane down (vertical)
  * - Cmd+Shift+C: toggle changes side panel
+ * - Cmd+Shift+E: toggle changes panel focus mode
  * - Cmd+Shift+T: switch to first terminal/claude tab in active pane
  * - Cmd+Option+Left/Right: previous/next tab in active pane (wraps)
  * - Cmd+K: clear active terminal
@@ -104,6 +105,16 @@ export function useKeyboardShortcuts(
           const wsState = useWorkspaceStore.getState();
           const current = wsState.changesPanelCollapsed[activeWorktreeId] ?? false;
           wsState.setChangesPanelCollapsed(activeWorktreeId, !current);
+        }
+        return;
+      }
+
+      // Cmd+Shift+E: toggle changes-panel focus mode
+      if (event.metaKey && event.shiftKey && event.key === "E") {
+        event.preventDefault();
+        if (activeWorktreeId) {
+          const focused = useWorkspaceStore.getState().changesPanelFocused[activeWorktreeId] ?? false;
+          useWorkspaceStore.getState().setChangesPanelFocused(activeWorktreeId, !focused);
         }
         return;
       }

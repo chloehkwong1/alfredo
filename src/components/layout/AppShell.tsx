@@ -202,6 +202,9 @@ function AppShell() {
 
   const changesPanelCollapsed = useWorkspaceStore((s) => s.changesPanelCollapsed[activeWorktreeId ?? ""] ?? false);
   const setChangesPanelCollapsed = useWorkspaceStore((s) => s.setChangesPanelCollapsed);
+  const changesPanelFocused =
+    useWorkspaceStore((s) => (activeWorktreeId ? s.changesPanelFocused[activeWorktreeId] : false)) ?? false;
+  const setChangesPanelFocused = useWorkspaceStore((s) => s.setChangesPanelFocused);
   const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
 
@@ -275,7 +278,7 @@ function AppShell() {
   });
 
   const changesPanelLayout = useDefaultLayout({
-    id: "changes-panel",
+    id: changesPanelFocused ? "changes-panel-focused" : "changes-panel",
     storage: localStorage,
     panelIds: changesPanelCollapsed ? ["content"] : ["content", "changes"],
   });
@@ -385,12 +388,13 @@ function AppShell() {
           {activeWorktreeId ? (
             <>
               <Group
+                key={changesPanelFocused ? "focused" : "normal"}
                 orientation="horizontal"
                 className="flex-1 min-h-0"
                 defaultLayout={changesPanelLayout.defaultLayout}
                 onLayoutChanged={changesPanelLayout.onLayoutChanged}
               >
-                <Panel id="content" minSize={changesPanelCollapsed ? "100%" : "50%"}>
+                <Panel id="content" minSize={changesPanelCollapsed ? "100%" : changesPanelFocused ? "15%" : "30%"}>
                   {/* `relative` so OpenIssueOverlay centers over the terminal/chat
                       pane only, not the changes panel beside it. */}
                   <div className="relative h-full min-h-0">
@@ -409,13 +413,20 @@ function AppShell() {
                 {!changesPanelCollapsed && (
                   <>
                     <Separator className="w-px bg-border-subtle hover:bg-accent-primary transition-colors data-[resize-handle-active]:bg-accent-primary cursor-col-resize" />
-                    <Panel id="changes" defaultSize="220px" minSize="140px" maxSize="400px">
+                    <Panel
+                      id="changes"
+                      defaultSize={changesPanelFocused ? "70%" : "220px"}
+                      minSize={changesPanelFocused ? "50%" : "140px"}
+                      maxSize={changesPanelFocused ? "85%" : "70%"}
+                    >
                       <SectionErrorBoundary name="WorkspacePanel">
                         <WorkspacePanel
                           key={activeWorktreeId}
                           worktreeId={activeWorktreeId}
                           repoPath={activeRepoPath ?? "."}
                           onCollapse={() => setChangesPanelCollapsed(activeWorktreeId, true)}
+                          focused={changesPanelFocused}
+                          onToggleFocus={() => setChangesPanelFocused(activeWorktreeId, !changesPanelFocused)}
                         />
                       </SectionErrorBoundary>
                     </Panel>

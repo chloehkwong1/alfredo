@@ -8,6 +8,7 @@ import {
   Rows2,
   PanelRight,
   PanelLeft,
+  Maximize2,
   Settings,
   Keyboard,
   ExternalLink,
@@ -155,6 +156,19 @@ function buildCommands(activeWorktreeId: string | null, activeWorktree?: Worktre
         wsState.setChangesPanelCollapsed(activeWorktreeId, !current);
       },
       enabled: () => !!activeWorktreeId,
+    },
+    {
+      id: "toggle-changes-focus",
+      label: "Toggle Changes Panel Focus Mode",
+      category: "actions",
+      shortcut: "⌘⇧E",
+      icon: Maximize2,
+      action: () => {
+        if (!activeWorktreeId) return;
+        const focused = useWorkspaceStore.getState().changesPanelFocused[activeWorktreeId] ?? false;
+        useWorkspaceStore.getState().setChangesPanelFocused(activeWorktreeId, !focused);
+      },
+      enabled: () => activeWorktreeId !== null,
     },
     {
       id: "toggle-sidebar",

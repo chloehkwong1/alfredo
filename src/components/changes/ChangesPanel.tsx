@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Download, GitBranch, PanelRightClose, PanelRightOpen, RefreshCw, Upload, X } from "lucide-react";
+import { Check, Copy, Download, GitBranch, Maximize2, Minimize2, PanelRightClose, PanelRightOpen, RefreshCw, Upload, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
@@ -341,10 +341,14 @@ function WorkspacePanel({
   worktreeId,
   repoPath,
   onCollapse,
+  focused,
+  onToggleFocus,
 }: {
   worktreeId: string;
   repoPath: string;
   onCollapse: () => void;
+  focused: boolean;
+  onToggleFocus: () => void;
 }) {
   const panelTab = useWorkspaceStore((s) => s.changesViewMode[worktreeId]) ?? "changes";
   const setChangesViewMode = useWorkspaceStore((s) => s.setChangesViewMode);
@@ -536,14 +540,19 @@ function WorkspacePanel({
         <span className="text-[13px] font-medium text-text-secondary">
           Changes
         </span>
-        <IconButton
-          size="sm"
-          label="Collapse panel"
-          className="h-auto w-auto p-0.5"
-          onClick={onCollapse}
-        >
-          <PanelRightClose size={14} />
-        </IconButton>
+        <div className="flex items-center gap-0.5">
+          <IconButton
+            size="sm"
+            label={focused ? "Exit focus mode" : "Focus mode — widen this panel"}
+            className="h-auto w-auto p-0.5"
+            onClick={onToggleFocus}
+          >
+            {focused ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </IconButton>
+          <IconButton size="sm" label="Collapse panel" className="h-auto w-auto p-0.5" onClick={onCollapse}>
+            <PanelRightClose size={14} />
+          </IconButton>
+        </div>
       </div>
 
       {/* Tab bar — hidden when only uncommitted changes exist (branch-mode on default branch) */}
