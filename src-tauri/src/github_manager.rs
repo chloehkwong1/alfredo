@@ -1205,7 +1205,7 @@ impl GithubManager {
             "mutation($threadId: ID!) { unresolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }"
         };
         let payload = serde_json::json!({ "query": mutation, "variables": { "threadId": thread_id } });
-        let response: serde_json::Value = self
+        let resp = self
             .http_client
             .post("https://api.github.com/graphql")
             .header("Authorization", format!("Bearer {}", self.token()))
@@ -1213,7 +1213,9 @@ impl GithubManager {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| AppError::Github(format!("GraphQL request failed: {e}")))?
+            .map_err(|e| AppError::Github(format!("GraphQL request failed: {e}")))?;
+        let status = resp.status();
+        let response: serde_json::Value = resp
             .json()
             .await
             .map_err(|e| AppError::Github(format!("GraphQL response parse failed: {e}")))?;
@@ -1223,6 +1225,17 @@ impl GithubManager {
                 .and_then(|m| m.as_str())
                 .unwrap_or("unknown GraphQL error");
             return Err(AppError::Github(format!("resolve thread failed: {msg}")));
+        }
+        // A well-formed GraphQL success response always has a non-null `data`.
+        // Auth failures (e.g. 401) return neither `errors` nor `data` — just
+        // `{"message": "Bad credentials", ...}` — which would otherwise parse
+        // clean and fall through to `Ok(())` on a mutation that never ran.
+        if response.get("data").is_none_or(serde_json::Value::is_null) {
+            let msg = response
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("no data in GraphQL response");
+            return Err(AppError::Github(format!("resolve thread failed ({status}): {msg}")));
         }
         Ok(())
     }
