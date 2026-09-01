@@ -51,6 +51,8 @@ interface WorkspaceState {
   changesViewMode: Record<string, "changes" | "commits" | "pr">;
   /** Whether the changes panel is collapsed per worktree. Keyed by worktreeId. */
   changesPanelCollapsed: Record<string, boolean>;
+  /** Whether the changes panel is focused per worktree. Keyed by worktreeId. */
+  changesPanelFocused: Record<string, boolean>;
   /** Whether to show PR comments inline in the diff view. Keyed by worktreeId. */
   showPrComments: Record<string, boolean>;
   setShowPrComments: (worktreeId: string, show: boolean) => void;
@@ -113,6 +115,7 @@ interface WorkspaceState {
   setDiffViewMode: (worktreeId: string, mode: DiffViewMode) => void;
   setChangesViewMode: (worktreeId: string, mode: "changes" | "commits" | "pr") => void;
   setChangesPanelCollapsed: (worktreeId: string, collapsed: boolean) => void;
+  setChangesPanelFocused: (worktreeId: string, focused: boolean) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   /** Pass a `Worktree[]` for the common case, or a builder
@@ -203,6 +206,7 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
     diffViewMode: state.diffViewMode,
     changesViewMode: state.changesViewMode,
     changesPanelCollapsed: state.changesPanelCollapsed,
+    changesPanelFocused: state.changesPanelFocused,
     showPrComments: state.showPrComments,
     runningServers: state.runningServers,
     seenWorktrees: state.seenWorktrees,
@@ -216,6 +220,7 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
       diffViewMode: rekeyRecord(next.diffViewMode!, oldId, newId),
       changesViewMode: rekeyRecord(next.changesViewMode!, oldId, newId),
       changesPanelCollapsed: rekeyRecord(next.changesPanelCollapsed!, oldId, newId),
+      changesPanelFocused: rekeyRecord(next.changesPanelFocused!, oldId, newId),
       showPrComments: rekeyRecord(next.showPrComments!, oldId, newId),
       runningServers: rekeyRecord(next.runningServers!, oldId, newId),
       seenWorktrees: rekeySet(next.seenWorktrees!, oldId, newId),
@@ -390,6 +395,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   diffViewMode: {},
   changesViewMode: {},
   changesPanelCollapsed: {},
+  changesPanelFocused: {},
   showPrComments: {},
   sidebarCollapsed: false,
   archiveAfterDays: 2,
@@ -728,6 +734,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       changesPanelCollapsed: { ...state.changesPanelCollapsed, [worktreeId]: collapsed },
     })),
 
+  setChangesPanelFocused: (worktreeId, focused) =>
+    set((state) => ({
+      changesPanelFocused: { ...state.changesPanelFocused, [worktreeId]: focused },
+    })),
+
   setShowPrComments: (worktreeId, show) =>
     set((s) => ({ showPrComments: { ...s.showPrComments, [worktreeId]: show } })),
 
@@ -789,6 +800,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       diffViewMode: {},
       changesViewMode: {},
       changesPanelCollapsed: {},
+      changesPanelFocused: {},
       showPrComments: {},
       sidebarCollapsed: false,
       archiveAfterDays: 2,

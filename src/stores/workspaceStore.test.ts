@@ -1087,3 +1087,32 @@ describe("stack-adoption dismissals", () => {
     expect(store.getState().isStackAdoptionDismissed(worktreeId, "feat/other")).toBe(false);
   });
 });
+
+// ── changesPanelFocused ────────────────────────────────────────────
+
+describe("changesPanelFocused", () => {
+  it("sets and clears focus per worktree", () => {
+    useWorkspaceStore.getState().setChangesPanelFocused("wt-1", true);
+    expect(useWorkspaceStore.getState().changesPanelFocused["wt-1"]).toBe(true);
+    useWorkspaceStore.getState().setChangesPanelFocused("wt-1", false);
+    expect(useWorkspaceStore.getState().changesPanelFocused["wt-1"]).toBe(false);
+  });
+
+  it("is rekeyed when a worktree id changes", () => {
+    const store = useWorkspaceStore;
+    const oldId = "/repo::feature-1";
+    const newId = "/repo::feature-2";
+
+    store.setState({
+      worktrees: [makeWorktree({ id: oldId, path: "/path/wt-1", branch: "feature-1" })],
+      changesPanelFocused: { [oldId]: true },
+    });
+
+    store.getState().setWorktrees([
+      makeWorktree({ id: newId, path: "/path/wt-1", branch: "feature-2" }),
+    ]);
+
+    expect(store.getState().changesPanelFocused[newId]).toBe(true);
+    expect(store.getState().changesPanelFocused[oldId]).toBeUndefined();
+  });
+});
