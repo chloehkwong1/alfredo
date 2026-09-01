@@ -22,6 +22,7 @@ export function useAnnotationActions(
   const removeAnnotation = useWorkspaceStore((s) => s.removeAnnotation);
   const editAnnotation = useWorkspaceStore((s) => s.editAnnotation);
   const clearAnnotations = useWorkspaceStore((s) => s.clearAnnotations);
+  const addReviewDraftComment = useWorkspaceStore((s) => s.addReviewDraftComment);
 
   // Use ref to avoid re-creating callback when commits array changes from polling
   const commitsRef = useRef(commits);
@@ -60,6 +61,21 @@ export function useAnnotationActions(
     [worktreeId, viewMode, selectedCommitIndex, addAnnotation],
   );
 
+  const handleSubmitReviewComment = useCallback(
+    (filePath: string, lineNumber: number, side: DiffSide, text: string) => {
+      addReviewDraftComment(worktreeId, {
+        id: crypto.randomUUID(),
+        filePath,
+        lineNumber,
+        side,
+        body: text,
+        createdAt: Date.now(),
+      });
+      setActiveAnnotationLine(null);
+    },
+    [worktreeId, addReviewDraftComment],
+  );
+
   const handleDeleteAnnotation = useCallback(
     (annotationId: string) => {
       removeAnnotation(worktreeId, annotationId);
@@ -83,6 +99,7 @@ export function useAnnotationActions(
     activeAnnotationLine,
     handleAddAnnotation,
     handleSubmitAnnotation,
+    handleSubmitReviewComment,
     handleDeleteAnnotation,
     handleEditAnnotation,
     clearAnnotations,

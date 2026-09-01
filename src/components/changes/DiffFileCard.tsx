@@ -47,6 +47,12 @@ interface DiffFileCardProps {
     side: import("../../types").DiffSide,
     text: string
   ) => void;
+  onSubmitReviewComment?: (
+    filePath: string,
+    lineNumber: number,
+    side: import("../../types").DiffSide,
+    text: string
+  ) => void;
   onDeleteAnnotation: (annotationId: string) => void;
   onEditAnnotation: (annotationId: string, newText: string) => void;
   prComments: PrComment[];
@@ -173,6 +179,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
       activeAnnotationLine,
       onAddAnnotation,
       onSubmitAnnotation,
+      onSubmitReviewComment,
       onDeleteAnnotation,
       onEditAnnotation,
       prComments,
@@ -364,6 +371,17 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
                   text,
                 )
               }
+              onSubmitReview={
+                onSubmitReviewComment
+                  ? (text) =>
+                      onSubmitReviewComment(
+                        file.path,
+                        activeAnnotationLine.lineNumber,
+                        activeAnnotationLine.side,
+                        text,
+                      )
+                  : undefined
+              }
               onCancel={() =>
                 onAddAnnotation(
                   file.path,
@@ -392,6 +410,7 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
   prev.onToggleExpanded === next.onToggleExpanded &&
   prev.onAddAnnotation === next.onAddAnnotation &&
   prev.onSubmitAnnotation === next.onSubmitAnnotation &&
+  prev.onSubmitReviewComment === next.onSubmitReviewComment &&
   prev.onDeleteAnnotation === next.onDeleteAnnotation &&
   prev.onEditAnnotation === next.onEditAnnotation &&
   prev.autoExpandAll === next.autoExpandAll &&

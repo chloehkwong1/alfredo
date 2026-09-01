@@ -164,6 +164,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
   const prComments = usePrStore((s) => s.prDetail[worktreeId]?.comments ?? EMPTY_COMMENTS);
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
+  const hasPr = pr !== null;
   const showPrComments = useWorkspaceStore((s) => s.showPrComments[worktreeId] ?? (pr !== null));
   const setShowPrComments = useWorkspaceStore((s) => s.setShowPrComments);
   const setJumpToComment = usePrStore((s) => s.setJumpToComment);
@@ -187,6 +188,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
     activeAnnotationLine,
     handleAddAnnotation,
     handleSubmitAnnotation,
+    handleSubmitReviewComment,
     handleDeleteAnnotation,
     handleEditAnnotation,
     clearAnnotations,
@@ -531,6 +533,7 @@ function ChangesView({ worktreeId, paneId, repoPath, diffTarget }: ChangesViewPr
                 activeAnnotationLine={activeAnnotationLine}
                 onAddAnnotation={handleAddAnnotation}
                 onSubmitAnnotation={handleSubmitAnnotation}
+                onSubmitReviewComment={hasPr ? handleSubmitReviewComment : undefined}
                 onDeleteAnnotation={handleDeleteAnnotation}
                 onEditAnnotation={handleEditAnnotation}
                 prComments={showPrComments ? prComments : []}

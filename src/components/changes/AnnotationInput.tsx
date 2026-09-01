@@ -9,9 +9,10 @@ interface AnnotationInputProps {
   lineNumber: number;
   onSubmit: (text: string) => void;
   onCancel: () => void;
+  onSubmitReview?: (text: string) => void;
 }
 
-function AnnotationInput({ filePath, lineNumber, onSubmit, onCancel }: AnnotationInputProps) {
+function AnnotationInput({ filePath, lineNumber, onSubmit, onCancel, onSubmitReview }: AnnotationInputProps) {
   const fileName = filePath.split("/").pop() ?? filePath;
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -30,7 +31,10 @@ function AnnotationInput({ filePath, lineNumber, onSubmit, onCancel }: Annotatio
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && text.trim()) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && e.shiftKey && text.trim() && onSubmitReview) {
+      e.preventDefault();
+      onSubmitReview(text.trim());
+    } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && text.trim()) {
       e.preventDefault();
       onSubmit(text.trim());
     } else if (e.key === "Escape") {
@@ -95,9 +99,20 @@ function AnnotationInput({ filePath, lineNumber, onSubmit, onCancel }: Annotatio
             >
               Cancel
             </button>
+            {onSubmitReview && (
+              <button
+                onClick={() => text.trim() && onSubmitReview(text.trim())}
+                disabled={!text.trim()}
+                title="Add to review (Cmd/Ctrl+Shift+Enter)"
+                className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-accent-primary bg-transparent border border-accent-primary/40 hover:bg-accent-primary/10 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+              >
+                Add to review
+              </button>
+            )}
             <button
               onClick={() => text.trim() && onSubmit(text.trim())}
               disabled={!text.trim()}
+              title="Comment for the agent (Cmd/Ctrl+Enter)"
               className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-on-accent bg-accent-primary hover:bg-accent-hover cursor-pointer border-none disabled:opacity-40 disabled:cursor-default"
             >
               Comment
