@@ -21,7 +21,9 @@ groups settings that apply across every repo:
 - **Terminal** — external terminal app. iTerm2, Terminal.app, Warp,
   Ghostty, or Custom for a `.app` path.
 - **Check for updates** — manual update check button; shows
-  "You're up to date" when current.
+  "You're up to date" when current, or the offered version and its
+  stage (available, downloading, ready to restart) when an update is
+  already in flight.
 - **Receive beta updates** — toggle that opts into the pre-release
   channel (see beta-releases doc for the full flow).
 - **Auto-pull review requests** — when someone requests your review

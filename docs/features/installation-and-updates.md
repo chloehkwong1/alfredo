@@ -16,6 +16,13 @@ The flow is powered by `tauri-plugin-updater`; downloads stream with
 a progress event, and failed installs leave the pending update in
 place so you can retry without re-checking.
 
+If Alfredo is running from the mounted disk image (or from a
+quarantined copy macOS made when it was opened straight from the
+download), it can't replace itself and **Update & restart** stops
+before downloading with an explanation. Eject the disk image, drag
+Alfredo into `/Applications` with Finder, open it from there, and
+update again.
+
 After an update installs and Alfredo relaunches, a **What's new**
 dialog opens once with the release highlights for versions you
 haven't seen yet, then stays out of the way (the same list is always
