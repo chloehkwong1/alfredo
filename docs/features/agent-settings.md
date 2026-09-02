@@ -5,8 +5,9 @@ ui_path: Sidebar → ⚙ Settings → Agent tab
 ---
 
 The **Agent** tab of the global Settings dialog sets defaults for new
-agent sessions. You can override any of these per-worktree via the
-status bar at the bottom of each worktree.
+agent sessions. Any field left on "Default" defers to the agent's own
+configuration — settings you change inside Claude itself (e.g. with
+`/model`) carry over to new sessions automatically.
 
 - **Default Agent** — Claude Code, Codex, or Gemini CLI. Used when
   opening a new worktree tab.
