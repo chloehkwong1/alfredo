@@ -1,0 +1,35 @@
+src/components/settings/GlobalSettingsDialog.tsx
+  s_6481563faefd2f::t_db9cbc43a50d90 2
+  s_6481563faefd2f::t_3f028413367089 103-104,111-122,131-133,164-165,396
+src/components/layout/UpdateBanner.tsx
+  s_6481563faefd2f::t_3f028413367089 30,34,40,68,70,95,102-108
+  s_6481563faefd2f::t_55697d1bb8d6de 109-111
+src/components/layout/AppShell.tsx
+  s_6481563faefd2f::t_3f028413367089 573-574
+src-tauri/src/commands/updater.rs
+  s_6481563faefd2f::t_fa119e492b56af 248-249,251,253-255,259,261-277,279-300,324-325
+  s_6481563faefd2f::t_776aca70404d49 3-4,8-9,11-14,39-50,89-90,92-95,104,114,126,132-141,146-147,164-173,176,181-187,189-190,193-195,200,217-235,241,243-244
+  s_6481563faefd2f::t_a14e12cfdbd677 202-210,212-215
+  s_6481563faefd2f::t_9c296f3cff55d4 216
+  s_6481563faefd2f::t_81669b4fe8ea33 250,252,256-258,260,278,301-323
+  s_6481563faefd2f::t_73821ed51bac53 24-33,103,142-143,180,188,191-192,196-199,201,211,236-240,242,245-247
+src/hooks/useUpdater.ts
+  s_6481563faefd2f::t_3f028413367089 15-17,52-53,69-70,72-77,178-179
+  s_6481563faefd2f::t_3af780de8edaa0 50-51,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "e4076ae112f4498f76fb30cd0d038df69336ca2a",
+  "prompts": {},
+  "sessions": {
+    "s_6481563faefd2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0a817185-153a-46e8-86a1-922433bbc6eb",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
