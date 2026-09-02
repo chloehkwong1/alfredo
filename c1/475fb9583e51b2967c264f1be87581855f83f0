@@ -1,0 +1,19 @@
+src/services/agentMessenger.ts
+  s_a01dd1ea863378::t_0b52257aa432ec 127-133,136-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "c1475fb9583e51b2967c264f1be87581855f83f0",
+  "prompts": {},
+  "sessions": {
+    "s_a01dd1ea863378": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a46fef7-8d8e-4398-ac67-72b808ffb604",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
