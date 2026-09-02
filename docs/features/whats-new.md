@@ -7,6 +7,18 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.22.0 — 2026-09-02**
+- **Simpler agent status bar** — the per-worktree effort, permissions
+  and output-style chips are gone from the bottom bar; set these in
+  the terminal directly and Claude remembers them. The bar keeps
+  Remote and Open In.
+- PR descriptions render real markdown — tables, code blocks and
+  formatting now display properly.
+- "Open in Alfredo" prompts from Linear no longer arrive clipped —
+  multi-line prompts paste atomically.
+- Manual restack failures now say what actually went wrong instead of
+  a generic "Restack failed" toast.
+
 **v0.21.0 — 2026-08-28**
 - **GitHub-native stacks sync themselves** — when GitHub restacks a
   stack server-side after a merge, Alfredo follows the rewrite into
@@ -121,29 +133,5 @@ https://github.com/chloehkwong1/alfredo/releases.
   beeping; sessions survive restart more reliably (atomic resume writes,
   trusted session restore, guarded worktree deletion); stacked-worktree
   diffs no longer bleed in default-branch drift.
-
-**v0.18.0 — 2026-06-19**
-- **Two-row pane tab bar** — each pane now splits its tabs across two
-  rows: your sessions (agents, terminals, dev server) on top, and a
-  diffs row that slides in below only when you have a diff open and
-  collapses again when you close the last one. Each row scrolls on its
-  own, so a busy worktree stays scannable. A new **Close all** button on
-  the far right of the diffs row clears every open diff at once.
-- **Jump between the agent and your work with Cmd/Ctrl+J** — toggle
-  between the agent and your last-focused session or diff (never Notes),
-  then press again to jump back.
-- **Origin sync banner** — when a worktree's branch is ahead of or
-  behind its upstream, a banner in the Changes panel shows the gap so
-  you know when to push or pull.
-- **Notifications quick-toggle** — turn Alfredo's notifications on or off
-  straight from the sidebar footer, without opening Settings.
-- **Opus 4.8** is now selectable as a model, and the Sonnet 4.6 context
-  label is corrected.
-- Clearer sidebar status — it shows "Running N agents" while background
-  subagents are working, and "Waiting for input" when an agent parks on
-  a question.
-- Various fixes: the kanban section auto-expands when a worktree arrives
-  or changes column; collapsed-rail PR badges match Alfredo's design;
-  long commit messages collapse by default in the Changes panel.
 
 Check the releases page for older versions and full detail.
