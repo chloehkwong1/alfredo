@@ -7,6 +7,17 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.22.1 — 2026-09-02**
+- **Updating from a disk image no longer fails** — if Alfredo is
+  running from the mounted .dmg or a quarantined copy, "Update &
+  restart" now stops before downloading and tells you to eject it and
+  open Alfredo from Applications, instead of failing with "Read-only
+  file system".
+- "Check for updates" no longer says "You're up to date" after a
+  failed install — it reports the version that's actually available,
+  and shows downloading / ready states while one is in flight.
+- A dismissed update banner stays dismissed on background checks.
+
 **v0.22.0 — 2026-09-02**
 - **Simpler agent status bar** — the per-worktree effort, permissions
   and output-style chips are gone from the bottom bar; set these in
@@ -103,35 +114,3 @@ https://github.com/chloehkwong1/alfredo/releases.
   branches no longer inherit the start-point's upstream; leaked
   agent sessions are reaped before file-handle exhaustion; sidebar
   status self-corrects from the Claude registry if a hook is missed.
-
-**v0.19.0 — 2026-07-09**
-- **Open Linear issues straight in Alfredo** — "Open in Alfredo" on a
-  Linear issue spins up (or focuses) a worktree, drops the issue in as a
-  prompt for the agent, and lets you pick the base branch from the repo
-  picker. A centered progress overlay tracks the open, and it works even
-  when Alfredo was launched cold.
-- **Custom Claude launch flags** — set extra `claude` flags globally
-  (Settings → Agent) or per-repo, or launch a one-off custom command
-  from the new-tab menu. Alfredo keeps its notification wiring intact
-  either way.
-- **Worktrees open instantly** — create-time setup scripts now run in
-  the background. The worktree appears right away with a "Setting up…"
-  status and flips to ready when the script finishes, instead of
-  blocking on spin-up.
-- **Reworked tab bar** — rename any tab from its context menu, tabs sit
-  in a stable three-row layout (sessions / terminals / diffs), and
-  clicking an agent tab focuses its terminal.
-- **Clearer agent status** — the sidebar shows "Monitoring…" while an
-  agent runs a background monitor, self-heals stranded monitors, and no
-  longer fires duplicate "finished" notifications during background
-  subagent runs.
-- **Fable 5 and Sonnet 5** are now selectable models.
-- PR checks that were **cancelled, timed out, or went stale** now count
-  as failing instead of showing "Checks pass", and the PR panel and
-  sidebar agree on the count.
-- Various fixes: Cmd/Ctrl+C copies the terminal selection instead of
-  beeping; sessions survive restart more reliably (atomic resume writes,
-  trusted session restore, guarded worktree deletion); stacked-worktree
-  diffs no longer bleed in default-branch drift.
-
-Check the releases page for older versions and full detail.
