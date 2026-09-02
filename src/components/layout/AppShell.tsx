@@ -524,6 +524,8 @@ function AppShell() {
         onCheckForUpdates={updater.checkNow}
         checkingForUpdates={updater.checking}
         upToDate={updater.upToDate}
+        pendingVersion={updater.pendingVersion}
+        pendingStatus={updater.pendingStatus}
         checkError={updater.checkError}
         initialSection={settingsInitialSection}
         initialFocusIndex={settingsInitialFocusIndex}

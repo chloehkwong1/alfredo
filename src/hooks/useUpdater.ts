@@ -12,6 +12,9 @@ export interface UpdateState {
   progress: number; // 0–100
   checking: boolean;
   upToDate: boolean;
+  /** The offered version and its stage, regardless of banner dismissal — for settings copy. */
+  pendingVersion: string | null;
+  pendingStatus: UpdateStatus;
   /** Failure of an explicit "Check for updates" click (auto-checks stay silent). */
   checkError: string | null;
   error: string | null;
@@ -44,6 +47,10 @@ export function useUpdater(): UpdateState {
   const [checkError, setCheckError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const checkingRef = useRef(false);
+  const statusRef = useRef<UpdateStatus>("idle");
+  statusRef.current = status;
+  const versionRef = useRef<string | null>(null);
+  versionRef.current = version;
   const upToDateTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const checkForUpdate = useCallback(async (manual = false) => {
@@ -57,6 +64,15 @@ export function useUpdater(): UpdateState {
         setUpToDate(true);
         clearTimeout(upToDateTimer.current);
         upToDateTimer.current = setTimeout(() => setUpToDate(false), 4000);
+        return;
+      }
+      // While that version is downloading or waiting for restart, the banner
+      // already says so — don't knock it back to "available".
+      if (statusRef.current === "downloading" || statusRef.current === "ready") return;
+      // Already offering this version: an auto-check must not resurface a
+      // dismissed banner every 30 minutes; an explicit click may.
+      if (statusRef.current === "available" && result.version === versionRef.current) {
+        if (manual) setDismissed(false);
         return;
       }
       setPendingUpdate({ version: result.version });
@@ -159,6 +175,8 @@ export function useUpdater(): UpdateState {
     progress,
     checking,
     upToDate,
+    pendingVersion: status === "idle" ? null : version,
+    pendingStatus: status,
     checkError,
     error,
     update,

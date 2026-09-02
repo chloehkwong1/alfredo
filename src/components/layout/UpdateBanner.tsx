@@ -27,21 +27,17 @@ export function UpdateBanner({ updater }: UpdateBannerProps) {
       {status === "available" && (
         <>
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <span>Update available —</span>
+            <span className="shrink-0 whitespace-nowrap">Update available —</span>
             <VersionBadge version={version} />
             <button
               onClick={openReleaseNotes}
-              className="inline-flex items-center gap-1 text-text-tertiary hover:text-accent-primary hover:underline cursor-pointer ml-0.5"
+              className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap text-text-tertiary hover:text-accent-primary hover:underline cursor-pointer ml-0.5"
               style={{ fontSize: 11 }}
             >
               Release notes
               <ExternalLink size={10} />
             </button>
-            {error && (
-              <span className="text-status-error truncate max-w-[260px]" style={{ fontSize: 11 }}>
-                ({error})
-              </span>
-            )}
+            <ErrorNote error={error} />
           </div>
           <Button variant="primary" size="sm" onClick={update}>
             Update &amp; restart
@@ -69,13 +65,9 @@ export function UpdateBanner({ updater }: UpdateBannerProps) {
       {status === "ready" && (
         <>
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <span>Update ready — restart to apply</span>
+            <span className="shrink-0 whitespace-nowrap">Update ready — restart to apply</span>
             <VersionBadge version={version} />
-            {error && (
-              <span className="text-status-error truncate max-w-[260px]" style={{ fontSize: 11 }}>
-                ({error})
-              </span>
-            )}
+            <ErrorNote error={error} />
           </div>
           <Button variant="primary" size="sm" onClick={restart}>
             Restart now
@@ -100,10 +92,20 @@ export function VersionBadge({ version }: { version: string | null }) {
   if (!version) return null;
   return (
     <span
-      className="font-mono font-semibold text-status-idle rounded"
+      className="font-mono font-semibold text-status-idle rounded shrink-0"
       style={{ fontSize: 11, padding: "1px 6px", background: "rgba(52, 211, 153, 0.1)" }}
     >
       v{version}
+    </span>
+  );
+}
+
+/** Install/relaunch failure, truncated to the room left in the row; full text on hover. */
+function ErrorNote({ error }: { error: string | null }) {
+  if (!error) return null;
+  return (
+    <span className="text-status-error truncate min-w-0" style={{ fontSize: 11 }} title={error}>
+      ({error})
     </span>
   );
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { UpdateStatus } from "../../hooks/useUpdater";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AppConfig, GlobalAppConfig, TabType } from "../../types";
 import { normalizeDiffViewMode } from "../../types";
@@ -99,13 +100,26 @@ interface GlobalSettingsDialogProps {
   onCheckForUpdates?: () => Promise<void>;
   checkingForUpdates?: boolean;
   upToDate?: boolean;
+  pendingVersion?: string | null;
+  pendingStatus?: UpdateStatus;
   checkError?: string | null;
   initialSection?: GlobalTab | null;
   initialFocusIndex?: number | null;
   onDeepLinkConsumed?: () => void;
 }
 
-function CheckForUpdatesButton({ onCheck, checking, upToDate, checkError }: { onCheck?: () => Promise<void>; checking?: boolean; upToDate?: boolean; checkError?: string | null }) {
+function pendingUpdateLabel(version: string, status: UpdateStatus): string {
+  switch (status) {
+    case "downloading":
+      return `Downloading v${version}…`;
+    case "ready":
+      return `v${version} is ready — restart from the banner to apply`;
+    default:
+      return `v${version} is available — see the banner at the top`;
+  }
+}
+
+function CheckForUpdatesButton({ onCheck, checking, upToDate, pendingVersion, pendingStatus, checkError }: { onCheck?: () => Promise<void>; checking?: boolean; upToDate?: boolean; pendingVersion?: string | null; pendingStatus?: UpdateStatus; checkError?: string | null }) {
   return (
     <div className="mb-4 flex items-center gap-2">
       <Button variant="secondary" size="sm" onClick={onCheck} disabled={checking || !onCheck}>
@@ -113,6 +127,9 @@ function CheckForUpdatesButton({ onCheck, checking, upToDate, checkError }: { on
       </Button>
       {upToDate && !checking && (
         <span className="text-xs text-text-tertiary">You're up to date</span>
+      )}
+      {pendingVersion && !checking && (
+        <span className="text-xs text-text-tertiary">{pendingUpdateLabel(pendingVersion, pendingStatus ?? "available")}</span>
       )}
       {checkError && !checking && (
         <span className="text-xs text-status-error truncate" title={checkError}>
@@ -144,6 +161,8 @@ function GlobalSettingsDialog({
   onCheckForUpdates,
   checkingForUpdates,
   upToDate,
+  pendingVersion,
+  pendingStatus,
   checkError,
   initialSection,
   initialFocusIndex,
@@ -374,7 +393,7 @@ function GlobalSettingsDialog({
                 </Field>
 
                 <SectionTitle>Updates</SectionTitle>
-                <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} upToDate={upToDate} checkError={checkError} />
+                <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} upToDate={upToDate} pendingVersion={pendingVersion} pendingStatus={pendingStatus} checkError={checkError} />
                 <div className="flex items-start justify-between gap-4 mt-4">
                   <div className="min-w-0">
                     <div className="text-[13px] font-medium text-text-primary">Receive beta updates</div>
