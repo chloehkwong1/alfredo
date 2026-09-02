@@ -1,0 +1,24 @@
+docs/features/agent-settings.md
+  s_b443833e3b79b6::t_059c10f1684db2 8-10
+docs/features/whats-new.md
+  s_b443833e3b79b6::t_65b9041a62e53c 11-14
+  s_b443833e3b79b6::t_7a438ccdaa7216 10,15-21
+docs/features/starting-an-agent.md
+  s_b443833e3b79b6::t_5b2c094725a841 18-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "5e7085aad21fe274782880dde024db5b5b163cde",
+  "prompts": {},
+  "sessions": {
+    "s_b443833e3b79b6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf553bae-df05-4afe-af6c-b29aca143e9f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
