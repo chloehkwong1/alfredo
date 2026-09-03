@@ -1,0 +1,24 @@
+docs/features/changes-panel.md
+  s_ddbdba0a3cfd4b::t_69e8589a937f5e 3,31-38
+docs/features/inline-diff-comments.md
+  s_ddbdba0a3cfd4b::t_69e8589a937f5e 3,12-16
+docs/features/pr-review.md
+  s_ddbdba0a3cfd4b::t_69e8589a937f5e 1-14,20-24,27-38
+  s_ddbdba0a3cfd4b::t_180089e6e732e3 15-19,25-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "bbfe43ca07470ab05ecbbf465bcb9fbe1cd14142",
+  "prompts": {},
+  "sessions": {
+    "s_ddbdba0a3cfd4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c53870c-7c03-4017-8c21-a26d5dee332c",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
