@@ -1,0 +1,25 @@
+package.json
+  s_c023cd576ee8bd::t_4429728292e979 4
+src-tauri/Cargo.toml
+  s_c023cd576ee8bd::t_4429728292e979 3
+src-tauri/tauri.conf.json
+  s_c023cd576ee8bd::t_4429728292e979 4
+src-tauri/Cargo.lock
+  s_c023cd576ee8bd::t_e91ce6fcfc502c 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "832efa10d0425f02021fffe62fba41ff40200fba",
+  "prompts": {},
+  "sessions": {
+    "s_c023cd576ee8bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56394b5c-247d-4ba0-a7e7-36bbc88b1299",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
