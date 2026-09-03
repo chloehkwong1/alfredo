@@ -1,0 +1,19 @@
+docs/features/whats-new.md
+  s_c023cd576ee8bd::t_373ec5be014c40 10-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "e57e3484286604ea93b22bdbfa1ed2d5a6adc888",
+  "prompts": {},
+  "sessions": {
+    "s_c023cd576ee8bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56394b5c-247d-4ba0-a7e7-36bbc88b1299",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
