@@ -21,7 +21,6 @@ empty pane collapses and the remaining pane takes the full space.
 Splits can nest up to a hard depth cap, so the feature scales from a
 simple two-up to a small grid without the layout getting away from you.
 
-The bottom worktree bar (Effort / Permissions / Output Style / Remote /
-Open in) renders once per worktree below the split tree, not per pane,
-since those settings apply to the whole worktree rather than a single
-tab.
+The bottom worktree bar (Remote / Open in) renders once per worktree
+below the split tree, not per pane, since those actions apply to the
+whole worktree rather than a single tab.

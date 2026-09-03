@@ -14,8 +14,8 @@ ui_path: N/A
 - **Agent / provider** — the AI CLI running in a worktree tab:
   Claude Code, Codex, or Gemini CLI.
 - **Permission mode** — how aggressively the agent can edit without
-  asking (Claude-specific): Default, Accept Edits, Plan, Auto,
-  Don't Ask, Bypass.
+  asking (Claude-specific). Set inside Claude with `/permissions`;
+  Alfredo only adds an optional skip-permissions launch flag.
 - **Ask Alfredo** — the **?** button in the bottom-right; searches
   these feature docs locally.
 - **Archive** — hide a finished worktree without deleting it.

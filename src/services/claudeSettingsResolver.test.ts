@@ -34,6 +34,11 @@ describe("resolveSettings dangerouslySkipPermissions", () => {
     expect(r.dangerouslySkipPermissions).toBe(true);
   });
 
+  it("takes a repo-level true when the global layer is unset", () => {
+    const r = resolveSettings({ dangerouslySkipPermissions: null }, { dangerouslySkipPermissions: true });
+    expect(r.dangerouslySkipPermissions).toBe(true);
+  });
+
   it("lets an explicit repo false override a global true", () => {
     const r = resolveSettings({ dangerouslySkipPermissions: true }, { dangerouslySkipPermissions: false });
     expect(r.dangerouslySkipPermissions).toBe(false);

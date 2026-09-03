@@ -12,8 +12,8 @@ Two levels:
 
 - **Global** — Settings → **Agent** tab → *Additional flags*. Applies
   to every new Claude tab in every repo.
-- **Per-repo** — Repository Settings → **Agent** tab → *Additional
-  flags*. When non-blank it **replaces** the global value for that
+- **Per-repo** — Repository Settings → **General** tab → *Claude
+  launch flags*. When non-blank it **replaces** the global value for that
   repo entirely (it does not append). Leave it blank to fall through
   to the global default.
 

@@ -513,16 +513,8 @@ function GlobalSettingsDialog({
 
             {tab === "agent" && (
               <AgentSettings
-                settings={{
-                  dangerouslySkipPermissions: appConfig.dangerouslySkipPermissions ?? undefined,
-                  extraFlags: appConfig.extraFlags ?? undefined,
-                }}
-                onChange={(claudeDefaults) =>
-                  updateAppConfig({
-                    dangerouslySkipPermissions: claudeDefaults.dangerouslySkipPermissions ?? null,
-                    extraFlags: claudeDefaults.extraFlags ?? null,
-                  })
-                }
+                settings={appConfig}
+                onChange={updateAppConfig}
                 defaultAgent={(appConfig.defaultAgent as TabType) ?? "claude"}
                 onDefaultAgentChange={(agent) => {
                   updateAppConfig({ defaultAgent: agent });

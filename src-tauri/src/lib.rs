@@ -432,7 +432,6 @@ pub fn run() {
             external_tools::open_in_terminal,
             // Agent detection
             agents::detect_available_agents,
-            // Output styles
             // App detection
             app_detection::detect_installed_apps,
             app_detection::open_in_app,

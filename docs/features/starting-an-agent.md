@@ -14,8 +14,9 @@ integration configured).
 Pick a source, confirm the repo and base branch, and Alfredo creates the
 git worktree, runs any setup scripts configured for the repo, and opens
 a tab for it in the main pane. By default the tab launches your chosen
-agent — Claude Code, Codex, or Gemini CLI — with whatever permission
-mode, model, and output style you've set as defaults. You can change
-those settings inside the running agent itself (e.g. Claude's `/model`),
-or open a different agent alongside the current one via the "+" button
-in the tab bar.
+agent — Claude Code, Codex, or Gemini CLI. Model, permission mode and
+output style come from the agent's own settings (for Claude: `/model`,
+`/permissions`, `/config`), not from Alfredo; the only launch settings
+Alfredo adds are the ones on Settings → Agent (skip permissions and
+extra flags). Open a different agent alongside the current one via the
+"+" button in the tab bar.

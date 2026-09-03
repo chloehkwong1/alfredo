@@ -1,5 +1,6 @@
 import { useAgentStore } from "../../stores/agentStore";
-import type { ClaudeDefaults, TabType } from "../../types";
+import { Toggle } from "../ui/Toggle";
+import type { GlobalAppConfig, TabType } from "../../types";
 import { flagsError } from "../../services/launchCommand";
 
 const selectClass = [
@@ -19,16 +20,13 @@ const AGENT_OPTIONS = [
 ] as const;
 
 interface AgentSettingsProps {
-  settings: ClaudeDefaults;
-  onChange: (settings: ClaudeDefaults) => void;
+  settings: Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags">;
+  onChange: (patch: Partial<GlobalAppConfig>) => void;
   defaultAgent: TabType;
   onDefaultAgentChange: (agent: TabType) => void;
 }
 
 function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange }: AgentSettingsProps) {
-  const update = (patch: Partial<ClaudeDefaults>) =>
-    onChange({ ...settings, ...patch });
-
   const availableAgents = useAgentStore((s) => s.availableAgents);
 
   const agentOptions = AGENT_OPTIONS.filter((opt) =>
@@ -69,33 +67,21 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
         Permissions
       </div>
 
-      <div className="flex items-center justify-between py-2">
-        <span className="text-[13px] text-text-secondary">Skip permission checks</span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={!!settings.dangerouslySkipPermissions}
-          aria-describedby="agent-skip-permissions-desc"
-          onClick={() => update({ dangerouslySkipPermissions: settings.dangerouslySkipPermissions ? undefined : true })}
-          className={[
-            "relative inline-flex h-5 w-9 items-center rounded-full",
-            "transition-colors duration-[var(--transition-fast)] cursor-pointer",
-            settings.dangerouslySkipPermissions ? "bg-accent-primary" : "bg-bg-active",
-          ].join(" ")}
-        >
-          <span
-            className={[
-              "inline-block h-3.5 w-3.5 rounded-full bg-white",
-              "transition-transform duration-[var(--transition-fast)]",
-              settings.dangerouslySkipPermissions ? "translate-x-[18px]" : "translate-x-[3px]",
-            ].join(" ")}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[13px] font-medium text-text-primary">Skip permission checks</div>
+          <p className="text-xs text-text-tertiary mt-[5px]">
+            Launches every new Claude tab with --dangerously-skip-permissions: no
+            checks at all. Sandboxed or throwaway worktrees only.
+          </p>
+        </div>
+        <div className="shrink-0 pt-0.5">
+          <Toggle
+            checked={!!settings.dangerouslySkipPermissions}
+            onChange={(v) => onChange({ dangerouslySkipPermissions: v || null })}
           />
-        </button>
+        </div>
       </div>
-      <p id="agent-skip-permissions-desc" className="text-xs text-text-tertiary mb-4">
-        Launches every new Claude tab with --dangerously-skip-permissions: no
-        checks at all. Sandboxed or throwaway worktrees only.
-      </p>
 
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
         Additional flags
@@ -106,7 +92,7 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
           type="text"
           spellCheck={false}
           value={settings.extraFlags ?? ""}
-          onChange={(e) => update({ extraFlags: e.target.value || undefined })}
+          onChange={(e) => onChange({ extraFlags: e.target.value || null })}
           placeholder="e.g. --mcp-config ./mcp.json"
           aria-invalid={extraFlagsError != null}
           aria-describedby="agent-extra-flags-desc"

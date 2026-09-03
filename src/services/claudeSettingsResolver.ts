@@ -36,23 +36,16 @@ export async function loadLaunchArgs(
 }
 
 /**
- * Everything Alfredo still injects into a `claude` launch. Model, effort,
- * permission mode and output style are deliberately NOT here — Claude owns
- * those in its own config, so new Claude knobs never need an Alfredo release.
- */
-export interface ResolvedClaudeSettings {
-  dangerouslySkipPermissions?: boolean;
-  extraFlags?: string;
-}
-
-/**
- * Merge global app defaults → per-repo defaults.
- * Each layer overrides the previous; only defined fields are merged.
+ * Merge global app defaults → per-repo defaults into the settings Alfredo
+ * still injects into a `claude` launch. Each layer overrides the previous;
+ * only defined fields are merged. Model, effort, permission mode and output
+ * style are deliberately NOT here — Claude owns those in its own config, so
+ * new Claude knobs never need an Alfredo release.
  */
 export function resolveSettings(
   globalDefaults?: Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags"> | null,
   repoDefaults?: ClaudeDefaults,
-): ResolvedClaudeSettings {
+): ClaudeDefaults {
   // For free-form text fields, treat blank/whitespace-only as absent so a
   // hand-edited empty value doesn't silently shadow the global.
   const cleanFlags = (v?: string | null) => (v && v.trim() ? v : undefined);
@@ -86,7 +79,7 @@ export function withResumeSession(args: string[], sessionId: string): string[] {
 /**
  * Convert resolved settings to an array of CLI flags for claude.
  */
-export function buildClaudeArgs(settings: ResolvedClaudeSettings): string[] {
+export function buildClaudeArgs(settings: ClaudeDefaults): string[] {
   const args: string[] = [];
 
   if (settings.dangerouslySkipPermissions) {
