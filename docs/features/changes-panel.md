@@ -1,6 +1,6 @@
 ---
 title: Changes panel — Files, Commits, PR tabs
-keywords: [changes, panel, files, commits, pr, diff, changes panel, right panel]
+keywords: [changes, panel, files, commits, pr, diff, changes panel, right panel, focus mode, widen panel]
 ui_path: Right side of workspace → Changes panel (toggle with Cmd+I)
 ---
 
@@ -28,7 +28,14 @@ bar. It has up to three tabs:
   rewrites pushed history and will need a force-push.
 - **PR** — only appears once Alfredo detects a pull request for the
   branch. Shows PR title, description, merge status, reviews, and
-  inline comment threads (see pr-checks doc for the checks section).
+  inline comment threads (see pr-checks doc for the checks section,
+  and [PR review](pr-review.md) for submitting a review from here).
+
+**Focus mode** widens the panel to take over the workspace while you
+read a large diff. Toggle it with **⌘⇧E**, the "Focus mode — widen
+this panel" button in the panel header, or the command palette. It is
+remembered per worktree, and the terminal keeps running underneath.
+In normal mode the panel can be dragged up to 70% of the window.
 
 At the bottom of the panel an **origin sync banner** appears whenever
 the branch is out of step with its upstream. The label reads `N ahead
