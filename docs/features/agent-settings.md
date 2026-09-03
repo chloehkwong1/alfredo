@@ -14,8 +14,7 @@ Where Claude keeps each one:
 
 - **Model** — `/model`. Saved to your user settings
   (`~/.claude/settings.json`), so it applies everywhere.
-- **Permission mode** — `/permissions` → Default mode. Also saved to
-  user settings.
+- **Permission mode** — `/permissions`. Also saved to user settings.
 - **Effort** — `/model` (effort picker), or `effortLevel` in user
   settings.
 - **Output style** — `/config` → Output style. Claude saves that pick
@@ -25,8 +24,10 @@ Where Claude keeps each one:
   instead: `{ "outputStyle": "Explanatory" }` in
   `~/.claude/settings.json`. Custom styles live in
   `~/.claude/output-styles/` (user) or `.claude/output-styles/`
-  (project). The old `/output-style` command was removed in Claude
-  Code v2.1.91.
+  (project). The old `/output-style` command is deprecated and just
+  points you at `/config`.
+
+What Alfredo itself still controls:
 
 - **Default Agent** — Claude Code, Codex, or Gemini CLI. Used when
   opening a new worktree tab.
@@ -34,7 +35,8 @@ Where Claude keeps each one:
   Claude tab with `--dangerously-skip-permissions`, so Claude never
   asks before edits or commands. This is the one permission setting
   that can't live inside Claude, because it has to be passed at
-  launch. Sandboxed or throwaway worktrees only. Off by default.
+  launch. Global only — it applies to every repo. Sandboxed or
+  throwaway worktrees only. Off by default.
 - **Additional flags** (Claude only) — free-form CLI flags appended
   to every new Claude tab; see
   [Claude launch flags](claude-launch-flags.md).
@@ -43,9 +45,10 @@ Skip permissions and Additional flags only appear when the default
 agent is Claude Code. Changes apply to new sessions — existing
 sessions keep the flags they launched with.
 
-A repo can adjust both Claude settings via `claudeDefaults` in your
-personal per-repo Alfredo config (not the committed `alfredo.json`);
-Repository Settings → General exposes the flags box.
+A repo can replace the global launch flags with its own via
+Repository Settings → General (stored as `claudeDefaults.extraFlags`
+in your personal per-repo Alfredo config, not the committed
+`alfredo.json`). Skip permissions has no per-repo override.
 
 Alfredo versions before 0.23 had Model, Effort, Permission Mode,
 Style and Verbose pickers here, plus per-worktree chips in the status

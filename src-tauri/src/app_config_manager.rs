@@ -409,6 +409,18 @@ mod tests {
     }
 
     #[test]
+    fn global_config_ignores_retired_claude_settings_keys() {
+        // Pre-0.23 app.json carried the whole Claude-settings mirror; only the
+        // skip-permissions switch and extra flags survive.
+        let json = r#"{"model":"claude-opus-4-8","effort":"high","permissionMode":"auto",
+                       "outputStyle":"Overwhelmed","verbose":true,
+                       "dangerouslySkipPermissions":true,"extraFlags":"--verbose"}"#;
+        let cfg: crate::types::GlobalAppConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.dangerously_skip_permissions, Some(true));
+        assert_eq!(cfg.extra_flags.as_deref(), Some("--verbose"));
+    }
+
+    #[test]
     fn global_config_without_extra_flags_deserializes_to_none() {
         let cfg: crate::types::GlobalAppConfig = serde_json::from_str("{}").unwrap();
         assert_eq!(cfg.extra_flags, None);

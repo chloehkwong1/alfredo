@@ -6,7 +6,7 @@ import { normalizeDiffViewMode } from "../../types";
 import { getConfig, saveConfig, getAppConfig, saveAppConfig } from "../../api";
 import { Button } from "../ui/Button";
 import { Dialog, DialogContent } from "../ui/Dialog";
-import { Toggle } from "../ui/Toggle";
+import { ToggleRow } from "../ui/ToggleRow";
 import { AgentSettings } from "./AgentSettings";
 import { CommentChipsSettings } from "./CommentChipsSettings";
 import { GithubSettings } from "./GithubSettings";
@@ -389,50 +389,29 @@ function GlobalSettingsDialog({
 
                 <SectionTitle>Updates</SectionTitle>
                 <CheckForUpdatesButton onCheck={onCheckForUpdates} checking={checkingForUpdates} upToDate={upToDate} pendingVersion={pendingVersion} pendingStatus={pendingStatus} checkError={checkError} />
-                <div className="flex items-start justify-between gap-4 mt-4">
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-medium text-text-primary">Receive beta updates</div>
-                    <p className="text-xs text-text-tertiary mt-[5px]">
-                      Get pre-release builds for testing. You will stay on beta until a stable release catches up — turning this off does not downgrade you. Takes effect on next app launch.
-                    </p>
-                  </div>
-                  <div className="shrink-0 pt-0.5">
-                    <Toggle
-                      checked={appConfig.receiveBetaUpdates ?? false}
-                      onChange={(v) => updateAppConfig({ receiveBetaUpdates: v })}
-                    />
-                  </div>
-                </div>
+                <ToggleRow
+                  className="mt-4"
+                  label="Receive beta updates"
+                  description="Get pre-release builds for testing. You will stay on beta until a stable release catches up — turning this off does not downgrade you. Takes effect on next app launch."
+                  checked={appConfig.receiveBetaUpdates ?? false}
+                  onChange={(v) => updateAppConfig({ receiveBetaUpdates: v })}
+                />
 
-                <div className="flex items-start justify-between gap-4 mt-4">
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-medium text-text-primary">Auto-pull review requests</div>
-                    <p className="text-xs text-text-tertiary mt-[5px]">
-                      When someone requests your review on GitHub, create a worktree for the PR in the matching repo automatically. Claude only launches when you open it.
-                    </p>
-                  </div>
-                  <div className="shrink-0 pt-0.5">
-                    <Toggle
-                      checked={appConfig.autoPullReviewRequests !== false}
-                      onChange={(v) => updateAppConfig({ autoPullReviewRequests: v })}
-                    />
-                  </div>
-                </div>
+                <ToggleRow
+                  className="mt-4"
+                  label="Auto-pull review requests"
+                  description="When someone requests your review on GitHub, create a worktree for the PR in the matching repo automatically. Claude only launches when you open it."
+                  checked={appConfig.autoPullReviewRequests !== false}
+                  onChange={(v) => updateAppConfig({ autoPullReviewRequests: v })}
+                />
 
-                <div className="flex items-start justify-between gap-4 mt-4">
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-medium text-text-primary">Keep native GitHub stacks in sync locally</div>
-                    <p className="text-xs text-text-tertiary mt-[5px]">
-                      Follow GitHub's server-side restacks in your local checkouts when it's provably safe, and rebase stacked branches onto moved parents. Never pushes — updating the PR stays a click.
-                    </p>
-                  </div>
-                  <div className="shrink-0 pt-0.5">
-                    <Toggle
-                      checked={appConfig.autoSyncNativeStacks !== false}
-                      onChange={(v) => updateAppConfig({ autoSyncNativeStacks: v })}
-                    />
-                  </div>
-                </div>
+                <ToggleRow
+                  className="mt-4"
+                  label="Keep native GitHub stacks in sync locally"
+                  description="Follow GitHub's server-side restacks in your local checkouts when it's provably safe, and rebase stacked branches onto moved parents. Never pushes — updating the PR stays a click."
+                  checked={appConfig.autoSyncNativeStacks !== false}
+                  onChange={(v) => updateAppConfig({ autoSyncNativeStacks: v })}
+                />
 
                 <SectionTitle>Diff View</SectionTitle>
                 <Field label="Default diff view" hint="Applied when a worktree has no explicit view mode set.">

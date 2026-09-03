@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveSettings, buildClaudeArgs, withResumeSession } from "./claudeSettingsResolver";
+import type { ClaudeDefaults } from "../types";
 
 describe("resolveSettings extraFlags", () => {
   it("takes extraFlags from the global layer when repo has none", () => {
@@ -34,14 +35,12 @@ describe("resolveSettings dangerouslySkipPermissions", () => {
     expect(r.dangerouslySkipPermissions).toBe(true);
   });
 
-  it("takes a repo-level true when the global layer is unset", () => {
-    const r = resolveSettings({ dangerouslySkipPermissions: null }, { dangerouslySkipPermissions: true });
-    expect(r.dangerouslySkipPermissions).toBe(true);
-  });
-
-  it("lets an explicit repo false override a global true", () => {
-    const r = resolveSettings({ dangerouslySkipPermissions: true }, { dangerouslySkipPermissions: false });
-    expect(r.dangerouslySkipPermissions).toBe(false);
+  it("is global-only: a stale repo-layer value is ignored", () => {
+    // Pre-0.23 per-repo configs could carry the key; it is no longer part of
+    // ClaudeDefaults, so it must not leak through the resolver.
+    const stale = { dangerouslySkipPermissions: true, extraFlags: "--x" } as unknown as ClaudeDefaults;
+    const r = resolveSettings({ dangerouslySkipPermissions: null }, stale);
+    expect(r.dangerouslySkipPermissions).toBeUndefined();
   });
 });
 

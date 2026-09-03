@@ -36,21 +36,26 @@ export async function loadLaunchArgs(
 }
 
 /**
- * Merge global app defaults → per-repo defaults into the settings Alfredo
- * still injects into a `claude` launch. Each layer overrides the previous;
- * only defined fields are merged. Model, effort, permission mode and output
- * style are deliberately NOT here — Claude owns those in its own config, so
- * new Claude knobs never need an Alfredo release.
+ * Everything Alfredo still injects into a `claude` launch. Model, effort,
+ * permission mode and output style are deliberately NOT here — Claude owns
+ * those in its own config, so new Claude knobs never need an Alfredo release.
+ */
+export type ClaudeLaunchSettings = Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags">;
+
+/**
+ * Merge global app defaults → per-repo defaults. Skip-permissions is global
+ * only (the repo layer has no UI for it, so an invisible override would be
+ * a trap); extra flags let a repo replace the global value.
  */
 export function resolveSettings(
-  globalDefaults?: Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags"> | null,
+  globalDefaults?: ClaudeLaunchSettings | null,
   repoDefaults?: ClaudeDefaults,
-): ClaudeDefaults {
+): ClaudeLaunchSettings {
   // For free-form text fields, treat blank/whitespace-only as absent so a
   // hand-edited empty value doesn't silently shadow the global.
   const cleanFlags = (v?: string | null) => (v && v.trim() ? v : undefined);
   return {
-    dangerouslySkipPermissions: repoDefaults?.dangerouslySkipPermissions ?? globalDefaults?.dangerouslySkipPermissions ?? undefined,
+    dangerouslySkipPermissions: globalDefaults?.dangerouslySkipPermissions ?? undefined,
     extraFlags: cleanFlags(repoDefaults?.extraFlags) ?? cleanFlags(globalDefaults?.extraFlags),
   };
 }
@@ -79,7 +84,7 @@ export function withResumeSession(args: string[], sessionId: string): string[] {
 /**
  * Convert resolved settings to an array of CLI flags for claude.
  */
-export function buildClaudeArgs(settings: ClaudeDefaults): string[] {
+export function buildClaudeArgs(settings: ClaudeLaunchSettings): string[] {
   const args: string[] = [];
 
   if (settings.dangerouslySkipPermissions) {

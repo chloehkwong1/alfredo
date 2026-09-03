@@ -443,8 +443,6 @@ fn default_true() -> bool { true }
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeDefaults {
     #[serde(default)]
-    pub dangerously_skip_permissions: Option<bool>,
-    #[serde(default)]
     pub extra_flags: Option<String>,
 }
 

@@ -916,8 +916,7 @@ mod tests {
             notifications: None,
             worktree_base_path: None,
             claude_defaults: Some(ClaudeDefaults {
-                dangerously_skip_permissions: Some(true),
-                ..Default::default()
+                extra_flags: Some("--mcp-config ./mcp.json".into()),
             }),
             run_script: None,
             stack_parent_overrides: HashMap::new(),
@@ -1673,24 +1672,21 @@ mod tests {
     #[test]
     fn claude_defaults_round_trips_camel_case() {
         let cd = crate::types::ClaudeDefaults {
-            dangerously_skip_permissions: Some(true),
             extra_flags: Some("--mcp-config ./mcp.json".to_string()),
         };
         let json = serde_json::to_string(&cd).unwrap();
         assert!(json.contains("extraFlags"), "serialized as camelCase: {json}");
-        assert!(json.contains("dangerouslySkipPermissions"), "serialized as camelCase: {json}");
         let back: crate::types::ClaudeDefaults = serde_json::from_str(&json).unwrap();
         assert_eq!(back.extra_flags.as_deref(), Some("--mcp-config ./mcp.json"));
-        assert_eq!(back.dangerously_skip_permissions, Some(true));
     }
 
     #[test]
     fn claude_defaults_ignores_retired_keys() {
-        // Pre-0.23 configs carried model/effort/permissionMode/outputStyle/verbose.
+        // Pre-0.23 per-repo configs carried the whole Claude-settings mirror.
         let json = r#"{"model":"claude-opus-4-8","effort":"high","permissionMode":"auto",
-                       "outputStyle":"Overwhelmed","verbose":true,"dangerouslySkipPermissions":true}"#;
+                       "outputStyle":"Overwhelmed","verbose":true,"dangerouslySkipPermissions":true,
+                       "extraFlags":"--verbose"}"#;
         let back: crate::types::ClaudeDefaults = serde_json::from_str(json).unwrap();
-        assert_eq!(back.dangerously_skip_permissions, Some(true));
-        assert!(back.extra_flags.is_none());
+        assert_eq!(back.extra_flags.as_deref(), Some("--verbose"));
     }
 }

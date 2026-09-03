@@ -1,5 +1,5 @@
 import { useAgentStore } from "../../stores/agentStore";
-import { Toggle } from "../ui/Toggle";
+import { ToggleRow } from "../ui/ToggleRow";
 import type { GlobalAppConfig, TabType } from "../../types";
 import { flagsError } from "../../services/launchCommand";
 
@@ -38,9 +38,10 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
   return (
     <div>
       <p className="text-xs text-text-tertiary mb-5">
-        Defaults for new sessions. Model, effort, permission mode and output
-        style are set inside Claude itself (e.g. /model) and carry over to new
-        sessions automatically.
+        Defaults for new sessions. Model, effort and permission mode are set
+        inside Claude itself (/model, /permissions) and follow you everywhere.
+        Output style (/config) is saved per project; put outputStyle in
+        ~/.claude/settings.json to apply it to every worktree.
       </p>
 
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
@@ -67,21 +68,12 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
         Permissions
       </div>
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="text-[13px] font-medium text-text-primary">Skip permission checks</div>
-          <p className="text-xs text-text-tertiary mt-[5px]">
-            Launches every new Claude tab with --dangerously-skip-permissions: no
-            checks at all. Sandboxed or throwaway worktrees only.
-          </p>
-        </div>
-        <div className="shrink-0 pt-0.5">
-          <Toggle
-            checked={!!settings.dangerouslySkipPermissions}
-            onChange={(v) => onChange({ dangerouslySkipPermissions: v || null })}
-          />
-        </div>
-      </div>
+      <ToggleRow
+        label="Skip permission checks"
+        description="Launches every new Claude tab with --dangerously-skip-permissions: no checks at all. Sandboxed or throwaway worktrees only. Global — applies to every repo."
+        checked={!!settings.dangerouslySkipPermissions}
+        onChange={(v) => onChange({ dangerouslySkipPermissions: v || null })}
+      />
 
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
         Additional flags

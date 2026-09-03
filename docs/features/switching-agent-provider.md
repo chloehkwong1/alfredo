@@ -16,7 +16,8 @@ tabs keep the agent they were created with. Below the default agent
 dropdown are the two Claude-only launch settings — skip permission
 checks and additional flags (see [Agent settings](agent-settings.md)).
 Model, effort, permission mode and output style are set inside Claude
-itself and carry over to new sessions. To run a
+itself; see [Agent settings](agent-settings.md) for which of those
+follow you into every worktree and which are saved per project. To run a
 different agent on a single worktree without changing the global
 default, use the "+" button in that worktree's tab bar to open a new
 Claude, Codex, or Gemini tab alongside the existing ones.

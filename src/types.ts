@@ -303,7 +303,6 @@ export interface NotificationConfig {
 }
 
 export interface ClaudeDefaults {
-  dangerouslySkipPermissions?: boolean;
   extraFlags?: string;
 }
 

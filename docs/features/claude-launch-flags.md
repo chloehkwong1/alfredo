@@ -6,7 +6,9 @@ ui_path: Sidebar → ⚙ Settings → Agent tab → Additional flags
 
 You can append arbitrary CLI flags to the `claude` command Alfredo
 runs when opening a new agent tab — for example `--mcp-config
-./mcp.json` or `--dangerously-skip-permissions`.
+./mcp.json`. (Don't put `--dangerously-skip-permissions` here; use the
+Skip permission checks switch on the same tab, which emits exactly
+that flag.)
 
 Two levels:
 
