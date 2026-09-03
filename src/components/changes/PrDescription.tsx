@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { MarkdownBody, stripCommentNoise } from "../shared/MarkdownBody";
 
 /** Markdown images in BOTH syntaxes: inline `![alt](url)` and
@@ -51,14 +52,12 @@ export function PrDescription({
       )}
       {hasMedia && (
         <div className="mt-1.5 pt-1.5 border-t border-border-subtle">
-          <a
-            href={prUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent-primary text-[11px] hover:underline"
+          <button
+            onClick={() => openUrl(prUrl)}
+            className="text-accent-primary text-[11px] hover:underline bg-transparent border-none cursor-pointer p-0 font-[inherit]"
           >
             Open on GitHub ↗ (media not shown)
-          </a>
+          </button>
         </div>
       )}
     </div>
