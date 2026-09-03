@@ -1,0 +1,37 @@
+docs/features/glossary.md
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 17-18
+docs/features/split-view.md
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 24-26
+src/components/settings/GlobalSettingsDialog.tsx
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 516-517
+src-tauri/src/config_manager.rs
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 1674,1676,1681,1684-1694
+src/components/settings/AgentSettings.tsx
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 2-3,23-24,70-81,83,95
+docs/features/claude-launch-flags.md
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 15-16
+src/services/claudeSettingsResolver.test.ts
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 37-41
+docs/features/agent-settings.md
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 3,10-29,46-48,52-56
+src/services/claudeSettingsResolver.ts
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 39-43,48,82
+docs/features/starting-an-agent.md
+  s_ddbdba0a3cfd4b::t_b6f0239533a2e1 17-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "8e22468c58a888689ca572570845674b3c9d1395",
+  "prompts": {},
+  "sessions": {
+    "s_ddbdba0a3cfd4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c53870c-7c03-4017-8c21-a26d5dee332c",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
