@@ -303,12 +303,7 @@ export interface NotificationConfig {
 }
 
 export interface ClaudeDefaults {
-  model?: string;
-  effort?: string;
-  permissionMode?: string;
   dangerouslySkipPermissions?: boolean;
-  outputStyle?: string;
-  verbose?: boolean;
   extraFlags?: string;
 }
 
@@ -585,12 +580,6 @@ export interface WorkspaceTab {
   label: string;
   command?: string;
   args?: string[];
-  claudeSettings?: {
-    model?: string;
-    effort?: string;
-    permissionMode?: string;
-    outputStyle?: string;
-  };
   /** Set only on tabs restored from a saved session — triggers --resume on first spawn. */
   resumeSessionId?: string;
   diffTarget?: DiffTarget;
@@ -640,12 +629,7 @@ export interface GlobalAppConfig {
   customEditorPath: string | null;
   preferredTerminal: string;
   customTerminalPath: string | null;
-  model?: string | null;
-  effort?: string | null;
-  permissionMode?: string | null;
   dangerouslySkipPermissions?: boolean | null;
-  outputStyle?: string | null;
-  verbose?: boolean | null;
   extraFlags?: string | null;
   /** Default diff view mode for new worktrees. */
   defaultDiffViewMode?: DiffViewMode;

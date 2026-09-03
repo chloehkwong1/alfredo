@@ -916,8 +916,7 @@ mod tests {
             notifications: None,
             worktree_base_path: None,
             claude_defaults: Some(ClaudeDefaults {
-                model: Some("claude-sonnet-4-6".into()),
-                effort: Some("high".into()),
+                dangerously_skip_permissions: Some(true),
                 ..Default::default()
             }),
             run_script: None,

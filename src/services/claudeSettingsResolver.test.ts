@@ -28,10 +28,30 @@ describe("resolveSettings extraFlags", () => {
   });
 });
 
-describe("buildClaudeArgs extraFlags", () => {
-  it("appends tokenized extra flags after the structured flags", () => {
-    const args = buildClaudeArgs({ model: "opus", extraFlags: "--mcp-config ./mcp.json" });
-    expect(args).toEqual(["--model", "opus", "--mcp-config", "./mcp.json"]);
+describe("resolveSettings dangerouslySkipPermissions", () => {
+  it("takes the global value when the repo layer is unset", () => {
+    const r = resolveSettings({ dangerouslySkipPermissions: true }, undefined);
+    expect(r.dangerouslySkipPermissions).toBe(true);
+  });
+
+  it("lets an explicit repo false override a global true", () => {
+    const r = resolveSettings({ dangerouslySkipPermissions: true }, { dangerouslySkipPermissions: false });
+    expect(r.dangerouslySkipPermissions).toBe(false);
+  });
+});
+
+describe("buildClaudeArgs", () => {
+  it("emits nothing when no setting is on", () => {
+    expect(buildClaudeArgs({})).toEqual([]);
+  });
+
+  it("emits --dangerously-skip-permissions when the toggle is on", () => {
+    expect(buildClaudeArgs({ dangerouslySkipPermissions: true })).toEqual(["--dangerously-skip-permissions"]);
+  });
+
+  it("appends tokenized extra flags after the skip-permissions flag", () => {
+    const args = buildClaudeArgs({ dangerouslySkipPermissions: true, extraFlags: "--mcp-config ./mcp.json" });
+    expect(args).toEqual(["--dangerously-skip-permissions", "--mcp-config", "./mcp.json"]);
   });
 
   it("keeps a single-quoted value as one token", () => {
@@ -40,8 +60,8 @@ describe("buildClaudeArgs extraFlags", () => {
   });
 
   it("silently ignores malformed extra flags (unbalanced quote)", () => {
-    const args = buildClaudeArgs({ model: "opus", extraFlags: "--add-dir 'oops" });
-    expect(args).toEqual(["--model", "opus"]);
+    const args = buildClaudeArgs({ dangerouslySkipPermissions: true, extraFlags: "--add-dir 'oops" });
+    expect(args).toEqual(["--dangerously-skip-permissions"]);
   });
 });
 

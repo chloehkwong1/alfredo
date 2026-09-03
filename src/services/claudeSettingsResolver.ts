@@ -35,13 +35,13 @@ export async function loadLaunchArgs(
   return buildClaudeArgs(resolveSettings(appCfg, config?.claudeDefaults));
 }
 
+/**
+ * Everything Alfredo still injects into a `claude` launch. Model, effort,
+ * permission mode and output style are deliberately NOT here — Claude owns
+ * those in its own config, so new Claude knobs never need an Alfredo release.
+ */
 export interface ResolvedClaudeSettings {
-  model?: string;
-  effort?: string;
-  permissionMode?: string;
   dangerouslySkipPermissions?: boolean;
-  outputStyle?: string;
-  verbose?: boolean;
   extraFlags?: string;
 }
 
@@ -50,19 +50,14 @@ export interface ResolvedClaudeSettings {
  * Each layer overrides the previous; only defined fields are merged.
  */
 export function resolveSettings(
-  globalDefaults?: Pick<GlobalAppConfig, "model" | "effort" | "permissionMode" | "dangerouslySkipPermissions" | "outputStyle" | "verbose" | "extraFlags"> | null,
+  globalDefaults?: Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags"> | null,
   repoDefaults?: ClaudeDefaults,
 ): ResolvedClaudeSettings {
   // For free-form text fields, treat blank/whitespace-only as absent so a
-  // hand-edited empty alfredo.json value doesn't silently shadow the global.
+  // hand-edited empty value doesn't silently shadow the global.
   const cleanFlags = (v?: string | null) => (v && v.trim() ? v : undefined);
   return {
-    model: repoDefaults?.model ?? globalDefaults?.model ?? undefined,
-    effort: repoDefaults?.effort ?? globalDefaults?.effort ?? undefined,
-    permissionMode: repoDefaults?.permissionMode ?? globalDefaults?.permissionMode ?? undefined,
     dangerouslySkipPermissions: repoDefaults?.dangerouslySkipPermissions ?? globalDefaults?.dangerouslySkipPermissions ?? undefined,
-    outputStyle: repoDefaults?.outputStyle ?? globalDefaults?.outputStyle ?? undefined,
-    verbose: repoDefaults?.verbose ?? globalDefaults?.verbose ?? undefined,
     extraFlags: cleanFlags(repoDefaults?.extraFlags) ?? cleanFlags(globalDefaults?.extraFlags),
   };
 }
@@ -94,24 +89,8 @@ export function withResumeSession(args: string[], sessionId: string): string[] {
 export function buildClaudeArgs(settings: ResolvedClaudeSettings): string[] {
   const args: string[] = [];
 
-  if (settings.model) {
-    args.push("--model", settings.model);
-  }
-  if (settings.effort) {
-    args.push("--effort", settings.effort);
-  }
-  if (settings.permissionMode && settings.permissionMode !== "default") {
-    if (settings.permissionMode === "bypassPermissions") {
-      args.push("--dangerously-skip-permissions");
-    } else {
-      args.push("--permission-mode", settings.permissionMode);
-    }
-  }
-  if (settings.outputStyle && settings.outputStyle !== "Default") {
-    args.push("--settings", JSON.stringify({ outputStyle: settings.outputStyle }));
-  }
-  if (settings.verbose) {
-    args.push("--verbose");
+  if (settings.dangerouslySkipPermissions) {
+    args.push("--dangerously-skip-permissions");
   }
   if (settings.extraFlags) {
     const parsed = parseLaunchFlags(settings.extraFlags);

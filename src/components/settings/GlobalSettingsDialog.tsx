@@ -252,12 +252,7 @@ function GlobalSettingsDialog({
           customEditorPath: null,
           preferredTerminal: "iterm",
           customTerminalPath: null,
-          model: null,
-          effort: null,
-          permissionMode: null,
           dangerouslySkipPermissions: null,
-          outputStyle: null,
-          verbose: null,
         });
       });
     setCurrentTheme(localStorage.getItem("alfredo-theme") || "warm-dark");
@@ -519,22 +514,12 @@ function GlobalSettingsDialog({
             {tab === "agent" && (
               <AgentSettings
                 settings={{
-                  model: appConfig.model ?? undefined,
-                  effort: appConfig.effort ?? undefined,
-                  permissionMode: appConfig.permissionMode ?? undefined,
                   dangerouslySkipPermissions: appConfig.dangerouslySkipPermissions ?? undefined,
-                  outputStyle: appConfig.outputStyle ?? undefined,
-                  verbose: appConfig.verbose ?? undefined,
                   extraFlags: appConfig.extraFlags ?? undefined,
                 }}
                 onChange={(claudeDefaults) =>
                   updateAppConfig({
-                    model: claudeDefaults.model ?? null,
-                    effort: claudeDefaults.effort ?? null,
-                    permissionMode: claudeDefaults.permissionMode ?? null,
                     dangerouslySkipPermissions: claudeDefaults.dangerouslySkipPermissions ?? null,
-                    outputStyle: claudeDefaults.outputStyle ?? null,
-                    verbose: claudeDefaults.verbose ?? null,
                     extraFlags: claudeDefaults.extraFlags ?? null,
                   })
                 }

@@ -1,45 +1,37 @@
 ---
-title: Agent settings — default agent, model, effort, permissions, output style
-keywords: [agent, claude, codex, gemini, model, effort, permission mode, output style, custom output style, verbose, default agent, plan mode, accept edits, bypass permissions]
+title: Agent settings — default agent, skip permissions, launch flags
+keywords: [agent, claude, codex, gemini, default agent, skip permissions, dangerously skip permissions, bypass permissions, launch flags, model, effort, permission mode, output style, /model]
 ui_path: Sidebar → ⚙ Settings → Agent tab
 ---
 
 The **Agent** tab of the global Settings dialog sets defaults for new
-agent sessions. A repo can adjust these via `claudeDefaults` in its
-per-repo Alfredo config. Any field left on "Default" defers to the
-agent's own configuration — settings you change inside Claude itself
-(e.g. with `/model`) carry over to new sessions automatically.
+agent sessions. It deliberately mirrors as little of Claude's own
+configuration as possible: model, effort, permission mode and output
+style are set inside Claude itself (`/model`, `/permissions`,
+`/output-style`, or the `--effort` flag) and Claude remembers them
+for new sessions automatically. Alfredo never overrides them, so new
+Claude options work without an Alfredo update.
 
 - **Default Agent** — Claude Code, Codex, or Gemini CLI. Used when
   opening a new worktree tab.
-- **Model** (Claude only) — picks which Claude model to use, or
-  "Default" to let Claude Code decide.
-- **Effort** (Claude only) — Low / Medium / High / XHigh / Max.
-  Trades thinking time for quality.
-- **Permission Mode** — Controls how often Claude asks before acting.
-  The same hints surface in the picker itself:
-  - **Default** — asks before edits and commands. Safest for
-    unfamiliar codebases.
-  - **Accept Edits** — auto-accepts file edits, still asks before
-    commands. Good middle ground for routine refactors.
-  - **Plan** — read-only exploration, no edits or commands. Use when
-    you want Claude to investigate without touching anything.
-  - **Auto** — Claude decides which permissions to grant; may still
-    ask for risky tools.
-  - **Don't Ask** — runs all tools without asking. Use with caution
-    on trusted code.
-  - **Bypass Permissions** — no checks at all. Sandboxed
-    environments only (e.g. ephemeral worktrees).
+- **Skip permission checks** (Claude only) — launches every new
+  Claude tab with `--dangerously-skip-permissions`, so Claude never
+  asks before edits or commands. This is the one permission setting
+  that can't live inside Claude, because it has to be passed at
+  launch. Sandboxed or throwaway worktrees only. Off by default.
+- **Additional flags** (Claude only) — free-form CLI flags appended
+  to every new Claude tab; see
+  [Claude launch flags](claude-launch-flags.md).
 
-- **Style** — output style for Claude Code. Built-in options are
-  Default, Explanatory and Learning. Any Markdown file dropped into
-  `~/.claude/output-styles/` (user-level) is picked up as a custom
-  style; a project-level style with the same name — in the repo's
-  `.claude/output-styles/` — overrides the user one. When only
-  built-ins are present the picker renders as a segmented control;
-  with any custom styles it switches to a dropdown.
-- **Verbose output** — toggle; shows more tool activity in the pane.
+Skip permissions and Additional flags only appear when the default
+agent is Claude Code. Changes apply to new sessions — existing
+sessions keep the flags they launched with.
 
-Model/Effort/Permissions/Style only appear when the default agent is
-Claude Code. Changes apply to new sessions — existing sessions keep
-their settings.
+A repo can adjust both Claude settings via `claudeDefaults` in its
+per-repo Alfredo config; Repository Settings exposes the flags box.
+
+Alfredo versions before 0.23 had Model, Effort, Permission Mode,
+Style and Verbose pickers here, plus per-worktree chips in the status
+bar. Those are gone; any value you had set is dropped and Claude's own
+persisted config takes over. If you had **Bypass Permissions**
+selected, the new Skip permission checks switch stays on.

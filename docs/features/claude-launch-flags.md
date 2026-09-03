@@ -19,9 +19,9 @@ Two levels:
 
 ## Behaviour
 
-- Flags are appended after Alfredo's structured settings (model,
-  permission mode, effort, output style), so a flag like `--model`
-  in the extra-flags box overrides the structured picker.
+- Flags are appended after `--dangerously-skip-permissions` when the
+  Skip permission checks switch is on. Alfredo passes nothing else,
+  so a flag like `--model` here does not fight any Alfredo picker.
 - Quoting works like a shell: `--append-system-prompt "be brief"`
   passes one argument. Unbalanced quotes show an inline error and
   block Save until fixed.

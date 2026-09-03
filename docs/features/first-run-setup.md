@@ -16,8 +16,9 @@ The fastest path to something useful:
    repos default to **worktree mode**.
 2. **Pick your default agent.** Open Global Settings → Agents and
    choose Claude Code, Codex, or Gemini CLI. Only providers Alfredo
-   detected on your `PATH` appear. Set model / permission mode
-   defaults while you're there.
+   detected on your `PATH` appear. Model, effort and permission mode
+   are set inside Claude itself (`/model`, `/permissions`) and stick
+   for new sessions.
 3. **Create your first worktree.** Sidebar → **+** button (or ⌘N).
    Start with **New Branch** for a blank-slate experiment, or
    **Branches** to check out something you already have.
