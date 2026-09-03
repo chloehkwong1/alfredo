@@ -7,6 +7,19 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.23.0 — 2026-09-03**
+- **Review PRs from inside Alfredo** — submit a review (approve/
+  request changes/comment), draft comments straight from the diff,
+  reply to threads, and resolve them — without leaving the app.
+- **Focus mode for the Changes panel** (⌘⇧E) — widen the diff and
+  hide the sidebar while you review.
+- **Agent settings simplified** — Model, Effort, Permission mode and
+  Output style are gone from Alfredo's Agent tab; set them once
+  inside Claude (`/model`, `/permissions`, `/config`) and every
+  worktree picks them up. Skip permission checks and Additional
+  flags still live in Alfredo, since Claude has no equivalent.
+- PR description links (e.g. "Open on GitHub") now open correctly.
+
 **v0.22.1 — 2026-09-02**
 - **Updating from a disk image no longer fails** — if Alfredo is
   running from the mounted .dmg or a quarantined copy, "Update &
@@ -72,45 +85,3 @@ https://github.com/chloehkwong1/alfredo/releases.
 - Various fixes: the sidebar selection no longer points at a worktree
   that has left the list, which left the main pane and Changes panel
   rendering against a stale row.
-
-**v0.20.0 — 2026-08-04**
-- **Stacked PRs overhauled end-to-end** — restacks are baseline-tracked
-  (`git rebase --onto`), so a child only ever replays its own commits
-  and survives amended, force-pushed, or squash-merged parents. Whole
-  stacks cascade automatically once parents are clean and idle; **Sync
-  stack with main** pulls origin/main into the root first, then ripples
-  down. Conflicts pause the stack and can be handed to that worktree's
-  Claude session with a ready-made resolution prompt.
-- **Stack map** — a pos/total glyph on stacked rows opens a popover
-  showing the whole stack (tree-shaped for forked stacks), with
-  click-to-jump, whole-stack restack, per-member state, pending
-  actions, and a last-action trace. Restacks queued behind a busy
-  agent show as pending in the sidebar too.
-- **Worktrees created outside Alfredo now auto-appear** — create one
-  from the terminal or a script and Alfredo adopts it (ports,
-  sessions, the lot) within seconds; externally deleted ones
-  disappear.
-- **Linear: per-repo prompt template + auto-submit** — customise the
-  prompt "Open in Alfredo" builds (with `{{variables}}`) in Repository
-  Settings, and optionally auto-send it to Claude instead of leaving
-  it in the input.
-- **Release highlights on update** — after Alfredo updates, a
-  what's-new dialog opens once with the highlights (this list!).
-- **Sidebar cards keep their order** — no more reshuffling when agent
-  status flips: pinned first, then your drag order, then creation
-  order.
-- **Light theme redesign** — new Paper light mode, near-white sidebar,
-  and contrast raised to WCAG AA across muted text, chips, and
-  statuses.
-- **Drop a commit** from the Commits tab right-click menu (with a
-  clear warning if it's already on origin), and **Open in editor**
-  from diff file headers; file paths printed in the terminal open in
-  your preferred editor at the exact line.
-- **Opus 5** is now a selectable model.
-- Various fixes: copied text no longer garbles non-ASCII characters
-  when Alfredo launches from the Dock; moving a worktree to Done
-  stops its dev server and frees the port; untracked scratch files
-  (like `.claude/`) no longer silently block auto-restack; new
-  branches no longer inherit the start-point's upstream; leaked
-  agent sessions are reaped before file-handle exhaustion; sidebar
-  status self-corrects from the Claude registry if a hook is missed.
