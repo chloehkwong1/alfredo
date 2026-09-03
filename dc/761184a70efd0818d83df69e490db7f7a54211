@@ -1,0 +1,40 @@
+src-tauri/src/config_manager.rs
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 919,1685,1687-1688,1690
+src/components/ui/ToggleRow.tsx
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 1-26
+models.json
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 2,4-35,38-57,60-89
+src/components/settings/GlobalSettingsDialog.tsx
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 9,392-398,400-406,408-414
+src/services/claudeSettingsResolver.test.ts
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 3,38-43
+src/components/settings/AgentSettings.tsx
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 2,41-44,71-76
+src/services/claudeSettingsResolver.ts
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 39-48,51,53,58,87
+docs/features/claude-launch-flags.md
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 9-11
+docs/features/agent-settings.md
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 17,27-30,38-39,48-51
+src-tauri/src/app_config_manager.rs
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 412-422
+  s_ddbdba0a3cfd4b::t_8c748c007a4e00 411
+docs/features/switching-agent-provider.md
+  s_ddbdba0a3cfd4b::t_a2a3b15a0f6bb3 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "dc761184a70efd0818d83df69e490db7f7a54211",
+  "prompts": {},
+  "sessions": {
+    "s_ddbdba0a3cfd4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c53870c-7c03-4017-8c21-a26d5dee332c",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
