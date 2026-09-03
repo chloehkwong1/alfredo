@@ -1,0 +1,20 @@
+src/components/changes/PrDescription.tsx
+  s_c023cd576ee8bd::t_40871df6e57125 55-57,60
+  s_c023cd576ee8bd::t_f2e4fa4a5ca224 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "61225509231cafa8d42424b637f7888e1885511b",
+  "prompts": {},
+  "sessions": {
+    "s_c023cd576ee8bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56394b5c-247d-4ba0-a7e7-36bbc88b1299",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
