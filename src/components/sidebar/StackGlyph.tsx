@@ -55,17 +55,17 @@ function StackGlyph({ worktree, chain, onOpenMap, hue = null }: StackGlyphProps)
         (isRoot
           ? `Stack root, position 1 of ${chain.total}`
           : `Stack position ${chain.position} of ${chain.total}`)
-        + (chain.needsAttention ? ", a branch needs attention" : "")
+        + (chain.selfNeedsAttention ? ", this branch needs attention" : "")
         + " — open stack map"
       }
       title={
         (isRoot ? `Stack root — ${chain.position}/${chain.total}` : `Stack ${chain.position}/${chain.total}`)
-        + (chain.needsAttention ? " — a branch in this stack needs attention, click for details" : "")
+        + (chain.selfNeedsAttention ? " — this branch needs attention, click for details" : "")
       }
     >
       <Icon className={`h-3 w-3 ${rebasing ? "animate-spin" : ""}`} />
       {`${chain.position}/${chain.total}`}
-      {chain.needsAttention && (
+      {chain.selfNeedsAttention && (
         <span className="absolute -top-1 -right-1 text-[10px] font-bold text-amber-400">!</span>
       )}
     </button>
@@ -85,9 +85,9 @@ interface NativeStackChipProps {
   /** Root id of the worktree's local Alfredo chain, when one still exists —
    *  converted stacks keep StackGlyph's hover-peek through this chip. */
   peekRootId?: string;
-  /** A branch in the stack (or this card's own restack machinery) needs
-   *  action — renders StackGlyph's amber "!" badge so the trouble is visible
-   *  from the card, not only inside the popover. */
+  /** THIS card's branch or restack machinery needs action — renders
+   *  StackGlyph's amber "!" badge so the trouble is visible from the card,
+   *  not only inside the popover. Healthy stack-mates stay unbadged. */
   needsAttention?: boolean;
   /** Palette slot distinguishing this stack from other visible ones; null
    *  keeps the accent tint (single stack on screen). */
@@ -120,12 +120,12 @@ function NativeStackChip({ prStatus, onOpenMap, peekRootId, needsAttention = fal
       style={chipStyle(hue)}
       aria-label={
         `Stack position ${ns.position} of ${ns.size} in GitHub stack #${ns.number}`
-        + (needsAttention ? ", a branch needs attention" : "")
+        + (needsAttention ? ", this branch needs attention" : "")
         + " — open stack map"
       }
       title={
         `Stack #${ns.number} · ${ns.position}/${ns.size} — managed by GitHub`
-        + (needsAttention ? " — a branch in this stack needs attention, click for details" : "")
+        + (needsAttention ? " — this branch needs attention, click for details" : "")
       }
     >
       <Layers className="h-3 w-3" />

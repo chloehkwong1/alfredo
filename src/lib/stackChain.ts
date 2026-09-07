@@ -20,7 +20,9 @@ export interface StackChain {
   rootId: string;
   /** True when any branch in the stack has ≥2 children stacked on it. */
   forked: boolean;
-  needsAttention: boolean;
+  /** True when the queried worktree ITSELF needs attention — the amber "!"
+   *  badges exactly the troubled rows, not every member of the stack. */
+  selfNeedsAttention: boolean;
 }
 
 const ATTENTION_KINDS = new Set([
@@ -32,6 +34,18 @@ const ATTENTION_KINDS = new Set([
   "needsPush",
   "rewrittenExternally",
 ]);
+
+/** This worktree's own stack machinery needs eyes — drives the chip's amber
+ *  "!" and (minus in-flight `rebasing`) the dock-badge/collapsed-pill count.
+ *  Merged members are excluded: a leftover status (e.g. a needsPush whose
+ *  deleted upstream can never heal it) would flag something unactionable. */
+export function stackNeedsAttention(w: Worktree): boolean {
+  return (
+    !w.prStatus?.merged &&
+    ((w.stackRebaseStatus != null && ATTENTION_KINDS.has(w.stackRebaseStatus.kind)) ||
+      w.stackPending != null)
+  );
+}
 
 /** Follow `stackParent` edges up to the stack root (cycle-guarded). */
 function resolveRoot(byBranch: Map<string, Worktree>, self: Worktree, maxHops: number): Worktree {
@@ -98,15 +112,7 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
     total: members.length,
     rootId: root.id,
     forked: memberWts.some((w) => (childrenOf.get(w.branch)?.length ?? 0) > 1),
-    needsAttention: memberWts.some(
-      (m) =>
-        // Merged members render muted "merged ✓" with no actions — a leftover
-        // status on one (e.g. a needsPush whose deleted upstream can never
-        // heal it) would light an amber "!" that points at nothing.
-        !m.prStatus?.merged &&
-        ((m.stackRebaseStatus != null && ATTENTION_KINDS.has(m.stackRebaseStatus.kind)) ||
-          m.stackPending != null),
-    ),
+    selfNeedsAttention: stackNeedsAttention(self),
   };
 }
 

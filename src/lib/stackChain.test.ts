@@ -47,15 +47,20 @@ describe("computeStackChain", () => {
     expect(chain!.position).toBe(1);
   });
 
-  it("flags attention when any member has a non-upToDate status", () => {
+  // Attention is per-member: only the troubled worktree's own chip gets the
+  // amber "!" — healthy stack-mates stay unbadged.
+  it("flags attention only on the member with a non-upToDate status", () => {
     const cc = { ...c, stackRebaseStatus: { kind: "conflict" as const } };
-    expect(computeStackChain([a, b, cc], "a")!.needsAttention).toBe(true);
-    expect(computeStackChain([a, b, c], "a")!.needsAttention).toBe(false);
+    expect(computeStackChain([a, b, cc], "c")!.selfNeedsAttention).toBe(true);
+    expect(computeStackChain([a, b, cc], "a")!.selfNeedsAttention).toBe(false);
+    expect(computeStackChain([a, b, cc], "b")!.selfNeedsAttention).toBe(false);
+    expect(computeStackChain([a, b, c], "c")!.selfNeedsAttention).toBe(false);
   });
 
-  it("flags attention when any member has a pending stack action", () => {
+  it("flags attention only on the member with a pending stack action", () => {
     const bb = { ...b, stackPending: { mergedParent: "feat/a", blockedBy: "agentBusy" as const } };
-    expect(computeStackChain([a, bb, c], "a")!.needsAttention).toBe(true);
+    expect(computeStackChain([a, bb, c], "b")!.selfNeedsAttention).toBe(true);
+    expect(computeStackChain([a, bb, c], "a")!.selfNeedsAttention).toBe(false);
   });
 
   // A merged member's sticky needsPush can never heal (its upstream head is
@@ -68,7 +73,7 @@ describe("computeStackChain", () => {
       prStatus: { merged: true } as Worktree["prStatus"],
       stackRebaseStatus: { kind: "needsPush" as const },
     };
-    expect(computeStackChain([a, mergedB, c], "a")!.needsAttention).toBe(false);
+    expect(computeStackChain([a, mergedB, c], "b")!.selfNeedsAttention).toBe(false);
   });
 
   it("survives a dangling parent (branch deleted) by rooting at the orphan", () => {

@@ -1,5 +1,6 @@
 import type { Worktree } from "../types";
 import { computeEffectiveStatus, NEEDS_YOU_STATES } from "../components/sidebar/AgentItem";
+import { stackNeedsAttention } from "../lib/stackChain";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAppConfigStore } from "../stores/appConfigStore";
 import { setDockBadge } from "../api";
@@ -20,6 +21,12 @@ export function worktreeNeedsYou(
   unread: Set<string>,
 ): boolean {
   if (wt.archived) return false;
+  // Stack trouble (conflict, push failure, blocked restack) needs the user
+  // just like a waiting agent — and the chip's amber "!" is per-row, so a
+  // troubled member parked in a collapsed status group would otherwise
+  // surface nowhere. In-flight `rebasing` is excluded: the machine is
+  // working, not waiting on you.
+  if (stackNeedsAttention(wt) && wt.stackRebaseStatus?.kind !== "rebasing") return true;
   const effectiveSeen = seen.has(wt.id) && !unread.has(wt.id);
   const status = computeEffectiveStatus(
     wt.agentStatus,

@@ -128,6 +128,28 @@ describe("computeBadgeCount", () => {
     expect(count).toBe(perWorktree.length);
   });
 
+  // Stack trouble needs the user like a waiting agent — without this a
+  // troubled member in a collapsed status group surfaces nowhere, since the
+  // chip's amber "!" is per-row.
+  it("counts stack trouble even on a busy, seen worktree", () => {
+    const worktrees = [
+      wt({ id: "a", agentStatus: "busy", stackRebaseStatus: { kind: "conflict" } }),
+    ];
+    expect(worktreeNeedsYou(worktrees[0], new Set(["a"]), new Set())).toBe(true);
+  });
+
+  it("does not count in-flight rebasing or merged members' leftover statuses", () => {
+    const rebasing = wt({ id: "a", agentStatus: "busy", stackRebaseStatus: { kind: "rebasing" } });
+    const merged = wt({
+      id: "b",
+      agentStatus: "busy",
+      prStatus: { merged: true } as Worktree["prStatus"],
+      stackRebaseStatus: { kind: "needsPush" },
+    });
+    expect(worktreeNeedsYou(rebasing, new Set(["a"]), new Set())).toBe(false);
+    expect(worktreeNeedsYou(merged, new Set(["b"]), new Set())).toBe(false);
+  });
+
   it("sums across multiple attention worktrees", () => {
     const count = computeBadgeCount({
       worktrees: [

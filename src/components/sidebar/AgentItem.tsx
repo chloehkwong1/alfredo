@@ -406,7 +406,7 @@ function AgentItemContent({
             prStatus={worktree.prStatus}
             onOpenMap={onOpenStackMap}
             peekRootId={stackChain?.rootId}
-            needsAttention={Boolean(stackChain?.needsAttention) || stackTrouble}
+            needsAttention={Boolean(stackChain?.selfNeedsAttention) || stackTrouble}
             hue={stackHue}
           />
           <span className="flex items-center gap-1.5 ml-auto flex-shrink-0">
