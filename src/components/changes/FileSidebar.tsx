@@ -33,14 +33,14 @@ interface FileSidebarProps {
   error?: string | null;
 }
 
-const STATUS_BADGE_CLASSES: Record<string, string> = {
+export const STATUS_BADGE_CLASSES: Record<string, string> = {
   added: "bg-diff-added/15 text-diff-added",
   modified: "bg-accent-primary/15 text-accent-primary",
   deleted: "bg-diff-removed/15 text-diff-removed",
   renamed: "bg-bg-hover text-text-secondary",
 };
 
-const STATUS_LETTER: Record<string, string> = {
+export const STATUS_LETTER: Record<string, string> = {
   added: "A",
   modified: "M",
   deleted: "D",

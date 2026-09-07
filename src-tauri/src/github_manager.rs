@@ -1,5 +1,5 @@
 use octocrab::Octocrab;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::bounded_lru::BoundedLru;
@@ -150,6 +150,44 @@ fn parse_native_stack_nodes(nodes: &[serde_json::Value]) -> HashMap<u64, NativeS
         }
     }
     result
+}
+
+/// Extract (all file paths, VIEWED file paths) from a GraphQL
+/// `pullRequest.files.nodes` array. The full path set is the universe
+/// viewed-state toggles are valid against — the local diff can diverge from
+/// it on unpushed work. Entries missing `path` or `viewerViewedState`
+/// (schema drift) are skipped, not errored.
+fn parse_pr_file_viewed_nodes(nodes: &[serde_json::Value]) -> (HashSet<String>, HashSet<String>) {
+    let mut all = HashSet::new();
+    let mut viewed = HashSet::new();
+    for node in nodes {
+        let Some(path) = node.get("path").and_then(serde_json::Value::as_str) else { continue };
+        let Some(state) = node.get("viewerViewedState").and_then(serde_json::Value::as_str) else { continue };
+        if state == "VIEWED" {
+            viewed.insert(path.to_string());
+        }
+        all.insert(path.to_string());
+    }
+    (all, viewed)
+}
+
+/// Parse a GraphQL `pageInfo` object into the next page's cursor. Fail-soft:
+/// a missing or odd shape reads as "no next page", never an error.
+fn next_page_cursor(page_info: Option<&serde_json::Value>) -> Option<String> {
+    let page_info = page_info?;
+    if !page_info.get("hasNextPage").and_then(serde_json::Value::as_bool).unwrap_or(false) {
+        return None;
+    }
+    page_info.get("endCursor").and_then(serde_json::Value::as_str).map(str::to_string)
+}
+
+/// Build the GraphQL payload for `markFileAsViewed`/`markFileAsUnviewed`.
+fn build_mark_file_viewed_payload(pull_request_id: &str, path: &str, viewed: bool) -> serde_json::Value {
+    let op = if viewed { "markFileAsViewed" } else { "markFileAsUnviewed" };
+    let mutation = format!(
+        "mutation($pullRequestId: ID!, $path: String!) {{ {op}(input: {{ pullRequestId: $pullRequestId, path: $path }}) {{ clientMutationId }} }}"
+    );
+    serde_json::json!({ "query": mutation, "variables": { "pullRequestId": pull_request_id, "path": path } })
 }
 
 /// Deduplicate reviews: keep only the latest review per reviewer.
@@ -883,17 +921,13 @@ impl GithubManager {
         // only exists so a pathological pageInfo can't loop forever.
         const MAX_PAGES: usize = 10;
 
-        let mut nodes: Vec<serde_json::Value> = Vec::new();
-        let mut cursor: Option<String> = None;
-        for _ in 0..MAX_PAGES {
-            let after = cursor
-                .as_ref()
-                .map(|c| format!(r#", after: "{c}""#))
-                .unwrap_or_default();
-            let query = format!(
-                r#"{{
+        // Static query with `$after` as a proper GraphQL variable — endCursor
+        // is an opaque server string, so splicing it into the query text
+        // would need escaping.
+        let query = format!(
+            r#"query($after: String) {{
   repository(owner: "{owner}", name: "{repo}") {{
-    pullRequests(states: [OPEN], first: 100, orderBy: {{field: CREATED_AT, direction: DESC}}{after}) {{
+    pullRequests(states: [OPEN], first: 100, orderBy: {{field: CREATED_AT, direction: DESC}}, after: $after) {{
       pageInfo {{ hasNextPage endCursor }}
       nodes {{
         number
@@ -909,9 +943,12 @@ impl GithubManager {
     }}
   }}
 }}"#
-            );
+        );
 
-            let body = serde_json::json!({ "query": query });
+        let mut nodes: Vec<serde_json::Value> = Vec::new();
+        let mut cursor: Option<String> = None;
+        for _ in 0..MAX_PAGES {
+            let body = serde_json::json!({ "query": query, "variables": { "after": cursor } });
             // Errors (transport, GraphQL `errors`, bad-credentials no-data)
             // all funnel through the shared policy; this site keeps its
             // warn-once + `None` degrade on top.
@@ -938,20 +975,9 @@ impl GithubManager {
             };
             nodes.extend(page_nodes.iter().cloned());
 
-            // pageInfo parsing is fail-soft: a missing/odd shape ends the loop
-            // with the pages already gathered rather than erroring out.
-            let page_info = response.pointer("/data/repository/pullRequests/pageInfo");
-            let has_next = page_info
-                .and_then(|p| p.get("hasNextPage"))
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
-            if !has_next {
-                break;
-            }
-            cursor = page_info
-                .and_then(|p| p.get("endCursor"))
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_string);
+            // Fail-soft: a missing/odd pageInfo ends the loop with the pages
+            // already gathered rather than erroring out.
+            cursor = next_page_cursor(response.pointer("/data/repository/pullRequests/pageInfo"));
             if cursor.is_none() {
                 break;
             }
@@ -1219,6 +1245,79 @@ impl GithubManager {
         );
         let payload = serde_json::json!({ "query": mutation, "variables": { "threadId": thread_id } });
         self.graphql_post(&payload, "resolve thread failed").await?;
+        Ok(())
+    }
+
+    /// Fetch each changed file's viewer-viewed-state for a PR, plus the PR's
+    /// GraphQL node id (needed by `set_file_viewed`). GitHub's REST files API
+    /// (`get_pr_files`) has no viewed-state field — this is GraphQL-only.
+    /// Returns (node id, all PR file paths, viewed file paths).
+    pub async fn get_pr_file_viewed_states(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<(String, HashSet<String>, HashSet<String>), AppError> {
+        // 100 files/page × 10 pages covers any PR Alfredo would show; the cap
+        // only exists so a pathological pageInfo can't loop forever.
+        const MAX_PAGES: usize = 10;
+
+        // Static query with `$after` as a proper GraphQL variable — endCursor
+        // is an opaque server string, so splicing it into the query text
+        // would need escaping.
+        let query = format!(
+            r#"query($after: String) {{
+  repository(owner: "{owner}", name: "{repo}") {{
+    pullRequest(number: {pr_number}) {{
+      id
+      files(first: 100, after: $after) {{
+        pageInfo {{ hasNextPage endCursor }}
+        nodes {{ path viewerViewedState }}
+      }}
+    }}
+  }}
+}}"#
+        );
+
+        let mut node_id: Option<String> = None;
+        let mut nodes: Vec<serde_json::Value> = Vec::new();
+        let mut cursor: Option<String> = None;
+
+        for _ in 0..MAX_PAGES {
+            let body = serde_json::json!({ "query": query, "variables": { "after": cursor } });
+            let response = self.graphql_post(&body, "PR file viewed-state fetch failed").await?;
+
+            let pr = response.pointer("/data/repository/pullRequest");
+            if node_id.is_none() {
+                node_id = pr
+                    .and_then(|p| p.get("id"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string);
+            }
+            let Some(page_nodes) = pr.and_then(|p| p.pointer("/files/nodes")).and_then(serde_json::Value::as_array) else {
+                break;
+            };
+            nodes.extend(page_nodes.iter().cloned());
+
+            cursor = next_page_cursor(pr.and_then(|p| p.pointer("/files/pageInfo")));
+            if cursor.is_none() {
+                break;
+            }
+        }
+
+        let node_id = node_id.ok_or_else(|| {
+            AppError::Github(format!("missing pull request id for {owner}/{repo}#{pr_number}"))
+        })?;
+        let (pr_paths, viewed_paths) = parse_pr_file_viewed_nodes(&nodes);
+        Ok((node_id, pr_paths, viewed_paths))
+    }
+
+    /// Mark (or unmark) a single file as viewed on a PR, via GitHub's GraphQL
+    /// `markFileAsViewed`/`markFileAsUnviewed` mutations — no REST equivalent.
+    /// `pull_request_id` is the GraphQL node id from `get_pr_file_viewed_states`.
+    pub async fn set_file_viewed(&self, pull_request_id: &str, path: &str, viewed: bool) -> Result<(), AppError> {
+        let payload = build_mark_file_viewed_payload(pull_request_id, path, viewed);
+        self.graphql_post(&payload, "mark file viewed failed").await?;
         Ok(())
     }
 
@@ -2401,6 +2500,74 @@ mod tests {
             }
         })];
         assert!(parse_native_stack_nodes(&nodes).is_empty());
+    }
+
+    // --- parse_pr_file_viewed_nodes tests ---
+
+    #[test]
+    fn test_parse_pr_file_viewed_nodes_selects_viewed_only() {
+        let nodes = vec![
+            serde_json::json!({ "path": "a.rs", "viewerViewedState": "VIEWED" }),
+            serde_json::json!({ "path": "b.rs", "viewerViewedState": "UNVIEWED" }),
+            serde_json::json!({ "path": "c.rs", "viewerViewedState": "DISMISSED" }),
+        ];
+        let (all, viewed) = parse_pr_file_viewed_nodes(&nodes);
+        assert_eq!(
+            all,
+            HashSet::from(["a.rs".to_string(), "b.rs".to_string(), "c.rs".to_string()])
+        );
+        assert_eq!(viewed, HashSet::from(["a.rs".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_pr_file_viewed_nodes_skips_malformed_entries() {
+        // Missing `path` or `viewerViewedState` — fail-open (skip), never panic.
+        let nodes = vec![
+            serde_json::json!({ "path": "a.rs", "viewerViewedState": "VIEWED" }),
+            serde_json::json!({ "viewerViewedState": "VIEWED" }),
+            serde_json::json!({ "path": "b.rs" }),
+        ];
+        let (all, viewed) = parse_pr_file_viewed_nodes(&nodes);
+        assert_eq!(all, HashSet::from(["a.rs".to_string()]));
+        assert_eq!(viewed, HashSet::from(["a.rs".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_pr_file_viewed_nodes_empty() {
+        let (all, viewed) = parse_pr_file_viewed_nodes(&[]);
+        assert!(all.is_empty());
+        assert!(viewed.is_empty());
+    }
+
+    // --- next_page_cursor tests ---
+
+    #[test]
+    fn test_next_page_cursor() {
+        let more = serde_json::json!({ "hasNextPage": true, "endCursor": "abc" });
+        assert_eq!(next_page_cursor(Some(&more)), Some("abc".to_string()));
+        let done = serde_json::json!({ "hasNextPage": false, "endCursor": "abc" });
+        assert_eq!(next_page_cursor(Some(&done)), None);
+        // Fail-soft on odd shapes: no pageInfo, or hasNextPage without a cursor.
+        assert_eq!(next_page_cursor(None), None);
+        let no_cursor = serde_json::json!({ "hasNextPage": true });
+        assert_eq!(next_page_cursor(Some(&no_cursor)), None);
+    }
+
+    // --- build_mark_file_viewed_payload tests ---
+
+    #[test]
+    fn test_build_mark_file_viewed_payload_viewed() {
+        let payload = build_mark_file_viewed_payload("PR_kwHO", "src/a.rs", true);
+        assert!(payload["query"].as_str().unwrap().contains("markFileAsViewed"));
+        assert_eq!(payload["variables"]["pullRequestId"], "PR_kwHO");
+        assert_eq!(payload["variables"]["path"], "src/a.rs");
+    }
+
+    #[test]
+    fn test_build_mark_file_viewed_payload_unviewed() {
+        let payload = build_mark_file_viewed_payload("PR_kwHO", "src/a.rs", false);
+        assert!(payload["query"].as_str().unwrap().contains("markFileAsUnviewed"));
+        assert!(!payload["query"].as_str().unwrap().contains("markFileAsViewed("));
     }
 
     // --- parse_workflow_logs tests ---

@@ -197,7 +197,8 @@ export function PrRailIcons({ worktreeId }: PrRailIconsProps) {
 }
 
 // ── CommentsByFile ────────────────────────────────────────────────
-// Groups comments by file path, with each file collapsible.
+// Groups comments by file path, with each file collapsible. Exported for the
+// focus-mode PrOverview, which renders the same comments UI in its main column.
 
 const FILE_COLLAPSED_KEY = "pr-panel-file-collapsed";
 
@@ -217,7 +218,7 @@ function persistFileCollapsedSet(worktreeId: string, s: Set<string>) {
   localStorage.setItem(fileCollapsedKey(worktreeId), JSON.stringify([...s]));
 }
 
-function CommentsByFile({
+export function CommentsByFile({
   comments,
   worktreeId,
   worktree,

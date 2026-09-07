@@ -58,3 +58,18 @@ pub async fn set_pr_thread_resolved(
     github_sync::trigger_sync(&app);
     Ok(())
 }
+
+/// Mark (or unmark) a single file as viewed. `pr_node_id` comes from a prior
+/// `get_pr_file_viewed_states` call — this command does not resolve it itself.
+#[tauri::command]
+pub async fn set_pr_file_viewed(
+    app: tauri::AppHandle,
+    repo_path: String,
+    pr_node_id: String,
+    path: String,
+    viewed: bool,
+) -> Result<()> {
+    let (manager, _owner, _repo) = github_manager::github_context(&app_data_dir(&app)?, &repo_path).await?;
+    manager.set_file_viewed(&pr_node_id, &path, viewed).await?;
+    Ok(())
+}

@@ -563,6 +563,16 @@ export interface PrDetailedStatus {
   requestedReviewers: string[];
 }
 
+/** The PR's GraphQL node id (needed to submit a viewed/unviewed toggle),
+ *  every changed-file path in the PR on GitHub (the universe viewed toggles
+ *  are valid against — the local diff can diverge on unpushed work), and the
+ *  subset the viewer has already marked as viewed. */
+export interface PrFileViewedStates {
+  prNodeId: string;
+  prPaths: string[];
+  viewedPaths: string[];
+}
+
 export interface DiffTarget {
   type: "file" | "commit";
   filePath?: string;

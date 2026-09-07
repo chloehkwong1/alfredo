@@ -5,6 +5,7 @@ import { IconButton } from "../ui/IconButton";
 import { FileSidebar } from "./FileSidebar";
 import { RecentCommitsSection } from "./RecentCommitsSection";
 import { PrPanelContent, PrRailIcons, usePrBadgeCounts } from "./PrPanel";
+import { PrOverview } from "./PrOverview";
 import { MergeStatusBanner } from "./MergeStatusBanner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/Dialog";
 import { Button } from "../ui/Button";
@@ -623,11 +624,22 @@ function WorkspacePanel({
 
       {/* Tab content */}
       {panelTab === "pr" && hasPr ? (
-        <PrPanelContent
-          worktreeId={worktreeId}
-          repoPath={repoPath}
-          onJumpToComment={handleJumpToComment}
-        />
+        focused ? (
+          <PrOverview
+            worktreeId={worktreeId}
+            repoPath={repoPath}
+            files={committedFiles}
+            activeFilePath={activeFilePath}
+            onSelectFile={(path) => handleSelectFile(path, false)}
+            onJumpToComment={handleJumpToComment}
+          />
+        ) : (
+          <PrPanelContent
+            worktreeId={worktreeId}
+            repoPath={repoPath}
+            onJumpToComment={handleJumpToComment}
+          />
+        )
       ) : (
         <div className="flex-1 min-h-0 flex flex-col">
           <FileSidebar

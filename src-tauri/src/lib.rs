@@ -382,10 +382,12 @@ pub fn run() {
             pr_detail::get_pr_detail,
             pr_detail::get_pr_files,
             pr_detail::get_pr_commits,
+            pr_detail::get_pr_file_viewed_states,
             // PR Review
             pr_review::submit_pr_review,
             pr_review::reply_to_pr_comment,
             pr_review::set_pr_thread_resolved,
+            pr_review::set_pr_file_viewed,
             // GitHub Auth
             github_auth::github_auth_status,
             github_auth::github_auth_token,

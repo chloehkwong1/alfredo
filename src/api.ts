@@ -13,6 +13,7 @@ import type {
   PortClaimResult,
   TakePortResult,
   PrAssociationRef,
+  PrFileViewedStates,
   PrStatus,
   PtyEvent,
   RepoMode,
@@ -408,6 +409,19 @@ export function replyToPrComment(
 
 export function setPrThreadResolved(repoPath: string, threadId: string, resolved: boolean): Promise<void> {
   return invoke("set_pr_thread_resolved", { repoPath, threadId, resolved });
+}
+
+export function getPrFileViewedStates(repoPath: string, prNumber: number): Promise<PrFileViewedStates> {
+  return invoke("get_pr_file_viewed_states", { repoPath, prNumber });
+}
+
+export function setPrFileViewed(
+  repoPath: string,
+  prNodeId: string,
+  path: string,
+  viewed: boolean
+): Promise<void> {
+  return invoke("set_pr_file_viewed", { repoPath, prNodeId, path, viewed });
 }
 
 // ── GitHub Auth ─────────────────────────────────────────────────

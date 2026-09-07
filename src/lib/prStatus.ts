@@ -8,15 +8,29 @@ export function isTerminalPr(pr: Pick<PrStatus, "merged" | "state">): boolean {
   return pr.merged || pr.state === "closed";
 }
 
-/** Label + color token for a PR's current state, terminal states first so a
- *  merged/closed PR is never mislabeled "Open". */
+export type PrStateKind = "merged" | "closed" | "draft" | "open";
+
+/** A PR's display state, terminal states first so a merged/closed PR is never
+ *  misclassified "open". Callers needing more than the label (e.g. an icon)
+ *  key off this instead of re-deriving the precedence. */
+export function prStateKind(pr: Pick<PrStatus, "merged" | "state" | "draft">): PrStateKind {
+  if (pr.merged) return "merged";
+  if (isTerminalPr(pr)) return "closed";
+  if (pr.draft) return "draft";
+  return "open";
+}
+
+/** Label + color token for a PR's current state — the single source for PR
+ *  state colors, so the same PR can't render differently across panes. */
 export function prStatusLabel(
   pr: Pick<PrStatus, "merged" | "state" | "draft">,
 ): { text: string; className: string } {
-  if (pr.merged) return { text: "Merged", className: "text-accent-primary" };
-  if (isTerminalPr(pr)) return { text: "Closed", className: "text-text-secondary" };
-  if (pr.draft) return { text: "Draft", className: "text-status-busy" };
-  return { text: "Open", className: "text-status-idle" };
+  switch (prStateKind(pr)) {
+    case "merged": return { text: "Merged", className: "text-accent-primary" };
+    case "closed": return { text: "Closed", className: "text-text-secondary" };
+    case "draft": return { text: "Draft", className: "text-status-busy" };
+    case "open": return { text: "Open", className: "text-status-idle" };
+  }
 }
 
 /** The `{merged, closed}` summary shape the sidebar chips read — closed means

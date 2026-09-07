@@ -35,6 +35,12 @@ interface PrState {
   }>;
   prPanelState: Record<string, PrPanelState>;
   reviewedFiles: Record<string, Set<string>>;
+  /** Per-worktree viewed-state fetch result: the PR's GraphQL node id, which
+   *  PR it was fetched for, and the PR's full file-path universe on GitHub.
+   *  Presence (with a matching prNumber) doubles as the "already hydrated"
+   *  flag, so PrFileList doesn't refire its paginated GraphQL fetch on every
+   *  mount — and a late stale re-fetch can't clobber a confirmed toggle. */
+  prFileMeta: Record<string, { nodeId: string; prNumber: number; prPaths: Set<string> }>;
   jumpToComment: Record<string, ((path: string, line: number) => void) | null>;
   columnOverrides: Record<string, ColumnOverride>;
   /** Last autoColumn computed by Rust for each worktree — used to snapshot overrides. */
@@ -45,8 +51,15 @@ interface PrState {
   setPrPanelState: (worktreeId: string, panelState: PrPanelState) => void;
   /** Follow a worktree whose id changed under it (branch switch). */
   rekeyWorktree: (oldId: string, newId: string) => void;
-  toggleReviewedFile: (worktreeId: string, filePath: string) => void;
+  /** Records a single file's confirmed viewed state — an explicit target, not
+   *  a blind toggle, so a hydration landing mid-mutation can't flip it the
+   *  wrong way. */
+  setFileReviewed: (worktreeId: string, filePath: string, reviewed: boolean) => void;
+  /** Replaces the reviewed set wholesale — used to hydrate from GitHub's
+   *  viewer-viewed-state on load, as opposed to a single local toggle. */
+  setReviewedFiles: (worktreeId: string, filePaths: Iterable<string>) => void;
   clearReviewedFiles: (worktreeId: string) => void;
+  setPrFileMeta: (worktreeId: string, meta: { nodeId: string; prNumber: number; prPaths: Set<string> }) => void;
   setJumpToComment: (worktreeId: string, fn: (path: string, line: number) => void) => void;
   clearJumpToComment: (worktreeId: string) => void;
   setManualColumn: (id: string, column: KanbanColumn, currentAutoColumn?: KanbanColumn) => void;
@@ -70,6 +83,7 @@ const INITIAL_STATE = {
   prSummary: {},
   prPanelState: {},
   reviewedFiles: {},
+  prFileMeta: {},
   jumpToComment: {},
   columnOverrides: {},
   lastAutoColumn: {},
@@ -98,6 +112,7 @@ export const usePrStore = create<PrState>((set, get) => ({
       prDetail: rekeyRecord(state.prDetail, oldId, newId),
       prPanelState: rekeyRecord(state.prPanelState, oldId, newId),
       reviewedFiles: rekeyRecord(state.reviewedFiles, oldId, newId),
+      prFileMeta: rekeyRecord(state.prFileMeta, oldId, newId),
       jumpToComment: rekeyRecord(state.jumpToComment, oldId, newId),
       // Without these two, applyPrUpdates finds no override under the new id
       // on the next sync and silently reverts a manual kanban placement.
@@ -105,21 +120,30 @@ export const usePrStore = create<PrState>((set, get) => ({
       lastAutoColumn: rekeyRecord(state.lastAutoColumn, oldId, newId),
     })),
 
-  toggleReviewedFile: (worktreeId, filePath) =>
+  setFileReviewed: (worktreeId, filePath, reviewed) =>
     set((state) => {
-      const current = state.reviewedFiles[worktreeId] ?? new Set<string>();
-      const next = new Set(current);
-      if (next.has(filePath)) {
-        next.delete(filePath);
-      } else {
+      const next = new Set(state.reviewedFiles[worktreeId] ?? []);
+      if (reviewed) {
         next.add(filePath);
+      } else {
+        next.delete(filePath);
       }
       return { reviewedFiles: { ...state.reviewedFiles, [worktreeId]: next } };
     }),
 
+  setReviewedFiles: (worktreeId, filePaths) =>
+    set((state) => ({
+      reviewedFiles: { ...state.reviewedFiles, [worktreeId]: new Set(filePaths) },
+    })),
+
   clearReviewedFiles: (worktreeId) =>
     set((state) => ({
       reviewedFiles: { ...state.reviewedFiles, [worktreeId]: new Set<string>() },
+    })),
+
+  setPrFileMeta: (worktreeId, meta) =>
+    set((state) => ({
+      prFileMeta: { ...state.prFileMeta, [worktreeId]: meta },
     })),
 
   setJumpToComment: (worktreeId, fn) =>
@@ -156,6 +180,7 @@ export const usePrStore = create<PrState>((set, get) => ({
       const { [id]: _prSummary, ...restPrSummary } = state.prSummary;
       const { [id]: _prPanelState, ...restPrPanelState } = state.prPanelState;
       const { [id]: _reviewedFiles, ...restReviewedFiles } = state.reviewedFiles;
+      const { [id]: _prFileMeta, ...restPrFileMeta } = state.prFileMeta;
       const { [id]: _jumpToComment, ...restJumpToComment } = state.jumpToComment;
       const { [id]: _override, ...restOverrides } = state.columnOverrides;
       const { [id]: _auto, ...restAutoColumn } = state.lastAutoColumn;
@@ -165,6 +190,7 @@ export const usePrStore = create<PrState>((set, get) => ({
         prSummary: restPrSummary,
         prPanelState: restPrPanelState,
         reviewedFiles: restReviewedFiles,
+        prFileMeta: restPrFileMeta,
         jumpToComment: restJumpToComment,
         columnOverrides: restOverrides,
         lastAutoColumn: restAutoColumn,
