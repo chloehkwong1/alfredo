@@ -36,6 +36,9 @@ read a large diff. Toggle it with **⌘⇧E**, the "Focus mode — widen
 this panel" button in the panel header, or the command palette. It is
 remembered per worktree, and the terminal keeps running underneath.
 In normal mode the panel can be dragged up to 70% of the window.
+With the PR tab active, focus mode switches to a wide overview
+layout with a grouped file list and per-file Reviewed checkboxes —
+see [PR overview](pr-overview.md).
 
 At the bottom of the panel an **origin sync banner** appears whenever
 the branch is out of step with its upstream. The label reads `N ahead

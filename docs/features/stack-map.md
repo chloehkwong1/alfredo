@@ -22,7 +22,9 @@ queued (waiting for a busy agent), rebased outside Alfredo — restack
 manually, restacked by GitHub, or merged. States needing your action
 render red, benign states grey, and everything in flux amber — the
 same amber as the "!" the chip shows, so the popover always names
-what lit it. Error states always win over a "merged ✓" tag. Below the
+what lit it. The "!" is per-worktree: it only appears on the chip of
+the member that itself needs attention, not on its healthy
+stack-mates — open the stack map to see the whole chain's states. Error states always win over a "merged ✓" tag. Below the
 list, a **last action** line traces what Alfredo most recently did to
 the stack (e.g. a deferred restack that ran after the agent went
 idle), so a rebase that happened in the background is never a

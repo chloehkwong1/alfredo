@@ -15,6 +15,10 @@ one of:
 - **Done** — agent finished its turn.
 - **Error** — agent crashed or hit a tool error.
 - **Ready** — fresh worktree ready for first input.
+- **Stack trouble** — the worktree's stacked branch needs you: a
+  rebase conflict, a failed push after a restack, or a restack that
+  can't run (e.g. rebased outside Alfredo). A restack merely in
+  flight doesn't count.
 
 A worktree you've already opened (its agent in view, focus on the
 pane) drops out of the count, unless you've explicitly marked it
