@@ -1,0 +1,106 @@
+src/components/changes/PrOverview.tsx
+  s_c8f83d663033ae::t_e1c9f03fa6249d 33,36,40-44
+  s_c8f83d663033ae::t_7643e0daf76e17 4,11,20,22-28
+  s_c8f83d663033ae::t_3dd9325ffc4ed1 51,53
+  s_c8f83d663033ae::t_b6b164384e9b2e 85,87-106,113-115,130-132
+  s_c8f83d663033ae::t_129ec4cd5e0547 168-176
+  s_87c2b87b64aca9::t_bc98ebe8a16c14 1-3,5-10,12-19,21,29-32,34-35,37-39,45-50,52,54-84,86,107-112,116-129,133-167
+src/components/changes/PrPanel.tsx
+  s_c8f83d663033ae::t_135bfe2504acb9 200-201
+  s_c8f83d663033ae::t_54aebe407b2938 221
+src/types.ts
+  s_87c2b87b64aca9::t_e71b41a8d0c3f0 570-571,573-575
+  s_c8f83d663033ae::t_1cabd599714735 566-569,572
+src/lib/prFileGrouping.test.ts
+  s_87c2b87b64aca9::t_0e8cffa55d062e 1-67
+src/api.ts
+  s_87c2b87b64aca9::t_c04b9174511f8e 16
+  s_87c2b87b64aca9::t_955c34423d7d52 414-425
+  s_87c2b87b64aca9::t_e96797b559b029 426
+src/components/changes/ChangesPanel.tsx
+  s_87c2b87b64aca9::t_7d23ce620ced7b 627-633,635-642
+  s_87c2b87b64aca9::t_0db530cf8570fd 8
+  s_c8f83d663033ae::t_e97712c424ce38 634
+src-tauri/src/commands/pr_review.rs
+  s_87c2b87b64aca9::t_6b6ed4fb0470a2 61-75
+src/stores/prStore.ts
+  s_c8f83d663033ae::t_3d899d07303f5f 144-146
+  s_c8f83d663033ae::t_faf5fbb59ab28e 115
+  s_c8f83d663033ae::t_ed11fe9a0b0b79 54-57,62
+  s_c8f83d663033ae::t_508fbe92bd3ec9 123,125-126,128-129
+  s_c8f83d663033ae::t_6c6d8fcc7b5e89 38-43
+  s_c8f83d663033ae::t_58593a4309d918 183,193
+  s_87c2b87b64aca9::t_c2186e652bdb73 58-60
+  s_87c2b87b64aca9::t_5fc72ce47bb740 134-137,147
+  s_c8f83d663033ae::t_b9c6fff7b0f171 86
+  s_87c2b87b64aca9::t_6cd5ebd531285b 138
+  s_87c2b87b64aca9::t_c4c05bb98b2205 148
+src/services/prFileViewed.ts
+  s_c8f83d663033ae::t_a28248b5018436 7-10,18,20-21,24
+  s_87c2b87b64aca9::t_3bdf91c8638489 1-6,11-17,19,22-23,25-28
+src-tauri/src/lib.rs
+  s_87c2b87b64aca9::t_5e48e487f659cc 385,390
+src/lib/prFileGrouping.ts
+  s_87c2b87b64aca9::t_4b3b47a723211b 11-13
+  s_87c2b87b64aca9::t_aeb3e1d30c2bd2 1-10,14-38
+src/services/prFileViewed.test.ts
+  s_87c2b87b64aca9::t_99bd9dc92fe47f 1-52
+src/components/changes/FileSidebar.tsx
+  s_87c2b87b64aca9::t_3c860d368d2506 36,43
+src-tauri/src/github_manager.rs
+  s_c8f83d663033ae::t_2104a6f9d1f9ca 924-928,930,946,948-951
+  s_c8f83d663033ae::t_f9718ffe1cc266 978-980
+  s_87c2b87b64aca9::t_0a3be9e3a23fe2 2
+  s_c8f83d663033ae::t_e01399cebff55b 1254,1260,1265-1269,1273,1280-1287,1302,1311-1312
+  s_87c2b87b64aca9::t_e30fa1204120b2 2505-2513,2519-2529,2532-2536,2554-2555
+  s_87c2b87b64aca9::t_6623a968175699 1261-1264
+  s_c8f83d663033ae::t_705e096dcbc349 2514-2518,2530-2531,2537-2553
+  s_87c2b87b64aca9::t_82aa5205a36409 1322,2556-2571
+  s_c8f83d663033ae::t_73788a8a6b824b 155-181
+  s_87c2b87b64aca9::t_48ca1276ed0ad8 1251-1253,1255-1259,1270-1272,1274-1279,1288-1301,1303-1310,1313-1320
+  s_87c2b87b64aca9::t_4555c5806ae69a 182-183
+  s_87c2b87b64aca9::t_8c09293f018966 184-192
+  s_87c2b87b64aca9::t_40926796f20943 1321
+  s_87c2b87b64aca9::t_ae77cb21a52bb8 1323
+  s_87c2b87b64aca9::t_fe2963ffe298c2 2572
+src/lib/prStatus.ts
+  s_c8f83d663033ae::t_12344742928d84 11-24,28-33
+src/components/changes/PrFileList.tsx
+  s_c8f83d663033ae::t_adfa0fdeee430d 123,127-131
+  s_c8f83d663033ae::t_ce4a1f084797ad 82-92
+  s_c8f83d663033ae::t_51ec37c84d85ab 105-108
+  s_87c2b87b64aca9::t_82db46f0a94ee9 1-25,27,30,38,40,42-44,50-51,57,59-81,93-104,109-122,124-126,132-155
+  s_c8f83d663033ae::t_172cb191c86e1f 34-36
+  s_c8f83d663033ae::t_a37479e70e17a5 26,28-29,31-33,37,39,41,45-49,52-56,58
+src-tauri/src/commands/pr_detail.rs
+  s_c8f83d663033ae::t_008db7218fa0ab 60-61
+  s_c8f83d663033ae::t_7c785f64dbf86f 10-13,18
+  s_87c2b87b64aca9::t_377a26a062c35c 49-59
+  s_87c2b87b64aca9::t_14d56f226104e6 1-2,14-17,19-20,62
+  s_87c2b87b64aca9::t_599dbcc0e67ebb 21
+  s_87c2b87b64aca9::t_582f3f6f3bca85 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c2bcd22be10d77e8445d575baf609f839de2db22",
+  "prompts": {},
+  "sessions": {
+    "s_87c2b87b64aca9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3785eca9-9bf0-4fac-9ad7-fb756a2a3e62",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_c8f83d663033ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "426bab45-60f4-4e61-96c8-9f133d341859",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
