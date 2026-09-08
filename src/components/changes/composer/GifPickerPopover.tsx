@@ -48,9 +48,16 @@ function GifPickerPopover({ anchorRef, onPick, onClose }: GifPickerPopoverProps)
     reposition();
     window.addEventListener("resize", reposition);
     window.addEventListener("scroll", reposition, true);
+    // Content-driven size changes (e.g. GIF result grid populating) can land
+    // after this effect runs — re-run reposition then so the popover doesn't
+    // stay pinned to a stale size.
+    const popover = popoverRef.current;
+    const resizeObserver = popover ? new ResizeObserver(reposition) : null;
+    if (popover) resizeObserver?.observe(popover);
     return () => {
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
+      resizeObserver?.disconnect();
     };
   }, [anchorRef, state]);
 

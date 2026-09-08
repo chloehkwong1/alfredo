@@ -39,9 +39,16 @@ function EmojiPickerPopover({ anchorRef, onPick, onClose }: EmojiPickerPopoverPr
     reposition();
     window.addEventListener("resize", reposition);
     window.addEventListener("scroll", reposition, true);
+    // The lazy picker (or its shadow-DOM layout) can finish resolving after
+    // this effect runs, changing the popover's own size — re-run reposition
+    // then so we don't stay pinned to the small "Loading…" fallback's size.
+    const popover = popoverRef.current;
+    const resizeObserver = popover ? new ResizeObserver(reposition) : null;
+    if (popover) resizeObserver?.observe(popover);
     return () => {
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
+      resizeObserver?.disconnect();
     };
   }, [anchorRef, data]);
 
