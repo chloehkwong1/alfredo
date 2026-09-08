@@ -1,0 +1,21 @@
+src/lib/composerText.test.ts
+  s_38cdb89c4ad94d::t_106720caa6b7a2 1-37
+src/lib/composerText.ts
+  s_38cdb89c4ad94d::t_c63a0bfa31c2b1 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "dc0b7ef504df07037ccdacef12b68f8d1a560102",
+  "prompts": {},
+  "sessions": {
+    "s_38cdb89c4ad94d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563aa440-3137-4094-af7b-41e91eff14c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
