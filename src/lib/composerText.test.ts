@@ -34,4 +34,20 @@ describe("buildSuggestionBlock", () => {
   it("preserves an empty line", () => {
     expect(buildSuggestionBlock("")).toBe("```suggestion\n\n```\n");
   });
+
+  it("strips a single trailing newline so Apply doesn't insert a blank line", () => {
+    expect(buildSuggestionBlock("  const x = 1;\n")).toBe(
+      "```suggestion\n  const x = 1;\n```\n"
+    );
+  });
+
+  it("strips a single trailing CRLF", () => {
+    expect(buildSuggestionBlock("foo\r\n")).toBe("```suggestion\nfoo\n```\n");
+  });
+
+  it("preserves meaningful trailing whitespace before the newline", () => {
+    expect(buildSuggestionBlock("foo  \n")).toBe(
+      "```suggestion\nfoo  \n```\n"
+    );
+  });
 });

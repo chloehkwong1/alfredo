@@ -11,5 +11,10 @@ export function insertAtCursor(
 
 /** GitHub one-click-apply suggestion block for the commented line. */
 export function buildSuggestionBlock(lineText: string): string {
-  return "```suggestion\n" + lineText + "\n```\n";
+  // Diff line content comes through untrimmed (libgit2 line.content() includes
+  // the terminal line ending) — strip at most one trailing \r?\n so Apply
+  // doesn't insert a spurious blank line. Meaningful trailing whitespace that
+  // isn't part of the line ending is preserved.
+  const line = lineText.replace(/\r?\n$/, "");
+  return "```suggestion\n" + line + "\n```\n";
 }
