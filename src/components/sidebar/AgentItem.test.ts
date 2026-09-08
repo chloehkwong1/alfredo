@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { computeEffectiveStatus, adoptConsequence, adoptActionLabel } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
-import { hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
+import { hiddenMembersNote, collectExtensionMembers, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
-import type { PrStatus, Worktree } from "../../types";
+import type { NativeStackInfo, PrStatus, Worktree } from "../../types";
+import type { StackChain } from "../../lib/stackChain";
 
 describe("computeEffectiveStatus", () => {
   it("returns busy when agent is busy and not stale", () => {
@@ -77,6 +78,15 @@ describe("nativeStackChipLabel", () => {
     expect(nativeStackChipLabel(pr)).toBe("2/3");
   });
 
+  it("keeps GitHub's numerator but takes the unified total as denominator", () => {
+    const pr: PrStatus = {
+      ...basePr,
+      nativeStack: { id: "S1", number: 42, position: 2, size: 3, members: [] },
+    };
+    expect(nativeStackChipLabel(pr, { position: 2, total: 5 })).toBe("2/5");
+    expect(nativeStackChipLabel(pr, null)).toBe("2/3");
+  });
+
   it("returns null when the PR is not a native stack member", () => {
     expect(nativeStackChipLabel(basePr)).toBeNull();
     expect(nativeStackChipLabel({ ...basePr, nativeStack: null })).toBeNull();
@@ -106,6 +116,63 @@ describe("hiddenMembersNote", () => {
 
   it("stays null if the roster somehow exceeds the recorded size", () => {
     expect(hiddenMembersNote(2, 3)).toBeNull();
+  });
+});
+
+// Local-only extension of a grafted stack: chain members whose worktree's PR
+// number is absent from the native roster render as "no PR yet" rows above
+// the native rows, tip-first — this is the collector behind that.
+describe("collectExtensionMembers", () => {
+  const nativeStack: NativeStackInfo = {
+    id: "S1",
+    number: 42,
+    position: 1,
+    size: 2,
+    members: [
+      { number: 10, title: "Base", branch: "feat/base", state: "OPEN", url: "", position: 1 },
+      { number: 11, title: "Mid", branch: "feat/mid", state: "OPEN", url: "", position: 2 },
+    ],
+  };
+  const wt = (id: string, prNumber?: number): Worktree =>
+    ({
+      id,
+      branch: id,
+      stackRebaseStatus: null,
+      stackPending: null,
+      prStatus: prNumber == null ? null : ({ number: prNumber } as PrStatus),
+    }) as Worktree;
+  const chainOf = (ids: Array<[string, number]>): StackChain => ({
+    members: ids.map(([id, depth]) => ({ id, depth, prefix: "└" })),
+    position: 1,
+    total: ids.length,
+    rootId: ids[0][0],
+    forked: false,
+    selfNeedsAttention: false,
+    unified: null,
+    nativeStack,
+  });
+
+  it("returns nothing without a local chain", () => {
+    expect(collectExtensionMembers(null, nativeStack, [wt("a")])).toEqual([]);
+  });
+
+  it("collects no-PR and outside-stack members tip-first, skipping roster PRs", () => {
+    const worktrees = [wt("base", 10), wt("no-pr"), wt("outside", 99)];
+    const result = collectExtensionMembers(
+      chainOf([["base", 1], ["outside", 2], ["no-pr", 3]]),
+      nativeStack,
+      worktrees,
+    );
+    expect(result.map((w) => w.id)).toEqual(["no-pr", "outside"]);
+  });
+
+  it("drops chain members with no worktree in the store", () => {
+    const result = collectExtensionMembers(
+      chainOf([["ghost", 1], ["no-pr", 2]]),
+      nativeStack,
+      [wt("no-pr")],
+    );
+    expect(result.map((w) => w.id)).toEqual(["no-pr"]);
   });
 });
 

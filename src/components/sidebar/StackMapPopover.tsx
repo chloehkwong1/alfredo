@@ -269,8 +269,36 @@ function stackPendingNotice(pending: StackPendingAction, branch: string, default
 interface NativeStackPopoverProps {
   anchorWorktree: Worktree;
   nativeStack: NativeStackInfo;
+  /** Local Alfredo chain containing the anchor, when one exists — the source
+   *  of local-only members stacked on top of the native roster. */
+  chain: StackChain | null;
   defaultBranch: string | null;
   onClose: () => void;
+}
+
+/** Local chain members whose worktree's PR number is absent from the native
+ *  roster — the stack's local-only extension (worktrees with no PR yet, plus
+ *  PRs GitHub doesn't count in the stack). Tip-first (chain depth descending)
+ *  so they sit above the native rows, continuing the roster's tip-down
+ *  reading order. */
+function collectExtensionMembers(
+  chain: StackChain | null,
+  nativeStack: NativeStackInfo,
+  worktrees: Worktree[],
+): Worktree[] {
+  if (!chain) return [];
+  const nativeNumbers = new Set(nativeStack.members.map((m) => m.number));
+  return chain.members
+    .map((member) => ({ member, worktree: worktrees.find((w) => w.id === member.id) }))
+    .filter((r): r is { member: (typeof chain.members)[number]; worktree: Worktree } =>
+      Boolean(r.worktree),
+    )
+    .filter(({ worktree }) => {
+      const n = worktree.prStatus?.number;
+      return n == null || !nativeNumbers.has(n);
+    })
+    .sort((a, b) => b.member.depth - a.member.depth)
+    .map((r) => r.worktree);
 }
 
 /** "Have Claude resolve" + "Retry restack" for a conflicted stack member.
@@ -330,8 +358,10 @@ function hiddenMembersNote(size: number, shownCount: number): string | null {
  *  without one open their PR on GitHub. GitHub's automation only restacks
  *  around merges — local parent rewrites still need Alfredo's restack, so
  *  members that keep a local stack link get restack/conflict actions in the
- *  footer; pure native members (no local link) get none. */
-function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClose }: NativeStackPopoverProps) {
+ *  footer; pure native members (no local link) get none. Local-only branches
+ *  stacked on top (from `chain`) render as "no PR yet" rows above the
+ *  roster. */
+function NativeStackPopover({ anchorWorktree, nativeStack, chain, defaultBranch, onClose }: NativeStackPopoverProps) {
   const worktrees = useWorkspaceStore((s) => s.worktrees);
   const setActiveWorktree = useWorkspaceStore((s) => s.setActiveWorktree);
   const { config: appConfig } = useAppConfig();
@@ -354,21 +384,32 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
       .filter((w): w is Worktree => Boolean(w))
       .map((w) => [w.branch, w] as const),
   );
+  // Local-only branches stacked on top of the native roster (no PR yet, or a
+  // PR outside the stack) — rendered above the native rows, and included in
+  // every local-state scan below so their conflicts/pushes/pendings keep
+  // their footer actions reachable in this skin.
+  const extensionWts = collectExtensionMembers(chain, nativeStack, worktrees);
+  // Every local worktree this popover speaks for, deduped by id (the anchor
+  // is usually also a roster local or an extension member), anchor first so
+  // anchor-priority picks below stay stable.
+  const scanWts = [
+    ...new Map(
+      [anchorWorktree, ...extensionWts, ...localByBranch.values()].map((w) => [w.id, w] as const),
+    ).values(),
+  ];
   // A rebase conflict is always a local-tree problem, so the resolve/retry
   // actions stay reachable here. First conflicted local member in tip-first
-  // display order, mirroring AlfredoStackPopover's pick.
-  const conflicted = rows
-    .map((m) => localByBranch.get(m.branch))
+  // display order (extension rows sit above the roster), mirroring
+  // AlfredoStackPopover's pick.
+  const conflicted = [...extensionWts, ...rows.map((m) => localByBranch.get(m.branch))]
     .find((w) => w?.stackRebaseStatus?.kind === "conflict");
   // A local restack that hasn't been pushed yet — the popover's other
   // footer-eligible action. Conflict takes precedence over it too.
-  const needsPushWt = conflicted
-    ? undefined
-    : firstNeedsPush([anchorWorktree, ...localByBranch.values()]);
+  const needsPushWt = conflicted ? undefined : firstNeedsPush(scanWts);
   // Same trace the Alfredo skin shows (see `lastTrace` there) — Behavior-1
   // resets only ever happen to native members, so this skin needs the footer
   // too, not just AlfredoStackPopover's.
-  const lastTrace = [anchorWorktree, ...localByBranch.values()]
+  const lastTrace = scanWts
     .map((w) => w.lastStackAction)
     .filter((t): t is { action: string; at: number } => Boolean(t))
     .sort((x, y) => y.at - x.at)[0];
@@ -376,10 +417,8 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
   // it (mirroring AlfredoStackPopover). The anchor's pending wins, then roster
   // locals in tip-first order — the chip's "!" scans the whole local chain, so
   // the pending that lit it may belong to a sibling, not the anchor.
-  const pendingWt = conflicted
-    ? undefined
-    : [anchorWorktree, ...localByBranch.values()].find((w) => w.stackPending);
-  const originSync = useOriginSync([...localByBranch.values()]);
+  const pendingWt = conflicted ? undefined : scanWts.find((w) => w.stackPending);
+  const originSync = useOriginSync(scanWts);
 
   const handleRestackNow = () => {
     onClose();
@@ -415,9 +454,10 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
     >
       <div className="px-3 pb-0.5 text-[10px] uppercase tracking-wider text-text-tertiary">
         Stack #{nativeStack.number} · {nativeStack.size} PRs
+        {extensionWts.length > 0 && ` + ${extensionWts.length} local`}
       </div>
       <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-tertiary">
-        Managed by GitHub
+        {extensionWts.length > 0 ? "Roster managed by GitHub" : "Managed by GitHub"}
       </div>
       {pendingWt?.stackPending && !pendingDismissed && (
         <div className="px-3 pb-1.5 mb-1 border-b border-border-subtle text-[11px] text-text-secondary leading-snug flex items-start gap-2">
@@ -443,6 +483,33 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
           )}
         </div>
       )}
+      {extensionWts.map((w) => {
+        // The native-stack query is open-PRs-only (see `hiddenMembersNote`),
+        // so a merged-but-not-yet-archived member also lands here with a real
+        // PR number — "no PR yet" only holds when there truly is no PR;
+        // otherwise show its real state instead of overwriting it.
+        const st = memberStateText(w);
+        const hasPr = w.prStatus?.number != null;
+        return (
+          <button
+            key={w.id}
+            type="button"
+            onClick={() => { onClose(); setActiveWorktree(w.id); }}
+            className={[
+              "w-full flex items-center gap-2 px-3 py-1.5 text-left text-[10px]",
+              w.id === anchorWorktree.id ? "bg-accent-muted/40" : "hover:bg-bg-hover",
+            ].join(" ")}
+          >
+            <span className="truncate font-mono">{w.branch}</span>
+            {!hasPr && <span className="flex-shrink-0 text-text-tertiary">no PR yet</span>}
+            <OriginCue ab={originSync[w.id]} />
+            {st !== "up to date" && (
+              <span className={`flex-shrink-0 ${memberStateClass(w)}`}>{st}</span>
+            )}
+            {w.id === anchorWorktree.id && <span className="flex-shrink-0 ml-auto">← here</span>}
+          </button>
+        );
+      })}
       {rows.map((m) => (
         <button
           key={m.number}
@@ -541,12 +608,16 @@ function NativeStackPopover({ anchorWorktree, nativeStack, defaultBranch, onClos
  *  Native GitHub Stack members render GitHub-style instead (one surface, two
  *  skins) — see NativeStackPopover. */
 function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: StackMapPopoverProps) {
-  const nativeStack = anchorWorktree.prStatus?.nativeStack;
+  // The chain's nativeStack covers local-only anchors (no PR yet) whose stack
+  // is grafted onto a native GitHub Stack — they get the native skin too,
+  // with their own branch rendered as a "no PR yet" extension row.
+  const nativeStack = anchorWorktree.prStatus?.nativeStack ?? chain?.nativeStack;
   if (nativeStack) {
     return (
       <NativeStackPopover
         anchorWorktree={anchorWorktree}
         nativeStack={nativeStack}
+        chain={chain}
         defaultBranch={defaultBranch}
         onClose={onClose}
       />
@@ -652,4 +723,4 @@ function AlfredoStackPopover({ anchorWorktree, chain, defaultBranch, onClose }: 
   );
 }
 
-export { StackMapPopover, hiddenMembersNote, restackOutcomeMessage, stackSyncMessage, restackNowWithToast, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush };
+export { StackMapPopover, hiddenMembersNote, collectExtensionMembers, restackOutcomeMessage, stackSyncMessage, restackNowWithToast, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush };

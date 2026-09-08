@@ -37,6 +37,9 @@ function StackGlyph({ worktree, chain, onOpenMap, hue = null }: StackGlyphProps)
   // Forked stacks swap the layers icon for a fork: position is a depth (shared
   // by siblings), and the map is where the tree shape lives.
   const Icon = chain.forked ? GitFork : Layers;
+  // Unified numbers (native roster grafted in) when the chain touches a native
+  // GitHub Stack; local depth/count otherwise.
+  const { position, total } = chain.unified ?? { position: chain.position, total: chain.total };
   return (
     <button
       type="button"
@@ -53,18 +56,18 @@ function StackGlyph({ worktree, chain, onOpenMap, hue = null }: StackGlyphProps)
       style={chipStyle(hue)}
       aria-label={
         (isRoot
-          ? `Stack root, position 1 of ${chain.total}`
-          : `Stack position ${chain.position} of ${chain.total}`)
+          ? `Stack root, position ${position} of ${total}`
+          : `Stack position ${position} of ${total}`)
         + (chain.selfNeedsAttention ? ", this branch needs attention" : "")
         + " — open stack map"
       }
       title={
-        (isRoot ? `Stack root — ${chain.position}/${chain.total}` : `Stack ${chain.position}/${chain.total}`)
+        (isRoot ? `Stack root — ${position}/${total}` : `Stack ${position}/${total}`)
         + (chain.selfNeedsAttention ? " — this branch needs attention, click for details" : "")
       }
     >
       <Icon className={`h-3 w-3 ${rebasing ? "animate-spin" : ""}`} />
-      {`${chain.position}/${chain.total}`}
+      {`${position}/${total}`}
       {chain.selfNeedsAttention && (
         <span className="absolute -top-1 -right-1 text-[10px] font-bold text-amber-400">!</span>
       )}
@@ -73,15 +76,25 @@ function StackGlyph({ worktree, chain, onOpenMap, hue = null }: StackGlyphProps)
 }
 
 /** "N/M" label for the native-stack chip beside the PR number pill. Null when
- *  the PR isn't a native GitHub Stack member — the chip renders nothing. */
-function nativeStackChipLabel(prStatus: PrStatus | null | undefined): string | null {
+ *  the PR isn't a native GitHub Stack member — the chip renders nothing. The
+ *  numerator is always GitHub's own position; the denominator prefers the
+ *  chain's unified total (native roster + local-only branches) so this chip
+ *  and StackGlyph agree on the stack's size. */
+function nativeStackChipLabel(
+  prStatus: PrStatus | null | undefined,
+  unified?: { position: number; total: number } | null,
+): string | null {
   const ns = prStatus?.nativeStack;
-  return ns ? `${ns.position}/${ns.size}` : null;
+  return ns ? `${ns.position}/${unified?.total ?? ns.size}` : null;
 }
 
 interface NativeStackChipProps {
   prStatus: PrStatus | null | undefined;
   onOpenMap: () => void;
+  /** Unified position/total from the local chain (`StackChain.unified`) —
+   *  unifies the chip's denominator with StackGlyph's when local-only
+   *  branches extend the native roster. Null falls back to GitHub's size. */
+  unified?: { position: number; total: number } | null;
   /** Root id of the worktree's local Alfredo chain, when one still exists —
    *  converted stacks keep StackGlyph's hover-peek through this chip. */
   peekRootId?: string;
@@ -99,11 +112,12 @@ interface NativeStackChipProps {
  *  the worktree has no Alfredo stack override (native members usually don't).
  *  Click opens the same stack map popover as StackGlyph. Lives inside a
  *  dnd-kit sortable row — every handler stops propagation. */
-function NativeStackChip({ prStatus, onOpenMap, peekRootId, needsAttention = false, hue = null }: NativeStackChipProps) {
+function NativeStackChip({ prStatus, onOpenMap, peekRootId, needsAttention = false, hue = null, unified = null }: NativeStackChipProps) {
   const setPeeked = useWorkspaceStore((s) => s.setPeekedStackRoot);
-  const label = nativeStackChipLabel(prStatus);
+  const label = nativeStackChipLabel(prStatus, unified);
   if (!label) return null;
   const ns = prStatus!.nativeStack!;
+  const total = unified?.total ?? ns.size;
   return (
     <button
       type="button"
@@ -119,12 +133,12 @@ function NativeStackChip({ prStatus, onOpenMap, peekRootId, needsAttention = fal
       className={chipClassName(hue)}
       style={chipStyle(hue)}
       aria-label={
-        `Stack position ${ns.position} of ${ns.size} in GitHub stack #${ns.number}`
+        `Stack position ${ns.position} of ${total} in GitHub stack #${ns.number}`
         + (needsAttention ? ", this branch needs attention" : "")
         + " — open stack map"
       }
       title={
-        `Stack #${ns.number} · ${ns.position}/${ns.size} — managed by GitHub`
+        `Stack #${ns.number} · ${ns.position}/${total} — managed by GitHub`
         + (needsAttention ? " — this branch needs attention, click for details" : "")
       }
     >

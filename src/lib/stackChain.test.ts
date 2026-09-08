@@ -237,6 +237,94 @@ describe("computeStackChain", () => {
     expect(chain.members.map((m) => m.prefix)).toEqual(["└", "  ├", "  │ └", "  └"]);
     expect(chain.members.map((m) => m.depth)).toEqual([1, 2, 3, 2]);
   });
+
+  describe("unified native-stack positions", () => {
+    const ns = (position: number, size: number): NativeStackInfo =>
+      ({ id: "stack-1", number: 1, position, size, members: [] });
+    const prWithNs = (position: number, size: number) =>
+      ({
+        number: position, state: "OPEN", title: "t", url: "u", draft: false,
+        merged: false, branch: "b", nativeStack: ns(position, size),
+      }) as Worktree["prStatus"];
+
+    it("is null for pure-Alfredo chains", () => {
+      const chain = computeStackChain([a, b, c], "b")!;
+      expect(chain.unified).toBeNull();
+      expect(chain.nativeStack).toBeNull();
+    });
+
+    // The bug-report shape: GitHub says size 4 (one merged PR hidden from the
+    // roster), the local chain has 4 members rooted at native position 2, and
+    // a local-only tip with no PR yet.
+    it("grafts the native roster: merged-below offset + local-only tip", () => {
+      const r = wt({ id: "r", branch: "feat/r", prStatus: prWithNs(2, 4) });
+      const m = wt({ id: "m", branch: "feat/m", stackParent: "feat/r", prStatus: prWithNs(3, 4) });
+      const n = wt({ id: "n", branch: "feat/n", stackParent: "feat/m", prStatus: prWithNs(4, 4) });
+      const tip = wt({ id: "t", branch: "feat/t", stackParent: "feat/n" });
+      const all = [r, m, n, tip];
+      const tipChain = computeStackChain(all, "t")!;
+      expect(tipChain.unified).toEqual({ position: 5, total: 5 });
+      expect(tipChain.nativeStack).toEqual(ns(2, 4));
+      // Native members keep their own (authoritative) native positions.
+      expect(computeStackChain(all, "r")!.unified).toEqual({ position: 2, total: 5 });
+      expect(computeStackChain(all, "m")!.unified).toEqual({ position: 3, total: 5 });
+      expect(computeStackChain(all, "n")!.unified).toEqual({ position: 4, total: 5 });
+      // Local-chain fields are untouched — existing consumers see today's math.
+      expect(tipChain.position).toBe(4);
+      expect(tipChain.total).toBe(4);
+      expect(tipChain.members.map((mm) => mm.id)).toEqual(["r", "m", "n", "t"]);
+    });
+
+    it("gives forked local-only siblings the same shifted position", () => {
+      const r = wt({ id: "r", branch: "feat/r", prStatus: prWithNs(2, 2) });
+      const left = wt({ id: "l", branch: "feat/l", stackParent: "feat/r" });
+      const right = wt({ id: "rt", branch: "feat/rt", stackParent: "feat/r" });
+      const all = [r, left, right];
+      // offset 1; total = max(1 + 3, 2 + 2) = 4.
+      expect(computeStackChain(all, "l")!.unified).toEqual({ position: 3, total: 4 });
+      expect(computeStackChain(all, "rt")!.unified).toEqual({ position: 3, total: 4 });
+      expect(computeStackChain(all, "l")!.position).toBe(2);
+      expect(computeStackChain(all, "l")!.total).toBe(3);
+    });
+
+    it("counts worktree-less native members via the stack size", () => {
+      // Native stack of 3 where only position 1 has a local worktree, plus a
+      // local-only branch stacked on it: unified total must cover all 4.
+      const r = wt({ id: "r", branch: "feat/r", prStatus: prWithNs(1, 3) });
+      const tip = wt({ id: "t", branch: "feat/t", stackParent: "feat/r" });
+      // offset 0; total = max(0 + 2, 3 + 1) = 4.
+      expect(computeStackChain([r, tip], "t")!.unified).toEqual({ position: 2, total: 4 });
+    });
+
+    it("anchors on the root-most native member, not DFS visit order", () => {
+      // root's first (alphabetically earlier) child is a deep no-PR branch
+      // whose own child carries native info at depth 3; root's second child
+      // is itself a shallower (depth 2) native member. DFS visits feat/a's
+      // subtree — including feat/a1 — before feat/b, so a plain findIndex
+      // over DFS order would wrongly anchor on feat/a1 instead of feat/b.
+      const root = wt({ id: "root", branch: "feat/root" });
+      const a = wt({ id: "a", branch: "feat/a", stackParent: "feat/root" });
+      const a1 = wt({ id: "a1", branch: "feat/a1", stackParent: "feat/a", prStatus: prWithNs(5, 5) });
+      const b = wt({ id: "b", branch: "feat/b", stackParent: "feat/root", prStatus: prWithNs(2, 5) });
+      const all = [root, a, a1, b];
+      const chain = computeStackChain(all, "root")!;
+      expect(chain.nativeStack).toEqual(ns(2, 5));
+      // offset = 2 - depth(b=2) = 0; total = max(0 + 4, 5 + 2) = 7.
+      expect(chain.unified).toEqual({ position: 1, total: 7 });
+    });
+
+    it("fails open to null when native position is behind local depth", () => {
+      // Drifted data: the anchor sits at local depth 2 but GitHub says
+      // position 1 — the offset would be negative, so no unified numbers.
+      const r = wt({ id: "r", branch: "feat/r" });
+      const m = wt({ id: "m", branch: "feat/m", stackParent: "feat/r", prStatus: prWithNs(1, 3) });
+      const chain = computeStackChain([r, m], "m")!;
+      expect(chain.unified).toBeNull();
+      expect(chain.nativeStack).toBeNull();
+      expect(chain.position).toBe(2);
+      expect(chain.total).toBe(2);
+    });
+  });
 });
 
 describe("detectAdoptableParent", () => {

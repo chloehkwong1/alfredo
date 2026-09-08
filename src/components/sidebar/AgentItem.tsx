@@ -405,6 +405,7 @@ function AgentItemContent({
           <NativeStackChip
             prStatus={worktree.prStatus}
             onOpenMap={onOpenStackMap}
+            unified={stackChain?.unified ?? null}
             peekRootId={stackChain?.rootId}
             needsAttention={Boolean(stackChain?.selfNeedsAttention) || stackTrouble}
             hue={stackHue}
@@ -483,12 +484,11 @@ function AgentItemContent({
         {/* Stack indicator: glyph + position + current status. Suppressed for
             native GitHub Stack members while healthy — the title-row chip
             covers position — but never while in trouble (see stackTrouble).
-            When it does render for a native member, the glyph is omitted: the
-            local chain's pos/total counts only live worktrees, so it disagrees
-            with the native chip's roster count (which includes merged PRs) and
-            a second chip reads as membership in a second stack. The native
-            chip stays the card's one stack identity; this row is status only,
-            like the nativeRestacked notice below. */}
+            When it does render for a native member, the glyph is omitted: both
+            chips now speak the same unified numbers, but a second chip still
+            reads as membership in a second stack. The native chip stays the
+            card's one stack identity; this row is status only, like the
+            nativeRestacked notice below. */}
         {stackChain && (!isNativeStackMember || stackTrouble) && (
           <div className={`flex items-center gap-1.5 mt-1 text-[10px] ${mutedTextClass} min-w-0`}>
             {!isNativeStackMember && (
@@ -497,7 +497,7 @@ function AgentItemContent({
             <span className="truncate" title={worktree.stackParent ?? undefined}>
               {worktree.stackParent
                 ? `on ${worktree.stackParent}`
-                : `${stackChain.total - 1} stacked on top`}
+                : `${(stackChain.unified?.total ?? stackChain.total) - 1} stacked on top`}
             </span>
             {worktree.stackRebaseStatus?.kind === "behind" && (
               <span className="flex-shrink-0">· {worktree.stackRebaseStatus.count} behind</span>

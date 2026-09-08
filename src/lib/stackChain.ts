@@ -1,4 +1,4 @@
-import type { Worktree } from "../types";
+import type { NativeStackInfo, Worktree } from "../types";
 import { isVisibleWorktree } from "./worktreeVisibility";
 import { isTerminalPr } from "./prStatus";
 
@@ -23,6 +23,15 @@ export interface StackChain {
   /** True when the queried worktree ITSELF needs attention — the amber "!"
    *  badges exactly the troubled rows, not every member of the stack. */
   selfNeedsAttention: boolean;
+  /** `self`'s position/total over the unified roster when the chain contains a
+   *  native GitHub Stack member: local depth math shifted by the anchor's
+   *  native position, so merged PRs (absent locally) and worktree-less native
+   *  members (absent from `members`) both count. Null for pure-Alfredo chains,
+   *  and when native/local orderings disagree (fail open to local numbers). */
+  unified: { position: number; total: number } | null;
+  /** The anchor member's native-stack info (root-most member that has one),
+   *  for map routing/rendering. Null exactly when `unified` is. */
+  nativeStack: NativeStackInfo | null;
 }
 
 const ATTENTION_KINDS = new Set([
@@ -106,6 +115,43 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
 
   const selfMember = members.find((m) => m.id === self.id);
   if (!selfMember) return null;
+
+  // Graft the native GitHub Stack roster into the local depth math so every
+  // chip speaks one position vocabulary. Anchor on the root-most member with
+  // native info: its native position minus its local depth is the offset that
+  // accounts for merged PRs below the local root — merged members vanish from
+  // the local chain but keep their slots in GitHub's numbering.
+  let unified: StackChain["unified"] = null;
+  let nativeStack: NativeStackInfo | null = null;
+  // `memberWts` is DFS pre-order, not depth order — a deeper cousin visited
+  // earlier (e.g. the first child's whole subtree before a shallower second
+  // child) would beat the true root-most member under a plain findIndex, so
+  // scan for the minimum depth explicitly.
+  let anchorIdx = -1;
+  for (let i = 0; i < memberWts.length; i++) {
+    if (!memberWts[i].prStatus?.nativeStack) continue;
+    if (anchorIdx === -1 || members[i].depth < members[anchorIdx].depth) {
+      anchorIdx = i;
+    }
+  }
+  if (anchorIdx !== -1) {
+    const anchorInfo = memberWts[anchorIdx].prStatus!.nativeStack!;
+    const offset = anchorInfo.position - members[anchorIdx].depth;
+    // A negative offset means native and local orderings disagree — fail open
+    // to today's local-only numbers rather than render impossible positions.
+    if (offset >= 0) {
+      const localOnlyCount = memberWts.filter((w) => !w.prStatus?.nativeStack).length;
+      // The max covers both blind spots: merged members below the local root
+      // (first term) and native members with no local worktree (second term).
+      const total = Math.max(offset + members.length, anchorInfo.size + localOnlyCount);
+      // Self's own native position is authoritative when present — guards
+      // against drift between local stackParent edges and GitHub's order.
+      const position = self.prStatus?.nativeStack?.position ?? selfMember.depth + offset;
+      unified = { position, total };
+      nativeStack = anchorInfo;
+    }
+  }
+
   return {
     members,
     position: selfMember.depth,
@@ -113,6 +159,8 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
     rootId: root.id,
     forked: memberWts.some((w) => (childrenOf.get(w.branch)?.length ?? 0) > 1),
     selfNeedsAttention: stackNeedsAttention(self),
+    unified,
+    nativeStack,
   };
 }
 
