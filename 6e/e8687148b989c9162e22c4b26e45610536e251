@@ -1,0 +1,29 @@
+src/components/changes/composer/GifPickerPopover.tsx
+  s_38cdb89c4ad94d::t_4946065d821324 1-168
+src/components/changes/composer/ComposerToolbar.tsx
+  s_38cdb89c4ad94d::t_274732dc757cc8 1-104
+package.json
+  s_38cdb89c4ad94d::t_b55793a6b59adf 25-26,51
+src/components/changes/composer/EmojiPickerPopover.tsx
+  s_38cdb89c4ad94d::t_7923d952eae6b6 14
+  s_38cdb89c4ad94d::t_96d4fa09b4ccd0 1-13,15-79,81-90
+  s_38cdb89c4ad94d::t_70aa7561eb7683 80
+package-lock.json
+  s_38cdb89c4ad94d::t_bee60425815f97 3,9,16-17,42,594,606,617,624-639,927,949,1616,1633,1650,1667,1684,1701,1718,1735,1752,1769,1786,1803,1820,1839,1856,1870,3042,3162,3172,3182,3895,4019-4024,4351,4498,6254,6504,6511,6524,7044,7270,7443,7665
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6ee8687148b989c9162e22c4b26e45610536e251",
+  "prompts": {},
+  "sessions": {
+    "s_38cdb89c4ad94d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563aa440-3137-4094-af7b-41e91eff14c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
