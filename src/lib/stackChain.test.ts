@@ -296,6 +296,31 @@ describe("computeStackChain", () => {
       expect(computeStackChain([r, tip], "t")!.unified).toEqual({ position: 2, total: 4 });
     });
 
+    it("does not double-count a merged member whose worktree still lingers", () => {
+      // The open-PRs-only roster nulls a merged member's nativeStack while
+      // GitHub's size keeps its slot — the lingering worktree must not also
+      // count as local-only. Size 2 = merged pos-1 + open pos-2.
+      const merged = wt({
+        id: "g", branch: "feat/g",
+        prStatus: { number: 9, state: "MERGED", title: "t", url: "u", draft: false, merged: true, branch: "feat/g" } as Worktree["prStatus"],
+      });
+      const m = wt({ id: "m", branch: "feat/m", stackParent: "feat/g", prStatus: prWithNs(2, 2) });
+      const tip = wt({ id: "t", branch: "feat/t", stackParent: "feat/m" });
+      // offset 0; total = max(0 + 3, 2 + 1) = 3 — not 4.
+      expect(computeStackChain([merged, m, tip], "t")!.unified).toEqual({ position: 3, total: 3 });
+    });
+
+    it("fails open when a native child is numbered at or below its ancestor", () => {
+      // Drifted data: anchor r says position 3 at depth 1 (offset 2, passes a
+      // single-sample check) but its child says position 1. Positions must
+      // strictly increase down ancestor paths, or no unified numbers.
+      const r = wt({ id: "r", branch: "feat/r", prStatus: prWithNs(3, 5) });
+      const m = wt({ id: "m", branch: "feat/m", stackParent: "feat/r", prStatus: prWithNs(1, 5) });
+      const chain = computeStackChain([r, m], "m")!;
+      expect(chain.unified).toBeNull();
+      expect(chain.nativeStack).toBeNull();
+    });
+
     it("anchors on the root-most native member, not DFS visit order", () => {
       // root's first (alphabetically earlier) child is a deep no-PR branch
       // whose own child carries native info at depth 3; root's second child

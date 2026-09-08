@@ -174,6 +174,30 @@ describe("collectExtensionMembers", () => {
     );
     expect(result.map((w) => w.id)).toEqual(["no-pr"]);
   });
+
+  it("excludes archived worktrees, matching the skin's localFor predicate", () => {
+    const archived = { ...wt("retired"), archived: true } as Worktree;
+    const result = collectExtensionMembers(
+      chainOf([["retired", 1], ["no-pr", 2]]),
+      nativeStack,
+      [archived, wt("no-pr")],
+    );
+    expect(result.map((w) => w.id)).toEqual(["no-pr"]);
+  });
+
+  it("excludes terminal-PR members — the hidden roster owns their slot", () => {
+    // A merged member lingers locally with its nativeStack nulled (open-PRs-
+    // only roster): it belongs to hiddenMembersNote's count, not the local
+    // extension, or the base-most branch would render above the tip.
+    const merged = wt("merged-base", 9);
+    (merged.prStatus as PrStatus).merged = true;
+    const result = collectExtensionMembers(
+      chainOf([["merged-base", 1], ["no-pr", 2]]),
+      nativeStack,
+      [merged, wt("no-pr")],
+    );
+    expect(result.map((w) => w.id)).toEqual(["no-pr"]);
+  });
 });
 
 // The toast after a manual restack must describe what the backend actually

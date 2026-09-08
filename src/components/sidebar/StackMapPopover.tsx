@@ -9,6 +9,7 @@ import { restackStack, restackNow, resolveStackPending, getAheadBehindOrigin, pu
 import type { RestackOutcome, RestackStackSummary } from "../../api";
 import { resolveStackConflict } from "../../services/stackConflictHandoff";
 import { formatRelativeTime } from "../changes/formatRelativeTime";
+import { isTerminalPr } from "../../lib/prStatus";
 import type { StackChain } from "../../lib/stackChain";
 import type { NativeStackInfo, Worktree, StackRebaseStatus, StackPendingAction } from "../../types";
 
@@ -278,9 +279,16 @@ interface NativeStackPopoverProps {
 
 /** Local chain members whose worktree's PR number is absent from the native
  *  roster — the stack's local-only extension (worktrees with no PR yet, plus
- *  PRs GitHub doesn't count in the stack). Tip-first (chain depth descending)
- *  so they sit above the native rows, continuing the roster's tip-down
- *  reading order. */
+ *  open PRs GitHub doesn't count in the stack). Tip-first (chain depth
+ *  descending) so they sit above the native rows, continuing the roster's
+ *  tip-down reading order. Archived worktrees are excluded to match this
+ *  skin's `localFor` predicate — the chain keeps them for identity, but a
+ *  retired tree must not render clickable rows or seize the footer scans.
+ *  Terminal-PR members are excluded too: a merged member vanishes from the
+ *  open-PRs-only roster while `size` keeps its slot (`hiddenMembersNote`
+ *  already accounts for it), so rendering it above the tip as a local
+ *  extension would place a base-most branch at the top and contradict the
+ *  note. */
 function collectExtensionMembers(
   chain: StackChain | null,
   nativeStack: NativeStackInfo,
@@ -291,11 +299,12 @@ function collectExtensionMembers(
   return chain.members
     .map((member) => ({ member, worktree: worktrees.find((w) => w.id === member.id) }))
     .filter((r): r is { member: (typeof chain.members)[number]; worktree: Worktree } =>
-      Boolean(r.worktree),
+      Boolean(r.worktree) && !r.worktree!.archived,
     )
     .filter(({ worktree }) => {
-      const n = worktree.prStatus?.number;
-      return n == null || !nativeNumbers.has(n);
+      const pr = worktree.prStatus;
+      if (pr && isTerminalPr(pr)) return false;
+      return pr?.number == null || !nativeNumbers.has(pr.number);
     })
     .sort((a, b) => b.member.depth - a.member.depth)
     .map((r) => r.worktree);
@@ -570,16 +579,35 @@ function NativeStackPopover({ anchorWorktree, nativeStack, chain, defaultBranch,
       {conflicted ? (
         <ConflictActions conflicted={conflicted} onClose={onClose} />
       ) : (
-        anchorWorktree.stackParent && (
-          <div className="px-2 pt-2">
-            <PopoverActionButton
-              onClick={handleRestackNow}
-              title={`Rebase this branch onto its local parent (${anchorWorktree.stackParent}) — GitHub only restacks around merges`}
-            >
-              <RefreshCw className="h-3 w-3" /> Restack now
-            </PopoverActionButton>
-          </div>
-        )
+        <>
+          {anchorWorktree.stackParent && (
+            <div className="px-2 pt-2">
+              <PopoverActionButton
+                onClick={handleRestackNow}
+                title={`Rebase this branch onto its local parent (${anchorWorktree.stackParent}) — GitHub only restacks around merges`}
+              >
+                <RefreshCw className="h-3 w-3" /> Restack now
+              </PopoverActionButton>
+            </div>
+          )}
+          {/* Local-only anchors kept the Alfredo skin's whole-stack sync before
+              they joined this skin — losing it here would strand a stale
+              sibling (or, for a rootless anchor, leave no restack at all).
+              Pure native anchors still don't get it: GitHub owns their
+              roster's restacks (stand-down). */}
+          {extensionWts.some((w) => w.id === anchorWorktree.id) && (
+            <div className="px-2 pt-2">
+              <PopoverActionButton
+                onClick={() => {
+                  onClose();
+                  void syncStackWithToast(anchorWorktree.repoPath, anchorWorktree.name, "Stack synced with main");
+                }}
+              >
+                <RefreshCw className="h-3 w-3" /> Sync stack with main
+              </PopoverActionButton>
+            </div>
+          )}
+        </>
       )}
       {needsPushWt && (
         <div className="px-2 pt-2">
@@ -610,14 +638,19 @@ function NativeStackPopover({ anchorWorktree, nativeStack, chain, defaultBranch,
 function StackMapPopover({ anchorWorktree, chain, defaultBranch, onClose }: StackMapPopoverProps) {
   // The chain's nativeStack covers local-only anchors (no PR yet) whose stack
   // is grafted onto a native GitHub Stack — they get the native skin too,
-  // with their own branch rendered as a "no PR yet" extension row.
-  const nativeStack = anchorWorktree.prStatus?.nativeStack ?? chain?.nativeStack;
+  // with their own branch rendered as a "no PR yet" extension row. Only a
+  // chain whose graft validated (nativeStack survived computeStackChain's
+  // fail-open guard) may contribute extension rows: a declared-inconsistent
+  // chain would render members in impossible positions. A native-member
+  // anchor still gets this skin regardless — the roster itself is sound.
+  const validChain = chain?.nativeStack ? chain : null;
+  const nativeStack = anchorWorktree.prStatus?.nativeStack ?? validChain?.nativeStack;
   if (nativeStack) {
     return (
       <NativeStackPopover
         anchorWorktree={anchorWorktree}
         nativeStack={nativeStack}
-        chain={chain}
+        chain={validChain}
         defaultBranch={defaultBranch}
         onClose={onClose}
       />

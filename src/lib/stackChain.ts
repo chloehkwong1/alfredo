@@ -137,10 +137,35 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
   if (anchorIdx !== -1) {
     const anchorInfo = memberWts[anchorIdx].prStatus!.nativeStack!;
     const offset = anchorInfo.position - members[anchorIdx].depth;
-    // A negative offset means native and local orderings disagree — fail open
-    // to today's local-only numbers rather than render impossible positions.
-    if (offset >= 0) {
-      const localOnlyCount = memberWts.filter((w) => !w.prStatus?.nativeStack).length;
+    // Native positions must strictly increase down every ancestor path —
+    // checking only the anchor's offset would let drifted data render a child
+    // numbered at or below its parent. A constant offset everywhere would be
+    // too strong: worktree-less native members create legitimate gaps. A
+    // negative anchor offset is the same disagreement. Fail open to today's
+    // local-only numbers rather than render impossible positions.
+    const monotonic = (() => {
+      let ok = true;
+      const seen = new Set<string>();
+      const check = (node: Worktree, ancestorPos: number) => {
+        if (seen.has(node.id)) return;
+        seen.add(node.id);
+        const pos = node.prStatus?.nativeStack?.position;
+        if (pos != null && pos <= ancestorPos) ok = false;
+        for (const kid of childrenOf.get(node.branch) ?? []) check(kid, pos ?? ancestorPos);
+      };
+      check(root, 0);
+      return ok;
+    })();
+    if (offset >= 0 && monotonic) {
+      // Members whose PR is terminal don't count as local-only: the roster
+      // fetch is open-PRs-only, so a merged member loses its nativeStack while
+      // GitHub's `size` still holds its slot — counting it here would inflate
+      // the total for every merged-but-not-yet-archived member. (A terminal PR
+      // that was never a stack member undercounts by one instead; that shape
+      // is far rarer than the post-merge window this guards.)
+      const localOnlyCount = memberWts.filter(
+        (w) => !w.prStatus?.nativeStack && !(w.prStatus && isTerminalPr(w.prStatus)),
+      ).length;
       // The max covers both blind spots: merged members below the local root
       // (first term) and native members with no local worktree (second term).
       const total = Math.max(offset + members.length, anchorInfo.size + localOnlyCount);

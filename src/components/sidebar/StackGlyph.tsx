@@ -75,17 +75,29 @@ function StackGlyph({ worktree, chain, onOpenMap, hue = null }: StackGlyphProps)
   );
 }
 
+/** The one derivation of a native chip's displayed numbers: GitHub's own
+ *  position (parity with github.com) over the chain's unified total when the
+ *  graft supplied one (parity with StackGlyph), else GitHub's size. Splicing
+ *  the two sources is deliberate — every string on the chip must come through
+ *  here so the numerator and denominator can't drift apart across call
+ *  sites. */
+function nativeChipNumbers(
+  ns: NonNullable<PrStatus["nativeStack"]>,
+  unified: { position: number; total: number } | null | undefined,
+): { position: number; total: number } {
+  return { position: ns.position, total: unified?.total ?? ns.size };
+}
+
 /** "N/M" label for the native-stack chip beside the PR number pill. Null when
- *  the PR isn't a native GitHub Stack member — the chip renders nothing. The
- *  numerator is always GitHub's own position; the denominator prefers the
- *  chain's unified total (native roster + local-only branches) so this chip
- *  and StackGlyph agree on the stack's size. */
+ *  the PR isn't a native GitHub Stack member — the chip renders nothing. */
 function nativeStackChipLabel(
   prStatus: PrStatus | null | undefined,
   unified?: { position: number; total: number } | null,
 ): string | null {
   const ns = prStatus?.nativeStack;
-  return ns ? `${ns.position}/${unified?.total ?? ns.size}` : null;
+  if (!ns) return null;
+  const { position, total } = nativeChipNumbers(ns, unified);
+  return `${position}/${total}`;
 }
 
 interface NativeStackChipProps {
@@ -114,10 +126,9 @@ interface NativeStackChipProps {
  *  dnd-kit sortable row — every handler stops propagation. */
 function NativeStackChip({ prStatus, onOpenMap, peekRootId, needsAttention = false, hue = null, unified = null }: NativeStackChipProps) {
   const setPeeked = useWorkspaceStore((s) => s.setPeekedStackRoot);
-  const label = nativeStackChipLabel(prStatus, unified);
-  if (!label) return null;
-  const ns = prStatus!.nativeStack!;
-  const total = unified?.total ?? ns.size;
+  const ns = prStatus?.nativeStack;
+  if (!ns) return null;
+  const { position, total } = nativeChipNumbers(ns, unified);
   return (
     <button
       type="button"
@@ -133,17 +144,17 @@ function NativeStackChip({ prStatus, onOpenMap, peekRootId, needsAttention = fal
       className={chipClassName(hue)}
       style={chipStyle(hue)}
       aria-label={
-        `Stack position ${ns.position} of ${total} in GitHub stack #${ns.number}`
+        `Stack position ${position} of ${total} in GitHub stack #${ns.number}`
         + (needsAttention ? ", this branch needs attention" : "")
         + " — open stack map"
       }
       title={
-        `Stack #${ns.number} · ${ns.position}/${total} — managed by GitHub`
+        `Stack #${ns.number} · ${position}/${total} — managed by GitHub`
         + (needsAttention ? " — this branch needs attention, click for details" : "")
       }
     >
       <Layers className="h-3 w-3" />
-      {label}
+      {`${position}/${total}`}
       {needsAttention && (
         <span className="absolute -top-1 -right-1 text-[10px] font-bold text-amber-400">!</span>
       )}
