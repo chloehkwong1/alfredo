@@ -104,3 +104,13 @@ pub(crate) fn gh_command() -> tokio::process::Command {
     cmd.env("PATH", augmented_path());
     cmd
 }
+
+/// Reap a fire-and-forget `Child` (an `open`/editor/terminal launcher) off
+/// the calling thread. These exit almost immediately after handing off to
+/// the target app; without an explicit `wait()` the process would sit as a
+/// zombie until Alfredo itself exits, since dropping a `Child` never reaps it.
+pub(crate) fn reap(mut child: std::process::Child) {
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+}

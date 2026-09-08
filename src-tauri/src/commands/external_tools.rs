@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use crate::platform::augmented_path;
+use crate::platform::{augmented_path, reap};
 use crate::types::AppError;
 
 fn editor_command(
@@ -76,20 +76,22 @@ pub fn open_in_editor(
         let opener = "open";
         #[cfg(not(target_os = "macos"))]
         let opener = "xdg-open";
-        Command::new(opener)
+        let child = Command::new(opener)
             .arg(&path)
             .spawn()
             .map_err(|e| AppError::Config(format!("Failed to open directory: {e}")))?;
+        reap(child);
         return Ok(());
     }
 
     let (cmd, args) = editor_command(&editor, &path, custom_path.as_deref(), line, col)?;
 
-    Command::new(&cmd)
+    let child = Command::new(&cmd)
         .args(&args)
         .env("PATH", augmented_path())
         .spawn()
         .map_err(|e| AppError::Config(format!("Failed to open editor ({cmd}): {e}")))?;
+    reap(child);
 
     Ok(())
 }
@@ -108,11 +110,12 @@ pub fn open_in_terminal(
 
     let (cmd, args) = terminal_command(&terminal, &path, custom_path.as_deref())?;
 
-    Command::new(&cmd)
+    let child = Command::new(&cmd)
         .args(&args)
         .env("PATH", augmented_path())
         .spawn()
         .map_err(|e| AppError::Config(format!("Failed to open terminal ({cmd}): {e}")))?;
+    reap(child);
 
     Ok(())
 }

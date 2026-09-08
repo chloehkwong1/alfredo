@@ -1,6 +1,7 @@
 use std::process::Command;
 use serde::Serialize;
 
+use crate::platform::reap;
 use crate::types::AppError;
 
 #[derive(Debug, Clone, Serialize)]
@@ -109,142 +110,165 @@ pub fn open_in_app(app_id: String, path: String) -> Result<(), AppError> {
     match app_id.as_str() {
         "finder" => {
             // Use `open -R` to reveal in Finder
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-R", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Finder: {e}")))?;
+            reap(child);
         }
         "vscode" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Visual Studio Code", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open VS Code: {e}")))?;
+            reap(child);
         }
         "xcode" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Xcode", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Xcode: {e}")))?;
+            reap(child);
         }
         "iterm" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "iTerm", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open iTerm: {e}")))?;
+            reap(child);
         }
         "terminal" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Terminal", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Terminal: {e}")))?;
+            reap(child);
         }
         "github-desktop" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "GitHub Desktop", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open GitHub Desktop: {e}")))?;
+            reap(child);
         }
         "cursor" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Cursor", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Cursor: {e}")))?;
+            reap(child);
         }
         "zed" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Zed", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Zed: {e}")))?;
+            reap(child);
         }
         "warp" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Warp", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Warp: {e}")))?;
+            reap(child);
         }
         "ghostty" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Ghostty", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Ghostty: {e}")))?;
+            reap(child);
         }
         "sourcetree" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Sourcetree", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Sourcetree: {e}")))?;
+            reap(child);
         }
         "fork" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Fork", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Fork: {e}")))?;
+            reap(child);
         }
         "windsurf" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Windsurf", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Windsurf: {e}")))?;
+            reap(child);
         }
         "sublime-text" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Sublime Text", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Sublime Text: {e}")))?;
+            reap(child);
         }
         "nova" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Nova", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Nova: {e}")))?;
+            reap(child);
         }
         "wezterm" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "WezTerm", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open WezTerm: {e}")))?;
+            reap(child);
         }
         "kitty" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "kitty", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open kitty: {e}")))?;
+            reap(child);
         }
         "alacritty" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Alacritty", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Alacritty: {e}")))?;
+            reap(child);
         }
         "hyper" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Hyper", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Hyper: {e}")))?;
+            reap(child);
         }
         "tabby" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Tabby", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Tabby: {e}")))?;
+            reap(child);
         }
         "tower" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Tower", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Tower: {e}")))?;
+            reap(child);
         }
         "gitkraken" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "GitKraken", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open GitKraken: {e}")))?;
+            reap(child);
         }
         "sublime-merge" => {
-            Command::new("open")
+            let child = Command::new("open")
                 .args(["-a", "Sublime Merge", &path])
                 .spawn()
                 .map_err(|e| AppError::Config(format!("Failed to open Sublime Merge: {e}")))?;
+            reap(child);
         }
         _ => {
             return Err(AppError::Config(format!("Unknown app: {app_id}")));
