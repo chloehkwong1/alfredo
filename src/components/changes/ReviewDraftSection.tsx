@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { submitPrReview } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useToastStore } from "../../stores/toastStore";
+import { ComposerToolbar } from "./composer/ComposerToolbar";
 import type { ReviewDraftComment, ReviewVerdict } from "../../types";
 
 const VERDICTS: { value: ReviewVerdict; label: string }[] = [
@@ -31,6 +32,7 @@ export function ReviewDraftSection({
   // Guards against a stray onBlur commit firing after Escape already cancelled
   // the edit (unmounting a focused textarea can still emit a blur event).
   const cancelingEditRef = useRef(false);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const comments = pending?.comments ?? [];
   // GitHub rejects self-approval / self-request-changes; on own PRs the
@@ -155,11 +157,18 @@ export function ReviewDraftSection({
       )}
 
       <textarea
+        ref={bodyRef}
         value={body}
         onChange={(e) => setReviewBody(worktreeId, e.target.value)}
         placeholder="Summary — required unless approving…"
         rows={3}
         className="w-full px-2.5 py-2 rounded-md text-[13px] bg-bg-primary border border-border-default text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20 resize-y leading-relaxed"
+      />
+
+      <ComposerToolbar
+        textareaRef={bodyRef}
+        value={body}
+        onChange={(next) => setReviewBody(worktreeId, next)}
       />
 
       <button
