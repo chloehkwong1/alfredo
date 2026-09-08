@@ -1,0 +1,22 @@
+src/components/changes/ReviewDraftSection.tsx
+  s_38cdb89c4ad94d::t_5339308f08a874 160
+  s_38cdb89c4ad94d::t_832e6264c0afd6 35
+  s_38cdb89c4ad94d::t_08d83448e29b6a 6
+  s_38cdb89c4ad94d::t_68d75654ba4088 168-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "556b0b99cbf2d1526992946c8c534d92546e9f39",
+  "prompts": {},
+  "sessions": {
+    "s_38cdb89c4ad94d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563aa440-3137-4094-af7b-41e91eff14c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
