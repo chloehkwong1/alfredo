@@ -1,0 +1,19 @@
+src/components/sidebar/SidebarDragContext.tsx
+  s_2c325c80aaee23::t_e0dcabad621b99 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "bb7ec84b67d8ea5f923a73e5ef7a6cc91205805e",
+  "prompts": {},
+  "sessions": {
+    "s_2c325c80aaee23": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cdd1b22-b36c-4390-b679-bc232d102c10",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
