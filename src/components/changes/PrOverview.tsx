@@ -7,6 +7,7 @@ import { ReviewDraftSection } from "./ReviewDraftSection";
 import { CheckRunRow, CheckRunSummary, sortCheckRuns } from "./CheckRunRow";
 import { ReviewRow } from "./ReviewRow";
 import { PrFileList } from "./PrFileList";
+import { useGithubUsername } from "../../hooks/useGithubUsername";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { prStateKind, prStatusLabel } from "../../lib/prStatus";
 import type { DiffFile } from "../../types";
@@ -31,11 +32,15 @@ const STATE_ICONS = {
  *  on the PR tab — a hero + persistent rail (Linear's Overview tab), as
  *  opposed to PrPanelContent's narrow collapsible-sections sidebar. */
 export function PrOverview({ worktreeId, repoPath, files, activeFilePath, onSelectFile, onJumpToComment }: PrOverviewProps) {
+  const githubUsername = useGithubUsername();
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
   const { checkRuns, prDetail, reviews, comments } = usePrBadgeCounts(worktreeId);
 
   if (!pr) return null;
+
+  const isOwnPr =
+    pr.author != null && githubUsername != null && pr.author.toLowerCase() === githubUsername.toLowerCase();
 
   const status = prStatusLabel(pr);
   const StatusIcon = STATE_ICONS[prStateKind(pr)];
@@ -83,7 +88,7 @@ export function PrOverview({ worktreeId, repoPath, files, activeFilePath, onSele
         )}
 
         <div className="px-4 py-3 border-b border-border-subtle">
-          <ReviewDraftSection worktreeId={worktreeId} repoPath={repoPath} prNumber={pr.number} />
+          <ReviewDraftSection worktreeId={worktreeId} repoPath={repoPath} prNumber={pr.number} isOwnPr={isOwnPr} />
         </div>
 
         {/* Comments — same grouped-by-file UI as the narrow PR panel, so

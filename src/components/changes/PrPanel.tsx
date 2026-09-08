@@ -11,6 +11,7 @@ import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import type { PrComment, PrReview, Worktree } from "../../types";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
+import { useGithubUsername } from "../../hooks/useGithubUsername";
 import { PrDescription } from "./PrDescription";
 import { CheckRunRow, CheckRunSummary, sortCheckRuns } from "./CheckRunRow";
 import { isCheckFailing, isCheckPending } from "./checkRunStatus";
@@ -56,6 +57,7 @@ interface PrPanelContentProps {
 }
 
 export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPanelContentProps) {
+  const githubUsername = useGithubUsername();
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
   const prDetail = usePrStore((s) => s.prDetail[worktreeId]);
@@ -88,6 +90,9 @@ export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPane
     );
   }
 
+  const isOwnPr =
+    pr.author != null && githubUsername != null && pr.author.toLowerCase() === githubUsername.toLowerCase();
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Scrollable content */}
@@ -101,7 +106,7 @@ export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPane
 
         {/* Your review section */}
         <Section title="Your review" count={draftCount}>
-          <ReviewDraftSection worktreeId={worktreeId} repoPath={repoPath} prNumber={pr.number} />
+          <ReviewDraftSection worktreeId={worktreeId} repoPath={repoPath} prNumber={pr.number} isOwnPr={isOwnPr} />
         </Section>
 
         {/* Checks section */}
