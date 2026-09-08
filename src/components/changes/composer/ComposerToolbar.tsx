@@ -2,6 +2,7 @@ import { RefObject, useEffect, useRef, useState } from "react";
 import { Diff, ImagePlay, Smile } from "lucide-react";
 import { insertAtCursor, buildSuggestionBlock } from "../../../lib/composerText";
 import { gifsAvailable } from "../../../api";
+import { IconButton } from "../../ui/IconButton";
 import { GifPickerPopover } from "./GifPickerPopover";
 import { EmojiPickerPopover } from "./EmojiPickerPopover";
 
@@ -13,8 +14,9 @@ interface ComposerToolbarProps {
   suggestionText?: string | null;
 }
 
-const TOOLBAR_BUTTON_CLASS =
-  "inline-flex items-center justify-center w-[22px] h-[22px] rounded-md bg-transparent border border-transparent text-text-tertiary hover:text-text-primary hover:bg-bg-hover cursor-pointer";
+function toolbarButtonClass(active: boolean) {
+  return `h-auto w-auto p-1 ${active ? "text-accent-primary bg-bg-hover" : "text-text-tertiary hover:text-text-primary"}`;
+}
 
 function ComposerToolbar({ textareaRef, value, onChange, suggestionText }: ComposerToolbarProps) {
   const [gifAvailable, setGifAvailable] = useState(false);
@@ -53,34 +55,37 @@ function ComposerToolbar({ textareaRef, value, onChange, suggestionText }: Compo
   return (
     <div className="flex items-center gap-1">
       {gifAvailable && (
-        <button
+        <IconButton
           ref={gifButtonRef}
-          type="button"
-          onClick={() => setOpenPopover((p) => (p === "gif" ? null : "gif"))}
+          size="sm"
+          label="Insert GIF"
           title="Insert GIF"
-          className={TOOLBAR_BUTTON_CLASS}
+          onClick={() => setOpenPopover((p) => (p === "gif" ? null : "gif"))}
+          className={toolbarButtonClass(openPopover === "gif")}
         >
           <ImagePlay size={13} />
-        </button>
+        </IconButton>
       )}
-      <button
+      <IconButton
         ref={emojiButtonRef}
-        type="button"
-        onClick={() => setOpenPopover((p) => (p === "emoji" ? null : "emoji"))}
+        size="sm"
+        label="Insert emoji"
         title="Insert emoji"
-        className={TOOLBAR_BUTTON_CLASS}
+        onClick={() => setOpenPopover((p) => (p === "emoji" ? null : "emoji"))}
+        className={toolbarButtonClass(openPopover === "emoji")}
       >
         <Smile size={13} />
-      </button>
+      </IconButton>
       {suggestionText != null && (
-        <button
-          type="button"
-          onClick={() => insert(buildSuggestionBlock(suggestionText))}
+        <IconButton
+          size="sm"
+          label="Insert suggestion"
           title="Insert suggestion — author can apply it one-click on GitHub"
-          className={TOOLBAR_BUTTON_CLASS}
+          onClick={() => insert(buildSuggestionBlock(suggestionText))}
+          className={toolbarButtonClass(false)}
         >
           <Diff size={13} />
-        </button>
+        </IconButton>
       )}
       {openPopover === "gif" && (
         <GifPickerPopover
