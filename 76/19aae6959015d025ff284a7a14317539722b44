@@ -1,0 +1,59 @@
+src/components/sidebar/StackGlyph.tsx
+  s_ac3f1b0d72a264::t_159691a3b3b10d 40-42
+  s_ac3f1b0d72a264::t_22e5dabfb444e8 59-60,65,70
+  s_ac3f1b0d72a264::t_380b2be000fd48 115,117,120
+  s_ac3f1b0d72a264::t_9c26885cf74d69 136,141
+  s_ac3f1b0d72a264::t_f1d9362ef71b03 79-86,88,94-97
+src/components/sidebar/AgentItem.test.ts
+  s_ac3f1b0d72a264::t_9bb20c1921ff61 4,6-7
+  s_ac3f1b0d72a264::t_54c2349a046bdc 81-89
+  s_ac3f1b0d72a264::t_74b347b61e7402 122-178
+src/lib/stackChain.ts
+  s_554cc81e809427::t_232a596df5c1cf 126-136
+  s_ac3f1b0d72a264::t_55e0e282ee2d8d 26-34
+  s_ac3f1b0d72a264::t_50f4ed7793137e 1
+  s_ac3f1b0d72a264::t_7f9b165f965951 118-125,137-154,162-163
+src/components/sidebar/StackMapPopover.tsx
+  s_ac3f1b0d72a264::t_4be1d5114b1de3 361-363
+  s_ac3f1b0d72a264::t_9fd350603a6455 272-274,279-301
+  s_ac3f1b0d72a264::t_96998a1941a75c 387-399,402-404,408,412,420-421
+  s_ac3f1b0d72a264::t_a275b9f25e3bc7 457
+  s_ac3f1b0d72a264::t_c0e02104a45792 611-614,620
+  s_554cc81e809427::t_75c1ba16df81b8 460
+  s_ac3f1b0d72a264::t_519b41c4dfa03b 364
+  s_554cc81e809427::t_e3fdeb5269d9bf 487-490,492,504,506
+  s_ac3f1b0d72a264::t_deeb756d97496d 726
+  s_ac3f1b0d72a264::t_868ff03d0da8dc 486,491,493-503,505,507-512
+  s_ac3f1b0d72a264::t_b242950d820e7a 302-303
+src/components/sidebar/AgentItem.tsx
+  s_554cc81e809427::t_d4058912e67095 500
+  s_ac3f1b0d72a264::t_7444e49f03aa3e 487-491
+  s_ac3f1b0d72a264::t_05c47a94caca7d 408
+src/lib/stackChain.test.ts
+  s_554cc81e809427::t_ae48cfb872b883 299-315
+  s_ac3f1b0d72a264::t_113a3521a8c764 240-298,316-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7619aae6959015d025ff284a7a14317539722b44",
+  "prompts": {},
+  "sessions": {
+    "s_554cc81e809427": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e9875745-4eab-4119-93f9-f7510887d049",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_ac3f1b0d72a264": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea29afed-d381-421a-a6ea-f8318db8f061",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
