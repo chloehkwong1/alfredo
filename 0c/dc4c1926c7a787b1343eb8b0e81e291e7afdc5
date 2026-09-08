@@ -1,0 +1,24 @@
+package.json
+  s_38cdb89c4ad94d::t_8c8aac23427323 69-73
+src/components/changes/composer/ComposerToolbar.tsx
+  s_38cdb89c4ad94d::t_263802c62dfce6 5,17-19
+  s_38cdb89c4ad94d::t_427b662422d4e6 58,60-61,63-64,67,69,71-72,74-75,78,80-82,84-85,88
+package-lock.json
+  s_38cdb89c4ad94d::t_6ef3d5665b55ac 3140,7410
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0cdc4c1926c7a787b1343eb8b0e81e291e7afdc5",
+  "prompts": {},
+  "sessions": {
+    "s_38cdb89c4ad94d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563aa440-3137-4094-af7b-41e91eff14c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
