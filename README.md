@@ -35,20 +35,22 @@ Most AI coding tools either wrap agents in a chat UI or leave you juggling termi
 | Agent | Status |
 |-------|--------|
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Full support — hooks-based state detection |
-| [Codex CLI](https://github.com/openai/codex) | Supported — PTY-based state detection |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Supported — PTY-based state detection |
+| [Codex CLI](https://github.com/openai/codex) | Experimental — PTY-based state detection, not recently verified |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Experimental — PTY-based state detection, not recently verified |
 
 ## Features
 
 - **Multi-agent sessions** — Run and monitor multiple AI coding agents side by side
 - **Diff review** — Split or unified diffs with Shiki syntax highlighting, annotations, and context expansion
-- **PR workflow** — View PR descriptions, check run status, and manage GitHub pull requests
+- **In-app PR review** — Draft, submit, reply to, and resolve review threads without leaving Alfredo, plus a distraction-free focus mode
+- **Stacked worktrees** — Restack with one click, see a whole stack's position at a glance, and manage native GitHub stacks or local ones the same way
 - **Integrated terminal** — Full PTY terminals per session via xterm.js with branded loading screens
 - **Git-aware** — Worktree and branch mode support, with background GitHub sync
 - **Multi-repo** — Work across multiple repositories in one workspace
+- **Split view** — Work two tabs side-by-side or stacked in the main pane
 - **Command palette** — ⌘+Shift+P to search commands, sessions, and actions
 - **Kanban board** — Visual session management synced with GitHub PR state
-- **Linear integration** — Link sessions to Linear tickets
+- **Linear integration** — Link sessions to Linear tickets, open issues straight into a worktree
 - **Keyboard-first** — ⌘+N, ⌘+1-9, arrow navigation, and configurable shortcuts
 - **Remote control** — Monitor and manage sessions from your phone via QR code
 - **Notifications** — Configurable sound alerts when agents need attention or finish work
@@ -56,7 +58,7 @@ Most AI coding tools either wrap agents in a chat UI or leave you juggling termi
 
 ## Status
 
-Alpha — actively developed, expect breaking changes. macOS is the primary target; Linux builds are available but less tested.
+Stable — actively developed. macOS is the primary target; Linux builds are available but less tested.
 
 ## Install
 
