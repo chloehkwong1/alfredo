@@ -316,9 +316,11 @@ const DiffFileCard = memo(forwardRef<HTMLDivElement, DiffFileCardProps>(
 
     // Suggestion source: the commented line's current text (right side only —
     // GitHub applies suggestions to the head branch). content[0] is the diff
-    // origin char (+/-/space), not part of the line.
+    // origin char (+/-/space), not part of the line. Gated on the review path
+    // existing (onSubmitReviewComment is undefined when there's no PR): a
+    // suggestion fence in a local agent comment has no Apply semantics.
     const suggestionText =
-      activeAnnotationLine?.filePath === file.path && activeAnnotationLine.side === "new"
+      onSubmitReviewComment && activeAnnotationLine?.filePath === file.path && activeAnnotationLine.side === "new"
         ? file.hunks
             .flatMap((h) => h.lines)
             .find((l) => l.newLineNumber === activeAnnotationLine.lineNumber)

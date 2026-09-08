@@ -1,5 +1,6 @@
-import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { RefObject, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useAnchoredPopoverPosition } from "./useAnchoredPopoverPosition";
 
 interface CommentChipAddPopoverProps {
   anchorRef: RefObject<HTMLElement | null>;
@@ -17,34 +18,7 @@ function CommentChipAddPopover({
   const popoverRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
-
-  useLayoutEffect(() => {
-    function reposition() {
-      const anchor = anchorRef.current;
-      const popover = popoverRef.current;
-      if (!anchor || !popover) return;
-      const anchorRect = anchor.getBoundingClientRect();
-      const popoverRect = popover.getBoundingClientRect();
-      const margin = 6;
-      let top = anchorRect.top - popoverRect.height - margin;
-      if (top < 8) {
-        top = anchorRect.bottom + margin;
-      }
-      let left = anchorRect.left + anchorRect.width / 2 - popoverRect.width / 2;
-      const maxLeft = window.innerWidth - popoverRect.width - 8;
-      if (left > maxLeft) left = maxLeft;
-      if (left < 8) left = 8;
-      setPosition({ top, left });
-    }
-    reposition();
-    window.addEventListener("resize", reposition);
-    window.addEventListener("scroll", reposition, true);
-    return () => {
-      window.removeEventListener("resize", reposition);
-      window.removeEventListener("scroll", reposition, true);
-    };
-  }, [anchorRef]);
+  const position = useAnchoredPopoverPosition(anchorRef, popoverRef);
 
   useEffect(() => {
     inputRef.current?.focus();

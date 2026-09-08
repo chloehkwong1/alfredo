@@ -1,6 +1,6 @@
 import { RefObject, useEffect, useRef, useState } from "react";
 import { Diff, ImagePlay, Smile } from "lucide-react";
-import { insertAtCursor, buildSuggestionBlock } from "../../../lib/composerText";
+import { insertAtCursor, insertBlockAtCursor, buildSuggestionBlock } from "../../../lib/composerText";
 import { gifsAvailable } from "../../../api";
 import { IconButton } from "../../ui/IconButton";
 import { GifPickerPopover } from "./GifPickerPopover";
@@ -15,7 +15,10 @@ interface ComposerToolbarProps {
 }
 
 function toolbarButtonClass(active: boolean) {
-  return `h-auto w-auto p-1 ${active ? "text-accent-primary bg-bg-hover" : "text-text-tertiary hover:text-text-primary"}`;
+  // Active colours live on IconButton's `active` prop (className overrides
+  // lose to the base classes at equal specificity); only the inactive
+  // tertiary tint and the compact sizing belong here.
+  return `h-auto w-auto p-1 ${active ? "" : "text-text-tertiary hover:text-text-primary"}`;
 }
 
 function ComposerToolbar({ textareaRef, value, onChange, suggestionText }: ComposerToolbarProps) {
@@ -38,11 +41,12 @@ function ComposerToolbar({ textareaRef, value, onChange, suggestionText }: Compo
     };
   }, []);
 
-  function insert(snippet: string) {
+  function insert(snippet: string, { block = false } = {}) {
     const el = textareaRef.current;
     const start = el?.selectionStart ?? value.length;
     const end = el?.selectionEnd ?? value.length;
-    const { next, caret } = insertAtCursor(value, start, end, snippet);
+    const insertFn = block ? insertBlockAtCursor : insertAtCursor;
+    const { next, caret } = insertFn(value, start, end, snippet);
     onChange(next);
     requestAnimationFrame(() => {
       const el2 = textareaRef.current;
@@ -54,23 +58,12 @@ function ComposerToolbar({ textareaRef, value, onChange, suggestionText }: Compo
 
   return (
     <div className="flex items-center gap-1">
-      {gifAvailable && (
-        <IconButton
-          ref={gifButtonRef}
-          size="sm"
-          label="Insert GIF"
-          title="Insert GIF"
-          onClick={() => setOpenPopover((p) => (p === "gif" ? null : "gif"))}
-          className={toolbarButtonClass(openPopover === "gif")}
-        >
-          <ImagePlay size={13} />
-        </IconButton>
-      )}
       <IconButton
         ref={emojiButtonRef}
         size="sm"
         label="Insert emoji"
         title="Insert emoji"
+        active={openPopover === "emoji"}
         onClick={() => setOpenPopover((p) => (p === "emoji" ? null : "emoji"))}
         className={toolbarButtonClass(openPopover === "emoji")}
       >
@@ -81,10 +74,26 @@ function ComposerToolbar({ textareaRef, value, onChange, suggestionText }: Compo
           size="sm"
           label="Insert suggestion"
           title="Insert suggestion — author can apply it one-click on GitHub"
-          onClick={() => insert(buildSuggestionBlock(suggestionText))}
+          onClick={() => insert(buildSuggestionBlock(suggestionText), { block: true })}
           className={toolbarButtonClass(false)}
         >
           <Diff size={13} />
+        </IconButton>
+      )}
+      {/* GIF button renders last: it appears only after the async gifs_available
+          answer, and appending keeps the other buttons from shifting under a
+          click aimed mid-flight. */}
+      {gifAvailable && (
+        <IconButton
+          ref={gifButtonRef}
+          size="sm"
+          label="Insert GIF"
+          title="Insert GIF"
+          active={openPopover === "gif"}
+          onClick={() => setOpenPopover((p) => (p === "gif" ? null : "gif"))}
+          className={toolbarButtonClass(openPopover === "gif")}
+        >
+          <ImagePlay size={13} />
         </IconButton>
       )}
       {openPopover === "gif" && (

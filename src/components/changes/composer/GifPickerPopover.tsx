@@ -1,7 +1,8 @@
-import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { RefObject, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { searchGifs } from "../../../api";
 import type { GifResult } from "../../../types";
+import { useAnchoredPopoverPosition } from "../useAnchoredPopoverPosition";
 
 interface GifPickerPopoverProps {
   anchorRef: RefObject<HTMLElement | null>;
@@ -23,43 +24,9 @@ function GifPickerPopover({ anchorRef, onPick, onClose }: GifPickerPopoverProps)
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [state, setState] = useState<FetchState>({ kind: "idle" });
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const position = useAnchoredPopoverPosition(anchorRef, popoverRef);
   const queryRef = useRef(query);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useLayoutEffect(() => {
-    function reposition() {
-      const anchor = anchorRef.current;
-      const popover = popoverRef.current;
-      if (!anchor || !popover) return;
-      const anchorRect = anchor.getBoundingClientRect();
-      const popoverRect = popover.getBoundingClientRect();
-      const margin = 6;
-      let top = anchorRect.top - popoverRect.height - margin;
-      if (top < 8) {
-        top = anchorRect.bottom + margin;
-      }
-      let left = anchorRect.left + anchorRect.width / 2 - popoverRect.width / 2;
-      const maxLeft = window.innerWidth - popoverRect.width - 8;
-      if (left > maxLeft) left = maxLeft;
-      if (left < 8) left = 8;
-      setPosition({ top, left });
-    }
-    reposition();
-    window.addEventListener("resize", reposition);
-    window.addEventListener("scroll", reposition, true);
-    // Content-driven size changes (e.g. GIF result grid populating) can land
-    // after this effect runs — re-run reposition then so the popover doesn't
-    // stay pinned to a stale size.
-    const popover = popoverRef.current;
-    const resizeObserver = popover ? new ResizeObserver(reposition) : null;
-    if (popover) resizeObserver?.observe(popover);
-    return () => {
-      window.removeEventListener("resize", reposition);
-      window.removeEventListener("scroll", reposition, true);
-      resizeObserver?.disconnect();
-    };
-  }, [anchorRef, state]);
 
   useEffect(() => {
     inputRef.current?.focus();

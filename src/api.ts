@@ -949,8 +949,14 @@ export function debugLog(message: string): Promise<void> {
 
 // ── GIFs (Giphy) ───────────────────────────────────────────────
 
+// gifs_available reflects a compile-time constant (whether a Giphy key was
+// baked into the build), so one IPC round-trip answers it for the whole
+// session — every composer toolbar mount shares this promise.
+let gifsAvailablePromise: Promise<boolean> | null = null;
+
 export function gifsAvailable(): Promise<boolean> {
-  return invoke("gifs_available");
+  gifsAvailablePromise ??= invoke("gifs_available");
+  return gifsAvailablePromise;
 }
 
 export function searchGifs(query: string): Promise<GifResult[]> {

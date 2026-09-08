@@ -5,6 +5,10 @@ type IconButtonSize = "sm" | "md" | "lg";
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: IconButtonSize;
   label: string;
+  /** Pressed/open state (e.g. a popover the button controls is open). Swaps the
+   *  base colour classes instead of relying on className overrides, which lose
+   *  to the base at equal specificity depending on CSS emission order. */
+  active?: boolean;
 }
 
 const sizeClasses: Record<IconButtonSize, string> = {
@@ -20,15 +24,18 @@ const iconSizeClasses: Record<IconButtonSize, string> = {
 };
 
 const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
-  ({ size = "md", label, className = "", children, ...props }, ref) => {
+  ({ size = "md", label, active = false, className = "", children, ...props }, ref) => {
     return (
       <button
         ref={ref}
+        type="button"
         aria-label={label}
+        aria-pressed={active || undefined}
         className={[
           "inline-flex items-center justify-center",
-          "text-text-secondary hover:text-text-primary",
-          "bg-transparent hover:bg-bg-hover active:bg-bg-active",
+          active
+            ? "text-accent-primary bg-bg-hover"
+            : "text-text-secondary hover:text-text-primary bg-transparent hover:bg-bg-hover active:bg-bg-active",
           "transition-all duration-[var(--transition-fast)]",
           "focus-ring cursor-pointer",
           "disabled:opacity-50 disabled:pointer-events-none",
