@@ -1,0 +1,24 @@
+src/components/changes/DiffFileCard.tsx
+  s_38cdb89c4ad94d::t_c0c186834ac181 321
+  s_38cdb89c4ad94d::t_c3b6129599a063 395
+  s_38cdb89c4ad94d::t_e96cd72051ccf6 317-320,322-327
+src/components/changes/AnnotationInput.tsx
+  s_38cdb89c4ad94d::t_85d4ea8b2326ad 6,14,17-24
+  s_38cdb89c4ad94d::t_6a0b455dde391b 92-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "76084f3a40f9c08bd3dec35978d11ccb77aa99db",
+  "prompts": {},
+  "sessions": {
+    "s_38cdb89c4ad94d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563aa440-3137-4094-af7b-41e91eff14c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
