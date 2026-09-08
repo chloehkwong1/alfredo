@@ -1,0 +1,27 @@
+src-tauri/src/platform.rs
+  s_554cc81e809427::t_21cefcd9072412 107-116
+src-tauri/src/commands/external_tools.rs
+  s_554cc81e809427::t_8e434106ebc0ed 79,83
+  s_554cc81e809427::t_bd433eeeefc064 89,94
+  s_554cc81e809427::t_021823f52a74d1 113,118
+  s_554cc81e809427::t_9feaef6df19d4d 3
+src-tauri/src/commands/app_detection.rs
+  s_554cc81e809427::t_e952a1ef363cd4 113,117,120,124,127,131,134,138,141,145,148,152,155,159,162,166,169,173,176,180,183,187,190,194,197,201,204,208,211,215,218,222,225,229,232,236,239,243,246,250,253,257,260,264,267,271
+  s_554cc81e809427::t_d56a1bbd3998db 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e6f5a9b0659d10222e29b6e291628e1528158634",
+  "prompts": {},
+  "sessions": {
+    "s_554cc81e809427": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e9875745-4eab-4119-93f9-f7510887d049",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
