@@ -96,7 +96,7 @@ fn best_offer_index(candidates: &[String], receive_beta: bool) -> Option<usize> 
         .map(|(i, _)| i)
 }
 
-use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, pr_detail, pr_review, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, gifs, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, pr_detail, pr_review, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -388,6 +388,9 @@ pub fn run() {
             pr_review::reply_to_pr_comment,
             pr_review::set_pr_thread_resolved,
             pr_review::set_pr_file_viewed,
+            // GIFs (Giphy)
+            gifs::gifs_available,
+            gifs::search_gifs,
             // GitHub Auth
             github_auth::github_auth_status,
             github_auth::github_auth_token,

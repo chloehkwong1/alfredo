@@ -7,6 +7,7 @@ import type {
   DiffFile,
   EffectiveConfig,
   FileLine,
+  GifResult,
   GlobalAppConfig,
   KanbanColumn,
   LinearTicket,
@@ -944,4 +945,14 @@ export function searchAlfredoDocs(query: string, limit = 5): Promise<HelpHit[]> 
 
 export function debugLog(message: string): Promise<void> {
   return invoke("debug_log", { message });
+}
+
+// ── GIFs (Giphy) ───────────────────────────────────────────────
+
+export function gifsAvailable(): Promise<boolean> {
+  return invoke("gifs_available");
+}
+
+export function searchGifs(query: string): Promise<GifResult[]> {
+  return invoke("search_gifs", { query });
 }

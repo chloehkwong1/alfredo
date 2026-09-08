@@ -680,6 +680,11 @@ export interface GlobalAppConfig {
 
 export type DiffSide = "old" | "new";
 
+export interface GifResult {
+  previewUrl: string;
+  url: string;
+}
+
 export interface Annotation {
   id: string;
   worktreeId: string;

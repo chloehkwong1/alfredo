@@ -566,7 +566,7 @@ pub struct GithubManager {
 /// client would silently re-introduce the unbounded pool this exists to
 /// eliminate, which is the worse failure mode (FD leak shows up weeks later).
 #[allow(clippy::expect_used)]
-fn shared_http_client() -> &'static reqwest::Client {
+pub(crate) fn shared_http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
