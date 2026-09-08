@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Check, ChevronRight, ChevronUp, ExternalLink, GitPullRequest } from "lucide-react";
 import { ClaudeIcon } from "../icons/agents";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -8,6 +8,7 @@ import type { PrComment } from "../../types";
 import { MarkdownBody, stripToPlainText } from "../shared/MarkdownBody";
 import { formatTimeAgo } from "./formatRelativeTime";
 import { Tooltip } from "../ui/Tooltip";
+import { ComposerToolbar } from "./composer/ComposerToolbar";
 
 interface DiffCommentThreadProps {
   comments: PrComment[];
@@ -24,6 +25,7 @@ function DiffCommentThread({ comments, expanded, onToggle, onSendToClaude, repoP
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const replyRef = useRef<HTMLTextAreaElement>(null);
   const canReplyOrResolve = repoPath !== undefined && prNumber !== undefined;
   const threadId = comments[0]?.threadId ?? null;
   const replyTarget = comments.find((c) => c.inReplyToId === null) ?? comments[0];
@@ -220,6 +222,7 @@ function DiffCommentThread({ comments, expanded, onToggle, onSendToClaude, repoP
           {replying && (
             <div className="flex flex-col gap-1.5">
               <textarea
+                ref={replyRef}
                 autoFocus
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
@@ -236,6 +239,11 @@ function DiffCommentThread({ comments, expanded, onToggle, onSendToClaude, repoP
                 placeholder="Reply to this thread…"
                 rows={2}
                 className="w-full px-2 py-1.5 rounded-sm text-[12px] bg-bg-primary border border-border-default text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20 resize-y leading-relaxed"
+              />
+              <ComposerToolbar
+                textareaRef={replyRef}
+                value={replyText}
+                onChange={setReplyText}
               />
               <div className="flex justify-end gap-1.5">
                 <button
