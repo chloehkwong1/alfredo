@@ -337,6 +337,11 @@ impl PtyManager {
             .map_err(|e| AppError::Pty(format!("failed to open PTY pair: {e}")))?;
 
         let mut cmd = CommandBuilder::new(&command);
+        // Keep defaults before user args so explicit overrides still win,
+        // including when the args start with `resume`.
+        if agent_type == AgentType::Codex {
+            cmd.args(["-c", r#"tui.terminal_title=["thread"]"#]);
+        }
         cmd.args(&args);
         cmd.cwd(&worktree_path);
 
@@ -449,6 +454,7 @@ impl PtyManager {
         thread::spawn(move || {
             let id = &reader_session_id;
             let mut buf = [0u8; 4096];
+            let is_codex = agent_type == AgentType::Codex;
             let mut detector = AgentDetector::with_agent_type(agent_type);
             let mut osc = OscScanner::new();
             let mut osc_events: Vec<OscEvent> = Vec::new();
@@ -511,7 +517,10 @@ impl PtyManager {
                                         .unwrap_or(true);
                                     // Emit if the value changed AND either it's
                                     // a clear-to-None or enough time has passed.
-                                    if changed && (title.is_none() || debounced) {
+                                    // Codex emits conversation names by default.
+                                    // Dropping a quick final rename loses it forever
+                                    // if no more output follows; dedupe only.
+                                    if changed && (is_codex || title.is_none() || debounced) {
                                         if let Ok(guard) = reader_channel.read() {
                                             if let Some(ch) = guard.as_ref() {
                                                 if let Err(e) = ch.send(PtyEvent::Title(title.clone())) {
@@ -1538,7 +1547,7 @@ fn remove_agent_hooks_config(worktree_path: &str, config_subpath: &str) -> Resul
     let mut empty_keys = Vec::new();
     for (key, value) in hooks.iter_mut() {
         if let Some(arr) = value.as_array_mut() {
-            arr.retain(|item| !is_alfredo_hook_entry(item));
+            strip_alfredo_hook_handlers(arr);
             if arr.is_empty() {
                 empty_keys.push(key.clone());
             }
@@ -1648,46 +1657,52 @@ fn write_codex_hooks_config(worktree_path: &str) -> Result<(), std::io::Error> {
 
     let mut config: serde_json::Value = if path.exists() {
         let contents = std::fs::read_to_string(&path)?;
-        serde_json::from_str(&contents).unwrap_or_else(|_| serde_json::json!({}))
+        serde_json::from_str(&contents)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?
     } else {
         serde_json::json!({})
     };
 
-    if !config.get("hooks").is_some_and(serde_json::Value::is_object) {
-        config["hooks"] = serde_json::json!({});
-    }
-    let hooks = config["hooks"]
+    // Never overwrite malformed user configuration just to install hooks.
+    let root = config.as_object_mut()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "config is not an object"))?;
+    let hooks = root.entry("hooks").or_insert_with(|| serde_json::json!({}))
         .as_object_mut()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "hooks is not an object"))?;
 
-    let cmd = |state: &str| -> serde_json::Value {
+    let cmd = |event: &str, state: &str, phase: &str| -> serde_json::Value {
         serde_json::json!({
             "hooks": [{
                 "type": "command",
+                // Interrupt/SessionEnd default to only one second in Codex.
+                // Allow the bounded HTTP callback to finish before cancellation.
+                "timeout": 3,
                 "command": format!(
-                    "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -s --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}\"; fi; echo '{{}}'"
+                    "cat > /dev/null; if [ -n \"$ALFREDO_STATE_URL\" ]; then curl -fsS --max-time 2 -o /dev/null -X POST \"$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/{state}?phase={phase}\" || printf '%s\\n' \"[alfredo] Codex {event} callback failed (session=$ALFREDO_SESSION_ID)\" >&2; fi; echo '{{}}'"
                 )
             }]
         })
     };
 
-    let alfredo_hooks: Vec<(&str, serde_json::Value)> = vec![
-        ("SessionStart",     cmd("idle")),
-        ("UserPromptSubmit", cmd("busy")),
-        ("PreToolUse",       cmd("busy")),
-        ("Stop",             cmd("idle")),
+    let alfredo_hooks = [
+        ("SessionStart", "idle", "none"),
+        ("UserPromptSubmit", "busy", "promptStart"),
+        ("PreToolUse", "busy", "toolStart"),
+        ("PostToolUse", "busy", "toolEnd"),
+        ("Stop", "idle", "turnEnd"),
+        ("Interrupt", "idle", "turnEnd"),
+        ("SessionEnd", "notRunning", "none"),
     ];
 
-    for (hook_name, entry) in alfredo_hooks {
+    for (hook_name, state, phase) in alfredo_hooks {
         let arr = hooks
             .entry(hook_name)
             .or_insert_with(|| serde_json::json!([]))
-            .as_array_mut();
+            .as_array_mut()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{hook_name} is not an array")))?;
 
-        if let Some(arr) = arr {
-            arr.retain(|item| !is_alfredo_hook_entry(item));
-            arr.push(entry);
-        }
+        strip_alfredo_hook_handlers(arr);
+        arr.push(cmd(hook_name, state, phase));
     }
 
     let json = serde_json::to_string_pretty(&config)
@@ -1866,26 +1881,143 @@ fn resolve_cwd(shell_pid: u32) -> Option<String> {
 /// (command contains $ALFREDO_STATE_URL).
 fn is_alfredo_hook_entry(entry: &serde_json::Value) -> bool {
     if let Some(hooks) = entry.get("hooks").and_then(|h| h.as_array()) {
-        hooks.iter().any(|h| {
-            // Old-style HTTP hooks
-            let is_http = h.get("url")
-                .and_then(|u| u.as_str())
-                .is_some_and(|u| u.contains(ALFREDO_HOOK_MARKER));
-            // New-style command hooks
-            let is_cmd = h.get("command")
-                .and_then(|c| c.as_str())
-                .is_some_and(|c| c.contains("$ALFREDO_STATE_URL"));
-            is_http || is_cmd
-        })
+        hooks.iter().any(is_alfredo_hook_handler)
     } else {
         false
     }
+}
+
+fn is_alfredo_hook_handler(hook: &serde_json::Value) -> bool {
+    hook.get("url")
+        .and_then(|u| u.as_str())
+        .is_some_and(|u| u.contains(ALFREDO_HOOK_MARKER))
+        || hook.get("command")
+            .and_then(|c| c.as_str())
+            .is_some_and(|c| c.contains("$ALFREDO_STATE_URL"))
+}
+
+/// Preserve user handlers even when they share a matcher group with ours.
+fn strip_alfredo_hook_handlers(entries: &mut Vec<serde_json::Value>) {
+    entries.retain_mut(|entry| {
+        if let Some(handlers) = entry.get_mut("hooks").and_then(|h| h.as_array_mut()) {
+            handlers.retain(|handler| !is_alfredo_hook_handler(handler));
+            !handlers.is_empty()
+        } else {
+            true
+        }
+    });
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn codex_hooks_preserve_user_handlers_and_are_stable() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join(".codex/hooks.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let user_hook = serde_json::json!({"type": "command", "command": "echo user-hook"});
+        let original = serde_json::json!({
+            "description": "User metadata",
+            "hooks": {
+                "Stop": [{"matcher": "*", "hooks": [
+                    user_hook,
+                    {"type": "command", "command": "curl $ALFREDO_STATE_URL/old"}
+                ]}],
+                "PreCompact": [{"hooks": [user_hook]}]
+            }
+        });
+        std::fs::write(&path, original.to_string()).unwrap();
+        write_codex_hooks_config(tmp.path().to_str().unwrap()).unwrap();
+        let first = std::fs::read_to_string(&path).unwrap();
+        write_codex_hooks_config(tmp.path().to_str().unwrap()).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), first);
+        let config: serde_json::Value = serde_json::from_str(&first).unwrap();
+        assert_eq!(config["description"], original["description"]);
+        assert_eq!(config["hooks"]["PreCompact"], original["hooks"]["PreCompact"]);
+        assert_eq!(config["hooks"]["Stop"][0], serde_json::json!({"matcher": "*", "hooks": [user_hook]}));
+        assert_eq!(config["hooks"]["Stop"].as_array().unwrap().len(), 2);
+        remove_codex_hooks_config(tmp.path().to_str().unwrap()).unwrap();
+        let cleaned: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(cleaned["hooks"]["Stop"], serde_json::json!([{"matcher": "*", "hooks": [user_hook]}]));
+        assert_eq!(cleaned["hooks"].as_object().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn codex_hooks_leave_malformed_config_untouched() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join(".codex/hooks.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        for contents in ["{broken", "[]", r#"{"hooks":null}"#, r#"{"hooks":{"Stop":{}}}"#] {
+            std::fs::write(&path, contents).unwrap();
+            assert!(write_codex_hooks_config(tmp.path().to_str().unwrap()).is_err());
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), contents);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn codex_hooks_post_lifecycle_to_the_originating_session() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::{Command, Stdio};
+
+        let tmp = tempfile::tempdir().unwrap();
+        write_codex_hooks_config(tmp.path().to_str().unwrap()).unwrap();
+        let config: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(tmp.path().join(".codex/hooks.json")).unwrap()
+        ).unwrap();
+        let curl = tmp.path().join("curl");
+        // Exercise the actual generated shell protocol without HTTP/network access.
+        std::fs::write(&curl, "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CODEX_HOOK_TEST_ARGS\"\nexit \"${CODEX_HOOK_TEST_EXIT:-0}\"\n").unwrap();
+        std::fs::set_permissions(&curl, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let args_path = tmp.path().join("curl-args");
+        for (event, endpoint) in [
+            ("SessionStart", "idle?phase=none"),
+            ("UserPromptSubmit", "busy?phase=promptStart"),
+            ("PreToolUse", "busy?phase=toolStart"),
+            ("PostToolUse", "busy?phase=toolEnd"),
+            ("Stop", "idle?phase=turnEnd"),
+            ("Interrupt", "idle?phase=turnEnd"),
+            ("SessionEnd", "notRunning?phase=none"),
+        ] {
+            let hook = &config["hooks"][event][0]["hooks"][0];
+            assert_eq!(hook["timeout"], 3);
+            for session in ["first-tab", "second-tab"] {
+                let mut child = Command::new("/bin/sh")
+                    .args(["-c", hook["command"].as_str().unwrap()])
+                    .env("PATH", format!("{}:/usr/bin:/bin", tmp.path().display()))
+                    .env("ALFREDO_STATE_URL", "http://127.0.0.1:9999")
+                    .env("ALFREDO_SESSION_ID", session)
+                    .env("ALFREDO_WORKTREE_ID", "repo::branch")
+                    .env("CODEX_HOOK_TEST_ARGS", &args_path)
+                    // A failed callback must log but must not block Codex's turn.
+                    .env("CODEX_HOOK_TEST_EXIT", if session == "first-tab" { "0" } else { "22" })
+                    .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
+                    .spawn().unwrap();
+                child.stdin.take().unwrap().write_all(b"{\"prompt\":\"ignored\"}").unwrap();
+                let output = child.wait_with_output().unwrap();
+                assert!(output.status.success());
+                assert_eq!(output.stdout, b"{}\n");
+                let args = std::fs::read_to_string(&args_path).unwrap();
+                assert!(args.contains(&format!("http://127.0.0.1:9999/agent-state/{session}/repo::branch/{endpoint}\n")));
+                assert!(!args.contains("notify="));
+                if session == "second-tab" {
+                    assert!(String::from_utf8_lossy(&output.stderr).contains(&format!("Codex {event} callback failed")));
+                } else {
+                    assert!(output.stderr.is_empty());
+                }
+            }
+            let output = Command::new("/bin/sh")
+                .args(["-c", hook["command"].as_str().unwrap()])
+                .env_remove("ALFREDO_STATE_URL")
+                .stdin(Stdio::null()).output().unwrap();
+            assert!(output.status.success());
+            assert_eq!(output.stdout, b"{}\n");
+            assert!(output.stderr.is_empty());
+        }
+    }
 
     #[test]
     fn strips_outer_claude_session_markers_only() {
@@ -2000,6 +2132,63 @@ mod tests {
         assert_eq!(session_comm_kind("/bin/bash"), SessionCommKind::Shell);
         assert_eq!(session_comm_kind("node"), SessionCommKind::Other);
         assert_eq!(session_comm_kind(""), SessionCommKind::Other);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn codex_spawn_defaults_and_rapid_title_changes() {
+        use std::os::unix::fs::PermissionsExt;
+        use tauri::ipc::InvokeResponseBody;
+
+        for args in [vec![], vec!["resume", "--last", "-c", r#"tui.terminal_title=["project"]"#]] {
+            let tmp = tempfile::tempdir().unwrap();
+            let cli = tmp.path().join("fake-codex");
+            std::fs::write(&cli, "#!/bin/sh\nprintf '%s\\n' \"$@\" > args.txt\nprintf '\\033]0;Original task\\007\\033]0;Renamed task\\007\\033]0;Renamed task\\007'\n").unwrap();
+            std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let (tx, rx) = std::sync::mpsc::channel();
+            let channel = Channel::new(move |body| {
+                if let InvokeResponseBody::Json(json) = body {
+                    let event: serde_json::Value = serde_json::from_str(&json).unwrap();
+                    if event["event"] == "title" {
+                        let _ = tx.send(event["data"].clone());
+                    }
+                }
+                Ok(())
+            });
+            let manager = PtyManager::new();
+            let id = manager.spawn(
+                PtyManager::generate_session_id(),
+                SpawnConfig {
+                    worktree_id: "codex-title-test".to_string(),
+                    worktree_path: tmp.path().to_str().unwrap().to_string(),
+                    repo_path: None,
+                    command: cli.to_str().unwrap().to_string(),
+                    args: args.iter().map(|arg| (*arg).to_string()).collect(),
+                    agent_type: AgentType::Codex,
+                    state_server_port: None,
+                    session_type: SessionType::Agent,
+                    assigned_port: None,
+                    port_env_var: None,
+                    state_server: None,
+                },
+                channel,
+                Arc::new(SleepInhibitor::new()),
+            ).unwrap();
+            // Both renames are in the same PTY write, followed by silence/exit.
+            // The old throttle discarded the second and left the wrong title.
+            let mut titles = Vec::new();
+            loop {
+                let title = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                if title.is_null() { break; }
+                titles.push(title);
+            }
+            manager.close(&id).unwrap();
+            assert_eq!(titles, vec![serde_json::json!("Original task"), serde_json::json!("Renamed task")]);
+            let received_args = std::fs::read_to_string(tmp.path().join("args.txt")).unwrap();
+            let mut expected = vec!["-c", r#"tui.terminal_title=["thread"]"#];
+            expected.extend(args);
+            assert_eq!(received_args.lines().collect::<Vec<_>>(), expected);
+        }
     }
 
     /// Verify that the manager can spawn, list, and close a simple session.

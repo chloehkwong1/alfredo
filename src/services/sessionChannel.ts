@@ -178,8 +178,8 @@ export function shouldAcceptDetectorState(hooksActive: boolean, lastHookAt: numb
   // hook (e.g. the user's next prompt). Accepted tradeoff: the detector's
   // rescue caused more false-positives than it fixed.
   //
-  // The detector remains authoritative for agents without hook support
-  // (Codex, Aider, Gemini CLI).
+  // The detector remains the fallback for agents whose hooks have not fired
+  // (including Codex hooks that are disabled or still awaiting trust).
   //
   // Safety net: if hooks have been silent for 60s+, re-enable the detector
   // as a fallback. This prevents permanent stuck state when hooks stop
@@ -572,8 +572,8 @@ export function createSessionChannel(
           break;
         }
 
-        // SubagentStop can arrive after the parent's Stop has already fired
-        // (async cleanup of a Task subagent). A straggler busy(subagentEnd)
+        // Tool/subagent completion can arrive after Stop has already fired
+        // (e.g. Codex command cleanup). A straggler busy(toolEnd/subagentEnd)
         // on an already-idle session must NOT wake it back to busy — the
         // parent turn is done.
         //
@@ -584,10 +584,10 @@ export function createSessionChannel(
         // could move that assumption).
         if (
           state === "busy"
-          && phase === "subagentEnd"
+          && (phase === "subagentEnd" || (phase === "toolEnd" && session.agentState !== "waitingForInput"))
           && session.agentState !== "busy"
         ) {
-          console.debug(`[status:${worktreeId}] straggler subagentEnd IGNORED (session is ${session.agentState})`);
+          console.debug(`[status:${worktreeId}] straggler ${phase} IGNORED (session is ${session.agentState})`);
           break;
         }
 
@@ -624,7 +624,7 @@ export function createSessionChannel(
 
         if (phase === "turnEnd") {
           session.turnEndAt = Date.now();
-        } else if (state === "busy" && phase !== "none") {
+        } else if (state === "busy" && phase !== "none" && phase !== "toolEnd" && phase !== "subagentEnd") {
           // Real work arrived — close the bare-busy suppression window.
           session.turnEndAt = 0;
         }

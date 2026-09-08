@@ -320,8 +320,10 @@ fn classify_codex(line: &str) -> (Option<AgentType>, Option<AgentState>) {
         return (None, Some(AgentState::WaitingForInput));
     }
 
-    // Idle prompt
-    if line.ends_with("> ") || line.ends_with(">>> ") {
+    // classify_line already trimmed whitespace. Only match a bare prompt:
+    // quoted response text or a drafted prompt is not evidence of completion.
+    // Hooks take precedence over this best-effort output fallback.
+    if matches!(line, ">" | ">>>" | "›") {
         return (None, Some(AgentState::Idle));
     }
 
@@ -850,6 +852,24 @@ mod tests {
             result,
             Some((AgentType::Codex, AgentState::WaitingForInput))
         );
+    }
+
+    #[test]
+    fn codex_bare_prompts_clear_busy_after_whitespace_and_ansi() {
+        for prompt in ["  > \r\n", "\x1b[32m>>> \x1b[0m\n", "\x1b[1m›\x1b[0m \n"] {
+            let mut det = AgentDetector::with_agent_type(AgentType::Codex);
+            det.state = AgentState::Busy;
+            det.last_idle = None;
+            assert_eq!(det.feed(prompt.as_bytes()), Some((AgentType::Codex, AgentState::Idle)));
+        }
+    }
+
+    #[test]
+    fn codex_prompt_in_response_or_draft_does_not_mean_idle() {
+        for text in ["Use the prompt >", "> quoted response", "› explain this code", "Working (esc to interrupt)"] {
+            let (_, state) = AgentDetector::classify_line(text, &AgentType::Codex);
+            assert_ne!(state, Some(AgentState::Idle), "{text}");
+        }
     }
 
     #[test]

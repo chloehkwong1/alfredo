@@ -29,8 +29,23 @@ agent is doing right now. The states:
   killed terminal; restarting the tab clears it.
 - **Not running** — no agent process in this worktree.
 
-Status is driven by Claude Code lifecycle hooks that Alfredo installs
-per worktree (with an output-based fallback for agents without hook
-support, like Codex and Gemini CLI). Desktop notifications for
-"finished" and "needs input" fire on these same transitions — see
-"Notification settings".
+Alfredo installs lifecycle hooks per worktree for Claude Code, Codex,
+and Gemini CLI, with output-based detection as a fallback when hooks
+aren't active. Claude Code's desktop notifications for "finished" and
+"needs input" fire on these transitions — see "Notification settings".
+
+For Codex, finishing a turn or interrupting it clears the activity label
+after a short settling delay (about 300 ms). Exiting Codex shows **Not
+running**. A new prompt starts activity immediately; completing an
+individual tool does not end the turn.
+
+Codex requires project hooks to be trusted before they run. In a trusted
+project, open **`/hooks`** inside Codex and review Alfredo's hooks when
+first installed or changed. If they are disabled or awaiting review,
+output detection is only best effort and the activity label can be
+inaccurate. Existing sessions need to reload their hooks or restart
+after Alfredo installs an updated definition. Callback failures appear
+in Codex's hook diagnostics.
+
+See the [Codex hook documentation](https://learn.chatgpt.com/docs/hooks)
+for hook review and trust behavior.
