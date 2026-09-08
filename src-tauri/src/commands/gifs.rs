@@ -55,9 +55,9 @@ pub async fn search_gifs(query: String) -> Result<Vec<GifResult>, AppError> {
         ])
         .send()
         .await
-        .map_err(|e| AppError::Config(format!("Giphy request failed: {e}")))?
+        .map_err(|e| AppError::Config(format!("Giphy request failed: {}", e.without_url())))?
         .error_for_status()
-        .map_err(|e| AppError::Config(format!("Giphy returned an error: {e}")))?;
+        .map_err(|e| AppError::Config(format!("Giphy returned an error: {}", e.without_url())))?;
     let json: serde_json::Value = resp
         .json()
         .await

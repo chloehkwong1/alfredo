@@ -128,26 +128,16 @@ describe("computeBadgeCount", () => {
     expect(count).toBe(perWorktree.length);
   });
 
-  // Stack trouble needs the user like a waiting agent — without this a
-  // troubled member in a collapsed status group surfaces nowhere, since the
-  // chip's amber "!" is per-row.
-  it("counts stack trouble even on a busy, seen worktree", () => {
-    const worktrees = [
-      wt({ id: "a", agentStatus: "busy", stackRebaseStatus: { kind: "conflict" } }),
-    ];
-    expect(worktreeNeedsYou(worktrees[0], new Set(["a"]), new Set())).toBe(true);
-  });
-
-  it("does not count in-flight rebasing or merged members' leftover statuses", () => {
-    const rebasing = wt({ id: "a", agentStatus: "busy", stackRebaseStatus: { kind: "rebasing" } });
-    const merged = wt({
-      id: "b",
-      agentStatus: "busy",
-      prStatus: { merged: true } as Worktree["prStatus"],
-      stackRebaseStatus: { kind: "needsPush" },
-    });
-    expect(worktreeNeedsYou(rebasing, new Set(["a"]), new Set())).toBe(false);
-    expect(worktreeNeedsYou(merged, new Set(["b"]), new Set())).toBe(false);
+  // Stack trouble stays off the badge: routine drift (a root behind main,
+  // needsPush after a local-only restack) would pin a permanent count. The
+  // chip's amber "!" and the stack map are its surfaces.
+  it("does not count stack trouble", () => {
+    const conflicted = wt({ id: "a", agentStatus: "busy", stackRebaseStatus: { kind: "conflict" } });
+    const behind = wt({ id: "b", agentStatus: "busy", stackRebaseStatus: { kind: "behind", count: 3 } });
+    const pending = wt({ id: "c", agentStatus: "busy", stackPending: { mergedParent: "main", blockedBy: "dirty" } });
+    expect(worktreeNeedsYou(conflicted, new Set(["a"]), new Set())).toBe(false);
+    expect(worktreeNeedsYou(behind, new Set(["b"]), new Set())).toBe(false);
+    expect(worktreeNeedsYou(pending, new Set(["c"]), new Set())).toBe(false);
   });
 
   it("sums across multiple attention worktrees", () => {
