@@ -1,0 +1,34 @@
+docs/features/dock-badge.md
+  s_a62daeefd1d277::t_56c0b53151a98d 18-22
+src/services/dockBadge.test.ts
+  s_a62daeefd1d277::t_b644af7be1b9c1 137
+  s_a62daeefd1d277::t_0946c7ed448804 131-136,138-140
+src-tauri/src/commands/gifs.rs
+  s_38cdb89c4ad94d::t_02b3f4cafc9de9 58,60
+src/services/dockBadge.ts
+  s_a62daeefd1d277::t_72bdfdb806e8b6 23-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "10ecb35bd2d07b485fa72a4ee4e85ecb8df9bf14",
+  "prompts": {},
+  "sessions": {
+    "s_38cdb89c4ad94d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563aa440-3137-4094-af7b-41e91eff14c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_a62daeefd1d277": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "da69aa48-522a-431e-a904-54a642cbe5d4",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
