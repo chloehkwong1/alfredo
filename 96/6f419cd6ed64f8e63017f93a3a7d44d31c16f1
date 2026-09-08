@@ -1,0 +1,48 @@
+src/lib/composerText.test.ts
+  s_38cdb89c4ad94d::t_6ae8d365a613e2 2
+  s_38cdb89c4ad94d::t_6f93d4a477d053 27-56
+  s_38cdb89c4ad94d::t_8848962151b079 83-98
+src/lib/composerText.ts
+  s_38cdb89c4ad94d::t_54d32fe8bf5340 12-24,32-36
+src/components/changes/CommentChipAddPopover.tsx
+  s_38cdb89c4ad94d::t_ecc0f5efe7dec9 1,3
+  s_38cdb89c4ad94d::t_2d24c54b48e44e 21
+src/components/changes/composer/EmojiPickerPopover.tsx
+  s_38cdb89c4ad94d::t_5d2dcc04840565 16
+  s_38cdb89c4ad94d::t_3d57fd3d5ce2d8 1,3
+src/components/changes/composer/ComposerToolbar.tsx
+  s_38cdb89c4ad94d::t_f4e89cfa888bdf 77
+  s_38cdb89c4ad94d::t_f22e6d91d8ecbe 18-21
+  s_38cdb89c4ad94d::t_739c3a16566869 66
+  s_38cdb89c4ad94d::t_ebd78d71dd733a 83-98
+  s_38cdb89c4ad94d::t_5f36f0e66c72f5 44,48-49
+  s_38cdb89c4ad94d::t_7c80a268eb663d 3
+src/components/changes/useAnchoredPopoverPosition.ts
+  s_38cdb89c4ad94d::t_0a76a22f48cf0a 1-47
+src/components/ui/IconButton.tsx
+  s_38cdb89c4ad94d::t_0d66aa9d8d8e81 27,31,33,36-38
+  s_38cdb89c4ad94d::t_2e90afab8519ab 8-11
+src/components/changes/DiffFileCard.tsx
+  s_38cdb89c4ad94d::t_de79c458fdf7c9 319-321,323
+src/api.ts
+  s_38cdb89c4ad94d::t_7b58d44e97f158 952-956,958-959
+src/components/changes/composer/GifPickerPopover.tsx
+  s_38cdb89c4ad94d::t_2f79e229aabdda 1,5
+  s_38cdb89c4ad94d::t_be80522b6fc20e 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "966f419cd6ed64f8e63017f93a3a7d44d31c16f1",
+  "prompts": {},
+  "sessions": {
+    "s_38cdb89c4ad94d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563aa440-3137-4094-af7b-41e91eff14c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
