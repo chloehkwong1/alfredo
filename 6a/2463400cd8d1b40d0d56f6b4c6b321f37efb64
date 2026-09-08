@@ -1,0 +1,21 @@
+src/components/changes/composer/EmojiPickerPopover.tsx
+  s_38cdb89c4ad94d::t_48c4d24b3ac356 42-47,51
+src/components/changes/composer/GifPickerPopover.tsx
+  s_38cdb89c4ad94d::t_f7a02f4acb330a 51-56,60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6a2463400cd8d1b40d0d56f6b4c6b321f37efb64",
+  "prompts": {},
+  "sessions": {
+    "s_38cdb89c4ad94d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "563aa440-3137-4094-af7b-41e91eff14c3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
