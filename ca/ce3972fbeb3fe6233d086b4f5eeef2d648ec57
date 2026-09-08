@@ -1,0 +1,21 @@
+README.md
+  s_88ccb25eebe6ba::t_778a2decce1359 38-39
+  s_88ccb25eebe6ba::t_208ce0f7e82a3d 61
+  s_88ccb25eebe6ba::t_625c7f58b9fbf9 45-46,50,53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "cace3972fbeb3fe6233d086b4f5eeef2d648ec57",
+  "prompts": {},
+  "sessions": {
+    "s_88ccb25eebe6ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0759fb4a-89a1-4386-8592-b2db9d986420",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
