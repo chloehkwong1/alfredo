@@ -640,6 +640,10 @@ export interface GlobalAppConfig {
   customTerminalPath: string | null;
   dangerouslySkipPermissions?: boolean | null;
   extraFlags?: string | null;
+  /** Minutes an idle Claude tab may sit unattended before it is hibernated
+   *  (process stopped, terminal disposed, resumed on next focus).
+   *  null/undefined = app default; 0 = never. */
+  hibernateIdleMinutes?: number | null;
   /** Default diff view mode for new worktrees. */
   defaultDiffViewMode?: DiffViewMode;
   /** Which kanban column groups are collapsed in the sidebar. */
