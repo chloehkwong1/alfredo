@@ -34,8 +34,14 @@ and Gemini CLI, with output-based detection as a fallback when hooks
 aren't active. Claude Code's desktop notifications for "finished" and
 "needs input" fire on these transitions — see "Notification settings".
 
-For Codex, finishing a turn or interrupting it clears the activity label
-after a short settling delay (about 300 ms). Exiting Codex shows **Not
+For Codex, a new or restored tab shows **Idle** as soon as it opens; the
+activity label only starts once a prompt is submitted (via hooks, or via
+Codex's own "Working… esc to interrupt" status row when hooks aren't
+active — startup banners, the "Starting MCP servers" boot row and screen
+redraws never count as activity, and an empty composer showing "Ask Codex
+to do anything" without a work row ends it).
+Finishing a turn or interrupting it clears the activity label after a
+short settling delay (about 300 ms). Exiting Codex shows **Not
 running**. A new prompt starts activity immediately; completing an
 individual tool does not end the turn.
 

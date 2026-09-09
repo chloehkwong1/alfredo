@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import FontFaceObserver from "fontfaceobserver";
-import type { AgentType, SessionType } from "../types";
+import type { AgentState, AgentType, SessionType } from "../types";
 import type { ClaudeRegistryEntry } from "../types";
 import { spawnPty, closePty, resizePty, reattachPty, getConfig, debugLog, getAssignedWorktreePort, pollClaudeRegistry, listSessions } from "../api";
 import { useTabStore } from "../stores/tabStore";
@@ -503,6 +503,25 @@ export class SessionManager implements SessionWriter {
   }
 
   /**
+   * State a freshly spawned PTY is assumed to be in until hooks or the
+   * output detector say otherwise.
+   *
+   * Claude Code (and Gemini) start "busy": their SessionStart hook reliably
+   * flips them to idle once booted, and the busy→idle boot transition is
+   * masked by markWorktreeSeen. Codex starts "idle": its hooks only run once
+   * the project has trusted them, so an initial "busy" can never be cleared
+   * and the card sits on "Thinking…" before any prompt is submitted. The
+   * detector's Idle seed emits nothing (it only reports changes), so the
+   * frontend must seed idle itself; real work then arrives via
+   * busy(promptStart) hooks or the detector's work-indicator match.
+   */
+  private static initialAgentState(mode: "claude" | "codex" | "gemini" | "shell"): AgentState {
+    if (mode === "shell") return "notRunning";
+    if (mode === "codex") return "idle";
+    return "busy";
+  }
+
+  /**
    * Return an existing session for the given key, or spawn a new one.
    * The channel callback is wired up immediately so agent-state events
    * flow to the workspace store even when no terminal UI is mounted.
@@ -579,7 +598,7 @@ export class SessionManager implements SessionWriter {
       searchAddon,
       webglLoaded: false,
       webglAddon: null,
-      agentState: mode === "shell" ? "notRunning" : "busy",
+      agentState: SessionManager.initialAgentState(mode),
       hooksActive: false,
       outputBuffer: new Uint8Array(OUTPUT_BUFFER_CAPACITY),
       outputBufferPos: 0,
@@ -794,6 +813,25 @@ export class SessionManager implements SessionWriter {
     // content doesn't persist above the new prompt.
     session.terminal.clear();
 
+    // Reset agent state BEFORE the channel exists. The backend registers the
+    // channel before the process starts, so lifecycle hooks (Codex/Claude
+    // SessionStart, an auto-resumed promptStart, …) and output can arrive
+    // while spawnPty is still pending. Resetting after the await would
+    // overwrite those early events and strand the work counters.
+    session.agentState = SessionManager.initialAgentState(mode);
+    session.hooksActive = false;
+    session.hookDerivedState = null;
+    session.workDepth = 0;
+    session.subagentDepth = 0;
+    session.monitorPending = false;
+    session.awaitingAnswer = false;
+    session.turnEndAt = 0;
+    session.ptyExited = false;
+    // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the
+    // PTY actually produces output, rather than seeing the stale value from
+    // the scrollback-only phase.
+    session.lastOutputAt = 0;
+
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);
 
     const agentType = AGENT_TYPE_MAP[mode] as AgentType | undefined;
@@ -840,15 +878,7 @@ export class SessionManager implements SessionWriter {
       throw e;
     }
     session.sessionId = sessionId;
-    session.ptyExited = false;
-    session.agentState = mode === "shell" ? "notRunning" : "busy";
-    session.workDepth = 0;
-    session.subagentDepth = 0;
     session.lastHeartbeat = Date.now();
-    // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the
-    // PTY actually produces output, rather than seeing the stale value from
-    // the scrollback-only phase.
-    session.lastOutputAt = 0;
     registerKittyProtocol(session.terminal, sessionId);
 
     // Resize PTY immediately to match the terminal's current dimensions.
@@ -859,7 +889,8 @@ export class SessionManager implements SessionWriter {
       resizePty(sessionId, rows, cols).catch(e => console.warn(`[sessionManager] Failed to resize PTY for ${sessionId}:`, e));
     }
 
-    // Push initial state and re-mark as seen (same rationale as getOrSpawn).
+    // Push the current state (the seeded initial state, or whatever an early
+    // hook already set) and re-mark as seen (same rationale as getOrSpawn).
     useSessionStatusStore.getState().setSessionStatus(sessionKey, session.agentState);
     if (mode === "claude") {
       useWorkspaceStore.getState().markWorktreeSeen(worktreeId);

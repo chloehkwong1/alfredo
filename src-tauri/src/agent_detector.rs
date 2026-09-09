@@ -113,8 +113,15 @@ impl AgentDetector {
         let parts: Vec<&str> = self.line_buf.split('\n').collect();
         let (complete_lines, remainder) = parts.split_at(parts.len() - 1);
 
+        // Set when a line carries an explicit work signal for the current
+        // agent (e.g. Codex's "Working (… esc to interrupt)" indicator).
+        // Such lines are allowed to flip Idle → Busy even inside the idle
+        // cooldown, which otherwise exists to absorb startup chrome.
+        let mut explicit_work = false;
+
         for line in complete_lines {
             let (t, s) = Self::classify_line(line, &self.agent_type);
+            explicit_work |= Self::line_signals_explicit_work(line, &self.agent_type);
             if let Some(t) = t {
                 new_type = t;
             }
@@ -135,6 +142,7 @@ impl AgentDetector {
         // Also check the remainder (partial line) for prompt patterns
         if let Some(remainder) = remainder.first() {
             let (t, s) = Self::classify_line(remainder, &self.agent_type);
+            explicit_work |= Self::line_signals_explicit_work(remainder, &self.agent_type);
             if let Some(t) = t {
                 new_type = t;
             }
@@ -160,8 +168,9 @@ impl AgentDetector {
 
         // Suppress Idle→Busy transitions during the cooldown window.
         // Terminal chrome (status bar redraws) arrives in chunks that can
-        // look like agent output; the cooldown prevents false flips.
-        if self.state == AgentState::Idle && new_state == AgentState::Busy {
+        // look like agent output; the cooldown prevents false flips. An
+        // explicit work indicator is not chrome, so it bypasses the window.
+        if self.state == AgentState::Idle && new_state == AgentState::Busy && !explicit_work {
             if let Some(ts) = self.last_idle {
                 if ts.elapsed().as_millis() < IDLE_COOLDOWN_MS {
                     return None;
@@ -191,6 +200,15 @@ impl AgentDetector {
             Some((new_type, new_state))
         } else {
             None
+        }
+    }
+
+    /// True when `line` is an unambiguous "the agent is working" signal for
+    /// `agent_type`, as opposed to text that merely implies activity.
+    fn line_signals_explicit_work(line: &str, agent_type: &AgentType) -> bool {
+        match agent_type {
+            AgentType::Codex => is_codex_work_indicator(strip_ansi(line).trim()),
+            _ => false,
         }
     }
 
@@ -332,11 +350,46 @@ fn classify_codex(line: &str) -> (Option<AgentType>, Option<AgentState>) {
         return (Some(AgentType::Unknown), Some(AgentState::NotRunning));
     }
 
-    if line.len() > 3 {
+    // Busy only on Codex's own work indicator. Arbitrary text is not evidence
+    // of work: the startup banner (model/directory lines), the composer's
+    // placeholder, the footer hints and status redraws all arrive while Codex
+    // is idle, and hooks may never fire if the project's hooks are untrusted —
+    // so a text-length heuristic would leave a fresh tab stuck on "Thinking…"
+    // before any prompt is submitted.
+    if is_codex_work_indicator(line) {
         return (None, Some(AgentState::Busy));
     }
 
+    // The TUI repaints with cursor positioning rather than newlines, so a
+    // whole frame often arrives as one "line": status row, composer and
+    // footer concatenated. An empty composer shows Codex's fixed placeholder;
+    // a frame that carries it and no work indicator means the turn is over.
+    // (Checked after the indicator so a mid-turn frame that also shows the
+    // placeholder stays Busy.)
+    if line.contains(CODEX_COMPOSER_PLACEHOLDER) {
+        return (None, Some(AgentState::Idle));
+    }
+
     (None, None)
+}
+
+/// Placeholder Codex renders in an empty composer.
+const CODEX_COMPOSER_PLACEHOLDER: &str = "Ask Codex to do anything";
+
+/// Codex's TUI renders a status row while a turn is running, e.g.
+/// "• Working (12s • esc to interrupt)" or a spinner followed by "Thinking".
+/// `line` must already be ANSI-stripped and trimmed.
+///
+/// Startup also shows an interruptible row — "• Starting MCP servers (0/2):
+/// … (0s • esc to interrupt)" — which is not a turn, so "esc to interrupt"
+/// alone is not enough: the label in front of it must not be a startup task.
+fn is_codex_work_indicator(line: &str) -> bool {
+    if let Some(idx) = line.find("esc to interrupt") {
+        return !line[..idx].contains("Starting MCP servers");
+    }
+    // Skip spinner glyphs / bullets in front of the label.
+    let label = line.trim_start_matches(|c: char| !c.is_alphanumeric());
+    label.starts_with("Working") || label.starts_with("Thinking")
 }
 
 /// Aider state detection
@@ -855,6 +908,67 @@ mod tests {
     }
 
     #[test]
+    fn codex_startup_and_redraws_do_not_start_work() {
+        let mut det = AgentDetector::with_agent_type(AgentType::Codex);
+        // Slow startup and later repaints must be safe after the cooldown too.
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(2));
+        for text in [
+            "\x1b[1mOpenAI Codex\x1b[0m\r\n",
+            "model: gpt-5\r\n",
+            "directory: /tmp/project\r\n",
+            "› Explain this codebase\r\n",
+            "? for shortcuts                                  100% context left\r\n",
+            "\x1b]0;New conversation\x07\x1b[2K\r",
+            // Real 0.153 startup frame: an interruptible MCP boot row, the
+            // placeholder composer and the status line, all in one repaint.
+            "\x1b[38;2;128;128;49m• Starting MCP servers (0/2): codex_apps, linear (0s • esc to interrupt)\x1b[0m\x1b[3;1H› Ask Codex to do anything\x1b[4;1Hgpt-5 · ~/dev/project · Context 100% left\r\n",
+        ] {
+            assert_eq!(det.feed(text.as_bytes()), None, "{text:?}");
+            assert_eq!(det.state(), &AgentState::Idle);
+        }
+    }
+
+    #[test]
+    fn codex_placeholder_composer_ends_work_but_not_mid_turn() {
+        let mut det = AgentDetector::with_agent_type(AgentType::Codex);
+        // A mid-turn frame shows the work row AND the placeholder composer.
+        assert_eq!(
+            det.feed("• Working (3s • esc to interrupt)\x1b[3;1H› Ask Codex to do anything\r\n".as_bytes()),
+            Some((AgentType::Codex, AgentState::Busy))
+        );
+        assert_eq!(det.feed("• Working (4s • esc to interrupt)\x1b[3;1H› Ask Codex to do anything\r\n".as_bytes()), None);
+        assert_eq!(det.state(), &AgentState::Busy);
+        // The turn ends: the work row is gone, the placeholder remains.
+        assert_eq!(
+            det.feed("\x1b[2K› Ask Codex to do anything\x1b[4;1Hgpt-5 · ~/dev/project · Context 99% left\r\n".as_bytes()),
+            Some((AgentType::Codex, AgentState::Idle))
+        );
+        // A typed draft is not the placeholder.
+        det.state = AgentState::Busy;
+        det.last_idle = None;
+        assert_eq!(det.feed("› Ask Codex about this repo\r\n".as_bytes()), None);
+        assert_eq!(det.state(), &AgentState::Busy);
+    }
+
+    #[test]
+    fn codex_work_indicator_starts_work_even_during_startup_cooldown() {
+        let mut det = AgentDetector::with_agent_type(AgentType::Codex);
+        assert_eq!(
+            det.feed(b"Working (0s ").or_else(|| det.feed(b"\x1b[2mesc to interrupt\x1b[0m)\r\n")),
+            Some((AgentType::Codex, AgentState::Busy))
+        );
+        assert_eq!(det.feed(b"Reading src/main.rs\r\n"), None);
+        assert_eq!(det.state(), &AgentState::Busy);
+        assert_eq!(
+            det.feed("› \r\n? for shortcuts\r\n".as_bytes()),
+            Some((AgentType::Codex, AgentState::Idle))
+        );
+        det.last_idle = Some(Instant::now() - std::time::Duration::from_secs(2));
+        assert_eq!(det.feed(b"100% context left\r\n"), None);
+        assert_eq!(det.state(), &AgentState::Idle);
+    }
+
+    #[test]
     fn codex_bare_prompts_clear_busy_after_whitespace_and_ansi() {
         for prompt in ["  > \r\n", "\x1b[32m>>> \x1b[0m\n", "\x1b[1m›\x1b[0m \n"] {
             let mut det = AgentDetector::with_agent_type(AgentType::Codex);
@@ -980,3 +1094,4 @@ mod tests {
         }
     }
 }
+

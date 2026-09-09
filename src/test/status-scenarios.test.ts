@@ -11,6 +11,7 @@ vi.mock("../api", async (importOriginal) => {
 });
 
 import scenarios from "./status-scenarios.json";
+import * as api from "../api";
 import type { StatusScenario } from "./status-scenarios";
 import type { AgentState, HookPhase } from "../types";
 import { effectiveTabLabel } from "../lib/paneTabLayout";
@@ -993,6 +994,68 @@ describe("multi-tab reconciler independence", () => {
 });
 
 import { createSessionChannel, stateSourceMap, IDLE_DEBOUNCE_MS, IDLE_DEBOUNCE_SUBAGENT_MS } from "../services/sessionChannel";
+
+describe("Codex startup", () => {
+  const worktreeId = "codex-startup";
+  const sessionKey = `${worktreeId}:codex:tab`;
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    manager = new SessionManager();
+    useTabStore.getState().clearStore();
+    useSessionStatusStore.setState({ statuses: {} });
+    useWorkspaceStore.setState({
+      worktrees: [{ id: worktreeId, agentStatus: "notRunning" } as any],
+    });
+    useTabStore.setState({
+      tabs: { [worktreeId]: [{ id: sessionKey, type: "codex", label: "Codex" } as any] },
+    });
+    startStatusMirror();
+  });
+
+  afterEach(async () => {
+    await manager.closeAll();
+    vi.restoreAllMocks();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    useTabStore.getState().clearStore();
+    useSessionStatusStore.setState({ statuses: {} });
+  });
+
+  it.each([false, true])("stays idle without hooks (restored=%s)", async (restored) => {
+    vi.spyOn(api, "spawnPty").mockResolvedValue("codex-session");
+    if (restored) manager.loadScrollbackOnly(sessionKey, worktreeId);
+
+    const session = await manager.getOrSpawn(sessionKey, worktreeId, "/wt/codex", "codex");
+
+    expect(session.hooksActive).toBe(false);
+    expect(session.agentState).toBe("idle");
+    expect(useSessionStatusStore.getState().statuses[sessionKey]).toBe("idle");
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("idle");
+  });
+
+  it.each([
+    ["idle", "none", 0],
+    ["busy", "promptStart", 1],
+    ["notRunning", "none", 0],
+  ] as const)("preserves early %s hooks when restoring a tab", async (state, phase, depth) => {
+    manager.loadScrollbackOnly(sessionKey, worktreeId);
+    vi.spyOn(api, "spawnPty").mockImplementation(async (_wt, _path, _mode, _args, channel) => {
+      // The backend registers the channel before spawning, so hooks can
+      // arrive before the spawn promise resolves.
+      channel.onmessage({ event: "hookAgentState", data: { state, phase, notify: "none" } });
+      return "codex-session";
+    });
+
+    const session = await manager.getOrSpawn(sessionKey, worktreeId, "/wt/codex", "codex");
+
+    expect(session.agentState).toBe(state);
+    expect(session.workDepth).toBe(depth);
+    expect(useSessionStatusStore.getState().statuses[sessionKey]).toBe(state);
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe(state);
+  });
+});
 
 describe("Codex lifecycle and conversation titles", () => {
   const worktreeId = "codex-lifecycle";
