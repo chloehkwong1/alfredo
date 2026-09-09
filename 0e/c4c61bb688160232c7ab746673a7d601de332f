@@ -1,0 +1,19 @@
+.github/workflows/dependabot-auto-approve.yml
+  s_d95bb3be595c0e::t_ecdb5af55b2651 1,10,24-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0ec4c61bb688160232c7ab746673a7d601de332f",
+  "prompts": {},
+  "sessions": {
+    "s_d95bb3be595c0e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8455975c-634c-42af-988f-4554fbdac4a4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
