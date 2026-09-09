@@ -1,14 +1,13 @@
-name: Dependabot Auto-Merge
+name: Dependabot Auto-Approve
 
 on:
   pull_request:
 
 permissions:
-  contents: write
   pull-requests: write
 
 jobs:
-  auto-merge:
+  auto-approve:
     runs-on: ubuntu-22.04
     if: github.actor == 'dependabot[bot]'
     steps:
@@ -22,16 +21,12 @@ jobs:
       # dismissed on every push, so this re-approves after each rebase.
       # Needs "Allow GitHub Actions to approve pull requests" enabled in
       # repo Actions settings.
+      #
+      # Approve only — merging is deliberately left to a human. Dependabot
+      # PRs go green and wait. The job has no contents:write for that reason.
       - name: Approve patch and minor updates
         if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: gh pr review --approve "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Auto-merge patch and minor updates
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
-        run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
