@@ -67,6 +67,18 @@ export interface ManagedSession {
   disposed: boolean;
   /** Whether this session was restored from saved scrollback (for auto-resume). */
   restoredFromScrollback: boolean;
+  /** Timestamp at which the idle-agent hibernation closed this session's PTY
+   *  and disposed its terminal (see SessionManager.hibernateSession). Zero
+   *  while live. A hibernated session looks like a scrollback-only one
+   *  (`sessionId === ""`, `lastHeartbeat === 0`) so the next attach resumes
+   *  it through spawnForExisting; this stamp is what tells the two apart in
+   *  diagnostics and lets the reconciler skip it. */
+  hibernatedAt: number;
+  /** Generation counter for the PTY channel. createSessionChannel captures the
+   *  value it was created under and drops events once the session has moved
+   *  on (hibernation, respawn) — a closed PTY's trailing notRunning hook must
+   *  not overwrite the state of the session that replaced it. */
+  channelEpoch: number;
   /** When true, the next ESC[3J in PTY output is passed through to xterm instead
    *  of being stripped. Set when the user explicitly sends /clear. */
   allowNextClearScrollback: boolean;

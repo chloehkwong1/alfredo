@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
 import { startStatusMirror } from "./services/statusMirror";
 import { startDockBadgeMirror } from "./services/dockBadge";
+import { startHibernateConfigMirror } from "./services/hibernateConfigMirror";
 import { preloadTerminalFonts } from "./services/fontPreload";
 import { isLightTheme } from "./lib/themeMeta";
 import "./styles/globals.css";
@@ -24,6 +25,7 @@ startStatusMirror();
 
 // Mirror "needs attention" count to the OS dock/taskbar badge.
 startDockBadgeMirror();
+startHibernateConfigMirror();
 
 // Block React mount on bundled terminal fonts so xterm WebGL atlases never
 // bake against the fallback font (GH#19).

@@ -2,6 +2,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { ToggleRow } from "../ui/ToggleRow";
 import type { GlobalAppConfig, TabType } from "../../types";
 import { flagsError } from "../../services/launchCommand";
+import { HIBERNATE_IDLE_DEFAULT_MINUTES } from "../../services/sessionManager";
 
 const selectClass = [
   "h-8 w-full px-3 text-[13px] font-normal",
@@ -20,7 +21,7 @@ const AGENT_OPTIONS = [
 ] as const;
 
 interface AgentSettingsProps {
-  settings: Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags">;
+  settings: Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags" | "hibernateIdleMinutes">;
   onChange: (patch: Partial<GlobalAppConfig>) => void;
   defaultAgent: TabType;
   onDefaultAgentChange: (agent: TabType) => void;
@@ -34,6 +35,7 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
   );
 
   const extraFlagsError = flagsError(settings.extraFlags);
+  const hibernateMinutes = settings.hibernateIdleMinutes ?? HIBERNATE_IDLE_DEFAULT_MINUTES;
 
   return (
     <div>
@@ -106,6 +108,42 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
         Applies to new sessions — existing sessions keep their settings.
       </p>
       </>)}
+
+      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
+        Memory
+      </div>
+
+      <div className="mb-4">
+        <label htmlFor="agent-hibernate-minutes" className="block text-[13px] text-text-primary mb-1.5">
+          Hibernate idle Claude tabs after
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            id="agent-hibernate-minutes"
+            type="number"
+            min={0}
+            step={5}
+            value={hibernateMinutes}
+            onChange={(e) => {
+              const n = Number.parseInt(e.target.value, 10);
+              onChange({ hibernateIdleMinutes: Number.isFinite(n) && n >= 0 ? n : null });
+            }}
+            aria-describedby="agent-hibernate-minutes-desc"
+            className={[
+              "h-8 w-24 px-3 text-[13px] font-mono",
+              "bg-bg-primary text-text-primary",
+              "border rounded-[var(--radius-md)] border-border-default hover:border-border-hover",
+              "focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-accent-primary/50",
+              "transition-all duration-[var(--transition-fast)]",
+            ].join(" ")}
+          />
+          <span className="text-[13px] text-text-secondary">minutes</span>
+        </div>
+        <p id="agent-hibernate-minutes-desc" className="text-xs text-text-tertiary mt-[5px]">
+          A Claude tab that has been idle and hidden for this long has its process stopped and its terminal
+          released, freeing a few hundred MB per tab. Opening the tab resumes the same conversation. 0 = never.
+        </p>
+      </div>
     </div>
   );
 }
