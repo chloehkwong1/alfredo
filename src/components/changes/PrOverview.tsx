@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { CommentsByFile, usePrBadgeCounts } from "./PrPanel";
+import { CommentsByFile, PR_STATE_ICONS, usePrBadgeCounts } from "./PrPanel";
 import { PrDescription } from "./PrDescription";
 import { ReviewDraftSection } from "./ReviewDraftSection";
 import { CheckRunRow, CheckRunSummary, sortCheckRuns } from "./CheckRunRow";
@@ -21,13 +20,6 @@ interface PrOverviewProps {
   onJumpToComment: (filePath: string, line?: number) => void;
 }
 
-const STATE_ICONS = {
-  merged: GitMerge,
-  closed: GitPullRequestClosed,
-  draft: GitPullRequestDraft,
-  open: GitPullRequest,
-} as const;
-
 /** Wide PR review layout shown when the Changes panel is focus-mode-widened
  *  on the PR tab — a hero + persistent rail (Linear's Overview tab), as
  *  opposed to PrPanelContent's narrow collapsible-sections sidebar. */
@@ -43,7 +35,7 @@ export function PrOverview({ worktreeId, repoPath, files, activeFilePath, onSele
     pr.author != null && githubUsername != null && pr.author.toLowerCase() === githubUsername.toLowerCase();
 
   const status = prStatusLabel(pr);
-  const StatusIcon = STATE_ICONS[prStateKind(pr)];
+  const StatusIcon = PR_STATE_ICONS[prStateKind(pr)];
   // get_pr_detail still in flight — mirror PrPanelContent's skeleton so the
   // rail never asserts a definitive "No checks" / "No reviewers" it can't know.
   const detailLoading = prDetail === undefined;

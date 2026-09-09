@@ -5,19 +5,68 @@ import {
   CircleCheck,
   Eye,
   MessageCircle,
+  GitMerge,
+  GitPullRequest,
+  GitPullRequestClosed,
   GitPullRequestDraft,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { usePrStore } from "../../stores/prStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import type { PrComment, PrReview, Worktree } from "../../types";
+import type { PrComment, PrReview, PrStatus, Worktree } from "../../types";
 import { sendPrCommentToClaude } from "../../services/sendPrCommentToClaude";
 import { useGithubUsername } from "../../hooks/useGithubUsername";
+import { prStateKind, prStatusLabel } from "../../lib/prStatus";
 import { PrDescription } from "./PrDescription";
 import { CheckRunRow, CheckRunSummary, sortCheckRuns } from "./CheckRunRow";
 import { isCheckFailing, isCheckPending } from "./checkRunStatus";
 import { ReviewRow } from "./ReviewRow";
 import { CommentCard } from "./CommentCard";
 import { ReviewDraftSection } from "./ReviewDraftSection";
+
+/** State icon per PR state kind — the single source so the narrow panel's
+ *  title header and the wide PrOverview header can't drift apart. */
+export const PR_STATE_ICONS = {
+  merged: GitMerge,
+  closed: GitPullRequestClosed,
+  draft: GitPullRequestDraft,
+  open: GitPullRequest,
+} as const;
+
+/** Compact, non-collapsible PR identity block shown above the section list —
+ *  unlike Description/Checks/etc. below it, this isn't content to hide, so
+ *  it never collapses. Title clamps to 2 lines (narrow-panel PR titles like
+ *  dependabot's are long; one line would lose all meaning) with the full
+ *  string as a tooltip and a click-through to GitHub. The author/branch line
+ *  truncates to one line rather than hiding outright — this panel is
+ *  user-resizable, and truncation degrades gracefully at any width without
+ *  needing a container-query breakpoint. */
+function PrTitleHeader({ pr }: { pr: PrStatus }) {
+  const status = prStatusLabel(pr);
+  const StatusIcon = PR_STATE_ICONS[prStateKind(pr)];
+
+  return (
+    <div className="px-2.5 py-2 border-b border-border-subtle">
+      <div className={`flex items-center gap-1.5 text-[11px] font-semibold mb-1 ${status.className}`}>
+        <StatusIcon size={12} className="shrink-0" />
+        {status.text}
+        <span className="text-text-tertiary font-normal">#{pr.number}</span>
+      </div>
+      <button
+        onClick={() => openUrl(pr.url)}
+        title={pr.title}
+        className="w-full text-left bg-transparent border-none cursor-pointer p-0 font-[inherit] text-[12.5px] font-semibold leading-snug text-text-primary hover:underline line-clamp-2"
+      >
+        {pr.title}
+      </button>
+      {pr.author && (
+        <div className="mt-1 text-[10.5px] text-text-tertiary truncate">
+          {pr.author} · {pr.baseBranch ?? "main"} ← {pr.branch}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Shared badge-count helpers ─────────────────────────────────────
 
@@ -65,14 +114,19 @@ export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPane
 
   const { checkRuns, reviews, comments } = usePrBadgeCounts(worktreeId);
 
-  // Loading skeleton: prDetail not yet loaded
+  // Loading skeleton: prDetail not yet loaded. The identity header renders
+  // from `pr` straight away (matching PrOverview) — only the detail-dependent
+  // sections skeleton out.
   if (prDetail === undefined) {
     return (
-      <div className="flex-1 flex flex-col overflow-hidden py-4">
-        <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-3/4" />
-        <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-1/2" />
-        <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-2/3" />
-        <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-1/2" />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {pr && <PrTitleHeader pr={pr} />}
+        <div className="flex-1 flex flex-col overflow-hidden py-4">
+          <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-3/4" />
+          <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-1/2" />
+          <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-2/3" />
+          <div className="animate-pulse bg-bg-hover rounded h-3 mx-2.5 my-2 w-1/2" />
+        </div>
       </div>
     );
   }
@@ -95,6 +149,7 @@ export function PrPanelContent({ worktreeId, repoPath, onJumpToComment }: PrPane
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      <PrTitleHeader pr={pr} />
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto py-1 flex flex-col">
         {/* Description section */}
