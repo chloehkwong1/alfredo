@@ -1,0 +1,22 @@
+docs/features/review-requests.md
+  s_bc94ed48493ecb::t_7ddae9245b4b5a 18-20
+docs/features/pr-review.md
+  s_bc94ed48493ecb::t_bb117b31009da0 37-49
+  s_bc94ed48493ecb::t_520b57f983e2fd 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "adb8c302e2bf9c58601933dc608457eb4ca50e22",
+  "prompts": {},
+  "sessions": {
+    "s_bc94ed48493ecb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8132fa3-3641-4482-92e8-573e76930f9d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
