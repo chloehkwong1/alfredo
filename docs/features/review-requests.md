@@ -15,8 +15,9 @@ session starts as usual — nothing is typed into it for you; ask for
 a review (or anything else) in your own words.
 
 Column behaviour follows your involvement: PRs where your review is
-requested park in **Needs Review** even if others have approved, and
-someone else's PR only moves to **Done** once *you* have approved it.
+requested park in **Needs Review** even if others have approved —
+including while the PR is still a draft — and someone else's PR only
+moves to **Done** once *you* have approved it.
 
 The feature is controlled by **Auto-pull review requests** in
 Settings → General (default on). Turning it off stops future

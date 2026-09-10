@@ -1,6 +1,6 @@
 ---
 title: Reviewing a PR from Alfredo — draft, submit, reply, resolve
-keywords: [pr review, review, submit review, approve, request changes, add to review, your review, reply, resolve thread, unresolve, review draft, review comment]
+keywords: [pr review, review, submit review, approve, request changes, add to review, your review, reply, resolve thread, unresolve, review draft, review comment, emoji, gif, suggestion, suggested change, own pr, comment-only]
 ui_path: Changes panel → PR tab → Your review
 ---
 
@@ -33,6 +33,19 @@ appears in the Reviews list and your comments appear as threads.
 another reviewer's — shows in the PR tab and in the diff gutter with
 a **Reply to this thread…** box and a **Resolve** / **Unresolve**
 action. Replies post immediately, outside any pending review.
+
+**Composer toolbar.** The summary box, diff-gutter comment box and
+thread replies share a small toolbar with an **emoji picker** and a
+**GIF search** (powered by Giphy) — both insert at the cursor. The
+diff-gutter composer also offers **Add suggestion**, which inserts a
+GitHub `suggestion` block pre-filled with the line you're commenting
+on; edit the code inside it and the PR author gets a one-click
+**Apply** on GitHub.
+
+**Your own PRs are comment-only.** GitHub rejects self-approval, so
+on a PR you authored the verdict picker is hidden and Submit posts a
+comment-only review. Queuing comments, replying and resolving work
+as normal.
 
 Requires a GitHub token with write access to the repo (Settings →
 GitHub). Read-only tokens can still see reviews and threads.
