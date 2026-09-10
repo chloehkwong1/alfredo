@@ -64,7 +64,10 @@ describe("handleReviewRequests", () => {
     expect(wt?.column).toBe("needsReview");
   });
 
-  it("seeds the store column from the PR's autoColumn (draft PR sits in Draft PR, not Needs Review)", async () => {
+  // Rust's determine_column now sends "needsReview" even for review-requested
+  // drafts, so "draftPr" is a synthetic value here — the point is the store
+  // honours whatever column Rust computed instead of hardcoding one.
+  it("seeds the store column from the PR's autoColumn rather than hardcoding needsReview", async () => {
     vi.mocked(createWorktreeFrom).mockResolvedValue({
       id: "/repos/app::feat/flux", name: "feat/flux", path: "/repos/app-wt/feat-flux",
       branch: "feat/flux", prStatus: null, agentStatus: "notRunning", column: "inProgress",

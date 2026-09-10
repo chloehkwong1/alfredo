@@ -10,6 +10,7 @@ fn main() {
     println!("cargo:rerun-if-changed={}", env_path.display());
     println!("cargo:rerun-if-env-changed=LINEAR_CLIENT_ID");
     println!("cargo:rerun-if-env-changed=LINEAR_CLIENT_SECRET");
+    println!("cargo:rerun-if-env-changed=GIPHY_API_KEY");
     if env_path.exists() {
         let Ok(contents) = std::fs::read_to_string(&env_path) else {
             println!(

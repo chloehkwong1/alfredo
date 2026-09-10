@@ -3,6 +3,7 @@ import { useAppConfig } from "../../hooks/useAppConfig";
 import { CommentChipStrip } from "./CommentChipStrip";
 import { CommentChipAddPopover } from "./CommentChipAddPopover";
 import { CommentChipContextMenu } from "./CommentChipContextMenu";
+import { ComposerToolbar } from "./composer/ComposerToolbar";
 
 interface AnnotationInputProps {
   filePath: string;
@@ -10,9 +11,17 @@ interface AnnotationInputProps {
   onSubmit: (text: string) => void;
   onCancel: () => void;
   onSubmitReview?: (text: string) => void;
+  suggestionText?: string | null;
 }
 
-function AnnotationInput({ filePath, lineNumber, onSubmit, onCancel, onSubmitReview }: AnnotationInputProps) {
+function AnnotationInput({
+  filePath,
+  lineNumber,
+  onSubmit,
+  onCancel,
+  onSubmitReview,
+  suggestionText,
+}: AnnotationInputProps) {
   const fileName = filePath.split("/").pop() ?? filePath;
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -79,6 +88,12 @@ function AnnotationInput({ filePath, lineNumber, onSubmit, onCancel, onSubmitRev
           placeholder="Leave a comment for the agent..."
           rows={3}
           className="w-full px-2.5 py-2 rounded-md text-xs bg-bg-primary border border-border-default text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20 resize-y leading-relaxed"
+        />
+        <ComposerToolbar
+          textareaRef={textareaRef}
+          value={text}
+          onChange={setText}
+          suggestionText={suggestionText ?? null}
         />
         <div className="flex items-center gap-2 mt-1.5">
           <CommentChipStrip

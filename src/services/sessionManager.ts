@@ -121,6 +121,55 @@ export function computeOrphanSweep(
   return { toClose, deferred, nextCandidates };
 }
 
+// ── Idle-agent hibernation ─────────────────────────────────────
+// Every open Claude tab is a live process (200–300 MB each) plus a resident
+// xterm instance, kept alive indefinitely even when the user walked away
+// hours ago. Hibernation closes the PTY and disposes the terminal of a tab
+// that has been idle AND hidden for `hibernateIdleMs`, keeping only the
+// ManagedSession shell (status, output buffer, resume id lives on the tab).
+// Re-showing the tab goes through the ordinary scrollback-only path —
+// getOrSpawn → spawnForExisting with TerminalView's `--resume <id>` — so the
+// same conversation comes back; the only visible difference is a short boot.
+
+/** Default idle window before a hidden Claude tab is hibernated. */
+export const HIBERNATE_IDLE_DEFAULT_MINUTES = 30;
+/** How often the reconciler scans for hibernation candidates. */
+export const HIBERNATE_CHECK_INTERVAL_MS = 30_000;
+
+export interface HibernateCandidate {
+  session: Pick<
+    ManagedSession,
+    | "sessionId" | "ptyExited" | "hibernatedAt" | "agentState" | "workDepth"
+    | "subagentDepth" | "monitorPending" | "awaitingAnswer" | "lastOutputAt" | "lastHookAt"
+  >;
+  /** True while the terminal's element is mounted in the DOM (tab visible). */
+  attached: boolean;
+  /** True when the tab can come back as the same conversation (Claude tab
+   *  with a discovered resume id). Anything else is never hibernated: Codex
+   *  and Gemini have no resume path here, shells hold live state. */
+  resumable: boolean;
+  /** True while the phone remote-control bridge is driving this session. */
+  remoteControlled: boolean;
+}
+
+/**
+ * Pure hibernation predicate — see the module note above. Idle is judged on
+ * BOTH channels: output silence proves the user isn't typing a draft into the
+ * composer (keystrokes echo as output), hook silence proves the agent hasn't
+ * quietly resumed. `idleMs <= 0` disables hibernation.
+ */
+export function shouldHibernate(c: HibernateCandidate, now: number, idleMs: number): boolean {
+  if (idleMs <= 0 || !Number.isFinite(idleMs)) return false;
+  const s = c.session;
+  if (!s.sessionId || s.ptyExited || s.hibernatedAt > 0) return false;
+  if (c.attached || !c.resumable || c.remoteControlled) return false;
+  if (s.agentState !== "idle") return false;
+  if (s.workDepth > 0 || s.subagentDepth > 0 || s.monitorPending || s.awaitingAnswer) return false;
+  if (s.lastOutputAt <= 0 || now - s.lastOutputAt < idleMs) return false;
+  if (s.lastHookAt > 0 && now - s.lastHookAt < idleMs) return false;
+  return true;
+}
+
 // ── SessionManager ─────────────────────────────────────────────
 
 export class SessionManager implements SessionWriter {
@@ -138,6 +187,11 @@ export class SessionManager implements SessionWriter {
   private lastRegistryPollAt = 0;
   private registryPollInFlight = false;
   private registryPollFailures = 0;
+
+  /** Idle-agent hibernation — see shouldHibernate. */
+  private hibernateIdleMs = HIBERNATE_IDLE_DEFAULT_MINUTES * 60_000;
+  private lastHibernateCheckAt = 0;
+  private hibernating = new Set<string>();
 
   /** Orphan-sweep bookkeeping — see computeOrphanSweep. */
   private lastOrphanSweepAt = 0;
@@ -338,6 +392,116 @@ export class SessionManager implements SessionWriter {
 
     this.maybePollRegistry(now);
     this.maybeSweepOrphans(now);
+    this.maybeHibernateIdle(now);
+  }
+
+  /** Apply the user's hibernation window. `null`/`undefined` = app default,
+   *  `0` = never. Driven by startHibernateConfigMirror. */
+  setHibernateIdleMinutes(minutes: number | null | undefined): void {
+    const m = minutes ?? HIBERNATE_IDLE_DEFAULT_MINUTES;
+    this.hibernateIdleMs = m > 0 ? m * 60_000 : 0;
+  }
+
+  /** Scan for hidden, idle, resumable Claude tabs and hibernate them. Runs
+   *  from the 500ms reconcile tick but only every HIBERNATE_CHECK_INTERVAL_MS. */
+  private maybeHibernateIdle(now: number): void {
+    if (this.hibernateIdleMs <= 0) return;
+    if (now - this.lastHibernateCheckAt < HIBERNATE_CHECK_INTERVAL_MS) return;
+    this.lastHibernateCheckAt = now;
+    const tabs = useTabStore.getState().tabs;
+    const rc = useRemoteControlStore.getState();
+    for (const [sessionKey, session] of this.sessions.entries()) {
+      if (this.hibernating.has(sessionKey)) continue;
+      const tab = (tabs[session.worktreeId] ?? []).find((t) => t.id === sessionKey);
+      const candidate: HibernateCandidate = {
+        session,
+        attached: !!session.terminal.element?.isConnected,
+        resumable: tab?.type === "claude" && !!tab.resumeSessionId,
+        remoteControlled: rc.isActive(sessionKey),
+      };
+      if (!shouldHibernate(candidate, now, this.hibernateIdleMs)) continue;
+      this.hibernateSession(sessionKey).catch((e) =>
+        console.warn(`[hibernate] ${sessionKey} failed:`, e),
+      );
+    }
+  }
+
+  /**
+   * Hibernate a live session: close its PTY and dispose its terminal, keeping
+   * the ManagedSession so the tab, its status and its persisted output buffer
+   * survive. Afterwards the session is indistinguishable from a
+   * scrollback-only restore (`sessionId === ""`, `lastHeartbeat === 0`), so
+   * the next attach resumes it via spawnForExisting. The status is left as
+   * is (idle) — hibernation is transparent to the sidebar, which would
+   * otherwise flip a finished worktree to "Not running".
+   */
+  async hibernateSession(sessionKey: string): Promise<void> {
+    const session = this.sessions.get(sessionKey);
+    if (!session || !session.sessionId || session.disposed) return;
+    this.hibernating.add(sessionKey);
+    try {
+      const sessionId = session.sessionId;
+      const msg = `[hibernate] ${sessionKey} idle ${Math.round((Date.now() - session.lastOutputAt) / 1000)}s — closing PTY ${sessionId} and disposing terminal`;
+      console.info(msg);
+      debugLog(msg).catch(() => {});
+
+      // Retire the channel FIRST so the PTY's teardown events (a final
+      // notRunning hook, trailing output) are dropped rather than applied.
+      session.channelEpoch = (session.channelEpoch ?? 0) + 1;
+      session.sessionId = "";
+      session.hibernatedAt = Date.now();
+      session.lastHeartbeat = 0;
+      session.restoredFromScrollback = true;
+      session.ptyExited = false;
+      session.hooksActive = false;
+      session.hookDerivedState = null;
+      session.workDepth = 0;
+      session.subagentDepth = 0;
+      session.monitorPending = false;
+      session.awaitingAnswer = false;
+      session.turnEndAt = 0;
+      session.onFirstOutput = undefined;
+      if (session.pendingIdleTimer !== null) {
+        clearTimeout(session.pendingIdleTimer);
+        session.pendingIdleTimer = null;
+      }
+
+      this.replaceTerminal(session);
+
+      try {
+        await closePty(sessionId);
+      } catch {
+        // Already gone on the Rust side — fine.
+      }
+    } finally {
+      this.hibernating.delete(sessionKey);
+    }
+  }
+
+  /**
+   * Swap a session's xterm for a fresh, empty one at the background cap.
+   * The old instance's buffer, parser state and renderer are what a hidden
+   * tab actually pays for; nothing in it is needed again, because
+   * spawnForExisting clears the terminal before the resumed agent redraws.
+   */
+  private replaceTerminal(session: ManagedSession): void {
+    const old = session.terminal;
+    session.pendingOutput = [];
+    session.writeInFlight = false;
+    session.webglAddon = null;
+    session.webglLoaded = false;
+    const cwd = useWorkspaceStore.getState().worktrees.find((w) => w.id === session.worktreeId)?.path;
+    const { terminal, searchAddon } = createTerminal({ cwd });
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
+    session.terminal = terminal;
+    session.fitAddon = fitAddon;
+    session.searchAddon = searchAddon;
+    try {
+      old.dispose();
+    } catch (e) {
+      console.warn("[hibernate] old terminal dispose failed:", e);
+    }
   }
 
   /** Close backend PTY sessions that no ManagedSession claims. Fire-and-
@@ -610,6 +774,8 @@ export class SessionManager implements SessionWriter {
       writeInFlight: false,
       disposed: false,
       restoredFromScrollback: false,
+      hibernatedAt: 0,
+      channelEpoch: 0,
       allowNextClearScrollback: false,
       lastHookAt: 0,
       lastHookDesc: "",
@@ -767,6 +933,8 @@ export class SessionManager implements SessionWriter {
       writeInFlight: false,
       disposed: false,
       restoredFromScrollback: true,
+      hibernatedAt: 0,
+      channelEpoch: 0,
       allowNextClearScrollback: false,
       lastHookAt: 0,
       lastHookDesc: "",
@@ -831,6 +999,11 @@ export class SessionManager implements SessionWriter {
     // PTY actually produces output, rather than seeing the stale value from
     // the scrollback-only phase.
     session.lastOutputAt = 0;
+
+    // Leaving hibernation (if that is what this is): the resumed PTY's
+    // channel replaces the retired one, and the stamp must be cleared before
+    // any event can arrive so the reconciler treats the session as live.
+    session.hibernatedAt = 0;
 
     const channel = createSessionChannel(this, session, worktreeId, sessionKey);
 
@@ -942,6 +1115,8 @@ export class SessionManager implements SessionWriter {
       writeInFlight: false,
       disposed: false,
       restoredFromScrollback: false,
+      hibernatedAt: 0,
+      channelEpoch: 0,
       allowNextClearScrollback: false,
       lastHookAt: 0,
       lastHookDesc: "",

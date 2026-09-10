@@ -45,7 +45,8 @@ const ATTENTION_KINDS = new Set([
 ]);
 
 /** This worktree's own stack machinery needs eyes — drives the chip's amber
- *  "!" and (minus in-flight `rebasing`) the dock-badge/collapsed-pill count.
+ *  "!" and the stack map. Deliberately NOT part of the dock-badge/collapsed-pill
+ *  count (those track agent-attention states only; see dockBadge.ts).
  *  Merged members are excluded: a leftover status (e.g. a needsPush whose
  *  deleted upstream can never heal it) would flag something unactionable. */
 export function stackNeedsAttention(w: Worktree): boolean {

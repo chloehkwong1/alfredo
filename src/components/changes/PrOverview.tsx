@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { CommentsByFile, usePrBadgeCounts } from "./PrPanel";
+import { CommentsByFile, PR_STATE_ICONS, usePrBadgeCounts } from "./PrPanel";
 import { PrDescription } from "./PrDescription";
 import { ReviewDraftSection } from "./ReviewDraftSection";
 import { CheckRunRow, CheckRunSummary, sortCheckRuns } from "./CheckRunRow";
 import { ReviewRow } from "./ReviewRow";
 import { PrFileList } from "./PrFileList";
+import { useGithubUsername } from "../../hooks/useGithubUsername";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { prStateKind, prStatusLabel } from "../../lib/prStatus";
 import type { DiffFile } from "../../types";
@@ -20,25 +20,22 @@ interface PrOverviewProps {
   onJumpToComment: (filePath: string, line?: number) => void;
 }
 
-const STATE_ICONS = {
-  merged: GitMerge,
-  closed: GitPullRequestClosed,
-  draft: GitPullRequestDraft,
-  open: GitPullRequest,
-} as const;
-
 /** Wide PR review layout shown when the Changes panel is focus-mode-widened
  *  on the PR tab — a hero + persistent rail (Linear's Overview tab), as
  *  opposed to PrPanelContent's narrow collapsible-sections sidebar. */
 export function PrOverview({ worktreeId, repoPath, files, activeFilePath, onSelectFile, onJumpToComment }: PrOverviewProps) {
+  const githubUsername = useGithubUsername();
   const worktree = useWorkspaceStore((s) => s.worktrees.find((w) => w.id === worktreeId));
   const pr = worktree?.prStatus ?? null;
   const { checkRuns, prDetail, reviews, comments } = usePrBadgeCounts(worktreeId);
 
   if (!pr) return null;
 
+  const isOwnPr =
+    pr.author != null && githubUsername != null && pr.author.toLowerCase() === githubUsername.toLowerCase();
+
   const status = prStatusLabel(pr);
-  const StatusIcon = STATE_ICONS[prStateKind(pr)];
+  const StatusIcon = PR_STATE_ICONS[prStateKind(pr)];
   // get_pr_detail still in flight — mirror PrPanelContent's skeleton so the
   // rail never asserts a definitive "No checks" / "No reviewers" it can't know.
   const detailLoading = prDetail === undefined;
@@ -83,7 +80,7 @@ export function PrOverview({ worktreeId, repoPath, files, activeFilePath, onSele
         )}
 
         <div className="px-4 py-3 border-b border-border-subtle">
-          <ReviewDraftSection worktreeId={worktreeId} repoPath={repoPath} prNumber={pr.number} />
+          <ReviewDraftSection worktreeId={worktreeId} repoPath={repoPath} prNumber={pr.number} isOwnPr={isOwnPr} />
         </div>
 
         {/* Comments — same grouped-by-file UI as the narrow PR panel, so

@@ -7,6 +7,7 @@ import type {
   DiffFile,
   EffectiveConfig,
   FileLine,
+  GifResult,
   GlobalAppConfig,
   KanbanColumn,
   LinearTicket,
@@ -944,4 +945,20 @@ export function searchAlfredoDocs(query: string, limit = 5): Promise<HelpHit[]> 
 
 export function debugLog(message: string): Promise<void> {
   return invoke("debug_log", { message });
+}
+
+// ── GIFs (Giphy) ───────────────────────────────────────────────
+
+// gifs_available reflects a compile-time constant (whether a Giphy key was
+// baked into the build), so one IPC round-trip answers it for the whole
+// session — every composer toolbar mount shares this promise.
+let gifsAvailablePromise: Promise<boolean> | null = null;
+
+export function gifsAvailable(): Promise<boolean> {
+  gifsAvailablePromise ??= invoke("gifs_available");
+  return gifsAvailablePromise;
+}
+
+export function searchGifs(query: string): Promise<GifResult[]> {
+  return invoke("search_gifs", { query });
 }

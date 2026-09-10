@@ -30,6 +30,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
             extra_flags: None,
+            hibernate_idle_minutes: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
@@ -196,6 +197,7 @@ pub async fn migrate_if_needed(
         custom_terminal_path: None,
         dangerously_skip_permissions: None,
         extra_flags: None,
+        hibernate_idle_minutes: None,
         default_diff_view_mode: None,
         collapsed_kanban_columns: vec![],
         sidebar_collapsed: None,
@@ -265,6 +267,7 @@ mod tests {
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
             extra_flags: None,
+            hibernate_idle_minutes: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
@@ -313,6 +316,7 @@ mod tests {
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
             extra_flags: None,
+            hibernate_idle_minutes: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
@@ -358,6 +362,7 @@ mod tests {
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
             extra_flags: None,
+            hibernate_idle_minutes: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
             sidebar_collapsed: None,
@@ -424,6 +429,19 @@ mod tests {
     fn global_config_without_extra_flags_deserializes_to_none() {
         let cfg: crate::types::GlobalAppConfig = serde_json::from_str("{}").unwrap();
         assert_eq!(cfg.extra_flags, None);
+    }
+
+    #[test]
+    fn hibernate_idle_minutes_round_trips_and_defaults_to_none() {
+        // Pre-hibernation app.json has no key → None (app default applies).
+        let cfg: crate::types::GlobalAppConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(cfg.hibernate_idle_minutes, None);
+        // The frontend writes camelCase; 0 is the explicit "never" value.
+        let cfg: crate::types::GlobalAppConfig =
+            serde_json::from_str(r#"{"hibernateIdleMinutes":0}"#).unwrap();
+        assert_eq!(cfg.hibernate_idle_minutes, Some(0));
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(json.contains(r#""hibernateIdleMinutes":0"#), "{json}");
     }
 
     #[tokio::test]

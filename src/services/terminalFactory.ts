@@ -236,8 +236,16 @@ export function stripClearScrollback(bytes: Uint8Array): Uint8Array {
 // gets deep scrollback; detached ones are trimmed to the background cap
 // (usePty raises/lowers on attach/detach — xterm trims the buffer live when
 // the option is lowered).
+//
+// The background cap is deliberately small: a hidden tab only needs enough
+// history to look sane the instant it is re-shown (the visible screen plus a
+// few pages), and every extra line is paid for by every hidden tab at once.
+// Trimmed lines are gone for good — the raise on re-attach cannot recover
+// them — but the 50 KB output buffer (sessionTypes) still persists the recent
+// tail across restarts, and idle agents are hibernated (their terminals
+// disposed) long before the difference matters.
 export const ACTIVE_SCROLLBACK = 10_000;
-export const BACKGROUND_SCROLLBACK = 1_000;
+export const BACKGROUND_SCROLLBACK = 250;
 
 /**
  * Create a Terminal instance with:

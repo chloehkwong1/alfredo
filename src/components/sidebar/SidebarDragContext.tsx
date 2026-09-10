@@ -60,7 +60,7 @@ function findColumnForId(id: string, worktrees: Worktree[]): KanbanColumn | null
 }
 
 const measuring = {
-  droppable: { strategy: MeasuringStrategy.Always as const },
+  droppable: { strategy: MeasuringStrategy.WhileDragging as const },
 };
 
 /** The cards of one column exactly as StatusGroup renders them: Sidebar's

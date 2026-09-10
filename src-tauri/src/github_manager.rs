@@ -566,7 +566,7 @@ pub struct GithubManager {
 /// client would silently re-introduce the unbounded pool this exists to
 /// eliminate, which is the worse failure mode (FD leak shows up weeks later).
 #[allow(clippy::expect_used)]
-fn shared_http_client() -> &'static reqwest::Client {
+pub(crate) fn shared_http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
@@ -1643,12 +1643,13 @@ fn my_latest_decisive_state<'a>(reviews: &'a [PrReview], user: &str) -> Option<&
 
 /// Determine the kanban column for a worktree based on its PR status.
 ///
-/// When `github_username` is provided, open (non-draft) PRs are split into
+/// When `github_username` is provided, open PRs are split into
 /// "In Review" (user is the author) vs "Needs Review" (someone else's PR).
-/// My involvement takes precedence over the aggregate review state: an open
-/// request for my review parks the card in Needs Review (a re-request after my
-/// approval pulls it back), and my own approval — not just anyone's — moves it
-/// to Done. PRs I was never asked to review keep the aggregate behaviour:
+/// My involvement takes precedence over the aggregate review state — and over
+/// draft status: an open request for my review parks the card in Needs Review
+/// even while the PR is a draft (it's the author's work-in-progress, not mine;
+/// a re-request after my approval pulls it back), and my own approval — not
+/// just anyone's — moves it to Done. PRs I was never asked to review keep the aggregate behaviour:
 /// resolve to "Done" when any reviewer has an active approving review and no
 /// reviewer has an outstanding `changes_requested`. A dismissed approval flips
 /// back to "Needs Review" since the latest-decisive state is no longer "approved".
@@ -1666,24 +1667,32 @@ pub fn determine_column(
         None => KanbanColumn::InProgress,
         Some(pr) if pr.merged => KanbanColumn::Done,
         Some(pr) if pr.state == "closed" => KanbanColumn::Done,
-        Some(pr) if pr.draft => KanbanColumn::DraftPr,
         Some(pr) => {
             let is_own_pr = match (pr.author.as_deref(), github_username) {
                 (Some(author), Some(user)) => author.eq_ignore_ascii_case(user),
                 _ => true, // default to "own PR" if we can't tell
             };
+            // An open request for my review on someone else's PR wins even
+            // over draft status: a teammate's draft I've been asked to look
+            // at is review inflow, not my work-in-progress.
+            let review_requested_of_me = !is_own_pr
+                && github_username.is_some_and(|user| {
+                    pr.requested_reviewers.iter().any(|r| r.eq_ignore_ascii_case(user))
+                });
+            if review_requested_of_me {
+                return KanbanColumn::NeedsReview;
+            }
+            if pr.draft {
+                return KanbanColumn::DraftPr;
+            }
             if is_own_pr {
                 return KanbanColumn::OpenPr;
             }
             // My involvement takes precedence over the aggregate review
-            // state: an open request for my review parks the card in Needs
-            // Review (a re-request after my approval pulls it back), and my
-            // own approval — not just anyone's — moves it to Done. PRs I was
-            // never asked to review keep the aggregate behaviour below.
+            // state: my own approval — not just anyone's — moves it to Done.
+            // PRs I was never asked to review keep the aggregate behaviour
+            // below.
             if let Some(user) = github_username {
-                if pr.requested_reviewers.iter().any(|r| r.eq_ignore_ascii_case(user)) {
-                    return KanbanColumn::NeedsReview;
-                }
                 if my_latest_decisive_state(reviews, user) == Some("approved") {
                     return KanbanColumn::Done;
                 }
@@ -1753,6 +1762,31 @@ mod tests {
             native_stack: None,
         };
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::DraftPr);
+    }
+
+    #[test]
+    fn test_determine_column_draft_with_my_review_requested() {
+        // Someone else's draft with my review requested is review inflow,
+        // not my work-in-progress — Needs Review beats Draft PR.
+        let pr = PrStatus {
+            number: 1,
+            state: "open".into(),
+            title: "test".into(),
+            url: String::new(),
+            draft: true,
+            merged: false,
+            branch: "feat/test".into(),
+            base_branch: None,
+            merged_at: None,
+            head_sha: None,
+            merge_commit_sha: None,
+            body: None,
+            updated_at: None,
+            author: Some("teammate".into()),
+            requested_reviewers: vec!["chloe".into()],
+            native_stack: None,
+        };
+        assert_eq!(determine_column(Some(&pr), Some("chloe"), &[]), KanbanColumn::NeedsReview);
     }
 
     #[test]

@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { submitPrReview } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useToastStore } from "../../stores/toastStore";
+import { ComposerToolbar } from "./composer/ComposerToolbar";
 import type { ReviewDraftComment, ReviewVerdict } from "../../types";
 
 const VERDICTS: { value: ReviewVerdict; label: string }[] = [
@@ -15,10 +16,12 @@ export function ReviewDraftSection({
   worktreeId,
   repoPath,
   prNumber,
+  isOwnPr,
 }: {
   worktreeId: string;
   repoPath: string;
   prNumber: number;
+  isOwnPr: boolean;
 }) {
   const pending = useWorkspaceStore((s) => s.pendingReviews[worktreeId]);
   const { setReviewVerdict, setReviewBody, editReviewDraftComment, removeReviewDraftComment, clearPendingReview } =
@@ -29,9 +32,12 @@ export function ReviewDraftSection({
   // Guards against a stray onBlur commit firing after Escape already cancelled
   // the edit (unmounting a focused textarea can still emit a blur event).
   const cancelingEditRef = useRef(false);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const comments = pending?.comments ?? [];
-  const verdict = pending?.verdict ?? "comment";
+  // GitHub rejects self-approval / self-request-changes; on own PRs the
+  // composer is comment-only and any stale persisted verdict is ignored.
+  const verdict: ReviewVerdict = isOwnPr ? "comment" : (pending?.verdict ?? "comment");
   const body = pending?.body ?? "";
   // Mirrors build_review_request_body (github_manager.rs): only APPROVE may omit the body.
   const canSubmit = !submitting && (verdict === "approve" || body.trim() !== "");
@@ -129,31 +135,40 @@ export function ReviewDraftSection({
       )}
 
       {/* Verdict segmented control */}
-      <div className="flex gap-0">
-        {VERDICTS.map((v, i) => (
-          <button
-            key={v.value}
-            onClick={() => setReviewVerdict(worktreeId, v.value)}
-            className={[
-              "flex-1 px-2 py-1.5 text-[11px] font-medium border border-border-default transition-colors",
-              i === 0 ? "rounded-l-md" : "border-l-0",
-              i === VERDICTS.length - 1 ? "rounded-r-md" : "",
-              verdict === v.value
-                ? "bg-accent-muted text-accent-primary border-accent-primary/40"
-                : "text-text-tertiary hover:text-text-secondary",
-            ].join(" ")}
-          >
-            {v.label}
-          </button>
-        ))}
-      </div>
+      {!isOwnPr && (
+        <div className="flex gap-0">
+          {VERDICTS.map((v, i) => (
+            <button
+              key={v.value}
+              onClick={() => setReviewVerdict(worktreeId, v.value)}
+              className={[
+                "flex-1 px-2 py-1.5 text-[11px] font-medium border border-border-default transition-colors",
+                i === 0 ? "rounded-l-md" : "border-l-0",
+                i === VERDICTS.length - 1 ? "rounded-r-md" : "",
+                verdict === v.value
+                  ? "bg-accent-muted text-accent-primary border-accent-primary/40"
+                  : "text-text-tertiary hover:text-text-secondary",
+              ].join(" ")}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <textarea
+        ref={bodyRef}
         value={body}
         onChange={(e) => setReviewBody(worktreeId, e.target.value)}
-        placeholder="Summary — required unless approving…"
+        placeholder={isOwnPr ? "Comment — required…" : "Summary — required unless approving…"}
         rows={3}
         className="w-full px-2.5 py-2 rounded-md text-[13px] bg-bg-primary border border-border-default text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/40 focus:ring-1 focus:ring-accent-primary/20 resize-y leading-relaxed"
+      />
+
+      <ComposerToolbar
+        textareaRef={bodyRef}
+        value={body}
+        onChange={(next) => setReviewBody(worktreeId, next)}
       />
 
       <button
@@ -161,7 +176,7 @@ export function ReviewDraftSection({
         disabled={!canSubmit}
         className="self-start px-2.5 py-1.5 rounded-md text-[12px] font-semibold text-text-on-accent bg-accent-primary hover:bg-accent-hover cursor-pointer border-none disabled:opacity-40 disabled:cursor-default"
       >
-        {submitting ? "Submitting…" : `Submit review — ${verdictLabel}`}
+        {submitting ? "Submitting…" : isOwnPr ? "Submit comment" : `Submit review — ${verdictLabel}`}
       </button>
     </div>
   );

@@ -458,7 +458,16 @@ export function createSessionChannel(
   sessionKey: string,
 ): ReturnType<typeof createPtyChannel> {
   console.debug(`[chan-created] sessionKey=${sessionKey} worktreeId=${worktreeId} sessionId=${session.sessionId || "(pre-spawn)"}`);
+  // Stamp this channel with a fresh epoch. Hibernation and respawn bump the
+  // session's epoch, so a PTY that is being torn down cannot deliver its
+  // trailing events (a final notRunning hook, late output) into the state of
+  // whatever replaced it.
+  const epoch = (session.channelEpoch = (session.channelEpoch ?? 0) + 1);
   return createPtyChannel((event) => {
+    if (session.channelEpoch !== epoch) {
+      console.debug(`[chan-stale] sessionKey=${sessionKey} dropped ${event.event} from epoch ${epoch} (current ${session.channelEpoch})`);
+      return;
+    }
     // Shadows the creation-time parameter on purpose: a branch checkout rekeys
     // the worktree and updates session.worktreeId (sessionManager.rekeyWorktree),
     // and a value captured at channel creation would keep routing tab-title,

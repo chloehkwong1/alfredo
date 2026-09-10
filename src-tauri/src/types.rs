@@ -664,6 +664,11 @@ pub struct GlobalAppConfig {
     pub dangerously_skip_permissions: Option<bool>,
     #[serde(default)]
     pub extra_flags: Option<String>,
+    /// Minutes an idle Claude tab may sit unattended before its process is
+    /// hibernated (PTY closed, terminal disposed, resumed on next focus).
+    /// `None` = app default; `Some(0)` = never hibernate.
+    #[serde(default)]
+    pub hibernate_idle_minutes: Option<u32>,
     #[serde(default)]
     pub default_diff_view_mode: Option<String>,
     #[serde(default)]

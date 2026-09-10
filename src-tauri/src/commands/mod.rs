@@ -12,6 +12,7 @@ pub mod claude_registry;
 pub mod config;
 pub mod diff;
 pub mod diff_range;
+pub mod gifs;
 pub mod github;
 pub mod github_auth;
 pub mod linear;
