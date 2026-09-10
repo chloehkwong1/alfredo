@@ -37,6 +37,9 @@ src-tauri/gen/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
+# Codex local hooks
+.codex/hooks.json
+
 # Alfredo legacy per-repo config
 .alfredo.json
 

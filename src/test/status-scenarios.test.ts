@@ -11,8 +11,10 @@ vi.mock("../api", async (importOriginal) => {
 });
 
 import scenarios from "./status-scenarios.json";
+import * as api from "../api";
 import type { StatusScenario } from "./status-scenarios";
-import type { AgentState } from "../types";
+import type { AgentState, HookPhase } from "../types";
+import { effectiveTabLabel } from "../lib/paneTabLayout";
 import { shouldAcceptDetectorState } from "../services/sessionManager";
 import { computeEffectiveStatus } from "../components/sidebar/AgentItem";
 import { computeStaleBusy } from "../hooks/usePty";
@@ -994,6 +996,187 @@ describe("multi-tab reconciler independence", () => {
 });
 
 import { createSessionChannel, stateSourceMap, IDLE_DEBOUNCE_MS, IDLE_DEBOUNCE_SUBAGENT_MS } from "../services/sessionChannel";
+
+describe("Codex startup", () => {
+  const worktreeId = "codex-startup";
+  const sessionKey = `${worktreeId}:codex:tab`;
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    manager = new SessionManager();
+    useTabStore.getState().clearStore();
+    useSessionStatusStore.setState({ statuses: {} });
+    useWorkspaceStore.setState({
+      worktrees: [{ id: worktreeId, agentStatus: "notRunning" } as any],
+    });
+    useTabStore.setState({
+      tabs: { [worktreeId]: [{ id: sessionKey, type: "codex", label: "Codex" } as any] },
+    });
+    startStatusMirror();
+  });
+
+  afterEach(async () => {
+    await manager.closeAll();
+    vi.restoreAllMocks();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    useTabStore.getState().clearStore();
+    useSessionStatusStore.setState({ statuses: {} });
+  });
+
+  it.each([false, true])("stays idle without hooks (restored=%s)", async (restored) => {
+    vi.spyOn(api, "spawnPty").mockResolvedValue("codex-session");
+    if (restored) manager.loadScrollbackOnly(sessionKey, worktreeId);
+
+    const session = await manager.getOrSpawn(sessionKey, worktreeId, "/wt/codex", "codex");
+
+    expect(session.hooksActive).toBe(false);
+    expect(session.agentState).toBe("idle");
+    expect(useSessionStatusStore.getState().statuses[sessionKey]).toBe("idle");
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("idle");
+  });
+
+  it.each([
+    ["idle", "none", 0],
+    ["busy", "promptStart", 1],
+    ["notRunning", "none", 0],
+  ] as const)("preserves early %s hooks when restoring a tab", async (state, phase, depth) => {
+    manager.loadScrollbackOnly(sessionKey, worktreeId);
+    vi.spyOn(api, "spawnPty").mockImplementation(async (_wt, _path, _mode, _args, channel) => {
+      // The backend registers the channel before spawning, so hooks can
+      // arrive before the spawn promise resolves.
+      channel.onmessage({ event: "hookAgentState", data: { state, phase, notify: "none" } });
+      return "codex-session";
+    });
+
+    const session = await manager.getOrSpawn(sessionKey, worktreeId, "/wt/codex", "codex");
+
+    expect(session.agentState).toBe(state);
+    expect(session.workDepth).toBe(depth);
+    expect(useSessionStatusStore.getState().statuses[sessionKey]).toBe(state);
+    expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe(state);
+  });
+});
+
+describe("Codex lifecycle and conversation titles", () => {
+  const worktreeId = "codex-lifecycle";
+  const writer = { scheduleWrite: () => {}, appendToBuffer: () => {} };
+
+  function connect(id = "codex-tab") {
+    const session = makeFakeSession({ sessionId: id, worktreeId, hooksActive: false });
+    const channel = createSessionChannel(writer, session, worktreeId, id);
+    const hook = (state: AgentState, phase: HookPhase = "none") =>
+      channel.onmessage({ event: "hookAgentState", data: { state, phase, notify: "none" } });
+    return { session, channel, hook };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useTabStore.getState().clearStore();
+    useSessionStatusStore.setState({ statuses: {} });
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    useTabStore.getState().clearStore();
+    useSessionStatusStore.setState({ statuses: {} });
+  });
+
+  it.each(["text-only", "tool use", "interrupted tool"])("clears sidebar activity after %s", (scenario) => {
+    const { session, channel, hook } = connect();
+    hook("idle"); // SessionStart
+    hook("busy", "promptStart");
+    if (scenario !== "text-only") hook("busy", "toolStart");
+    if (scenario === "tool use") hook("busy", "toolEnd");
+    expect(session.agentState).toBe("busy");
+    expect(session.workDepth).toBeGreaterThan(0);
+    hook("idle", "turnEnd"); // Stop or Interrupt
+    expect(session.workDepth).toBe(0);
+    vi.advanceTimersByTime(IDLE_DEBOUNCE_MS);
+    expect(useSessionStatusStore.getState().statuses["codex-tab"]).toBe("idle");
+    expect(computeEffectiveStatus(session.agentState, true, false, true)).toBe("idle");
+    // Neither delayed cleanup nor output redraws may restart the activity text.
+    hook("busy", "toolEnd");
+    channel.onmessage({ event: "output", data: [62, 32] });
+    channel.onmessage({ event: "agentState", data: "busy" });
+    expect(session.agentState).toBe("idle");
+    hook("busy", "promptStart");
+    expect(session.agentState).toBe("busy");
+  });
+
+  it("holds busy during a long turn even if the detector sees a prompt", () => {
+    const { session, channel, hook } = connect();
+    hook("busy", "promptStart");
+    hook("busy", "toolStart");
+    hook("busy", "toolEnd");
+    vi.advanceTimersByTime(65_000);
+    channel.onmessage({ event: "agentState", data: "idle" });
+    expect(session.agentState).toBe("busy");
+    expect(session.workDepth).toBe(1);
+  });
+
+  it("cancels pending completion when a new prompt starts immediately", () => {
+    const { session, hook } = connect();
+    hook("busy", "promptStart");
+    hook("idle", "turnEnd");
+    hook("busy", "promptStart");
+    vi.advanceTimersByTime(IDLE_DEBOUNCE_MS + 1);
+    expect(session.agentState).toBe("busy");
+    expect(session.workDepth).toBe(1);
+  });
+
+  it("handles late tool completion within the idle debounce", () => {
+    const { session, hook } = connect();
+    hook("busy", "promptStart");
+    hook("idle", "turnEnd");
+    const turnEndAt = session.turnEndAt;
+    hook("busy", "toolEnd");
+    expect(session.turnEndAt).toBe(turnEndAt);
+    vi.advanceTimersByTime(IDLE_DEBOUNCE_MS);
+    expect(session.agentState).toBe("idle");
+  });
+
+  it("still resumes from a permission wait on tool completion", () => {
+    const { session, hook } = connect();
+    hook("busy", "promptStart");
+    hook("busy", "toolStart");
+    hook("waitingForInput");
+    hook("busy", "toolEnd");
+    expect(session.agentState).toBe("busy");
+  });
+
+  it("clears exited work without changing a sibling Codex tab", () => {
+    const first = connect("first");
+    const second = connect("second");
+    first.hook("busy", "promptStart");
+    second.hook("busy", "promptStart");
+    first.hook("idle", "turnEnd");
+    first.hook("notRunning");
+    vi.advanceTimersByTime(IDLE_DEBOUNCE_MS);
+    expect(first.session.workDepth).toBe(0);
+    expect(first.session.ptyExited).toBe(true);
+    expect(useSessionStatusStore.getState().statuses).toEqual({ first: "notRunning", second: "busy" });
+  });
+
+  it("follows conversation renames while preserving a manual tab override", () => {
+    useTabStore.getState().addTab(worktreeId, "codex");
+    const id = useTabStore.getState().tabs[worktreeId][0].id;
+    const { channel } = connect(id);
+    const tab = () => useTabStore.getState().tabs[worktreeId][0];
+    channel.onmessage({ event: "title", data: "Original conversation" });
+    channel.onmessage({ event: "title", data: "Fix Codex hooks" });
+    expect(effectiveTabLabel(tab())).toBe("Fix Codex hooks");
+    useTabStore.getState().updateTab(worktreeId, id, { customLabel: "Pinned task" });
+    channel.onmessage({ event: "title", data: "New conversation name" });
+    expect(effectiveTabLabel(tab())).toBe("Pinned task");
+    useTabStore.getState().updateTab(worktreeId, id, { customLabel: undefined });
+    expect(effectiveTabLabel(tab())).toBe("New conversation name");
+    channel.onmessage({ event: "title", data: null });
+    expect(effectiveTabLabel(tab())).toBe("Codex");
+  });
+});
 
 describe("createSessionChannel wires workDepth updates", () => {
   it("increments session.workDepth on busy(toolStart) hook event", () => {
