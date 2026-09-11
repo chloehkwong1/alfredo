@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { TerminalPreferences } from "../../services/terminalPreferences";
-import { loadTerminalPreferences, saveTerminalPreferences } from "../../services/terminalPreferences";
+import { TERMINAL_COLOR_SCHEMES, loadTerminalPreferences, saveTerminalPreferences } from "../../services/terminalPreferences";
 
 const FONT_FAMILIES = [
   "JetBrains Mono",
@@ -38,6 +38,44 @@ function TerminalSettings() {
   return (
     <div>
       <p className="text-xs text-text-tertiary mb-5">Terminal changes apply immediately to all sessions.</p>
+
+      {/* Colour scheme */}
+      <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">Colour Scheme</div>
+
+      <div className="grid grid-cols-2 gap-2.5 mb-8">
+        {TERMINAL_COLOR_SCHEMES.map((scheme) => {
+          const selected = prefs.colorScheme === scheme.id;
+          const ansi = [scheme.theme.red, scheme.theme.green, scheme.theme.yellow, scheme.theme.blue, scheme.theme.magenta, scheme.theme.cyan];
+          return (
+            <button
+              key={scheme.id}
+              type="button"
+              onClick={() => update("colorScheme", scheme.id)}
+              className={[
+                "p-2.5 text-left rounded-[var(--radius-md)] border cursor-pointer",
+                "transition-all duration-[var(--transition-fast)]",
+                selected
+                  ? "border-accent-primary ring-1 ring-accent-primary/50"
+                  : "border-border-default hover:border-border-hover",
+              ].join(" ")}
+            >
+              <div
+                className="h-12 rounded-[var(--radius-sm)] px-2.5 py-2 font-mono text-[11px] overflow-hidden"
+                style={{ backgroundColor: scheme.theme.background, color: scheme.theme.foreground }}
+              >
+                <div><span style={{ color: scheme.theme.green }}>$</span> npm run dev</div>
+                <div className="flex gap-1 mt-1">
+                  {ansi.map((color, index) => (
+                    <span key={index} className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                  ))}
+                </div>
+              </div>
+              <div className="mt-2 text-[13px] font-medium text-text-primary">{scheme.name}</div>
+              <div className="mt-0.5 text-[11px] text-text-tertiary">{scheme.description}</div>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Font */}
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">Font</div>
