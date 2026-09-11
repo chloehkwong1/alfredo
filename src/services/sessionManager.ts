@@ -7,7 +7,7 @@ import { useTabStore } from "../stores/tabStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
-import type { TerminalPreferences } from "./terminalPreferences";
+import { resolveTerminalTheme, type TerminalPreferences } from "./terminalPreferences";
 import { computeStaleBusy } from "../hooks/usePty";
 
 import type { ManagedSession } from "./sessionTypes";
@@ -1406,6 +1406,7 @@ export class SessionManager implements SessionWriter {
       terminal.options.letterSpacing = prefs.letterSpacing;
       terminal.options.cursorStyle = prefs.cursorStyle;
       terminal.options.cursorBlink = prefs.cursorBlink;
+      terminal.options.theme = resolveTerminalTheme(prefs.colorScheme);
       // Cell geometry changed — refit immediately so xterm's cols/rows track
       // the new cell size. The async fit gated on FontFaceObserver can land
       // hundreds of ms later, during which the canvas paints at the new cell
