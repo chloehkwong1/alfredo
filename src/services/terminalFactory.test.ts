@@ -283,6 +283,20 @@ describe("tiered scrollback", () => {
   });
 });
 
+describe("terminal colour scheme", () => {
+  it("applies the saved theme when creating a terminal", () => {
+    localStorage.setItem("alfredo:terminalPreferences", JSON.stringify({ colorScheme: "ghostty" }));
+
+    const { terminal } = createTerminal();
+    expect(terminal.options.theme).toMatchObject({
+      foreground: "#ffffff",
+      background: "#282c34",
+      brightBlue: "#7aa6da",
+    });
+    terminal.dispose();
+  });
+});
+
 describe("opensInOsDefaultApp", () => {
   it("routes data/preview files to the OS default app", () => {
     expect(opensInOsDefaultApp("reports/export.csv")).toBe(true);

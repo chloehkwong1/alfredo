@@ -4,7 +4,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { openUrl, openPath } from "@tauri-apps/plugin-opener";
 import { homeDir } from "@tauri-apps/api/path";
 import { writePty } from "../api";
-import { loadTerminalPreferences } from "./terminalPreferences";
+import { loadTerminalPreferences, resolveTerminalTheme } from "./terminalPreferences";
 import { openPathInEditor } from "./openExternal";
 import { copyText } from "../lib/clipboard";
 
@@ -274,6 +274,7 @@ export function createTerminal(opts: { cwd?: string } = {}): { terminal: Termina
     letterSpacing: prefs.letterSpacing,
     cursorStyle: prefs.cursorStyle,
     cursorBlink: prefs.cursorBlink,
+    theme: resolveTerminalTheme(prefs.colorScheme),
     linkHandler: {
       activate(_event: MouseEvent, uri: string) {
         // Only open http(s) links to prevent javascript: or other dangerous URIs

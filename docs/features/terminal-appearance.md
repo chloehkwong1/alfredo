@@ -1,6 +1,6 @@
 ---
-title: Terminal appearance — font, size, cursor
-keywords: [terminal, font, font size, line height, letter spacing, cursor, block, underline, bar, blink, appearance]
+title: Terminal appearance — colour scheme, font, size, cursor
+keywords: [terminal, colour, color, theme, ghostty, font, font size, line height, letter spacing, cursor, block, underline, bar, blink, appearance]
 ui_path: Sidebar → ⚙ Settings → Terminal tab
 ---
 
@@ -11,6 +11,8 @@ terminal app "Open in Terminal" uses.
 
 Controls on this tab:
 
+- **Colour scheme** — choose between Alfredo's original terminal colours and
+  Ghostty's default dark palette.
 - **Font family** — dropdown of 6 monospace options.
 - **Font size** — slider, 10–20px.
 - **Line height** — slider, 1.0–1.8.
