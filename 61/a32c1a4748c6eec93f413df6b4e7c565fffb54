@@ -1,0 +1,47 @@
+src/types.ts
+  s_01d8fde2d77d2c::t_4b356e0efc5579 108-112
+src/services/SessionPersistence.ts
+  s_01d8fde2d77d2c::t_4f2517fc8c65b4 42-45
+  s_01d8fde2d77d2c::t_1d7097589f8109 175
+  s_01d8fde2d77d2c::t_5f213a65fa8536 119
+src/stores/workspaceStore.test.ts
+  s_01d8fde2d77d2c::t_55e1f5d2da06e6 46
+  s_01d8fde2d77d2c::t_149bd5ebc0b350 75-77
+src/services/reviewRequestFlow.test.ts
+  s_01d8fde2d77d2c::t_2a7a79a1d7bdc0 24
+  s_01d8fde2d77d2c::t_feb7f863bd144e 135-157,178-203
+  s_01d8fde2d77d2c::t_90ef30322e5036 158-177
+  s_01d8fde2d77d2c::t_35e5a7de21506c 52
+src/stores/prStore.ts
+  s_01d8fde2d77d2c::t_9436f85c9da0af 181-186
+  s_01d8fde2d77d2c::t_654ec52b3251ce 66-70
+src/services/reviewRequestFlow.ts
+  s_01d8fde2d77d2c::t_af8cd16aea09f2 81
+  s_01d8fde2d77d2c::t_59e9dd09751376 45-54
+  s_01d8fde2d77d2c::t_8ec522aaa46a58 96-99
+  s_01d8fde2d77d2c::t_9695984e72e685 3
+  s_01d8fde2d77d2c::t_b500be1b0e5f19 21-35,37-44,55-56
+src/components/layout/useSessionAutoSave.ts
+  s_01d8fde2d77d2c::t_d15d03401c5b1d 79-80
+  s_01d8fde2d77d2c::t_716329d40a1b9c 107
+src/hooks/useSessionRestore.ts
+  s_01d8fde2d77d2c::t_f0171f6f43bbb7 415-417
+src/stores/workspaceStore.ts
+  s_01d8fde2d77d2c::t_bd6203704aa120 341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "61a32c1a4748c6eec93f413df6b4e7c565fffb54",
+  "prompts": {},
+  "sessions": {
+    "s_01d8fde2d77d2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "98260a69-18f2-42c9-a31d-327c8bc61cb0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
