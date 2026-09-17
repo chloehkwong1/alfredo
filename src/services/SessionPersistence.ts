@@ -39,6 +39,10 @@ export interface SessionData {
   archivedAt?: number;
   /** Unix ms timestamp when the worktree was manually unarchived (prevents immediate re-archive). */
   unarchivedAt?: number;
+  /** Unix ms timestamp when an open review request was last observed. Must
+   *  survive restart: without it every launch reads the standing request as
+   *  new and re-opens worktrees the user archived on purpose. */
+  lastReviewRequestedAt?: number;
   /** Inline code annotations for this worktree. */
   annotations?: Annotation[];
 }
@@ -112,6 +116,7 @@ export async function saveAllSessions(
   getArchived?: (worktreeId: string) => boolean | undefined,
   getArchivedAt?: (worktreeId: string) => number | undefined,
   getUnarchivedAt?: (worktreeId: string) => number | undefined,
+  getLastReviewRequestedAt?: (worktreeId: string) => number | undefined,
   getAnnotations?: (worktreeId: string) => Annotation[] | undefined,
 ): Promise<void> {
   const saves = worktreeIds.map((wtId) => {
@@ -167,6 +172,7 @@ export async function saveAllSessions(
       archived: getArchived?.(wtId),
       archivedAt: getArchivedAt?.(wtId),
       unarchivedAt: getUnarchivedAt?.(wtId),
+      lastReviewRequestedAt: getLastReviewRequestedAt?.(wtId),
       annotations: getAnnotations?.(wtId),
     };
     return saveSession(repoPath, wtId, data);

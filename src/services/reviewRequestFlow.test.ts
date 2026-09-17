@@ -21,6 +21,7 @@ import { writeToSession } from "./agentMessenger";
 import { waitForSpawnedSession } from "./openIssueFlow";
 import { handleReviewRequests } from "./reviewRequestFlow";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { usePrStore } from "../stores/prStore";
 
 function makePr(overrides: Record<string, unknown> = {}) {
   return {
@@ -48,6 +49,7 @@ describe("handleReviewRequests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWorkspaceStore.setState({ worktrees: [], activeWorktreeId: null });
+    usePrStore.getState().clearStore();
     vi.mocked(listWorktrees).mockResolvedValue([]);
   });
 
@@ -128,6 +130,75 @@ describe("handleReviewRequests", () => {
     await handleReviewRequests([makePr()]);
     const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === "/repos/app::feat/flux");
     expect(wt?.createError).toContain("branch diverged");
+  });
+
+  describe("archived worktrees", () => {
+    function seed(overrides: Record<string, unknown>) {
+      useWorkspaceStore.setState({
+        worktrees: [{
+          id: "/repos/app::feat/flux", name: "feat/flux", path: "/p", branch: "feat/flux",
+          prStatus: null, agentStatus: "notRunning", column: "needsReview", isBranchMode: false,
+          additions: null, deletions: null, repoPath: "/repos/app", ...overrides,
+        } as never],
+        activeWorktreeId: null,
+      });
+    }
+    const current = () =>
+      useWorkspaceStore.getState().worktrees.find((w) => w.id === "/repos/app::feat/flux");
+
+    it("un-archives when a review request arrives for an archived worktree", async () => {
+      seed({ archived: true, archivedAt: 1000 });
+      await handleReviewRequests([makePr()]);
+      expect(current()?.archived).toBe(false);
+      expect(current()?.lastReviewRequestedAt).toBeDefined();
+      // The worktree is already there — un-archiving must not also re-create it.
+      expect(createWorktreeFrom).not.toHaveBeenCalled();
+    });
+
+    it("drops a manual column placement so the card can't resurface in a collapsed group", async () => {
+      seed({ archived: true, archivedAt: 1000, column: "done" });
+      usePrStore.getState().setManualColumn("/repos/app::feat/flux", "done", "needsReview");
+
+      await handleReviewRequests([makePr()]);
+
+      expect(current()?.archived).toBe(false);
+      expect(current()?.column).toBe("needsReview");
+      expect(usePrStore.getState().columnOverrides["/repos/app::feat/flux"]).toBeUndefined();
+    });
+
+    it("leaves a manual placement alone when nothing was archived", async () => {
+      seed({ column: "done" });
+      usePrStore.getState().setManualColumn("/repos/app::feat/flux", "done", "needsReview");
+
+      await handleReviewRequests([makePr()]);
+
+      expect(usePrStore.getState().columnOverrides["/repos/app::feat/flux"]?.column).toBe("done");
+    });
+
+    it("leaves it archived while the same request is still standing", async () => {
+      seed({ archived: true, archivedAt: 1000, lastReviewRequestedAt: 500 });
+      await handleReviewRequests([makePr()]);
+      expect(current()?.archived).toBe(true);
+    });
+
+    it("re-arms once the request is withdrawn so a re-request un-archives", async () => {
+      seed({ archived: true, archivedAt: 1000, lastReviewRequestedAt: 500 });
+
+      await handleReviewRequests([makePr({ reviewRequested: false })]);
+      expect(current()?.lastReviewRequestedAt).toBeUndefined();
+      // Withdrawal on its own is not inflow — it must not resurrect the card.
+      expect(current()?.archived).toBe(true);
+
+      await handleReviewRequests([makePr()]);
+      expect(current()?.archived).toBe(false);
+    });
+
+    it("records the request on an unarchived worktree without touching archived", async () => {
+      seed({});
+      await handleReviewRequests([makePr()]);
+      expect(current()?.lastReviewRequestedAt).toBeDefined();
+      expect(current()?.archived).toBeFalsy();
+    });
   });
 
 });

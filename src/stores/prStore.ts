@@ -63,6 +63,11 @@ interface PrState {
   setJumpToComment: (worktreeId: string, fn: (path: string, line: number) => void) => void;
   clearJumpToComment: (worktreeId: string) => void;
   setManualColumn: (id: string, column: KanbanColumn, currentAutoColumn?: KanbanColumn) => void;
+  /** Drops a manual placement so autoColumn takes over again. Used when a
+   *  re-requested review un-archives a worktree the user had dragged
+   *  elsewhere — keeping the override would restore it straight into a
+   *  collapsed column and hide the request all over again. */
+  clearManualColumn: (id: string) => void;
   removeWorktreeState: (id: string) => void;
   clearStore: () => void;
 
@@ -172,6 +177,12 @@ export const usePrStore = create<PrState>((set, get) => ({
         },
       },
     })),
+
+  clearManualColumn: (id) =>
+    set((state) => {
+      const { [id]: _override, ...restOverrides } = state.columnOverrides;
+      return { columnOverrides: restOverrides };
+    }),
 
   removeWorktreeState: (id) =>
     set((state) => {

@@ -338,6 +338,7 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         archived: old.archived,
         archivedAt: old.archivedAt,
         unarchivedAt: old.unarchivedAt,
+        lastReviewRequestedAt: old.lastReviewRequestedAt,
         claudeSessionId: old.claudeSessionId,
         linearTicketUrl: old.linearTicketUrl,
         linearTicketIdentifier: old.linearTicketIdentifier,

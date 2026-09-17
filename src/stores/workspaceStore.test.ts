@@ -43,6 +43,7 @@ describe("setWorktrees / mergeWorktreeState", () => {
           staleBusy: true,
           archived: true,
           archivedAt: 500,
+          lastReviewRequestedAt: 777,
           claudeSessionId: "sess-1",
           linearTicketUrl: "https://linear.app/t/1",
           linearTicketIdentifier: "ROS-42",
@@ -71,6 +72,9 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.staleBusy).toBe(true);
     expect(wt.archived).toBe(true);
     expect(wt.archivedAt).toBe(500);
+    // listWorktrees never returns this, so losing it here would let the 10s
+    // discovery reconcile re-arm the review-request un-archive every minute.
+    expect(wt.lastReviewRequestedAt).toBe(777);
     expect(wt.claudeSessionId).toBe("sess-1");
     expect(wt.linearTicketUrl).toBe("https://linear.app/t/1");
     expect(wt.linearTicketIdentifier).toBe("ROS-42");

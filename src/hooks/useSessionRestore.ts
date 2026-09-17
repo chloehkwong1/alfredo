@@ -412,6 +412,9 @@ export function useSessionRestore(
             if (session.unarchivedAt) {
               wt.unarchivedAt = session.unarchivedAt;
             }
+            if (session.lastReviewRequestedAt) {
+              wt.lastReviewRequestedAt = session.lastReviewRequestedAt;
+            }
 
             if (!isFirstRestore) continue;
 

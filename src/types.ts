@@ -105,6 +105,11 @@ export interface Worktree {
   archived?: boolean;
   archivedAt?: number; // unix timestamp ms — when moved to archive
   unarchivedAt?: number; // unix timestamp ms — when manually unarchived (prevents immediate re-archive)
+  /** Unix ms when an open review request was last observed for this worktree's
+   *  PR; cleared when the request is withdrawn. Turns `reviewRequested` (which
+   *  stays true for as long as you're on the PR) into an edge, so a worktree
+   *  archived while still assigned isn't re-opened on the next poll. */
+  lastReviewRequestedAt?: number;
   lastActivityAt?: number; // unix timestamp ms, computed from max(lastCommitEpoch, prUpdatedAt, agentChange)
   lastCommitEpoch?: number; // epoch ms of latest commit on branch (from Rust)
   createdAtEpoch?: number; // epoch ms the worktree directory was created (from Rust)

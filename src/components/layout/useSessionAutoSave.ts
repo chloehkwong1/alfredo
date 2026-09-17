@@ -76,6 +76,8 @@ function collectAndSaveAllSessions() {
     getArchived: (wtId: string) => state.worktrees.find((wt) => wt.id === wtId)?.archived || undefined,
     getArchivedAt: (wtId: string) => state.worktrees.find((wt) => wt.id === wtId)?.archivedAt,
     getUnarchivedAt: (wtId: string) => state.worktrees.find((wt) => wt.id === wtId)?.unarchivedAt,
+    getLastReviewRequestedAt: (wtId: string) =>
+      state.worktrees.find((wt) => wt.id === wtId)?.lastReviewRequestedAt,
     getAnnotations: (wtId: string) => state.annotations[wtId]?.length ? state.annotations[wtId] : undefined,
   };
 
@@ -102,6 +104,7 @@ function collectAndSaveAllSessions() {
       getters.getArchived,
       getters.getArchivedAt,
       getters.getUnarchivedAt,
+      getters.getLastReviewRequestedAt,
       getters.getAnnotations,
     ),
   );
