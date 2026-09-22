@@ -215,13 +215,20 @@ pub fn start_sync_loop(app_handle: AppHandle) {
                         .unwrap_or(0);
                     let wait = reset_ts.saturating_sub(now).saturating_add(5);
                     let wait = wait.clamp(60, 3600);
-                    eprintln!("[github_sync] rate-limited; sleeping {wait}s until reset");
+                    tracing::warn!(
+                        limit_kind = "primary",
+                        sleep_secs = wait,
+                        reset_ts = reset_ts,
+                        "[github_sync] rate-limited; sleeping until reset"
+                    );
                     Duration::from_secs(wait)
                 }
                 Ok(PollOutcome { rate_limit_fallback: true, .. }) => {
                     consecutive_failures = 0;
-                    eprintln!(
-                        "[github_sync] rate-limited (secondary or unknown reset); sleeping {RATE_LIMIT_FALLBACK_SECS}s"
+                    tracing::warn!(
+                        limit_kind = "secondary_or_unknown",
+                        sleep_secs = RATE_LIMIT_FALLBACK_SECS,
+                        "[github_sync] rate-limited (secondary or unknown reset)"
                     );
                     Duration::from_secs(RATE_LIMIT_FALLBACK_SECS)
                 }
@@ -233,14 +240,14 @@ pub fn start_sync_loop(app_handle: AppHandle) {
                     if consecutive_failures < 2 {
                         consecutive_failures += 1;
                     }
-                    eprintln!("[github_sync] all repos failed, backing off (tier {consecutive_failures})");
+                    tracing::warn!("[github_sync] all repos failed, backing off (tier {consecutive_failures})");
                     match consecutive_failures {
                         1 => Duration::from_secs(120),
                         _ => Duration::from_secs(240),
                     }
                 }
                 Err(e) => {
-                    eprintln!("[github_sync] poll error: {e}");
+                    tracing::warn!("[github_sync] poll error: {e}");
                     if consecutive_failures < 2 {
                         consecutive_failures += 1;
                     }
@@ -303,7 +310,7 @@ pub async fn set_sync_repo_paths(
     }
     // Fire an immediate poll so the frontend doesn't wait for the next tick.
     if let Err(e) = poll_once(&app_handle).await {
-        eprintln!("[github_sync] immediate poll after set_sync_repo_paths: {e}");
+        tracing::warn!("[github_sync] immediate poll after set_sync_repo_paths: {e}");
     }
     Ok(())
 }
@@ -320,7 +327,7 @@ pub fn trigger_sync(app_handle: &AppHandle) {
     let app_handle = app_handle.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(e) = poll_once(&app_handle).await {
-            eprintln!("[github_sync] immediate poll after review write: {e}");
+            tracing::warn!("[github_sync] immediate poll after review write: {e}");
         }
     });
 }
@@ -376,10 +383,10 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
             }
             Err(e) if e.starts_with("auth:") => {
                 let _ = app_handle.emit("github:auth-error", repo_path.as_str());
-                eprintln!("[github_sync] auth failed for {repo_path}: {e}");
+                tracing::warn!("[github_sync] auth failed for {repo_path}: {e}");
             }
             Err(e) => {
-                eprintln!("[github_sync] error syncing {repo_path}: {e}");
+                tracing::warn!("[github_sync] error syncing {repo_path}: {e}");
                 if is_rate_limit_error(&e) {
                     if is_secondary_rate_limit(&e) {
                         // Secondary/abuse limits use a separate budget from
@@ -395,12 +402,18 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
         }
     }
 
+    // Budget snapshot once per poll, on any repo — the limit is per-token, not
+    // per-repo, so the first one stands in for all of them.
+    if let Some(repo_path) = repo_paths.first() {
+        log_rate_limit_budget(&app_data_dir, repo_path).await;
+    }
+
     // Resolve primary rate-limit reset once — all repos share the same token.
     let rate_limit_reset = if let Some(repo_path) = saw_primary_rate_limit_in {
         match fetch_rate_limit_reset(&app_data_dir, &repo_path).await {
             Some(ts) => Some(ts),
             None => {
-                eprintln!("[github_sync] /rate_limit lookup failed — using fallback sleep");
+                tracing::warn!("[github_sync] /rate_limit lookup failed — using fallback sleep");
                 rate_limit_fallback = true;
                 None
             }
@@ -505,6 +518,36 @@ async fn fetch_rate_limit_reset(
     manager.rate_limit_reset().await.ok()
 }
 
+/// Record both budgets once per poll. `/rate_limit` is free, so this costs no
+/// quota, and one line per 60s tick is negligible against the existing log
+/// volume. Without it a rate-limit failure leaves no trace to diagnose from:
+/// core draining toward zero over the hour means we are spending the 5000/hr
+/// REST budget, while core sitting healthy alongside 403s means a secondary
+/// (concurrency) limit, and the two call for opposite fixes.
+async fn log_rate_limit_budget(app_data_dir: &std::path::Path, repo_path: &str) {
+    let Ok(config) = config_manager::load_personal_config(app_data_dir, repo_path).await else {
+        return;
+    };
+    let Ok(token) = crate::github_manager::resolve_token(config.github_token.as_deref()).await
+    else {
+        return;
+    };
+    let Ok(manager) = GithubManager::shared(&token) else {
+        return;
+    };
+    match manager.rate_limit_snapshot().await {
+        Ok(s) => tracing::info!(
+            core_remaining = s.core_remaining,
+            core_limit = s.core_limit,
+            core_reset = s.core_reset,
+            graphql_remaining = s.graphql_remaining,
+            graphql_limit = s.graphql_limit,
+            "[github_sync] rate-limit budget"
+        ),
+        Err(e) => tracing::warn!(error = %e, "[github_sync] rate-limit budget read failed"),
+    }
+}
+
 /// Last authoritative native-stack map per repo path. `fetch_native_stack_entries`
 /// distinguishes "fetch failed" (`None`) from "authoritatively no stacks"
 /// (`Some(empty)`); this cache carries the last `Some` across failed polls so
@@ -549,7 +592,7 @@ async fn poll_repo(
     let token = match crate::github_manager::resolve_token(config.github_token.as_deref()).await {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("[github_sync] no token for {repo_path}: {e}");
+            tracing::warn!("[github_sync] no token for {repo_path}: {e}");
             return Err(format!("auth:{repo_path}"));
         }
     };
@@ -772,12 +815,14 @@ async fn sync_pr_base_branches(
             }
 
             // Update the PR base branch
-            eprintln!(
-                "[github_sync] updating PR #{} base: {} → {}",
-                pr.number, actual_base, expected_parent
+            tracing::info!(
+                pr = pr.number,
+                from = %actual_base,
+                to = %expected_parent,
+                "[github_sync] updating PR base"
             );
             if let Err(e) = update_pr_base_branch(&owner, &repo, pr.number, expected_parent).await {
-                eprintln!("[github_sync] failed to update PR base: {e}");
+                tracing::warn!("[github_sync] failed to update PR base: {e}");
             }
         }
     }
@@ -1141,11 +1186,12 @@ async fn sync_pr_stack_sections(
                 .await;
             match output {
                 Ok(o) if o.status.success() => {}
-                Ok(o) => eprintln!(
-                    "[github_sync] stack-section edit failed for #{}: {}",
-                    pr.number, String::from_utf8_lossy(&o.stderr)
+                Ok(o) => tracing::warn!(
+                    pr = pr.number,
+                    stderr = %String::from_utf8_lossy(&o.stderr),
+                    "[github_sync] stack-section edit failed"
                 ),
-                Err(e) => eprintln!("[github_sync] stack-section edit spawn failed: {e}"),
+                Err(e) => tracing::warn!("[github_sync] stack-section edit spawn failed: {e}"),
             }
         }
     }

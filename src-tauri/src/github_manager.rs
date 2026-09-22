@@ -550,6 +550,20 @@ fn format_octocrab_error(context: &str, e: &octocrab::Error) -> AppError {
     AppError::Github(detail)
 }
 
+/// A point-in-time read of both GitHub budgets for the authenticated user.
+/// Logged once per sync poll so a later rate-limit failure can be classified
+/// from the drain curve rather than requiring someone to catch it live: core
+/// sliding to zero is the hourly REST budget, core staying healthy while
+/// requests still 403 is a secondary (concurrency/abuse) limit.
+#[derive(Debug, Clone, Copy)]
+pub struct RateLimitSnapshot {
+    pub core_remaining: u64,
+    pub core_limit: u64,
+    pub core_reset: u64,
+    pub graphql_remaining: u64,
+    pub graphql_limit: u64,
+}
+
 /// Manages GitHub API interactions via octocrab.
 pub struct GithubManager {
     client: Octocrab,
@@ -651,6 +665,13 @@ impl GithubManager {
     /// Fetch the unix-timestamp when the authenticated user's core REST rate
     /// limit resets. `/rate_limit` itself does not count against the limit.
     pub async fn rate_limit_reset(&self) -> Result<u64, AppError> {
+        Ok(self.rate_limit_snapshot().await?.core_reset)
+    }
+
+    /// Read both budgets in one `/rate_limit` call. Used for the per-poll
+    /// budget log as well as the reset lookup, so the two share one fetch and
+    /// one parse. `/rate_limit` does not count against either budget.
+    pub async fn rate_limit_snapshot(&self) -> Result<RateLimitSnapshot, AppError> {
         let resp = self
             .authed_get("https://api.github.com/rate_limit")
             .send()
@@ -660,9 +681,15 @@ impl GithubManager {
             .json()
             .await
             .map_err(|e| AppError::Github(format!("rate_limit parse failed: {e}")))?;
-        json.pointer("/resources/core/reset")
-            .and_then(serde_json::Value::as_u64)
-            .ok_or_else(|| AppError::Github("rate_limit response missing core.reset".into()))
+        let at = |p: &str| json.pointer(p).and_then(serde_json::Value::as_u64);
+        Ok(RateLimitSnapshot {
+            core_reset: at("/resources/core/reset")
+                .ok_or_else(|| AppError::Github("rate_limit response missing core.reset".into()))?,
+            core_remaining: at("/resources/core/remaining").unwrap_or(0),
+            core_limit: at("/resources/core/limit").unwrap_or(0),
+            graphql_remaining: at("/resources/graphql/remaining").unwrap_or(0),
+            graphql_limit: at("/resources/graphql/limit").unwrap_or(0),
+        })
     }
 
     /// Fetch all open PRs and recently merged PRs for the given owner/repo.
