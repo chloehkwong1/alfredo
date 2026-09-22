@@ -45,6 +45,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           LINEAR_CLIENT_ID: ${{ secrets.LINEAR_CLIENT_ID }}
           LINEAR_CLIENT_SECRET: ${{ secrets.LINEAR_CLIENT_SECRET }}
+          # Read at compile time via option_env! in commands/gifs.rs. Without
+          # it the GIF button is hidden and the request path is optimised out,
+          # silently — no error surfaces. Absent until v0.24.0, so every build
+          # before it shipped with GIF search missing.
+          GIPHY_API_KEY: ${{ secrets.GIPHY_API_KEY }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
