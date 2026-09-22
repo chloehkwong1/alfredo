@@ -1,0 +1,19 @@
+.github/workflows/release.yml
+  s_8292a7c6646541::t_7e632d832f0f38 48-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f8bd9fa91f1e7171f5c4612b4b19dd829af41d18",
+  "prompts": {},
+  "sessions": {
+    "s_8292a7c6646541": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "34a5d64a-06ff-4d45-932d-446461f2fadc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
