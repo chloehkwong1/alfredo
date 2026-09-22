@@ -7,6 +7,44 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.24.0 — 2026-09-22**
+- **A real composer for PR reviews** — review summaries, diff-gutter
+  comments and thread replies all get a toolbar with GIF and emoji
+  pickers, plus suggestion blocks that reviewers can apply in one
+  click. On your own PRs the composer switches to comment-only,
+  since GitHub won't let you approve your own work.
+- **Wide PR overview in focus mode** — hit ⌘⇧E on the PR tab and the
+  Changes panel opens a reading layout: PR hero up top, changed
+  files grouped into Implementation and Tests, and a Reviewed
+  checkbox per file that mirrors GitHub's native Viewed state in
+  both directions.
+- **Terminal appearance settings** — a new Terminal tab in Settings
+  with colour scheme (Alfredo's original palette or Ghostty's
+  default dark), font family, size, line height, letter spacing and
+  cursor style. ⌘+ / ⌘− / ⌘0 adjust font size while a terminal has
+  focus.
+- **Idle Claude tabs hibernate** — a tab that's been hidden and idle
+  past the threshold stops its process and releases its terminal,
+  freeing a few hundred MB each. Opening it resumes the same
+  conversation. Settings → Agent → Memory; 0 = never.
+- **Better Codex support** — Codex lifecycle hooks mean status
+  tracking now matches Claude Code, tabs follow the conversation
+  name (`/rename`), and merging into `.codex/hooks.json` leaves your
+  own handlers alone.
+- **The dock badge now counts agent attention only.** Stack trouble
+  — a rebase conflict, a branch behind its parent, a pending push —
+  no longer adds to the number; the stack chip's amber "!" and the
+  stack map are its surfaces. Routine drift was otherwise pinning a
+  permanent badge.
+- **One stack position everywhere** — native and local stack chips no
+  longer disagree about a branch's position in its chain.
+- Review requests land in **Needs Review** even while the PR is still
+  a draft, and re-requesting a review un-archives its worktree
+  instead of leaving the request invisible.
+- Fixed a sidebar crash when dragging worktrees between columns.
+- "Open in editor" and "Open in terminal" no longer leave zombie
+  processes behind.
+
 **v0.23.0 — 2026-09-03**
 - **Review PRs from inside Alfredo** — submit a review (approve/
   request changes/comment), draft comments straight from the diff,
@@ -74,14 +112,3 @@ https://github.com/chloehkwong1/alfredo/releases.
   honesty, session identity across branch checkouts, multi-line run
   scripts, updater feedback), the cross-column drag crash, and an
   attention count on collapsed sidebar groups.
-
-**v0.20.1 — 2026-08-05**
-- **Fixed: a worktree could vanish, taking uncommitted work with it** —
-  a rebase that finished on a detached HEAD changed how Alfredo
-  identified the worktree, so it was mistaken for one deleted outside
-  the app and removed from disk. A branch change is no longer read as
-  a deletion; a worktree is only removed when its directory is
-  genuinely gone.
-- Various fixes: the sidebar selection no longer points at a worktree
-  that has left the list, which left the main pane and Changes panel
-  rendering against a stale row.
