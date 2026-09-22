@@ -215,13 +215,17 @@ pub async fn create_worktree(
         if let Some(sha) = base_sha {
             config_manager::set_stack_baseline(&mut config, &dir_name, sha);
         }
-        // A pre-existing pr_associations entry under this name can only be a
-        // dead predecessor's (delete_worktree prunes on removal, but a worktree
-        // created outside Alfredo, or before that pruning existed, can leave one
-        // behind) — piggyback on this save rather than opening a second one.
-        // `create_worktree_from_pr` overwrites this with the real association
-        // right after this function returns, so ordering is preserved either way.
+        // A pre-existing pr_associations or column_overrides entry under this
+        // name can only be a dead predecessor's (delete_worktree prunes both on
+        // removal, but a worktree created outside Alfredo, or before that
+        // pruning existed, can leave them behind) — piggyback on this save
+        // rather than opening a second one. `create_worktree_from_pr` overwrites
+        // the association with the real one right after this function returns,
+        // so ordering is preserved either way. Nothing sets a column override
+        // before create returns (`set_worktree_column` is a user drag), so
+        // clearing unconditionally cannot stomp a live placement.
         config_manager::clear_pr_association(&mut config, &dir_name);
+        config_manager::clear_column_override(&mut config, &dir_name);
         config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
     } else {
         // The non-stacked path has no existing config write to piggyback on.
@@ -233,12 +237,18 @@ pub async fn create_worktree(
         // dead pr_associations entry behind, and a plain create reusing that
         // branch name would rehydrate it onto the fresh worktree — reconcile
         // then fetches it by number, finds it terminal, and falsely auto-Dones
-        // a worktree that never had a PR.
+        // a worktree that never had a PR. A dead column_overrides entry is
+        // worse: it needs no reconcile to bite, the fresh worktree is simply
+        // born filed under the dead card's column (typically a stale "done",
+        // which hides it from the board and starts an archive clock).
         let _guard = port_lock.0.lock().await;
         match config_manager::load_personal_config(&app_data_dir, &repo_path).await {
             Ok(mut config) => {
-                if config_manager::get_pr_association(&config, &dir_name).is_some() {
+                let stale_assoc = config_manager::get_pr_association(&config, &dir_name).is_some();
+                let stale_column = config_manager::get_column_override(&config, &dir_name).is_some();
+                if stale_assoc || stale_column {
                     config_manager::clear_pr_association(&mut config, &dir_name);
+                    config_manager::clear_column_override(&mut config, &dir_name);
                     if let Err(e) = config_manager::save_config(&app_data_dir, &repo_path, &config).await {
                         tracing::warn!(worktree = %dir_name, error = %e, "[pr-association] create prune save failed");
                     }
@@ -316,10 +326,11 @@ pub async fn adopt_worktree(
         .cloned()
         .collect();
 
-    // Best-effort: a pre-existing pr_associations entry under this name can
-    // only be a dead predecessor's (an adopted worktree was never created
-    // through Alfredo, so nothing pruned it on removal last time). Don't fail
-    // the adopt over this — the worktree is already usable either way.
+    // Best-effort: a pre-existing pr_associations or column_overrides entry
+    // under this name can only be a dead predecessor's (an adopted worktree was
+    // never created through Alfredo, so nothing pruned it on removal last
+    // time). Don't fail the adopt over this — the worktree is already usable
+    // either way.
     if let Some(worktree_name) =
         std::path::Path::new(&worktree_path).file_name().and_then(|n| n.to_str())
     {
@@ -328,6 +339,7 @@ pub async fn adopt_worktree(
         match config_manager::load_personal_config(&app_data_dir, &repo_path).await {
             Ok(mut config) => {
                 config_manager::clear_pr_association(&mut config, worktree_name);
+                config_manager::clear_column_override(&mut config, worktree_name);
                 if let Err(e) = config_manager::save_config(&app_data_dir, &repo_path, &config).await {
                     tracing::warn!(worktree = worktree_name, error = %e, "[pr-association] adopt prune save failed");
                 }
