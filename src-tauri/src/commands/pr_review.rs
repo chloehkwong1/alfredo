@@ -30,6 +30,31 @@ pub async fn submit_pr_review(
     Ok(())
 }
 
+/// Merge methods the repo allows (squash → merge → rebase). Read-only, no sync.
+#[tauri::command]
+pub async fn get_repo_merge_methods(app: tauri::AppHandle, repo_path: String) -> Result<Vec<String>> {
+    let (manager, owner, repo) = github_manager::github_context(&app_data_dir(&app)?, &repo_path).await?;
+    manager.get_allowed_merge_methods(&owner, &repo).await
+}
+
+/// Merge a PR on GitHub, pinned to `head_sha`, then kick a sync so the card
+/// moves to Done without waiting for the next poll.
+#[tauri::command]
+pub async fn merge_pr(
+    app: tauri::AppHandle,
+    repo_path: String,
+    pr_number: u64,
+    method: String,
+    head_sha: String,
+) -> Result<()> {
+    let (manager, owner, repo) = github_manager::github_context(&app_data_dir(&app)?, &repo_path).await?;
+    manager
+        .merge_pr(&owner, &repo, pr_number, &method, &head_sha)
+        .await?;
+    github_sync::trigger_sync(&app);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn reply_to_pr_comment(
     app: tauri::AppHandle,

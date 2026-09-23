@@ -388,6 +388,8 @@ pub fn run() {
             pr_review::reply_to_pr_comment,
             pr_review::set_pr_thread_resolved,
             pr_review::set_pr_file_viewed,
+            pr_review::get_repo_merge_methods,
+            pr_review::merge_pr,
             // GIFs (Giphy)
             gifs::gifs_available,
             gifs::search_gifs,

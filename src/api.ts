@@ -399,6 +399,16 @@ export function submitPrReview(
   return invoke("submit_pr_review", { repoPath, prNumber, event, body, comments });
 }
 
+export type MergeMethod = "squash" | "merge" | "rebase";
+
+export function getRepoMergeMethods(repoPath: string): Promise<MergeMethod[]> {
+  return invoke("get_repo_merge_methods", { repoPath });
+}
+
+export function mergePr(repoPath: string, prNumber: number, method: MergeMethod, headSha: string): Promise<void> {
+  return invoke("merge_pr", { repoPath, prNumber, method, headSha });
+}
+
 export function replyToPrComment(
   repoPath: string,
   prNumber: number,

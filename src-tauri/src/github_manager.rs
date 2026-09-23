@@ -309,6 +309,40 @@ fn build_review_request_body(
     Ok(v)
 }
 
+/// Read a repo's allowed merge methods from `GET /repos/{o}/{r}`, ordered
+/// squash → merge → rebase. GitHub omits the `allow_*_merge` flags for users
+/// without admin on the repo, so their absence means "unknown", not "none":
+/// offer all three and let the user pick rather than pinning them to a squash
+/// button that a squash-disabled repo rejects on every press.
+fn parse_allowed_merge_methods(repo: &serde_json::Value) -> Vec<String> {
+    let flags = [
+        ("allow_squash_merge", "squash"),
+        ("allow_merge_commit", "merge"),
+        ("allow_rebase_merge", "rebase"),
+    ];
+    if flags.iter().all(|(key, _)| repo.get(key).is_none()) {
+        return flags.iter().map(|(_, method)| (*method).to_string()).collect();
+    }
+    let allowed: Vec<String> = flags
+        .iter()
+        .filter(|(key, _)| repo.get(key).and_then(serde_json::Value::as_bool) == Some(true))
+        .map(|(_, method)| (*method).to_string())
+        .collect();
+    if allowed.is_empty() {
+        return vec!["squash".to_string()];
+    }
+    allowed
+}
+
+/// Build the REST body for PUT /pulls/{n}/merge. `sha` makes GitHub reject
+/// the merge if the head moved since the UI last saw it.
+fn build_merge_request_body(method: &str, head_sha: &str) -> Result<serde_json::Value, AppError> {
+    if !matches!(method, "squash" | "merge" | "rebase") {
+        return Err(AppError::Github(format!("unsupported merge method: {method}")));
+    }
+    Ok(serde_json::json!({ "merge_method": method, "sha": head_sha }))
+}
+
 /// Parse the JSON response from the check-runs API into `Vec<CheckRun>`.
 fn parse_check_runs_response(response: &serde_json::Value) -> Vec<CheckRun> {
     response
@@ -1241,6 +1275,36 @@ impl GithubManager {
             .post(url, Some(&payload))
             .await
             .map_err(|e| format_octocrab_error("failed to submit review", &e))?;
+        Ok(())
+    }
+
+    /// Merge methods the repo allows, in squash → merge → rebase order.
+    pub async fn get_allowed_merge_methods(&self, owner: &str, repo: &str) -> Result<Vec<String>, AppError> {
+        let url = format!("/repos/{owner}/{repo}");
+        let response: serde_json::Value = self
+            .client
+            .get(url, None::<&()>)
+            .await
+            .map_err(|e| format_octocrab_error("failed to fetch repo merge settings", &e))?;
+        Ok(parse_allowed_merge_methods(&response))
+    }
+
+    /// Merge a PR, pinned to `head_sha` so a newer push makes GitHub refuse.
+    pub async fn merge_pr(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+        method: &str,
+        head_sha: &str,
+    ) -> Result<(), AppError> {
+        let url = format!("/repos/{owner}/{repo}/pulls/{pr_number}/merge");
+        let payload = build_merge_request_body(method, head_sha)?;
+        let _: serde_json::Value = self
+            .client
+            .put(url, Some(&payload))
+            .await
+            .map_err(|e| format_octocrab_error("failed to merge PR", &e))?;
         Ok(())
     }
 
@@ -2917,6 +2981,54 @@ mod tests {
         assert!(build_review_request_body("request_changes", "", &[]).is_err());
         assert!(build_review_request_body("comment", "", &[]).is_err());
         assert!(build_review_request_body("comment", "x", &[]).is_ok());
+    }
+
+    #[test]
+    fn test_parse_allowed_merge_methods_all_allowed_in_order() {
+        let repo = serde_json::json!({
+            "allow_rebase_merge": true,
+            "allow_merge_commit": true,
+            "allow_squash_merge": true,
+        });
+        assert_eq!(parse_allowed_merge_methods(&repo), vec!["squash", "merge", "rebase"]);
+    }
+
+    #[test]
+    fn test_parse_allowed_merge_methods_only_merge_commit() {
+        let repo = serde_json::json!({
+            "allow_squash_merge": false,
+            "allow_merge_commit": true,
+            "allow_rebase_merge": false,
+        });
+        assert_eq!(parse_allowed_merge_methods(&repo), vec!["merge"]);
+    }
+
+    #[test]
+    fn test_parse_allowed_merge_methods_missing_flags_offers_all() {
+        // Non-admin token: GitHub hides the flags, so every method stays on offer.
+        let repo = serde_json::json!({ "name": "alfredo" });
+        assert_eq!(parse_allowed_merge_methods(&repo), vec!["squash", "merge", "rebase"]);
+    }
+
+    #[test]
+    fn test_parse_allowed_merge_methods_none_allowed_falls_back_to_squash() {
+        let repo = serde_json::json!({
+            "allow_squash_merge": false,
+            "allow_merge_commit": false,
+            "allow_rebase_merge": false,
+        });
+        assert_eq!(parse_allowed_merge_methods(&repo), vec!["squash"]);
+    }
+
+    #[test]
+    fn test_build_merge_request_body() {
+        let v = build_merge_request_body("squash", "abc").unwrap();
+        assert_eq!(v, serde_json::json!({ "merge_method": "squash", "sha": "abc" }));
+    }
+
+    #[test]
+    fn test_build_merge_request_body_rejects_unknown_method() {
+        assert!(build_merge_request_body("octopus", "abc").is_err());
     }
 
     // --- map_github_file tests ---
