@@ -1,0 +1,25 @@
+src/components/changes/PrPanel.tsx
+  s_46c825965b5551::t_5d1760be39cc25 94,224-225,245
+src/components/changes/ChangesPanel.tsx
+  s_46c825965b5551::t_5d1760be39cc25 810
+src/components/changes/MergeStatusBanner.tsx
+  s_46c825965b5551::t_2cc219023500ce 305,314
+src/components/changes/ReviewRow.tsx
+  s_46c825965b5551::t_5cfef8dcdc8487 16,18,23,25,27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fa83bbb6a1dee0a940ca06396aea4528a049e9e3",
+  "prompts": {},
+  "sessions": {
+    "s_46c825965b5551": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "172735bb-256a-4811-afea-3c86511ad48d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
