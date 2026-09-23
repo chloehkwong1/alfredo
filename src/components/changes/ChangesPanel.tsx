@@ -807,7 +807,7 @@ function WorkspacePanelMinimized({
   const summary = [
     fileCount > 0 ? `${fileCount} file${fileCount !== 1 ? "s" : ""}` : null,
     hasPr && failingChecks > 0 ? `${failingChecks} check${failingChecks !== 1 ? "s" : ""} failing` : null,
-    hasPr && reviewDecision === "CHANGES_REQUESTED" ? "changes requested" : null,
+    hasPr && reviewDecision === "changes_requested" ? "changes requested" : null,
     hasPr && unresolvedComments > 0 ? `${unresolvedComments} unresolved comment${unresolvedComments !== 1 ? "s" : ""}` : null,
   ].filter(Boolean).join(", ");
   const ariaLabel = summary ? `Expand Changes panel — ${summary}` : "Expand Changes panel";

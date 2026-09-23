@@ -302,7 +302,7 @@ export function MergeStatusBanner({
   }
 
   // ── Ready to merge ──
-  if (mergeable === true && reviewDecision === "APPROVED") {
+  if (mergeable === true && reviewDecision === "approved") {
     return (
       <div className="px-2.5 py-1.5 bg-diff-added/10 border-t border-diff-added/20 text-xs text-diff-added font-semibold shrink-0">
         Ready to merge
@@ -311,7 +311,7 @@ export function MergeStatusBanner({
   }
 
   // ── Changes requested ──
-  if (reviewDecision === "CHANGES_REQUESTED") {
+  if (reviewDecision === "changes_requested") {
     return (
       <div className="px-2.5 py-1.5 bg-diff-removed/10 border-t border-diff-removed/20 text-xs text-diff-removed font-semibold shrink-0">
         Changes requested

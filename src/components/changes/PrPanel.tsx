@@ -91,7 +91,7 @@ export function usePrBadgeCounts(worktreeId: string) {
   const failingChecks = checkRuns.filter(isCheckFailing).length;
   const pendingChecks = checkRuns.filter(isCheckPending).length;
   const unresolvedComments = comments.filter((c) => !c.resolved).length;
-  const approvals = reviews.filter((r) => r.state === "APPROVED").length;
+  const approvals = reviews.filter((r) => r.state === "approved").length;
 
   return { checkRuns, prDetail, reviews: allReviews, comments, mergeable, reviewDecision, failingChecks, pendingChecks, unresolvedComments, approvals };
 }
@@ -221,8 +221,8 @@ export function PrRailIcons({ worktreeId }: PrRailIconsProps) {
     : checkRuns.length > 0 ? `${checkRuns.length} check${checkRuns.length !== 1 ? "s" : ""} passing`
     : "No checks";
   const reviewsTitle =
-    reviewDecision === "CHANGES_REQUESTED" ? "Changes requested"
-    : reviewDecision === "APPROVED" ? "Approved"
+    reviewDecision === "changes_requested" ? "Changes requested"
+    : reviewDecision === "approved" ? "Approved"
     : approvals > 0 ? `${approvals} approval${approvals !== 1 ? "s" : ""}`
     : "Reviews";
   const commentsTitle =
@@ -242,7 +242,7 @@ export function PrRailIcons({ worktreeId }: PrRailIconsProps) {
       <RailIcon
         icon={<Eye size={16} />}
         count={approvals}
-        attention={reviewDecision === "CHANGES_REQUESTED"}
+        attention={reviewDecision === "changes_requested"}
         title={reviewsTitle}
       />
 

@@ -13,18 +13,18 @@ export function ReviewRow({
   body?: string | null;
 }) {
   const stateColorClass =
-    state === "APPROVED"
+    state === "approved"
       ? "text-diff-added"
-      : state === "CHANGES_REQUESTED"
+      : state === "changes_requested"
         ? "text-diff-removed"
         : "text-text-tertiary";
 
   const stateLabel =
-    state === "APPROVED"
+    state === "approved"
       ? "Approved"
-      : state === "CHANGES_REQUESTED"
+      : state === "changes_requested"
         ? "Changes requested"
-        : state === "DISMISSED"
+        : state === "dismissed"
           ? "Dismissed"
           : state === "REQUESTED"
             ? "Requested"
