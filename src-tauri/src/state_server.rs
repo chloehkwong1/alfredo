@@ -33,6 +33,9 @@ pub struct StateServerHandle {
     pub port: u16,
     /// Channel registry shared with the HTTP handler.
     registry: Arc<Mutex<ChannelRegistry>>,
+    /// Shared with the HTTP handler so closing a session also releases its
+    /// sleep-inhibitor hold.
+    sleep_inhibitor: Arc<SleepInhibitor>,
 }
 
 /// Combined state passed to the axum router.
@@ -77,17 +80,24 @@ impl StateServerHandle {
         Self {
             port: 0,
             registry: Arc::new(Mutex::new(ChannelRegistry::default())),
+            sleep_inhibitor: Arc::new(SleepInhibitor::new()),
         }
     }
 
     /// Remove a channel when a session is closed.
     pub fn unregister_channel(&self, session_id: &str, worktree_id: &str) {
-        let Ok(mut reg) = self.registry.lock() else {
-            tracing::info!("[state-server] registry lock poisoned in unregister_channel");
-            return;
-        };
-        tracing::info!("[state-server] unregister session={session_id} worktree={worktree_id} (remaining={})", reg.channels.len().saturating_sub(1));
-        reg.channels.remove(session_id);
+        {
+            let Ok(mut reg) = self.registry.lock() else {
+                tracing::info!("[state-server] registry lock poisoned in unregister_channel");
+                return;
+            };
+            tracing::info!("[state-server] unregister session={session_id} worktree={worktree_id} (remaining={})", reg.channels.len().saturating_sub(1));
+            reg.channels.remove(session_id);
+        }
+        // A session that is going away can no longer report Idle, so release
+        // its sleep-inhibitor hold here — otherwise hibernating a busy tab
+        // pins `caffeinate` for the rest of the app's lifetime.
+        self.sleep_inhibitor.remove_session(session_id);
     }
 }
 
@@ -122,6 +132,7 @@ pub async fn start(
     Ok(StateServerHandle {
         port,
         registry,
+        sleep_inhibitor,
     })
 }
 
@@ -200,7 +211,7 @@ async fn handle_state_update(
     let phase = parse_phase(uri.query());
 
     // Update sleep inhibitor based on agent state
-    router_state.sleep_inhibitor.update(session_id, &state);
+    router_state.sleep_inhibitor.update(session_id, &state, &phase);
 
     let Ok(mut reg) = router_state.registry.lock() else {
         tracing::info!("[state-server] registry lock poisoned in handle_state_update");
@@ -282,5 +293,27 @@ mod tests {
 
         let reg = handle.registry.lock().unwrap();
         assert!(!reg.channels.contains_key("s1"));
+    }
+
+    /// Pins the hibernate/close leak: `unregister_channel` must also clear the
+    /// session's entry in the sleep inhibitor. Observed in the wild — a tab
+    /// hibernated while Busy unregistered its channel but stayed in
+    /// `busy_sessions` forever, holding `caffeinate` for the app's lifetime.
+    #[test]
+    fn unregister_clears_sleep_inhibitor_busy_session() {
+        let handle = StateServerHandle::new_for_test();
+        handle.register_channel("s1", "wt1", dummy_channel());
+        handle
+            .sleep_inhibitor
+            .update("s1", &AgentState::Busy, &HookPhase::ToolStart);
+        assert!(handle.sleep_inhibitor.is_busy("s1"));
+
+        // Tab is hibernated / closed.
+        handle.unregister_channel("s1", "wt1");
+
+        assert!(
+            !handle.sleep_inhibitor.is_busy("s1"),
+            "unregistering a session must release its sleep-inhibitor hold"
+        );
     }
 }

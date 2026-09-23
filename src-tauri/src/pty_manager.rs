@@ -492,7 +492,7 @@ impl PtyManager {
 
                         // Run output through agent detector before forwarding
                         if let Some((_agent_type, agent_state)) = detector.feed(&data) {
-                            reader_inhibitor.update(id, &agent_state);
+                            reader_inhibitor.update(id, &agent_state, &crate::types::HookPhase::None);
                             if let Ok(guard) = reader_channel.read() {
                                 if let Some(ch) = guard.as_ref() {
                                     if let Err(err) = ch.send(PtyEvent::AgentState(agent_state)) {
