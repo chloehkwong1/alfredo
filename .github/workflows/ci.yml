@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Auto-merged dependabot PRs push to main using GITHUB_TOKEN, and GitHub
+  # raises no workflow run for those, so main's HEAD can carry no checks at
+  # all. This is the only way to get a run against main on demand.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
