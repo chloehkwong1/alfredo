@@ -9,6 +9,12 @@ updates:
       - "dependencies"
       - "npm"
     groups:
+      # Must precede minor-and-patch: a dependency joins the first group it
+      # matches. The addons pin a peer on @xterm/xterm, so bumping any one of
+      # them alone fails npm ci — they have to travel in a single PR.
+      xterm:
+        patterns:
+          - "@xterm/*"
       minor-and-patch:
         update-types:
           - "minor"
