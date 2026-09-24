@@ -17,6 +17,7 @@ import { useGitUser } from "../../hooks/useGitUser";
 import { discardFile, discardAllUncommitted, dropCommit, getAheadBehindOrigin, getCommitsBehindMain, gitPublishBranch, gitPullRebase, gitPush, isCommitPushed, rebaseWorktree, restackNow } from "../../api";
 import { restackOutcomeMessage } from "../sidebar/StackMapPopover";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
+import { startPollInterval } from "../../services/pollInterval";
 import { shouldShowSimplifiedMainView } from "../../lib/cardViewMode";
 import type { ViewMode } from "./FileSidebar";
 import type { CommitInfo, PrComment } from "../../types";
@@ -42,9 +43,9 @@ function RebaseBanner({ repoPath, worktreePath, worktreeName, stackParent }: { r
       });
     };
     fetch();
-    const id = setInterval(fetch, 60_000);
+    const stop = startPollInterval(fetch, 60_000);
 
-    return () => { cancelled = true; clearInterval(id); };
+    return () => { cancelled = true; stop(); };
   }, [worktreePath, stackParent]);
 
   const handleRebase = async () => {
@@ -195,8 +196,8 @@ function OriginSyncBanner({
       });
     };
     poll();
-    const id = setInterval(poll, 60_000);
-    return () => { cancelled = true; clearInterval(id); };
+    const stop = startPollInterval(poll, 60_000);
+    return () => { cancelled = true; stop(); };
   }, [worktreePath, repoPath]);
 
   const refetch = () => {

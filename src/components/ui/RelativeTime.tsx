@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { startPollInterval } from "../../services/pollInterval";
 
 function formatRelativeTime(timestamp: number | undefined): string {
   if (!timestamp) return "";
@@ -22,8 +23,7 @@ function RelativeTime({ timestamp, className }: RelativeTimeProps) {
 
   useEffect(() => {
     if (!timestamp) return;
-    const interval = setInterval(() => setTick((t) => t + 1), 30_000);
-    return () => clearInterval(interval);
+    return startPollInterval(() => setTick((t) => t + 1), 30_000);
   }, [timestamp]);
 
   const text = formatRelativeTime(timestamp);

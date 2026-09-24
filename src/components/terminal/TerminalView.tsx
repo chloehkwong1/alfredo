@@ -11,6 +11,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useTabStore } from "../../stores/tabStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { sessionManager } from "../../services/sessionManager";
+import { startPollInterval } from "../../services/pollInterval";
 import { writePty, findClaudeSession, listClaudeSessions, recordResumeSessionId, debugLog, dumpPtyBuffer } from "../../api";
 import { formatAnnotationsMessage } from "../../services/formatAnnotationsMessage";
 import { useAppConfig } from "../../hooks/useAppConfig";
@@ -250,8 +251,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     // Re-discover every 5s to catch session changes (e.g. /clear creating a
     // new session UUID). 30s left a window where /clear followed by an app
     // restart would --resume the pre-/clear session.
-    const interval = setInterval(discover, 5_000);
-    return () => clearInterval(interval);
+    return startPollInterval(discover, 5_000);
   }, [hasOutput, isAgentTab, activeWorktreeId, worktree?.path, tabId]);
 
   const handleSendFeedback = useCallback(async () => {

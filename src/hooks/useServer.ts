@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAppConfigStore } from "../stores/appConfigStore";
 import { useTabStore } from "../stores/tabStore";
+import { startPollInterval } from "../services/pollInterval";
 
 /**
  * Per-worktree mutex to prevent overlapping revive attempts. Cleanup intervals
@@ -169,7 +170,7 @@ export function useStaleServerCleanup() {
   useEffect(() => {
     if (!hasRunningServers) return;
 
-    const interval = setInterval(async () => {
+    const stop = startPollInterval(async () => {
       const now = Date.now();
       for (const [wtId, server] of Object.entries(
         useWorkspaceStore.getState().runningServers,
@@ -188,7 +189,7 @@ export function useStaleServerCleanup() {
       }
     }, SERVER_POLL_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    return stop;
   }, [hasRunningServers, setRunningServer]);
 }
 
@@ -382,7 +383,7 @@ export function useServer(activeWorktreeId: string | null) {
     const wtId = activeWorktreeId;
 
     const tabId = runningServer.tabId;
-    const interval = setInterval(async () => {
+    const stop = startPollInterval(async () => {
       if (Date.now() - startTime < SERVER_GRACE_PERIOD_MS) return;
 
       const session = sessionManager.getSession(tabId);
@@ -398,7 +399,7 @@ export function useServer(activeWorktreeId: string | null) {
       if (!revived) setRunningServer(wtId, null);
     }, SERVER_POLL_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    return stop;
   }, [activeWorktreeId, runningServer, setRunningServer]);
 
   // Auto-detect port from terminal output (separate effect to avoid restarting heartbeat)
@@ -408,7 +409,7 @@ export function useServer(activeWorktreeId: string | null) {
     const wtId = activeWorktreeId;
     const tabId = runningServer.tabId;
 
-    const interval = setInterval(() => {
+    const stop = startPollInterval(() => {
       const bytes = sessionManager.getBufferedOutput(tabId);
       if (bytes.length === 0) return;
 
@@ -419,7 +420,7 @@ export function useServer(activeWorktreeId: string | null) {
       }
     }, SERVER_POLL_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    return stop;
   }, [activeWorktreeId, runningServer, setRunningServer]);
 
   // Derive effective URL: prefer explicit config, fall back to auto-detected port

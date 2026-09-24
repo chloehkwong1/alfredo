@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { getFullCommits } from "../../api";
 import { lifecycleManager } from "../../services/lifecycleManager";
+import { startPollInterval } from "../../services/pollInterval";
 import { formatRelativeTime } from "./formatRelativeTime";
 import { formatAuthor } from "./formatAuthor";
 import type { CommitInfo } from "../../types";
@@ -47,7 +48,7 @@ export function RecentCommitsSection({
   useEffect(() => {
     if (!expanded) return;
     let cancelled = false;
-    const id = setInterval(() => {
+    const stop = startPollInterval(() => {
       getFullCommits(repoPath, 20)
         .then((rows) => {
           if (!cancelled) setCommits(rows);
@@ -56,7 +57,7 @@ export function RecentCommitsSection({
     }, 30_000);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      stop();
     };
   }, [expanded, repoPath]);
 
