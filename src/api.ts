@@ -921,6 +921,15 @@ export function setDockBadge(count: number): Promise<void> {
   return invoke("set_dock_badge", { count: Math.max(0, Math.floor(count)) });
 }
 
+/**
+ * Mirror window attention into Rust so its polling loops (GitHub sync, the
+ * shell-tab poller) can slow down while Alfredo is unfocused.
+ * Fire-and-forget; called by stores/attentionStore on every landed flip.
+ */
+export function setAttention(focused: boolean): Promise<void> {
+  return invoke("set_attention", { focused });
+}
+
 // ── App Detection ─────────────────────────────────────────────
 
 export interface InstalledApp {

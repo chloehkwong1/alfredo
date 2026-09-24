@@ -1,6 +1,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod agent_detector;
+mod attention;
 mod platform;
 mod app_config_manager;
 mod ask_alfredo;
@@ -96,7 +97,7 @@ fn best_offer_index(candidates: &[String], receive_beta: bool) -> Option<usize> 
         .map(|(i, _)| i)
 }
 
-use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, gifs, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, pr_detail, pr_review, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, attention as attention_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, gifs, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, pr_detail, pr_review, pty, repo, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -160,6 +161,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(PtyManager::new())
         .manage(std::sync::Arc::new(SleepInhibitor::new()))
+        .manage(attention::AttentionState::new())
         .manage(updater_cmds::PendingUpdate::default())
         .manage(SyncState {
             repo_paths: std::sync::Mutex::new(Vec::new()),
@@ -309,6 +311,8 @@ pub fn run() {
             clipboard::set_clipboard_text,
             // Dock badge (macOS/Linux)
             dock_badge::set_dock_badge,
+            // Window attention (frontend → Rust polling cadence)
+            attention_cmd::set_attention,
             // Debug logging bridge (frontend → alfredo.log)
             debug_log_cmd::debug_log,
             // Ask Alfredo
