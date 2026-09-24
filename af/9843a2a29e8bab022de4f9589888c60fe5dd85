@@ -1,0 +1,56 @@
+src/components/sidebar/AgentItem.test.ts
+  s_d765ce8ab12b83::t_317f02dea135e0 511-520
+src/components/sidebar/Sidebar.tsx
+  s_d765ce8ab12b83::t_29517935ad6204 172
+  s_d765ce8ab12b83::t_fe6961a7f996de 183
+  s_d765ce8ab12b83::t_8f1aa2cf3c2c15 31
+src/stores/workspaceStore.ts
+  s_d765ce8ab12b83::t_a3a39bf71a5ec7 717-722,726
+src/services/bulkWorktreeActions.ts
+  s_d765ce8ab12b83::t_c9ac5dbe1338fe 108-138
+  s_d765ce8ab12b83::t_4d6a0d8c6b958a 5-14,19-28
+  s_d765ce8ab12b83::t_8222e743ca1bda 49-53,61-62,64,68
+  s_d765ce8ab12b83::t_1e75d581b2500f 88-89,93,95
+src/components/sidebar/AgentItem.tsx
+  s_d765ce8ab12b83::t_f7a660c0b92b79 1187-1195
+  s_d765ce8ab12b83::t_150e25a46ed333 9-10
+  s_d765ce8ab12b83::t_7d4eaab5158a09 152-158,160-167,169
+src/stores/workspaceStore.test.ts
+  s_d765ce8ab12b83::t_a3b32a40e9046d 1275-1285
+  s_d765ce8ab12b83::t_35bd7a2f97d0d9 1321
+  s_d765ce8ab12b83::t_8bc9e3225126e7 1315-1320,1322-1325
+src/stores/prStore.ts
+  s_d765ce8ab12b83::t_1661980f4a11f6 15
+  s_d765ce8ab12b83::t_df55d6ed41cf28 71-76
+  s_d765ce8ab12b83::t_9b9b1ab6ba4a6c 193-201
+src/services/bulkWorktreeActions.test.ts
+  s_d765ce8ab12b83::t_23150eeea040ea 119-124
+  s_d765ce8ab12b83::t_7e80edf42c967e 12,16
+  s_d765ce8ab12b83::t_3ccaf4fcbf3833 29-31
+  s_d765ce8ab12b83::t_54e5fc0ce79959 74,77-80,85-118,125-153
+  s_cb659dffbbac9b::t_8888bd47a089ea 154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "af9843a2a29e8bab022de4f9589888c60fe5dd85",
+  "prompts": {},
+  "sessions": {
+    "s_cb659dffbbac9b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d519fcfd-2982-48b0-b20a-042bf0197fd2",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_d765ce8ab12b83": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac2e8d20-8547-4da3-93cf-550b025e6510",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
