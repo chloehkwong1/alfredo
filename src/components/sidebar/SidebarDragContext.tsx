@@ -363,9 +363,23 @@ function SidebarDragContext({
           .worktrees.filter((w) => batch.includes(w.id))
           .map((w) => (w.id === activeWtId ? { ...w, column: origin } : w));
 
-        void bulkMoveToColumn(batchWorktrees, worktree.column).then(() => {
-          useWorkspaceStore.getState().clearWorktreeSelection();
-        });
+        // handleDragOver already rewrote the dragged row's column, so
+        // setManualColumn's unpin-on-entering-done check sees prev.column
+        // === "done" and skips it. Do it here so the dragged row matches the
+        // rest of the batch instead of staying pinned while its siblings
+        // unpin.
+        if (worktree.column === "done" && origin !== "done") {
+          const { pinnedWorktrees, togglePinWorktree } = useWorkspaceStore.getState();
+          if (pinnedWorktrees.has(activeWtId)) togglePinWorktree(activeWtId);
+        }
+
+        void bulkMoveToColumn(batchWorktrees, worktree.column)
+          .catch((e) => {
+            console.error("[drag] Bulk move failed:", e);
+          })
+          .finally(() => {
+            useWorkspaceStore.getState().clearWorktreeSelection();
+          });
 
         // Persist the target column with the card at its drop position, taken
         // straight from dnd-kit: insert before the card whose id is `overId`,
