@@ -20,9 +20,8 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import type { KanbanColumn, Worktree } from "../../types";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { usePrStore } from "../../stores/prStore";
-import { setWorktreeColumn, setWorktreeOrders } from "../../api";
-import { stopServerAndReleasePort } from "../../services/portReclaim";
+import { setWorktreeOrders } from "../../api";
+import { bulkMoveToColumn } from "../../services/bulkWorktreeActions";
 import { sortColumnWorktrees, columnNameOrder, type WorktreeOrderMap } from "../../lib/worktreeOrder";
 import { AgentItemOverlay } from "./AgentItemOverlay";
 
@@ -128,6 +127,10 @@ function SidebarDragContext({
   const snapshotRef = useRef<Worktree[] | null>(null);
   // Original column at drag start (for persistence on drop)
   const originColumnRef = useRef<KanbanColumn | null>(null);
+  // Ids the drop should move: the full selection when the dragged row is
+  // selected, otherwise just the dragged row. Reset on every cancel/no-drop
+  // path so a stale batch can't leak into a later drag.
+  const dragBatchRef = useRef<string[]>([]);
   // Last overId to reduce flicker
   const lastOverIdRef = useRef<string | null>(null);
   // Last column the pointer was over, for driving temp-expand transitions.
@@ -203,6 +206,9 @@ function SidebarDragContext({
       // Snapshot for rollback
       snapshotRef.current = [...worktrees];
       originColumnRef.current = findColumnForId(id, worktrees);
+
+      const selected = useWorkspaceStore.getState().selectedWorktreeIds;
+      dragBatchRef.current = selected.has(id) ? [...selected] : [id];
 
       const el = (event.activatorEvent.target as HTMLElement)?.closest?.("button");
       if (el) {
@@ -288,6 +294,7 @@ function SidebarDragContext({
         }
         snapshotRef.current = null;
         originColumnRef.current = null;
+        dragBatchRef.current = [];
         prevOverColumnRef.current = null;
         onClearTempExpanded?.();
         return;
@@ -338,18 +345,27 @@ function SidebarDragContext({
       const worktree = currentWorktrees.find((wt) => wt.id === activeWtId);
 
       if (worktree && originColumnRef.current && worktree.column !== originColumnRef.current) {
-        // Column changed from original — persist the move
-        usePrStore.getState().setManualColumn(activeWtId, worktree.column, originColumnRef.current!);
+        // Column changed from original — move the whole batch (the selection,
+        // or just the dragged row when it isn't selected). bulkMoveToColumn
+        // owns the optimistic store writes, the prStore manual-column
+        // override, the per-repo persist and the done-only port reclaim, so
+        // none of that is hand-rolled here.
+        //
+        // handleDragOver already overwrote the dragged row's `column` with the
+        // drop target — every other selected row still holds its origin
+        // column. Restore the dragged row's origin before handing the batch
+        // to bulkMoveToColumn, or it would record the row's autoColumnWhenSet
+        // as the column it moved TO instead of the one it left.
+        const batch = dragBatchRef.current;
+        const origin = originColumnRef.current;
+        const batchWorktrees = useWorkspaceStore
+          .getState()
+          .worktrees.filter((w) => batch.includes(w.id))
+          .map((w) => (w.id === activeWtId ? { ...w, column: origin } : w));
 
-        // Persist to Tauri backend (fire-and-forget)
-        setWorktreeColumn(worktree.repoPath, worktree.name, worktree.column).catch((e) => {
-          console.error("[drag] Failed to persist column change:", e);
+        void bulkMoveToColumn(batchWorktrees, worktree.column).then(() => {
+          useWorkspaceStore.getState().clearWorktreeSelection();
         });
-
-        // Stop the dev server and release its port when dragged to Done.
-        if (worktree.column === "done") {
-          stopServerAndReleasePort(worktree, "drag");
-        }
 
         // Persist the target column with the card at its drop position, taken
         // straight from dnd-kit: insert before the card whose id is `overId`,
@@ -413,6 +429,7 @@ function SidebarDragContext({
 
       snapshotRef.current = null;
       originColumnRef.current = null;
+      dragBatchRef.current = [];
       prevOverColumnRef.current = null;
     },
     [reorderWorktrees, collapsedColumns, onExpandColumn, onClearTempExpanded, hideUnpinned],
@@ -426,6 +443,7 @@ function SidebarDragContext({
     }
     snapshotRef.current = null;
     originColumnRef.current = null;
+    dragBatchRef.current = [];
     prevOverColumnRef.current = null;
     onClearTempExpanded?.();
   }, [reorderWorktrees, onClearTempExpanded]);
@@ -448,11 +466,25 @@ function SidebarDragContext({
       {createPortal(
         <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
           {activeWorktree ? (
-            <AgentItemOverlay
-              worktree={activeWorktree}
-              width={dragSize?.width}
-              label={worktreeLabels?.[activeWorktree.path]}
-            />
+            <div className="relative">
+              <AgentItemOverlay
+                worktree={activeWorktree}
+                width={dragSize?.width}
+                label={worktreeLabels?.[activeWorktree.path]}
+              />
+              {dragBatchRef.current.length > 1 && (
+                <span
+                  className={[
+                    "absolute -top-2 -right-2 flex items-center justify-center",
+                    "min-w-[1.25rem] h-5 px-1 rounded-full",
+                    "text-2xs tabular-nums font-semibold text-white bg-accent-primary",
+                    "shadow-md",
+                  ].join(" ")}
+                >
+                  {dragBatchRef.current.length}
+                </span>
+              )}
+            </div>
           ) : null}
         </DragOverlay>,
         document.body,
