@@ -20,6 +20,7 @@ pub async fn spawn_pty(
     manager: State<'_, PtyManager>,
     state_server: State<'_, StateServerHandle>,
     sleep_inhibitor: State<'_, std::sync::Arc<crate::sleep_inhibitor::SleepInhibitor>>,
+    attention: State<'_, crate::attention::AttentionState>,
     worktree_id: String,
     worktree_path: String,
     repo_path: Option<String>,
@@ -60,7 +61,13 @@ pub async fn spawn_pty(
         state_server: Some((*state_server).clone()),
     };
 
-    match manager.spawn(session_id.clone(), config, on_data, std::sync::Arc::clone(&sleep_inhibitor)) {
+    match manager.spawn(
+        session_id.clone(),
+        config,
+        on_data,
+        std::sync::Arc::clone(&sleep_inhibitor),
+        attention.inner().clone(),
+    ) {
         Ok(id) => Ok(id),
         Err(e) => {
             // Spawn failed — clean up the pre-registered channel

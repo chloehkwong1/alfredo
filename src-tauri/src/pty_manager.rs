@@ -10,6 +10,7 @@ use tauri::ipc::Channel;
 use uuid::Uuid;
 
 use crate::agent_detector::AgentDetector;
+use crate::attention::AttentionState;
 use crate::platform::augmented_path;
 use crate::sleep_inhibitor::SleepInhibitor;
 use crate::state_server::StateServerHandle;
@@ -310,6 +311,7 @@ impl PtyManager {
         config: SpawnConfig,
         channel: Channel<PtyEvent>,
         sleep_inhibitor: Arc<SleepInhibitor>,
+        attention: AttentionState,
     ) -> Result<String, AppError> {
         let SpawnConfig {
             worktree_id,
@@ -677,35 +679,46 @@ impl PtyManager {
                 thread::spawn(move || {
                     let mut last_process: Option<Option<String>> = None;
                     let mut last_cwd: Option<Option<String>> = None;
+                    // 1 s tick; the actual work runs on the ticks should_poll
+                    // picks (3rd focused / 30th unfocused / focus regained).
+                    let mut tick: u64 = 0;
+                    let mut was_focused = true;
                     // Short grace period so OSC 7 from a shell prompt has a
                     // chance to arrive before our first poll.
                     thread::sleep(Duration::from_millis(300));
                     while !poll_stop.load(Ordering::Relaxed) {
-                        let process = resolve_foreground_process(shell_pid);
-                        let cwd = resolve_cwd(shell_pid);
+                        let focused = attention.is_focused();
+                        let just_regained = focused && !was_focused;
+                        was_focused = focused;
 
-                        if last_process.as_ref() != Some(&process) {
-                            if let Ok(guard) = poll_channel.read() {
-                                if let Some(ch) = guard.as_ref() {
-                                    if let Err(e) = ch.send(PtyEvent::Process(process.clone())) {
-                                        eprintln!("[pty-poller {poll_session_id}] send failed (Process): {e}");
+                        if should_poll(tick, focused, just_regained) {
+                            let process = resolve_foreground_process(shell_pid);
+                            let cwd = resolve_cwd(shell_pid);
+
+                            if last_process.as_ref() != Some(&process) {
+                                if let Ok(guard) = poll_channel.read() {
+                                    if let Some(ch) = guard.as_ref() {
+                                        if let Err(e) = ch.send(PtyEvent::Process(process.clone())) {
+                                            eprintln!("[pty-poller {poll_session_id}] send failed (Process): {e}");
+                                        }
                                     }
                                 }
+                                last_process = Some(process);
                             }
-                            last_process = Some(process);
-                        }
 
-                        if last_cwd.as_ref() != Some(&cwd) {
-                            if let Ok(guard) = poll_channel.read() {
-                                if let Some(ch) = guard.as_ref() {
-                                    if let Err(e) = ch.send(PtyEvent::Cwd(cwd.clone())) {
-                                        eprintln!("[pty-poller {poll_session_id}] send failed (Cwd): {e}");
+                            if last_cwd.as_ref() != Some(&cwd) {
+                                if let Ok(guard) = poll_channel.read() {
+                                    if let Some(ch) = guard.as_ref() {
+                                        if let Err(e) = ch.send(PtyEvent::Cwd(cwd.clone())) {
+                                            eprintln!("[pty-poller {poll_session_id}] send failed (Cwd): {e}");
+                                        }
                                     }
                                 }
+                                last_cwd = Some(cwd);
                             }
-                            last_cwd = Some(cwd);
                         }
 
+                        tick = tick.wrapping_add(1);
                         thread::sleep(Duration::from_secs(1));
                     }
                 });
@@ -1730,6 +1743,23 @@ fn tilde_abbrev_in(path: &str, home: &str) -> String {
     path.to_string()
 }
 
+/// Shell-poller cadence. The poller thread ticks once a second; the
+/// `ps`×2 + `lsof` work runs on every `SHELL_POLL_FOCUSED_TICKS`th tick while
+/// the window is focused (retuned from every tick — the single largest
+/// constant burn in the app), every `SHELL_POLL_UNFOCUSED_TICKS`th while
+/// not, and always on the tick where focus returns so the tab's process
+/// label and cwd never look stale after an alt-tab.
+const SHELL_POLL_FOCUSED_TICKS: u64 = 3;
+const SHELL_POLL_UNFOCUSED_TICKS: u64 = 30;
+
+fn should_poll(tick: u64, focused: bool, just_regained: bool) -> bool {
+    if just_regained {
+        return true;
+    }
+    let every = if focused { SHELL_POLL_FOCUSED_TICKS } else { SHELL_POLL_UNFOCUSED_TICKS };
+    tick.is_multiple_of(every)
+}
+
 /// True if `comm` (the basename or path returned by `ps -o comm=`) looks
 /// like a process alfredo would spawn as a PTY child. portable-pty execs
 /// the configured command directly (no shell wrapper), so the child's
@@ -1912,6 +1942,26 @@ fn strip_alfredo_hook_handlers(entries: &mut Vec<serde_json::Value>) {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shell_poller_runs_every_third_tick_focused() {
+        let fired: Vec<u64> = (0..10).filter(|t| should_poll(*t, true, false)).collect();
+        assert_eq!(fired, vec![0, 3, 6, 9]);
+    }
+
+    #[test]
+    fn shell_poller_runs_every_thirtieth_tick_unfocused() {
+        let fired: Vec<u64> = (0..61).filter(|t| should_poll(*t, false, false)).collect();
+        assert_eq!(fired, vec![0, 30, 60]);
+    }
+
+    #[test]
+    fn shell_poller_fires_on_the_tick_focus_returns() {
+        // 31 is off-cadence for both rates; only the regain flag fires it.
+        assert!(should_poll(31, true, true));
+        assert!(!should_poll(31, true, false));
+        assert!(!should_poll(31, false, false));
+    }
 
     #[test]
     fn codex_hooks_preserve_user_handlers_and_are_stable() {
@@ -2173,6 +2223,7 @@ mod tests {
                 },
                 channel,
                 Arc::new(SleepInhibitor::new()),
+                crate::attention::AttentionState::new(),
             ).unwrap();
             // Both renames are in the same PTY write, followed by silence/exit.
             // The old throttle discarded the second and left the wrong title.
@@ -2226,6 +2277,7 @@ mod tests {
                 },
                 channel,
                 inhibitor,
+                crate::attention::AttentionState::new(),
             )
             .expect("spawn should succeed");
 
@@ -2303,6 +2355,7 @@ mod tests {
                     },
                     channel,
                     std::sync::Arc::clone(&inhibitor),
+                    crate::attention::AttentionState::new(),
                 )
                 .expect("spawn should succeed");
             session_ids.push(id);
