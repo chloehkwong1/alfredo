@@ -84,14 +84,17 @@ export async function bulkMoveToColumn(
 
 export interface BulkArchiveResult {
   archived: number;
-  /** Worktree ids whose repo archive script failed. They are still archived —
-   *  a failing script must not strand the row on the board. */
-  scriptFailures: string[];
+  /** Worktree ids where either the repo archive script or the server-stop /
+   *  port-release step failed. They are still archived — a failing stage
+   *  must not strand the row on the board. */
+  failures: string[];
 }
 
 export async function bulkArchive(worktrees: Worktree[]): Promise<BulkArchiveResult> {
   const { archiveWorktree } = useWorkspaceStore.getState();
-  const scriptFailures: string[] = [];
+  // A Set so a worktree that fails both stages is still reported as one
+  // failure, not two — the toast count must match the number of affected rows.
+  const failedIds = new Set<string>();
 
   // allSettled, not a bare loop: one failing archive script must not abort
   // the rest of the batch.
@@ -101,13 +104,18 @@ export async function bulkArchive(worktrees: Worktree[]): Promise<BulkArchiveRes
         await runArchiveScript(wt.repoPath, wt.path);
       } catch (e) {
         console.warn("[bulk] archive script failed:", wt.id, e);
-        scriptFailures.push(wt.id);
+        failedIds.add(wt.id);
       }
-      await stopServerAndReleasePort(wt, "archive");
+      try {
+        await stopServerAndReleasePort(wt, "archive");
+      } catch (e) {
+        console.warn("[bulk] server stop / port release failed:", wt.id, e);
+        failedIds.add(wt.id);
+      }
     }),
   );
 
   for (const wt of worktrees) archiveWorktree(wt.id);
 
-  return { archived: worktrees.length, scriptFailures };
+  return { archived: worktrees.length, failures: [...failedIds] };
 }

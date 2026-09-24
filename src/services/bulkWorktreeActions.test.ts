@@ -105,13 +105,22 @@ describe("bulkArchive", () => {
     const result = await bulkArchive([wt("a", "/r1"), wt("b", "/r1")]);
 
     expect(result.archived).toBe(2);
-    expect(result.scriptFailures).toEqual(["a"]);
+    expect(result.failures).toEqual(["a"]);
     expect(stopServerAndReleasePort).toHaveBeenCalledTimes(2);
   });
 
   it("reports no failures on the happy path", async () => {
     const result = await bulkArchive([wt("a", "/r1")]);
-    expect(result.scriptFailures).toEqual([]);
+    expect(result.failures).toEqual([]);
     expect(result.archived).toBe(1);
+  });
+
+  it("still stops the server and reports one failure when the port-release step throws", async () => {
+    vi.mocked(stopServerAndReleasePort).mockRejectedValueOnce(new Error("port stuck"));
+
+    const result = await bulkArchive([wt("a", "/r1")]);
+
+    expect(result.archived).toBe(1);
+    expect(result.failures).toEqual(["a"]);
   });
 });

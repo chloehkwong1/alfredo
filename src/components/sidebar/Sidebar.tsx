@@ -200,6 +200,7 @@ function Sidebar({
   );
 
   const [archiveConfirm, setArchiveConfirm] = useState<Worktree[] | null>(null);
+  const [bulkArchiving, setBulkArchiving] = useState(false);
   const handleBulkArchiveRequest = useCallback(
     (ids: string[]) => {
       setArchiveConfirm(worktrees.filter((w) => ids.includes(w.id)));
@@ -785,17 +786,24 @@ function Sidebar({
             </Button>
             <Button
               variant="danger"
+              disabled={bulkArchiving}
               onClick={async () => {
+                if (bulkArchiving) return;
                 const batch = archiveConfirm ?? [];
+                setBulkArchiving(true);
                 setArchiveConfirm(null);
                 clearWorktreeSelection();
-                const { archived, scriptFailures } = await bulkArchive(batch);
-                useToastStore.getState().show({
-                  message:
-                    scriptFailures.length > 0
-                      ? `Archived ${archived} — ${scriptFailures.length} archive script(s) failed, see the console`
-                      : `Archived ${archived}`,
-                });
+                try {
+                  const { archived, failures } = await bulkArchive(batch);
+                  useToastStore.getState().show({
+                    message:
+                      failures.length > 0
+                        ? `Archived ${archived} — ${failures.length} had errors, see the console`
+                        : `Archived ${archived}`,
+                  });
+                } finally {
+                  setBulkArchiving(false);
+                }
               }}
             >
               Archive {archiveConfirm?.length ?? 0}
