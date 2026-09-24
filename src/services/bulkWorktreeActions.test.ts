@@ -11,6 +11,7 @@ vi.mock("./portReclaim", () => ({
 import { groupByRepo, bulkMoveToColumn } from "./bulkWorktreeActions";
 import { setWorktreeColumns } from "../api";
 import { stopServerAndReleasePort } from "./portReclaim";
+import { usePrStore } from "../stores/prStore";
 
 function wt(id: string, repoPath: string): Worktree {
   return {
@@ -20,7 +21,10 @@ function wt(id: string, repoPath: string): Worktree {
   };
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  usePrStore.getState().clearStore();
+});
 
 describe("groupByRepo", () => {
   it("buckets worktrees by repoPath", () => {
@@ -55,5 +59,20 @@ describe("bulkMoveToColumn", () => {
     expect(result.failedRepos).toEqual(["/r1"]);
     expect(result.moved).toBe(1);
     expect(setWorktreeColumns).toHaveBeenCalledTimes(2);
+  });
+
+  it("rolls back the optimistic store write for a repo that failed to persist", async () => {
+    vi.mocked(setWorktreeColumns)
+      .mockRejectedValueOnce(new Error("disk full"))
+      .mockResolvedValueOnce(undefined);
+
+    // Both start at "toDo" (the wt() helper's default column).
+    await bulkMoveToColumn([wt("a", "/r1"), wt("c", "/r2")], "done");
+
+    // /r1 failed to persist — its row must snap back to the prior column,
+    // not keep showing the optimistic "done" the backend never agreed to.
+    expect(usePrStore.getState().columnOverrides["a"].column).toBe("toDo");
+    // /r2 succeeded — its row stays moved.
+    expect(usePrStore.getState().columnOverrides["c"].column).toBe("done");
   });
 });

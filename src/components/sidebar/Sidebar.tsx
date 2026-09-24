@@ -168,9 +168,20 @@ function Sidebar({
         action: {
           label: "Undo",
           onClick: () => {
+            // Group by prior column before calling — bulkMoveToColumn already
+            // fans out per repo internally, so one call per distinct prior
+            // column (not one per worktree) keeps undo batched instead of
+            // re-taking the per-repo config lock once per row.
+            const byPriorColumn = new Map<KanbanColumn, Worktree[]>();
             for (const wt of selected) {
               const prior = priorColumns.get(wt.id);
-              if (prior) void bulkMoveToColumn([wt], prior);
+              if (!prior) continue;
+              const group = byPriorColumn.get(prior);
+              if (group) group.push(wt);
+              else byPriorColumn.set(prior, [wt]);
+            }
+            for (const [prior, group] of byPriorColumn) {
+              void bulkMoveToColumn(group, prior);
             }
           },
         },
