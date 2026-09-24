@@ -41,6 +41,13 @@ interface WorkspaceState {
   selectWorktreeRange: (id: string, column: KanbanColumn, renderedIds: string[]) => void;
   setWorktreeSelection: (ids: string[], column: KanbanColumn) => void;
   clearWorktreeSelection: () => void;
+  /** Drop any selected id not in `visibleIds` — archived or otherwise gone
+   *  from view. Background archiving (useGithubSync's auto-archive) writes
+   *  `worktrees` directly and never calls `archiveWorktree`, so this can't
+   *  live there; callers re-derive `visibleIds` from the current worktree
+   *  list (e.g. via isVisibleWorktree) and call this whenever it changes.
+   *  A no-op (same state reference) when nothing needs dropping. */
+  pruneSelection: (visibleIds: Set<string>) => void;
   /** Session-scoped "adopt stack?" cue dismissals, keyed per worktree+parent
    *  so a different future base re-prompts. Deliberately not persisted. The
    *  key format is private to this store — read via isStackAdoptionDismissed,
@@ -692,7 +699,37 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     ),
 
   clearWorktreeSelection: () =>
-    set({ selectedWorktreeIds: new Set(), selectionAnchorId: null, selectionColumn: null }),
+    set((state) => {
+      // Escape fires this from anywhere in the app (including every keypress
+      // in a terminal pane). Returning `state` itself — not a fresh object
+      // with equivalent values — lets zustand's Object.is check short-circuit
+      // before the merge, so subscribers (StatusGroup, SelectionBar) don't
+      // re-render when there was nothing to clear.
+      if (state.selectedWorktreeIds.size === 0 && state.selectionColumn === null) {
+        return state;
+      }
+      return { selectedWorktreeIds: new Set(), selectionAnchorId: null, selectionColumn: null };
+    }),
+
+  pruneSelection: (visibleIds) =>
+    set((state) => {
+      if (state.selectedWorktreeIds.size === 0) return state;
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of state.selectedWorktreeIds) {
+        if (visibleIds.has(id)) next.add(id);
+        else changed = true;
+      }
+      if (!changed) return state;
+      return {
+        selectedWorktreeIds: next,
+        selectionAnchorId:
+          state.selectionAnchorId && next.has(state.selectionAnchorId)
+            ? state.selectionAnchorId
+            : null,
+        selectionColumn: next.size === 0 ? null : state.selectionColumn,
+      };
+    }),
 
   setWorktrees: (freshWorktrees) => {
     const rekeys = detectRekeys(freshWorktrees, useWorkspaceStore.getState().worktrees);

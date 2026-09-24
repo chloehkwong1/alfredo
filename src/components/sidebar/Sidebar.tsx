@@ -128,6 +128,7 @@ function Sidebar({
   const toggleWorktreeSelection = useWorkspaceStore((s) => s.toggleWorktreeSelection);
   const selectWorktreeRange = useWorkspaceStore((s) => s.selectWorktreeRange);
   const clearWorktreeSelection = useWorkspaceStore((s) => s.clearWorktreeSelection);
+  const pruneSelection = useWorkspaceStore((s) => s.pruneSelection);
   const togglePinWorktree = useWorkspaceStore((s) => s.togglePinWorktree);
   const markWorktreeRead = useWorkspaceStore((s) => s.markWorktreeRead);
   const markWorktreeUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
@@ -437,6 +438,15 @@ function Sidebar({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [clearWorktreeSelection]);
+
+  // A live selection must not outlive what's on screen — background
+  // auto-archive (useGithubSync) writes `worktrees` directly, bypassing
+  // archiveWorktree, so this can't be caught at the archive call site. Prune
+  // whenever the worktree list changes so the selection bar's count and every
+  // bulk handler agree on the same "visible" set.
+  useEffect(() => {
+    pruneSelection(new Set(worktrees.filter(isVisibleWorktree).map((wt) => wt.id)));
+  }, [worktrees, pruneSelection]);
 
   const [askOpen, setAskOpen] = useState(false);
   useEffect(() => {
@@ -796,7 +806,7 @@ function Sidebar({
       <Dialog open={archiveConfirm !== null} onOpenChange={(o) => !o && setArchiveConfirm(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Archive {archiveConfirm?.length ?? 0} worktrees?</DialogTitle>
+            <DialogTitle>Archive {archiveConfirm?.length ?? 0} worktree{(archiveConfirm?.length ?? 0) === 1 ? "" : "s"}?</DialogTitle>
             <DialogDescription>
               This runs each repo's archive script, stops any dev servers those worktrees
               are running and frees their ports. The worktrees stay on disk — you can
@@ -829,7 +839,7 @@ function Sidebar({
                 }
               }}
             >
-              Archive {archiveConfirm?.length ?? 0}
+              Archive {archiveConfirm?.length ?? 0} worktree{(archiveConfirm?.length ?? 0) === 1 ? "" : "s"}
             </Button>
           </DialogFooter>
         </DialogContent>

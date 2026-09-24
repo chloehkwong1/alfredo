@@ -1254,4 +1254,52 @@ describe("worktree multi-select", () => {
     store.getState().setWorktreesForRepo("/repo", [makeWorktree({ id: "wt-2" })]);
     expect([...store.getState().selectedWorktreeIds]).toEqual(["wt-2"]);
   });
+
+  describe("clearWorktreeSelection", () => {
+    it("is a referential no-op when the selection is already empty", () => {
+      const before = store.getState();
+      store.getState().clearWorktreeSelection();
+      expect(store.getState()).toBe(before);
+    });
+
+    it("still clears a live selection", () => {
+      store.getState().toggleWorktreeSelection("wt-1", "toDo");
+      store.getState().clearWorktreeSelection();
+      expect(store.getState().selectedWorktreeIds.size).toBe(0);
+      expect(store.getState().selectionColumn).toBeNull();
+      expect(store.getState().selectionAnchorId).toBeNull();
+    });
+  });
+
+  describe("pruneSelection", () => {
+    it("drops ids not in the visible set, e.g. rows archived outside archiveWorktree", () => {
+      // Mirrors useGithubSync's background auto-archive, which writes
+      // `worktrees` directly rather than going through archiveWorktree.
+      store.getState().setWorktreeSelection(["wt-1", "wt-2", "wt-3"], "inProgress");
+      store.getState().pruneSelection(new Set(["wt-1", "wt-3"]));
+      expect([...store.getState().selectedWorktreeIds].sort()).toEqual(["wt-1", "wt-3"]);
+    });
+
+    it("nulls the column once the selection empties out", () => {
+      store.getState().setWorktreeSelection(["wt-1"], "inProgress");
+      store.getState().pruneSelection(new Set());
+      expect(store.getState().selectedWorktreeIds.size).toBe(0);
+      expect(store.getState().selectionColumn).toBeNull();
+      expect(store.getState().selectionAnchorId).toBeNull();
+    });
+
+    it("clears the anchor only when the anchor itself was pruned", () => {
+      store.getState().setWorktreeSelection(["wt-1", "wt-2"], "inProgress");
+      expect(store.getState().selectionAnchorId).toBe("wt-2");
+      store.getState().pruneSelection(new Set(["wt-1", "wt-2"]));
+      expect(store.getState().selectionAnchorId).toBe("wt-2");
+    });
+
+    it("is a referential no-op when nothing needs dropping", () => {
+      store.getState().setWorktreeSelection(["wt-1"], "inProgress");
+      const before = store.getState();
+      store.getState().pruneSelection(new Set(["wt-1", "wt-2"]));
+      expect(store.getState()).toBe(before);
+    });
+  });
 });

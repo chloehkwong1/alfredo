@@ -71,7 +71,7 @@ export function SelectionBar(props: SelectionBarProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem onSelect={() => props.onArchive(ids)}>
-            Archive {ids.length} worktrees
+            Archive {ids.length} worktree{ids.length === 1 ? "" : "s"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => props.onPin(ids)}>Pin</DropdownMenuItem>
