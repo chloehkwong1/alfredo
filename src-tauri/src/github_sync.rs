@@ -3,6 +3,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::time;
 
+use crate::attention::AttentionState;
 use crate::config_manager;
 use crate::github_manager::{dedup_reviews, derive_review_decision, determine_column, GithubManager};
 use crate::platform::gh_command;
@@ -19,6 +20,18 @@ const RECENTLY_MERGED_WINDOW_HOURS: i64 = 24;
 /// bump `updated_at`, so this window is "time since last activity, not
 /// necessarily time since close" — slightly generous, intentionally so.
 const RECENTLY_CLOSED_WINDOW_HOURS: i64 = 24;
+
+/// Steady-state poll cadence after a successful pass. Unfocused, PR and
+/// review-request updates may lag by minutes (spec decision 1); the agent
+/// cues that must stay instant are push-driven and never pass through here.
+const STEADY_FOCUSED_SECS: u64 = 60;
+const STEADY_UNFOCUSED_SECS: u64 = 300;
+
+/// Delay until the next poll after a successful pass. Backoff and
+/// rate-limit branches are separate and never attention-gated. Pure.
+fn steady_delay(focused: bool) -> Duration {
+    Duration::from_secs(if focused { STEADY_FOCUSED_SECS } else { STEADY_UNFOCUSED_SECS })
+}
 
 fn is_within_window(timestamp: Option<&str>, window_hours: i64) -> bool {
     let Some(raw) = timestamp else { return false; };
@@ -195,7 +208,10 @@ impl PrStatusWithColumn {
 /// Polls every 60 seconds normally. On rate-limit 403s, sleeps until the
 /// `X-RateLimit-Reset` timestamp (via the /rate_limit endpoint). On generic
 /// failures, backs off: 60s → 120s → 240s until a successful sync.
-pub fn start_sync_loop(app_handle: AppHandle) {
+/// `attention` is read once per iteration when choosing the next delay; an
+/// in-flight 300 s sleep is not cut short on regain — useGithubSync's own
+/// focus handler already fires an immediate re-sync.
+pub fn start_sync_loop(app_handle: AppHandle, attention: AttentionState) {
     tauri::async_runtime::spawn(async move {
         let mut consecutive_failures: u32 = 0;
 
@@ -234,7 +250,7 @@ pub fn start_sync_loop(app_handle: AppHandle) {
                 }
                 Ok(PollOutcome { any_success: true, .. }) => {
                     consecutive_failures = 0;
-                    Duration::from_secs(60)
+                    steady_delay(attention.is_focused())
                 }
                 Ok(PollOutcome { any_success: false, .. }) => {
                     if consecutive_failures < 2 {
@@ -1213,6 +1229,12 @@ mod tests {
             completed_at: None,
             check_suite_id: None,
         }
+    }
+
+    #[test]
+    fn steady_delay_is_60s_focused_and_300s_unfocused() {
+        assert_eq!(steady_delay(true), Duration::from_secs(60));
+        assert_eq!(steady_delay(false), Duration::from_secs(300));
     }
 
     #[test]

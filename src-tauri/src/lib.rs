@@ -264,7 +264,10 @@ pub fn run() {
             stack_manager::init_sticky_persistence(&app_data);
 
             // Start the background GitHub PR sync loop
-            github_sync::start_sync_loop(app.handle().clone());
+            github_sync::start_sync_loop(
+                app.handle().clone(),
+                app.state::<attention::AttentionState>().inner().clone(),
+            );
 
             // Start the agent state HTTP server for hook callbacks.
             // block_on ensures the port is bound and StateServerHandle is managed

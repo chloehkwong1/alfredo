@@ -21,10 +21,8 @@ impl AttentionState {
         Self(Arc::new(AtomicBool::new(true)))
     }
 
-    /// `#[allow(dead_code)]` because no reader is wired up yet — `github_sync`
-    /// and the shell poller start calling this in later tasks of the
-    /// attention-gated-polling series.
-    #[allow(dead_code)]
+    /// Read once per loop iteration by the polling loops (`github_sync`, the
+    /// shell poller in `pty_manager`) to pick their next delay.
     pub fn is_focused(&self) -> bool {
         self.0.load(Ordering::Relaxed)
     }
