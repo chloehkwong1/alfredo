@@ -147,6 +147,19 @@ function InlineLabelInput({
   );
 }
 
+export type ClickIntent = "open" | "toggle" | "range";
+
+/** Shift wins over cmd so a shift+cmd click extends rather than toggling. */
+export function clickIntent(e: {
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+}): ClickIntent {
+  if (e.shiftKey) return "range";
+  if (e.metaKey || e.ctrlKey) return "toggle";
+  return "open";
+}
+
 export const NEEDS_YOU_STATES = new Set(["waitingForInput", "done", "error", "ready"]);
 
 function needsAttention(status: string): boolean {
@@ -197,7 +210,9 @@ interface AgentItemProps {
   isSelected: boolean;
   isPinned?: boolean;
   isDimmed?: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
+  /** Part of a bulk selection — rendered distinctly from the active row. */
+  isMultiSelected?: boolean;
   onDelete?: (worktreeId: string) => void;
   onArchive?: (worktreeId: string) => void;
   repoPath?: string;
@@ -948,7 +963,7 @@ function useStackHue(worktreeId: string): number | null {
 }
 
 const AgentItem = memo(function AgentItem({
-  worktree, isSelected, isPinned, isDimmed, onClick, onDelete, onArchive,
+  worktree, isSelected, isPinned, isDimmed, onClick, isMultiSelected, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, label, onRename, repoIndex = 0, showRepoTag = false,
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -1208,6 +1223,7 @@ const AgentItem = memo(function AgentItem({
           ? "opacity-45 hover:opacity-70"
           : "",
         isPeeked ? "shadow-[inset_3px_0_0] shadow-accent-primary/70 bg-card" : "",
+        isMultiSelected ? "ring-1 ring-accent-primary/60 bg-accent-muted/20" : "",
       ].join(" ");
   const rowStyle = { transform: CSS.Transform.toString(transform), transition };
   const rowContent = isDragging ? (

@@ -23,7 +23,12 @@ interface StatusGroupProps {
   activeWorktreeId: string | null;
   pinnedWorktrees?: Set<string>;
   hideUnpinned?: boolean;
-  onSelectWorktree: (id: string) => void;
+  onSelectWorktree: (
+    id: string,
+    e: React.MouseEvent,
+    column: KanbanColumn,
+    renderedIds: string[],
+  ) => void;
   onDeleteWorktree?: (id: string) => void;
   onArchiveWorktree?: (id: string) => void;
   onArchiveAll?: () => void;
@@ -103,6 +108,7 @@ function StatusGroup({
   const { isOver, setNodeRef } = useDroppable({ id: column });
   const seenWorktrees = useWorkspaceStore((s) => s.seenWorktrees);
   const unreadWorktrees = useWorkspaceStore((s) => s.unreadWorktrees);
+  const selectedWorktreeIds = useWorkspaceStore((s) => s.selectedWorktreeIds);
   // Expanded groups surface attention on the cards themselves; collapsed
   // groups hide the cards, so the count pill takes over as the indicator.
   const collapsedNeedsYou =
@@ -113,6 +119,11 @@ function StatusGroup({
   const visibleWorktrees = hideUnpinned
     ? worktrees.filter((wt) => pinned.has(wt.id))
     : worktrees;
+
+  const pinnedItems = visibleWorktrees.filter((wt) => pinned.has(wt.id));
+  const unpinnedItems = visibleWorktrees.filter((wt) => !pinned.has(wt.id));
+  const sorted = [...pinnedItems, ...unpinnedItems];
+  const sortedIds = sorted.map((wt) => wt.id);
 
   const isVisible =
     visibleWorktrees.length > 0
@@ -199,11 +210,8 @@ function StatusGroup({
             className="overflow-hidden"
           >
             {(() => {
-              const pinnedItems = visibleWorktrees.filter((wt) => pinned.has(wt.id));
-              const unpinnedItems = visibleWorktrees.filter((wt) => !pinned.has(wt.id));
-              const sorted = [...pinnedItems, ...unpinnedItems];
               return (
-            <SortableContext items={sorted.map((wt) => wt.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
                 {sorted.map((wt) => (
                   <div key={wt.id} className="px-2 pb-1.5">
                     <AgentItem
@@ -211,7 +219,8 @@ function StatusGroup({
                       isSelected={wt.id === activeWorktreeId}
                       isPinned={pinned.has(wt.id)}
                       isDimmed={pinnedItems.length > 0 && !pinned.has(wt.id)}
-                      onClick={() => onSelectWorktree(wt.id)}
+                      onClick={(e) => onSelectWorktree(wt.id, e, column, sortedIds)}
+                      isMultiSelected={selectedWorktreeIds.has(wt.id)}
                       onDelete={onDeleteWorktree}
                       onArchive={onArchiveWorktree}
                       repoPath={wt.repoPath}

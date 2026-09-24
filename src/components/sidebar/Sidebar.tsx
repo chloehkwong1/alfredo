@@ -4,6 +4,7 @@ import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
+import { clickIntent } from "./AgentItem";
 import { SidebarDragContext } from "./SidebarDragContext";
 import { ArchiveSection } from "./ArchiveSection";
 import { RepoSelector } from "./RepoSelector";
@@ -111,7 +112,27 @@ function Sidebar({
   const worktreeOrder = useWorkspaceStore((s) => s.worktreeOrder);
   const clearAllPins = useWorkspaceStore((s) => s.clearAllPins);
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
+  const toggleWorktreeSelection = useWorkspaceStore((s) => s.toggleWorktreeSelection);
+  const selectWorktreeRange = useWorkspaceStore((s) => s.selectWorktreeRange);
+  const clearWorktreeSelection = useWorkspaceStore((s) => s.clearWorktreeSelection);
   const repoPath = activeRepo;
+
+  const handleSelectWorktree = useCallback(
+    (id: string, e: React.MouseEvent, column: KanbanColumn, renderedIds: string[]) => {
+      switch (clickIntent(e)) {
+        case "toggle":
+          toggleWorktreeSelection(id, column);
+          break;
+        case "range":
+          selectWorktreeRange(id, column, renderedIds);
+          break;
+        default:
+          clearWorktreeSelection();
+          setActiveWorktree(id);
+      }
+    },
+    [toggleWorktreeSelection, selectWorktreeRange, clearWorktreeSelection, setActiveWorktree],
+  );
 
   const handleArchiveWorktree = useCallback(async (id: string) => {
     const wt = worktrees.find((w) => w.id === id);
@@ -324,6 +345,14 @@ function Sidebar({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [flatWorktrees, activeWorktreeId, setActiveWorktree]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") clearWorktreeSelection();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [clearWorktreeSelection]);
 
   const [askOpen, setAskOpen] = useState(false);
   useEffect(() => {
@@ -561,7 +590,7 @@ function Sidebar({
                     activeWorktreeId={activeWorktreeId}
                     pinnedWorktrees={pinnedWorktrees}
                     hideUnpinned={hideUnpinned}
-                    onSelectWorktree={setActiveWorktree}
+                    onSelectWorktree={handleSelectWorktree}
                     onDeleteWorktree={handleDeleteWorktree}
                     onArchiveWorktree={handleArchiveWorktree}
                     onArchiveAll={col === "done" ? handleArchiveAllDone : undefined}

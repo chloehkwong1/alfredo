@@ -8,6 +8,7 @@ import {
   type DragStartEvent,
   MeasuringStrategy,
   PointerSensor,
+  type PointerSensorOptions,
   pointerWithin,
   closestCenter,
   type CollisionDetection,
@@ -63,6 +64,27 @@ const measuring = {
   droppable: { strategy: MeasuringStrategy.WhileDragging as const },
 };
 
+/** A modifier-clicked row selects/ranges instead of dragging — suppress drag
+ *  activation while shift/cmd/ctrl is held. Mirrors PointerSensor's default
+ *  activator (primary button, left click, calls onActivation) plus the
+ *  modifier guard. */
+class ModifierAwarePointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: "onPointerDown" as const,
+      handler: (
+        { nativeEvent: event }: React.PointerEvent,
+        { onActivation }: PointerSensorOptions,
+      ) => {
+        if (!event.isPrimary || event.button !== 0) return false;
+        if (event.shiftKey || event.metaKey || event.ctrlKey) return false;
+        onActivation?.({ event });
+        return true;
+      },
+    },
+  ];
+}
+
 /** The cards of one column exactly as StatusGroup renders them: Sidebar's
  *  column grouping (unknown columns route to inProgress) → comparator sort →
  *  pinned-only filter → pinned-first hoist (stable within each half). Drag
@@ -115,7 +137,7 @@ function SidebarDragContext({
   const prevOverColumnRef = useRef<KanbanColumn | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(ModifierAwarePointerSensor, {
       activationConstraint: { distance: 5 },
     }),
   );

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeEffectiveStatus, adoptConsequence, adoptActionLabel } from "./AgentItem";
+import { computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent } from "./AgentItem";
 import { nativeStackChipLabel } from "./StackGlyph";
 import { hiddenMembersNote, collectExtensionMembers, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
@@ -498,5 +498,26 @@ describe("adoptActionLabel", () => {
 
   it("keeps the neutral label while still checking (button is disabled)", () => {
     expect(adoptActionLabel(false, null)).toBe("Set up stack");
+  });
+});
+
+describe("clickIntent", () => {
+  const plain = { metaKey: false, ctrlKey: false, shiftKey: false };
+
+  it("is 'open' for a plain click", () => {
+    expect(clickIntent(plain)).toBe("open");
+  });
+
+  it("is 'toggle' for cmd or ctrl click", () => {
+    expect(clickIntent({ ...plain, metaKey: true })).toBe("toggle");
+    expect(clickIntent({ ...plain, ctrlKey: true })).toBe("toggle");
+  });
+
+  it("is 'range' for shift click", () => {
+    expect(clickIntent({ ...plain, shiftKey: true })).toBe("range");
+  });
+
+  it("prefers range when shift and cmd are both held", () => {
+    expect(clickIntent({ metaKey: true, ctrlKey: false, shiftKey: true })).toBe("range");
   });
 });
