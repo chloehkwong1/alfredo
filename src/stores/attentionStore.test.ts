@@ -75,6 +75,52 @@ describe("attentionStore.reportFocus", () => {
   });
 });
 
+describe("attentionStore.seedFocus", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    state().reportFocus(true);
+    useAttentionStore.setState({ focused: true });
+    vi.mocked(setAttention).mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("mirrors to Rust even when the store already agrees — the regression this closes", () => {
+    // Store is already `true` here. A `reportFocus`-style early return would
+    // skip the mirror entirely; this is exactly what must not happen for a
+    // mount-time seed re-asserting after e.g. a webview reload left Rust
+    // desynced at `false`.
+    state().seedFocus(true);
+    expect(setAttention).toHaveBeenCalledTimes(1);
+    expect(setAttention).toHaveBeenCalledWith(true);
+    expect(state().focused).toBe(true);
+  });
+
+  it("applies immediately with no debounce, unlike an unfocus reportFocus", () => {
+    state().seedFocus(false);
+    // No timer advance at all — seedFocus is synchronous.
+    expect(state().focused).toBe(false);
+    expect(setAttention).toHaveBeenCalledTimes(1);
+    expect(setAttention).toHaveBeenCalledWith(false);
+  });
+
+  it("cancels an armed unfocus debounce", () => {
+    state().reportFocus(false);
+    vi.advanceTimersByTime(1_000);
+    vi.mocked(setAttention).mockClear();
+
+    state().seedFocus(true);
+
+    // The debounce that would have landed `false` must never fire.
+    vi.advanceTimersByTime(UNFOCUS_DEBOUNCE_MS * 2);
+    expect(state().focused).toBe(true);
+    expect(setAttention).toHaveBeenCalledTimes(1);
+    expect(setAttention).toHaveBeenCalledWith(true);
+  });
+});
+
 describe("attentionStore.cancelPendingUnfocus", () => {
   beforeEach(() => {
     vi.useFakeTimers();

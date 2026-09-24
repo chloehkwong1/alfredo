@@ -132,6 +132,22 @@ describe("useAttentionSignal", () => {
     expect(setAttention).not.toHaveBeenCalledWith(false);
   });
 
+  it("the isFocused() seed mirrors to Rust even when the store already agrees", async () => {
+    // Store already true (the default a fresh context starts at) — a
+    // reportFocus-style early return would skip the mirror here. This is the
+    // mount-time-reseed regression: Rust can be desynced at `false` from
+    // before a webview reload even though the new JS context reads `true`.
+    root = await mount();
+    expect(useAttentionStore.getState().focused).toBe(true);
+
+    await act(async () => {
+      isFocusedResolve?.(true);
+    });
+
+    expect(useAttentionStore.getState().focused).toBe(true);
+    expect(setAttention).toHaveBeenCalledWith(true);
+  });
+
   it("ignores a stale isFocused() resolution after a real focus event already landed", async () => {
     useAttentionStore.setState({ focused: false });
     root = await mount();

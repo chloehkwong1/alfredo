@@ -17,6 +17,28 @@ interface AttentionState {
   /** Feed a raw window focus event. Debounces unfocus, applies focus at
    *  once, and mirrors every landed flip into Rust via set_attention. */
   reportFocus: (focused: boolean) => void;
+  /** Seed the store from the mount-time `isFocused()` read — never from a
+   *  real focus event (`useAttentionSignal` is the only caller). Unlike
+   *  `reportFocus`, this mirrors into Rust UNCONDITIONALLY, even when
+   *  `focused` already matches the store's current value.
+   *
+   *  Why that matters: a fresh JS context always starts at `focused: true`
+   *  (see the field doc above), but Rust can still be mirrored to `false`
+   *  from a *previous* JS context — e.g. the webview reloaded (dev HMR, a
+   *  WebKit crash-recovery reload) while the window was unfocused. If the
+   *  seed then reads `true` and `reportFocus`'s "already true, do nothing"
+   *  early return applied here too, Rust would stay desynced at `false`
+   *  indefinitely: it self-heals only on the next full alt-tab out and back,
+   *  while the window sits focused in the foreground the whole time. That
+   *  early return is correct for `reportFocus` — it keeps redundant *real*
+   *  focus events from firing IPC or waking subscribers, which matters for
+   *  flicker — but a mount-time reading is not flicker, it is the one-time
+   *  authoritative starting state, and skipping the mirror here is exactly
+   *  the bug this closes.
+   *
+   *  Applies immediately, no debounce: the debounce exists to absorb alt-tab
+   *  flicker, and a mount-time reading has none to absorb. */
+  seedFocus: (focused: boolean) => void;
 }
 
 let unfocusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -72,5 +94,17 @@ export const useAttentionStore = create<AttentionState>((set, get) => ({
       logFlip(false);
       set({ focused: false });
     }, UNFOCUS_DEBOUNCE_MS);
+  },
+
+  seedFocus: (focused) => {
+    if (unfocusTimer !== null) {
+      clearTimeout(unfocusTimer);
+      unfocusTimer = null;
+    }
+    // Unconditional — see the doc comment on `seedFocus` above for why this
+    // must not early-return even when `focused` already matches.
+    mirrorToRust(focused);
+    logFlip(focused);
+    set({ focused });
   },
 }));

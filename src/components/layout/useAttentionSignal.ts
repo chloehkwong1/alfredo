@@ -18,16 +18,22 @@ import { useAttentionStore, cancelPendingUnfocus } from "../../stores/attentionS
  * debounce, and leave the app polling at a tenth rate while sitting focused in
  * the foreground, self-healing only on the next real alt-tab. `sawRealEvent`
  * makes the seed a no-op once a real event has been observed.
+ *
+ * The seed read uses `seedFocus`, not `reportFocus`: it must mirror into
+ * Rust even when the store's starting value already agrees (see
+ * `seedFocus`'s doc comment in attentionStore for why — in short, a fresh JS
+ * context always starts `focused: true`, but Rust can still be mirrored
+ * `false` from before a webview reload).
  */
 export function useAttentionSignal(): void {
   useEffect(() => {
-    const { reportFocus } = useAttentionStore.getState();
+    const { reportFocus, seedFocus } = useAttentionStore.getState();
     let sawRealEvent = false;
     getCurrentWindow()
       .isFocused()
       .then((focused) => {
         if (sawRealEvent) return;
-        reportFocus(focused);
+        seedFocus(focused);
       })
       .catch(() => {});
     const unlisten = getCurrentWindow().onFocusChanged(({ payload }) => {
