@@ -31,7 +31,7 @@ export function SelectionBar(props: SelectionBarProps) {
 
   return (
     <div className="mx-2 mb-2 flex items-center gap-2 rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-2 shadow-lg">
-      <span className="text-2xs tabular-nums font-semibold text-text-primary">
+      <span className="min-w-0 truncate text-2xs tabular-nums font-semibold text-text-primary">
         {ids.length} selected
       </span>
       <span className="flex-1" />
@@ -40,9 +40,10 @@ export function SelectionBar(props: SelectionBarProps) {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="text-2xs text-text-secondary hover:text-text-primary cursor-pointer rounded px-1.5 py-0.5 hover:bg-hover-wash"
+            aria-label="Move to column"
+            className="whitespace-nowrap shrink-0 text-2xs text-text-secondary hover:text-text-primary cursor-pointer rounded px-1.5 py-0.5 hover:bg-hover-wash"
           >
-            Move to…
+            Move
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
@@ -63,7 +64,7 @@ export function SelectionBar(props: SelectionBarProps) {
           <button
             type="button"
             aria-label="More bulk actions"
-            className="text-2xs text-text-secondary hover:text-text-primary cursor-pointer rounded px-1.5 py-0.5 hover:bg-hover-wash"
+            className="whitespace-nowrap shrink-0 text-2xs text-text-secondary hover:text-text-primary cursor-pointer rounded px-1.5 py-0.5 hover:bg-hover-wash"
           >
             ⋯
           </button>
@@ -85,7 +86,7 @@ export function SelectionBar(props: SelectionBarProps) {
         type="button"
         onClick={clearWorktreeSelection}
         aria-label="Clear selection"
-        className="text-text-tertiary hover:text-text-primary cursor-pointer"
+        className="whitespace-nowrap shrink-0 text-text-tertiary hover:text-text-primary cursor-pointer"
       >
         <X className="h-3.5 w-3.5" />
       </button>
