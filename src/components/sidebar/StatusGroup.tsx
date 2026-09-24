@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { KanbanColumn, Worktree } from "../../types";
 import { AgentItem } from "./AgentItem";
+import { SelectionHint } from "./SelectionHint";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { worktreeNeedsYou } from "../../services/dockBadge";
 
@@ -109,6 +110,7 @@ function StatusGroup({
   const seenWorktrees = useWorkspaceStore((s) => s.seenWorktrees);
   const unreadWorktrees = useWorkspaceStore((s) => s.unreadWorktrees);
   const selectedWorktreeIds = useWorkspaceStore((s) => s.selectedWorktreeIds);
+  const setWorktreeSelection = useWorkspaceStore((s) => s.setWorktreeSelection);
   // Expanded groups surface attention on the cards themselves; collapsed
   // groups hide the cards, so the count pill takes over as the indicator.
   const collapsedNeedsYou =
@@ -164,6 +166,18 @@ function StatusGroup({
           </span>
         </button>
         <span className="flex-1 h-[1.5px] bg-gradient-to-r from-group-rule to-transparent mx-3" />
+        {visibleWorktrees.length > 1 && (
+          <>
+            <SelectionHint />
+            <button
+              type="button"
+              onClick={() => setWorktreeSelection(sortedIds, column)}
+              className="opacity-0 group-hover/grp:opacity-100 transition-opacity text-2xs text-text-tertiary hover:text-text-secondary mr-2 cursor-pointer"
+            >
+              Select all
+            </button>
+          </>
+        )}
         {column === "done" && worktrees.length > 0 && onArchiveAll && (
           <button
             type="button"
