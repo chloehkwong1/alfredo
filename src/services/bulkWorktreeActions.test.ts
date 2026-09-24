@@ -3,13 +3,14 @@ import type { Worktree } from "../types";
 
 vi.mock("../api", () => ({
   setWorktreeColumns: vi.fn().mockResolvedValue(undefined),
+  runArchiveScript: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("./portReclaim", () => ({
   stopServerAndReleasePort: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { groupByRepo, bulkMoveToColumn } from "./bulkWorktreeActions";
-import { setWorktreeColumns } from "../api";
+import { groupByRepo, bulkMoveToColumn, bulkArchive } from "./bulkWorktreeActions";
+import { setWorktreeColumns, runArchiveScript } from "../api";
 import { stopServerAndReleasePort } from "./portReclaim";
 import { usePrStore } from "../stores/prStore";
 
@@ -94,5 +95,23 @@ describe("bulkMoveToColumn", () => {
       expect.objectContaining({ id: "c" }),
       "bulk-move",
     );
+  });
+});
+
+describe("bulkArchive", () => {
+  it("archives every worktree even when one archive script fails", async () => {
+    vi.mocked(runArchiveScript).mockRejectedValueOnce(new Error("script exploded"));
+
+    const result = await bulkArchive([wt("a", "/r1"), wt("b", "/r1")]);
+
+    expect(result.archived).toBe(2);
+    expect(result.scriptFailures).toEqual(["a"]);
+    expect(stopServerAndReleasePort).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports no failures on the happy path", async () => {
+    const result = await bulkArchive([wt("a", "/r1")]);
+    expect(result.scriptFailures).toEqual([]);
+    expect(result.archived).toBe(1);
   });
 });

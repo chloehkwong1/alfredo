@@ -1,6 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Settings, Plus, HelpCircle, Pin, PinOff, ChevronsLeft, Bell, BellOff } from "lucide-react";
-import { IconButton } from "../ui";
+import {
+  IconButton,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../ui";
 import { CatLogo } from "../ui/CatLogo";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
@@ -19,7 +28,7 @@ import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { runArchiveScript, countWorktrees, notificationPermissionStatus, requestNotificationPermission } from "../../api";
 import { stopServerAndReleasePort } from "../../services/portReclaim";
-import { bulkMoveToColumn } from "../../services/bulkWorktreeActions";
+import { bulkMoveToColumn, bulkArchive } from "../../services/bulkWorktreeActions";
 import { sortColumnWorktrees, type WorktreeOrderMap } from "../../lib/worktreeOrder";
 import { isVisibleWorktree } from "../../lib/worktreeVisibility";
 import { LifecycleNudge } from "./LifecycleNudge";
@@ -188,6 +197,14 @@ function Sidebar({
       });
     },
     [worktrees, clearWorktreeSelection],
+  );
+
+  const [archiveConfirm, setArchiveConfirm] = useState<Worktree[] | null>(null);
+  const handleBulkArchiveRequest = useCallback(
+    (ids: string[]) => {
+      setArchiveConfirm(worktrees.filter((w) => ids.includes(w.id)));
+    },
+    [worktrees],
   );
 
   const { config, updateConfig } = useAppConfig();
@@ -686,7 +703,7 @@ function Sidebar({
 
         <SelectionBar
           onMove={handleBulkMove}
-          onArchive={(ids) => console.warn("[bulk] archive", ids)}
+          onArchive={handleBulkArchiveRequest}
           onPin={(ids) => console.warn("[bulk] pin", ids)}
           onUnpin={(ids) => console.warn("[bulk] unpin", ids)}
           onMarkRead={(ids) => console.warn("[bulk] read", ids)}
@@ -751,6 +768,41 @@ function Sidebar({
           selectedRepos={effectiveSelectedRepos}
         />
       )}
+
+      <Dialog open={archiveConfirm !== null} onOpenChange={(o) => !o && setArchiveConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive {archiveConfirm?.length ?? 0} worktrees?</DialogTitle>
+            <DialogDescription>
+              This runs each repo's archive script, stops any dev servers those worktrees
+              are running and frees their ports. The worktrees stay on disk — you can
+              restore them from the Archive section.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setArchiveConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={async () => {
+                const batch = archiveConfirm ?? [];
+                setArchiveConfirm(null);
+                clearWorktreeSelection();
+                const { archived, scriptFailures } = await bulkArchive(batch);
+                useToastStore.getState().show({
+                  message:
+                    scriptFailures.length > 0
+                      ? `Archived ${archived} — ${scriptFailures.length} archive script(s) failed, see the console`
+                      : `Archived ${archived}`,
+                });
+              }}
+            >
+              Archive {archiveConfirm?.length ?? 0}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

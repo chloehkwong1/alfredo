@@ -1,5 +1,5 @@
 import type { KanbanColumn, Worktree } from "../types";
-import { setWorktreeColumns } from "../api";
+import { setWorktreeColumns, runArchiveScript } from "../api";
 import { stopServerAndReleasePort } from "./portReclaim";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
@@ -80,4 +80,34 @@ export async function bulkMoveToColumn(
   }
 
   return { moved, failedRepos };
+}
+
+export interface BulkArchiveResult {
+  archived: number;
+  /** Worktree ids whose repo archive script failed. They are still archived —
+   *  a failing script must not strand the row on the board. */
+  scriptFailures: string[];
+}
+
+export async function bulkArchive(worktrees: Worktree[]): Promise<BulkArchiveResult> {
+  const { archiveWorktree } = useWorkspaceStore.getState();
+  const scriptFailures: string[] = [];
+
+  // allSettled, not a bare loop: one failing archive script must not abort
+  // the rest of the batch.
+  await Promise.allSettled(
+    worktrees.map(async (wt) => {
+      try {
+        await runArchiveScript(wt.repoPath, wt.path);
+      } catch (e) {
+        console.warn("[bulk] archive script failed:", wt.id, e);
+        scriptFailures.push(wt.id);
+      }
+      await stopServerAndReleasePort(wt, "archive");
+    }),
+  );
+
+  for (const wt of worktrees) archiveWorktree(wt.id);
+
+  return { archived: worktrees.length, scriptFailures };
 }
