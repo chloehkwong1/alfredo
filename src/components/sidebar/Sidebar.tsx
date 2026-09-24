@@ -19,9 +19,12 @@ import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { runArchiveScript, countWorktrees, notificationPermissionStatus, requestNotificationPermission } from "../../api";
 import { stopServerAndReleasePort } from "../../services/portReclaim";
+import { bulkMoveToColumn } from "../../services/bulkWorktreeActions";
 import { sortColumnWorktrees, type WorktreeOrderMap } from "../../lib/worktreeOrder";
 import { isVisibleWorktree } from "../../lib/worktreeVisibility";
 import { LifecycleNudge } from "./LifecycleNudge";
+import { columnLabel } from "./StatusGroup";
+import { useToastStore } from "../../stores/toastStore";
 
 const COLUMNS: KanbanColumn[] = [
   "toDo",
@@ -147,6 +150,34 @@ function Sidebar({
     }
     archiveWorktree(id);
   }, [worktrees, archiveWorktree]);
+
+  const handleBulkMove = useCallback(
+    async (ids: string[], column: KanbanColumn) => {
+      const selected = worktrees.filter((w) => ids.includes(w.id));
+      const priorColumns = new Map(selected.map((w) => [w.id, w.column]));
+      clearWorktreeSelection();
+
+      const { moved, failedRepos } = await bulkMoveToColumn(selected, column);
+
+      const label = columnLabel[column];
+      useToastStore.getState().show({
+        message:
+          failedRepos.length > 0
+            ? `Moved ${moved} of ${selected.length} to ${label} — ${failedRepos.length} repo(s) failed, see the console`
+            : `Moved ${moved} to ${label}`,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            for (const wt of selected) {
+              const prior = priorColumns.get(wt.id);
+              if (prior) void bulkMoveToColumn([wt], prior);
+            }
+          },
+        },
+      });
+    },
+    [worktrees, clearWorktreeSelection],
+  );
 
   const { config, updateConfig } = useAppConfig();
   const collapsedColumns = config?.collapsedKanbanColumns ?? [];
@@ -643,7 +674,7 @@ function Sidebar({
         </div>
 
         <SelectionBar
-          onMove={(ids, col) => console.warn("[bulk] move", ids, col)}
+          onMove={handleBulkMove}
           onArchive={(ids) => console.warn("[bulk] archive", ids)}
           onPin={(ids) => console.warn("[bulk] pin", ids)}
           onUnpin={(ids) => console.warn("[bulk] unpin", ids)}
