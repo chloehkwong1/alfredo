@@ -714,10 +714,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   pruneSelection: (visibleIds) =>
     set((state) => {
       if (state.selectedWorktreeIds.size === 0) return state;
+      // A selection is scoped to one column, but rows move on their own —
+      // applyWorktreePatches auto-sends a row to "done" when its PR merges. A
+      // row that drifts out of selectionColumn has to leave the selection too,
+      // or the bar keeps offering moves for a row the user never selected where
+      // it now sits, and a drag pulls it along with the rest.
+      const columnById = new Map(state.worktrees.map((wt) => [wt.id, wt.column]));
       let changed = false;
       const next = new Set<string>();
       for (const id of state.selectedWorktreeIds) {
-        if (visibleIds.has(id)) next.add(id);
+        if (visibleIds.has(id) && columnById.get(id) === state.selectionColumn) next.add(id);
         else changed = true;
       }
       if (!changed) return state;

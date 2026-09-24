@@ -1272,6 +1272,17 @@ describe("worktree multi-select", () => {
   });
 
   describe("pruneSelection", () => {
+    // pruneSelection checks each selected row's column against selectionColumn,
+    // so the rows have to actually be in the store. makeWorktree's default
+    // column is "inProgress", which is the column these selections use.
+    beforeEach(() => {
+      useWorkspaceStore.setState({
+        worktrees: ["wt-1", "wt-2", "wt-3"].map((id) =>
+          makeWorktree({ id, name: id, path: `/path/${id}` }),
+        ),
+      });
+    });
+
     it("drops ids not in the visible set, e.g. rows archived outside archiveWorktree", () => {
       // Mirrors useGithubSync's background auto-archive, which writes
       // `worktrees` directly rather than going through archiveWorktree.
@@ -1300,6 +1311,17 @@ describe("worktree multi-select", () => {
       const before = store.getState();
       store.getState().pruneSelection(new Set(["wt-1", "wt-2"]));
       expect(store.getState()).toBe(before);
+    });
+
+    it("drops a row that drifted out of the selection's column while still visible", () => {
+      // applyWorktreePatches auto-moves a row to "done" when its PR merges. The
+      // row stays on screen, so a visibility-only prune would keep it selected
+      // in a column it no longer sits in.
+      store.getState().setWorktreeSelection(["wt-1", "wt-2"], "inProgress");
+      store.getState().applyWorktreePatches(new Map([["wt-2", { column: "done" as const }]]));
+      store.getState().pruneSelection(new Set(["wt-1", "wt-2", "wt-3"]));
+      expect([...store.getState().selectedWorktreeIds]).toEqual(["wt-1"]);
+      expect(store.getState().selectionColumn).toBe("inProgress");
     });
   });
 });

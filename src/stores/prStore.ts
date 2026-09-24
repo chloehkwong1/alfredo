@@ -12,7 +12,7 @@ import { rekeyRecord } from "./rekeyWorktreeId";
 import { toTerminalFlags } from "../lib/prStatus";
 import { stopServerAndReleasePort } from "../services/portReclaim";
 
-interface ColumnOverride {
+export interface ColumnOverride {
   column: KanbanColumn;
   autoColumnWhenSet: KanbanColumn;
   /** Legacy overrides (pre-v0.3.5) lack autoColumnWhenSet — flag them so
@@ -68,6 +68,12 @@ interface PrState {
    *  elsewhere — keeping the override would restore it straight into a
    *  collapsed column and hide the request all over again. */
   clearManualColumn: (id: string) => void;
+  /** Puts back exactly the override a row held before an optimistic write, or
+   *  drops it when there was none. Replaying `setManualColumn` can't undo one:
+   *  it re-derives autoColumnWhenSet, so rolling back a rejected move that way
+   *  invents an override the user never made — which then holds the row in
+   *  place against every later PR sync. */
+  restoreColumnOverride: (id: string, override: ColumnOverride | undefined) => void;
   removeWorktreeState: (id: string) => void;
   clearStore: () => void;
 
@@ -182,6 +188,15 @@ export const usePrStore = create<PrState>((set, get) => ({
     set((state) => {
       const { [id]: _override, ...restOverrides } = state.columnOverrides;
       return { columnOverrides: restOverrides };
+    }),
+
+  restoreColumnOverride: (id, override) =>
+    set((state) => {
+      if (!override) {
+        const { [id]: _dropped, ...restOverrides } = state.columnOverrides;
+        return { columnOverrides: restOverrides };
+      }
+      return { columnOverrides: { ...state.columnOverrides, [id]: override } };
     }),
 
   removeWorktreeState: (id) =>

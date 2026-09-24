@@ -9,10 +9,11 @@ vi.mock("./portReclaim", () => ({
   stopServerAndReleasePort: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { groupByRepo, bulkMoveToColumn, bulkArchive } from "./bulkWorktreeActions";
+import { groupByRepo, bulkMoveToColumn, bulkArchive, undoBulkMove } from "./bulkWorktreeActions";
 import { setWorktreeColumns, runArchiveScript } from "../api";
 import { stopServerAndReleasePort } from "./portReclaim";
 import { usePrStore } from "../stores/prStore";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 
 function wt(id: string, repoPath: string): Worktree {
   return {
@@ -25,6 +26,9 @@ function wt(id: string, repoPath: string): Worktree {
 beforeEach(() => {
   vi.clearAllMocks();
   usePrStore.getState().clearStore();
+  // setManualColumn's unpin-on-entering-done rule reads the row's current
+  // column out of the store, so pin assertions need the rows actually seeded.
+  useWorkspaceStore.getState().clearStore();
 });
 
 describe("groupByRepo", () => {
@@ -67,14 +71,85 @@ describe("bulkMoveToColumn", () => {
       .mockRejectedValueOnce(new Error("disk full"))
       .mockResolvedValueOnce(undefined);
 
-    // Both start at "toDo" (the wt() helper's default column).
+    // Both start at "toDo" (the wt() helper's default column) with no override.
     await bulkMoveToColumn([wt("a", "/r1"), wt("c", "/r2")], "done");
 
-    // /r1 failed to persist — its row must snap back to the prior column,
-    // not keep showing the optimistic "done" the backend never agreed to.
-    expect(usePrStore.getState().columnOverrides["a"].column).toBe("toDo");
+    // /r1 failed to persist, so its row must end up exactly as it started —
+    // including with no override at all. Rewriting one pointing at "toDo" would
+    // pin the row there against every later PR sync.
+    expect(usePrStore.getState().columnOverrides["a"]).toBeUndefined();
     // /r2 succeeded — its row stays moved.
     expect(usePrStore.getState().columnOverrides["c"].column).toBe("done");
+  });
+
+  it("restores the exact override a rolled-back row already had", async () => {
+    // A row the user had previously placed by hand, whose autoColumn has since
+    // been recorded as something else.
+    usePrStore.setState({
+      columnOverrides: { a: { column: "toDo", autoColumnWhenSet: "needsReview" } },
+    });
+    vi.mocked(setWorktreeColumns).mockRejectedValueOnce(new Error("disk full"));
+
+    await bulkMoveToColumn([wt("a", "/r1")], "done");
+
+    expect(usePrStore.getState().columnOverrides["a"]).toEqual({
+      column: "toDo",
+      autoColumnWhenSet: "needsReview",
+    });
+  });
+
+  it("re-pins a rolled-back row that the move-into-done rule unpinned", async () => {
+    useWorkspaceStore.setState({
+      worktrees: [wt("a", "/r1")],
+      pinnedWorktrees: new Set(["a"]),
+    });
+    vi.mocked(setWorktreeColumns).mockRejectedValueOnce(new Error("disk full"));
+
+    const result = await bulkMoveToColumn([wt("a", "/r1")], "done");
+
+    expect(useWorkspaceStore.getState().pinnedWorktrees.has("a")).toBe(true);
+    // Already back where it started, so there is nothing for Undo to restore.
+    expect(result.undo.unpinned).toEqual([]);
+    expect(result.undo.byPriorColumn.size).toBe(0);
+  });
+});
+
+describe("undoBulkMove", () => {
+  it("puts the rows back in the columns they came from, batched per column", async () => {
+    const rows: Worktree[] = [
+      wt("a", "/r1"),
+      wt("b", "/r1"),
+      { ...wt("c", "/r1"), column: "blocked" },
+    ];
+    useWorkspaceStore.setState({ worktrees: rows });
+
+    const { undo } = await bulkMoveToColumn(rows, "done");
+    vi.mocked(setWorktreeColumns).mockClear();
+    await undoBulkMove(undo);
+
+    // Two prior columns ("toDo" for a/b, "blocked" for c) → two calls, not one
+    // per row.
+    expect(setWorktreeColumns).toHaveBeenCalledTimes(2);
+    expect(setWorktreeColumns).toHaveBeenCalledWith("/r1", { a: "toDo", b: "toDo" });
+    expect(setWorktreeColumns).toHaveBeenCalledWith("/r1", { c: "blocked" });
+  });
+
+  it("restores the pins that the move into done dropped", async () => {
+    useWorkspaceStore.setState({
+      worktrees: [wt("a", "/r1"), wt("b", "/r1")],
+      pinnedWorktrees: new Set(["a"]),
+    });
+
+    const { undo } = await bulkMoveToColumn([wt("a", "/r1"), wt("b", "/r1")], "done");
+    // The move unpinned "a" — Undo has to know that, or the column comes back
+    // and the pin silently does not.
+    expect(undo.unpinned).toEqual(["a"]);
+    expect(useWorkspaceStore.getState().pinnedWorktrees.has("a")).toBe(false);
+
+    await undoBulkMove(undo);
+
+    expect(useWorkspaceStore.getState().pinnedWorktrees.has("a")).toBe(true);
+    expect(useWorkspaceStore.getState().pinnedWorktrees.has("b")).toBe(false);
   });
 
   it("reclaims ports only for the repo that actually persisted, not a rolled-back one", async () => {

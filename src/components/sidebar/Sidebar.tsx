@@ -28,7 +28,7 @@ import type { KanbanColumn, Worktree, RepoEntry } from "../../types";
 import { useAppConfig } from "../../hooks/useAppConfig";
 import { runArchiveScript, countWorktrees, notificationPermissionStatus, requestNotificationPermission } from "../../api";
 import { stopServerAndReleasePort } from "../../services/portReclaim";
-import { bulkMoveToColumn, bulkArchive } from "../../services/bulkWorktreeActions";
+import { bulkMoveToColumn, bulkArchive, undoBulkMove } from "../../services/bulkWorktreeActions";
 import { sortColumnWorktrees, type WorktreeOrderMap } from "../../lib/worktreeOrder";
 import { isVisibleWorktree } from "../../lib/worktreeVisibility";
 import { LifecycleNudge } from "./LifecycleNudge";
@@ -167,10 +167,9 @@ function Sidebar({
   const handleBulkMove = useCallback(
     async (ids: string[], column: KanbanColumn) => {
       const selected = worktrees.filter((w) => ids.includes(w.id));
-      const priorColumns = new Map(selected.map((w) => [w.id, w.column]));
       clearWorktreeSelection();
 
-      const { moved, failedRepos } = await bulkMoveToColumn(selected, column);
+      const { moved, failedRepos, undo } = await bulkMoveToColumn(selected, column);
 
       const label = columnLabel[column];
       useToastStore.getState().show({
@@ -181,21 +180,7 @@ function Sidebar({
         action: {
           label: "Undo",
           onClick: () => {
-            // Group by prior column before calling — bulkMoveToColumn already
-            // fans out per repo internally, so one call per distinct prior
-            // column (not one per worktree) keeps undo batched instead of
-            // re-taking the per-repo config lock once per row.
-            const byPriorColumn = new Map<KanbanColumn, Worktree[]>();
-            for (const wt of selected) {
-              const prior = priorColumns.get(wt.id);
-              if (!prior) continue;
-              const group = byPriorColumn.get(prior);
-              if (group) group.push(wt);
-              else byPriorColumn.set(prior, [wt]);
-            }
-            for (const [prior, group] of byPriorColumn) {
-              void bulkMoveToColumn(group, prior);
-            }
+            void undoBulkMove(undo);
           },
         },
       });

@@ -508,9 +508,16 @@ describe("clickIntent", () => {
     expect(clickIntent(plain)).toBe("open");
   });
 
-  it("is 'toggle' for cmd or ctrl click", () => {
-    expect(clickIntent({ ...plain, metaKey: true })).toBe("toggle");
-    expect(clickIntent({ ...plain, ctrlKey: true })).toBe("toggle");
+  it("is 'toggle' for cmd click on either platform", () => {
+    expect(clickIntent({ ...plain, metaKey: true }, true)).toBe("toggle");
+    expect(clickIntent({ ...plain, metaKey: true }, false)).toBe("toggle");
+  });
+
+  it("is 'toggle' for ctrl click only where ctrl isn't the secondary click", () => {
+    expect(clickIntent({ ...plain, ctrlKey: true }, true)).toBe("toggle");
+    // macOS: ctrl-click opens the row's context menu, so it must not also
+    // toggle the row into a selection behind that menu.
+    expect(clickIntent({ ...plain, ctrlKey: true }, false)).toBe("open");
   });
 
   it("is 'range' for shift click", () => {

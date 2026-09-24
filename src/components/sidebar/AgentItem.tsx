@@ -6,8 +6,8 @@ import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy,
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
 import type { AgentState, Worktree } from "../../types";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { rebaseWorktree, setStackParent, runSetupScripts, setWorktreeColumn, getCommitsBehindMain, resolveStackPending, STACK_ADOPT_NOT_CLEAN } from "../../api";
-import { stopServerAndReleasePort } from "../../services/portReclaim";
+import { rebaseWorktree, setStackParent, runSetupScripts, getCommitsBehindMain, resolveStackPending, STACK_ADOPT_NOT_CLEAN } from "../../api";
+import { bulkMoveToColumn } from "../../services/bulkWorktreeActions";
 import { useDefaultBranch } from "../../hooks/useDefaultBranch";
 import { useGithubUsername } from "../../hooks/useGithubUsername";
 import { useInstalledApps } from "../../hooks/useInstalledApps";
@@ -149,14 +149,24 @@ function InlineLabelInput({
 
 export type ClickIntent = "open" | "toggle" | "range";
 
+/** ctrl-click is the secondary click on macOS, and every sidebar row is a Radix
+ *  ContextMenuTrigger — so there it opens the context menu, and also toggling
+ *  the row into a selection would leave that menu acting on a single row inside
+ *  a multi-row selection. ⌘-click is the gesture SelectionHint documents on
+ *  macOS anyway; ctrl-click stays for the Linux build. */
+const CTRL_TOGGLES = !/Mac/i.test(navigator.platform || navigator.userAgent);
+
 /** Shift wins over cmd so a shift+cmd click extends rather than toggling. */
-export function clickIntent(e: {
-  metaKey: boolean;
-  ctrlKey: boolean;
-  shiftKey: boolean;
-}): ClickIntent {
+export function clickIntent(
+  e: {
+    metaKey: boolean;
+    ctrlKey: boolean;
+    shiftKey: boolean;
+  },
+  ctrlToggles = CTRL_TOGGLES,
+): ClickIntent {
   if (e.shiftKey) return "range";
-  if (e.metaKey || e.ctrlKey) return "toggle";
+  if (e.metaKey || (e.ctrlKey && ctrlToggles)) return "toggle";
   return "open";
 }
 
@@ -1174,16 +1184,15 @@ const AgentItem = memo(function AgentItem({
 
   const handleMoveToColumn = async (target: typeof worktree.column) => {
     if (target === worktree.column) return;
-    const origin = worktree.column;
-    useWorkspaceStore.getState().setManualColumn(worktree.id, target);
-    usePrStore.getState().setManualColumn(worktree.id, target, origin);
-    try {
-      await setWorktreeColumn(worktree.repoPath, worktree.name, target);
-    } catch (e) {
-      console.error("Failed to persist column change:", e);
-    }
-    if (target === "done") {
-      await stopServerAndReleasePort(worktree, "move-to-done");
+    // Same path as the selection bar's Move, so one user action has one set of
+    // semantics: bulkMoveToColumn owns the optimistic writes, the prStore
+    // override, the persist, the rollback on a rejected write and the done-only
+    // port reclaim.
+    const { failedRepos } = await bulkMoveToColumn([worktree], target);
+    if (failedRepos.length > 0) {
+      useToastStore.getState().show({
+        message: `Couldn't move ${worktree.branch} to ${columnLabel[target]} — see the console`,
+      });
     }
   };
 
