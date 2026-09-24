@@ -4,6 +4,7 @@ import { IconButton } from "../ui";
 import { CatLogo } from "../ui/CatLogo";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { StatusGroup } from "./StatusGroup";
+import { SelectionBar } from "./SelectionBar";
 import { clickIntent } from "./AgentItem";
 import { SidebarDragContext } from "./SidebarDragContext";
 import { ArchiveSection } from "./ArchiveSection";
@@ -640,6 +641,15 @@ function Sidebar({
             onUnpinRepo={handleUnpinRepo}
           />
         </div>
+
+        <SelectionBar
+          onMove={(ids, col) => console.warn("[bulk] move", ids, col)}
+          onArchive={(ids) => console.warn("[bulk] archive", ids)}
+          onPin={(ids) => console.warn("[bulk] pin", ids)}
+          onUnpin={(ids) => console.warn("[bulk] unpin", ids)}
+          onMarkRead={(ids) => console.warn("[bulk] read", ids)}
+          onMarkUnread={(ids) => console.warn("[bulk] unread", ids)}
+        />
 
         {/* Footer */}
         {hasRepo && (
