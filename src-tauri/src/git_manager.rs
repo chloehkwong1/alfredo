@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use git2::Repository;
 
@@ -1802,6 +1802,76 @@ pub fn worktree_admin_dir_ino(repo: &Repository, name: &str) -> Option<u64> {
     }
 }
 
+/// How long a worktree may stay hidden behind git's `initializing` lock.
+/// Generous next to a real checkout — florence's whole tree lands in ~10s —
+/// so it only ever expires on a lock no `git worktree add` is still holding.
+const INIT_LOCK_MAX_AGE: Duration = Duration::from_secs(5 * 60);
+
+/// True while `git worktree add` is still checking this worktree out.
+///
+/// Git registers the admin entry — so the worktree is listed — before it
+/// writes a single file, and holds `.git/worktrees/<name>/locked` with the
+/// reason "initializing" until the checkout finishes. A discovery poll that
+/// adopts inside that window runs create-time setup scripts against a
+/// half-populated tree: `bundle install` survives (Gemfile lands early),
+/// `yarn install` fails with "No project found" because `package.json` hasn't
+/// been written yet.
+///
+/// Only git's own reason counts. A worktree the user locked themselves
+/// (`git worktree lock --reason ...`) carries a different reason and stays
+/// listed, so a hand-locked worktree can't go permanently invisible.
+///
+/// The skip is bounded by `INIT_LOCK_MAX_AGE`: an interrupted `git worktree
+/// add` leaves the lock behind for good, and a worktree Alfredo never lists is
+/// one the user can neither open nor delete from the UI. Past the bound we
+/// list it and say so in the log — a bad row beats an unreachable one.
+fn is_initializing(repo: &Repository, name: &str, wt: &git2::Worktree) -> bool {
+    // libgit2 returns the `locked` file verbatim, newline included.
+    let locked_for_init = matches!(
+        wt.is_locked(),
+        Ok(git2::WorktreeLockStatus::Locked(Some(ref reason))) if reason.trim() == "initializing"
+    );
+    if !locked_for_init {
+        return false;
+    }
+
+    // Git writes the lock once as the checkout starts and never touches it
+    // again, so its mtime is when `git worktree add` began.
+    let lock_path = repo.path().join("worktrees").join(name).join("locked");
+    let age = std::fs::metadata(&lock_path)
+        .and_then(|m| m.modified())
+        .map(|t| t.elapsed().unwrap_or_default());
+
+    match age {
+        Ok(age) if age < INIT_LOCK_MAX_AGE => {
+            tracing::debug!(
+                worktree = name,
+                "[worktree-discovery] withholding worktree while its checkout runs"
+            );
+            true
+        }
+        Ok(age) => {
+            tracing::warn!(
+                worktree = name,
+                age_secs = age.as_secs(),
+                "[worktree-discovery] stale 'initializing' lock, listing anyway — an interrupted \
+                 `git worktree add` left it behind and `git worktree prune` won't clear it; \
+                 delete the worktree's `locked` file to silence this"
+            );
+            false
+        }
+        // Fail open, as an unreadable lock already does above.
+        Err(e) => {
+            tracing::warn!(
+                worktree = name,
+                error = %e,
+                "[worktree-discovery] could not read the initializing lock, listing anyway"
+            );
+            false
+        }
+    }
+}
+
 /// List worktrees using git2 for reads.
 /// When `base_path` is provided, only worktrees whose path is under that directory are returned.
 /// Skips diff stats for speed — call `get_diff_stats` separately for the active worktree.
@@ -1824,6 +1894,11 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             Ok(wt) => wt,
             Err(_) => continue,
         };
+
+        // Withhold it until the checkout lands — it appears on the next poll.
+        if is_initializing(&repo, name, &wt) {
+            continue;
+        }
 
         let wt_path = wt.path().to_path_buf();
 
@@ -1890,6 +1965,12 @@ pub fn count_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<usize
     for name in worktree_names.iter() {
         let Ok(Some(name)) = name else { continue };
         let Ok(wt) = repo.find_worktree(name) else { continue };
+        // Match list_worktrees: a still-initializing worktree isn't countable
+        // yet, or the discovery poll's count check would disagree with its
+        // listing on every tick during a checkout.
+        if is_initializing(&repo, name, &wt) {
+            continue;
+        }
         let wt_path = wt.path().to_path_buf();
         if let Some(ref base) = base_filter {
             match wt_path.canonicalize() {
@@ -3334,6 +3415,111 @@ mod tests {
 
         // Clean up
         delete_worktree(repo_path, "linked-branch", true, None)
+            .await
+            .expect("delete should succeed");
+    }
+
+    /// Git holds `.git/worktrees/<name>/locked` = "initializing" for the whole
+    /// of `git worktree add`'s checkout, while already listing the worktree.
+    /// Adopting there ran setup scripts against a tree with no `package.json`.
+    #[tokio::test]
+    async fn test_list_worktrees_skips_worktree_still_being_checked_out() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+
+        create_worktree(repo_path, "initializing-wt", "main", None)
+            .await
+            .expect("create_worktree should succeed");
+
+        // Re-create the lock git holds mid-checkout, trailing newline and all
+        // (git writes it with write_file, libgit2 hands it back verbatim).
+        let admin_dir = dir.path().join(".git/worktrees/initializing-wt");
+        std::fs::write(admin_dir.join("locked"), "initializing\n").expect("write locked file");
+
+        let worktrees = list_worktrees(repo_path, None).expect("list_worktrees should succeed");
+        assert!(
+            worktrees.is_empty(),
+            "a worktree mid-checkout must not be listed for adoption"
+        );
+        assert_eq!(
+            count_worktrees(repo_path, None).expect("count_worktrees should succeed"),
+            0,
+            "count must agree with the listing, or the discovery poll re-lists every tick"
+        );
+
+        // Checkout finished: git removes the lock and the worktree is adoptable.
+        std::fs::remove_file(admin_dir.join("locked")).expect("remove locked file");
+        let worktrees = list_worktrees(repo_path, None).expect("list_worktrees should succeed");
+        assert_eq!(worktrees.len(), 1, "should be listed once the lock clears");
+
+        delete_worktree(repo_path, "initializing-wt", true, None)
+            .await
+            .expect("delete should succeed");
+    }
+
+    /// A killed `git worktree add` leaves `initializing` behind for good —
+    /// `git worktree prune` won't clear it — so the skip has to expire, or the
+    /// worktree becomes unopenable and undeletable from the UI.
+    #[tokio::test]
+    async fn test_list_worktrees_lists_worktree_with_stale_initializing_lock() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+
+        create_worktree(repo_path, "abandoned-wt", "main", None)
+            .await
+            .expect("create_worktree should succeed");
+
+        let lock_path = dir.path().join(".git/worktrees/abandoned-wt/locked");
+        std::fs::write(&lock_path, "initializing\n").expect("write locked file");
+
+        // Backdate past the bound: the mtime is when the checkout began, so
+        // this is a lock no `git worktree add` can still be holding.
+        let stale = std::time::SystemTime::now() - (INIT_LOCK_MAX_AGE + Duration::from_secs(60));
+        std::fs::File::options()
+            .write(true)
+            .open(&lock_path)
+            .expect("open locked file")
+            .set_times(std::fs::FileTimes::new().set_modified(stale))
+            .expect("backdate locked file");
+
+        let worktrees = list_worktrees(repo_path, None).expect("list_worktrees should succeed");
+        assert_eq!(
+            worktrees.len(),
+            1,
+            "a lock older than the bound must not hide the worktree for good"
+        );
+        assert_eq!(
+            count_worktrees(repo_path, None).expect("count_worktrees should succeed"),
+            1,
+            "count must agree with the listing"
+        );
+
+        std::fs::remove_file(&lock_path).expect("remove locked file");
+        delete_worktree(repo_path, "abandoned-wt", true, None)
+            .await
+            .expect("delete should succeed");
+    }
+
+    /// The guard keys on git's own reason, so a worktree the user locked by
+    /// hand stays visible instead of disappearing from the sidebar for good.
+    #[tokio::test]
+    async fn test_list_worktrees_keeps_user_locked_worktree() {
+        let dir = init_test_repo();
+        let repo_path = dir.path().to_str().expect("temp dir path is valid UTF-8");
+
+        create_worktree(repo_path, "user-locked-wt", "main", None)
+            .await
+            .expect("create_worktree should succeed");
+
+        let admin_dir = dir.path().join(".git/worktrees/user-locked-wt");
+        std::fs::write(admin_dir.join("locked"), "on an external drive\n")
+            .expect("write locked file");
+
+        let worktrees = list_worktrees(repo_path, None).expect("list_worktrees should succeed");
+        assert_eq!(worktrees.len(), 1, "a user-locked worktree is still real work");
+
+        std::fs::remove_file(admin_dir.join("locked")).expect("remove locked file");
+        delete_worktree(repo_path, "user-locked-wt", true, None)
             .await
             .expect("delete should succeed");
     }
