@@ -11,4 +11,5 @@ use crate::attention::AttentionState;
 #[allow(clippy::needless_pass_by_value)]
 pub fn set_attention(attention: State<'_, AttentionState>, focused: bool) {
     attention.set_focused(focused);
+    tracing::info!(focused, "[attention] set_attention");
 }

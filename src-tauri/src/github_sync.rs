@@ -33,6 +33,18 @@ fn steady_delay(focused: bool) -> Duration {
     Duration::from_secs(if focused { STEADY_FOCUSED_SECS } else { STEADY_UNFOCUSED_SECS })
 }
 
+/// How often an interruptible sleep wakes to check for a focus regain.
+/// Cheap: reading an atomic next to an actual GitHub poll is free, and 15 s
+/// bounds the extra latency without meaningfully delaying anything.
+const WAKE_CHECK_INTERVAL: Duration = Duration::from_secs(15);
+
+/// True only on a false→true focus transition during the sleep. Losing focus
+/// mid-sleep must never cut a sleep short and restart the cycle — only
+/// regaining focus does, hence `!focused_at_entry`. Pure, unit-tested.
+fn should_wake(focused_at_entry: bool, focused_now: bool) -> bool {
+    !focused_at_entry && focused_now
+}
+
 fn is_within_window(timestamp: Option<&str>, window_hours: i64) -> bool {
     let Some(raw) = timestamp else { return false; };
     let Ok(ts) = chrono::DateTime::parse_from_rfc3339(raw) else { return false; };
@@ -205,12 +217,20 @@ impl PrStatusWithColumn {
 
 /// Start the background GitHub PR sync loop.
 ///
-/// Polls every 60 seconds normally. On rate-limit 403s, sleeps until the
-/// `X-RateLimit-Reset` timestamp (via the /rate_limit endpoint). On generic
-/// failures, backs off: 60s → 120s → 240s until a successful sync.
-/// `attention` is read once per iteration when choosing the next delay; an
-/// in-flight 300 s sleep is not cut short on regain — useGithubSync's own
-/// focus handler already fires an immediate re-sync.
+/// Steady-state cadence (after a successful pass) is 60 s focused / 300 s
+/// unfocused (`steady_delay`) — this is the ONLY interruptible sleep. On
+/// rate-limit 403s, sleeps until the `X-RateLimit-Reset` timestamp (via the
+/// /rate_limit endpoint). On generic failures, backs off: 120s → 240s until a
+/// successful sync. Those rate-limit and backoff sleeps always run to
+/// completion regardless of focus — cutting them short would hammer GitHub
+/// and defeat the rate-limit handling entirely.
+///
+/// The steady-state sleep instead wakes early on a focus regain
+/// (`should_wake`, checked in `WAKE_CHECK_INTERVAL` chunks) so a user who
+/// returns partway through an unfocused 300 s wait isn't left stale for
+/// several more minutes. `useGithubSync`'s own focus handler additionally
+/// fires one immediate re-sync on regain, but that is one-shot — it does not
+/// by itself shorten this loop's next tick, which is what this wake-up does.
 pub fn start_sync_loop(app_handle: AppHandle, attention: AttentionState) {
     tauri::async_runtime::spawn(async move {
         let mut consecutive_failures: u32 = 0;
@@ -218,7 +238,10 @@ pub fn start_sync_loop(app_handle: AppHandle, attention: AttentionState) {
         loop {
             let outcome = poll_once(&app_handle).await;
 
-            let delay = match outcome {
+            // Every arm yields (delay, interruptible). Only the steady-state
+            // arm is interruptible — see the doc comment above for why the
+            // rate-limit and backoff arms must never be cut short.
+            let (delay, interruptible) = match outcome {
                 // Rate-limit branches are checked BEFORE any_success so that a
                 // partial-success poll (one repo ok, another 403'd) still
                 // respects the reset window instead of re-hitting the limit in
@@ -237,7 +260,7 @@ pub fn start_sync_loop(app_handle: AppHandle, attention: AttentionState) {
                         reset_ts = reset_ts,
                         "[github_sync] rate-limited; sleeping until reset"
                     );
-                    Duration::from_secs(wait)
+                    (Duration::from_secs(wait), false)
                 }
                 Ok(PollOutcome { rate_limit_fallback: true, .. }) => {
                     consecutive_failures = 0;
@@ -246,31 +269,53 @@ pub fn start_sync_loop(app_handle: AppHandle, attention: AttentionState) {
                         sleep_secs = RATE_LIMIT_FALLBACK_SECS,
                         "[github_sync] rate-limited (secondary or unknown reset)"
                     );
-                    Duration::from_secs(RATE_LIMIT_FALLBACK_SECS)
+                    (Duration::from_secs(RATE_LIMIT_FALLBACK_SECS), false)
                 }
                 Ok(PollOutcome { any_success: true, .. }) => {
                     consecutive_failures = 0;
-                    steady_delay(attention.is_focused())
+                    let focused = attention.is_focused();
+                    let delay = steady_delay(focused);
+                    tracing::debug!(
+                        focused,
+                        delay_secs = delay.as_secs(),
+                        "[github_sync] steady delay"
+                    );
+                    (delay, true)
                 }
                 Ok(PollOutcome { any_success: false, .. }) => {
                     if consecutive_failures < 2 {
                         consecutive_failures += 1;
                     }
                     tracing::warn!("[github_sync] all repos failed, backing off (tier {consecutive_failures})");
-                    match consecutive_failures {
+                    let delay = match consecutive_failures {
                         1 => Duration::from_secs(120),
                         _ => Duration::from_secs(240),
-                    }
+                    };
+                    (delay, false)
                 }
                 Err(e) => {
                     tracing::warn!("[github_sync] poll error: {e}");
                     if consecutive_failures < 2 {
                         consecutive_failures += 1;
                     }
-                    Duration::from_secs(120)
+                    (Duration::from_secs(120), false)
                 }
             };
-            time::sleep(delay).await;
+
+            if interruptible {
+                let focused_at_entry = attention.is_focused();
+                let mut elapsed = Duration::ZERO;
+                while elapsed < delay {
+                    let chunk = (delay - elapsed).min(WAKE_CHECK_INTERVAL);
+                    time::sleep(chunk).await;
+                    elapsed += chunk;
+                    if should_wake(focused_at_entry, attention.is_focused()) {
+                        break;
+                    }
+                }
+            } else {
+                time::sleep(delay).await;
+            }
         }
     });
 }
@@ -1235,6 +1280,19 @@ mod tests {
     fn steady_delay_is_60s_focused_and_300s_unfocused() {
         assert_eq!(steady_delay(true), Duration::from_secs(60));
         assert_eq!(steady_delay(false), Duration::from_secs(300));
+    }
+
+    #[test]
+    fn should_wake_only_on_false_to_true_transition() {
+        // The one case that must wake the sleep early: regained focus.
+        assert!(should_wake(false, true));
+        // Already focused at entry: never wake early, even if still focused —
+        // losing and not-losing focus must not restart the cycle.
+        assert!(!should_wake(true, true));
+        // Losing focus mid-sleep must never cut the sleep short.
+        assert!(!should_wake(true, false));
+        // Still unfocused: nothing changed, no wake.
+        assert!(!should_wake(false, false));
     }
 
     #[test]
