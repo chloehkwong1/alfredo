@@ -45,6 +45,71 @@ fn should_wake(focused_at_entry: bool, focused_now: bool) -> bool {
     !focused_at_entry && focused_now
 }
 
+/// Process-shared "last completed poll" timestamp (unix seconds). Stamped
+/// once, inside `poll_once` itself, so every caller participates
+/// automatically — the loop's own tick AND `set_sync_repo_paths`'s immediate
+/// poll on a frontend regain both stamp it, with no separate call-site
+/// bookkeeping to keep in sync. Same cheap `Arc<Atomic>` handle pattern as
+/// `AttentionState`, managed on the Tauri app and threaded into
+/// `start_sync_loop` the same way.
+#[derive(Clone)]
+pub struct LastPollStamp(std::sync::Arc<std::sync::atomic::AtomicU64>);
+
+impl LastPollStamp {
+    /// 0 means "no poll has completed yet this process" — `elapsed_secs`
+    /// treats that as "well over", never forcing a wait on the first cycle.
+    pub fn new() -> Self {
+        Self(std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)))
+    }
+
+    fn now_secs() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    }
+
+    /// Record "now" as the last completed poll.
+    pub fn stamp_now(&self) {
+        self.0.store(Self::now_secs(), std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Seconds since the last completed poll, or `u64::MAX` if none has
+    /// completed yet this process.
+    pub fn elapsed_secs(&self) -> u64 {
+        let stamped = self.0.load(std::sync::atomic::Ordering::Relaxed);
+        if stamped == 0 {
+            return u64::MAX;
+        }
+        Self::now_secs().saturating_sub(stamped)
+    }
+}
+
+impl Default for LastPollStamp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// On an early wake (focus regain) during the interruptible steady-state
+/// sleep, how much longer to wait before letting the loop poll again.
+///
+/// `set_sync_repo_paths`'s own regain-triggered poll (fired from the
+/// frontend's focus handler) and this loop's steady-state poll both want to
+/// run on the same regain; without this, both run within
+/// `WAKE_CHECK_INTERVAL` of each other, doubling the REST burn for no
+/// freshness gain. Returning `None` once a full focused interval has already
+/// elapsed since the last completed poll (from either path) lets the loop
+/// poll immediately — the wait is only ever the *remainder* of that
+/// interval. Pure, unit-tested.
+fn remaining_focused_gap(since_last_poll_secs: u64) -> Option<Duration> {
+    if since_last_poll_secs >= STEADY_FOCUSED_SECS {
+        None
+    } else {
+        Some(Duration::from_secs(STEADY_FOCUSED_SECS - since_last_poll_secs))
+    }
+}
+
 fn is_within_window(timestamp: Option<&str>, window_hours: i64) -> bool {
     let Some(raw) = timestamp else { return false; };
     let Ok(ts) = chrono::DateTime::parse_from_rfc3339(raw) else { return false; };
@@ -231,7 +296,11 @@ impl PrStatusWithColumn {
 /// several more minutes. `useGithubSync`'s own focus handler additionally
 /// fires one immediate re-sync on regain, but that is one-shot — it does not
 /// by itself shorten this loop's next tick, which is what this wake-up does.
-pub fn start_sync_loop(app_handle: AppHandle, attention: AttentionState) {
+/// To avoid that regain producing two `poll_once` calls in quick succession
+/// (this wake-up and the frontend's own re-sync), the wake-up sleeps out any
+/// remainder of the focused interval since whichever poll most recently
+/// completed (`remaining_focused_gap`) before actually breaking the sleep.
+pub fn start_sync_loop(app_handle: AppHandle, attention: AttentionState, last_poll: LastPollStamp) {
     tauri::async_runtime::spawn(async move {
         let mut consecutive_failures: u32 = 0;
 
@@ -310,6 +379,13 @@ pub fn start_sync_loop(app_handle: AppHandle, attention: AttentionState) {
                     time::sleep(chunk).await;
                     elapsed += chunk;
                     if should_wake(focused_at_entry, attention.is_focused()) {
+                        // Don't let this wake-up's poll double up with one
+                        // `set_sync_repo_paths` already ran for the same
+                        // regain — sleep out any remainder of the focused
+                        // interval since the last completed poll first.
+                        if let Some(gap) = remaining_focused_gap(last_poll.elapsed_secs()) {
+                            time::sleep(gap).await;
+                        }
                         break;
                     }
                 }
@@ -417,6 +493,7 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
 
     let (repo_paths, active_branches) = get_sync_state(app_handle);
     if repo_paths.is_empty() {
+        stamp_last_poll(app_handle);
         return Ok(PollOutcome { any_success: true, ..Default::default() });
     }
 
@@ -542,11 +619,24 @@ async fn poll_once(app_handle: &AppHandle) -> Result<PollOutcome, String> {
     // Task 12: compute and emit stack rebase statuses
     crate::stack_manager::compute_stack_statuses(app_handle, &app_data_dir, &repo_paths).await;
 
+    // Stamp here, not at each call site (the loop and `set_sync_repo_paths`
+    // alike) — see `LastPollStamp`'s doc comment for why that matters.
+    stamp_last_poll(app_handle);
+
     Ok(PollOutcome {
         any_success: any_repo_succeeded,
         rate_limit_reset,
         rate_limit_fallback,
     })
+}
+
+/// Stamp `LastPollStamp` with "now", if it's managed on the app. Missing
+/// managed state (e.g. a unit test building its own `AppHandle`) is a no-op,
+/// not an error — `poll_once` must still succeed.
+fn stamp_last_poll(app_handle: &AppHandle) {
+    if let Some(last_poll) = app_handle.try_state::<LastPollStamp>() {
+        last_poll.stamp_now();
+    }
 }
 
 /// Heuristic: the octocrab error message includes GitHub's verbatim text
@@ -1293,6 +1383,32 @@ mod tests {
         assert!(!should_wake(true, false));
         // Still unfocused: nothing changed, no wake.
         assert!(!should_wake(false, false));
+    }
+
+    #[test]
+    fn remaining_focused_gap_boundaries() {
+        // Just polled: wait out almost the whole focused interval.
+        assert_eq!(remaining_focused_gap(0), Some(Duration::from_secs(60)));
+        // Just under the interval: wait out the remainder.
+        assert_eq!(remaining_focused_gap(59), Some(Duration::from_secs(1)));
+        // Exactly the interval: no forced wait — poll now.
+        assert_eq!(remaining_focused_gap(60), None);
+        // Well over: no forced wait either.
+        assert_eq!(remaining_focused_gap(600), None);
+    }
+
+    #[test]
+    fn last_poll_stamp_elapsed_is_max_before_any_stamp() {
+        let stamp = LastPollStamp::new();
+        assert_eq!(stamp.elapsed_secs(), u64::MAX);
+    }
+
+    #[test]
+    fn last_poll_stamp_elapsed_is_near_zero_right_after_stamping() {
+        let stamp = LastPollStamp::new();
+        stamp.stamp_now();
+        // Same-second granularity — this must land at 0, not MAX.
+        assert_eq!(stamp.elapsed_secs(), 0);
     }
 
     #[test]

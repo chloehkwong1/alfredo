@@ -167,6 +167,7 @@ pub fn run() {
             repo_paths: std::sync::Mutex::new(Vec::new()),
             active_branches: std::sync::Mutex::new(std::collections::HashSet::new()),
         })
+        .manage(github_sync::LastPollStamp::new())
         .manage(commands::worktree::PortConfigLock::default())
         .manage(commands::session::ResumeSidecarLock::default())
         .manage(commands::linear_launch::PendingOpenIssue::default())
@@ -267,6 +268,7 @@ pub fn run() {
             github_sync::start_sync_loop(
                 app.handle().clone(),
                 app.state::<attention::AttentionState>().inner().clone(),
+                app.state::<github_sync::LastPollStamp>().inner().clone(),
             );
 
             // Start the agent state HTTP server for hook callbacks.
