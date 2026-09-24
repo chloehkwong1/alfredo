@@ -47,6 +47,7 @@ export async function bulkMoveToColumn(
   }
 
   const failedRepos: string[] = [];
+  const succeeded: Worktree[] = [];
   let moved = 0;
 
   for (const [repoPath, group] of groupByRepo(worktrees)) {
@@ -55,6 +56,7 @@ export async function bulkMoveToColumn(
     try {
       await setWorktreeColumns(repoPath, assignments);
       moved += group.length;
+      succeeded.push(...group);
     } catch (e) {
       console.error("[bulk] move failed for", repoPath, e);
       failedRepos.push(repoPath);
@@ -69,8 +71,11 @@ export async function bulkMoveToColumn(
   }
 
   if (column === "done") {
+    // Only for worktrees whose repo actually persisted the move — a rolled-back
+    // row's column reverted above, so stopping its server and freeing its port
+    // here would strand it looking unchanged but with a dead server and no port.
     await Promise.allSettled(
-      worktrees.map((wt) => stopServerAndReleasePort(wt, "bulk-move")),
+      succeeded.map((wt) => stopServerAndReleasePort(wt, "bulk-move")),
     );
   }
 

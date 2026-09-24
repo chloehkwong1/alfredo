@@ -75,4 +75,24 @@ describe("bulkMoveToColumn", () => {
     // /r2 succeeded — its row stays moved.
     expect(usePrStore.getState().columnOverrides["c"].column).toBe("done");
   });
+
+  it("reclaims ports only for the repo that actually persisted, not a rolled-back one", async () => {
+    vi.mocked(setWorktreeColumns)
+      .mockRejectedValueOnce(new Error("disk full"))
+      .mockResolvedValueOnce(undefined);
+
+    await bulkMoveToColumn([wt("a", "/r1"), wt("c", "/r2")], "done");
+
+    // /r1 failed and was rolled back — its server/port must be left alone.
+    expect(stopServerAndReleasePort).not.toHaveBeenCalledWith(
+      expect.objectContaining({ id: "a" }),
+      "bulk-move",
+    );
+    // /r2 persisted — its port is reclaimed.
+    expect(stopServerAndReleasePort).toHaveBeenCalledTimes(1);
+    expect(stopServerAndReleasePort).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "c" }),
+      "bulk-move",
+    );
+  });
 });
