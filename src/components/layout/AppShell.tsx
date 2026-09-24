@@ -35,7 +35,7 @@ import { useUpdater } from "../../hooks/useUpdater";
 import { useLinearOpenIssue } from "../../hooks/useLinearOpenIssue";
 import { UpdateBanner } from "./UpdateBanner";
 import { useAgentStore } from "../../stores/agentStore";
-import { useAttentionStore } from "../../stores/attentionStore";
+import { useAttentionStore, cancelPendingUnfocus } from "../../stores/attentionStore";
 import { useRepoDialogs } from "./useRepoDialogs";
 import { useSessionAutoSave } from "./useSessionAutoSave";
 import { useStatePersistence } from "./useStatePersistence";
@@ -172,6 +172,7 @@ function AppShell() {
     const unlisten = getCurrentWindow().onFocusChanged(({ payload }) => reportFocus(payload));
     return () => {
       unlisten.then((fn) => fn());
+      cancelPendingUnfocus();
     };
   }, []);
 

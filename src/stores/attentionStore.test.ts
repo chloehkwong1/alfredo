@@ -4,7 +4,7 @@ vi.mock("../api", () => ({
   setAttention: vi.fn(() => Promise.resolve()),
 }));
 
-import { useAttentionStore, UNFOCUS_DEBOUNCE_MS } from "./attentionStore";
+import { useAttentionStore, UNFOCUS_DEBOUNCE_MS, cancelPendingUnfocus } from "./attentionStore";
 import { setAttention } from "../api";
 
 const state = () => useAttentionStore.getState();
@@ -70,6 +70,36 @@ describe("attentionStore.reportFocus", () => {
 
   it("a focus event while already focused is a no-op", () => {
     state().reportFocus(true);
+    expect(setAttention).not.toHaveBeenCalled();
+  });
+});
+
+describe("attentionStore.cancelPendingUnfocus", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    state().reportFocus(true);
+    useAttentionStore.setState({ focused: true });
+    vi.mocked(setAttention).mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("cancels an armed unfocus so it never lands, even well past the debounce", () => {
+    state().reportFocus(false);
+    vi.advanceTimersByTime(1_000);
+
+    cancelPendingUnfocus();
+
+    vi.advanceTimersByTime(UNFOCUS_DEBOUNCE_MS * 10);
+    expect(state().focused).toBe(true);
+    expect(setAttention).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op when nothing is armed", () => {
+    expect(() => cancelPendingUnfocus()).not.toThrow();
+    expect(state().focused).toBe(true);
     expect(setAttention).not.toHaveBeenCalled();
   });
 });

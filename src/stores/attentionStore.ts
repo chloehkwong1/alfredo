@@ -21,6 +21,17 @@ interface AttentionState {
 
 let unfocusTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Cancel any armed unfocus debounce without touching `focused`. Safe to
+ *  call when nothing is armed. Callers that tear down the listener feeding
+ *  `reportFocus` (e.g. AppShell unmounting) must call this in their cleanup,
+ *  or a stale timer can fire after remount and desync the mirrored Rust
+ *  state from the window's real focus. */
+export function cancelPendingUnfocus(): void {
+  if (unfocusTimer === null) return;
+  clearTimeout(unfocusTimer);
+  unfocusTimer = null;
+}
+
 function mirrorToRust(focused: boolean) {
   setAttention(focused).catch((e) =>
     console.warn(`[attention] set_attention(${focused}) failed:`, e),
