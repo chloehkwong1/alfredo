@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -12,6 +12,14 @@ use crate::types::{AppError, Worktree, AgentState, KanbanColumn};
 /// Prevents N+1 network calls when computing diff stats for many worktrees.
 static FETCH_THROTTLE: std::sync::LazyLock<Mutex<HashMap<String, Instant>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Worktree names already warned about for a stale "initializing" lock this
+/// process. `is_initializing` is called every tick of the worktree-discovery
+/// poll (from both `list_worktrees` and `count_worktrees`), so without this
+/// the same warning would repeat forever once an interrupted `git worktree
+/// add` leaves a lock behind.
+static WARNED_STALE_LOCKS: std::sync::LazyLock<Mutex<HashSet<String>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashSet::new()));
 
 /// Create a worktree by shelling out to `git worktree add`.
 /// Returns the absolute path of the new worktree directory.
@@ -1851,13 +1859,29 @@ fn is_initializing(repo: &Repository, name: &str, wt: &git2::Worktree) -> bool {
             true
         }
         Ok(age) => {
-            tracing::warn!(
-                worktree = name,
-                age_secs = age.as_secs(),
-                "[worktree-discovery] stale 'initializing' lock, listing anyway — an interrupted \
-                 `git worktree add` left it behind and `git worktree prune` won't clear it; \
-                 delete the worktree's `locked` file to silence this"
-            );
+            // Warn once per worktree name per process — this fires on every
+            // discovery-poll tick otherwise, since the stale lock never
+            // clears itself. Repeats drop to debug so alfredo.log (shared
+            // with rate-limit and attention diagnostics) doesn't get spammed.
+            let already_warned = WARNED_STALE_LOCKS
+                .lock()
+                .map(|mut warned| !warned.insert(name.to_string()))
+                .unwrap_or(false);
+            if already_warned {
+                tracing::debug!(
+                    worktree = name,
+                    age_secs = age.as_secs(),
+                    "[worktree-discovery] stale 'initializing' lock, listing anyway (already warned)"
+                );
+            } else {
+                tracing::warn!(
+                    worktree = name,
+                    age_secs = age.as_secs(),
+                    "[worktree-discovery] stale 'initializing' lock, listing anyway — an interrupted \
+                     `git worktree add` left it behind and `git worktree prune` won't clear it; \
+                     delete the worktree's `locked` file to silence this"
+                );
+            }
             false
         }
         // Fail open, as an unreadable lock already does above.
