@@ -5,6 +5,7 @@ import type { SearchAddon } from "@xterm/addon-search";
 import type { AgentState, SessionType } from "../types";
 import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
 import { sessionManager } from "../services/sessionManager";
+import { startPollInterval } from "../services/pollInterval";
 import { registerSelectToCopy, ACTIVE_SCROLLBACK, BACKGROUND_SCROLLBACK } from "../services/terminalFactory";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { isTerminalPr } from "../lib/prStatus";
@@ -293,7 +294,7 @@ export function usePty({
     // shell/server tabs are independent processes that shouldn't affect agent state.
 
     let prevAgentState: AgentState | null = null;
-    const stateInterval = setInterval(() => {
+    const stopStatePoll = startPollInterval(() => {
       const session = sessionRef.current;
       if (session) {
         const currentState = session.agentState;
@@ -341,7 +342,7 @@ export function usePty({
 
     return () => {
       disposed = true;
-      clearInterval(stateInterval);
+      stopStatePoll();
       onDataDisposable?.dispose();
       onResizeDisposable?.dispose();
       resizeObserver?.disconnect();

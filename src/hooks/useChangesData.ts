@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getDiff, getUncommittedDiff, getCommits, getFullCommits, getDiffForCommit } from "../api";
+import { startPollInterval } from "../services/pollInterval";
 import type { DiffFile, CommitInfo } from "../types";
 import type { ViewMode } from "../components/changes/FileSidebar";
 
@@ -46,8 +47,8 @@ export function useChangesData(
         .catch((err) => { if (!cancelled) setError(`Uncommitted diff failed: ${err}`); });
     };
     fetch();
-    const interval = setInterval(fetch, 3_000);
-    return () => { cancelled = true; clearInterval(interval); };
+    const stop = startPollInterval(fetch, 3_000);
+    return () => { cancelled = true; stop(); };
   }, [repoPath, refreshKey]);
 
   // Load committed files and commits from local git, polling every 10s.
@@ -89,8 +90,8 @@ export function useChangesData(
         .catch((err) => { if (!cancelled) setError(`Commits failed: ${err}`); });
     };
     fetchLocal();
-    const interval = setInterval(fetchLocal, 10_000);
-    return () => { cancelled = true; clearInterval(interval); };
+    const stop = startPollInterval(fetchLocal, 10_000);
+    return () => { cancelled = true; stop(); };
   }, [repoPath, baseBranch, mergeCommitSha, skipCommitted, clampDrift, refreshKey]);
 
   // Build combined commit list for index lookups

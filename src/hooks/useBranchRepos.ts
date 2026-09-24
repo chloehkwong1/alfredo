@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { getActiveBranch, getWorktreeDiffStats } from "../api";
+import { startPollInterval } from "../services/pollInterval";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { usePrStore } from "../stores/prStore";
 import type { RepoEntry, Worktree } from "../types";
@@ -25,7 +26,6 @@ export function useBranchRepos(
   showMainCardRepos: string[] = [],
 ): BranchRepoState[] {
   const [states, setStates] = useState<BranchRepoState[]>([]);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
   const mainCardSet = new Set(showMainCardRepos);
   const branchRepoPaths = repos
@@ -100,10 +100,8 @@ export function useBranchRepos(
     }
 
     poll();
-    intervalRef.current = setInterval(poll, POLL_INTERVAL);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    const stop = startPollInterval(poll, POLL_INTERVAL);
+    return stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchRepoPaths.join(",")]);
 

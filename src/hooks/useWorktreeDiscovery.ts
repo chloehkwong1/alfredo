@@ -4,6 +4,7 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { lifecycleManager } from "../services/lifecycleManager";
+import { startPollInterval } from "../services/pollInterval";
 import type { RepoEntry } from "../types";
 
 const POLL_MS = 10_000;
@@ -203,12 +204,12 @@ export function useWorktreeDiscovery(
   useEffect(() => {
     if (!repoPath) return;
     // Guards stale async work from writing after this effect is superseded:
-    // clearInterval stops future ticks but not one already mid-await, and an
+    // stop() stops future ticks but not one already mid-await, and an
     // uncancelled tick would re-insert a just-deselected repo's worktrees
     // (same pattern as useSessionRestore's cancelled flag).
     let cancelled = false;
     const isCancelled = () => cancelled;
-    const interval = setInterval(async () => {
+    const stop = startPollInterval(async () => {
       if (inFlight.current) return;
       inFlight.current = true;
       tickCount.current += 1;
@@ -227,7 +228,7 @@ export function useWorktreeDiscovery(
     }, POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      stop();
     };
     // selectedRepos/repos are read via their stable keys; the closure values
     // are from the same render as the keys, so this is not stale.
