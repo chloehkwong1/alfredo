@@ -128,6 +128,9 @@ function Sidebar({
   const toggleWorktreeSelection = useWorkspaceStore((s) => s.toggleWorktreeSelection);
   const selectWorktreeRange = useWorkspaceStore((s) => s.selectWorktreeRange);
   const clearWorktreeSelection = useWorkspaceStore((s) => s.clearWorktreeSelection);
+  const togglePinWorktree = useWorkspaceStore((s) => s.togglePinWorktree);
+  const markWorktreeRead = useWorkspaceStore((s) => s.markWorktreeRead);
+  const markWorktreeUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
   const repoPath = activeRepo;
 
   const handleSelectWorktree = useCallback(
@@ -207,6 +210,26 @@ function Sidebar({
     },
     [worktrees],
   );
+
+  const handleBulkPin = useCallback((ids: string[]) => {
+    for (const id of ids) if (!pinnedWorktrees.has(id)) togglePinWorktree(id);
+    clearWorktreeSelection();
+  }, [pinnedWorktrees, togglePinWorktree, clearWorktreeSelection]);
+
+  const handleBulkUnpin = useCallback((ids: string[]) => {
+    for (const id of ids) if (pinnedWorktrees.has(id)) togglePinWorktree(id);
+    clearWorktreeSelection();
+  }, [pinnedWorktrees, togglePinWorktree, clearWorktreeSelection]);
+
+  const handleBulkMarkRead = useCallback((ids: string[]) => {
+    for (const id of ids) markWorktreeRead(id);
+    clearWorktreeSelection();
+  }, [markWorktreeRead, clearWorktreeSelection]);
+
+  const handleBulkMarkUnread = useCallback((ids: string[]) => {
+    for (const id of ids) markWorktreeUnread(id);
+    clearWorktreeSelection();
+  }, [markWorktreeUnread, clearWorktreeSelection]);
 
   const { config, updateConfig } = useAppConfig();
   const collapsedColumns = config?.collapsedKanbanColumns ?? [];
@@ -705,10 +728,10 @@ function Sidebar({
         <SelectionBar
           onMove={handleBulkMove}
           onArchive={handleBulkArchiveRequest}
-          onPin={(ids) => console.warn("[bulk] pin", ids)}
-          onUnpin={(ids) => console.warn("[bulk] unpin", ids)}
-          onMarkRead={(ids) => console.warn("[bulk] read", ids)}
-          onMarkUnread={(ids) => console.warn("[bulk] unread", ids)}
+          onPin={handleBulkPin}
+          onUnpin={handleBulkUnpin}
+          onMarkRead={handleBulkMarkRead}
+          onMarkUnread={handleBulkMarkUnread}
         />
 
         {/* Footer */}
