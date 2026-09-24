@@ -209,6 +209,8 @@ export function useGithubSync() {
       useWorkspaceStore.getState().updateWorktree(wt.id, {
         stackRebaseStatus: { kind: "conflict" },
       });
+      // Archived worktrees are out of sight; a sticky bar nagging about one is noise.
+      if (wt.archived) return;
 
       // The sidebar badge is easy to miss on a long list, and the stack popover
       // that holds the resolve action is two clicks away behind the glyph.
@@ -233,6 +235,18 @@ export function useGithubSync() {
     });
     return () => { unlisten.then((fn) => fn()); };
   }, []);
+
+  // Take down a conflict bar once its worktree is archived (manually or by auto-archive).
+  useEffect(
+    () =>
+      useWorkspaceStore.subscribe((state) => {
+        if (conflictToastIds.size === 0) return;
+        for (const wt of state.worktrees) {
+          if (wt.archived) dismissConflictToast(wt.repoPath, wt.name);
+        }
+      }),
+    [],
+  );
 
   // stack:parent-merged — clear stackParent from the worktree
   useEffect(() => {
