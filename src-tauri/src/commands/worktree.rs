@@ -867,6 +867,29 @@ pub async fn set_worktree_column(
     Ok(())
 }
 
+/// Override the kanban column for several worktrees in one write. A bulk move
+/// can touch dozens of worktrees — batching them keeps it to one whole-config
+/// write and one lock acquisition instead of one per worktree, mirroring
+/// `set_worktree_orders`.
+#[tauri::command]
+pub async fn set_worktree_columns(
+    app: AppHandle,
+    port_lock: State<'_, PortConfigLock>,
+    repo_path: String,
+    assignments: HashMap<String, KanbanColumn>,
+) -> Result<()> {
+    // Mirror set_worktree_column: hold port_lock to serialize the whole-config
+    // save against concurrent port claims/releases.
+    let _guard = port_lock.0.lock().await;
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let mut config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    for (worktree_name, column) in assignments {
+        config_manager::set_column_override(&mut config, &worktree_name, column);
+    }
+    config_manager::save_config(&app_data_dir, &repo_path, &config).await?;
+    Ok(())
+}
+
 /// Persist the last-known PR association for a worktree (number/url/title/state).
 #[tauri::command]
 pub async fn set_pr_association(
@@ -1472,6 +1495,8 @@ async fn ensure_claude_excludes(repo_path: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config_manager::set_column_override;
+    use crate::types::AppConfig;
 
     // ── is_stacked_branch ──────────────────────────────────────
 
@@ -1572,6 +1597,28 @@ mod tests {
         assert!(content.contains(".claude/CLAUDE.local.md"));
         // Should have a newline between existing and new content
         assert!(!content.contains("*.log.claude"));
+    }
+
+    // ── set_worktree_columns (batched column override) ─────────
+
+    #[test]
+    fn set_column_override_applies_every_assignment() {
+        let mut config = AppConfig::default();
+        set_column_override(&mut config, "wt-a", KanbanColumn::Done);
+        set_column_override(&mut config, "wt-b", KanbanColumn::Blocked);
+
+        assert_eq!(config.column_overrides.get("wt-a"), Some(&KanbanColumn::Done));
+        assert_eq!(config.column_overrides.get("wt-b"), Some(&KanbanColumn::Blocked));
+    }
+
+    #[test]
+    fn a_later_assignment_wins_for_the_same_worktree() {
+        let mut config = AppConfig::default();
+        set_column_override(&mut config, "wt-a", KanbanColumn::Done);
+        set_column_override(&mut config, "wt-a", KanbanColumn::Blocked);
+
+        assert_eq!(config.column_overrides.len(), 1);
+        assert_eq!(config.column_overrides.get("wt-a"), Some(&KanbanColumn::Blocked));
     }
 }
 

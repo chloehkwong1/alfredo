@@ -291,6 +291,15 @@ export function setWorktreeColumn(
   return invoke("set_worktree_column", { repoPath, worktreeName, column });
 }
 
+/** Override the kanban column for several worktrees of one repo in a single
+ *  write. Keys are worktree names, matching setWorktreeColumn. */
+export function setWorktreeColumns(
+  repoPath: string,
+  assignments: Record<string, KanbanColumn>,
+): Promise<void> {
+  return invoke("set_worktree_columns", { repoPath, assignments });
+}
+
 export function setPrAssociation(
   repoPath: string,
   worktreeName: string,
