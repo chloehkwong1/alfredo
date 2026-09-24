@@ -248,10 +248,14 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       discover();
     }
 
-    // Re-discover every 5s to catch session changes (e.g. /clear creating a
-    // new session UUID). 30s left a window where /clear followed by an app
-    // restart would --resume the pre-/clear session.
-    return startPollInterval(discover, 5_000);
+    // Re-discover every 5s focused / 10s unfocused to catch session changes
+    // (e.g. /clear creating a new session UUID). A 30s interval previously
+    // caused an app restart to --resume the pre-/clear session, so this site
+    // deliberately uses a gentler multiplier than the default ×10 (which
+    // would make it 50s unfocused — worse than the interval already known to
+    // have caused that bug). Cheap either way: one findClaudeSession call per
+    // agent tab.
+    return startPollInterval(discover, 5_000, { multiplier: 2 });
   }, [hasOutput, isAgentTab, activeWorktreeId, worktree?.path, tabId]);
 
   const handleSendFeedback = useCallback(async () => {

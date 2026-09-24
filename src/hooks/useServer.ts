@@ -6,8 +6,9 @@ import { startPollInterval } from "../services/pollInterval";
 
 /**
  * Per-worktree mutex to prevent overlapping revive attempts. Cleanup intervals
- * fire every 3 s and each awaits listSessions + reattach, so without this guard
- * two ticks could both revive the same worktree and thrash the store.
+ * fire every 3 s focused / 30 s unfocused and each awaits listSessions + reattach,
+ * so without this guard two ticks could both revive the same worktree and thrash
+ * the store.
  */
 const revivingServers = new Set<string>();
 import { getConfig, listSessions, claimWorktreePort, listWorktrees } from "../api";
