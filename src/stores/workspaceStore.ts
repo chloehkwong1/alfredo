@@ -29,6 +29,18 @@ interface WorkspaceState {
   unreadWorktrees: Set<string>;
   /** Tracks worktrees the user has pinned to the top of their column. */
   pinnedWorktrees: Set<string>;
+  /** Multi-select for bulk actions. Scoped to one column at a time, and
+   *  deliberately not persisted — the selection dies with the app. */
+  selectedWorktreeIds: Set<string>;
+  /** The row a shift-range measures from. */
+  selectionAnchorId: string | null;
+  /** Which column the selection belongs to; a gesture elsewhere resets it. */
+  selectionColumn: KanbanColumn | null;
+  toggleWorktreeSelection: (id: string, column: KanbanColumn) => void;
+  /** renderedIds must be the column's on-screen order, pinned rows first. */
+  selectWorktreeRange: (id: string, column: KanbanColumn, renderedIds: string[]) => void;
+  setWorktreeSelection: (ids: string[], column: KanbanColumn) => void;
+  clearWorktreeSelection: () => void;
   /** Session-scoped "adopt stack?" cue dismissals, keyed per worktree+parent
    *  so a different future base re-prompts. Deliberately not persisted. The
    *  key format is private to this store — read via isStackAdoptionDismissed,
@@ -229,6 +241,8 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
     seenWorktrees: state.seenWorktrees,
     unreadWorktrees: state.unreadWorktrees,
     pinnedWorktrees: state.pinnedWorktrees,
+    selectedWorktreeIds: state.selectedWorktreeIds,
+    selectionAnchorId: state.selectionAnchorId,
     activeWorktreeId: state.activeWorktreeId,
   };
   for (const { oldId, newId } of rekeys) {
@@ -244,6 +258,9 @@ function rekeyOwnState(state: WorkspaceState, rekeys: WorktreeRekey[]): Partial<
       seenWorktrees: rekeySet(next.seenWorktrees!, oldId, newId),
       unreadWorktrees: rekeySet(next.unreadWorktrees!, oldId, newId),
       pinnedWorktrees: rekeySet(next.pinnedWorktrees!, oldId, newId),
+      selectedWorktreeIds: rekeySet(next.selectedWorktreeIds!, oldId, newId),
+      // Losing this silently breaks the next shift-range.
+      selectionAnchorId: next.selectionAnchorId === oldId ? newId : next.selectionAnchorId,
       // Losing this deselects the worktree the user is looking at.
       activeWorktreeId: next.activeWorktreeId === oldId ? newId : next.activeWorktreeId,
     };
@@ -517,6 +534,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       newUnread.delete(id);
       const newPinned = new Set(state.pinnedWorktrees);
       newPinned.delete(id);
+      const newSelected = new Set(state.selectedWorktreeIds);
+      newSelected.delete(id);
       // Drop any buffered setup completion for this worktree. completedSetups is
       // drained by path in replaceWorktree, so a leftover entry from a deleted
       // worktree would otherwise be applied to a later recreate of the same
@@ -533,6 +552,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         seenWorktrees: newSeen,
         unreadWorktrees: newUnread,
         pinnedWorktrees: newPinned,
+        selectedWorktreeIds: newSelected,
+        selectionAnchorId: state.selectionAnchorId === id ? null : state.selectionAnchorId,
         runningServers: (() => {
           const { [id]: _, ...rest } = state.runningServers;
           return rest;
@@ -622,6 +643,56 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         ),
       };
     }),
+
+  selectedWorktreeIds: new Set(),
+  selectionAnchorId: null,
+  selectionColumn: null,
+
+  toggleWorktreeSelection: (id, column) =>
+    set((state) => {
+      // A gesture in a different column starts a fresh selection.
+      const next =
+        state.selectionColumn === column
+          ? new Set(state.selectedWorktreeIds)
+          : new Set<string>();
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next.size === 0
+        ? { selectedWorktreeIds: next, selectionAnchorId: null, selectionColumn: null }
+        : { selectedWorktreeIds: next, selectionAnchorId: id, selectionColumn: column };
+    }),
+
+  selectWorktreeRange: (id, column, renderedIds) =>
+    set((state) => {
+      // Shift-clicking with no live anchor in this column selects just that row.
+      const anchor =
+        state.selectionColumn === column && state.selectionAnchorId
+          ? state.selectionAnchorId
+          : id;
+      const from = renderedIds.indexOf(anchor);
+      const to = renderedIds.indexOf(id);
+      if (from === -1 || to === -1) return state;
+      const [lo, hi] = from <= to ? [from, to] : [to, from];
+      return {
+        selectedWorktreeIds: new Set(renderedIds.slice(lo, hi + 1)),
+        selectionAnchorId: anchor,
+        selectionColumn: column,
+      };
+    }),
+
+  setWorktreeSelection: (ids, column) =>
+    set(() =>
+      ids.length === 0
+        ? { selectedWorktreeIds: new Set<string>(), selectionAnchorId: null, selectionColumn: null }
+        : {
+            selectedWorktreeIds: new Set(ids),
+            selectionAnchorId: ids[ids.length - 1],
+            selectionColumn: column,
+          },
+    ),
+
+  clearWorktreeSelection: () =>
+    set({ selectedWorktreeIds: new Set(), selectionAnchorId: null, selectionColumn: null }),
 
   setWorktrees: (freshWorktrees) => {
     const rekeys = detectRekeys(freshWorktrees, useWorkspaceStore.getState().worktrees);
@@ -885,10 +956,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       // renders the main pane against a worktree the store no longer holds.
       const selectionSurvives =
         !activeWorktreeId || worktrees.some((wt) => wt.id === activeWorktreeId);
+      // Same disappearance applies to a bulk selection — prune ids the store
+      // no longer holds so a stale row can't be bulk-moved.
+      const liveIds = new Set(worktrees.map((wt) => wt.id));
+      const prunedSelection = new Set(
+        [...(own.selectedWorktreeIds ?? state.selectedWorktreeIds)].filter((id) =>
+          liveIds.has(id),
+        ),
+      );
+      const prunedAnchor = own.selectionAnchorId ?? state.selectionAnchorId;
       return {
         worktrees,
         ...own,
         activeWorktreeId: selectionSurvives ? activeWorktreeId : null,
+        selectedWorktreeIds: prunedSelection,
+        selectionAnchorId:
+          prunedAnchor && prunedSelection.has(prunedAnchor) ? prunedAnchor : null,
+        selectionColumn: prunedSelection.size === 0 ? null : state.selectionColumn,
       };
     });
     rekeySiblingStores(rekeys);
@@ -906,6 +990,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       seenWorktrees: new Set<string>(),
       unreadWorktrees: new Set<string>(),
       pinnedWorktrees: new Set<string>(),
+      selectedWorktreeIds: new Set<string>(),
+      selectionAnchorId: null,
+      selectionColumn: null,
       dismissedStackAdoptions: new Set(),
       worktreeOrder: {},
       annotations: {},

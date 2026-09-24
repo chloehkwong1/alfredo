@@ -1178,3 +1178,80 @@ describe("pendingReviews", () => {
     expect(s().pendingReviews["wt-none"]).toBeUndefined();
   });
 });
+
+// ── multi-select ──────────────────────────────────────────────────
+
+describe("worktree multi-select", () => {
+  const store = useWorkspaceStore;
+
+  it("toggles a row on and off", () => {
+    store.getState().toggleWorktreeSelection("wt-1", "toDo");
+    expect([...store.getState().selectedWorktreeIds]).toEqual(["wt-1"]);
+    expect(store.getState().selectionColumn).toBe("toDo");
+
+    store.getState().toggleWorktreeSelection("wt-1", "toDo");
+    expect(store.getState().selectedWorktreeIds.size).toBe(0);
+    expect(store.getState().selectionColumn).toBeNull();
+    expect(store.getState().selectionAnchorId).toBeNull();
+  });
+
+  it("starts a fresh selection when the gesture lands in another column", () => {
+    store.getState().toggleWorktreeSelection("wt-1", "toDo");
+    store.getState().toggleWorktreeSelection("wt-2", "done");
+    expect([...store.getState().selectedWorktreeIds]).toEqual(["wt-2"]);
+    expect(store.getState().selectionColumn).toBe("done");
+  });
+
+  it("selects an inclusive range over the rendered order, in either direction", () => {
+    const rendered = ["a", "b", "c", "d"];
+    store.getState().toggleWorktreeSelection("b", "toDo");
+    store.getState().selectWorktreeRange("d", "toDo", rendered);
+    expect([...store.getState().selectedWorktreeIds].sort()).toEqual(["b", "c", "d"]);
+
+    store.getState().selectWorktreeRange("a", "toDo", rendered);
+    expect([...store.getState().selectedWorktreeIds].sort()).toEqual(["a", "b"]);
+  });
+
+  it("treats a shift-click with no anchor as selecting just that row", () => {
+    store.getState().selectWorktreeRange("c", "toDo", ["a", "b", "c"]);
+    expect([...store.getState().selectedWorktreeIds]).toEqual(["c"]);
+  });
+
+  it("ignores a range whose ids are not in the rendered list", () => {
+    store.getState().toggleWorktreeSelection("b", "toDo");
+    store.getState().selectWorktreeRange("zzz", "toDo", ["a", "b"]);
+    expect([...store.getState().selectedWorktreeIds]).toEqual(["b"]);
+  });
+
+  it("setWorktreeSelection replaces the selection wholesale", () => {
+    store.getState().toggleWorktreeSelection("x", "toDo");
+    store.getState().setWorktreeSelection(["a", "b", "c"], "toDo");
+    expect([...store.getState().selectedWorktreeIds]).toEqual(["a", "b", "c"]);
+    expect(store.getState().selectionAnchorId).toBe("c");
+
+    store.getState().setWorktreeSelection([], "toDo");
+    expect(store.getState().selectionColumn).toBeNull();
+  });
+
+  it("drops a removed worktree from the selection", () => {
+    store.setState({ worktrees: [makeWorktree({ id: "wt-1" }), makeWorktree({ id: "wt-2" })] });
+    store.getState().setWorktreeSelection(["wt-1", "wt-2"], "inProgress");
+    store.getState().removeWorktree("wt-1");
+    expect([...store.getState().selectedWorktreeIds]).toEqual(["wt-2"]);
+  });
+
+  it("carries the selection and anchor across an id rekey", () => {
+    store.setState({ worktrees: [makeWorktree({ id: "old", name: "old", branch: "b1" })] });
+    store.getState().setWorktreeSelection(["old"], "inProgress");
+    store.getState().setWorktrees([makeWorktree({ id: "new", name: "old", branch: "b1" })]);
+    expect([...store.getState().selectedWorktreeIds]).toEqual(["new"]);
+    expect(store.getState().selectionAnchorId).toBe("new");
+  });
+
+  it("prunes a selection when a worktree disappears from the repo", () => {
+    store.setState({ worktrees: [makeWorktree({ id: "wt-1" }), makeWorktree({ id: "wt-2" })] });
+    store.getState().setWorktreeSelection(["wt-1", "wt-2"], "inProgress");
+    store.getState().setWorktreesForRepo("/repo", [makeWorktree({ id: "wt-2" })]);
+    expect([...store.getState().selectedWorktreeIds]).toEqual(["wt-2"]);
+  });
+});
