@@ -33,9 +33,10 @@ export function cancelPendingUnfocus(): void {
 }
 
 function mirrorToRust(focused: boolean) {
-  setAttention(focused).catch((e) =>
-    console.warn(`[attention] set_attention(${focused}) failed:`, e),
-  );
+  setAttention(focused).catch((e) => {
+    console.warn(`[attention] set_attention(${focused}) failed:`, e);
+    debugLog(`[attention] set_attention(${focused}) failed: ${e}`).catch(() => {});
+  });
 }
 
 /** Logs each *landed* flip to alfredo.log (console.warn does not reach it —

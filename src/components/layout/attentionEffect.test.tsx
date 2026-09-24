@@ -149,6 +149,13 @@ describe("useAttentionSignal", () => {
       isFocusedResolve?.(false);
     });
 
+    // Advance past the unfocus debounce so a stale resolution that slipped
+    // through would actually land (and fail these assertions) rather than
+    // being masked by the debounce timer never firing before unmount.
+    await act(async () => {
+      vi.advanceTimersByTime(UNFOCUS_DEBOUNCE_MS);
+    });
+
     expect(useAttentionStore.getState().focused).toBe(true);
     expect(setAttention).not.toHaveBeenCalled();
   });
