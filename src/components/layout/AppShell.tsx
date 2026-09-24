@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ChevronsRight } from "lucide-react";
 import { Group, Panel, Separator, useDefaultLayout, useGroupRef } from "react-resizable-panels";
 import { Sidebar } from "../sidebar/Sidebar";
@@ -34,6 +35,7 @@ import { useUpdater } from "../../hooks/useUpdater";
 import { useLinearOpenIssue } from "../../hooks/useLinearOpenIssue";
 import { UpdateBanner } from "./UpdateBanner";
 import { useAgentStore } from "../../stores/agentStore";
+import { useAttentionStore } from "../../stores/attentionStore";
 import { useRepoDialogs } from "./useRepoDialogs";
 import { useSessionAutoSave } from "./useSessionAutoSave";
 import { useStatePersistence } from "./useStatePersistence";
@@ -158,6 +160,21 @@ function AppShell() {
   // Extracted hooks
   useSessionRestore(repoPath, selectedRepos, repos, config?.showMainCardRepos ?? []);
   useWorktreeDiscovery(repoPath, selectedRepos, repos);
+
+  // Window attention → every gated poller (see stores/attentionStore and
+  // services/pollInterval). Seeded from the live focus state so a launch
+  // behind another window starts slow; onFocusChanged owns it from then on.
+  // This is the one focus listener that *pauses* work; the others in the
+  // codebase (useGithubSync, TerminalView) only add work on regain.
+  useEffect(() => {
+    const { reportFocus } = useAttentionStore.getState();
+    getCurrentWindow().isFocused().then(reportFocus).catch(() => {});
+    const unlisten = getCurrentWindow().onFocusChanged(({ payload }) => reportFocus(payload));
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   const { runScript, isServerRunningHere, handleToggleServer } = useServer(activeWorktreeId);
   useStaleServerCleanup();
   useServerReconciliation();
