@@ -1,0 +1,21 @@
+src/services/pollInterval.test.ts
+  s_51643d2d8b7e71::t_bacf310e5a7aab 1-101
+src/services/pollInterval.ts
+  s_51643d2d8b7e71::t_a8bdd7476534e0 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "07be296df85f426b4d2a0c082406c52195371445",
+  "prompts": {},
+  "sessions": {
+    "s_51643d2d8b7e71": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b22380a-245f-4cdd-8771-a0042a8ef1de",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}

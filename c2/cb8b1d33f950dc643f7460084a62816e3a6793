@@ -1,0 +1,29 @@
+src-tauri/src/sleep_inhibitor.rs
+  s_f21078665e3bbf::t_f8c8a55fe2f6e7 28-39,47-48,84-85,87-93,165,167-169
+  s_f21078665e3bbf::t_b16ff07c4f80ef 6-9,11,13-23,25-26,43,51-52,58-59,61-62,68,70-72,74-83,86,94-98,104-105,109,111-118,123-153,166,170-197,225,229,237
+  s_f21078665e3bbf::t_37acf2b0d04e77 69,101-102,119-122
+  s_f21078665e3bbf::t_1529ffe26bf124 246,251,254,261-262,272-273,276,283,293,300-373
+  s_f21078665e3bbf::t_0e4882e6ab26ba 374-417
+  s_f21078665e3bbf::t_d0adab390bcc9d 27
+src-tauri/src/state_server.rs
+  s_f21078665e3bbf::t_085071f94ac5cb 297-317
+  s_f21078665e3bbf::t_9fec8c44125b21 36-38,83,89-100,135,214,318
+src-tauri/src/pty_manager.rs
+  s_f21078665e3bbf::t_9e0e8fa74735ba 495
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c2cb8b1d33f950dc643f7460084a62816e3a6793",
+  "prompts": {},
+  "sessions": {
+    "s_f21078665e3bbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e2a8424-0972-4247-8b2f-157a5ef43f35",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
