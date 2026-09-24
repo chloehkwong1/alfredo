@@ -180,6 +180,17 @@ describe("registryPollDelay", () => {
     expect(registryPollDelay(100)).toBe(REGISTRY_POLL_BACKOFF_MAX_MS);
     expect(Number.isFinite(registryPollDelay(10_000))).toBe(true);
   });
+
+  it("stretches ×4 while unfocused, still capped at the ceiling", () => {
+    expect(registryPollDelay(0, false)).toBe(REGISTRY_POLL_INTERVAL_MS * 4);   // 15 s → 60 s
+    expect(registryPollDelay(2, false)).toBe(REGISTRY_POLL_INTERVAL_MS * 16);  // backoff × 4
+    expect(registryPollDelay(6, false)).toBe(REGISTRY_POLL_BACKOFF_MAX_MS);
+  });
+
+  it("defaults to the focused rate", () => {
+    expect(registryPollDelay(0)).toBe(registryPollDelay(0, true));
+    expect(registryPollDelay(0)).toBe(REGISTRY_POLL_INTERVAL_MS);
+  });
 });
 
 describe("matchRegistryEntry", () => {

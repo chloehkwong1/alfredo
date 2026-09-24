@@ -7,8 +7,10 @@ import { useTabStore } from "../stores/tabStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStatusStore } from "../stores/sessionStatusStore";
 import { useRemoteControlStore } from "../stores/remoteControlStore";
+import { useAttentionStore } from "../stores/attentionStore";
 import { resolveTerminalTheme, type TerminalPreferences } from "./terminalPreferences";
 import { computeStaleBusy } from "../hooks/usePty";
+import { startPollInterval } from "./pollInterval";
 
 import type { ManagedSession } from "./sessionTypes";
 import { OUTPUT_BUFFER_CAPACITY } from "./sessionTypes";
@@ -50,11 +52,17 @@ export const ORPHAN_SWEEP_INTERVAL_MS = 30_000;
  *  turned the backstop off until app restart. */
 export const REGISTRY_POLL_BACKOFF_MAX_MS = 10 * 60_000;
 
+/** Unfocused stretch for the registry backstop. Gentler than the app-wide
+ *  ×10: it still has to correct a stuck status within about a minute. */
+export const REGISTRY_UNFOCUSED_MULTIPLIER = 4;
+
 /** Poll interval given the consecutive-failure count: 15s doubling to the
- *  10-minute ceiling. Pure — unit-tested. */
-export function registryPollDelay(consecutiveFailures: number): number {
+ *  10-minute ceiling, ×REGISTRY_UNFOCUSED_MULTIPLIER while the window is
+ *  unfocused. Pure — unit-tested. */
+export function registryPollDelay(consecutiveFailures: number, focused = true): number {
+  const base = REGISTRY_POLL_INTERVAL_MS * 2 ** Math.min(consecutiveFailures, 10);
   return Math.min(
-    REGISTRY_POLL_INTERVAL_MS * 2 ** Math.min(consecutiveFailures, 10),
+    base * (focused ? 1 : REGISTRY_UNFOCUSED_MULTIPLIER),
     REGISTRY_POLL_BACKOFF_MAX_MS,
   );
 }
@@ -175,7 +183,8 @@ export function shouldHibernate(c: HibernateCandidate, now: number, idleMs: numb
 export class SessionManager implements SessionWriter {
   private sessions = new Map<string, ManagedSession>();
 
-  private reconcileTimer: ReturnType<typeof setInterval> | null = null;
+  /** Stop handle for the attention-aware reconcile tick; null when idle. */
+  private stopReconcileTimer: (() => void) | null = null;
 
   /** Incremented on each applyPreferences call so a slower-resolving font-load
    * from an older call can't stamp its fontFamily over a newer one. */
@@ -198,17 +207,20 @@ export class SessionManager implements SessionWriter {
   private orphanSweepInFlight = false;
   private orphanCandidates = new Set<string>();
 
-  /** Start the global reconciler if not already running. Idempotent. */
+  /** Start the global reconciler if not already running. Idempotent.
+   *  500ms focused, ×10 unfocused (startPollInterval). The sub-cadences it
+   *  drives — orphan sweep, hibernate check, registry poll — are all
+   *  timestamp-gated, so a slower tick delays each by at most one tick. */
   private startReconciler(): void {
-    if (this.reconcileTimer !== null) return;
-    this.reconcileTimer = setInterval(() => this.reconcileAll(), RECONCILE_INTERVAL_MS);
+    if (this.stopReconcileTimer !== null) return;
+    this.stopReconcileTimer = startPollInterval(() => this.reconcileAll(), RECONCILE_INTERVAL_MS);
   }
 
   /** Stop the global reconciler. Called from closeAll and from closeSession when the session map empties. */
   private stopReconciler(): void {
-    if (this.reconcileTimer === null) return;
-    clearInterval(this.reconcileTimer);
-    this.reconcileTimer = null;
+    if (this.stopReconcileTimer === null) return;
+    this.stopReconcileTimer();
+    this.stopReconcileTimer = null;
   }
 
   private reconcileAll(): void {
@@ -571,7 +583,8 @@ export class SessionManager implements SessionWriter {
    *  reconcile tick — never blocks it. */
   private maybePollRegistry(now: number): void {
     if (this.registryPollInFlight) return;
-    if (now - this.lastRegistryPollAt < registryPollDelay(this.registryPollFailures)) return;
+    const focused = useAttentionStore.getState().focused;
+    if (now - this.lastRegistryPollAt < registryPollDelay(this.registryPollFailures, focused)) return;
     let anyLive = false;
     for (const s of this.sessions.values()) {
       if (s.hooksActive && !s.ptyExited) { anyLive = true; break; }
