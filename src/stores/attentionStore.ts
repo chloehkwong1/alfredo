@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { setAttention } from "../api";
+import { setAttention, debugLog } from "../api";
 
 /** Unfocused pollers run at `focusedMs × UNFOCUSED_MULTIPLIER` unless a
  *  site passes its own multiplier (the registry backstop uses 4). */
@@ -38,6 +38,12 @@ function mirrorToRust(focused: boolean) {
   );
 }
 
+/** Logs each *landed* flip to alfredo.log (console.warn does not reach it —
+ *  only window.onerror/unhandledrejection are forwarded). Fire-and-forget. */
+function logFlip(focused: boolean) {
+  debugLog(`[attention] focused=${focused}`).catch(() => {});
+}
+
 export const useAttentionStore = create<AttentionState>((set, get) => ({
   focused: true,
 
@@ -48,15 +54,22 @@ export const useAttentionStore = create<AttentionState>((set, get) => ({
     }
     if (focused) {
       if (get().focused) return;
-      set({ focused: true });
+      // Mirror before set: mirrorToRust is fire-and-forget and never throws
+      // synchronously, but a subscriber to `set` below (e.g. a poller's
+      // regain fire) could — and Rust has no self-correction if that starves
+      // the mirror call. See pollInterval.ts's regain-fire guard for the
+      // other half of this.
       mirrorToRust(true);
+      logFlip(true);
+      set({ focused: true });
       return;
     }
     if (!get().focused) return;
     unfocusTimer = setTimeout(() => {
       unfocusTimer = null;
-      set({ focused: false });
       mirrorToRust(false);
+      logFlip(false);
+      set({ focused: false });
     }, UNFOCUS_DEBOUNCE_MS);
   },
 }));

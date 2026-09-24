@@ -34,7 +34,20 @@ export function startPollInterval(
   const unsubscribe = useAttentionStore.subscribe((state, prev) => {
     if (state.focused === prev.focused) return;
     arm(state.focused);
-    if (state.focused) fn();
+    // zustand 5's notify loop is a bare forEach with no try/catch (see
+    // node_modules/zustand/esm/vanilla.mjs) — an uncaught throw here would
+    // abort every subscriber registered after this one AND propagate out of
+    // the store's `set({ focused: true })`, so mirrorToRust never runs and
+    // the Rust attention flag desyncs with no self-heal. The interval's own
+    // `fn` is NOT wrapped like this — that callback is already isolated by
+    // the event loop, and hiding its errors would be a regression.
+    if (state.focused) {
+      try {
+        fn();
+      } catch (e) {
+        console.warn("[poll] regain fire threw:", e);
+      }
+    }
   });
 
   return () => {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("../api", () => ({
   setAttention: vi.fn(() => Promise.resolve()),
+  debugLog: vi.fn(() => Promise.resolve()),
 }));
 
 import { useAttentionStore, UNFOCUS_DEBOUNCE_MS, cancelPendingUnfocus } from "./attentionStore";

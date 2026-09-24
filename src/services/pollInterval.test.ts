@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("../api", () => ({
   setAttention: vi.fn(() => Promise.resolve()),
+  debugLog: vi.fn(() => Promise.resolve()),
 }));
 
 import { startPollInterval } from "./pollInterval";
@@ -86,6 +87,28 @@ describe("startPollInterval", () => {
     vi.advanceTimersByTime(1_000);
     expect(fn).toHaveBeenCalledTimes(1);
     stop();
+  });
+
+  it("a throwing regain fire does not abort a later subscriber or escape the notify loop", () => {
+    focus(false);
+    const throwing = vi.fn(() => {
+      throw new Error("boom");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const stopThrowing = startPollInterval(throwing, 1_000);
+    const laterFn = vi.fn();
+    const stopLater = startPollInterval(laterFn, 1_000);
+
+    expect(() => focus(true)).not.toThrow();
+
+    expect(throwing).toHaveBeenCalledTimes(1);
+    // The subscriber registered after the throwing one must still fire.
+    expect(laterFn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith("[poll] regain fire threw:", expect.any(Error));
+
+    warn.mockRestore();
+    stopThrowing();
+    stopLater();
   });
 
   it("stop() clears the timer and the subscription", () => {
