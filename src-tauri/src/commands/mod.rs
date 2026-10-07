@@ -29,4 +29,5 @@ pub mod git_ops;
 pub mod app_detection;
 pub mod updater;
 pub mod notification;
+pub mod server_warmup;
 pub mod linear_launch;
