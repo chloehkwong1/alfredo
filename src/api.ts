@@ -888,6 +888,13 @@ export function playSound(id: string): Promise<void> {
   return invoke("play_sound", { id });
 }
 
+// ── Dev server ──────────────────────────────────────────────────
+
+/** Fire-and-forget `GET /` once the server on `port` accepts connections. */
+export function warmUpServer(port: number): Promise<void> {
+  return invoke("warm_up_server", { port });
+}
+
 // ── Clipboard ───────────────────────────────────────────────────
 
 export function setClipboardText(text: string): Promise<void> {

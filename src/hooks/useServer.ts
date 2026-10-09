@@ -11,13 +11,25 @@ import { startPollInterval } from "../services/pollInterval";
  * the store.
  */
 const revivingServers = new Set<string>();
-import { getConfig, listSessions, claimWorktreePort, listWorktrees } from "../api";
+import { getConfig, listSessions, claimWorktreePort, listWorktrees, warmUpServer } from "../api";
 import { usePortPickerStore } from "../stores/portPickerStore";
 import { sessionManager } from "../services/sessionManager";
 import { stopDevServer } from "../services/portReclaim";
 import { lifecycleManager } from "../services/lifecycleManager";
 import { normalizeCommand } from "../lib/normalizeCommand";
 import type { RunScript, Session } from "../types";
+
+/**
+ * Server tabs started from Start-server whose port wasn't known at start time.
+ * The port-detection effect warms them up once their port shows in the output.
+ * Reattached servers never land here — they were warmed when first started.
+ */
+const pendingWarmUps = new Set<string>();
+
+/** Wake the app (and a suspended Neon DB behind it) before the user's first request. */
+function warmUp(port: number) {
+  warmUpServer(port).catch((err) => console.warn("[server-warmup] failed:", err));
+}
 
 /** Extract port number from a URL string (e.g. "http://localhost:3000" → 3000). */
 function extractPort(url: string): number | undefined {
@@ -287,6 +299,7 @@ export function useServer(activeWorktreeId: string | null) {
 
     try {
       if (isServerRunningHere) {
+        pendingWarmUps.delete(runningServer!.tabId);
         await stopDevServer(activeWorktreeId, runningServer!.tabId);
         return;
       }
@@ -371,6 +384,9 @@ export function useServer(activeWorktreeId: string | null) {
         port,
         createdAt: Date.now(),
       });
+
+      if (port) warmUp(port);
+      else if (tabId) pendingWarmUps.add(tabId);
     } catch (err) {
       console.error("[handleToggleServer] failed:", err);
     }
@@ -418,6 +434,7 @@ export function useServer(activeWorktreeId: string | null) {
       const detected = detectPortFromOutput(text);
       if (detected) {
         setRunningServer(wtId, { ...runningServer, port: detected });
+        if (pendingWarmUps.delete(tabId)) warmUp(detected);
       }
     }, SERVER_POLL_INTERVAL_MS);
 
