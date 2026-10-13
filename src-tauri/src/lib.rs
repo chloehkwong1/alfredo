@@ -97,7 +97,7 @@ fn best_offer_index(candidates: &[String], receive_beta: bool) -> Option<usize> 
         .map(|(i, _)| i)
 }
 
-use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, attention as attention_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, gifs, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, pr_detail, pr_review, pty, repo, session, updater as updater_cmds, worktree};
+use commands::{agents, app_config, app_detection, ask_alfredo as ask_alfredo_cmd, attention as attention_cmd, audio, branch, checks, claude_registry, clipboard, config, debug_log as debug_log_cmd, diff, dock_badge, external_tools, gifs, git_ops, github, github_auth, linear, linear_launch, linear_oauth as linear_oauth_cmds, notes, notification, pr_detail, pr_review, pty, repo, server_warmup, session, updater as updater_cmds, worktree};
 use github_sync::SyncState;
 use pty_manager::PtyManager;
 use sleep_inhibitor::SleepInhibitor;
@@ -314,6 +314,8 @@ pub fn run() {
             // Audio
             audio::play_sound,
             clipboard::set_clipboard_text,
+            // Dev server
+            server_warmup::warm_up_server,
             // Dock badge (macOS/Linux)
             dock_badge::set_dock_badge,
             // Window attention (frontend → Rust polling cadence)
