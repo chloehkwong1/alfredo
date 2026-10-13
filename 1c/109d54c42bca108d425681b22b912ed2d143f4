@@ -1,0 +1,38 @@
+src/lib/stackChain.test.ts
+  s_d7938b06061a6a::t_e8ee4769eca7ec 4
+  s_d7938b06061a6a::t_8807ac8a862047 435-473
+src/lib/stackChain.ts
+  s_d7938b06061a6a::t_70766bfa8ec162 193-245
+src/components/sidebar/AgentItem.tsx
+  s_d7938b06061a6a::t_6d4a9306029a67 971-972
+  s_d7938b06061a6a::t_276507f9795147 1029-1032
+  s_d7938b06061a6a::t_232957ccc1de78 3
+  s_d7938b06061a6a::t_4d75c1b2dcaa38 41
+  s_d7938b06061a6a::t_1ad491e69bda17 973
+  s_d7938b06061a6a::t_dbd1950045707e 1034-1035
+src/hooks/usePty.ts
+  s_d7938b06061a6a::t_4471061e1dbe5f 308-314
+src/components/sidebar/DeleteWorktreeConfirm.tsx
+  s_d7938b06061a6a::t_f9ef3e7fc6088b 13
+  s_d7938b06061a6a::t_889d61b93d74f9 31
+  s_d7938b06061a6a::t_c6cb550d91427e 41-53
+src/components/sidebar/AgentItem.test.ts
+  s_d7938b06061a6a::t_9ac1951e2a5994 1-6
+  s_d7938b06061a6a::t_8807ac8a862047 535-610
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c109d54c42bca108d425681b22b912ed2d143f4",
+  "prompts": {},
+  "sessions": {
+    "s_d7938b06061a6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3d85756-da7f-4737-bf96-f2fe4abd371e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
