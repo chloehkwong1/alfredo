@@ -134,6 +134,52 @@ describe("undoBulkMove", () => {
     expect(setWorktreeColumns).toHaveBeenCalledWith("/r1", { c: "blocked" });
   });
 
+  it("leaves a row without an override that never had one", async () => {
+    // Replaying setManualColumn re-derives autoColumnWhenSet, so undoing a
+    // move that way invents an override the user never made — which then holds
+    // the row against every later PR sync. restoreColumnOverride exists for
+    // exactly this, and bulkMoveToColumn's own rollback path already uses it.
+    const rows = [wt("a", "/r1"), wt("b", "/r1")];
+    useWorkspaceStore.setState({ worktrees: rows });
+    expect(usePrStore.getState().columnOverrides.a).toBeUndefined();
+
+    const { undo } = await bulkMoveToColumn(rows, "blocked");
+    expect(usePrStore.getState().columnOverrides.a).toBeDefined();
+
+    await undoBulkMove(undo);
+
+    expect(usePrStore.getState().columnOverrides.a).toBeUndefined();
+    expect(usePrStore.getState().columnOverrides.b).toBeUndefined();
+  });
+
+  it("puts back the override a row did have, rather than a re-derived one", async () => {
+    const rows = [wt("a", "/r1")];
+    useWorkspaceStore.setState({ worktrees: rows });
+    usePrStore.getState().setManualColumn("a", "toDo", "openPr");
+    const before = usePrStore.getState().columnOverrides.a;
+
+    const { undo } = await bulkMoveToColumn(rows, "blocked");
+    await undoBulkMove(undo);
+
+    expect(usePrStore.getState().columnOverrides.a).toEqual(before);
+  });
+
+  it("does not stop dev servers when undoing a move out of done", async () => {
+    // byPriorColumn is keyed by prior column, so undoing a move *out of* Done
+    // targets Done — and a move into Done stops servers and frees ports.
+    // Undo must not destroy state the move itself never touched.
+    const rows = [{ ...wt("a", "/r1"), column: "done" as const }];
+    useWorkspaceStore.setState({ worktrees: rows });
+
+    const { undo } = await bulkMoveToColumn(rows, "inProgress");
+    expect(undo.byPriorColumn.has("done")).toBe(true);
+    vi.mocked(stopServerAndReleasePort).mockClear();
+
+    await undoBulkMove(undo);
+
+    expect(stopServerAndReleasePort).not.toHaveBeenCalled();
+  });
+
   it("restores the pins that the move into done dropped", async () => {
     useWorkspaceStore.setState({
       worktrees: [wt("a", "/r1"), wt("b", "/r1")],

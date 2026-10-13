@@ -11,6 +11,11 @@ export interface BulkMoveUndo {
   byPriorColumn: Map<KanbanColumn, Worktree[]>;
   /** Rows that lost their pin to the store's unpin-on-entering-done rule. */
   unpinned: string[];
+  /** The prStore override each moved row held *before* the move, or undefined
+   *  where it held none. Undo replays a move, and a move always writes a fresh
+   *  override, so Undo has to put these back explicitly — see
+   *  `restoreColumnOverride`. */
+  priorOverrides: Map<string, ColumnOverride | undefined>;
 }
 
 export interface BulkResult {
@@ -44,6 +49,10 @@ export function groupByRepo(worktrees: Worktree[]): Map<string, Worktree[]> {
 export async function bulkMoveToColumn(
   worktrees: Worktree[],
   column: KanbanColumn,
+  /** Undo passes false: a move into Done stops each row's dev server and frees
+   *  its port, and undoing a move *out of* Done targets Done, so leaving this
+   *  on would have Undo destroy servers the original move never touched. */
+  { stopServersOnDone = true }: { stopServersOnDone?: boolean } = {},
 ): Promise<BulkResult> {
   const { setManualColumn } = useWorkspaceStore.getState();
   const { setManualColumn: prSetManualColumn, restoreColumnOverride } = usePrStore.getState();
@@ -96,7 +105,7 @@ export async function bulkMoveToColumn(
     }
   }
 
-  if (column === "done") {
+  if (column === "done" && stopServersOnDone) {
     // Only for worktrees whose repo actually persisted the move — a rolled-back
     // row's column reverted above, so stopping its server and freeing its port
     // here would strand it looking unchanged but with a dead server and no port.
@@ -110,8 +119,12 @@ export async function bulkMoveToColumn(
   const pinnedAfter = useWorkspaceStore.getState().pinnedWorktrees;
   const byPriorColumn = new Map<KanbanColumn, Worktree[]>();
   const unpinned: string[] = [];
+  // Every persisted row, not just the ones that changed column: the move wrote
+  // an override for all of them, so Undo has to unwind all of them.
+  const undoOverrides = new Map<string, ColumnOverride | undefined>();
   for (const wt of succeeded) {
     if (pinnedBefore.has(wt.id) && !pinnedAfter.has(wt.id)) unpinned.push(wt.id);
+    undoOverrides.set(wt.id, priorOverrides.get(wt.id));
     const prior = priorColumns.get(wt.id);
     if (prior === undefined || prior === column) continue;
     const group = byPriorColumn.get(prior);
@@ -119,22 +132,30 @@ export async function bulkMoveToColumn(
     else byPriorColumn.set(prior, [wt]);
   }
 
-  return { moved, failedRepos, undo: { byPriorColumn, unpinned } };
+  return { moved, failedRepos, undo: { byPriorColumn, unpinned, priorOverrides: undoOverrides } };
 }
 
-/** Reverses a bulk move: the rows go back to the columns they came from and the
- *  pins the move dropped are restored. One call per distinct prior column, not
- *  per row — bulkMoveToColumn already fans out per repo, so this keeps Undo
- *  from re-taking each repo's config lock once a row.
+/** Reverses a bulk move: the rows go back to the columns they came from, the
+ *  overrides the move wrote are unwound, and the pins it dropped are restored.
+ *  One call per distinct prior column, not per row — bulkMoveToColumn already
+ *  fans out per repo, so this keeps Undo from re-taking each repo's config
+ *  lock once a row.
  *
  *  Not a full inverse: a move into Done also stops each row's dev server and
- *  frees its port, and nothing here restarts them. */
+ *  frees its port, and nothing here restarts them. Undo does not stop any
+ *  server itself, though — undoing a move out of Done targets Done, and a row
+ *  that had a server running before the move must still have it after. */
 export async function undoBulkMove(undo: BulkMoveUndo): Promise<void> {
   for (const [prior, group] of undo.byPriorColumn) {
-    await bulkMoveToColumn(group, prior);
+    await bulkMoveToColumn(group, prior, { stopServersOnDone: false });
   }
-  // After the moves: Undo never targets Done, so the unpin rule can't fire
-  // again and strip what we just put back.
+  // After the moves, which each wrote a fresh override over the top.
+  const { restoreColumnOverride } = usePrStore.getState();
+  for (const [id, override] of undo.priorOverrides) {
+    restoreColumnOverride(id, override);
+  }
+  // After the moves too: a row moved back into Done would otherwise hit the
+  // unpin rule and lose the pin we just restored.
   repin(undo.unpinned);
 }
 
