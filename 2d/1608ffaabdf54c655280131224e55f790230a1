@@ -1,0 +1,20 @@
+src/components/ui/Checkbox.tsx
+  s_0e5ad0451e89bf::t_8cd0d69a9da736 54-60,63-64
+  s_0e5ad0451e89bf::t_a157a9fb18cfcd 32-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d1608ffaabdf54c655280131224e55f790230a1",
+  "prompts": {},
+  "sessions": {
+    "s_0e5ad0451e89bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3480f22d-da9d-494b-961a-5b8f031b9e86",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
