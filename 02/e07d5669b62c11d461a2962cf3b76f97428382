@@ -1,0 +1,98 @@
+designs/bulk-select-spec.md
+  s_d765ce8ab12b83::t_e0ef5dace986b8 1-101
+src/components/sidebar/StatusGroup.tsx
+  s_74d8fdf2eb57f6::t_a7808bc60fcf0a 193
+  s_74d8fdf2eb57f6::t_52101dcd87afb3 139-142,259,261-265
+  s_74d8fdf2eb57f6::t_f14e23a1e8cb60 33-34,110,134
+  s_74d8fdf2eb57f6::t_e32cdf934b8ed8 17,136,260
+  s_fae315bd085586::t_74257b2b7eee65 16
+  s_74d8fdf2eb57f6::t_415407dfe58e16 90-102
+  s_fae315bd085586::t_c573da0d383de2 251-258
+  s_74d8fdf2eb57f6::t_e13e363f3de784 151
+  s_74d8fdf2eb57f6::t_22412091828212 148-149
+  s_fae315bd085586::t_7db8b0690ad104 35-39,152
+src/stores/workspaceStore.test.ts
+  s_fae315bd085586::t_92682464ce8e29 1316-1348
+src/components/sidebar/AgentItemOverlay.tsx
+  s_fae315bd085586::t_5df084d5cb5deb 19-21,31,71-72,74-75
+  s_fae315bd085586::t_69318f4cde53f6 2-8,15-18,22-23,26-30,32-33,39-42,44-70,73,76-89
+src/stores/workspaceStore.ts
+  s_fae315bd085586::t_386240aba390d7 1055
+  s_fae315bd085586::t_1a4752d57cfadf 51-56,720-723,736-742
+src/components/sidebar/SelectionBar.tsx
+  s_74d8fdf2eb57f6::t_4a89e712e606f9 34-37,45,48-58
+  s_74d8fdf2eb57f6::t_415407dfe58e16 14-16,29,40
+  s_74d8fdf2eb57f6::t_3b691d443b4f5c 38-39
+src/components/sidebar/SidebarDragContext.tsx
+  s_fae315bd085586::t_c48c92743b43c7 125-130,217-219,310,461,477,501-510
+  s_fae315bd085586::t_b3c80a7b876edd 220-223,311
+  s_fae315bd085586::t_e1e518fba7d82f 462,478
+src/components/ui/Checkbox.tsx
+  s_74d8fdf2eb57f6::t_3b691d443b4f5c 1,5-8,36-37,41,46,60,68,72-73,77-81
+  s_74d8fdf2eb57f6::t_ffcccceb33296b 26-33,38-40,42,44,48-50,53-59,61-62,82
+  s_74d8fdf2eb57f6::t_8fd4eafeb79356 2-4,9-25,34-35,43,45,47,51-52,63-67,69-71,74-76,83-87
+src/components/ui/index.ts
+  s_74d8fdf2eb57f6::t_b896c5fd4e1881 16-18
+src/components/sidebar/AgentItem.tsx
+  s_74d8fdf2eb57f6::t_a7808bc60fcf0a 157
+  s_fae315bd085586::t_359a3f59c1eb1a 295-298,1077
+  s_fae315bd085586::t_dbac716b18016e 1326-1334,1336-1339
+  s_74d8fdf2eb57f6::t_7624c3f8e325eb 46,304-306,1079,1464-1469
+  s_74d8fdf2eb57f6::t_182e7cedaeceb8 1342-1344
+  s_74d8fdf2eb57f6::t_f0fe394d824a4f 430-433,446,470-483
+  s_74d8fdf2eb57f6::t_2f6ca725e21363 45,299-303
+  s_fae315bd085586::t_71230239b87a3e 230-242,1325
+  s_fae315bd085586::t_476c468e94a71b 1117-1121
+  s_fae315bd085586::t_2e9d0cb47bffc4 207-229,243-273
+src/components/sidebar/AgentItem.test.ts
+  s_fae315bd085586::t_2ee697e6c8c7b3 536-556
+  s_fae315bd085586::t_409ac4036b71a7 557-585
+  s_fae315bd085586::t_321fa4e62f0606 586
+  s_d7938b06061a6a::t_78645e405f4761 5
+src/components/sidebar/Sidebar.tsx
+  s_74d8fdf2eb57f6::t_415407dfe58e16 132,742-746
+  s_74d8fdf2eb57f6::t_237744e061f0bb 35
+  s_74d8fdf2eb57f6::t_43a481e2899977 155-165
+  s_74d8fdf2eb57f6::t_8126a337763e5d 690
+  s_fae315bd085586::t_7d3111df1371cc 192-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "02e07d5669b62c11d461a2962cf3b76f97428382",
+  "prompts": {},
+  "sessions": {
+    "s_74d8fdf2eb57f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "18d94f05-6d89-4336-ac3d-4413320a733a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_d765ce8ab12b83": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac2e8d20-8547-4da3-93cf-550b025e6510",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_d7938b06061a6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3d85756-da7f-4737-bf96-f2fe4abd371e",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_fae315bd085586": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09e9f784-6409-4d69-9ad2-19745363e95d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
