@@ -470,4 +470,28 @@ describe("stackChainsFor", () => {
     expect(troubled.get("b")).not.toBe(before.get("b"));
     expect(troubled.get("b")!.selfNeedsAttention).toBe(true);
   });
+
+  it("returns a new chain object when a native member's state changes", () => {
+    // A local-only tip reads the roster off its chain (the popover falls back
+    // to chain.nativeStack), so a sibling PR merging with the same size and
+    // positions must still break identity.
+    const member = (number: number, state: string) =>
+      ({ number, title: "t", branch: `feat/${number}`, state, url: "u", position: number });
+    const native = (state: string): NativeStackInfo =>
+      ({ id: "stack-1", number: 1, position: 1, size: 2, members: [member(1, "OPEN"), member(2, state)] });
+    const root = (state: string) =>
+      wt({
+        id: "r", branch: "feat/r",
+        prStatus: { number: 1, state: "OPEN", title: "t", url: "u", draft: false, merged: false, branch: "feat/r", nativeStack: native(state) } as Worktree["prStatus"],
+      });
+    const tip = wt({ id: "t", branch: "feat/t", stackParent: "feat/r" });
+
+    const before = stackChainsFor([root("OPEN"), tip]);
+    const unchanged = stackChainsFor([{ ...root("OPEN"), channelAlive: true }, tip]);
+    expect(unchanged.get("t")).toBe(before.get("t"));
+
+    const after = stackChainsFor([root("MERGED"), tip]);
+    expect(after.get("t")).not.toBe(before.get("t"));
+    expect(after.get("t")!.nativeStack!.members[1].state).toBe("MERGED");
+  });
 });

@@ -371,28 +371,24 @@ function SidebarDragContext({
         // to bulkMoveToColumn, or it would record the row's autoColumnWhenSet
         // as the column it moved TO instead of the one it left.
         const batch = dragBatchRef.current;
+        // Read fresh rather than from `dragBatch` state, which this callback
+        // closes over stale. The selection cannot change mid-drag.
+        const movedSelection = useWorkspaceStore.getState().selectedWorktreeIds.has(activeWtId);
         const origin = originColumnRef.current;
         const batchWorktrees = useWorkspaceStore
           .getState()
           .worktrees.filter((w) => batch.includes(w.id))
           .map((w) => (w.id === activeWtId ? { ...w, column: origin } : w));
 
-        // handleDragOver already rewrote the dragged row's column, so
-        // setManualColumn's unpin-on-entering-done check sees prev.column
-        // === "done" and skips it. Do it here so the dragged row matches the
-        // rest of the batch instead of staying pinned while its siblings
-        // unpin.
-        if (worktree.column === "done" && origin !== "done") {
-          const { pinnedWorktrees, togglePinWorktree } = useWorkspaceStore.getState();
-          if (pinnedWorktrees.has(activeWtId)) togglePinWorktree(activeWtId);
-        }
-
         void bulkMoveToColumn(batchWorktrees, worktree.column)
           .catch((e) => {
             console.error("[drag] Bulk move failed:", e);
           })
           .finally(() => {
-            useWorkspaceStore.getState().clearWorktreeSelection();
+            // Only when the drag moved the selection. Dragging an unselected
+            // row leaves the selection untouched, so clearing it here would
+            // throw away rows the user is still working with.
+            if (movedSelection) useWorkspaceStore.getState().clearWorktreeSelection();
           });
 
         // Persist the target column with the card at its drop position, taken

@@ -109,8 +109,24 @@ describe("bulkMoveToColumn", () => {
 
     expect(useWorkspaceStore.getState().pinnedWorktrees.has("a")).toBe(true);
     // Already back where it started, so there is nothing for Undo to restore.
-    expect(result.undo.unpinned).toEqual([]);
+    expect(result.undo.pinnedBefore).toEqual([]);
     expect(result.undo.byPriorColumn.size).toBe(0);
+  });
+
+  it("unpins a row entering done from the origin the caller passes, not the store's column", async () => {
+    // The drag path previews the drop in the store before calling, so the
+    // store already says "done" and setManualColumn's own transition check
+    // never fires. The caller-supplied origin is what decides it.
+    useWorkspaceStore.setState({
+      worktrees: [{ ...wt("a", "/r1"), column: "done" }],
+      pinnedWorktrees: new Set(["a"]),
+    });
+
+    const result = await bulkMoveToColumn([wt("a", "/r1")], "done");
+
+    expect(useWorkspaceStore.getState().pinnedWorktrees.has("a")).toBe(false);
+    // Snapshotted before the unpin, so a rollback or Undo can put it back.
+    expect(result.undo.pinnedBefore).toEqual(["a"]);
   });
 });
 
@@ -189,13 +205,46 @@ describe("undoBulkMove", () => {
     const { undo } = await bulkMoveToColumn([wt("a", "/r1"), wt("b", "/r1")], "done");
     // The move unpinned "a" — Undo has to know that, or the column comes back
     // and the pin silently does not.
-    expect(undo.unpinned).toEqual(["a"]);
+    expect(undo.pinnedBefore).toEqual(["a"]);
     expect(useWorkspaceStore.getState().pinnedWorktrees.has("a")).toBe(false);
 
     await undoBulkMove(undo);
 
     expect(useWorkspaceStore.getState().pinnedWorktrees.has("a")).toBe(true);
     expect(useWorkspaceStore.getState().pinnedWorktrees.has("b")).toBe(false);
+  });
+
+  it("keeps the pin on a row undone back into done", async () => {
+    // Moving a pinned row *out of* Done drops nothing, but undoing it targets
+    // Done, and that replay hits the unpin rule. Undo is an inverse: the row
+    // was pinned in Done before, so it is pinned in Done after.
+    useWorkspaceStore.setState({
+      worktrees: [{ ...wt("a", "/r1"), column: "done" }],
+      pinnedWorktrees: new Set(["a"]),
+    });
+
+    const { undo } = await bulkMoveToColumn([{ ...wt("a", "/r1"), column: "done" }], "inProgress");
+    expect(useWorkspaceStore.getState().pinnedWorktrees.has("a")).toBe(true);
+
+    await undoBulkMove(undo);
+
+    expect(useWorkspaceStore.getState().worktrees[0].column).toBe("done");
+    expect(useWorkspaceStore.getState().pinnedWorktrees.has("a")).toBe(true);
+  });
+
+  it("rolls a failed undo back to the column the row is actually in", async () => {
+    const rows = [wt("a", "/r1")];
+    useWorkspaceStore.setState({ worktrees: rows });
+
+    const { undo } = await bulkMoveToColumn(rows, "done");
+    expect(useWorkspaceStore.getState().worktrees[0].column).toBe("done");
+
+    vi.mocked(setWorktreeColumns).mockRejectedValueOnce(new Error("disk full"));
+    await undoBulkMove(undo);
+
+    // The undo never persisted, so the row must still show the column the
+    // backend holds — not the column the undo was trying to reach.
+    expect(useWorkspaceStore.getState().worktrees[0].column).toBe("done");
   });
 
   it("reclaims ports only for the repo that actually persisted, not a rolled-back one", async () => {

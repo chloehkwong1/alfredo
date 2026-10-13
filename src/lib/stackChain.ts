@@ -215,6 +215,23 @@ function stackChainEqual(a: StackChain, b: StackChain): boolean {
     const x = a.nativeStack;
     const y = b.nativeStack;
     if (x.id !== y.id || x.number !== y.number || x.position !== y.position || x.size !== y.size) return false;
+    // The roster is read off the chain when the anchor row has no PR of its
+    // own (StackMapPopover falls back to `chain.nativeStack`), so a member
+    // merging, closing or being retitled has to break identity too.
+    if (x.members.length !== y.members.length) return false;
+    for (let i = 0; i < x.members.length; i++) {
+      const m = x.members[i];
+      const n = y.members[i];
+      if (
+        m.number !== n.number ||
+        m.position !== n.position ||
+        m.state !== n.state ||
+        m.title !== n.title ||
+        m.branch !== n.branch
+      ) {
+        return false;
+      }
+    }
   }
   return true;
 }

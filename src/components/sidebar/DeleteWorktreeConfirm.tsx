@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -40,11 +40,13 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoP
   // on the surface rather than letting sibling cards change unexplained.
   // One of these dialogs is mounted per sidebar row, so while closed the
   // selectors return constants — a whole-array subscription here would
-  // re-render every row on every store patch.
-  const stackChildren = useWorkspaceStore((s) =>
-    open && repoPath
-      ? s.worktrees.filter((w) => w.repoPath === repoPath && w.stackParent === branch)
-      : NO_CHILDREN,
+  // re-render every row on every store patch. The selector must return a
+  // stable reference (zustand v5 has no equality fn): select the array and
+  // filter outside, never `.filter` inside the selector.
+  const worktreesWhileOpen = useWorkspaceStore((s) => (open && repoPath ? s.worktrees : NO_CHILDREN));
+  const stackChildren = useMemo(
+    () => worktreesWhileOpen.filter((w) => w.repoPath === repoPath && w.stackParent === branch),
+    [worktreesWhileOpen, repoPath, branch],
   );
   const restackTarget = useWorkspaceStore((s) =>
     open && repoPath

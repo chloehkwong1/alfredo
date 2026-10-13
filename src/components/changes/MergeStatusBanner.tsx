@@ -137,7 +137,13 @@ export function MergeStatusBanner({
   // combined press needs evidence that checks already ran on this PR; without
   // it the banner offers the undraft alone, and the ordinary merge button arms
   // on the next poll (immediately, on a repo that has no CI at all).
-  const hasCheckEvidence = checkRuns.length > 0;
+  //
+  // Evidence means a run that actually exercised the head: a `success`
+  // conclusion. `skipped` and `neutral` count as passing elsewhere (they
+  // must not block a merge), but a draft whose workflows all short-circuited
+  // on `draft == false` has runs with no test behind them — the very case
+  // this guard exists for.
+  const hasCheckEvidence = checkRuns.some((run) => run.conclusion === "success");
   const isReady =
     mergeable === true &&
     reviewDecision === "approved" &&

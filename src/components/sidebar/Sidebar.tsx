@@ -435,7 +435,16 @@ function Sidebar({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") clearWorktreeSelection();
+      if (e.key !== "Escape") return;
+      // Escape that something else consumed (Radix closes a menu or dialog
+      // with preventDefault, before this window listener runs) or that is
+      // aimed at a terminal pane or text field is not a "deselect".
+      if (e.defaultPrevented) return;
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || active?.isContentEditable) return;
+      if (active?.closest?.(".xterm")) return;
+      clearWorktreeSelection();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

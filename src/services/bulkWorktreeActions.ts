@@ -9,8 +9,11 @@ import { usePrStore, type ColumnOverride } from "../stores/prStore";
 export interface BulkMoveUndo {
   /** Rows to move back, keyed by the column each one came from. */
   byPriorColumn: Map<KanbanColumn, Worktree[]>;
-  /** Rows that lost their pin to the store's unpin-on-entering-done rule. */
-  unpinned: string[];
+  /** Rows that were pinned before the move. Undo re-pins all of them, not
+   *  just the ones the move unpinned: undoing a move *out of* Done targets
+   *  Done, and that replay would otherwise unpin a row the original move
+   *  never touched. */
+  pinnedBefore: string[];
   /** The prStore override each moved row held *before* the move, or undefined
    *  where it held none. Undo replays a move, and a move always writes a fresh
    *  override, so Undo has to put these back explicitly — see
@@ -38,10 +41,9 @@ function repin(ids: Iterable<string>) {
 export function groupByRepo(worktrees: Worktree[]): Map<string, Worktree[]> {
   const grouped = new Map<string, Worktree[]>();
   for (const wt of worktrees) {
-    const key = wt.repoPath ?? "";
-    const bucket = grouped.get(key);
+    const bucket = grouped.get(wt.repoPath);
     if (bucket) bucket.push(wt);
-    else grouped.set(key, [wt]);
+    else grouped.set(wt.repoPath, [wt]);
   }
   return grouped;
 }
@@ -57,26 +59,33 @@ export async function bulkMoveToColumn(
   const { setManualColumn } = useWorkspaceStore.getState();
   const { setManualColumn: prSetManualColumn, restoreColumnOverride } = usePrStore.getState();
   // Captured before the first optimistic write: setManualColumn replaces the
-  // Set rather than mutating it, so this keeps the pre-move membership and the
-  // diff below tells us which rows the store's unpin rule actually touched.
+  // Set rather than mutating it, so this keeps the pre-move membership for
+  // the rollback and Undo paths below.
   const pinnedBefore = useWorkspaceStore.getState().pinnedWorktrees;
 
   // Optimistic first: the rows jump immediately, and registering the manual
-  // override stops the next PR sync from stomping the move. The third argument
-  // is the column the row is leaving — prStore stores it as autoColumnWhenSet,
-  // which is what later decides whether PR sync may reclaim the row. The drag
-  // path passes originColumnRef.current here for the same reason.
+  // override stops the next PR sync from stomping the move. `wt.column` is the
+  // column the row is leaving — callers must pass it as such (the drag path
+  // restores the dragged row's origin before calling, because handleDragOver
+  // has already previewed the drop in the store). prStore stores it as
+  // autoColumnWhenSet, which is what later decides whether PR sync may reclaim
+  // the row.
   //
-  // Prior columns and prior overrides are snapshotted per row so a failed
-  // repo's optimistic writes can be undone exactly, not approximated.
-  const priorColumns = new Map<string, KanbanColumn>();
+  // Prior overrides are snapshotted per row so a failed repo's optimistic
+  // writes can be undone exactly, not approximated.
   const priorOverrides = new Map<string, ColumnOverride | undefined>();
   for (const wt of worktrees) {
-    const priorColumn = wt.column;
-    priorColumns.set(wt.id, priorColumn);
     priorOverrides.set(wt.id, usePrStore.getState().columnOverrides[wt.id]);
     setManualColumn(wt.id, column);
-    prSetManualColumn(wt.id, column, priorColumn);
+    prSetManualColumn(wt.id, column, wt.column);
+    // Entering Done drops the pin. setManualColumn applies the same rule from
+    // the store's view of the previous column, which is wrong whenever the
+    // store already shows the target (the drag preview), so decide it here
+    // from the origin the caller gave us. No-op when the store already did it.
+    if (column === "done" && wt.column !== "done") {
+      const { pinnedWorktrees, togglePinWorktree } = useWorkspaceStore.getState();
+      if (pinnedWorktrees.has(wt.id)) togglePinWorktree(wt.id);
+    }
   }
 
   const failedRepos: string[] = [];
@@ -97,8 +106,7 @@ export async function bulkMoveToColumn(
       // move, so the rows must not keep showing a column it never persisted,
       // nor keep an override or lose a pin on the strength of that write.
       for (const wt of group) {
-        const prior = priorColumns.get(wt.id) ?? wt.column;
-        setManualColumn(wt.id, prior);
+        setManualColumn(wt.id, wt.column);
         restoreColumnOverride(wt.id, priorOverrides.get(wt.id));
       }
       repin(group.filter((wt) => pinnedBefore.has(wt.id)).map((wt) => wt.id));
@@ -114,25 +122,21 @@ export async function bulkMoveToColumn(
     );
   }
 
-  // Diff the pinned set rather than re-deriving the store's unpin rule here, so
-  // Undo stays correct if that rule ever changes.
-  const pinnedAfter = useWorkspaceStore.getState().pinnedWorktrees;
   const byPriorColumn = new Map<KanbanColumn, Worktree[]>();
-  const unpinned: string[] = [];
+  const pinnedIds: string[] = [];
   // Every persisted row, not just the ones that changed column: the move wrote
   // an override for all of them, so Undo has to unwind all of them.
   const undoOverrides = new Map<string, ColumnOverride | undefined>();
   for (const wt of succeeded) {
-    if (pinnedBefore.has(wt.id) && !pinnedAfter.has(wt.id)) unpinned.push(wt.id);
+    if (pinnedBefore.has(wt.id)) pinnedIds.push(wt.id);
     undoOverrides.set(wt.id, priorOverrides.get(wt.id));
-    const prior = priorColumns.get(wt.id);
-    if (prior === undefined || prior === column) continue;
-    const group = byPriorColumn.get(prior);
+    if (wt.column === column) continue;
+    const group = byPriorColumn.get(wt.column);
     if (group) group.push(wt);
-    else byPriorColumn.set(prior, [wt]);
+    else byPriorColumn.set(wt.column, [wt]);
   }
 
-  return { moved, failedRepos, undo: { byPriorColumn, unpinned, priorOverrides: undoOverrides } };
+  return { moved, failedRepos, undo: { byPriorColumn, pinnedBefore: pinnedIds, priorOverrides: undoOverrides } };
 }
 
 /** Reverses a bulk move: the rows go back to the columns they came from, the
@@ -146,8 +150,16 @@ export async function bulkMoveToColumn(
  *  server itself, though — undoing a move out of Done targets Done, and a row
  *  that had a server running before the move must still have it after. */
 export async function undoBulkMove(undo: BulkMoveUndo): Promise<void> {
+  // bulkMoveToColumn reads each row's *current* column off the object it is
+  // handed, so hand it live rows — the snapshots in byPriorColumn still carry
+  // the pre-move column, which is the column Undo is moving *to*, and a
+  // rollback on a failed undo would "restore" the row there. A row that has
+  // since left the board has nothing to go back to.
+  const live = useWorkspaceStore.getState().worktrees;
   for (const [prior, group] of undo.byPriorColumn) {
-    await bulkMoveToColumn(group, prior, { stopServersOnDone: false });
+    const rows = group.flatMap((wt) => live.find((w) => w.id === wt.id) ?? []);
+    if (rows.length === 0) continue;
+    await bulkMoveToColumn(rows, prior, { stopServersOnDone: false });
   }
   // After the moves, which each wrote a fresh override over the top.
   const { restoreColumnOverride } = usePrStore.getState();
@@ -156,7 +168,7 @@ export async function undoBulkMove(undo: BulkMoveUndo): Promise<void> {
   }
   // After the moves too: a row moved back into Done would otherwise hit the
   // unpin rule and lose the pin we just restored.
-  repin(undo.unpinned);
+  repin(undo.pinnedBefore);
 }
 
 export interface BulkArchiveResult {
