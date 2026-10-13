@@ -13,8 +13,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { KanbanColumn, Worktree } from "../../types";
-import { AgentItem } from "./AgentItem";
-import { SelectionHint } from "./SelectionHint";
+import { AgentItem, travelsWithDrag } from "./AgentItem";
+
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { worktreeNeedsYou } from "../../services/dockBadge";
 
@@ -25,6 +25,13 @@ interface StatusGroupProps {
   pinnedWorktrees?: Set<string>;
   hideUnpinned?: boolean;
   onSelectWorktree: (
+    id: string,
+    e: React.MouseEvent,
+    column: KanbanColumn,
+    renderedIds: string[],
+  ) => void;
+  /** The checkbox path — selection only, never opens the worktree. */
+  onToggleSelection?: (
     id: string,
     e: React.MouseEvent,
     column: KanbanColumn,
@@ -80,6 +87,19 @@ const COLUMN_ORDER: KanbanColumn[] = [
 
 export { columnIcon, columnLabel, COLUMN_ORDER };
 
+/** The rows a column actually shows, in the order it shows them: the
+ *  hide-unpinned filter, then pinned rows first. Shared with the Sidebar so
+ *  the bulk bar's "Select all" selects exactly what the column renders — the
+ *  two must not drift. */
+export function visibleColumnOrder(
+  worktrees: Worktree[],
+  pinned: Set<string>,
+  hideUnpinned: boolean | undefined,
+): Worktree[] {
+  const visible = hideUnpinned ? worktrees.filter((wt) => pinned.has(wt.id)) : worktrees;
+  return [...visible.filter((wt) => pinned.has(wt.id)), ...visible.filter((wt) => !pinned.has(wt.id))];
+}
+
 function StatusGroup({
   column,
   worktrees,
@@ -87,6 +107,7 @@ function StatusGroup({
   pinnedWorktrees,
   hideUnpinned,
   onSelectWorktree,
+  onToggleSelection,
   onDeleteWorktree,
   onArchiveWorktree,
   onArchiveAll,
@@ -110,22 +131,25 @@ function StatusGroup({
   const seenWorktrees = useWorkspaceStore((s) => s.seenWorktrees);
   const unreadWorktrees = useWorkspaceStore((s) => s.unreadWorktrees);
   const selectedWorktreeIds = useWorkspaceStore((s) => s.selectedWorktreeIds);
+  const selectionColumn = useWorkspaceStore((s) => s.selectionColumn);
   const setWorktreeSelection = useWorkspaceStore((s) => s.setWorktreeSelection);
+
   // Expanded groups surface attention on the cards themselves; collapsed
   // groups hide the cards, so the count pill takes over as the indicator.
+  // This column owns the live selection, so every row here inks its checkbox —
+  // once you are selecting, each target should look togglable, not just the
+  // one under the cursor.
+  const selectionActive = selectionColumn === column && selectedWorktreeIds.size > 0;
   const collapsedNeedsYou =
     collapsed
     && worktrees.some((wt) => worktreeNeedsYou(wt, seenWorktrees, unreadWorktrees));
 
   const pinned = pinnedWorktrees ?? new Set<string>();
-  const visibleWorktrees = hideUnpinned
-    ? worktrees.filter((wt) => pinned.has(wt.id))
-    : worktrees;
-
-  const pinnedItems = visibleWorktrees.filter((wt) => pinned.has(wt.id));
-  const unpinnedItems = visibleWorktrees.filter((wt) => !pinned.has(wt.id));
-  const sorted = [...pinnedItems, ...unpinnedItems];
+  const sorted = visibleColumnOrder(worktrees, pinned, hideUnpinned);
+  const visibleWorktrees = sorted;
   const sortedIds = sorted.map((wt) => wt.id);
+  const pinnedItems = sorted.filter((wt) => pinned.has(wt.id));
+
 
   const isVisible =
     visibleWorktrees.length > 0
@@ -166,18 +190,7 @@ function StatusGroup({
           </span>
         </button>
         <span className="flex-1 h-[1.5px] bg-gradient-to-r from-group-rule to-transparent mx-3" />
-        {visibleWorktrees.length > 1 && (
-          <>
-            <SelectionHint />
-            <button
-              type="button"
-              onClick={() => setWorktreeSelection(sortedIds, column)}
-              className="opacity-0 group-hover/grp:opacity-100 transition-opacity text-2xs text-text-tertiary hover:text-text-secondary mr-2 cursor-pointer"
-            >
-              Select all
-            </button>
-          </>
-        )}
+
         {column === "done" && worktrees.length > 0 && onArchiveAll && (
           <button
             type="button"
@@ -235,6 +248,21 @@ function StatusGroup({
                       isDimmed={pinnedItems.length > 0 && !pinned.has(wt.id)}
                       onClick={(e) => onSelectWorktree(wt.id, e, column, sortedIds)}
                       isMultiSelected={selectedWorktreeIds.has(wt.id)}
+                      // Decided here, not in the row: AgentItem would have to
+                      // subscribe to dnd-kit's context to learn the active id,
+                      // and that re-renders on every pointer move.
+                      isTravellingWithDrag={travelsWithDrag(
+                        dragActiveId ?? null,
+                        wt.id,
+                        selectedWorktreeIds,
+                      )}
+                      selectionActive={selectionActive}
+                      onSelectAllInColumn={() => setWorktreeSelection(sortedIds, column)}
+                      onToggleSelection={
+                        onToggleSelection &&
+                        ((e: React.MouseEvent) =>
+                          onToggleSelection(wt.id, e, column, sortedIds))
+                      }
                       onDelete={onDeleteWorktree}
                       onArchive={onArchiveWorktree}
                       repoPath={wt.repoPath}

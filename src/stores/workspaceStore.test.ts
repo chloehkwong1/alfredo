@@ -1313,6 +1313,39 @@ describe("worktree multi-select", () => {
       expect(store.getState()).toBe(before);
     });
 
+    it("keeps the dragged row, whose column is rewritten by the drag preview", () => {
+      // handleDragOver previews a cross-column move by rewriting the dragged
+      // row's column in the store, which re-fires Sidebar's prune effect. That
+      // row has not drifted out of the selection — it is in flight. Evicting it
+      // makes travelsWithDrag false for its siblings, so they snap back from
+      // dashed slots to solid rows mid-drag, and on cancel the selection stays
+      // permanently one row smaller.
+      store.getState().setWorktreeSelection(["wt-1", "wt-2"], "inProgress");
+      store.getState().setDraggingWorktree("wt-2");
+      store.getState().applyWorktreePatches(new Map([["wt-2", { column: "done" as const }]]));
+      store.getState().pruneSelection(new Set(["wt-1", "wt-2", "wt-3"]));
+      expect([...store.getState().selectedWorktreeIds].sort()).toEqual(["wt-1", "wt-2"]);
+      expect(store.getState().selectionColumn).toBe("inProgress");
+    });
+
+    it("prunes the formerly-dragged row again once the drag ends", () => {
+      store.getState().setWorktreeSelection(["wt-1", "wt-2"], "inProgress");
+      store.getState().setDraggingWorktree("wt-2");
+      store.getState().applyWorktreePatches(new Map([["wt-2", { column: "done" as const }]]));
+      store.getState().setDraggingWorktree(null);
+      store.getState().pruneSelection(new Set(["wt-1", "wt-2", "wt-3"]));
+      expect([...store.getState().selectedWorktreeIds]).toEqual(["wt-1"]);
+    });
+
+    it("still drops the dragged row if it stops being visible", () => {
+      // The exemption is about the column only. A row archived out from under
+      // the drag is gone and must leave the selection regardless.
+      store.getState().setWorktreeSelection(["wt-1", "wt-2"], "inProgress");
+      store.getState().setDraggingWorktree("wt-2");
+      store.getState().pruneSelection(new Set(["wt-1", "wt-3"]));
+      expect([...store.getState().selectedWorktreeIds]).toEqual(["wt-1"]);
+    });
+
     it("drops a row that drifted out of the selection's column while still visible", () => {
       // applyWorktreePatches auto-moves a row to "done" when its PR merges. The
       // row stays on screen, so a visibility-only prune would keep it selected

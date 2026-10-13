@@ -42,6 +42,8 @@ import { stackChainsFor, stackHuesFor, detectAdoptableParent, type StackChain } 
 import { isTerminalPr, toTerminalFlags } from "../../lib/prStatus";
 import { applyStackBaseChange } from "../../services/stackBase";
 import { Button } from "../ui/Button";
+import { Checkbox } from "../ui/Checkbox";
+import { CheckSquare } from "lucide-react";
 
 const THINKING_VERBS = [
   "Thinking…",
@@ -152,7 +154,7 @@ export type ClickIntent = "open" | "toggle" | "range";
 /** ctrl-click is the secondary click on macOS, and every sidebar row is a Radix
  *  ContextMenuTrigger — so there it opens the context menu, and also toggling
  *  the row into a selection would leave that menu acting on a single row inside
- *  a multi-row selection. ⌘-click is the gesture SelectionHint documents on
+ *  a multi-row selection. ⌘-click is the documented gesture on
  *  macOS anyway; ctrl-click stays for the Linux build. */
 const CTRL_TOGGLES = !/Mac/i.test(navigator.platform || navigator.userAgent);
 
@@ -202,6 +204,73 @@ function getBorderClass(status: string, isUnread?: boolean): string {
   }
 }
 
+/** The geometry a sidebar row occupies, shared by its resting and dragging
+ *  states. pl-2 not px-3 when a checkbox gutter is reserved: claws back 4px of
+ *  the width the gutter costs, in a sidebar that is already tight. */
+export function rowBoxClass(hasSelectionGutter: boolean): string {
+  return hasSelectionGutter
+    ? "w-full text-left py-2 pl-2 pr-3 flex items-start gap-1.5 rounded-md"
+    : "w-full text-left py-2 px-3 flex items-start gap-2 rounded-md";
+}
+
+/** The gap a row leaves behind while it is being dragged. It keeps the row's
+ *  own box and hides the content in place ([&>*]:invisible) instead of
+ *  substituting a fixed height, so the column doesn't resize the moment a tall
+ *  card (repo tag, stack chips, PR summary) is picked up. Outlined rather than
+ *  bordered because a border would add height the row never had. */
+export function dragPlaceholderClass(hasSelectionGutter: boolean): string {
+  return [
+    rowBoxClass(hasSelectionGutter),
+    "pointer-events-none [&>*]:invisible",
+    "outline-1 outline-dashed -outline-offset-1 outline-accent-primary/40",
+    "bg-accent-muted/[0.04]",
+  ].join(" ");
+}
+
+/** Whether this row is being carried along by a drag of another row in the
+ *  same selection. Those rows leave the same dashed slot as the dragged row:
+ *  without it the batch appears twice over — still solid in its old column,
+ *  and again in the overlay's deck. */
+export function travelsWithDrag(
+  activeId: string | null,
+  rowId: string,
+  selectedIds: Set<string>,
+): boolean {
+  if (activeId == null || activeId === rowId) return false;
+  return selectedIds.has(rowId) && selectedIds.has(activeId);
+}
+
+interface RestingRowFlags {
+  isEditingLabel?: boolean;
+  statusBorderClass?: string;
+  isSelected?: boolean;
+  isDimmed?: boolean;
+  isPeeked?: boolean;
+  isMultiSelected?: boolean;
+}
+
+/** A row at rest: the shared box plus its status, selection and pin treatment. */
+export function restingRowClass(
+  hasSelectionGutter: boolean,
+  flags: RestingRowFlags = {},
+): string {
+  const { isEditingLabel, statusBorderClass, isSelected, isDimmed, isPeeked, isMultiSelected } =
+    flags;
+  return [
+    rowBoxClass(hasSelectionGutter),
+    "transition-all duration-[var(--transition-fast)]",
+    "group",
+    isEditingLabel ? "cursor-default" : "cursor-grab",
+    statusBorderClass ?? "",
+    isSelected
+      ? "bg-card-selected ring-1 ring-inset ring-card-ring-selected"
+      : "bg-card ring-1 ring-inset ring-card-ring hover:bg-card-hover",
+    isDimmed && !isSelected ? "opacity-45 hover:opacity-70" : "",
+    isPeeked ? "shadow-[inset_3px_0_0] shadow-accent-primary/70 bg-card" : "",
+    isMultiSelected ? "ring-1 ring-accent-primary/60 bg-accent-muted/20" : "",
+  ].join(" ");
+}
+
 function getDotGlowClass(status: string): string {
   switch (status) {
     case "waitingForInput":
@@ -223,6 +292,18 @@ interface AgentItemProps {
   onClick: (e: React.MouseEvent) => void;
   /** Part of a bulk selection — rendered distinctly from the active row. */
   isMultiSelected?: boolean;
+  /** Being carried along by a drag of another row in the same selection, so
+   *  this row shows the same dashed slot as the dragged one. See
+   *  `travelsWithDrag`. */
+  isTravellingWithDrag?: boolean;
+  /** This row's column owns the live selection, so its checkbox stays inked
+   *  rather than waiting for hover. */
+  selectionActive?: boolean;
+  /** Ticking the box. Absent means no gutter is reserved at all. */
+  onToggleSelection?: (e: React.MouseEvent) => void;
+  /** The zero-pixel door into a selection before any box has been ticked:
+   *  lives in the row's context menu, where people already look for actions. */
+  onSelectAllInColumn?: () => void;
   onDelete?: (worktreeId: string) => void;
   onArchive?: (worktreeId: string) => void;
   repoPath?: string;
@@ -346,6 +427,10 @@ interface AgentItemContentProps {
   adoptWorking?: boolean;
   onToggleAdopt?: () => void;
   onDismissAdoptCue?: () => void;
+  /** Bulk-selection gutter. Absent `onToggleSelection` means no gutter. */
+  isMultiSelected?: boolean;
+  selectionActive?: boolean;
+  onToggleSelection?: (e: React.MouseEvent) => void;
 }
 
 function getDotColor(status: AgentState | string): string {
@@ -358,6 +443,7 @@ function AgentItemContent({
   repoIndex = 0, showRepoTag = false, stackChain = null, stackHue = null, onOpenStackMap = () => {},
   adoptableParent = null, adoptOpen = false, adoptWorking = false,
   onToggleAdopt = () => {}, onDismissAdoptCue = () => {},
+  isMultiSelected = false, selectionActive = false, onToggleSelection,
 }: AgentItemContentProps) {
   // Secondary, not tertiary: these lines (status, PR title, timestamp, stack
   // position) are the card's information payload, and tertiary only clears
@@ -381,6 +467,20 @@ function AgentItemContent({
       worktree.stackPending.blockedBy !== "foreignPrNotPushed");
   return (
     <>
+      {onToggleSelection && (
+        // Gutter is always reserved so nothing shifts on hover; the box inside
+        // is invisible until the row is hovered, this column is selecting, or
+        // the row is itself selected. `group` is on the row (see rowClassName).
+        <span className="mt-1 flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center">
+          <Checkbox
+            checked={isMultiSelected}
+            dimmed={!selectionActive}
+            onChange={(_checked, e) => onToggleSelection(e)}
+            label={`Select ${worktree.branch}`}
+            className={selectionActive || isMultiSelected ? "" : "group-hover:opacity-100"}
+          />
+        </span>
+      )}
       <span
         className={[
           "mt-1 h-2 w-2 rounded-full flex-shrink-0",
@@ -974,8 +1074,9 @@ function useStackHue(worktreeId: string): number | null {
 }
 
 const AgentItem = memo(function AgentItem({
-  worktree, isSelected, isPinned, isDimmed, onClick, isMultiSelected, onDelete, onArchive,
+  worktree, isSelected, isPinned, isDimmed, onClick, isMultiSelected, isTravellingWithDrag = false, onDelete, onArchive,
   repoPath, repoColors, repoDisplayNames, repoShortLabels, label, onRename, repoIndex = 0, showRepoTag = false,
+  selectionActive = false, onToggleSelection, onSelectAllInColumn,
 }: AgentItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createFromOpen, setCreateFromOpen] = useState(false);
@@ -1013,6 +1114,11 @@ const AgentItem = memo(function AgentItem({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: worktree.id,
   });
+  // Not useDndContext(): its memo depends on `collisions`, which changes on
+  // every pointer move, so subscribing here would re-render every row of the
+  // sidebar continuously mid-drag. StatusGroup already has both the active id
+  // and the selection, so it decides and passes the result down.
+  const showAsPlaceholder = isDragging || isTravellingWithDrag;
   const defaultBranch = useDefaultBranch(worktree.repoPath, worktree.stackParent);
   const parentWorktreeId = useWorkspaceStore((s) =>
     worktree.stackParent
@@ -1216,29 +1322,26 @@ const AgentItem = memo(function AgentItem({
     }
   };
 
-  const rowClassName = isDragging
-    ? "w-full pointer-events-none rounded-md border border-dashed border-accent-primary/30 bg-accent-muted/[0.04]"
-    : [
-        "w-full text-left py-2 px-3 flex items-start gap-2 rounded-md",
-        "transition-all duration-[var(--transition-fast)]",
-        "group",
-        isEditingLabel ? "cursor-default" : "cursor-grab",
-        getBorderClass(effectiveStatus, isUnread),
-        isSelected
-          ? "bg-card-selected ring-1 ring-inset ring-card-ring-selected"
-          : "bg-card ring-1 ring-inset ring-card-ring hover:bg-card-hover",
-        isDimmed && !isSelected
-          ? "opacity-45 hover:opacity-70"
-          : "",
-        isPeeked ? "shadow-[inset_3px_0_0] shadow-accent-primary/70 bg-card" : "",
-        isMultiSelected ? "ring-1 ring-accent-primary/60 bg-accent-muted/20" : "",
-      ].join(" ");
+  const rowClassName = showAsPlaceholder
+    ? dragPlaceholderClass(!!onToggleSelection)
+    : restingRowClass(!!onToggleSelection, {
+        isEditingLabel,
+        statusBorderClass: getBorderClass(effectiveStatus, isUnread),
+        isSelected,
+        isDimmed,
+        isPeeked,
+        isMultiSelected,
+      });
   const rowStyle = { transform: CSS.Transform.toString(transform), transition };
-  const rowContent = isDragging ? (
-    <div className="h-10" />
-  ) : (
+  // Rendered in both states, including while dragging: the placeholder hides
+  // this content rather than replacing it, so the gap it leaves is exactly the
+  // height the row had.
+  const rowContent = (
     <AgentItemContent
       worktree={worktree}
+      isMultiSelected={isMultiSelected}
+      selectionActive={selectionActive}
+      onToggleSelection={onToggleSelection}
       effectiveStatus={effectiveStatus}
       isSelected={isSelected}
       isPinned={isPinned}
@@ -1358,6 +1461,12 @@ const AgentItem = memo(function AgentItem({
             <Eye className="h-4 w-4" />
             {isUnread ? "Mark as Read" : "Mark as Unread"}
           </ContextMenuItem>
+          {onSelectAllInColumn && (
+            <ContextMenuItem onSelect={onSelectAllInColumn}>
+              <CheckSquare className="h-4 w-4" />
+              Select All in {columnLabel[worktree.column]}
+            </ContextMenuItem>
+          )}
           <ContextMenuItem
             onSelect={() => copyText(worktree.branch || worktree.name).catch(console.error)}
           >

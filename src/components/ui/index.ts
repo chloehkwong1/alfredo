@@ -13,6 +13,9 @@ export type { BadgeProps, BadgeVariant } from "./Badge";
 export { Input } from "./Input";
 export type { InputProps } from "./Input";
 
+export { Checkbox } from "./Checkbox";
+export type { CheckboxProps } from "./Checkbox";
+
 export { Tooltip, TooltipProvider } from "./Tooltip";
 export type { TooltipProps } from "./Tooltip";
 

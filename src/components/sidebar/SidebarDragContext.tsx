@@ -122,6 +122,12 @@ function SidebarDragContext({
   const reorderWorktrees = useWorkspaceStore((s) => s.reorderWorktrees);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragSize, setDragSize] = useState<{ width: number; height: number } | null>(null);
+  // The overlay's deck and count render from state, not from dragBatchRef —
+  // a ref mutated in the drag-start handler is not a render input.
+  const [dragBatch, setDragBatch] = useState<{ count: number; rowSelected: boolean }>({
+    count: 1,
+    rowSelected: false,
+  });
 
   // Snapshot for cancel rollback
   const snapshotRef = useRef<Worktree[] | null>(null);
@@ -208,7 +214,13 @@ function SidebarDragContext({
       originColumnRef.current = findColumnForId(id, worktrees);
 
       const selected = useWorkspaceStore.getState().selectedWorktreeIds;
-      dragBatchRef.current = selected.has(id) ? [...selected] : [id];
+      const rowSelected = selected.has(id);
+      dragBatchRef.current = rowSelected ? [...selected] : [id];
+      setDragBatch({ count: dragBatchRef.current.length, rowSelected });
+      // Tells pruneSelection this row is in flight, so the column rewrite
+      // handleDragOver is about to make doesn't evict it from its own
+      // selection. Cleared on every drop/cancel path below.
+      useWorkspaceStore.getState().setDraggingWorktree(id);
 
       const el = (event.activatorEvent.target as HTMLElement)?.closest?.("button");
       if (el) {
@@ -295,6 +307,8 @@ function SidebarDragContext({
         snapshotRef.current = null;
         originColumnRef.current = null;
         dragBatchRef.current = [];
+        setDragBatch({ count: 1, rowSelected: false });
+        useWorkspaceStore.getState().setDraggingWorktree(null);
         prevOverColumnRef.current = null;
         onClearTempExpanded?.();
         return;
@@ -444,6 +458,8 @@ function SidebarDragContext({
       snapshotRef.current = null;
       originColumnRef.current = null;
       dragBatchRef.current = [];
+      setDragBatch({ count: 1, rowSelected: false });
+      useWorkspaceStore.getState().setDraggingWorktree(null);
       prevOverColumnRef.current = null;
     },
     [reorderWorktrees, collapsedColumns, onExpandColumn, onClearTempExpanded, hideUnpinned],
@@ -458,6 +474,8 @@ function SidebarDragContext({
     snapshotRef.current = null;
     originColumnRef.current = null;
     dragBatchRef.current = [];
+    setDragBatch({ count: 1, rowSelected: false });
+    useWorkspaceStore.getState().setDraggingWorktree(null);
     prevOverColumnRef.current = null;
     onClearTempExpanded?.();
   }, [reorderWorktrees, onClearTempExpanded]);
@@ -480,25 +498,16 @@ function SidebarDragContext({
       {createPortal(
         <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
           {activeWorktree ? (
-            <div className="relative">
-              <AgentItemOverlay
-                worktree={activeWorktree}
-                width={dragSize?.width}
-                label={worktreeLabels?.[activeWorktree.path]}
-              />
-              {dragBatchRef.current.length > 1 && (
-                <span
-                  className={[
-                    "absolute -top-2 -right-2 flex items-center justify-center",
-                    "min-w-[1.25rem] h-5 px-1 rounded-full",
-                    "text-2xs tabular-nums font-semibold text-white bg-accent-primary",
-                    "shadow-md",
-                  ].join(" ")}
-                >
-                  {dragBatchRef.current.length}
-                </span>
-              )}
-            </div>
+            <AgentItemOverlay
+              worktree={activeWorktree}
+              width={dragSize?.width}
+              label={worktreeLabels?.[activeWorktree.path]}
+              // Sidebar rows always reserve the checkbox gutter, so the lifted
+              // card must too or its content shifts sideways on pick-up.
+              hasSelectionGutter
+              isRowSelected={dragBatch.rowSelected}
+              batchCount={dragBatch.count}
+            />
           ) : null}
         </DragOverlay>,
         document.body,

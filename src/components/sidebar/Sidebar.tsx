@@ -32,7 +32,7 @@ import { bulkMoveToColumn, bulkArchive, undoBulkMove } from "../../services/bulk
 import { sortColumnWorktrees, type WorktreeOrderMap } from "../../lib/worktreeOrder";
 import { isVisibleWorktree } from "../../lib/worktreeVisibility";
 import { LifecycleNudge } from "./LifecycleNudge";
-import { columnLabel } from "./StatusGroup";
+import { columnLabel, visibleColumnOrder } from "./StatusGroup";
 import { useToastStore } from "../../stores/toastStore";
 
 const COLUMNS: KanbanColumn[] = [
@@ -129,6 +129,7 @@ function Sidebar({
   const selectWorktreeRange = useWorkspaceStore((s) => s.selectWorktreeRange);
   const clearWorktreeSelection = useWorkspaceStore((s) => s.clearWorktreeSelection);
   const pruneSelection = useWorkspaceStore((s) => s.pruneSelection);
+  const selectionColumn = useWorkspaceStore((s) => s.selectionColumn);
   const togglePinWorktree = useWorkspaceStore((s) => s.togglePinWorktree);
   const markWorktreeRead = useWorkspaceStore((s) => s.markWorktreeRead);
   const markWorktreeUnread = useWorkspaceStore((s) => s.markWorktreeUnread);
@@ -149,6 +150,17 @@ function Sidebar({
       }
     },
     [toggleWorktreeSelection, selectWorktreeRange, clearWorktreeSelection, setActiveWorktree],
+  );
+
+  /** The checkbox path. Unlike `handleSelectWorktree` it never falls through to
+   *  opening the worktree — ticking a box is only ever a selection gesture —
+   *  but it honours shift for a range, so the box and the row agree. */
+  const handleToggleWorktreeSelection = useCallback(
+    (id: string, e: React.MouseEvent, column: KanbanColumn, renderedIds: string[]) => {
+      if (e.shiftKey) selectWorktreeRange(id, column, renderedIds);
+      else toggleWorktreeSelection(id, column);
+    },
+    [selectWorktreeRange, toggleWorktreeSelection],
   );
 
   const handleArchiveWorktree = useCallback(async (id: string) => {
@@ -177,12 +189,17 @@ function Sidebar({
           failedRepos.length > 0
             ? `Moved ${moved} of ${selected.length} to ${label} — ${failedRepos.length} repo(s) failed, see the console`
             : `Moved ${moved} to ${label}`,
-        action: {
-          label: "Undo",
-          onClick: () => {
-            void undoBulkMove(undo);
-          },
-        },
+        // No Undo when every repo rejected the move: there is nothing to put
+        // back, and the button would be a no-op.
+        action:
+          moved > 0
+            ? {
+                label: "Undo",
+                onClick: () => {
+                  void undoBulkMove(undo);
+                },
+              }
+            : undefined,
       });
     },
     [worktrees, clearWorktreeSelection],
@@ -670,6 +687,7 @@ function Sidebar({
                     pinnedWorktrees={pinnedWorktrees}
                     hideUnpinned={hideUnpinned}
                     onSelectWorktree={handleSelectWorktree}
+                    onToggleSelection={handleToggleWorktreeSelection}
                     onDeleteWorktree={handleDeleteWorktree}
                     onArchiveWorktree={handleArchiveWorktree}
                     onArchiveAll={col === "done" ? handleArchiveAllDone : undefined}
@@ -721,6 +739,11 @@ function Sidebar({
         </div>
 
         <SelectionBar
+          columnIds={
+            selectionColumn
+              ? visibleColumnOrder(grouped[selectionColumn] ?? [], pinnedWorktrees, hideUnpinned).map((wt) => wt.id)
+              : []
+          }
           onMove={handleBulkMove}
           onArchive={handleBulkArchiveRequest}
           onPin={handleBulkPin}

@@ -48,6 +48,12 @@ interface WorkspaceState {
    *  list (e.g. via isVisibleWorktree) and call this whenever it changes.
    *  A no-op (same state reference) when nothing needs dropping. */
   pruneSelection: (visibleIds: Set<string>) => void;
+  /** The row currently being dragged, or null. Exists so pruneSelection can
+   *  tell a row in flight from one that genuinely drifted out of the
+   *  selection's column — the drag preview rewrites the dragged row's column
+   *  in this store, which looks identical to drift from the outside. */
+  draggingWorktreeId: string | null;
+  setDraggingWorktree: (id: string | null) => void;
   /** Session-scoped "adopt stack?" cue dismissals, keyed per worktree+parent
    *  so a different future base re-prompts. Deliberately not persisted. The
    *  key format is private to this store — read via isStackAdoptionDismissed,
@@ -711,6 +717,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return { selectedWorktreeIds: new Set(), selectionAnchorId: null, selectionColumn: null };
     }),
 
+  draggingWorktreeId: null,
+
+  setDraggingWorktree: (id) => set({ draggingWorktreeId: id }),
+
   pruneSelection: (visibleIds) =>
     set((state) => {
       if (state.selectedWorktreeIds.size === 0) return state;
@@ -723,7 +733,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       let changed = false;
       const next = new Set<string>();
       for (const id of state.selectedWorktreeIds) {
-        if (visibleIds.has(id) && columnById.get(id) === state.selectionColumn) next.add(id);
+        // The dragged row is exempt from the column check only: handleDragOver
+        // rewrites its column to preview the drop, and judging it by that would
+        // evict the row from its own selection. Visibility still applies — a
+        // row archived out from under the drag is gone either way.
+        const inColumn =
+          id === state.draggingWorktreeId || columnById.get(id) === state.selectionColumn;
+        if (visibleIds.has(id) && inColumn) next.add(id);
         else changed = true;
       }
       if (!changed) return state;
@@ -1036,6 +1052,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       selectedWorktreeIds: new Set<string>(),
       selectionAnchorId: null,
       selectionColumn: null,
+      draggingWorktreeId: null,
       dismissedStackAdoptions: new Set(),
       worktreeOrder: {},
       annotations: {},

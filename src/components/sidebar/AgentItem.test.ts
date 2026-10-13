@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import React, { Profiler } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { AgentItem, computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent } from "./AgentItem";
+import { AgentItem, computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent, rowBoxClass, dragPlaceholderClass, restingRowClass, travelsWithDrag } from "./AgentItem";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { nativeStackChipLabel } from "./StackGlyph";
 import { hiddenMembersNote, collectExtensionMembers, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
@@ -530,6 +530,57 @@ describe("clickIntent", () => {
 
   it("prefers range when shift and cmd are both held", () => {
     expect(clickIntent({ metaKey: true, ctrlKey: false, shiftKey: true })).toBe("range");
+  });
+});
+
+describe("rowBoxClass", () => {
+  it("reserves the checkbox gutter only when selection is active", () => {
+    expect(rowBoxClass(true)).toContain("pl-2");
+    expect(rowBoxClass(false)).toContain("px-3");
+  });
+
+  it("gives the drag placeholder the same box as the row it stands in for", () => {
+    // The placeholder replaces a live row mid-list. Any difference in padding,
+    // gap or border width changes the row's height and the whole column jumps
+    // the moment you pick a card up.
+    for (const gutter of [true, false]) {
+      const box = rowBoxClass(gutter);
+      expect(dragPlaceholderClass(gutter)).toContain(box);
+      expect(restingRowClass(gutter)).toContain(box);
+    }
+  });
+
+  it("outlines the placeholder instead of bordering it, so it adds no height", () => {
+    // `border` occupies layout space; `outline` does not.
+    expect(dragPlaceholderClass(false)).not.toMatch(/\bborder\b/);
+    expect(dragPlaceholderClass(false)).toContain("outline-dashed");
+  });
+});
+
+describe("travelsWithDrag", () => {
+  const sel = (...ids: string[]) => new Set(ids);
+
+  it("is true for a selected row when another row in the same selection is dragged", () => {
+    // The whole selection moves together, so every member must leave a slot
+    // behind — otherwise the batch shows twice: in place and in the deck.
+    expect(travelsWithDrag("a", "b", sel("a", "b", "c"))).toBe(true);
+    expect(travelsWithDrag("a", "c", sel("a", "b", "c"))).toBe(true);
+  });
+
+  it("is false for the dragged row itself", () => {
+    // That row is already a placeholder via useSortable's isDragging.
+    expect(travelsWithDrag("a", "a", sel("a", "b"))).toBe(false);
+  });
+
+  it("is false when the dragged row isn't part of the selection", () => {
+    // Dragging an unselected row moves only that row, so a selection
+    // elsewhere must stay put and stay solid.
+    expect(travelsWithDrag("z", "b", sel("a", "b"))).toBe(false);
+  });
+
+  it("is false for rows outside the selection, and when nothing is dragging", () => {
+    expect(travelsWithDrag("a", "z", sel("a", "b"))).toBe(false);
+    expect(travelsWithDrag(null, "b", sel("a", "b"))).toBe(false);
   });
 });
 
