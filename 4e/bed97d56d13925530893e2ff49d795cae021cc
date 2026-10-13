@@ -1,0 +1,19 @@
+src-tauri/deny.toml
+  s_de3a503b271d88::t_8b30c371938c7a 13-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4ebed97d56d13925530893e2ff49d795cae021cc",
+  "prompts": {},
+  "sessions": {
+    "s_de3a503b271d88": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8158d460-c3ec-4c1e-8493-4044def6db34",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
