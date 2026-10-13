@@ -1,0 +1,50 @@
+src-tauri/src/github_manager.rs
+  s_74d8fdf2eb57f6::t_08c884915f1350 193-206,214-219,223-226,228-230,232-246
+  s_74d8fdf2eb57f6::t_ba98d0ae8d7d0a 207-213,220-222,227,231,3145-3147,3151
+  s_74d8fdf2eb57f6::t_373401dd7f5da6 1368,3112-3144,3148-3150,3152
+  s_74d8fdf2eb57f6::t_167b52224ef6f7 1346-1367
+  s_74d8fdf2eb57f6::t_7074b4d51a1fa6 1369,3153
+src-tauri/src/lib.rs
+  s_74d8fdf2eb57f6::t_2ce546e3854479 403
+src/api.ts
+  s_74d8fdf2eb57f6::t_acc02d55af8053 422-426
+src/components/changes/MergeStatusBanner.tsx
+  s_74d8fdf2eb57f6::t_1ca6e3dd475526 118-122,272,562,618,621,625
+  s_74d8fdf2eb57f6::t_8f39d51a32bb40 664,715
+  s_74d8fdf2eb57f6::t_4b3f518c669b33 653,659-663,665-670,673,683-686,709-714,717
+  s_74d8fdf2eb57f6::t_5c162b680d33f0 30-31,45-55,57-69,103-104,115-117,194-196,198
+  s_74d8fdf2eb57f6::t_c8f18c443e553e 235-242,245-267,270,273-277,298-300,303
+  s_74d8fdf2eb57f6::t_8d480048ea25d3 9,29,56,91-93,125,128,193,199
+  s_74d8fdf2eb57f6::t_3621793dc1cd1a 109-114,129-130
+  s_74d8fdf2eb57f6::t_928319a1f10af7 132-140,142-145,187-192,243-244,286-297,301-302,305-309,563
+  s_fae315bd085586::t_7d3111df1371cc 146-153
+  s_74d8fdf2eb57f6::t_54cf17ced58f2b 556,559-561,564,582,612,617,619,622,626-632,636,639-644
+  s_74d8fdf2eb57f6::t_73598d5977fb9f 569-571,654-658,674-682,716
+  s_fae315bd085586::t_532ce752919734 718-721
+src-tauri/src/commands/pr_review.rs
+  s_74d8fdf2eb57f6::t_2ce546e3854479 40-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "356c5463fc71e6d200137cc62599b230e704c558",
+  "prompts": {},
+  "sessions": {
+    "s_74d8fdf2eb57f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "18d94f05-6d89-4336-ac3d-4413320a733a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    },
+    "s_fae315bd085586": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09e9f784-6409-4d69-9ad2-19745363e95d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
