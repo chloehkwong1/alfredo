@@ -29,10 +29,10 @@ interface CheckboxProps {
  *  `tabIndex` keeps it operable by keyboard, with Space and Enter bound the way
  *  a native checkbox binds them.
  *
- *  It also stops pointer, mouse, click and key events from reaching the parent.
- *  Sidebar rows are dnd-kit drag handles and context-menu triggers, so an
- *  unguarded nested control starts a drag or opens the worktree instead of
- *  ticking. */
+ *  It also stops pointer, mouse, click and its own Space/Enter key events from
+ *  reaching the parent. Sidebar rows are dnd-kit drag handles and context-menu
+ *  triggers, so an unguarded nested control starts a drag or opens the
+ *  worktree instead of ticking. */
 function Checkbox({ checked, indeterminate, onChange, disabled, label, dimmed, className }: CheckboxProps) {
   const filled = checked || indeterminate;
   const toggle = (e: React.MouseEvent) => {
@@ -51,14 +51,17 @@ function Checkbox({ checked, indeterminate, onChange, disabled, label, dimmed, c
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
-        // Swallow every key so the row behind can't also act on it, but only
-        // Space and Enter tick the box.
+        // Only Space and Enter belong to the box: they tick it, and they must
+        // not reach the row behind, whose dnd-kit keyboard sensor would start
+        // a drag on the same keys. Every other key passes through, so the
+        // window-level handlers (Escape clears the selection, ⌘1-9 switches
+        // worktrees) still fire while a checkbox holds focus — which is the
+        // normal state right after clicking one.
+        if (e.key !== " " && e.key !== "Enter") return;
         e.stopPropagation();
         if (disabled) return;
-        if (e.key === " " || e.key === "Enter") {
-          e.preventDefault();
-          onChange(indeterminate ? true : !checked, e as unknown as React.MouseEvent);
-        }
+        e.preventDefault();
+        onChange(indeterminate ? true : !checked, e as unknown as React.MouseEvent);
       }}
       className={[
         "inline-flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-[3px] border",
