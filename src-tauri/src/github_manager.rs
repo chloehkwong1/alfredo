@@ -190,6 +190,60 @@ fn build_mark_file_viewed_payload(pull_request_id: &str, path: &str, viewed: boo
     serde_json::json!({ "query": mutation, "variables": { "pullRequestId": pull_request_id, "path": path } })
 }
 
+/// Build the GraphQL query that resolves a PR number to its node id.
+/// `markPullRequestReadyForReview` takes a node id, and `PrStatus` carries
+/// only the number, so every undraft pays for this lookup first. `isDraft`
+/// rides along so the caller can tell an already-ready PR from a stale view.
+fn build_pr_node_id_query_payload(owner: &str, repo: &str, pr_number: u64) -> serde_json::Value {
+    let query = "query($owner: String!, $repo: String!, $number: Int!) { \
+repository(owner: $owner, name: $repo) { pullRequest(number: $number) { id isDraft } } }";
+    serde_json::json!({
+        "query": query,
+        "variables": { "owner": owner, "repo": repo, "number": pr_number },
+    })
+}
+
+/// Read the node id and draft flag out of a `build_pr_node_id_query_payload`
+/// response.
+///
+/// Both fields are required, `isDraft` included: it is `Boolean!` in GitHub's
+/// schema, so an absent one means the response isn't the shape we asked for,
+/// not "this PR is ready". Defaulting it to `false` there would make
+/// `mark_pr_ready` skip its mutation and report success for a PR still in
+/// draft, which the caller would then try to merge.
+fn parse_pr_node_id(
+    response: &serde_json::Value,
+    owner: &str,
+    repo: &str,
+    pr_number: u64,
+) -> Result<(String, bool), AppError> {
+    let missing = |field: &str| {
+        AppError::Github(format!("missing pull request {field} for {owner}/{repo}#{pr_number}"))
+    };
+    let pr = response.pointer("/data/repository/pullRequest");
+    let id = pr
+        .and_then(|p| p.get("id"))
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| missing("id"))?;
+    let is_draft = pr
+        .and_then(|p| p.get("isDraft"))
+        .and_then(serde_json::Value::as_bool)
+        .ok_or_else(|| missing("draft state"))?;
+    Ok((id.to_string(), is_draft))
+}
+
+/// Build the GraphQL payload for `markPullRequestReadyForReview` — the only
+/// way to undraft a PR; REST has no endpoint for it.
+fn build_mark_ready_payload(pull_request_id: &str) -> serde_json::Value {
+    let mutation = "mutation($pullRequestId: ID!) { \
+markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) { \
+pullRequest { isDraft } } }";
+    serde_json::json!({
+        "query": mutation,
+        "variables": { "pullRequestId": pull_request_id },
+    })
+}
+
 /// Deduplicate reviews: keep only the latest review per reviewer.
 pub fn dedup_reviews(reviews: Vec<PrReview>) -> Vec<PrReview> {
     let mut latest: std::collections::HashMap<String, PrReview> = std::collections::HashMap::new();
@@ -1287,6 +1341,30 @@ impl GithubManager {
             .await
             .map_err(|e| format_octocrab_error("failed to fetch repo merge settings", &e))?;
         Ok(parse_allowed_merge_methods(&response))
+    }
+
+    /// Take a PR out of draft via GitHub's GraphQL
+    /// `markPullRequestReadyForReview` mutation — no REST equivalent.
+    ///
+    /// Resolves the number to a node id first, and treats an already-ready PR
+    /// as success: the mutation itself errors on a non-draft PR, so without
+    /// this guard a stale banner (a teammate undrafted it between polls) would
+    /// surface a failure for work that is already done.
+    ///
+    /// Note for callers chaining a merge onto this: GitHub requests reviews
+    /// from any code owners on undraft, so a repo whose protection requires
+    /// code-owner approval can refuse the merge that follows. Report that
+    /// honestly rather than presenting it as a failed undraft.
+    pub async fn mark_pr_ready(&self, owner: &str, repo: &str, pr_number: u64) -> Result<(), AppError> {
+        let context = "failed to mark PR ready for review";
+        let lookup = build_pr_node_id_query_payload(owner, repo, pr_number);
+        let response = self.graphql_post(&lookup, context).await?;
+        let (node_id, is_draft) = parse_pr_node_id(&response, owner, repo, pr_number)?;
+        if !is_draft {
+            return Ok(());
+        }
+        self.graphql_post(&build_mark_ready_payload(&node_id), context).await?;
+        Ok(())
     }
 
     /// Merge a PR, pinned to `head_sha` so a newer push makes GitHub refuse.
@@ -3029,6 +3107,48 @@ mod tests {
     #[test]
     fn test_build_merge_request_body_rejects_unknown_method() {
         assert!(build_merge_request_body("octopus", "abc").is_err());
+    }
+
+    // --- mark-ready-for-review payload tests ---
+
+    #[test]
+    fn test_build_pr_node_id_query_payload() {
+        let v = build_pr_node_id_query_payload("chloehkwong1", "alfredo", 42);
+        assert_eq!(v["variables"], serde_json::json!({ "owner": "chloehkwong1", "repo": "alfredo", "number": 42 }));
+        let query = v["query"].as_str().unwrap();
+        assert!(query.contains("pullRequest(number: $number)"), "{query}");
+        assert!(query.contains("isDraft"), "{query}");
+    }
+
+    #[test]
+    fn test_build_mark_ready_payload() {
+        let v = build_mark_ready_payload("PR_kwDdummy");
+        assert_eq!(v["variables"], serde_json::json!({ "pullRequestId": "PR_kwDdummy" }));
+        assert!(v["query"].as_str().unwrap().contains("markPullRequestReadyForReview"));
+    }
+
+    #[test]
+    fn test_parse_pr_node_id_reads_id_and_draft() {
+        let resp = serde_json::json!({
+            "data": { "repository": { "pullRequest": { "id": "PR_abc", "isDraft": true } } }
+        });
+        assert_eq!(parse_pr_node_id(&resp, "o", "r", 1).unwrap(), ("PR_abc".to_string(), true));
+    }
+
+    #[test]
+    fn test_parse_pr_node_id_missing_pr_is_an_error() {
+        let resp = serde_json::json!({ "data": { "repository": { "pullRequest": null } } });
+        assert!(parse_pr_node_id(&resp, "o", "r", 7).is_err());
+    }
+
+    #[test]
+    fn test_parse_pr_node_id_absent_is_draft_is_an_error() {
+        // `isDraft` is Boolean! — absent means a malformed response, and
+        // guessing "not a draft" would skip the mutation and claim success.
+        let resp = serde_json::json!({
+            "data": { "repository": { "pullRequest": { "id": "PR_abc" } } }
+        });
+        assert!(parse_pr_node_id(&resp, "o", "r", 1).is_err());
     }
 
     // --- map_github_file tests ---

@@ -419,6 +419,11 @@ export function mergePr(repoPath: string, prNumber: number, method: MergeMethod,
   return invoke("merge_pr", { repoPath, prNumber, method, headSha });
 }
 
+/** Take a PR out of draft. Idempotent — an already-ready PR resolves cleanly. */
+export function markPrReady(repoPath: string, prNumber: number): Promise<void> {
+  return invoke("mark_pr_ready", { repoPath, prNumber });
+}
+
 export function replyToPrComment(
   repoPath: string,
   prNumber: number,

@@ -400,6 +400,7 @@ pub fn run() {
             pr_review::set_pr_file_viewed,
             pr_review::get_repo_merge_methods,
             pr_review::merge_pr,
+            pr_review::mark_pr_ready,
             // GIFs (Giphy)
             gifs::gifs_available,
             gifs::search_gifs,

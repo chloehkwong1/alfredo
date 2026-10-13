@@ -37,6 +37,16 @@ pub async fn get_repo_merge_methods(app: tauri::AppHandle, repo_path: String) ->
     manager.get_allowed_merge_methods(&owner, &repo).await
 }
 
+/// Take a PR out of draft, then kick a sync so the banner stops offering the
+/// action. Idempotent: an already-ready PR succeeds without a mutation.
+#[tauri::command]
+pub async fn mark_pr_ready(app: tauri::AppHandle, repo_path: String, pr_number: u64) -> Result<()> {
+    let (manager, owner, repo) = github_manager::github_context(&app_data_dir(&app)?, &repo_path).await?;
+    manager.mark_pr_ready(&owner, &repo, pr_number).await?;
+    github_sync::trigger_sync(&app);
+    Ok(())
+}
+
 /// Merge a PR on GitHub, pinned to `head_sha`, then kick a sync so the card
 /// moves to Done without waiting for the next poll.
 #[tauri::command]
