@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { collectStackIdentities, computeStackChain, computeStackHues, detectAdoptableParent, STACK_HUE_COUNT } from "./stackChain";
+import { collectStackIdentities, computeStackChain, computeStackHues, detectAdoptableParent, stackChainsFor, STACK_HUE_COUNT } from "./stackChain";
 import { LIGHT_THEMES } from "./themeMeta";
 import type { NativeStackInfo, Worktree } from "../types";
 
@@ -430,5 +430,44 @@ describe("detectAdoptableParent", () => {
     // A parent with a live PR (or no PR at all) still qualifies.
     const open = { ...parent, prStatus: parentPr };
     expect(detect([open, child])).toBe("feat/parent");
+  });
+});
+
+// Sidebar rows select their chain from the store on every store update. The
+// store replaces the worktree array on ANY patch (a 500ms channelAlive tick,
+// a hook status flip), so the chain must keep its object identity whenever its
+// content is unchanged — otherwise every row re-renders on every tick.
+describe("stackChainsFor", () => {
+  const a = wt({ id: "a", branch: "feat/a" });
+  const b = wt({ id: "b", branch: "feat/b", stackParent: "feat/a" });
+  const lone = wt({ id: "x", branch: "fix/x" });
+
+  it("memoises per array and omits non-stacked worktrees", () => {
+    const list = [a, b, lone];
+    const chains = stackChainsFor(list);
+    expect(stackChainsFor(list)).toBe(chains);
+    expect(chains.get("a")!.members.map((m) => m.id)).toEqual(["a", "b"]);
+    expect(chains.get("b")!.position).toBe(2);
+    expect(chains.has("x")).toBe(false);
+  });
+
+  it("keeps the same chain object across arrays when the stack is unchanged", () => {
+    const before = stackChainsFor([a, b, lone]);
+    // An unrelated patch: the store maps the array, touching one row.
+    const after = stackChainsFor([a, { ...b, channelAlive: true }, lone]);
+    expect(after.get("a")).toBe(before.get("a"));
+    expect(after.get("b")).toBe(before.get("b"));
+  });
+
+  it("returns a new chain object when the stack itself changes", () => {
+    const before = stackChainsFor([a, b, lone]);
+    const c = wt({ id: "c", branch: "feat/c", stackParent: "feat/b" });
+    const after = stackChainsFor([a, b, c, lone]);
+    expect(after.get("a")).not.toBe(before.get("a"));
+    expect(after.get("a")!.total).toBe(3);
+    // Attention is part of the chain's content, so a status flip must break identity too.
+    const troubled = stackChainsFor([a, { ...b, stackRebaseStatus: { kind: "conflict" as const } }, lone]);
+    expect(troubled.get("b")).not.toBe(before.get("b"));
+    expect(troubled.get("b")!.selfNeedsAttention).toBe(true);
   });
 });

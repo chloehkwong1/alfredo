@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent } from "./AgentItem";
+import { describe, it, expect, vi } from "vitest";
+import React, { Profiler } from "react";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { AgentItem, computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent } from "./AgentItem";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { nativeStackChipLabel } from "./StackGlyph";
 import { hiddenMembersNote, collectExtensionMembers, restackOutcomeMessage, stackSyncMessage, originCue, memberStateText, memberStateClass, stackPendingNotice, firstNeedsPush } from "./StackMapPopover";
 import type { RestackStackSummary } from "../../api";
@@ -526,5 +530,81 @@ describe("clickIntent", () => {
 
   it("prefers range when shift and cmd are both held", () => {
     expect(clickIntent({ metaKey: true, ctrlKey: false, shiftKey: true })).toBe("range");
+  });
+});
+
+// ── Render fan-out ────────────────────────────────────────────────
+// Every store patch (usePty's 500ms channelAlive tick, each hook status flip)
+// replaces the worktree array. Rows must not subscribe to the whole array, or
+// one patch re-renders every row and the sidebar cost grows with worktree
+// count — the "slow with many worktrees" report. Guarded here with a React
+// Profiler over N rows: patching an unrelated field on one worktree must not
+// re-render any row whose props are unchanged.
+vi.mock(import("../../api"), async (importOriginal) => {
+  const actual = await importOriginal();
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(actual)) {
+    out[k] = typeof v === "function" ? vi.fn(() => Promise.resolve([] as unknown)) : v;
+  }
+  return out as typeof actual;
+});
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})), emit: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.resolve(null)), Channel: class {} }));
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({ isFocused: () => Promise.resolve(true), onFocusChanged: () => Promise.resolve(() => {}) }),
+}));
+vi.mock("../../lib/clipboard", () => ({ copyText: vi.fn() }));
+
+describe("AgentItem render fan-out", () => {
+  function row(i: number): Worktree {
+    return {
+      id: `/repo::wt-${i}`,
+      name: `wt-${i}`,
+      path: `/repo/.worktrees/wt-${i}`,
+      branch: `feature/wt-${i}`,
+      prStatus: null,
+      agentStatus: "idle",
+      column: "inProgress",
+      isBranchMode: false,
+      additions: 0,
+      deletions: 0,
+      repoPath: "/repo",
+    } as Worktree;
+  }
+
+  it("does not re-render other rows when one worktree's channelAlive is patched", async () => {
+    const worktrees = Array.from({ length: 12 }, (_, i) => row(i));
+    // Two of them form a stack so the chain/hue selectors have real work to do.
+    worktrees[1] = { ...worktrees[1], stackParent: worktrees[0].branch };
+    useWorkspaceStore.setState({ worktrees });
+
+    const renders = new Map<string, number>();
+    const noop = () => {};
+    const rows = worktrees.map((wt) =>
+      React.createElement(
+        Profiler,
+        { key: wt.id, id: wt.id, onRender: (id: string) => renders.set(id, (renders.get(id) ?? 0) + 1) },
+        React.createElement(AgentItem, {
+          worktree: wt, isSelected: false, isPinned: false, isDimmed: false, onClick: noop,
+          isMultiSelected: false, onDelete: noop, onArchive: noop, repoPath: "/repo",
+          repoColors: {}, repoDisplayNames: {}, repoShortLabels: {}, label: undefined, onRename: noop,
+        }),
+      ),
+    );
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => { root.render(React.createElement("div", null, ...rows)); });
+    renders.clear();
+
+    await act(async () => {
+      useWorkspaceStore.getState().updateWorktree(worktrees[5].id, { channelAlive: true });
+    });
+
+    const rerendered = [...renders.entries()].filter(([, n]) => n > 0).map(([id]) => id);
+    expect(rerendered).toEqual([]);
+    root.unmount();
+    container.remove();
   });
 });

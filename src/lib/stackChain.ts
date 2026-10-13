@@ -190,6 +190,59 @@ export function computeStackChain(worktrees: Worktree[], worktreeId: string): St
   };
 }
 
+function stackChainEqual(a: StackChain, b: StackChain): boolean {
+  if (
+    a.position !== b.position ||
+    a.total !== b.total ||
+    a.rootId !== b.rootId ||
+    a.forked !== b.forked ||
+    a.selfNeedsAttention !== b.selfNeedsAttention ||
+    a.members.length !== b.members.length ||
+    (a.unified === null) !== (b.unified === null) ||
+    (a.nativeStack === null) !== (b.nativeStack === null)
+  ) {
+    return false;
+  }
+  for (let i = 0; i < a.members.length; i++) {
+    const m = a.members[i];
+    const n = b.members[i];
+    if (m.id !== n.id || m.depth !== n.depth || m.prefix !== n.prefix) return false;
+  }
+  if (a.unified && b.unified && (a.unified.position !== b.unified.position || a.unified.total !== b.unified.total)) {
+    return false;
+  }
+  if (a.nativeStack && b.nativeStack) {
+    const x = a.nativeStack;
+    const y = b.nativeStack;
+    if (x.id !== y.id || x.number !== y.number || x.position !== y.position || x.size !== y.size) return false;
+  }
+  return true;
+}
+
+/** Per-array memo of every stacked worktree's chain (same pattern as
+ *  stackHuesFor), with one extra guarantee: a chain whose content is unchanged
+ *  since the previous array keeps its object identity. The store replaces the
+ *  worktree array on every patch (a channelAlive tick, a hook status flip), so
+ *  sidebar rows selecting `stackChainsFor(s.worktrees).get(id)` only re-render
+ *  when their own stack actually changed. Unstacked worktrees are absent. */
+const chainCache = new WeakMap<Worktree[], Map<string, StackChain>>();
+let lastChains: Map<string, StackChain> = new Map();
+export function stackChainsFor(worktrees: Worktree[]): Map<string, StackChain> {
+  let chains = chainCache.get(worktrees);
+  if (!chains) {
+    chains = new Map();
+    for (const w of worktrees) {
+      const next = computeStackChain(worktrees, w.id);
+      if (!next) continue;
+      const prev = lastChains.get(w.id);
+      chains.set(w.id, prev && stackChainEqual(prev, next) ? prev : next);
+    }
+    chainCache.set(worktrees, chains);
+    lastChains = chains;
+  }
+  return chains;
+}
+
 /** Palette size for per-stack hue coding — keep in sync with the
  *  `--stack-hue-N` variables in theme.css. */
 export const STACK_HUE_COUNT = 6;

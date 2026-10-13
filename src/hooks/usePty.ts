@@ -305,9 +305,13 @@ export function usePty({
         setChannelAlive(alive);
 
         if (mode === "claude") {
-          useWorkspaceStore.getState().updateWorktree(worktreeId, {
-            channelAlive: alive,
-          });
+          // Only write on change: updateWorktree replaces the worktree array,
+          // and an unconditional write here re-rendered every array subscriber
+          // (sidebar, shell) twice a second per attached claude tab.
+          const store = useWorkspaceStore.getState();
+          if (store.worktrees.find((w) => w.id === worktreeId)?.channelAlive !== alive) {
+            store.updateWorktree(worktreeId, { channelAlive: alive });
+          }
 
           // Refresh diff stats when agent finishes work (busy/waitingForInput → idle)
           if (currentState === "idle" && prevAgentState && prevAgentState !== "idle" && prevAgentState !== "notRunning") {

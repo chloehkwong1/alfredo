@@ -10,6 +10,7 @@ import {
 import { Button } from "../ui";
 import { worktreeDirtyState, type WorktreeDirtyState } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import type { Worktree } from "../../types";
 
 interface DeleteWorktreeConfirmProps {
   open: boolean;
@@ -27,6 +28,7 @@ interface DeleteWorktreeConfirmProps {
 }
 
 const MAX_LISTED = 8;
+const NO_CHILDREN: Worktree[] = [];
 
 function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoPath, onConfirm }: DeleteWorktreeConfirmProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -36,13 +38,19 @@ function DeleteWorktreeConfirm({ open, onOpenChange, branch, worktreePath, repoP
   // Deleting a mid-stack worktree reconnects the chain (children move onto
   // this worktree's own parent, keeping its commits) — state the consequence
   // on the surface rather than letting sibling cards change unexplained.
-  const worktrees = useWorkspaceStore((s) => s.worktrees);
-  const stackChildren = repoPath
-    ? worktrees.filter((w) => w.repoPath === repoPath && w.stackParent === branch)
-    : [];
-  const restackTarget = repoPath
-    ? (worktrees.find((w) => w.repoPath === repoPath && w.branch === branch)?.stackParent ?? null)
-    : null;
+  // One of these dialogs is mounted per sidebar row, so while closed the
+  // selectors return constants — a whole-array subscription here would
+  // re-render every row on every store patch.
+  const stackChildren = useWorkspaceStore((s) =>
+    open && repoPath
+      ? s.worktrees.filter((w) => w.repoPath === repoPath && w.stackParent === branch)
+      : NO_CHILDREN,
+  );
+  const restackTarget = useWorkspaceStore((s) =>
+    open && repoPath
+      ? (s.worktrees.find((w) => w.repoPath === repoPath && w.branch === branch)?.stackParent ?? null)
+      : null,
+  );
 
   // Check for would-be-destroyed work each time the dialog opens. Untracked
   // files (e.g. /research output) never show in the diff badge, so without this

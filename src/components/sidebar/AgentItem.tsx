@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, memo } from "react";
 import { createPortal } from "react-dom";
 import { Archive, Trash2, ExternalLink, Eye, GitBranch, Loader, X, Unlink, Copy, Pin, PinOff, Check, RefreshCw, ArrowRightLeft, ArrowUpRight, Settings, Pencil } from "lucide-react";
 import { openWorkspaceSettings } from "../settings/openWorkspaceSettings";
@@ -38,7 +38,7 @@ import { copyText } from "../../lib/clipboard";
 import { StackGlyph, NativeStackChip } from "./StackGlyph";
 import { StackMapPopover, restackNowWithToast } from "./StackMapPopover";
 import { useToastStore } from "../../stores/toastStore";
-import { computeStackChain, stackHuesFor, detectAdoptableParent, type StackChain } from "../../lib/stackChain";
+import { stackChainsFor, stackHuesFor, detectAdoptableParent, type StackChain } from "../../lib/stackChain";
 import { isTerminalPr, toTerminalFlags } from "../../lib/prStatus";
 import { applyStackBaseChange } from "../../services/stackBase";
 import { Button } from "../ui/Button";
@@ -968,8 +968,9 @@ function SetupScriptErrorItem({ worktree }: { worktree: Worktree }) {
  *  hues flicker on collapse). Shared with AgentItemOverlay so the dragged
  *  card matches its row; stackHuesFor memoizes per store update. */
 function useStackHue(worktreeId: string): number | null {
-  const allWorktrees = useWorkspaceStore((s) => s.worktrees);
-  return stackHuesFor(allWorktrees).get(worktreeId) ?? null;
+  // Select the primitive, not the array: the store replaces `worktrees` on
+  // every patch, and a whole-array subscription re-renders every row per tick.
+  return useWorkspaceStore((s) => stackHuesFor(s.worktrees).get(worktreeId) ?? null);
 }
 
 const AgentItem = memo(function AgentItem({
@@ -1024,16 +1025,14 @@ const AgentItem = memo(function AgentItem({
       useWorkspaceStore.getState().setActiveWorktree(parentWorktreeId);
     }
   };
-  const allWorktrees = useWorkspaceStore((s) => s.worktrees);
   const peekedStackRootId = useWorkspaceStore((s) => s.peekedStackRootId);
-  const stackChain = useMemo(
-    () => computeStackChain(allWorktrees, worktree.id),
-    [allWorktrees, worktree.id],
-  );
+  // Both derive from the whole list but must not subscribe to it (see
+  // useStackHue): stackChainsFor keeps an unchanged chain's identity across
+  // array replacements, and adoptableParent is a primitive.
+  const stackChain = useWorkspaceStore((s) => stackChainsFor(s.worktrees).get(worktree.id) ?? null);
   const githubUsername = useGithubUsername();
-  const adoptableParent = useMemo(
-    () => detectAdoptableParent(allWorktrees, worktree.id, defaultBranch, githubUsername),
-    [allWorktrees, worktree.id, defaultBranch, githubUsername],
+  const adoptableParent = useWorkspaceStore((s) =>
+    detectAdoptableParent(s.worktrees, worktree.id, defaultBranch, githubUsername),
   );
   const showAdoptCue = useWorkspaceStore(
     (s) => adoptableParent != null && !s.isStackAdoptionDismissed(worktree.id, adoptableParent),
