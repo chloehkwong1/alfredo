@@ -34,10 +34,16 @@ pub enum SessionStatus {
     Exited(i32),
 }
 
-/// Tagged enum sent over a Channel from the PTY reader thread.
-/// Frontend discriminates on the `event` field.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "event", content = "data")]
+/// Event sent over a Channel from the PTY reader thread.
+///
+/// Not `Serialize`: the wire format is hand-rolled in the `IpcResponse` impl
+/// below so `Output` crosses the IPC as raw bytes while every other variant
+/// stays a tagged JSON object (`{ event, data }`) the frontend discriminates
+/// on. Deriving `Serialize` would make serde's blanket `IpcResponse` apply and
+/// send terminal output as a JSON array of numbers — ~4 bytes per byte, a
+/// `JSON.parse` plus an array copy per chunk, for every session, hidden tabs
+/// included.
+#[derive(Debug, Clone)]
 pub enum PtyEvent {
     /// Raw terminal output bytes
     Output(Vec<u8>),
@@ -61,6 +67,89 @@ pub enum PtyEvent {
     /// Current working directory for shell sessions. Tilde-abbreviated if
     /// under $HOME (e.g. "~/alfredo"); `None` if resolution failed.
     Cwd(Option<String>),
+}
+
+/// JSON shape of every non-output `PtyEvent`, kept in lockstep with the enum
+/// above (the compiler enforces it: the `match` in `body` is exhaustive).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase", tag = "event", content = "data")]
+enum PtyEventJson<'a> {
+    AgentState(&'a AgentState),
+    HookAgentState {
+        state: &'a AgentState,
+        notify: &'a NotifyReason,
+        phase: &'a HookPhase,
+    },
+    Heartbeat,
+    Title(&'a Option<String>),
+    Process(&'a Option<String>),
+    Cwd(&'a Option<String>),
+}
+
+impl tauri::ipc::IpcResponse for PtyEvent {
+    fn body(self) -> tauri::Result<tauri::ipc::InvokeResponseBody> {
+        use tauri::ipc::InvokeResponseBody;
+        let json = match &self {
+            PtyEvent::Output(_) => {
+                let PtyEvent::Output(bytes) = self else { unreachable!() };
+                return Ok(InvokeResponseBody::Raw(bytes));
+            }
+            PtyEvent::AgentState(s) => PtyEventJson::AgentState(s),
+            PtyEvent::HookAgentState { state, notify, phase } => {
+                PtyEventJson::HookAgentState { state, notify, phase }
+            }
+            PtyEvent::Heartbeat => PtyEventJson::Heartbeat,
+            PtyEvent::Title(t) => PtyEventJson::Title(t),
+            PtyEvent::Process(p) => PtyEventJson::Process(p),
+            PtyEvent::Cwd(c) => PtyEventJson::Cwd(c),
+        };
+        Ok(InvokeResponseBody::Json(serde_json::to_string(&json)?))
+    }
+}
+
+#[cfg(test)]
+mod pty_event_wire_tests {
+    use super::*;
+    use tauri::ipc::{InvokeResponseBody, IpcResponse};
+
+    #[test]
+    fn output_crosses_as_raw_bytes() {
+        match PtyEvent::Output(vec![0x1b, b'[', b'3', b'J', 0xff]).body().unwrap() {
+            InvokeResponseBody::Raw(bytes) => assert_eq!(bytes, vec![0x1b, b'[', b'3', b'J', 0xff]),
+            InvokeResponseBody::Json(json) => panic!("output sent as JSON: {json}"),
+        }
+    }
+
+    #[test]
+    fn control_events_keep_the_tagged_json_shape() {
+        let json = |ev: PtyEvent| match ev.body().unwrap() {
+            InvokeResponseBody::Json(s) => serde_json::from_str::<serde_json::Value>(&s).unwrap(),
+            InvokeResponseBody::Raw(_) => panic!("control event sent as raw bytes"),
+        };
+        assert_eq!(json(PtyEvent::Heartbeat), serde_json::json!({ "event": "heartbeat" }));
+        assert_eq!(
+            json(PtyEvent::Title(Some("task".into()))),
+            serde_json::json!({ "event": "title", "data": "task" })
+        );
+        assert_eq!(json(PtyEvent::Cwd(None)), serde_json::json!({ "event": "cwd", "data": null }));
+        assert_eq!(
+            json(PtyEvent::Process(Some("vim".into()))),
+            serde_json::json!({ "event": "process", "data": "vim" })
+        );
+        assert_eq!(
+            json(PtyEvent::AgentState(AgentState::Busy)),
+            serde_json::json!({ "event": "agentState", "data": "busy" })
+        );
+        let hook = json(PtyEvent::HookAgentState {
+            state: AgentState::Idle,
+            notify: NotifyReason::Finished,
+            phase: HookPhase::TurnEnd,
+        });
+        assert_eq!(hook["event"], "hookAgentState");
+        assert_eq!(hook["data"]["state"], "idle");
+        assert_eq!(hook["data"]["notify"], "finished");
+        assert_eq!(hook["data"]["phase"], "turnEnd");
+    }
 }
 
 // ── Agent ───────────────────────────────────────────────────────

@@ -1106,6 +1106,22 @@ describe("Codex lifecycle and conversation titles", () => {
     expect(session.agentState).toBe("busy");
   });
 
+  // Terminal output crosses the IPC as raw bytes (see the Rust IpcResponse
+  // impl on PtyEvent); the channel must treat an ArrayBuffer exactly like the
+  // tagged output event, including the ESC[3J scrollback-clear strip.
+  it("treats a raw ArrayBuffer message as terminal output", () => {
+    const written: Uint8Array[] = [];
+    const recorder = {
+      scheduleWrite: (_s: ManagedSession, bytes: Uint8Array) => { written.push(bytes); },
+      appendToBuffer: () => {},
+    };
+    const session = makeFakeSession({ sessionId: "raw-tab", worktreeId, hooksActive: false, lastOutputAt: 0 });
+    const channel = createSessionChannel(recorder, session, worktreeId, "raw-tab");
+    channel.onmessage(new Uint8Array([62, 32, 0x1b, 0x5b, 0x33, 0x4a, 65]).buffer);
+    expect(session.lastOutputAt).toBeGreaterThan(0);
+    expect(Array.from(written[0])).toEqual([62, 32, 65]);
+  });
+
   it("holds busy during a long turn even if the detector sees a prompt", () => {
     const { session, channel, hook } = connect();
     hook("busy", "promptStart");

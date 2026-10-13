@@ -1,4 +1,4 @@
-import type { ClaudeRegistryEntry, ClaudeRegistryStatus, NotifyReason, Worktree } from "../types";
+import type { ClaudeRegistryEntry, ClaudeRegistryStatus, NotifyReason, PtyEvent, Worktree } from "../types";
 import { sendNotification } from "../hooks/notificationUtils";
 import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
 import { createPtyChannel, getAppConfig } from "../api";
@@ -463,7 +463,12 @@ export function createSessionChannel(
   // trailing events (a final notRunning hook, late output) into the state of
   // whatever replaced it.
   const epoch = (session.channelEpoch = (session.channelEpoch ?? 0) + 1);
-  return createPtyChannel((event) => {
+  return createPtyChannel((message) => {
+    // Output arrives as raw bytes (ArrayBuffer); control events as tagged
+    // objects. Normalise here so the switch below sees one shape.
+    const event: PtyEvent = message instanceof ArrayBuffer
+      ? { event: "output", data: new Uint8Array(message) }
+      : message;
     if (session.channelEpoch !== epoch) {
       console.debug(`[chan-stale] sessionKey=${sessionKey} dropped ${event.event} from epoch ${epoch} (current ${session.channelEpoch})`);
       return;
@@ -479,9 +484,10 @@ export function createSessionChannel(
         // If the user explicitly sent /clear, allow the next ESC[3J through so
         // xterm clears its own scrollback natively. Otherwise strip it to prevent
         // TUI re-renders from wiping the scrollback on every frame.
+        const raw = event.data instanceof Uint8Array ? event.data : new Uint8Array(event.data);
         let bytes: Uint8Array;
         if (session.allowNextClearScrollback) {
-          bytes = new Uint8Array(event.data);
+          bytes = raw;
           // Consume the flag as soon as we find ESC[3J in this chunk.
           // Any additional ESC[3J sequences in the same chunk also pass through
           // unstripped, which is fine — Claude Code emits at most one per frame.
@@ -493,7 +499,7 @@ export function createSessionChannel(
             }
           }
         } else {
-          bytes = stripClearScrollback(new Uint8Array(event.data));
+          bytes = stripClearScrollback(raw);
         }
         const wasFirst = session.lastOutputAt === 0;
         session.lastOutputAt = Date.now();
