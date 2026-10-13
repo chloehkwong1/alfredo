@@ -45,6 +45,10 @@ const COLUMNS: KanbanColumn[] = [
   "done",
 ];
 
+// One shared empty map, not `?? {}` per render: it reaches every memo'd row as
+// a prop, and a fresh object each time would re-render them all.
+const NO_REPO_COLORS: Record<string, string> = {};
+
 function groupByColumn(
   worktrees: Worktree[],
   worktreeOrder: WorktreeOrderMap,
@@ -163,8 +167,11 @@ function Sidebar({
     [selectWorktreeRange, toggleWorktreeSelection],
   );
 
+  // Reads the row off the store at call time rather than closing over
+  // `worktrees`: this reaches every memo'd row as a prop, and a dependency on
+  // the array would mint a new function on every store patch.
   const handleArchiveWorktree = useCallback(async (id: string) => {
-    const wt = worktrees.find((w) => w.id === id);
+    const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === id);
     if (wt) {
       try {
         await runArchiveScript(wt.repoPath, wt.path);
@@ -174,7 +181,7 @@ function Sidebar({
       await stopServerAndReleasePort(wt, "archive");
     }
     archiveWorktree(id);
-  }, [worktrees, archiveWorktree]);
+  }, [archiveWorktree]);
 
   const handleBulkMove = useCallback(
     async (ids: string[], column: KanbanColumn) => {
@@ -375,11 +382,12 @@ function Sidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [worktrees]);
 
-  async function handleDeleteWorktree(id: string) {
-    const wt = worktrees.find((w) => w.id === id);
+  // Same reasoning as handleArchiveWorktree: a row prop, so it must be stable.
+  const handleDeleteWorktree = useCallback(async (id: string) => {
+    const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === id);
     if (!wt) return;
     await lifecycleManager.removeWorktree(id, wt.repoPath, wt.name);
-  }
+  }, []);
 
   const [archivingAll, setArchivingAll] = useState(false);
   const handleArchiveAllDone = useCallback(async () => {
@@ -525,7 +533,7 @@ function Sidebar({
     ?? effectiveSelectedRepos[0]
     ?? activeRepo
     ?? undefined;
-  const effectiveRepoColors = repoColors ?? {};
+  const effectiveRepoColors = repoColors ?? NO_REPO_COLORS;
   const repoIndexMap = useMemo(
     () => Object.fromEntries(repos.map((r, i) => [r.path, i])),
     [repos],

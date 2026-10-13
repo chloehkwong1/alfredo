@@ -2,6 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import React, { Profiler } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+// StatusGroup before AgentItem: the two import each other (AgentItem reads
+// columnLabel from StatusGroup), and the AgentItem mock below only reaches
+// StatusGroup if StatusGroup is the module that triggers the mock factory.
+// Loaded the other way round, the factory's importOriginal() pulls StatusGroup
+// in while the mock is still being built, and it keeps the real component.
+import { StatusGroup } from "./StatusGroup";
 import { AgentItem, computeEffectiveStatus, adoptConsequence, adoptActionLabel, clickIntent, rowBoxClass, dragPlaceholderClass, restingRowClass, travelsWithDrag } from "./AgentItem";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { nativeStackChipLabel } from "./StackGlyph";
@@ -607,6 +613,21 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 vi.mock("../../lib/clipboard", () => ({ copyText: vi.fn() }));
 
+// Counts how often each row's props actually change. The wrapper is memo'd with
+// the same default shallow compare as the real AgentItem, so it renders exactly
+// when the real one would: a stable-props parent leaves the count at zero.
+// (A Profiler around the row can't tell: it fires when the parent re-renders
+// even if the memo'd child bails out.)
+const rowPropChanges = vi.hoisted(() => new Map<string, number>());
+vi.mock(import("./AgentItem"), async (importOriginal) => {
+  const actual = await importOriginal();
+  const Counted = React.memo(function CountedAgentItem(props: React.ComponentProps<typeof actual.AgentItem>) {
+    rowPropChanges.set(props.worktree.id, (rowPropChanges.get(props.worktree.id) ?? 0) + 1);
+    return React.createElement(actual.AgentItem, props);
+  });
+  return { ...actual, AgentItem: Counted };
+});
+
 describe("AgentItem render fan-out", () => {
   function row(i: number): Worktree {
     return {
@@ -655,6 +676,44 @@ describe("AgentItem render fan-out", () => {
 
     const rerendered = [...renders.entries()].filter(([, n]) => n > 0).map(([id]) => id);
     expect(rerendered).toEqual([]);
+    root.unmount();
+    container.remove();
+  });
+
+  // The invariant above only holds in the real tree if StatusGroup hands each
+  // row the same props on every one of its own renders. The Sidebar re-renders
+  // every group on every store patch with a freshly grouped array, so this
+  // mounts the group, patches one worktree, and re-renders the group the way
+  // the Sidebar would. Only the patched row's props may change.
+  it("StatusGroup hands every row stable props, so a patch reaches one row", async () => {
+    const worktrees = Array.from({ length: 12 }, (_, i) => row(i));
+    useWorkspaceStore.setState({ worktrees });
+
+    const noop = () => {};
+    const none: Record<string, never> = {};
+    const pinned = new Set<string>();
+    const group = (wts: Worktree[]) =>
+      React.createElement(StatusGroup, {
+        column: "inProgress", worktrees: wts, activeWorktreeId: null, pinnedWorktrees: pinned,
+        onSelectWorktree: noop, onToggleSelection: noop, onDeleteWorktree: noop, onArchiveWorktree: noop,
+        repoColors: none, repoDisplayNames: none, repoShortLabels: none, worktreeLabels: none,
+        onSetWorktreeLabel: noop, repoIndexMap: none, showRepoTags: false,
+      });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => { root.render(group(worktrees)); });
+    rowPropChanges.clear();
+
+    await act(async () => {
+      useWorkspaceStore.getState().updateWorktree(worktrees[5].id, { channelAlive: true });
+    });
+    await act(async () => {
+      root.render(group(useWorkspaceStore.getState().worktrees.filter((w) => w.column === "inProgress")));
+    });
+
+    const changed = [...rowPropChanges.entries()].filter(([, n]) => n > 0).map(([id]) => id);
+    expect(changed).toEqual([worktrees[5].id]);
     root.unmount();
     container.remove();
   });

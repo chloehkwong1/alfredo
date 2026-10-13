@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -150,6 +151,28 @@ function StatusGroup({
   const sortedIds = sorted.map((wt) => wt.id);
   const pinnedItems = sorted.filter((wt) => pinned.has(wt.id));
 
+  // AgentItem is memo'd, and the Sidebar re-renders this group on every store
+  // patch with a freshly grouped array. A closure per row per render would
+  // hand each row a new prop every time and re-render all of them — the exact
+  // fan-out the memo exists to stop. So the row handlers are one stable
+  // function per column, and read the rendered order (which shift-range
+  // selection needs) through a ref instead of closing over it.
+  const sortedIdsRef = useRef(sortedIds);
+  useEffect(() => {
+    sortedIdsRef.current = sortedIds;
+  });
+  const handleRowClick = useCallback(
+    (id: string, e: React.MouseEvent) => onSelectWorktree(id, e, column, sortedIdsRef.current),
+    [onSelectWorktree, column],
+  );
+  const handleToggleSelection = useCallback(
+    (id: string, e: React.MouseEvent) => onToggleSelection?.(id, e, column, sortedIdsRef.current),
+    [onToggleSelection, column],
+  );
+  const handleSelectAll = useCallback(
+    () => setWorktreeSelection(sortedIdsRef.current, column),
+    [setWorktreeSelection, column],
+  );
 
   const isVisible =
     visibleWorktrees.length > 0
@@ -246,7 +269,7 @@ function StatusGroup({
                       isSelected={wt.id === activeWorktreeId}
                       isPinned={pinned.has(wt.id)}
                       isDimmed={pinnedItems.length > 0 && !pinned.has(wt.id)}
-                      onClick={(e) => onSelectWorktree(wt.id, e, column, sortedIds)}
+                      onClick={handleRowClick}
                       isMultiSelected={selectedWorktreeIds.has(wt.id)}
                       // Decided here, not in the row: AgentItem would have to
                       // subscribe to dnd-kit's context to learn the active id,
@@ -257,12 +280,10 @@ function StatusGroup({
                         selectedWorktreeIds,
                       )}
                       selectionActive={selectionActive}
-                      onSelectAllInColumn={() => setWorktreeSelection(sortedIds, column)}
-                      onToggleSelection={
-                        onToggleSelection &&
-                        ((e: React.MouseEvent) =>
-                          onToggleSelection(wt.id, e, column, sortedIds))
-                      }
+                      onSelectAllInColumn={handleSelectAll}
+                      // Undefined, not a no-op, when absent: the row reserves
+                      // the checkbox gutter on the prop's presence.
+                      onToggleSelection={onToggleSelection ? handleToggleSelection : undefined}
                       onDelete={onDeleteWorktree}
                       onArchive={onArchiveWorktree}
                       repoPath={wt.repoPath}

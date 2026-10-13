@@ -289,7 +289,11 @@ interface AgentItemProps {
   isSelected: boolean;
   isPinned?: boolean;
   isDimmed?: boolean;
-  onClick: (e: React.MouseEvent) => void;
+  /** Row handlers take the worktree id so the parent can pass one stable
+   *  function per column instead of a fresh closure per row — this component
+   *  is memo'd, and a new closure on every parent render would re-render every
+   *  row on every store patch. */
+  onClick: (id: string, e: React.MouseEvent) => void;
   /** Part of a bulk selection — rendered distinctly from the active row. */
   isMultiSelected?: boolean;
   /** Being carried along by a drag of another row in the same selection, so
@@ -300,7 +304,7 @@ interface AgentItemProps {
    *  rather than waiting for hover. */
   selectionActive?: boolean;
   /** Ticking the box. Absent means no gutter is reserved at all. */
-  onToggleSelection?: (e: React.MouseEvent) => void;
+  onToggleSelection?: (id: string, e: React.MouseEvent) => void;
   /** The zero-pixel door into a selection before any box has been ticked:
    *  lives in the row's context menu, where people already look for actions. */
   onSelectAllInColumn?: () => void;
@@ -430,7 +434,7 @@ interface AgentItemContentProps {
   /** Bulk-selection gutter. Absent `onToggleSelection` means no gutter. */
   isMultiSelected?: boolean;
   selectionActive?: boolean;
-  onToggleSelection?: (e: React.MouseEvent) => void;
+  onToggleSelection?: (id: string, e: React.MouseEvent) => void;
 }
 
 function getDotColor(status: AgentState | string): string {
@@ -475,7 +479,7 @@ function AgentItemContent({
           <Checkbox
             checked={isMultiSelected}
             dimmed={!selectionActive}
-            onChange={(_checked, e) => onToggleSelection(e)}
+            onChange={(_checked, e) => onToggleSelection(worktree.id, e)}
             label={`Select ${worktree.branch}`}
             className={selectionActive || isMultiSelected ? "" : "group-hover:opacity-100"}
           />
@@ -1391,7 +1395,7 @@ const AgentItem = memo(function AgentItem({
           <button
             ref={setNodeRef}
             type="button"
-            onClick={onClick}
+            onClick={(e) => onClick(worktree.id, e)}
             {...attributes}
             {...listeners}
             style={rowStyle}
