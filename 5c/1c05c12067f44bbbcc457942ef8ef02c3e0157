@@ -1,0 +1,42 @@
+src/lib/stackChain.test.ts
+  s_0e5ad0451e89bf::t_829141849acf99 473-496
+src/components/sidebar/SidebarDragContext.tsx
+  s_0e5ad0451e89bf::t_3f662411412e73 388-391
+  s_0e5ad0451e89bf::t_df8a30ffbaf52c 374-376
+src/services/bulkWorktreeActions.ts
+  s_0e5ad0451e89bf::t_405a9e76c349a0 12-16
+  s_0e5ad0451e89bf::t_addbe2cc090a9b 44,46
+  s_0e5ad0451e89bf::t_58d19685f843d5 153-158,160-162,171
+  s_0e5ad0451e89bf::t_caa1b6a08e4571 126,131,133-134,136,139
+  s_0e5ad0451e89bf::t_a4845ce6da0c93 109
+  s_0e5ad0451e89bf::t_a50c0339617b99 62-63,67-72,74-75,80-88
+src/components/sidebar/Sidebar.tsx
+  s_0e5ad0451e89bf::t_b3375fc210b7c7 438-447
+src/components/changes/MergeStatusBanner.tsx
+  s_0e5ad0451e89bf::t_a55c420b03ff65 140-146
+src/components/sidebar/DeleteWorktreeConfirm.tsx
+  s_0e5ad0451e89bf::t_0967c3e17de2fd 43-49
+  s_0e5ad0451e89bf::t_3456fa349b0659 1
+src/lib/stackChain.ts
+  s_0e5ad0451e89bf::t_79d730c0f1bbff 218-234
+src/services/bulkWorktreeActions.test.ts
+  s_0e5ad0451e89bf::t_fa181f3c90eda0 130,208,217-248
+  s_0e5ad0451e89bf::t_970b07e8d91148 112,115-129
+  s_0e5ad0451e89bf::t_6b7de0bf03b962 249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5c1c05c12067f44bbbcc457942ef8ef02c3e0157",
+  "prompts": {},
+  "sessions": {
+    "s_0e5ad0451e89bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3480f22d-da9d-494b-961a-5b8f031b9e86",
+        "model": "unknown"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
