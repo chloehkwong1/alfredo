@@ -10,6 +10,10 @@ ignore = [
     "RUSTSEC-2025-0081",
     "RUSTSEC-2025-0098",
     "RUSTSEC-2025-0100",
+    # unsafe-libyaml unmaintained, via serde_yaml (itself deprecated). Only
+    # reached by parse_doc in ask_alfredo/docs.rs, which parses frontmatter
+    # from our own bundled docs/features/*.md — never untrusted input.
+    "RUSTSEC-2024-0449",
 ]
 
 [licenses]
