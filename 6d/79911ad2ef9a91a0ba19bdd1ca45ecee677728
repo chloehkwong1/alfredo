@@ -1,0 +1,28 @@
+docs/features/bulk-select.md
+  s_940c78a8a011ea::t_e6d58eeb5e588d 1-58
+docs/features/changes-panel.md
+  s_940c78a8a011ea::t_99eebe67f791c0 52-54
+docs/features/auto-assign-ports.md
+  s_940c78a8a011ea::t_e2acecf3d75ebf 42-48
+docs/features/pull-requests.md
+  s_940c78a8a011ea::t_c10c03da09b022 27-30
+docs/features/pr-checks.md
+  s_940c78a8a011ea::t_767384461bd90a 30-60
+  s_940c78a8a011ea::t_7cab0a39b2b2e1 2-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6d79911ad2ef9a91a0ba19bdd1ca45ecee677728",
+  "prompts": {},
+  "sessions": {
+    "s_940c78a8a011ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "19f761ea-b021-40b0-b1b2-a05d44cd3b21",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
