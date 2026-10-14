@@ -49,7 +49,9 @@ origin/<branch>`, or `No upstream branch`, and the CTA matches:
 push), or **Publish** when the branch has never been pushed. The
 banner hides entirely when the branch is in sync, when you're on the
 pinned main card, and in branch mode. It polls every 60 seconds while
-the panel is open.
+the panel is open and the window is focused; like the rest of
+Alfredo's polling it slows right down while the app is in the
+background and catches up as soon as you come back.
 
 Branch mode on the default branch hides the tab bar because there's
 nothing to diff against — only the uncommitted file list is shown.

@@ -39,6 +39,13 @@ Once a port is claimed, it shows on the worktree's sidebar card as a
 small port badge — a quick way to see at a glance which worktree is
 on which port without opening the run pane.
 
+After **Start server**, Alfredo also waits for the port to start
+accepting connections and sends a throwaway `GET /` to it. That wakes
+the app — and a database that suspended while idle, such as Neon —
+before your first real request, so the first page load doesn't time
+out. It never follows redirects and gives up quietly if the server
+takes more than a few minutes to listen.
+
 ### When the port is released
 
 A port is released automatically when the worktree is dragged to

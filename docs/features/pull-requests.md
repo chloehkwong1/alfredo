@@ -24,6 +24,10 @@ sync so it doesn't sit in "in review" with stale check status. Right-clicking th
 the sidebar gives you "View PR on GitHub" to jump to the full PR in
 your browser.
 
+Once a PR is approved with green checks, the banner at the bottom of
+the PR tab turns into a merge button — see
+[merging from the banner](pr-checks.md).
+
 ## Auto-move to Done on approval
 
 When a PR has an active approving review from any reviewer, Alfredo
