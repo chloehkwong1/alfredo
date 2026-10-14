@@ -1,4 +1,4 @@
-import type { ClaudeRegistryEntry, ClaudeRegistryStatus, NotifyReason, PtyEvent, Worktree } from "../types";
+import type { ClaudeRegistryEntry, ClaudeRegistryStatus, NotifyReason, Worktree } from "../types";
 import { sendNotification } from "../hooks/notificationUtils";
 import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
 import { createPtyChannel, getAppConfig } from "../api";
@@ -463,12 +463,7 @@ export function createSessionChannel(
   // trailing events (a final notRunning hook, late output) into the state of
   // whatever replaced it.
   const epoch = (session.channelEpoch = (session.channelEpoch ?? 0) + 1);
-  return createPtyChannel((message) => {
-    // Output arrives as raw bytes (ArrayBuffer); control events as tagged
-    // objects. Normalise here so the switch below sees one shape.
-    const event: PtyEvent = message instanceof ArrayBuffer
-      ? { event: "output", data: new Uint8Array(message) }
-      : message;
+  return createPtyChannel((event) => {
     if (session.channelEpoch !== epoch) {
       console.debug(`[chan-stale] sessionKey=${sessionKey} dropped ${event.event} from epoch ${epoch} (current ${session.channelEpoch})`);
       return;
@@ -484,7 +479,12 @@ export function createSessionChannel(
         // If the user explicitly sent /clear, allow the next ESC[3J through so
         // xterm clears its own scrollback natively. Otherwise strip it to prevent
         // TUI re-renders from wiping the scrollback on every frame.
-        const raw = event.data instanceof Uint8Array ? event.data : new Uint8Array(event.data);
+        // Output crosses the IPC as base64 (see the Rust PtyEvent serializer):
+        // a 4 KB read becomes ~5.5 KB of JSON, under tauri's 8 KB direct-eval
+        // threshold, so no chunk takes the fetch round-trip.
+        const decoded = atob(event.data);
+        const raw = new Uint8Array(decoded.length);
+        for (let i = 0; i < decoded.length; i++) raw[i] = decoded.charCodeAt(i);
         let bytes: Uint8Array;
         if (session.allowNextClearScrollback) {
           bytes = raw;

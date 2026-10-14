@@ -20,18 +20,14 @@ export type SessionStatus =
   | { exited: number };
 
 export type PtyEvent =
-  | { event: "output"; data: Uint8Array | number[] }
+  /** Terminal output bytes, base64-encoded (see the Rust `PtyEvent` serializer). */
+  | { event: "output"; data: string }
   | { event: "agentState"; data: AgentState }
   | { event: "hookAgentState"; data: { state: AgentState; notify: NotifyReason; phase: HookPhase } }
   | { event: "heartbeat" }
   | { event: "title"; data: string | null }
   | { event: "process"; data: string | null }
   | { event: "cwd"; data: string | null };
-
-/** What actually arrives on the PTY channel: terminal output is sent as raw
- *  bytes (an ArrayBuffer — see the Rust `IpcResponse` impl on `PtyEvent`);
- *  every other event is the tagged JSON object. */
-export type PtyWireMessage = ArrayBuffer | PtyEvent;
 
 /** Hook lifecycle phase — mirrors the Rust `HookPhase` enum. */
 export type HookPhase = "none" | "promptStart" | "toolStart" | "toolEnd" | "turnEnd" | "subagentStart" | "subagentEnd" | "monitorStart" | "questionEnd";

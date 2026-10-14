@@ -16,7 +16,7 @@ import type {
   PrAssociationRef,
   PrFileViewedStates,
   PrStatus,
-  PtyWireMessage,
+  PtyEvent,
   RepoMode,
   RepoSharedConfig,
   ReviewCommentInput,
@@ -36,7 +36,7 @@ export function spawnPty(
   worktreePath: string,
   mode: "shell" | "claude" | "codex" | "gemini" | "aider",
   args: string[],
-  onData: Channel<PtyWireMessage>,
+  onData: Channel<PtyEvent>,
   agentType?: AgentType,
   sessionType?: SessionType,
   assignedPort?: number,
@@ -73,7 +73,7 @@ export function listSessions(): Promise<Session[]> {
  */
 export function reattachPty(
   sessionId: string,
-  onData: Channel<PtyWireMessage>,
+  onData: Channel<PtyEvent>,
 ): Promise<string> {
   return invoke("reattach_pty", { sessionId, onData });
 }
@@ -82,12 +82,11 @@ export function detectAvailableAgents(): Promise<string[]> {
   return invoke("detect_available_agents");
 }
 
-/** Helper: create a Channel for PTY events with a callback. Output arrives as
- *  an ArrayBuffer, everything else as a tagged `PtyEvent` object. */
+/** Helper: create a Channel for PTY events with a callback. */
 export function createPtyChannel(
-  onEvent: (message: PtyWireMessage) => void,
-): Channel<PtyWireMessage> {
-  const channel = new Channel<PtyWireMessage>();
+  onEvent: (event: PtyEvent) => void,
+): Channel<PtyEvent> {
+  const channel = new Channel<PtyEvent>();
   channel.onmessage = onEvent;
   return channel;
 }

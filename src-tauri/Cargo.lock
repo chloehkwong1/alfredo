@@ -34,6 +34,7 @@ name = "alfredo"
 version = "0.24.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "block2",
  "bm25",
  "chrono",

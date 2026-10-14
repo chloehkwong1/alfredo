@@ -1099,17 +1099,17 @@ describe("Codex lifecycle and conversation titles", () => {
     expect(computeEffectiveStatus(session.agentState, true, false, true)).toBe("idle");
     // Neither delayed cleanup nor output redraws may restart the activity text.
     hook("busy", "toolEnd");
-    channel.onmessage({ event: "output", data: [62, 32] });
+    channel.onmessage({ event: "output", data: "PiA=" }); // "> "
     channel.onmessage({ event: "agentState", data: "busy" });
     expect(session.agentState).toBe("idle");
     hook("busy", "promptStart");
     expect(session.agentState).toBe("busy");
   });
 
-  // Terminal output crosses the IPC as raw bytes (see the Rust IpcResponse
-  // impl on PtyEvent); the channel must treat an ArrayBuffer exactly like the
-  // tagged output event, including the ESC[3J scrollback-clear strip.
-  it("treats a raw ArrayBuffer message as terminal output", () => {
+  // Terminal output crosses the IPC as base64 inside the tagged event (see
+  // the Rust PtyEvent serializer); the channel must decode it to bytes,
+  // including the ESC[3J scrollback-clear strip.
+  it("decodes base64 output into terminal bytes", () => {
     const written: Uint8Array[] = [];
     const recorder = {
       scheduleWrite: (_s: ManagedSession, bytes: Uint8Array) => { written.push(bytes); },
@@ -1117,7 +1117,8 @@ describe("Codex lifecycle and conversation titles", () => {
     };
     const session = makeFakeSession({ sessionId: "raw-tab", worktreeId, hooksActive: false, lastOutputAt: 0 });
     const channel = createSessionChannel(recorder, session, worktreeId, "raw-tab");
-    channel.onmessage(new Uint8Array([62, 32, 0x1b, 0x5b, 0x33, 0x4a, 65]).buffer);
+    // base64 of [62, 32, 0x1b, 0x5b, 0x33, 0x4a, 65] — "> " ESC[3J "A"
+    channel.onmessage({ event: "output", data: "PiAbWzNKQQ==" });
     expect(session.lastOutputAt).toBeGreaterThan(0);
     expect(Array.from(written[0])).toEqual([62, 32, 65]);
   });

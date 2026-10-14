@@ -34,19 +34,19 @@ pub enum SessionStatus {
     Exited(i32),
 }
 
-/// Event sent over a Channel from the PTY reader thread.
+/// Tagged enum sent over a Channel from the PTY reader thread.
+/// Frontend discriminates on the `event` field.
 ///
-/// Not `Serialize`: the wire format is hand-rolled in the `IpcResponse` impl
-/// below so `Output` crosses the IPC as raw bytes while every other variant
-/// stays a tagged JSON object (`{ event, data }`) the frontend discriminates
-/// on. Deriving `Serialize` would make serde's blanket `IpcResponse` apply and
-/// send terminal output as a JSON array of numbers — ~4 bytes per byte, a
-/// `JSON.parse` plus an array copy per chunk, for every session, hidden tabs
-/// included.
-#[derive(Debug, Clone)]
+/// `Output` is serialised as a base64 string, not serde's default JSON array
+/// of numbers (~4 bytes per byte, so a full 4 KB read was ~16 KB of JSON).
+/// tauri 2.11 only direct-evals JSON bodies under 8 KB and `Raw` bodies under
+/// 1 KB; everything else takes a fetch round-trip. Base64 keeps every chunk
+/// pty_manager can send (≤ 4096 B → ~5.5 KB JSON) on the direct-eval path.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase", tag = "event", content = "data")]
 pub enum PtyEvent {
     /// Raw terminal output bytes
-    Output(Vec<u8>),
+    Output(#[serde(serialize_with = "serialize_base64")] Vec<u8>),
     /// Agent state change detected by the PTY output parser (fallback).
     AgentState(AgentState),
     /// Authoritative agent state from hook callbacks (via state server).
@@ -69,42 +69,9 @@ pub enum PtyEvent {
     Cwd(Option<String>),
 }
 
-/// JSON shape of every non-output `PtyEvent`, kept in lockstep with the enum
-/// above (the compiler enforces it: the `match` in `body` is exhaustive).
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase", tag = "event", content = "data")]
-enum PtyEventJson<'a> {
-    AgentState(&'a AgentState),
-    HookAgentState {
-        state: &'a AgentState,
-        notify: &'a NotifyReason,
-        phase: &'a HookPhase,
-    },
-    Heartbeat,
-    Title(&'a Option<String>),
-    Process(&'a Option<String>),
-    Cwd(&'a Option<String>),
-}
-
-impl tauri::ipc::IpcResponse for PtyEvent {
-    fn body(self) -> tauri::Result<tauri::ipc::InvokeResponseBody> {
-        use tauri::ipc::InvokeResponseBody;
-        let json = match &self {
-            PtyEvent::Output(_) => {
-                let PtyEvent::Output(bytes) = self else { unreachable!() };
-                return Ok(InvokeResponseBody::Raw(bytes));
-            }
-            PtyEvent::AgentState(s) => PtyEventJson::AgentState(s),
-            PtyEvent::HookAgentState { state, notify, phase } => {
-                PtyEventJson::HookAgentState { state, notify, phase }
-            }
-            PtyEvent::Heartbeat => PtyEventJson::Heartbeat,
-            PtyEvent::Title(t) => PtyEventJson::Title(t),
-            PtyEvent::Process(p) => PtyEventJson::Process(p),
-            PtyEvent::Cwd(c) => PtyEventJson::Cwd(c),
-        };
-        Ok(InvokeResponseBody::Json(serde_json::to_string(&json)?))
-    }
+fn serialize_base64<S: serde::Serializer>(bytes: &[u8], s: S) -> Result<S::Ok, S::Error> {
+    use base64::Engine;
+    s.serialize_str(&base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
 #[cfg(test)]
@@ -112,11 +79,27 @@ mod pty_event_wire_tests {
     use super::*;
     use tauri::ipc::{InvokeResponseBody, IpcResponse};
 
+    // Output must stay a tagged JSON event with base64 bytes: tauri 2.11 only
+    // direct-evals Raw bodies under 1 KB and JSON under 8 KB, so a base64
+    // string keeps a full 4 KB PTY read (~5.5 KB JSON) off the fetch path.
     #[test]
-    fn output_crosses_as_raw_bytes() {
+    fn output_crosses_as_base64_json() {
         match PtyEvent::Output(vec![0x1b, b'[', b'3', b'J', 0xff]).body().unwrap() {
-            InvokeResponseBody::Raw(bytes) => assert_eq!(bytes, vec![0x1b, b'[', b'3', b'J', 0xff]),
-            InvokeResponseBody::Json(json) => panic!("output sent as JSON: {json}"),
+            InvokeResponseBody::Json(json) => assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&json).unwrap(),
+                serde_json::json!({ "event": "output", "data": "G1szSv8=" })
+            ),
+            InvokeResponseBody::Raw(_) => panic!("output sent as raw bytes"),
+        }
+    }
+
+    #[test]
+    fn a_full_pty_read_stays_under_the_direct_eval_threshold() {
+        // pty_manager reads at most 4096 bytes per send; tauri's
+        // MAX_JSON_DIRECT_EXECUTE_THRESHOLD is 8192.
+        match PtyEvent::Output(vec![0xff; 4096]).body().unwrap() {
+            InvokeResponseBody::Json(json) => assert!(json.len() < 8192, "json is {} bytes", json.len()),
+            InvokeResponseBody::Raw(_) => panic!("output sent as raw bytes"),
         }
     }
 
