@@ -1,0 +1,39 @@
+src/api.ts
+  s_940c78a8a011ea::t_fae0d5d529e69a 39
+  s_940c78a8a011ea::t_f6e70bc16e9156 85,87-89
+  s_940c78a8a011ea::t_580d2ac7478380 19
+  s_940c78a8a011ea::t_5fb419d82f4188 76
+src/types.ts
+  s_940c78a8a011ea::t_fe872793e01f3c 23-24
+src-tauri/Cargo.toml
+  s_940c78a8a011ea::t_f114dd7e10f46c 39
+src/test/status-scenarios.test.ts
+  s_940c78a8a011ea::t_395107a02eda37 1102
+  s_940c78a8a011ea::t_e8b272d863c12c 1109-1112,1120-1121
+src-tauri/src/types.rs
+  s_940c78a8a011ea::t_90bff724a80cf8 37-38,40-46,49
+  s_940c78a8a011ea::t_2d1f9a6ffaaccb 82-84,86,88-102
+  s_940c78a8a011ea::t_80516a6326224b 72-74
+src/services/sessionChannel.ts
+  s_940c78a8a011ea::t_e6907d74c4f26d 1
+  s_940c78a8a011ea::t_2154d9a15e7d89 482-487
+  s_940c78a8a011ea::t_863684f72dd4b4 466
+src-tauri/Cargo.lock
+  s_940c78a8a011ea::t_b1a7eced883c25 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d28c6842774b897bb6c4cc95ba1d661c13f91857",
+  "prompts": {},
+  "sessions": {
+    "s_940c78a8a011ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "19f761ea-b021-40b0-b1b2-a05d44cd3b21",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
