@@ -2,6 +2,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { ToggleRow } from "../ui/ToggleRow";
 import type { GlobalAppConfig, TabType } from "../../types";
 import { flagsError } from "../../services/launchCommand";
+import { BYPASS_FLAG, type LaunchProvider } from "../../services/claudeSettingsResolver";
 import { HIBERNATE_IDLE_DEFAULT_MINUTES } from "../../services/sessionManager";
 
 const selectClass = [
@@ -21,7 +22,7 @@ const AGENT_OPTIONS = [
 ] as const;
 
 interface AgentSettingsProps {
-  settings: Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags" | "hibernateIdleMinutes">;
+  settings: Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags" | "codexExtraFlags" | "hibernateIdleMinutes">;
   onChange: (patch: Partial<GlobalAppConfig>) => void;
   defaultAgent: TabType;
   onDefaultAgentChange: (agent: TabType) => void;
@@ -34,7 +35,12 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
     availableAgents.includes(opt.agentId),
   );
 
-  const extraFlagsError = flagsError(settings.extraFlags);
+  const launchProvider: LaunchProvider | null =
+    defaultAgent === "claude" || defaultAgent === "codex" ? defaultAgent : null;
+  const flagsKey = launchProvider === "codex" ? "codexExtraFlags" : "extraFlags";
+  const flagsValue = launchProvider === "codex" ? settings.codexExtraFlags : settings.extraFlags;
+  const extraFlagsError = flagsError(flagsValue);
+  const providerLabel = launchProvider === "codex" ? "Codex" : "Claude";
   const hibernateMinutes = settings.hibernateIdleMinutes ?? HIBERNATE_IDLE_DEFAULT_MINUTES;
 
   return (
@@ -65,29 +71,32 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
         </p>
       </div>
 
-      {defaultAgent === "claude" && (<>
+      {launchProvider && (<>
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5">
         Permissions
       </div>
 
       <ToggleRow
         label="Skip permission checks"
-        description="Launches every new Claude tab with --dangerously-skip-permissions: no checks at all. Sandboxed or throwaway worktrees only. Global — applies to every repo."
+        description={`Launches every new agent tab with no checks at all: Claude gets ${BYPASS_FLAG.claude}, Codex gets ${BYPASS_FLAG.codex}. Sandboxed or throwaway worktrees only. Global — applies to every repo and both providers.`}
         checked={!!settings.dangerouslySkipPermissions}
         onChange={(v) => onChange({ dangerouslySkipPermissions: v || null })}
       />
 
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
-        Additional flags
+        Additional {providerLabel} flags
       </div>
 
       <div className="mb-4">
         <input
           type="text"
           spellCheck={false}
-          value={settings.extraFlags ?? ""}
-          onChange={(e) => onChange({ extraFlags: e.target.value || null })}
-          placeholder="e.g. --mcp-config ./mcp.json"
+          value={flagsValue ?? ""}
+          onChange={(e) => {
+            const next = e.target.value || null;
+            onChange(flagsKey === "codexExtraFlags" ? { codexExtraFlags: next } : { extraFlags: next });
+          }}
+          placeholder={launchProvider === "codex" ? "e.g. --model o3" : "e.g. --mcp-config ./mcp.json"}
           aria-invalid={extraFlagsError != null}
           aria-describedby="agent-extra-flags-desc"
           className={[
@@ -100,7 +109,7 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
           ].join(" ")}
         />
         <p id="agent-extra-flags-desc" className={["text-xs mt-[5px]", extraFlagsError ? "text-red-500" : "text-text-tertiary"].join(" ")}>
-          {extraFlagsError ?? "Passed to every new Claude tab. Example: --mcp-config ./mcp.json."}
+          {extraFlagsError ?? `Passed to every new ${providerLabel} tab. See \`${launchProvider} --help\` for what it accepts. Switch Default Agent to edit the other provider's flags.`}
         </p>
       </div>
 

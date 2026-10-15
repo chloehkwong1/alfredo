@@ -301,7 +301,8 @@ function GlobalSettingsDialog({
 
   if (!appConfig || !repoConfig) return null;
 
-  const extraFlagsValid = flagsError(appConfig.extraFlags) == null;
+  const extraFlagsValid =
+    flagsError(appConfig.extraFlags) == null && flagsError(appConfig.codexExtraFlags) == null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
