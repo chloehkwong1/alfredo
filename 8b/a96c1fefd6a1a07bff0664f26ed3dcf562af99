@@ -1,0 +1,25 @@
+src-tauri/src/platform.rs
+  s_67d127f7c02885::t_f17a4753b56bec 46-52,68-70,73-85,87-88,94,96-97,110-114,118,120-129,131,134-144,146-163
+  s_67d127f7c02885::t_6488966cf29ff9 338-358
+docs/features/environment-and-shell.md
+  s_67d127f7c02885::t_1a787123700433 45-46
+src-tauri/src/pty_manager.rs
+  s_67d127f7c02885::t_027400339cfd49 1835-1839
+  s_67d127f7c02885::t_ec4e9b3d8bede8 2187-2195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ba96c1fefd6a1a07bff0664f26ed3dcf562af99",
+  "prompts": {},
+  "sessions": {
+    "s_67d127f7c02885": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1ec8256-4751-4d5b-a0bc-6b613f518c87",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
