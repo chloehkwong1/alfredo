@@ -43,6 +43,13 @@ fn shell_path() -> &'static str {
 /// file writes to stdout during startup can be discarded.
 const ENV_SENTINEL: &[u8] = b"__ALFREDO_ENV_START__\n";
 
+/// Command run inside the login shell to dump its environment. Factored
+/// into a constant (rather than inlined at the call site) so tests can
+/// drive `capture_login_shell_env` with a different command — e.g. one
+/// that simulates an rc-spawned background job — without duplicating the
+/// capture pipeline.
+const ENV_CAPTURE_COMMAND: &str = "echo __ALFREDO_ENV_START__; env -0";
+
 /// How long the login shell may take to start and dump its environment
 /// before the capture gives up. Slow rc files (nvm, compinit) are normal;
 /// an rc file waiting on input is not, and stdin is null so it cannot be.
@@ -58,19 +65,36 @@ const ENV_CAPTURE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(
 pub(crate) fn login_shell_env() -> &'static std::collections::HashMap<String, String> {
     use std::sync::OnceLock;
     static LOGIN_ENV: OnceLock<std::collections::HashMap<String, String>> = OnceLock::new();
-    LOGIN_ENV.get_or_init(|| capture_login_shell_env(ENV_CAPTURE_TIMEOUT))
+    LOGIN_ENV.get_or_init(|| {
+        capture_login_shell_env(&login_shell(), ENV_CAPTURE_COMMAND, ENV_CAPTURE_TIMEOUT)
+    })
 }
 
+/// Run `command` inside `shell` and capture its stdout, waiting at most
+/// `timeout` in total.
+///
+/// Stdout is read on a helper thread in chunks, each sent over a channel as
+/// it arrives, rather than buffered until EOF. This matters because an rc
+/// file can start a background job without redirecting it (`some-daemon &`
+/// in `.zshrc`): the grandchild inherits the pipe's write end, so EOF on
+/// our end never arrives even though the shell itself finished and printed
+/// a complete, valid capture. If the deadline expires before EOF, we check
+/// whether the shell has already exited successfully and, if so, parse
+/// whatever chunks arrived instead of discarding a complete capture;
+/// otherwise we kill the shell and give up as before. No captured value is
+/// ever logged.
 fn capture_login_shell_env(
+    shell: &str,
+    command: &str,
     timeout: std::time::Duration,
 ) -> std::collections::HashMap<String, String> {
     use std::io::Read;
     use std::process::{Command, Stdio};
     use std::sync::mpsc;
+    use std::time::Instant;
 
-    let shell = login_shell();
-    let mut child = match Command::new(&shell)
-        .args(["-li", "-c", "echo __ALFREDO_ENV_START__; env -0"])
+    let mut child = match Command::new(shell)
+        .args(["-li", "-c", command])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -83,28 +107,60 @@ fn capture_login_shell_env(
         }
     };
 
-    // Read stdout on a helper thread so a hung shell cannot hang us; the
-    // thread is leaked on timeout, once per process, which is acceptable.
+    // Read stdout on a helper thread so a hung shell (or one whose pipe is
+    // held open by a backgrounded grandchild) cannot hang us. The thread is
+    // leaked whenever the pipe outlives our wait below — timeout, or a
+    // background job still holding stdout after the shell exits — once per
+    // invocation, which is acceptable.
     let mut stdout = child.stdout.take();
     let (tx, rx) = mpsc::channel::<Vec<u8>>();
     std::thread::spawn(move || {
-        let mut buf = Vec::new();
+        let mut buf = [0u8; 64 * 1024];
         if let Some(out) = stdout.as_mut() {
-            let _ = out.read_to_end(&mut buf);
+            loop {
+                match out.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        if tx.send(buf[..n].to_vec()).is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
         }
-        let _ = tx.send(buf);
+        // Dropping `tx` here signals EOF (or a read error) to the receiver.
     });
 
-    match rx.recv_timeout(timeout) {
-        Ok(raw) => {
-            let ok = child.wait().map(|s| s.success()).unwrap_or(false);
-            if !ok {
-                eprintln!("[platform] login-shell env capture exited non-zero; agents get Alfredo's own env");
-                return std::collections::HashMap::new();
-            }
-            parse_env_capture(&raw)
+    let deadline = Instant::now() + timeout;
+    let mut raw = Vec::new();
+    let eof_reached = loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break false;
         }
-        Err(_) => {
+        match rx.recv_timeout(remaining) {
+            Ok(chunk) => raw.extend_from_slice(&chunk),
+            Err(mpsc::RecvTimeoutError::Disconnected) => break true,
+            Err(mpsc::RecvTimeoutError::Timeout) => break false,
+        }
+    };
+
+    if eof_reached {
+        let ok = child.wait().map(|s| s.success()).unwrap_or(false);
+        if !ok {
+            eprintln!("[platform] login-shell env capture exited non-zero; agents get Alfredo's own env");
+            return std::collections::HashMap::new();
+        }
+        return parse_env_capture(&raw);
+    }
+
+    // Deadline expired without EOF. If the shell has already exited
+    // successfully, something downstream (a backgrounded grandchild) is
+    // holding the pipe open — use what we already received rather than
+    // discard a complete capture.
+    match child.try_wait() {
+        Ok(Some(status)) if status.success() => parse_env_capture(&raw),
+        _ => {
             let _ = child.kill();
             let _ = child.wait();
             eprintln!(
@@ -278,5 +334,26 @@ mod tests {
     fn missing_sentinel_yields_an_empty_map() {
         assert!(parse_env_capture(b"FOO=bar\0").is_empty());
         assert!(parse_env_capture(b"").is_empty());
+    }
+
+    #[test]
+    fn keeps_a_complete_capture_when_an_rc_background_job_holds_stdout_open() {
+        // Simulates an rc file running e.g. `some-daemon &` without
+        // redirecting it: the backgrounded `sleep` inherits the pipe's
+        // write end, so our read end never sees EOF, even though the shell
+        // itself finishes and has already printed the full capture.
+        let env = capture_login_shell_env(
+            "/bin/sh",
+            "echo __ALFREDO_ENV_START__; env -0; sleep 30 &",
+            std::time::Duration::from_secs(2),
+        );
+        assert!(env.contains_key("PATH"), "expected PATH in {env:?}");
+        assert!(env.contains_key("HOME"), "expected HOME in {env:?}");
+    }
+
+    #[test]
+    fn times_out_to_an_empty_map_when_the_shell_never_exits_or_prints_the_sentinel() {
+        let env = capture_login_shell_env("/bin/sh", "sleep 30", std::time::Duration::from_secs(2));
+        assert!(env.is_empty());
     }
 }

@@ -42,7 +42,8 @@ any variable Alfredo's own process doesn't already have — so an
 exported from `.zshrc` reaches the agent. If you edit your rc files,
 restart Alfredo to pick up the change. A shell that takes more than
 five seconds to start, or exits with an error, is skipped and the
-agent gets Alfredo's own environment instead.
+agent gets Alfredo's own environment instead. Variables that depend
+on the terminal itself, such as `GPG_TTY`, are not seeded.
 
 What Alfredo does **not** do: apply directory-scoped environments
 such as direnv's `.envrc`. Those hook your prompt rather than shell

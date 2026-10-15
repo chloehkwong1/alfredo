@@ -1832,7 +1832,11 @@ fn is_leaked_outer_session_var(key: &str) -> bool {
 
 /// Vars that describe the capturing shell's own state, not the user's
 /// configuration. `PATH` is excluded because `augmented_path()` owns it.
-const LOGIN_ENV_SKIP: &[&str] = &["PATH", "PWD", "OLDPWD", "SHLVL", "_"];
+/// `GPG_TTY` depends on the terminal the capture ran in (e.g. `export
+/// GPG_TTY=$(tty)` evaluates to "not a tty" during capture), not on any
+/// user config worth propagating, and seeding it would break gpg pinentry
+/// for agents that sign commits.
+const LOGIN_ENV_SKIP: &[&str] = &["PATH", "PWD", "OLDPWD", "SHLVL", "_", "GPG_TTY"];
 
 /// Pick the captured login-shell vars worth seeding into an agent PTY:
 /// those the inherited process env lacks (inherited wins, so an ad-hoc
@@ -2180,7 +2184,15 @@ mod tests {
 
     #[test]
     fn never_seeds_shell_bookkeeping_vars() {
-        let captured = map(&[("PWD", "/Users/x"), ("OLDPWD", "/"), ("SHLVL", "2"), ("_", "/usr/bin/env"), ("PATH", "/x"), ("KEEP", "1")]);
+        let captured = map(&[
+            ("PWD", "/Users/x"),
+            ("OLDPWD", "/"),
+            ("SHLVL", "2"),
+            ("_", "/usr/bin/env"),
+            ("PATH", "/x"),
+            ("GPG_TTY", "not a tty"),
+            ("KEEP", "1"),
+        ]);
         let inherited = HashMap::new();
         assert_eq!(seedable_login_env(&captured, &inherited), vec![("KEEP", "1")]);
     }
