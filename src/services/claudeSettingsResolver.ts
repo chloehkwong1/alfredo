@@ -3,16 +3,26 @@ import { getAppConfig, getConfig } from "../api";
 import { useToastStore } from "../stores/toastStore";
 import { parseLaunchFlags } from "./launchCommand";
 
-const SETTINGS_LOAD_ERROR_MSG = "Couldn't load Claude settings — launching with defaults.";
+const SETTINGS_LOAD_ERROR_MSG = "Couldn't load agent settings — launching with defaults.";
+
+/** Providers whose launch argv Alfredo assembles. Gemini launches bare. */
+export type LaunchProvider = "claude" | "codex";
+
+/** The "no permission checks" flag, spelled per provider. */
+export const BYPASS_FLAG: Record<LaunchProvider, string> = {
+  claude: "--dangerously-skip-permissions",
+  codex: "--dangerously-bypass-approvals-and-sandbox",
+};
 
 /**
  * Load global + repo config via allSettled, log (and optionally toast, deduped)
- * on any rejection, then build Claude launch args from whatever succeeded.
+ * on any rejection, then build launch args from whatever succeeded.
  * Never throws — on total failure returns args built from all-null config, so
  * callers can't silently drop their whole action on a transient config error.
  */
 export async function loadLaunchArgs(
   repoPath: string,
+  provider: LaunchProvider,
   opts: { logTag: string; toastOnError?: boolean },
 ): Promise<string[]> {
   const [appRes, cfgRes] = await Promise.allSettled([getAppConfig(), getConfig(repoPath)]);
@@ -32,31 +42,40 @@ export async function loadLaunchArgs(
   }
   const appCfg = appRes.status === "fulfilled" ? appRes.value : null;
   const config = cfgRes.status === "fulfilled" ? cfgRes.value : null;
-  return buildClaudeArgs(resolveSettings(appCfg, config?.claudeDefaults));
+  return buildLaunchArgs(provider, resolveSettings(provider, appCfg, config?.claudeDefaults));
 }
 
 /**
- * Everything Alfredo still injects into a `claude` launch. Model, effort,
- * permission mode and output style are deliberately NOT here — Claude owns
- * those in its own config, so new Claude knobs never need an Alfredo release.
+ * Everything Alfredo still injects into an agent launch, already narrowed to
+ * one provider's slot. Model, effort, permission mode and output style are
+ * deliberately NOT here — each agent owns those in its own config.
  */
-export type ClaudeLaunchSettings = Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags">;
+export type LaunchSettings = {
+  dangerouslySkipPermissions?: boolean | null;
+  extraFlags?: string | null;
+};
+
+type GlobalLaunchDefaults = Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags" | "codexExtraFlags">;
 
 /**
- * Merge global app defaults → per-repo defaults. Skip-permissions is global
- * only (the repo layer has no UI for it, so an invisible override would be
- * a trap); extra flags let a repo replace the global value.
+ * Merge global app defaults → per-repo defaults for one provider.
+ * Skip-permissions is global only and shared by both providers (the repo
+ * layer has no UI for it, so an invisible override would be a trap); extra
+ * flags are per provider, and a repo may replace the global value.
  */
 export function resolveSettings(
-  globalDefaults?: ClaudeLaunchSettings | null,
+  provider: LaunchProvider,
+  globalDefaults?: GlobalLaunchDefaults | null,
   repoDefaults?: ClaudeDefaults,
-): ClaudeLaunchSettings {
+): LaunchSettings {
   // For free-form text fields, treat blank/whitespace-only as absent so a
   // hand-edited empty value doesn't silently shadow the global.
   const cleanFlags = (v?: string | null) => (v && v.trim() ? v : undefined);
+  const repoFlags = provider === "codex" ? repoDefaults?.codexExtraFlags : repoDefaults?.extraFlags;
+  const globalFlags = provider === "codex" ? globalDefaults?.codexExtraFlags : globalDefaults?.extraFlags;
   return {
     dangerouslySkipPermissions: globalDefaults?.dangerouslySkipPermissions ?? undefined,
-    extraFlags: cleanFlags(repoDefaults?.extraFlags) ?? cleanFlags(globalDefaults?.extraFlags),
+    extraFlags: cleanFlags(repoFlags) ?? cleanFlags(globalFlags),
   };
 }
 
@@ -65,8 +84,8 @@ export function resolveSettings(
  * user put in extra flags: strip `--resume`/`--resume=<id>`/`--continue` (the
  * tab's own session must win on restore), then append `--resume <sessionId>`.
  *
- * Only call this on the restored-tab path (when `claudeSessionId` is set).
- * For non-restored tabs, leave extra flags untouched.
+ * Claude only. Only call this on the restored-tab path (when
+ * `claudeSessionId` is set). For non-restored tabs, leave extra flags untouched.
  */
 export function withResumeSession(args: string[], sessionId: string): string[] {
   const out: string[] = [];
@@ -82,17 +101,25 @@ export function withResumeSession(args: string[], sessionId: string): string[] {
 }
 
 /**
- * Convert resolved settings to an array of CLI flags for claude.
+ * Convert resolved settings to an argv array for the provider's binary. The
+ * bypass flag is emitted at most once even if the user also typed it into
+ * extra flags; every other token passes through verbatim.
  */
-export function buildClaudeArgs(settings: ClaudeLaunchSettings): string[] {
+export function buildLaunchArgs(provider: LaunchProvider, settings: LaunchSettings): string[] {
+  const bypass = BYPASS_FLAG[provider];
   const args: string[] = [];
 
   if (settings.dangerouslySkipPermissions) {
-    args.push("--dangerously-skip-permissions");
+    args.push(bypass);
   }
   if (settings.extraFlags) {
     const parsed = parseLaunchFlags(settings.extraFlags);
-    if (parsed.ok) args.push(...parsed.args);
+    if (parsed.ok) {
+      for (const token of parsed.args) {
+        if (token === bypass && args.includes(bypass)) continue;
+        args.push(token);
+      }
+    }
   }
 
   return args;

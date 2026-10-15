@@ -310,6 +310,7 @@ export interface NotificationConfig {
 
 export interface ClaudeDefaults {
   extraFlags?: string;
+  codexExtraFlags?: string;
 }
 
 export interface AppConfig {
@@ -646,6 +647,7 @@ export interface GlobalAppConfig {
   customTerminalPath: string | null;
   dangerouslySkipPermissions?: boolean | null;
   extraFlags?: string | null;
+  codexExtraFlags?: string | null;
   /** Minutes an idle Claude tab may sit unattended before it is hibernated
    *  (process stopped, terminal disposed, resumed on next focus).
    *  null/undefined = app default; 0 = never. */

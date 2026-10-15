@@ -1,70 +1,115 @@
 import { describe, it, expect } from "vitest";
-import { resolveSettings, buildClaudeArgs, withResumeSession } from "./claudeSettingsResolver";
+import { resolveSettings, buildLaunchArgs, withResumeSession, BYPASS_FLAG } from "./claudeSettingsResolver";
 import type { ClaudeDefaults } from "../types";
 
-describe("resolveSettings extraFlags", () => {
+describe("resolveSettings extraFlags (claude)", () => {
   it("takes extraFlags from the global layer when repo has none", () => {
-    const r = resolveSettings({ extraFlags: "--verbose-logs" }, undefined);
+    const r = resolveSettings("claude", { extraFlags: "--verbose-logs" }, undefined);
     expect(r.extraFlags).toBe("--verbose-logs");
   });
 
   it("lets the repo layer override the global extraFlags", () => {
-    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "--repo" });
+    const r = resolveSettings("claude", { extraFlags: "--global" }, { extraFlags: "--repo" });
     expect(r.extraFlags).toBe("--repo");
   });
 
   it("falls through to global when repo extraFlags is empty string", () => {
-    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "" });
+    const r = resolveSettings("claude", { extraFlags: "--global" }, { extraFlags: "" });
     expect(r.extraFlags).toBe("--global");
   });
 
   it("falls through to global when repo extraFlags is whitespace-only", () => {
-    const r = resolveSettings({ extraFlags: "--global" }, { extraFlags: "   " });
+    const r = resolveSettings("claude", { extraFlags: "--global" }, { extraFlags: "   " });
     expect(r.extraFlags).toBe("--global");
   });
 
   it("resolves to undefined when both repo and global extraFlags are blank", () => {
-    const r = resolveSettings({ extraFlags: "" }, { extraFlags: "   " });
+    const r = resolveSettings("claude", { extraFlags: "" }, { extraFlags: "   " });
+    expect(r.extraFlags).toBeUndefined();
+  });
+});
+
+describe("resolveSettings extraFlags (codex)", () => {
+  it("reads the codex slot, not the claude slot, at both layers", () => {
+    const r = resolveSettings(
+      "codex",
+      { extraFlags: "--claude-global", codexExtraFlags: "--codex-global" },
+      { extraFlags: "--claude-repo", codexExtraFlags: "--codex-repo" },
+    );
+    expect(r.extraFlags).toBe("--codex-repo");
+  });
+
+  it("falls through to the global codex slot when the repo codex slot is blank", () => {
+    const r = resolveSettings(
+      "codex",
+      { extraFlags: "--claude-global", codexExtraFlags: "--codex-global" },
+      { extraFlags: "--claude-repo", codexExtraFlags: " " },
+    );
+    expect(r.extraFlags).toBe("--codex-global");
+  });
+
+  it("never borrows claude flags when codex has none", () => {
+    const r = resolveSettings("codex", { extraFlags: "--claude-global" }, { extraFlags: "--claude-repo" });
     expect(r.extraFlags).toBeUndefined();
   });
 });
 
 describe("resolveSettings dangerouslySkipPermissions", () => {
   it("takes the global value when the repo layer is unset", () => {
-    const r = resolveSettings({ dangerouslySkipPermissions: true }, undefined);
+    const r = resolveSettings("claude", { dangerouslySkipPermissions: true }, undefined);
+    expect(r.dangerouslySkipPermissions).toBe(true);
+  });
+
+  it("applies the same global toggle to codex", () => {
+    const r = resolveSettings("codex", { dangerouslySkipPermissions: true }, undefined);
     expect(r.dangerouslySkipPermissions).toBe(true);
   });
 
   it("is global-only: a stale repo-layer value is ignored", () => {
-    // Pre-0.23 per-repo configs could carry the key; it is no longer part of
-    // ClaudeDefaults, so it must not leak through the resolver.
     const stale = { dangerouslySkipPermissions: true, extraFlags: "--x" } as unknown as ClaudeDefaults;
-    const r = resolveSettings({ dangerouslySkipPermissions: null }, stale);
+    const r = resolveSettings("claude", { dangerouslySkipPermissions: null }, stale);
     expect(r.dangerouslySkipPermissions).toBeUndefined();
   });
 });
 
-describe("buildClaudeArgs", () => {
+describe("buildLaunchArgs", () => {
   it("emits nothing when no setting is on", () => {
-    expect(buildClaudeArgs({})).toEqual([]);
+    expect(buildLaunchArgs("claude", {})).toEqual([]);
+    expect(buildLaunchArgs("codex", {})).toEqual([]);
   });
 
-  it("emits --dangerously-skip-permissions when the toggle is on", () => {
-    expect(buildClaudeArgs({ dangerouslySkipPermissions: true })).toEqual(["--dangerously-skip-permissions"]);
+  it("emits each provider's bypass flag when the toggle is on", () => {
+    expect(buildLaunchArgs("claude", { dangerouslySkipPermissions: true })).toEqual(["--dangerously-skip-permissions"]);
+    expect(buildLaunchArgs("codex", { dangerouslySkipPermissions: true })).toEqual(["--dangerously-bypass-approvals-and-sandbox"]);
+    expect(BYPASS_FLAG.claude).toBe("--dangerously-skip-permissions");
+    expect(BYPASS_FLAG.codex).toBe("--dangerously-bypass-approvals-and-sandbox");
   });
 
-  it("appends tokenized extra flags after the skip-permissions flag", () => {
-    const args = buildClaudeArgs({ dangerouslySkipPermissions: true, extraFlags: "--mcp-config ./mcp.json" });
+  it("appends tokenized extra flags after the bypass flag", () => {
+    const args = buildLaunchArgs("claude", { dangerouslySkipPermissions: true, extraFlags: "--mcp-config ./mcp.json" });
     expect(args).toEqual(["--dangerously-skip-permissions", "--mcp-config", "./mcp.json"]);
   });
 
+  it("emits the bypass flag once when the user also typed it into extra flags", () => {
+    const args = buildLaunchArgs("codex", {
+      dangerouslySkipPermissions: true,
+      extraFlags: "--dangerously-bypass-approvals-and-sandbox --model o3",
+    });
+    expect(args).toEqual(["--dangerously-bypass-approvals-and-sandbox", "--model", "o3"]);
+  });
+
+  it("does not dedupe ordinary repeated tokens", () => {
+    const args = buildLaunchArgs("claude", { extraFlags: "--add-dir a --add-dir b" });
+    expect(args).toEqual(["--add-dir", "a", "--add-dir", "b"]);
+  });
+
   it("keeps a single-quoted value as one token", () => {
-    const args = buildClaudeArgs({ extraFlags: "--add-dir '/tmp/my dir'" });
+    const args = buildLaunchArgs("claude", { extraFlags: "--add-dir '/tmp/my dir'" });
     expect(args).toEqual(["--add-dir", "/tmp/my dir"]);
   });
 
   it("silently ignores malformed extra flags (unbalanced quote)", () => {
-    const args = buildClaudeArgs({ dangerouslySkipPermissions: true, extraFlags: "--add-dir 'oops" });
+    const args = buildLaunchArgs("claude", { dangerouslySkipPermissions: true, extraFlags: "--add-dir 'oops" });
     expect(args).toEqual(["--dangerously-skip-permissions"]);
   });
 });

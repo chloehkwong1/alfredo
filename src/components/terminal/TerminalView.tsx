@@ -20,7 +20,7 @@ import { Button } from "../ui/Button";
 import { CatLogo } from "../ui/CatLogo";
 import { TerminalSearchBar } from "./TerminalSearchBar";
 import { TerminalLoadingScreen } from "./TerminalLoadingScreen";
-import { loadLaunchArgs, withResumeSession } from "../../services/claudeSettingsResolver";
+import { loadLaunchArgs, withResumeSession, type LaunchProvider } from "../../services/claudeSettingsResolver";
 import type { Annotation, SessionType, TabType } from "../../types";
 
 function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemini" | "shell"; sessionType: SessionType } {
@@ -34,8 +34,8 @@ function tabTypeToPtyMode(tabType: TabType): { mode: "claude" | "codex" | "gemin
   }
 }
 
-function resolveLaunchArgs(repoPath: string): Promise<string[]> {
-  return loadLaunchArgs(repoPath, { logTag: "TerminalView", toastOnError: true });
+function resolveLaunchArgs(repoPath: string, provider: LaunchProvider): Promise<string[]> {
+  return loadLaunchArgs(repoPath, provider, { logTag: "TerminalView", toastOnError: true });
 }
 
 interface TerminalViewProps {
@@ -107,7 +107,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
   // Uses an aborted flag so stale .then() callbacks from superseded effect
   // runs can't set hasSpawnedRef before the current run sees claudeSessionId.
   useEffect(() => {
-    if (mode !== "claude") {
+    if (mode !== "claude" && mode !== "codex") {
       // Server tabs carry a run command — spawn it directly as the shell's
       // argument (`$SHELL -i -c <cmd>`) so it runs with the user's interactive
       // rc environment (PATH/nvm/etc.) without typing into the PTY, which raced
@@ -116,7 +116,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       // side: resolve to [] so usePty's getOrSpawn reuses the existing session
       // and mounts it. Leaving args null here would strand the reattached server
       // invisible — no terminal, no disconnect banner. Plain shell tabs spawn a
-      // bare interactive shell.
+      // bare interactive shell; Gemini launches bare.
       if (tabType === "server") {
         setResolvedArgs(tabCommand ? ["-i", "-c", tabCommand] : []);
         return;
@@ -126,13 +126,14 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
     }
     if (!repoPath) return;
     let aborted = false;
-    resolveLaunchArgs(repoPath).then((args) => {
+    resolveLaunchArgs(repoPath, mode).then((args) => {
       if (aborted) return;
-      // On a RESTORED tab (first spawn only): strip any --resume/--resume=<id>/
-      // --continue from extra flags so the tab's own session deterministically
-      // wins, then inject --resume <claudeSessionId>.
+      // On a RESTORED Claude tab (first spawn only): strip any --resume/
+      // --resume=<id>/--continue from extra flags so the tab's own session
+      // deterministically wins, then inject --resume <claudeSessionId>.
+      // Codex has no resume plumbing here; its args pass through as resolved.
       let finalArgs = args;
-      if (!hasSpawnedRef.current && claudeSessionId) {
+      if (mode === "claude" && !hasSpawnedRef.current && claudeSessionId) {
         finalArgs = withResumeSession(args, claudeSessionId);
       }
       hasSpawnedRef.current = true;
@@ -291,7 +292,8 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
       // Claude args, which the shell would mis-parse into a broken process.
       setResolvedArgs(tabCommand ? ["-i", "-c", tabCommand] : []);
     } else {
-      setResolvedArgs(await resolveLaunchArgs(repoPath));
+      // Gemini/shell tabs launch bare — only claude/codex have resolvable args.
+      setResolvedArgs(mode === "claude" || mode === "codex" ? await resolveLaunchArgs(repoPath, mode) : []);
 
       // Clear the stale resumeSessionId so the discovery effect can find the
       // new session that the fresh Claude instance will create.
@@ -301,7 +303,7 @@ function TerminalView({ tabId, tabType = "claude" }: TerminalViewProps) {
 
     await sessionManager.closeSession(sessionKey);
     setReconnectKey((k) => k + 1);
-  }, [tabId, activeWorktreeId, worktree, sessionKey, repoPath, tabType, tabCommand]);
+  }, [tabId, activeWorktreeId, worktree, sessionKey, repoPath, tabType, tabCommand, mode]);
 
   // Focus terminal when programmatically switched to (e.g. "Fix with agent")
   useEffect(() => {

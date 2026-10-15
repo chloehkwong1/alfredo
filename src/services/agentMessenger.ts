@@ -90,7 +90,7 @@ export async function ensureAgentSession(
   // from discovery. Capturing it now (before getOrSpawn spawns) lets discovery
   // adopt this tab's own session and persist its resumeSessionId.
   const [args, spawnBaseline] = await Promise.all([
-    loadLaunchArgs(repoPath, { logTag: "agentMessenger" }),
+    loadLaunchArgs(repoPath, "claude", { logTag: "agentMessenger" }),
     listClaudeSessions(worktreePath).catch(() => []),
   ]);
   // "agent" sessionType (not the backend's "shell" default): the orphan
