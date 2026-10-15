@@ -7,6 +7,36 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.25.0 — 2026-10-15**
+- **Select several worktrees at once** — hover a row for a checkbox,
+  or ⌘-click and ⇧-click to build a selection within a column. A
+  selection bar offers Move (with Undo), Archive with a counted
+  confirmation, Pin, Unpin and Mark read / unread. Dragging a
+  selected row carries the whole selection as a deck.
+- **Merge from the PR banner** — an approved, green PR shows a merge
+  button using your repo's allowed methods, with a confirmation.
+  Approved drafts get a one-press "Mark ready & merge"; plain drafts
+  get "Mark ready for review".
+- **Dev servers warm up** — after Start server, Alfredo waits for the
+  port to listen and sends a throwaway request so the app (and a
+  suspended Neon database) wake before your first real page load.
+- **Lighter in the background** — every poll slows right down while
+  the window is unfocused and catches up the moment you come back,
+  cutting GitHub API and CPU use when Alfredo isn't in front.
+- **Faster with many worktrees** — sidebar rows no longer re-render
+  on every update, and terminal output takes a cheaper path into
+  the window.
+- A reused worktree directory name no longer inherits a dead card's
+  column, which could hide a fresh worktree in Done and start its
+  auto-archive clock.
+- A stranded busy session no longer keeps your Mac awake for the
+  app's lifetime, and Alfredo no longer adopts a worktree while git
+  is still checking it out.
+- Various fixes: rebase-conflict toasts on archived worktrees, the
+  merge banner missing when GitHub capitalises the review decision,
+  a render loop on the Delete dialog, and a double GitHub poll on
+  focus regain.
+
 **v0.24.0 — 2026-09-22**
 - **A real composer for PR reviews** — review summaries, diff-gutter
   comments and thread replies all get a toolbar with GIF and emoji
@@ -80,35 +110,3 @@ https://github.com/chloehkwong1/alfredo/releases.
   multi-line prompts paste atomically.
 - Manual restack failures now say what actually went wrong instead of
   a generic "Restack failed" toast.
-
-**v0.21.0 — 2026-08-28**
-- **GitHub-native stacks sync themselves** — when GitHub restacks a
-  stack server-side after a merge, Alfredo follows the rewrite into
-  your local checkouts (only when provably safe) and drift-rebases
-  members locally between merges. Local rewrites never auto-push:
-  members get a "needs push" badge with an explicit **Push now**
-  action, and Alfredo never pushes a branch whose PR belongs to
-  someone else. Toggle in Settings (default on).
-- **Review requests pull themselves in** — PRs where your review is
-  requested get a worktree automatically, ready to open (default on;
-  toggle in Settings).
-- **GitHub-stacked PRs get a set-up offer** — a worktree whose PR is
-  based on a sibling branch shows a "Stacked on X — set up?" cue that
-  explains what set-up will do before doing anything.
-- **Deleting a mid-stack worktree reconnects the chain** — children
-  re-parent onto the deleted worktree's parent instead of stranding.
-- **Four new themes** — Catppuccin Latte, Everforest Light, Gruvbox,
-  GitHub Dark — and diffs re-tokenize to match the active theme.
-- **Linear tickets bring their comments** — "Open in Alfredo" prompts
-  now include ticket comments.
-- **Memory usage tamed** — background terminals keep a slimmer
-  scrollback, fixing multi-GB growth in long sessions.
-- PR state survives restarts: associations persist per worktree, and
-  aged-out PRs reconcile on launch with a summary toast.
-- Stack chips show their 1/N position and hue-code when multiple
-  stacks coexist; native-stack popovers gained restack/conflict
-  actions and outcome toasts.
-- Various fixes: a 19-finding pre-release review wave (stack-state
-  honesty, session identity across branch checkouts, multi-line run
-  scripts, updater feedback), the cross-column drag crash, and an
-  attention count on collapsed sidebar groups.
