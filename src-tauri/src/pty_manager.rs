@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::agent_detector::AgentDetector;
 use crate::attention::AttentionState;
-use crate::platform::augmented_path;
+use crate::platform::{augmented_path, login_shell_env};
 use crate::sleep_inhibitor::SleepInhibitor;
 use crate::state_server::StateServerHandle;
 use crate::types::{AgentState, AgentType, AppError, HookPhase, NotifyReason, PtyEvent, Session, SessionStatus, SessionType};
@@ -346,6 +346,17 @@ impl PtyManager {
         }
         cmd.args(&args);
         cmd.cwd(&worktree_path);
+
+        // Agent binaries are spawned directly, not through a shell, so they
+        // would otherwise never see variables exported from .zshrc/.bashrc.
+        // Seed from the login shell's environment, captured once per app run.
+        // Shell and server tabs source rc files themselves and are left alone.
+        if matches!(agent_type, AgentType::ClaudeCode | AgentType::Codex | AgentType::GeminiCli) {
+            let inherited: HashMap<String, String> = std::env::vars().collect();
+            for (key, value) in seedable_login_env(login_shell_env(), &inherited) {
+                cmd.env(key, value);
+            }
+        }
 
         // Strip any "running inside an outer Claude Code session" markers we may
         // have inherited. Alfredo can pick these up when it is itself launched
@@ -1819,6 +1830,27 @@ fn is_leaked_outer_session_var(key: &str) -> bool {
         || suffix.starts_with("MESSAGING_")
 }
 
+/// Vars that describe the capturing shell's own state, not the user's
+/// configuration. `PATH` is excluded because `augmented_path()` owns it.
+const LOGIN_ENV_SKIP: &[&str] = &["PATH", "PWD", "OLDPWD", "SHLVL", "_"];
+
+/// Pick the captured login-shell vars worth seeding into an agent PTY:
+/// those the inherited process env lacks (inherited wins, so an ad-hoc
+/// `export` in the terminal Alfredo was launched from reaches the agent),
+/// minus leaked outer-session markers and shell bookkeeping.
+fn seedable_login_env<'a>(
+    captured: &'a HashMap<String, String>,
+    inherited: &HashMap<String, String>,
+) -> Vec<(&'a str, &'a str)> {
+    captured
+        .iter()
+        .filter(|(k, _)| !inherited.contains_key(*k))
+        .filter(|(k, _)| !LOGIN_ENV_SKIP.contains(&k.as_str()))
+        .filter(|(k, _)| !is_leaked_outer_session_var(k.as_str()))
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect()
+}
+
 /// True if the given `ps -o comm=` result is a shell itself (so we should
 /// treat it as "no foreground process"). Handles login-shell prefix `-`
 /// and absolute paths like `/bin/zsh`.
@@ -2115,6 +2147,42 @@ mod tests {
                 "{key} is user configuration, not an inherited session marker",
             );
         }
+    }
+
+    fn map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    }
+
+    #[test]
+    fn seeds_captured_vars_the_process_env_lacks() {
+        let captured = map(&[("OPENAI_API_KEY", "sk-1"), ("NODE_OPTIONS", "--max-old-space-size=8192")]);
+        let inherited = map(&[("HOME", "/Users/x")]);
+        let mut seeded = seedable_login_env(&captured, &inherited);
+        seeded.sort();
+        assert_eq!(seeded, vec![("NODE_OPTIONS", "--max-old-space-size=8192"), ("OPENAI_API_KEY", "sk-1")]);
+    }
+
+    #[test]
+    fn inherited_process_env_wins_over_captured() {
+        // Launched from a terminal with an ad-hoc `export FOO=live`, the user
+        // expects the agent to see `live`, not whatever .zshrc sets.
+        let captured = map(&[("FOO", "rc")]);
+        let inherited = map(&[("FOO", "live")]);
+        assert!(seedable_login_env(&captured, &inherited).is_empty());
+    }
+
+    #[test]
+    fn never_seeds_leaked_outer_session_markers() {
+        let captured = map(&[("CLAUDECODE", "1"), ("CLAUDE_CODE_SESSION_ID", "abc"), ("ANTHROPIC_API_KEY", "k")]);
+        let inherited = HashMap::new();
+        assert_eq!(seedable_login_env(&captured, &inherited), vec![("ANTHROPIC_API_KEY", "k")]);
+    }
+
+    #[test]
+    fn never_seeds_shell_bookkeeping_vars() {
+        let captured = map(&[("PWD", "/Users/x"), ("OLDPWD", "/"), ("SHLVL", "2"), ("_", "/usr/bin/env"), ("PATH", "/x"), ("KEEP", "1")]);
+        let inherited = HashMap::new();
+        assert_eq!(seedable_login_env(&captured, &inherited), vec![("KEEP", "1")]);
     }
 
     #[test]

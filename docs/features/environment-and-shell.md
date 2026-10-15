@@ -1,6 +1,6 @@
 ---
 title: Environment variables and shell in worktree terminals
-keywords: [env, environment, shell, path, terminal, pty, claude not found, command not found, colors]
+keywords: [env, environment, shell, path, terminal, pty, claude not found, command not found, colors, zshrc, bashrc, login shell, direnv]
 ui_path: N/A
 ---
 
@@ -34,10 +34,17 @@ Env vars Alfredo sets on every agent PTY:
 - **`PORT`** and **`ALFREDO_PORT`** — only when auto-assign ports
   is enabled. The `PORT` name is configurable per repo.
 
-What Alfredo does **not** do: source your `.zshrc` / `.bashrc`.
-If a tool needs an env var you set there — for example
-`OPENAI_API_KEY=sk-...` exported from `.zshrc`, or
-`NODE_OPTIONS=--max-old-space-size=8192` — the agent PTY won't see
-it. Either add it to the repo's setup scripts (`export OPENAI_API_KEY=...`),
-move it into your launch-time environment (a `~/.zprofile` that
-macOS reads at login), or set it on the run script line directly.
+Agent tabs also receive every variable your login shell exports.
+Alfredo starts your shell once per app run (`$SHELL -li`), captures
+its environment, and seeds each new Claude, Codex or Gemini tab with
+any variable Alfredo's own process doesn't already have — so an
+`OPENAI_API_KEY=sk-...` or `NODE_OPTIONS=--max-old-space-size=8192`
+exported from `.zshrc` reaches the agent. If you edit your rc files,
+restart Alfredo to pick up the change. A shell that takes more than
+five seconds to start, or exits with an error, is skipped and the
+agent gets Alfredo's own environment instead.
+
+What Alfredo does **not** do: apply directory-scoped environments
+such as direnv's `.envrc`. Those hook your prompt rather than shell
+startup, so put repo-specific variables in the repo's setup scripts
+(`export FOO=...`) or on the run script line directly.
