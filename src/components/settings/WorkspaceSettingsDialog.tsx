@@ -669,6 +669,7 @@ function WorkspaceSettingsDialog({
       : Number(runConfigured);
 
   const repoExtraFlagsError = flagsError(config.claudeDefaults?.extraFlags);
+  const repoCodexFlagsError = flagsError(config.claudeDefaults?.codexExtraFlags);
 
   const tabs: TabSpec[] = [
     { id: "general", label: "General" },
@@ -881,6 +882,33 @@ function WorkspaceSettingsDialog({
                   />
                   <p id="repo-extra-flags-desc" className={["text-xs mt-[5px]", repoExtraFlagsError ? "text-red-500" : "text-text-tertiary"].join(" ")}>
                     {repoExtraFlagsError ?? "Extra flags for new Claude tabs in this repo. Overrides the global default."}
+                  </p>
+                </div>
+                <div className="mb-[18px]">
+                  <div className="text-[13px] font-medium text-text-primary mb-1.5">Codex launch flags</div>
+                  <input
+                    type="text"
+                    spellCheck={false}
+                    className={[
+                      repoCodexFlagsError ? "!border-red-500" : "",
+                      inputClass,
+                      "font-mono",
+                    ].join(" ")}
+                    placeholder="e.g. --model o3"
+                    value={config.claudeDefaults?.codexExtraFlags ?? ""}
+                    aria-invalid={repoCodexFlagsError != null}
+                    aria-describedby="repo-codex-flags-desc"
+                    onChange={(e) =>
+                      updateConfig({
+                        claudeDefaults: {
+                          ...config.claudeDefaults,
+                          codexExtraFlags: e.target.value || undefined,
+                        },
+                      })
+                    }
+                  />
+                  <p id="repo-codex-flags-desc" className={["text-xs mt-[5px]", repoCodexFlagsError ? "text-red-500" : "text-text-tertiary"].join(" ")}>
+                    {repoCodexFlagsError ?? "Extra flags for new Codex tabs in this repo. Overrides the global default."}
                   </p>
                 </div>
 
@@ -1172,7 +1200,7 @@ function WorkspaceSettingsDialog({
             <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={!dirty || saving || loadFailed || repoExtraFlagsError != null}>
+            <Button type="submit" size="sm" disabled={!dirty || saving || loadFailed || repoExtraFlagsError != null || repoCodexFlagsError != null}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </div>
