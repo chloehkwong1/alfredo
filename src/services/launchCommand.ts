@@ -4,7 +4,7 @@ export type ParseResult =
 
 /**
  * Tokenize a free-form launch-flags string (flags only, no binary) into an
- * argv array for use by buildClaudeArgs. Parsing follows shell conventions:
+ * argv array for use by buildLaunchArgs. Parsing follows shell conventions:
  * whitespace-separated tokens, with single/double quotes grouping and stripped.
  *
  * - Double quotes ("…") support \" escapes.
