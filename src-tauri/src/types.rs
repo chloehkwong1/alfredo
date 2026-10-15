@@ -511,11 +511,16 @@ pub struct NotificationConfig {
 fn default_sound() -> String { "coin".to_string() }
 fn default_true() -> bool { true }
 
+/// Per-repo personal launch defaults. The struct keeps its historical name
+/// and JSON key (`claudeDefaults`) even though it now also holds Codex flags,
+/// because renaming would orphan every existing per-repo config file.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeDefaults {
     #[serde(default)]
     pub extra_flags: Option<String>,
+    #[serde(default)]
+    pub codex_extra_flags: Option<String>,
 }
 
 /// Repo-wide config that lives in `<repo>/alfredo.json` (committed). Every
@@ -736,6 +741,10 @@ pub struct GlobalAppConfig {
     pub dangerously_skip_permissions: Option<bool>,
     #[serde(default)]
     pub extra_flags: Option<String>,
+    /// Free-form flags appended to every new Codex tab. Same semantics as
+    /// `extra_flags` (which is Claude's); the repo layer may replace it.
+    #[serde(default)]
+    pub codex_extra_flags: Option<String>,
     /// Minutes an idle Claude tab may sit unattended before its process is
     /// hibernated (PTY closed, terminal disposed, resumed on next focus).
     /// `None` = app default; `Some(0)` = never hibernate.

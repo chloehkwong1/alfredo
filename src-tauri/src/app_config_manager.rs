@@ -30,6 +30,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
             extra_flags: None,
+            codex_extra_flags: None,
             hibernate_idle_minutes: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
@@ -197,6 +198,7 @@ pub async fn migrate_if_needed(
         custom_terminal_path: None,
         dangerously_skip_permissions: None,
         extra_flags: None,
+        codex_extra_flags: None,
         hibernate_idle_minutes: None,
         default_diff_view_mode: None,
         collapsed_kanban_columns: vec![],
@@ -267,6 +269,7 @@ mod tests {
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
             extra_flags: None,
+            codex_extra_flags: None,
             hibernate_idle_minutes: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
@@ -316,6 +319,7 @@ mod tests {
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
             extra_flags: None,
+            codex_extra_flags: None,
             hibernate_idle_minutes: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
@@ -362,6 +366,7 @@ mod tests {
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
             extra_flags: None,
+            codex_extra_flags: None,
             hibernate_idle_minutes: None,
             default_diff_view_mode: None,
             collapsed_kanban_columns: vec![],
@@ -429,6 +434,14 @@ mod tests {
     fn global_config_without_extra_flags_deserializes_to_none() {
         let cfg: crate::types::GlobalAppConfig = serde_json::from_str("{}").unwrap();
         assert_eq!(cfg.extra_flags, None);
+        assert_eq!(cfg.codex_extra_flags, None);
+    }
+
+    #[test]
+    fn global_config_round_trips_codex_extra_flags() {
+        let cfg: crate::types::GlobalAppConfig =
+            serde_json::from_str(r#"{"codexExtraFlags":"--model o3"}"#).unwrap();
+        assert_eq!(cfg.codex_extra_flags.as_deref(), Some("--model o3"));
     }
 
     #[test]

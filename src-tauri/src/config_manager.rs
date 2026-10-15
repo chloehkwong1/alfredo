@@ -917,6 +917,7 @@ mod tests {
             worktree_base_path: None,
             claude_defaults: Some(ClaudeDefaults {
                 extra_flags: Some("--mcp-config ./mcp.json".into()),
+                codex_extra_flags: None,
             }),
             run_script: None,
             stack_parent_overrides: HashMap::new(),
@@ -1673,6 +1674,7 @@ mod tests {
     fn claude_defaults_round_trips_camel_case() {
         let cd = crate::types::ClaudeDefaults {
             extra_flags: Some("--mcp-config ./mcp.json".to_string()),
+            codex_extra_flags: None,
         };
         let json = serde_json::to_string(&cd).unwrap();
         assert!(json.contains("extraFlags"), "serialized as camelCase: {json}");
@@ -1688,5 +1690,15 @@ mod tests {
                        "extraFlags":"--verbose"}"#;
         let back: crate::types::ClaudeDefaults = serde_json::from_str(json).unwrap();
         assert_eq!(back.extra_flags.as_deref(), Some("--verbose"));
+    }
+
+    #[test]
+    fn claude_defaults_round_trips_codex_extra_flags() {
+        let back: ClaudeDefaults =
+            serde_json::from_str(r#"{"extraFlags":"--a","codexExtraFlags":"--b"}"#).unwrap();
+        assert_eq!(back.extra_flags.as_deref(), Some("--a"));
+        assert_eq!(back.codex_extra_flags.as_deref(), Some("--b"));
+        let none: ClaudeDefaults = serde_json::from_str("{}").unwrap();
+        assert_eq!(none.codex_extra_flags, None);
     }
 }
