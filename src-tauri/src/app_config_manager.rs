@@ -29,6 +29,7 @@ pub async fn load(app_data_dir: &std::path::Path) -> Result<GlobalAppConfig, App
             preferred_terminal: "iterm".into(),
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
+            codex_dangerously_skip_permissions: None,
             extra_flags: None,
             codex_extra_flags: None,
             hibernate_idle_minutes: None,
@@ -197,6 +198,7 @@ pub async fn migrate_if_needed(
         preferred_terminal: "iterm".into(),
         custom_terminal_path: None,
         dangerously_skip_permissions: None,
+        codex_dangerously_skip_permissions: None,
         extra_flags: None,
         codex_extra_flags: None,
         hibernate_idle_minutes: None,
@@ -268,6 +270,7 @@ mod tests {
             preferred_terminal: "iterm".into(),
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
+            codex_dangerously_skip_permissions: None,
             extra_flags: None,
             codex_extra_flags: None,
             hibernate_idle_minutes: None,
@@ -318,6 +321,7 @@ mod tests {
             preferred_terminal: "iterm".into(),
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
+            codex_dangerously_skip_permissions: None,
             extra_flags: None,
             codex_extra_flags: None,
             hibernate_idle_minutes: None,
@@ -365,6 +369,7 @@ mod tests {
             preferred_terminal: "iterm".into(),
             custom_terminal_path: None,
             dangerously_skip_permissions: None,
+            codex_dangerously_skip_permissions: None,
             extra_flags: None,
             codex_extra_flags: None,
             hibernate_idle_minutes: None,
@@ -435,6 +440,23 @@ mod tests {
         let cfg: crate::types::GlobalAppConfig = serde_json::from_str("{}").unwrap();
         assert_eq!(cfg.extra_flags, None);
         assert_eq!(cfg.codex_extra_flags, None);
+    }
+
+    #[test]
+    fn an_existing_claude_skip_permissions_optin_does_not_carry_over_to_codex() {
+        // Codex's bypass flag drops its sandbox too, so upgrading must not
+        // infer consent from the Claude-only toggle a user set earlier.
+        let cfg: crate::types::GlobalAppConfig =
+            serde_json::from_str(r#"{"dangerouslySkipPermissions":true}"#).unwrap();
+        assert_eq!(cfg.dangerously_skip_permissions, Some(true));
+        assert_eq!(cfg.codex_dangerously_skip_permissions, None);
+    }
+
+    #[test]
+    fn global_config_round_trips_codex_skip_permissions() {
+        let cfg: crate::types::GlobalAppConfig =
+            serde_json::from_str(r#"{"codexDangerouslySkipPermissions":true}"#).unwrap();
+        assert_eq!(cfg.codex_dangerously_skip_permissions, Some(true));
     }
 
     #[test]

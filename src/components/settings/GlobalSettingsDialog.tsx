@@ -253,6 +253,7 @@ function GlobalSettingsDialog({
           preferredTerminal: "iterm",
           customTerminalPath: null,
           dangerouslySkipPermissions: null,
+          codexDangerouslySkipPermissions: null,
         });
       });
     setCurrentTheme(localStorage.getItem("alfredo-theme") || "warm-dark");

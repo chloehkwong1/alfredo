@@ -55,13 +55,18 @@ export type LaunchSettings = {
   extraFlags?: string | null;
 };
 
-type GlobalLaunchDefaults = Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags" | "codexExtraFlags">;
+type GlobalLaunchDefaults = Pick<
+  GlobalAppConfig,
+  "dangerouslySkipPermissions" | "codexDangerouslySkipPermissions" | "extraFlags" | "codexExtraFlags"
+>;
 
 /**
  * Merge global app defaults → per-repo defaults for one provider.
- * Skip-permissions is global only and shared by both providers (the repo
- * layer has no UI for it, so an invisible override would be a trap); extra
- * flags are per provider, and a repo may replace the global value.
+ * Skip-permissions is global only (the repo layer has no UI for it, so an
+ * invisible override would be a trap) but per provider: Codex's flag drops
+ * its sandbox as well as its approvals, so opting in for Claude must never
+ * imply it. Extra flags are per provider too, and a repo may replace the
+ * global value.
  */
 export function resolveSettings(
   provider: LaunchProvider,
@@ -73,8 +78,11 @@ export function resolveSettings(
   const cleanFlags = (v?: string | null) => (v && v.trim() ? v : undefined);
   const repoFlags = provider === "codex" ? repoDefaults?.codexExtraFlags : repoDefaults?.extraFlags;
   const globalFlags = provider === "codex" ? globalDefaults?.codexExtraFlags : globalDefaults?.extraFlags;
+  const bypass = provider === "codex"
+    ? globalDefaults?.codexDangerouslySkipPermissions
+    : globalDefaults?.dangerouslySkipPermissions;
   return {
-    dangerouslySkipPermissions: globalDefaults?.dangerouslySkipPermissions ?? undefined,
+    dangerouslySkipPermissions: bypass ?? undefined,
     extraFlags: cleanFlags(repoFlags) ?? cleanFlags(globalFlags),
   };
 }

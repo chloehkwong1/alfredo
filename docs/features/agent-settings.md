@@ -31,19 +31,25 @@ What Alfredo itself still controls:
 
 - **Default Agent** — Claude Code, Codex, or Gemini CLI. Used when
   opening a new worktree tab.
-- **Skip permission checks** (Claude only) — launches every new
-  Claude tab with `--dangerously-skip-permissions`, so Claude never
-  asks before edits or commands. This is the one permission setting
-  that can't live inside Claude, because it has to be passed at
-  launch. Global only — it applies to every repo. Sandboxed or
-  throwaway worktrees only. Off by default.
-- **Additional flags** (Claude only) — free-form CLI flags appended
-  to every new Claude tab; see
+- **Skip permission checks** — one switch per provider, shown for
+  whichever of Claude or Codex is your default agent. Claude's
+  launches every new Claude tab with
+  `--dangerously-skip-permissions`, so Claude never asks before edits
+  or commands. Codex's launches every new Codex tab with
+  `--dangerously-bypass-approvals-and-sandbox`, which drops the
+  sandbox confining what Codex can touch as well as the approval
+  prompts. The two are stored separately, so turning one on never
+  turns the other on. This is the one permission setting that can't
+  live inside the agent, because it has to be passed at launch.
+  Global per provider — it applies to every repo. Sandboxed or
+  throwaway worktrees only. Both off by default.
+- **Additional flags** — free-form CLI flags appended to every new
+  tab of the shown provider; see
   [Claude launch flags](claude-launch-flags.md).
 
-Skip permissions and Additional flags only appear when the default
-agent is Claude Code. Changes apply to new sessions — existing
-sessions keep the flags they launched with.
+Both only appear when the default agent is Claude Code or Codex, and
+each edits the shown provider's own slot. Changes apply to new
+sessions — existing sessions keep the flags they launched with.
 
 A repo can replace the global launch flags with its own via
 Repository Settings → General (stored as `claudeDefaults.extraFlags`

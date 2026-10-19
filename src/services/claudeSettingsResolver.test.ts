@@ -60,9 +60,19 @@ describe("resolveSettings dangerouslySkipPermissions", () => {
     expect(r.dangerouslySkipPermissions).toBe(true);
   });
 
-  it("applies the same global toggle to codex", () => {
+  it("never lets claude's toggle reach codex, whose flag also drops the sandbox", () => {
     const r = resolveSettings("codex", { dangerouslySkipPermissions: true }, undefined);
+    expect(r.dangerouslySkipPermissions).toBeUndefined();
+  });
+
+  it("reads codex's own toggle for codex", () => {
+    const r = resolveSettings("codex", { codexDangerouslySkipPermissions: true }, undefined);
     expect(r.dangerouslySkipPermissions).toBe(true);
+  });
+
+  it("never lets codex's toggle reach claude", () => {
+    const r = resolveSettings("claude", { codexDangerouslySkipPermissions: true }, undefined);
+    expect(r.dangerouslySkipPermissions).toBeUndefined();
   });
 
   it("is global-only: a stale repo-layer value is ignored", () => {

@@ -646,6 +646,9 @@ export interface GlobalAppConfig {
   preferredTerminal: string;
   customTerminalPath: string | null;
   dangerouslySkipPermissions?: boolean | null;
+  /** Codex's own opt-in. Separate from Claude's because Codex's flag drops
+   *  the sandbox as well as the approvals prompt. */
+  codexDangerouslySkipPermissions?: boolean | null;
   extraFlags?: string | null;
   codexExtraFlags?: string | null;
   /** Minutes an idle Claude tab may sit unattended before it is hibernated

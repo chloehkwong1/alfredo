@@ -739,6 +739,11 @@ pub struct GlobalAppConfig {
     pub custom_terminal_path: Option<String>,
     #[serde(default)]
     pub dangerously_skip_permissions: Option<bool>,
+    /// Codex's equivalent of `dangerously_skip_permissions`. Deliberately a
+    /// separate key: Codex's flag drops its sandbox as well as its approvals,
+    /// so a user who opted in for Claude has not consented to that.
+    #[serde(default)]
+    pub codex_dangerously_skip_permissions: Option<bool>,
     #[serde(default)]
     pub extra_flags: Option<String>,
     /// Free-form flags appended to every new Codex tab. Same semantics as

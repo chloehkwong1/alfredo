@@ -22,7 +22,14 @@ const AGENT_OPTIONS = [
 ] as const;
 
 interface AgentSettingsProps {
-  settings: Pick<GlobalAppConfig, "dangerouslySkipPermissions" | "extraFlags" | "codexExtraFlags" | "hibernateIdleMinutes">;
+  settings: Pick<
+    GlobalAppConfig,
+    | "dangerouslySkipPermissions"
+    | "codexDangerouslySkipPermissions"
+    | "extraFlags"
+    | "codexExtraFlags"
+    | "hibernateIdleMinutes"
+  >;
   onChange: (patch: Partial<GlobalAppConfig>) => void;
   defaultAgent: TabType;
   onDefaultAgentChange: (agent: TabType) => void;
@@ -41,6 +48,20 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
   const flagsValue = launchProvider === "codex" ? settings.codexExtraFlags : settings.extraFlags;
   const extraFlagsError = flagsError(flagsValue);
   const providerLabel = launchProvider === "codex" ? "Codex" : "Claude";
+  // Each provider owns its own opt-in: Codex's flag drops its sandbox as
+  // well as its approvals, so Claude's toggle must never stand in for it.
+  const bypassOn = launchProvider === "codex"
+    ? !!settings.codexDangerouslySkipPermissions
+    : !!settings.dangerouslySkipPermissions;
+  const setBypass = (v: boolean) =>
+    onChange(
+      launchProvider === "codex"
+        ? { codexDangerouslySkipPermissions: v || null }
+        : { dangerouslySkipPermissions: v || null },
+    );
+  const bypassDescription = launchProvider === "codex"
+    ? `Launches every new Codex tab with ${BYPASS_FLAG.codex}, which turns off both the approval prompts and the sandbox that confines what Codex can touch. Sandboxed or throwaway worktrees only. Global for Codex — applies to every repo, and is separate from the Claude toggle.`
+    : `Launches every new Claude tab with ${BYPASS_FLAG.claude}, so it never asks before running a command or editing a file. Sandboxed or throwaway worktrees only. Global for Claude — applies to every repo, and is separate from the Codex toggle.`;
   const hibernateMinutes = settings.hibernateIdleMinutes ?? HIBERNATE_IDLE_DEFAULT_MINUTES;
 
   return (
@@ -77,10 +98,10 @@ function AgentSettings({ settings, onChange, defaultAgent, onDefaultAgentChange 
       </div>
 
       <ToggleRow
-        label="Skip permission checks"
-        description={`Launches every new agent tab with no checks at all: Claude gets ${BYPASS_FLAG.claude}, Codex gets ${BYPASS_FLAG.codex}. Sandboxed or throwaway worktrees only. Global — applies to every repo and both providers.`}
-        checked={!!settings.dangerouslySkipPermissions}
-        onChange={(v) => onChange({ dangerouslySkipPermissions: v || null })}
+        label={`Skip ${providerLabel} permission checks`}
+        description={bypassDescription}
+        checked={bypassOn}
+        onChange={setBypass}
       />
 
       <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-tertiary mb-3.5 mt-8">
