@@ -146,12 +146,27 @@ fn capture_login_shell_env(
     };
 
     if eof_reached {
-        let ok = child.wait().map(|s| s.success()).unwrap_or(false);
-        if !ok {
-            eprintln!("[platform] login-shell env capture exited non-zero; agents get Alfredo's own env");
-            return std::collections::HashMap::new();
+        // EOF means every write end of the pipe is closed, which is not the
+        // same as the shell having exited: an rc file that closes or
+        // redirects fd 1 (`exec 1>&-` to silence a noisy tool) gets us here
+        // while the shell runs on. Reap against the same deadline so such a
+        // shell cannot outlive the timeout — every agent spawn waits on this.
+        match reap_until(&mut child, deadline) {
+            Some(status) if status.success() => return parse_env_capture(&raw),
+            Some(_) => {
+                eprintln!("[platform] login-shell env capture exited non-zero; agents get Alfredo's own env");
+                return std::collections::HashMap::new();
+            }
+            None => {
+                let _ = child.kill();
+                let _ = child.wait();
+                eprintln!(
+                    "[platform] login-shell env capture closed stdout but did not exit within {}s; agents get Alfredo's own env",
+                    timeout.as_secs()
+                );
+                return std::collections::HashMap::new();
+            }
         }
-        return parse_env_capture(&raw);
     }
 
     // Deadline expired without EOF. If the shell has already exited
@@ -168,6 +183,28 @@ fn capture_login_shell_env(
                 timeout.as_secs()
             );
             std::collections::HashMap::new()
+        }
+    }
+}
+
+/// Wait for `child` to exit, giving up at `deadline`. Polls rather than
+/// blocking in `wait()` so a shell that has closed stdout but is still
+/// running cannot hang the caller past its timeout. `None` = still running
+/// at the deadline, or un-reapable.
+fn reap_until(
+    child: &mut std::process::Child,
+    deadline: std::time::Instant,
+) -> Option<std::process::ExitStatus> {
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Some(status),
+            Ok(None) => {
+                if std::time::Instant::now() >= deadline {
+                    return None;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(_) => return None,
         }
     }
 }
@@ -349,6 +386,27 @@ mod tests {
         );
         assert!(env.contains_key("PATH"), "expected PATH in {env:?}");
         assert!(env.contains_key("HOME"), "expected HOME in {env:?}");
+    }
+
+    #[test]
+    fn gives_up_at_the_deadline_when_an_rc_file_closes_stdout_and_the_shell_runs_on() {
+        // An rc file that silences a noisy tool with `exec 1>&-` closes the
+        // pipe's only write end, so we see EOF while the shell is still
+        // working. Reaping it must stay inside the deadline rather than
+        // block until the shell finishes on its own, because every agent
+        // spawn waits on this capture.
+        let started = std::time::Instant::now();
+        let env = capture_login_shell_env(
+            "/bin/sh",
+            "exec 1>&-; sleep 30",
+            std::time::Duration::from_secs(2),
+        );
+        let elapsed = started.elapsed();
+        assert!(env.is_empty(), "expected an empty map, got {env:?}");
+        assert!(
+            elapsed < std::time::Duration::from_secs(10),
+            "capture outlived its deadline: {elapsed:?}"
+        );
     }
 
     #[test]
