@@ -53,8 +53,9 @@ sessions — existing sessions keep the flags they launched with.
 
 A repo can replace the global launch flags with its own via
 Repository Settings → General (stored as `claudeDefaults.extraFlags`
-in your personal per-repo Alfredo config, not the committed
-`alfredo.json`). Skip permissions has no per-repo override.
+for Claude and `claudeDefaults.codexExtraFlags` for Codex, in your
+personal per-repo Alfredo config, not the committed `alfredo.json`).
+Skip permissions has no per-repo override.
 
 ## Memory — hibernating idle tabs
 

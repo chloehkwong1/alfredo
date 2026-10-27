@@ -13,8 +13,9 @@ dropdown lists whichever providers Alfredo has detected on your machine
 Pick the agent you want and the choice is saved immediately; any new
 worktree tab you open from then on starts with that provider. Existing
 tabs keep the agent they were created with. Below the default agent
-dropdown are the two Claude-only launch settings — skip permission
-checks and additional flags (see [Agent settings](agent-settings.md)).
+dropdown are the launch settings for that provider — skip permission
+checks and additional flags. Claude and Codex each keep their own (see
+[Agent settings](agent-settings.md)).
 Model, effort, permission mode and output style are set inside Claude
 itself; see [Agent settings](agent-settings.md) for which of those
 follow you into every worktree and which are saved per project. To run a

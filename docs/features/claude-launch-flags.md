@@ -1,6 +1,6 @@
 ---
 title: Additional Claude launch flags — global and per-repo
-keywords: [flags, additional flags, extra flags, launch, cli, arguments, mcp-config, claude command, per-repo, override, settings]
+keywords: [flags, additional flags, extra flags, launch, cli, arguments, mcp-config, claude command, codex flags, codex launch flags, per-repo, override, settings]
 ui_path: Sidebar → ⚙ Settings → Agent tab → Additional flags
 ---
 
@@ -32,3 +32,18 @@ Two levels:
 - A restored tab resumes its own previous conversation even if you
   put `--resume` or `--continue` in the flags — the tab's own session
   takes precedence, so flags can't cross-wire restored tabs.
+
+## Codex
+
+Codex tabs have their own flags, separate from Claude's, at the same
+two levels:
+
+- **Global** — set the Default Agent to Codex, then use *Additional
+  flags* on the **Agent** tab. Applies to every new Codex tab.
+- **Per-repo** — Repository Settings → **General** tab → *Codex launch
+  flags*. Replaces the global Codex value for that repo, like the
+  Claude field.
+
+Codex's Skip permission checks switch emits
+`--dangerously-bypass-approvals-and-sandbox`, so don't add it here.
+The quoting and new-sessions-only rules above apply to Codex too.
