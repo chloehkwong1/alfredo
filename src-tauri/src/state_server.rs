@@ -210,9 +210,6 @@ async fn handle_state_update(
     let notify = parse_notify_reason(uri.query());
     let phase = parse_phase(uri.query());
 
-    // Update sleep inhibitor based on agent state
-    router_state.sleep_inhibitor.update(session_id, &state, &phase);
-
     let Ok(mut reg) = router_state.registry.lock() else {
         tracing::info!("[state-server] registry lock poisoned in handle_state_update");
         return StatusCode::INTERNAL_SERVER_ERROR;
@@ -223,6 +220,9 @@ async fn handle_state_update(
     // are suppressed at the shell layer in pty_manager::write_hooks_config, so we
     // don't need to filter them here.
     if let Some(entry) = reg.channels.get_mut(session_id) {
+        // Only a live session may arm the sleep inhibitor. A straggler from a
+        // closed or hibernated tab has nothing left to release its hold.
+        router_state.sleep_inhibitor.update(session_id, &state, &phase);
         let desc = format!(
             "{session_id} {state:?} phase={phase:?} notify={notify:?}"
         );
@@ -314,6 +314,30 @@ mod tests {
         assert!(
             !handle.sleep_inhibitor.is_busy("s1"),
             "unregistering a session must release its sleep-inhibitor hold"
+        );
+    }
+
+    /// Pins: a Busy hook for a session with no channel (a straggler from a
+    /// closed or hibernated tab) must not arm the sleep inhibitor. The tab is
+    /// gone, so nothing releases the hold short of the stale-busy TTL.
+    #[tokio::test]
+    async fn hook_for_unregistered_session_does_not_arm_sleep_inhibitor() {
+        let handle = StateServerHandle::new_for_test();
+        handle.register_channel("live", "wt1", dummy_channel());
+        let router_state = RouterState {
+            registry: Arc::clone(&handle.registry),
+            sleep_inhibitor: Arc::clone(&handle.sleep_inhibitor),
+        };
+
+        for sid in ["live", "gone"] {
+            let uri: Uri = format!("/agent-state/{sid}/wt1/busy?phase=toolStart").parse().unwrap();
+            handle_state_update(State(router_state.clone()), uri).await;
+        }
+
+        assert!(handle.sleep_inhibitor.is_busy("live"));
+        assert!(
+            !handle.sleep_inhibitor.is_busy("gone"),
+            "a hook for an unregistered session must not hold caffeinate"
         );
     }
 }
