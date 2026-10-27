@@ -1,0 +1,26 @@
+docs/features/agent-settings.md
+  s_024833f425e747::t_d116c38207a5be 56-58
+docs/features/claude-launch-flags.md
+  s_024833f425e747::t_bc64727cae11b9 3
+  s_024833f425e747::t_6b7a2a2011f402 35-49
+docs/features/switching-agent-provider.md
+  s_024833f425e747::t_0b87c66663959f 16-18
+docs/features/repository-settings.md
+  s_024833f425e747::t_d5229964b1326a 51-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a6f00732afb7b0e49b7c2627b074b39d38f2022",
+  "prompts": {},
+  "sessions": {
+    "s_024833f425e747": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fe69058-2f3f-4668-a35a-8b9ffb766e33",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
