@@ -355,6 +355,7 @@ pub fn run() {
             worktree::list_worktrees,
             worktree::count_worktrees,
             worktree::adopt_worktree,
+            worktree::take_autostart_marker,
             worktree::get_worktree_diff_stats,
             worktree::get_worktree_status,
             worktree::set_worktree_column,

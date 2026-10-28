@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
-import { adoptWorktree, countWorktrees, listWorktrees } from "../api";
+import { adoptWorktree, countWorktrees, listWorktrees, takeAutostartMarker } from "../api";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { lifecycleManager } from "../services/lifecycleManager";
+import { ensureAgentSession, getAgentSessionInfo } from "../services/agentMessenger";
 import { startPollInterval } from "../services/pollInterval";
 import type { RepoEntry } from "../types";
 
@@ -71,6 +72,53 @@ export function computeRemovals(
         !wt.creating && !wt.createError && !freshIds.has(wt.id) && !freshPaths.has(wt.path),
     )
     .map((wt) => wt.id);
+}
+
+/** Resolves true once the worktree's create-time setup has finished, false if
+ *  the worktree left the store first (deleted mid-setup). */
+function waitForSetupDone(id: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const settled = () => {
+      const wt = useWorkspaceStore.getState().worktrees.find((w) => w.id === id);
+      if (wt?.setupInProgress) return false;
+      resolve(!!wt);
+      return true;
+    };
+    if (settled()) return;
+    const unsubscribe = useWorkspaceStore.subscribe(() => {
+      if (settled()) unsubscribe();
+    });
+  });
+}
+
+/** Starts the agent in an adopted worktree whose creator asked for one with an
+ *  autostart marker (docs/features/external-worktrees.md), once setup scripts
+ *  finish. No focus change and no prompt — the creator sends its own. Without
+ *  a marker this is a no-op, so subagent and scripted worktrees stay idle. */
+export async function autostartIfMarked(repo: string, id: string, path: string): Promise<void> {
+  try {
+    if (!(await takeAutostartMarker(path))) return;
+    if (!(await waitForSetupDone(id))) return;
+    // A mounted agent terminal's usePty must be the sole spawner — it starts
+    // the agent itself. Terminals mount only for the active worktree, and
+    // only for each pane's active tab; any other tab is safe to spawn behind.
+    const { agentTab } = getAgentSessionInfo(id);
+    // ensureAgentSession always launches Claude; a Codex/Gemini default tab
+    // would end up labelled one agent while running another.
+    if (agentTab && agentTab.type !== "claude") {
+      console.warn(`[worktree-discovery] autostart skipped for ${path}: agent tab is ${agentTab.type}, not claude`);
+      return;
+    }
+    const agentMounted =
+      useWorkspaceStore.getState().activeWorktreeId === id &&
+      Object.values(useLayoutStore.getState().panes[id] ?? {}).some(
+        (pane) => pane.activeTabId === agentTab?.id,
+      );
+    if (agentMounted) return;
+    await ensureAgentSession(id, repo);
+  } catch (e) {
+    console.error(`[worktree-discovery] autostart failed for ${path}:`, e);
+  }
 }
 
 async function pollRepo(
@@ -173,6 +221,7 @@ async function pollRepo(
           console.warn(`[worktree-discovery] adopt failed for ${wt.path}:`, e);
           useWorkspaceStore.getState().updateWorktree(id, { setupInProgress: false });
         });
+      void autostartIfMarked(repo, id, wt.path);
     }
   } catch (e) {
     // Poll failures are non-fatal; the next tick is the retry.

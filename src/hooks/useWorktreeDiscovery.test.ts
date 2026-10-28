@@ -1,5 +1,20 @@
-import { describe, it, expect } from "vitest";
-import { computeDiscovery, computeRemovals } from "./useWorktreeDiscovery";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { autostartIfMarked, computeDiscovery, computeRemovals } from "./useWorktreeDiscovery";
+import { takeAutostartMarker } from "../api";
+import { ensureAgentSession } from "../services/agentMessenger";
+import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useTabStore } from "../stores/tabStore";
+import { useLayoutStore } from "../stores/layoutStore";
+import type { Worktree } from "../types";
+
+vi.mock("../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api")>()),
+  takeAutostartMarker: vi.fn(),
+}));
+vi.mock("../services/agentMessenger", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/agentMessenger")>()),
+  ensureAgentSession: vi.fn(),
+}));
 
 describe("computeDiscovery", () => {
   it("baseline tick (no known set) adopts nothing and records all ids", () => {
@@ -136,5 +151,86 @@ describe("computeRemovals", () => {
       new Set(["/wt/chloe-feat"]),
     );
     expect(removals).toEqual([]);
+  });
+});
+
+describe("autostartIfMarked", () => {
+  const id = "/repo::autostart-test";
+  const path = "/wt/autostart-test";
+
+  function seedAdopted(setupInProgress: boolean) {
+    const wt: Worktree = {
+      id,
+      name: "autostart-test",
+      path,
+      branch: "test/autostart",
+      repoPath: "/repo",
+      prStatus: null,
+      agentStatus: "notRunning",
+      column: "inProgress",
+      isBranchMode: false,
+      additions: null,
+      deletions: null,
+      setupInProgress,
+    };
+    useWorkspaceStore.setState({ worktrees: [wt], activeWorktreeId: null });
+  }
+
+  beforeEach(() => {
+    vi.mocked(takeAutostartMarker).mockReset();
+    vi.mocked(ensureAgentSession).mockReset();
+    useTabStore.setState({ tabs: {} });
+    useLayoutStore.setState({ panes: {} });
+  });
+
+  it("consumes the marker and starts the agent only after setup finishes", async () => {
+    seedAdopted(true);
+    vi.mocked(takeAutostartMarker).mockResolvedValue(true);
+
+    const done = autostartIfMarked("/repo", id, path);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(takeAutostartMarker).toHaveBeenCalledWith(path);
+    expect(ensureAgentSession).not.toHaveBeenCalled();
+
+    useWorkspaceStore.getState().updateWorktree(id, { setupInProgress: false });
+    await done;
+    expect(ensureAgentSession).toHaveBeenCalledWith(id, "/repo");
+  });
+
+  it.each([
+    ["the agent tab is mounted", "agent", false],
+    ["only a shell tab is mounted", "shell", true],
+  ])("in the active worktree when %s", async (_label, activeTabId, spawns) => {
+    seedAdopted(false);
+    useWorkspaceStore.setState({ activeWorktreeId: id });
+    useTabStore.setState({
+      tabs: { [id]: [{ id: "agent", type: "claude", label: "Claude" }, { id: "shell", type: "shell", label: "Shell" }] },
+    });
+    useLayoutStore.setState({
+      panes: { [id]: { p1: { tabIds: ["agent", "shell"], activeTabId, previewTabId: null } } },
+    });
+    vi.mocked(takeAutostartMarker).mockResolvedValue(true);
+
+    await autostartIfMarked("/repo", id, path);
+    expect(vi.mocked(ensureAgentSession).mock.calls.length > 0).toBe(spawns);
+  });
+
+  it("skips a worktree whose agent tab is not Claude", async () => {
+    seedAdopted(false);
+    useTabStore.setState({ tabs: { [id]: [{ id: "agent", type: "codex", label: "Codex" }] } });
+    vi.mocked(takeAutostartMarker).mockResolvedValue(true);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await autostartIfMarked("/repo", id, path);
+    warn.mockRestore();
+    expect(ensureAgentSession).not.toHaveBeenCalled();
+  });
+
+  it("never starts an agent in an unmarked worktree", async () => {
+    seedAdopted(false);
+    vi.mocked(takeAutostartMarker).mockResolvedValue(false);
+
+    await autostartIfMarked("/repo", id, path);
+    expect(ensureAgentSession).not.toHaveBeenCalled();
   });
 });

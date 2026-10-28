@@ -1,6 +1,6 @@
 ---
 title: Worktrees created outside Alfredo appear automatically
-keywords: [external worktree, git worktree add, discovery, adopt, auto-detect, terminal, script, deleted worktree, sync]
+keywords: [external worktree, git worktree add, discovery, adopt, auto-detect, terminal, script, deleted worktree, sync, autostart, start agent automatically, marker]
 ui_path: N/A — automatic; new worktrees appear in the sidebar within seconds
 ---
 
@@ -33,3 +33,32 @@ worktree entry is pruned.
   worktree is safe no matter what its branch does.
 - Creating a worktree through Alfredo's own flow is unaffected —
   discovery pauses while an in-app creation is mid-flight.
+
+## Starting an agent automatically
+
+A tool that creates worktrees for you (a script, a Claude Code mod)
+can ask Alfredo to start Claude in the new worktree too. Before it
+runs `git worktree add`, it writes a marker file at
+`<common git dir>/alfredo/autostart/<worktree folder name>` that
+contains the worktree's absolute path. To find the common git dir,
+run `git rev-parse --path-format=absolute --git-common-dir` in the
+repo. It is usually the repo's `.git`. Without `--path-format=absolute`,
+git can print a relative `.git`.
+
+When Alfredo adopts the worktree, it removes the marker, waits for
+the setup scripts to finish, and starts Claude in the background.
+Alfredo does not change focus and does not send a prompt; the tool
+sends its own first prompt.
+
+- Without a marker, no agent starts. Subagent and scripted
+  worktrees stay idle.
+- Autostart starts Claude only. If your Default Agent is Codex or
+  Gemini, the new worktree's agent tab uses that agent, and Alfredo
+  does not start it.
+- Write the marker before `git worktree add`. If you write it after,
+  Alfredo can adopt the worktree first and ignore the marker.
+- A marker works once. If a marker is older than an hour when
+  Alfredo adopts a worktree with that folder name, Alfredo deletes it
+  without using it.
+- Only worktrees created while Alfredo runs are adopted, so a marker
+  for a worktree that existed at launch does nothing.

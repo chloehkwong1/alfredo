@@ -276,6 +276,11 @@ export function adoptWorktree(
   return invoke("adopt_worktree", { repoPath, worktreePath, worktreeId });
 }
 
+/** Consumes the worktree's autostart marker; true when its creator asked for an agent. */
+export function takeAutostartMarker(worktreePath: string): Promise<boolean> {
+  return invoke("take_autostart_marker", { worktreePath });
+}
+
 export function getWorktreeDiffStats(
   worktreePath: string,
   stackParent?: string | null,

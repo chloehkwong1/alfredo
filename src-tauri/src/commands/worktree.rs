@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
@@ -349,6 +349,49 @@ pub async fn adopt_worktree(
     }
 
     Ok(provision_worktree(&app, &repo_path, &worktree_path, worktree_id, create_scripts).await)
+}
+
+/// Older markers come from a `git worktree add` that most likely failed, so
+/// they're discarded rather than fired at a later worktree reusing the name.
+const AUTOSTART_MARKER_MAX_AGE: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
+/// Consume the one-shot marker an external tool writes before its `git
+/// worktree add` to ask for an agent: `<common git dir>/alfredo/autostart/
+/// <worktree folder name>`, holding the worktree's absolute path. The common
+/// dir (not the worktree's own git dir) is what lets the marker exist before
+/// the worktree does, so discovery can never adopt ahead of it. True only when
+/// the marker names this worktree and was removed, so it fires at most once;
+/// a marker naming another path is left for that worktree.
+fn take_autostart_marker_in(common_dir: &Path, worktree_path: &Path) -> bool {
+    let Some(name) = worktree_path.file_name() else { return false };
+    let marker = common_dir.join("alfredo").join("autostart").join(name);
+    let Ok(meta) = std::fs::metadata(&marker) else { return false };
+    let stale = meta
+        .modified()
+        .ok()
+        .and_then(|m| m.elapsed().ok())
+        .is_some_and(|age| age > AUTOSTART_MARKER_MAX_AGE);
+    if stale {
+        let _ = std::fs::remove_file(&marker);
+        return false;
+    }
+    let Ok(content) = std::fs::read_to_string(&marker) else { return false };
+    // Canonicalize both sides: the writer's path may differ from git's record
+    // by `..` segments or symlinks (/var vs /private/var on macOS).
+    let same = matches!(
+        (std::fs::canonicalize(content.trim()), std::fs::canonicalize(worktree_path)),
+        (Ok(a), Ok(b)) if a == b
+    );
+    same && std::fs::remove_file(&marker).is_ok()
+}
+
+/// Called by frontend discovery when it adopts a worktree; true means the
+/// worktree's creator asked for an agent to be started in it.
+#[tauri::command]
+pub async fn take_autostart_marker(worktree_path: String) -> Result<bool> {
+    let path = PathBuf::from(&worktree_path);
+    let Ok(repo) = git2::Repository::open(&path) else { return Ok(false) };
+    Ok(take_autostart_marker_in(repo.commondir(), &path))
 }
 
 /// Delete a worktree by name.
@@ -1528,6 +1571,49 @@ mod tests {
     #[test]
     fn stacked_with_develop_default() {
         assert!(is_stacked_branch("feature-1", "origin/develop", "feature-2"));
+    }
+
+    // ── take_autostart_marker_in ───────────────────────────────
+
+    /// A worktree dir plus a marker for it; the TempDirs must outlive the test.
+    fn autostart_fixture(marker_content: impl Fn(&Path) -> String) -> (tempfile::TempDir, tempfile::TempDir, PathBuf, PathBuf) {
+        let common = tempfile::tempdir().unwrap();
+        let parent = tempfile::tempdir().unwrap();
+        let wt = parent.path().join("autostart-test");
+        std::fs::create_dir(&wt).unwrap();
+        let dir = common.path().join("alfredo").join("autostart");
+        std::fs::create_dir_all(&dir).unwrap();
+        let marker = dir.join("autostart-test");
+        std::fs::write(&marker, marker_content(&wt)).unwrap();
+        (common, parent, wt, marker)
+    }
+
+    #[test]
+    fn autostart_marker_for_this_worktree_fires_once() {
+        // Trailing newline as `echo` writes it; the tempdir's /var path also
+        // exercises canonicalization (macOS resolves it to /private/var).
+        let (common, _parent, wt, marker) = autostart_fixture(|wt| format!("{}\n", wt.display()));
+        assert!(take_autostart_marker_in(common.path(), &wt));
+        assert!(!marker.exists());
+        assert!(!take_autostart_marker_in(common.path(), &wt));
+    }
+
+    #[test]
+    fn autostart_marker_for_another_path_is_left_alone() {
+        let other = tempfile::tempdir().unwrap();
+        let other_path = other.path().to_path_buf();
+        let (common, _parent, wt, marker) = autostart_fixture(|_| other_path.display().to_string());
+        assert!(!take_autostart_marker_in(common.path(), &wt));
+        assert!(marker.exists());
+    }
+
+    #[test]
+    fn stale_autostart_marker_is_discarded() {
+        let (common, _parent, wt, marker) = autostart_fixture(|wt| wt.display().to_string());
+        let two_hours_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(2 * 60 * 60);
+        std::fs::File::options().write(true).open(&marker).unwrap().set_modified(two_hours_ago).unwrap();
+        assert!(!take_autostart_marker_in(common.path(), &wt));
+        assert!(!marker.exists());
     }
 
     // ── ensure_claude_excludes ─────────────────────────────────
