@@ -1,0 +1,27 @@
+src/hooks/usePty.ts
+  s_024833f425e747::t_3adbacf907e99e 9
+  s_024833f425e747::t_0137179e00bca2 366
+src/services/terminalFactory.ts
+  s_024833f425e747::t_d9759967ea5a0d 256-257,259-260
+  s_024833f425e747::t_263a0672289134 250-255,258
+src/services/terminalFactory.test.ts
+  s_024833f425e747::t_a4e2b607149173 1,3
+  s_024833f425e747::t_dc93f4517bff45 284-299,301-302,304-338
+  s_024833f425e747::t_69a3e9031461c2 300,303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fe5e1cc0cbec6c5c9c15c5453eead06a1ee6ca15",
+  "prompts": {},
+  "sessions": {
+    "s_024833f425e747": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fe69058-2f3f-4668-a35a-8b9ffb766e33",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
