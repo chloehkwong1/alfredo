@@ -1,6 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { Terminal } from "@xterm/xterm";
-import { registerSelectToCopy, handleTerminalKeyEvent, splitLineSuffix, opensInOsDefaultApp, createTerminal, ACTIVE_SCROLLBACK, BACKGROUND_SCROLLBACK } from "./terminalFactory";
+import { registerSelectToCopy, handleTerminalKeyEvent, splitLineSuffix, opensInOsDefaultApp, createTerminal, ACTIVE_SCROLLBACK, BACKGROUND_SCROLLBACK, trimToBackgroundScrollback } from "./terminalFactory";
 import { copyText } from "../lib/clipboard";
 
 // Copy goes through the native-pasteboard helper (not navigator.clipboard),
@@ -280,6 +280,61 @@ describe("tiered scrollback", () => {
     terminal.options.scrollback = BACKGROUND_SCROLLBACK;
     expect(terminal.buffer.active.length).toBeLessThanOrEqual(BACKGROUND_SCROLLBACK + terminal.rows);
     terminal.dispose();
+  });
+
+  describe("on an opened terminal", () => {
+    // jsdom has no layout: give xterm's char-measure element, its width-cache
+    // canvas and its DPR query just enough to open and size a terminal.
+    beforeEach(() => {
+      vi.stubGlobal("matchMedia", () => ({
+        matches: false,
+        addListener() {},
+        removeListener() {},
+        addEventListener() {},
+        removeEventListener() {},
+      }));
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+        () => ({ font: "", measureText: (s: string) => ({ width: 8 * s.length }) }) as unknown as CanvasRenderingContext2D,
+      );
+      vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("xterm-char-measure-element") ? 256 : 0;
+      });
+      vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("xterm-char-measure-element") ? 17 : 0;
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+
+    // Regression: the trim left xterm's viewport at the old scroll height, so
+    // back on the tab the wheel moved the thumb but never the text.
+    it.each([0, 100])("still scrolls after a detach trim and re-attach (scrolled up %i)", async (scrolledUp) => {
+      const { terminal } = createTerminal();
+      const host = document.createElement("div");
+      document.body.appendChild(host);
+      terminal.options.scrollback = ACTIVE_SCROLLBACK;
+      terminal.open(host);
+      await new Promise<void>((resolve) => {
+        terminal.write("x\r\n".repeat(BACKGROUND_SCROLLBACK + 2000), resolve);
+      });
+      terminal.scrollLines(-scrolledUp);
+
+      // Mirror usePty: detach and trim, then raise and re-attach.
+      host.removeChild(terminal.element!);
+      trimToBackgroundScrollback(terminal);
+      terminal.options.scrollback = ACTIVE_SCROLLBACK;
+      host.appendChild(terminal.element!);
+
+      // scrollLines goes through the viewport's scroll mapping, as the wheel does.
+      const before = terminal.buffer.active.viewportY;
+      terminal.scrollLines(-5);
+      expect(terminal.buffer.active.viewportY).toBe(before - 5);
+      terminal.dispose();
+      host.remove();
+    });
   });
 });
 

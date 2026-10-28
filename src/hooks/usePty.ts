@@ -6,7 +6,7 @@ import type { AgentState, SessionType } from "../types";
 import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
 import { sessionManager } from "../services/sessionManager";
 import { startPollInterval } from "../services/pollInterval";
-import { registerSelectToCopy, ACTIVE_SCROLLBACK, BACKGROUND_SCROLLBACK } from "../services/terminalFactory";
+import { registerSelectToCopy, ACTIVE_SCROLLBACK, trimToBackgroundScrollback } from "../services/terminalFactory";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { isTerminalPr } from "../lib/prStatus";
 import type { ManagedSession } from "../services/sessionManager";
@@ -363,7 +363,7 @@ export function usePty({
       // detached. Guarded: restart flows dispose the session before this
       // cleanup runs, and xterm throws on a disposed terminal.
       if (session && !session.disposed) {
-        session.terminal.options.scrollback = BACKGROUND_SCROLLBACK;
+        trimToBackgroundScrollback(session.terminal);
       }
 
       sessionRef.current = null;

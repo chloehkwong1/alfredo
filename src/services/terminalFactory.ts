@@ -247,6 +247,17 @@ export function stripClearScrollback(bytes: Uint8Array): Uint8Array {
 export const ACTIVE_SCROLLBACK = 10_000;
 export const BACKGROUND_SCROLLBACK = 250;
 
+// xterm trims the buffer when `scrollback` is lowered but fires no resize or
+// scroll event, so its viewport keeps the old scroll height. Back on the tab
+// the wheel then moves the thumb through rows that no longer exist and the
+// text stays put until output scrolls the buffer. No public API resyncs the
+// viewport (a same-size `resize()` returns early), so call its private sync;
+// the tiered-scrollback test fails if an xterm upgrade renames it.
+export function trimToBackgroundScrollback(terminal: Terminal): void {
+  terminal.options.scrollback = BACKGROUND_SCROLLBACK;
+  (terminal as unknown as { _core?: { _viewport?: { _sync?(): void } } })._core?._viewport?._sync?.();
+}
+
 /**
  * Create a Terminal instance with:
  * - Kitty keyboard protocol support (Shift+Enter for newline in Claude Code)
