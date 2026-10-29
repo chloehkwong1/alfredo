@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { Terminal } from "@xterm/xterm";
-import { registerSelectToCopy, handleTerminalKeyEvent, splitLineSuffix, opensInOsDefaultApp, createTerminal, ACTIVE_SCROLLBACK, BACKGROUND_SCROLLBACK, trimToBackgroundScrollback } from "./terminalFactory";
+import { registerSelectToCopy, handleTerminalKeyEvent, splitLineSuffix, opensInOsDefaultApp, createTerminal, ACTIVE_SCROLLBACK, BACKGROUND_SCROLLBACK, trimToBackgroundScrollback, replayRestoredScrollback } from "./terminalFactory";
 import { copyText } from "../lib/clipboard";
 
 // Copy goes through the native-pasteboard helper (not navigator.clipboard),
@@ -335,6 +335,25 @@ describe("tiered scrollback", () => {
       terminal.dispose();
       host.remove();
     });
+  });
+});
+
+describe("replayRestoredScrollback", () => {
+  // Regression: a restored tab replayed the dead Claude's mouse-tracking
+  // enable, so the resumed tab sent wheel and drag to the new process and
+  // could neither scroll nor select.
+  it("keeps the replayed text but not the dead process's input modes", async () => {
+    const { terminal } = createTerminal();
+    const deadSession = "old output\r\n\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h\x1b[?1h";
+    replayRestoredScrollback(terminal, new TextEncoder().encode(deadSession));
+    await new Promise<void>((resolve) => terminal.write("", resolve));
+
+    expect(terminal.buffer.active.getLine(0)?.translateToString(true)).toBe("old output");
+    expect(terminal.modes.mouseTrackingMode).toBe("none");
+    expect(terminal.modes.bracketedPasteMode).toBe(false);
+    expect(terminal.modes.sendFocusMode).toBe(false);
+    expect(terminal.modes.applicationCursorKeysMode).toBe(false);
+    terminal.dispose();
   });
 });
 

@@ -14,7 +14,7 @@ import { startPollInterval } from "./pollInterval";
 
 import type { ManagedSession } from "./sessionTypes";
 import { OUTPUT_BUFFER_CAPACITY } from "./sessionTypes";
-import { createTerminal, registerKittyProtocol, ACTIVE_SCROLLBACK } from "./terminalFactory";
+import { createTerminal, registerKittyProtocol, replayRestoredScrollback, ACTIVE_SCROLLBACK } from "./terminalFactory";
 import {
   AGENT_TYPE_MAP,
   RECONCILE_INTERVAL_MS,
@@ -760,7 +760,7 @@ export class SessionManager implements SessionWriter {
       try {
         const bytes = Uint8Array.from(atob(initialScrollback), (c) => c.charCodeAt(0));
         terminal.options.scrollback = ACTIVE_SCROLLBACK;
-        terminal.write(bytes);
+        replayRestoredScrollback(terminal, bytes);
       } catch {
         // Invalid base64 — skip replay
       }
@@ -907,7 +907,7 @@ export class SessionManager implements SessionWriter {
         // truncate saved history. No PTY exists here, so the raised cap can't
         // grow the buffer past the restored content before attach.
         terminal.options.scrollback = ACTIVE_SCROLLBACK;
-        terminal.write(bytes);
+        replayRestoredScrollback(terminal, bytes);
 
         // Populate the output buffer so auto-save can re-persist scrollback
         // even before a PTY is spawned for this session.

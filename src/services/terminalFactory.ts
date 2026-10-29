@@ -258,6 +258,19 @@ export function trimToBackgroundScrollback(terminal: Terminal): void {
   (terminal as unknown as { _core?: { _viewport?: { _sync?(): void } } })._core?._viewport?._sync?.();
 }
 
+// Restored scrollback is a dead process's raw output, so replaying it also
+// replays the terminal modes that process set. A leftover mouse-tracking mode
+// sends wheel and drag to the next process instead of scrolling and selecting,
+// and that process never turns it off. After the replay, DECSTR (`CSI ! p`)
+// resets bracketed paste, focus events and cursor keys; xterm keeps mouse
+// state outside DECSTR's reach, so reset it explicitly.
+const RESET_REPLAYED_MODES = "\x1b[!p\x1b[?1003l\x1b[?1002l\x1b[?1000l\x1b[?1006l";
+
+export function replayRestoredScrollback(terminal: Terminal, bytes: Uint8Array): void {
+  terminal.write(bytes);
+  terminal.write(RESET_REPLAYED_MODES);
+}
+
 /**
  * Create a Terminal instance with:
  * - Kitty keyboard protocol support (Shift+Enter for newline in Claude Code)

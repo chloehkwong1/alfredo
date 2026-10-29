@@ -33,6 +33,17 @@ describe("loadScrollbackOnly tiered-scrollback restore", () => {
 
     await manager.closeAll();
   });
+
+  it("does not let the replayed session's mouse tracking reach the restored tab", async () => {
+    const manager = new SessionManager();
+    const scrollback = btoa("old output\r\n\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h");
+    const session = manager.loadScrollbackOnly("wt-mouse", "wt-mouse", scrollback, "/wt/mouse");
+
+    await new Promise<void>((resolve) => session.terminal.write("", resolve));
+    expect(session.terminal.modes.mouseTrackingMode).toBe("none");
+
+    await manager.closeAll();
+  });
 });
 
 describe("shouldAcceptDetectorState", () => {
