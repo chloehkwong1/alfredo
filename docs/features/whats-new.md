@@ -7,6 +7,27 @@ ui_path: N/A — full notes at github.com/chloehkwong1/alfredo/releases
 Recent highlights. Full notes:
 https://github.com/chloehkwong1/alfredo/releases.
 
+**v0.26.0 — 2026-11-03**
+- **Agent tabs get your shell's environment** — Claude, Codex and
+  Gemini tabs now receive every variable your login shell exports,
+  so an API key or `NODE_OPTIONS` set in `.zshrc` reaches the agent
+  even when Alfredo opens from the Dock. Restart Alfredo after you
+  edit your rc files.
+- **Codex launch settings** — with Codex as your default agent,
+  Settings → Agent shows its own Skip permission checks switch and
+  Additional flags, and Repository Settings → General takes per-repo
+  Codex launch flags. Skip permissions is stored per provider:
+  turning it on for Claude never turns it on for Codex.
+- Restored tabs no longer freeze after a restart or an update. A tab
+  whose previous Claude left mouse tracking on couldn't scroll or
+  select text until you reopened it.
+- A terminal you switch back to scrolls again. Before, the wheel
+  moved the scrollbar but not the text until new output arrived.
+- A closed or hibernated tab can no longer keep your Mac awake.
+- Scripts and tools that create worktrees can ask Alfredo to start
+  Claude in the new worktree — see "Starting an agent automatically"
+  in External worktrees.
+
 **v0.25.0 — 2026-10-15**
 - **Select several worktrees at once** — hover a row for a checkbox,
   or ⌘-click and ⇧-click to build a selection within a column. A
@@ -98,15 +119,3 @@ https://github.com/chloehkwong1/alfredo/releases.
   failed install — it reports the version that's actually available,
   and shows downloading / ready states while one is in flight.
 - A dismissed update banner stays dismissed on background checks.
-
-**v0.22.0 — 2026-09-02**
-- **Simpler agent status bar** — the per-worktree effort, permissions
-  and output-style chips are gone from the bottom bar; set these in
-  the terminal directly and Claude remembers them. The bar keeps
-  Remote and Open In.
-- PR descriptions render real markdown — tables, code blocks and
-  formatting now display properly.
-- "Open in Alfredo" prompts from Linear no longer arrive clipped —
-  multi-line prompts paste atomically.
-- Manual restack failures now say what actually went wrong instead of
-  a generic "Restack failed" toast.
