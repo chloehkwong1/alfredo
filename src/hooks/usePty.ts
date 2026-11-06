@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import type { Terminal } from "@xterm/xterm";
-import { WebglAddon } from "@xterm/addon-webgl";
 import type { SearchAddon } from "@xterm/addon-search";
 import type { AgentState, SessionType } from "../types";
 import { writePty, resizePty, getWorktreeDiffStats, getPrFiles } from "../api";
@@ -135,31 +134,11 @@ export function usePty({
         registerSelectToCopy(term);
       }
 
+      // Backstop for a display change no listener caught.
+      sessionManager.reloadStaleRenderers("attach");
       // Load WebGL renderer (needs terminal in DOM).
       // webglLoaded is reset on context loss (e.g. DOM detach) so we reload here.
-      if (!session.webglLoaded) {
-        session.webglLoaded = true;
-        try {
-          const webgl = new WebglAddon();
-          webgl.onContextLoss(() => {
-            const wasAtBottom = term.buffer.active.viewportY >= term.buffer.active.baseY;
-            webgl.dispose();
-            session.webglLoaded = false; // reload on next attach
-            session.webglAddon = null;
-            // Restore scroll position after fallback to canvas renderer —
-            // without this the viewport can jump to earlier scrollback content.
-            if (wasAtBottom) {
-              term.scrollToBottom();
-            } else {
-              term.refresh(0, term.rows - 1);
-            }
-          });
-          term.loadAddon(webgl);
-          session.webglAddon = webgl;
-        } catch {
-          // WebGL unavailable — canvas renderer is fine
-        }
-      }
+      if (!session.webglLoaded) sessionManager.loadWebglRenderer(session);
 
       // Wire up input/resize forwarding BEFORE fit() so the initial resize
       // event propagates to the backend PTY (which starts at 80×24).

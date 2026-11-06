@@ -1,4 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import FontFaceObserver from "fontfaceobserver";
 import type { AgentState, AgentType, SessionType } from "../types";
 import type { ClaudeRegistryEntry } from "../types";
@@ -1406,6 +1407,66 @@ export class SessionManager implements SessionWriter {
     }
   }
 
+  /** Load a WebGL renderer into a session's terminal. The terminal must be in
+   *  the DOM. */
+  loadWebglRenderer(session: ManagedSession): void {
+    session.webglLoaded = true;
+    const term = session.terminal;
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => {
+        const wasAtBottom = term.buffer.active.viewportY >= term.buffer.active.baseY;
+        webgl.dispose();
+        session.webglLoaded = false; // reload on next attach
+        session.webglAddon = null;
+        // Restore scroll position after fallback to canvas renderer —
+        // without this the viewport can jump to earlier scrollback content.
+        if (wasAtBottom) {
+          term.scrollToBottom();
+        } else {
+          term.refresh(0, term.rows - 1);
+        }
+      });
+      term.loadAddon(webgl);
+      session.webglAddon = webgl;
+      session.webglDpr = window.devicePixelRatio;
+    } catch {
+      // WebGL unavailable — canvas renderer is fine
+    }
+  }
+
+  /** Swap in a fresh WebGL renderer wherever the live devicePixelRatio
+   *  differs from the one the renderer loaded at.
+   *
+   *  xterm's WebglRenderer sizes cells with a DPR it saves on each detected
+   *  display change, but draws glyphs at the live DPR. If it misses a change
+   *  (seen 2026-11-06 on plugging in external monitors), every glyph draws at
+   *  the wrong scale inside its cell. Resize, font size and
+   *  clearTextureAtlas() all keep the saved DPR; only a new addon reads the
+   *  live one. A detached terminal reloads on its next attach. */
+  reloadStaleRenderers(reason: string): void {
+    const dpr = window.devicePixelRatio;
+    const fromDprs = new Set<number | undefined>();
+    for (const session of this.sessions.values()) {
+      if (!session.webglAddon || session.webglDpr === dpr) continue;
+      fromDprs.add(session.webglDpr);
+      session.webglAddon.dispose();
+      session.webglAddon = null;
+      session.webglLoaded = false;
+      if (session.terminal.element?.isConnected) {
+        this.loadWebglRenderer(session);
+        try {
+          session.fitAddon.fit();
+        } catch {
+          // Terminal may not be attached to DOM
+        }
+      }
+    }
+    if (fromDprs.size > 0) {
+      debugLog(`[webgl] reloaded stale renderers (${reason}): dpr ${[...fromDprs].join(",")} -> ${dpr}`).catch(() => {});
+    }
+  }
+
   /** Apply terminal preferences to all existing sessions. */
   applyPreferences(prefs: TerminalPreferences): void {
     // Apply non-font options synchronously so UI feels responsive; defer the
@@ -1561,9 +1622,9 @@ if (!(window as any)[WAKE_LISTENER_KEY]) {
 }
 
 // DPI / display change (external monitor plugged in, scale factor change,
-// monitor swap). xterm.js handles font-metric recompute internally, but the
-// WebGL texture upload can race the metric change and leave glyphs at the
-// wrong slot. Match Tabby's `displayMetricsChanged$` handler.
+// monitor swap). A fresh renderer also rebuilds the atlas, which covers the
+// texture-upload race that once left glyphs at the wrong slot. main.tsx adds
+// the native scale-change event as a second trigger.
 const DPR_LISTENER_KEY = "__alfredo_dprListener";
 if (!(window as any)[DPR_LISTENER_KEY] && typeof window.matchMedia === "function") {
   (window as any)[DPR_LISTENER_KEY] = true;
@@ -1579,7 +1640,7 @@ if (!(window as any)[DPR_LISTENER_KEY] && typeof window.matchMedia === "function
         // construction time, so without the re-arm we'd drop subsequent
         // changes once devicePixelRatio drifts past the original.
         armDprWatch();
-        sessionManager.rebuildAtlases("dpr-change");
+        sessionManager.reloadStaleRenderers("dpr-change");
       },
       { once: true },
     );

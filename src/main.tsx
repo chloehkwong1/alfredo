@@ -6,6 +6,7 @@ import { startStatusMirror } from "./services/statusMirror";
 import { startDockBadgeMirror } from "./services/dockBadge";
 import { startHibernateConfigMirror } from "./services/hibernateConfigMirror";
 import { preloadTerminalFonts } from "./services/fontPreload";
+import { sessionManager } from "./services/sessionManager";
 import { isLightTheme } from "./lib/themeMeta";
 import "./styles/globals.css";
 
@@ -26,6 +27,14 @@ startStatusMirror();
 // Mirror "needs attention" count to the OS dock/taskbar badge.
 startDockBadgeMirror();
 startHibernateConfigMirror();
+
+// Native backing-scale event: xterm's own matchMedia watch missed a monitor
+// plug-in (2026-11-06). Compare on the next frame in case the webview's
+// devicePixelRatio lags this event (ordering not verified; the attach
+// backstop in usePty covers a miss).
+getCurrentWindow()
+  .onScaleChanged(() => requestAnimationFrame(() => sessionManager.reloadStaleRenderers("scale-change")))
+  .catch(() => {});
 
 // Block React mount on bundled terminal fonts so xterm WebGL atlases never
 // bake against the fallback font (GH#19).

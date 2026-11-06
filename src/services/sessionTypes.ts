@@ -35,6 +35,8 @@ export interface ManagedSession {
    *  recovery actions (⌘⇧K) can call clearTextureAtlas() to recover from
    *  rare atlas/cell-buffer desyncs that survive scroll + refresh. */
   webglAddon: WebglAddon | null;
+  /** window.devicePixelRatio when webglAddon loaded (see reloadStaleRenderers). */
+  webglDpr?: number;
   agentState: AgentState;
   /** True once at least one hook event has been received. When true,
    *  ALL detector-sourced state updates are ignored — hooks are the

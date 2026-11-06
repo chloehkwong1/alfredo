@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   shouldAcceptDetectorState,
   SessionManager,
@@ -41,6 +41,29 @@ describe("loadScrollbackOnly tiered-scrollback restore", () => {
 
     await new Promise<void>((resolve) => session.terminal.write("", resolve));
     expect(session.terminal.modes.mouseTrackingMode).toBe("none");
+
+    await manager.closeAll();
+  });
+});
+
+describe("reloadStaleRenderers", () => {
+  it("drops a WebGL renderer loaded at another devicePixelRatio and keeps a current one", async () => {
+    const manager = new SessionManager();
+    const stale = manager.loadScrollbackOnly("wt-stale", "wt-stale", btoa("x"), "/wt/stale");
+    const current = manager.loadScrollbackOnly("wt-current", "wt-current", btoa("x"), "/wt/current");
+    const staleAddon = { dispose: vi.fn() };
+    const currentAddon = { dispose: vi.fn() };
+    Object.assign(stale, { webglAddon: staleAddon, webglLoaded: true, webglDpr: window.devicePixelRatio + 1 });
+    Object.assign(current, { webglAddon: currentAddon, webglLoaded: true, webglDpr: window.devicePixelRatio });
+
+    manager.reloadStaleRenderers("test");
+
+    expect(staleAddon.dispose).toHaveBeenCalledOnce();
+    expect(stale.webglAddon).toBeNull();
+    // Detached terminal: no DOM to load into, so the next attach reloads it.
+    expect(stale.webglLoaded).toBe(false);
+    expect(currentAddon.dispose).not.toHaveBeenCalled();
+    expect(current.webglAddon).toBe(currentAddon);
 
     await manager.closeAll();
   });
