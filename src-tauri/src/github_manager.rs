@@ -244,30 +244,56 @@ pullRequest { isDraft } } }";
     })
 }
 
-/// Deduplicate reviews: keep only the latest review per reviewer.
+/// Deduplicate reviews to one per reviewer, as GitHub's reviewer list does:
+/// keep the reviewer's latest decisive review, or their latest review if they
+/// have no decisive one. A later "commented" review does not replace an approval.
 pub fn dedup_reviews(reviews: Vec<PrReview>) -> Vec<PrReview> {
+    let rank = |r: &PrReview| (is_decisive(&r.state), r.submitted_at.clone());
     let mut latest: std::collections::HashMap<String, PrReview> = std::collections::HashMap::new();
     for review in reviews {
-        latest
-            .entry(review.reviewer.clone())
-            .and_modify(|existing| {
-                if review.submitted_at > existing.submitted_at {
-                    *existing = review.clone();
-                }
-            })
-            .or_insert(review);
+        match latest.get(&review.reviewer) {
+            Some(existing) if rank(existing) >= rank(&review) => {}
+            _ => {
+                latest.insert(review.reviewer.clone(), review);
+            }
+        }
     }
     latest.into_values().collect()
 }
 
-/// Derive review decision from deduplicated reviews.
-/// When no definitive decision exists, distinguishes between "review_requested"
+/// "approved", "changes_requested" and "dismissed" set a reviewer's state on
+/// GitHub; "commented" and "pending" do not supersede an earlier one.
+fn is_decisive(state: &str) -> bool {
+    matches!(state, "approved" | "changes_requested" | "dismissed")
+}
+
+/// Derive the review decision from the raw, un-deduplicated review list. Only
+/// each reviewer's latest decisive review counts, so a later "commented"
+/// review keeps an earlier approval.
+///
+/// Stricter than GitHub: an approval counts only when it was submitted on
+/// `head_sha`. GitHub keeps an approval across pushes unless the repo
+/// dismisses stale reviews, so a force-push can leave code nobody approved
+/// showing as approved. Those PRs get "approval_outdated".
+///
+/// When no approval exists, distinguishes between "review_requested"
 /// (reviewer has been assigned) and "review_required" (no reviewer assigned yet).
-pub fn derive_review_decision(reviews: &[PrReview], requested_reviewers: &[String]) -> Option<String> {
-    if reviews.iter().any(|r| r.state == "changes_requested") {
+pub fn derive_review_decision(
+    reviews: &[PrReview],
+    requested_reviewers: &[String],
+    head_sha: Option<&str>,
+) -> Option<String> {
+    let latest = latest_decisive_reviews(reviews);
+    let has_state = |state: &str| latest.iter().any(|r| r.state == state);
+    let approved_on_head = latest
+        .iter()
+        .any(|r| r.state == "approved" && head_sha.is_some() && r.commit_id.as_deref() == head_sha);
+    if has_state("changes_requested") {
         Some("changes_requested".to_string())
-    } else if reviews.iter().any(|r| r.state == "approved") {
+    } else if approved_on_head {
         Some("approved".to_string())
+    } else if has_state("approved") {
+        Some("approval_outdated".to_string())
     } else if !requested_reviewers.is_empty() {
         Some("review_requested".to_string())
     } else {
@@ -450,6 +476,7 @@ fn parse_reviews_response(response: &serde_json::Value) -> Vec<PrReview> {
                         state: review.get("state")?.as_str()?.to_lowercase(),
                         submitted_at: review.get("submitted_at").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
                         body,
+                        commit_id: review.get("commit_id").and_then(|v| v.as_str()).map(std::string::ToString::to_string),
                     })
                 })
                 .collect()
@@ -894,14 +921,25 @@ impl GithubManager {
         repo: &str,
         pr_number: u64,
     ) -> Result<Vec<PrReview>, AppError> {
-        let url = format!("/repos/{owner}/{repo}/pulls/{pr_number}/reviews");
-        let response: serde_json::Value = self
-            .client
-            .get(url, None::<&()>)
-            .await
-            .map_err(|e| format_octocrab_error("failed to fetch PR reviews", &e))?;
-
-        Ok(parse_reviews_response(&response))
+        // Pages run oldest first, and the review decision needs the newest
+        // ones, so every page is fetched. Each thread reply adds a review.
+        let mut all_reviews = Vec::new();
+        let mut page: u32 = 1;
+        loop {
+            let url = format!("/repos/{owner}/{repo}/pulls/{pr_number}/reviews?per_page=100&page={page}");
+            let response: serde_json::Value = self
+                .client
+                .get(url, None::<&()>)
+                .await
+                .map_err(|e| format_octocrab_error("failed to fetch PR reviews", &e))?;
+            let page_len = response.as_array().map_or(0, Vec::len);
+            all_reviews.extend(parse_reviews_response(&response));
+            if page_len < 100 {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_reviews)
     }
 
     /// Fetch line-level review comments for a PR.
@@ -1177,8 +1215,9 @@ impl GithubManager {
             Self::apply_thread_resolution(&mut comments, &resolution);
         }
 
+        let head_sha = pr_response.get("head").and_then(|h| h.get("sha")).and_then(serde_json::Value::as_str);
+        let review_decision = derive_review_decision(&reviews, &requested_reviewers, head_sha);
         let deduped_reviews = dedup_reviews(reviews);
-        let review_decision = derive_review_decision(&deduped_reviews, &requested_reviewers);
 
         Ok(PrDetailedStatus {
             reviews: deduped_reviews,
@@ -1773,7 +1812,7 @@ pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), App
     Ok(parsed)
 }
 
-/// Reduce each reviewer's reviews to their most recent *decisive* state —
+/// Reduce each reviewer's reviews to their most recent *decisive* review —
 /// one of "approved", "changes_requested", or "dismissed". "commented" and
 /// "pending" entries are ignored because GitHub does not treat them as
 /// superseding a prior decisive review (e.g. leaving a "ship it!" comment
@@ -1781,10 +1820,10 @@ pub async fn resolve_owner_repo(repo_path: &str) -> Result<(String, String), App
 ///
 /// Pass the raw, un-deduplicated review list so the most-recent-decisive
 /// review can be identified even when a later non-decisive review exists.
-fn latest_decisive_states(reviews: &[PrReview]) -> Vec<&str> {
+fn latest_decisive_reviews(reviews: &[PrReview]) -> Vec<&PrReview> {
     let mut latest: std::collections::HashMap<String, &PrReview> = std::collections::HashMap::new();
     for r in reviews {
-        if !matches!(r.state.as_str(), "approved" | "changes_requested" | "dismissed") {
+        if !is_decisive(&r.state) {
             continue;
         }
         let key = r.reviewer.to_lowercase();
@@ -1795,7 +1834,7 @@ fn latest_decisive_states(reviews: &[PrReview]) -> Vec<&str> {
             }
         }
     }
-    latest.into_values().map(|r| r.state.as_str()).collect()
+    latest.into_values().collect()
 }
 
 /// The given user's most recent decisive review state ("approved",
@@ -1805,7 +1844,7 @@ fn my_latest_decisive_state<'a>(reviews: &'a [PrReview], user: &str) -> Option<&
     reviews
         .iter()
         .filter(|r| r.reviewer.eq_ignore_ascii_case(user))
-        .filter(|r| matches!(r.state.as_str(), "approved" | "changes_requested" | "dismissed"))
+        .filter(|r| is_decisive(&r.state))
         .max_by(|a, b| a.submitted_at.cmp(&b.submitted_at))
         .map(|r| r.state.as_str())
 }
@@ -1866,11 +1905,11 @@ pub fn determine_column(
                     return KanbanColumn::Done;
                 }
             }
-            let states = latest_decisive_states(reviews);
-            if states.contains(&"changes_requested") {
+            let latest = latest_decisive_reviews(reviews);
+            if latest.iter().any(|r| r.state == "changes_requested") {
                 return KanbanColumn::NeedsReview;
             }
-            if states.contains(&"approved") {
+            if latest.iter().any(|r| r.state == "approved") {
                 return KanbanColumn::Done;
             }
             KanbanColumn::NeedsReview
@@ -2098,6 +2137,7 @@ mod tests {
             state: "approved".into(),
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
+            commit_id: None,
         }];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
     }
@@ -2130,6 +2170,7 @@ mod tests {
             state: "approved".into(),
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
+            commit_id: None,
         }];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
     }
@@ -2161,6 +2202,7 @@ mod tests {
             state: "approved".into(),
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
+            commit_id: None,
         }];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
     }
@@ -2193,12 +2235,14 @@ mod tests {
                 state: "approved".into(),
                 submitted_at: Some("2026-05-07T10:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
             PrReview {
                 reviewer: "blocker".into(),
                 state: "changes_requested".into(),
                 submitted_at: Some("2026-05-07T11:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
         ];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
@@ -2229,6 +2273,7 @@ mod tests {
             state: "changes_requested".into(),
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
+            commit_id: None,
         }];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
     }
@@ -2262,12 +2307,14 @@ mod tests {
                 state: "approved".into(),
                 submitted_at: Some("2026-05-07T10:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
             PrReview {
                 reviewer: "chloe".into(),
                 state: "commented".into(),
                 submitted_at: Some("2026-05-07T11:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
         ];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
@@ -2301,12 +2348,14 @@ mod tests {
                 state: "approved".into(),
                 submitted_at: Some("2026-05-07T10:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
             PrReview {
                 reviewer: "chloe".into(),
                 state: "dismissed".into(),
                 submitted_at: Some("2026-05-07T12:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
         ];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
@@ -2340,6 +2389,7 @@ mod tests {
             state: "approved".into(),
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
+            commit_id: None,
         }];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::OpenPr);
     }
@@ -2371,6 +2421,7 @@ mod tests {
             state: "approved".into(),
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
+            commit_id: None,
         }];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
     }
@@ -2402,6 +2453,7 @@ mod tests {
             state: "approved".into(),
             submitted_at: Some("2026-05-07T10:00:00Z".into()),
             body: None,
+            commit_id: None,
         }];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
     }
@@ -2434,12 +2486,14 @@ mod tests {
                 state: "approved".into(),
                 submitted_at: Some("2026-05-07T10:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
             PrReview {
                 reviewer: "another-reviewer".into(),
                 state: "changes_requested".into(),
                 submitted_at: Some("2026-05-07T11:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
         ];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::Done);
@@ -2473,12 +2527,14 @@ mod tests {
                 state: "approved".into(),
                 submitted_at: Some("2026-05-07T10:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
             PrReview {
                 reviewer: "chloe".into(),
                 state: "dismissed".into(),
                 submitted_at: Some("2026-05-07T12:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
         ];
         assert_eq!(determine_column(Some(&pr), Some("chloe"), &reviews), KanbanColumn::NeedsReview);
@@ -2494,12 +2550,14 @@ mod tests {
                 state: "approved".into(),
                 submitted_at: Some("2026-03-29T10:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
             PrReview {
                 reviewer: "alice".into(),
                 state: "changes_requested".into(),
                 submitted_at: Some("2026-03-29T12:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
         ];
         let result = dedup_reviews(reviews);
@@ -2515,12 +2573,14 @@ mod tests {
                 state: "approved".into(),
                 submitted_at: Some("2026-03-29T10:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
             PrReview {
                 reviewer: "bob".into(),
                 state: "changes_requested".into(),
                 submitted_at: Some("2026-03-29T11:00:00Z".into()),
                 body: None,
+                commit_id: None,
             },
         ];
         let result = dedup_reviews(reviews);
@@ -2529,57 +2589,125 @@ mod tests {
 
     // --- derive_review_decision tests ---
 
+    const HEAD: &str = "5b56dc84";
+
+    fn review(reviewer: &str, state: &str, submitted_at: &str, commit: &str) -> PrReview {
+        PrReview {
+            reviewer: reviewer.into(),
+            state: state.into(),
+            submitted_at: Some(submitted_at.into()),
+            body: None,
+            commit_id: Some(commit.into()),
+        }
+    }
+
     #[test]
     fn test_derive_review_decision_changes_requested() {
-        let reviews = vec![PrReview {
-            reviewer: "alice".into(),
-            state: "changes_requested".into(),
-            submitted_at: Some("2026-03-29T10:00:00Z".into()),
-            body: None,
-        }];
+        let reviews = vec![review("alice", "changes_requested", "2026-03-29T10:00:00Z", HEAD)];
         assert_eq!(
-            derive_review_decision(&reviews, &[]),
+            derive_review_decision(&reviews, &[], Some(HEAD)),
             Some("changes_requested".into())
         );
     }
 
     #[test]
-    fn test_derive_review_decision_approved() {
-        let reviews = vec![PrReview {
-            reviewer: "alice".into(),
-            state: "approved".into(),
-            submitted_at: Some("2026-03-29T10:00:00Z".into()),
-            body: None,
-        }];
+    fn test_derive_review_decision_approved_on_head() {
+        let reviews = vec![review("alice", "approved", "2026-03-29T10:00:00Z", HEAD)];
+        assert_eq!(derive_review_decision(&reviews, &[], Some(HEAD)), Some("approved".into()));
+    }
+
+    #[test]
+    fn test_derive_review_decision_approval_on_older_commit_is_outdated() {
+        let reviews = vec![review("alice", "approved", "2026-03-29T10:00:00Z", "de09ca2f")];
         assert_eq!(
-            derive_review_decision(&reviews, &[]),
-            Some("approved".into())
+            derive_review_decision(&reviews, &[], Some(HEAD)),
+            Some("approval_outdated".into())
+        );
+    }
+
+    #[test]
+    fn test_derive_review_decision_approval_on_deleted_commit_is_outdated() {
+        // GitHub returns commit_id: null once a force-push has removed the commit.
+        let mut approval = review("alice", "approved", "2026-03-29T10:00:00Z", HEAD);
+        approval.commit_id = None;
+        assert_eq!(
+            derive_review_decision(&[approval], &[], Some(HEAD)),
+            Some("approval_outdated".into())
+        );
+    }
+
+    #[test]
+    fn test_derive_review_decision_cubic_comment_after_force_push() {
+        // PR #25452: cubic approved before a force-push, then reviewed only the
+        // newest push and left a "Requires human review" comment review.
+        let reviews = vec![
+            review("cubic-dev-ai", "approved", "2026-11-10T12:35:27Z", "de09ca2f"),
+            review("cubic-dev-ai", "commented", "2026-11-10T13:46:45Z", HEAD),
+        ];
+        assert_eq!(
+            derive_review_decision(&reviews, &[], Some(HEAD)),
+            Some("approval_outdated".into())
+        );
+    }
+
+    #[test]
+    fn test_derive_review_decision_later_comment_keeps_approval() {
+        let reviews = vec![
+            review("alice", "approved", "2026-03-29T10:00:00Z", HEAD),
+            review("alice", "commented", "2026-03-29T11:00:00Z", HEAD),
+        ];
+        assert_eq!(derive_review_decision(&reviews, &[], Some(HEAD)), Some("approved".into()));
+    }
+
+    #[test]
+    fn test_derive_review_decision_later_comment_keeps_changes_requested() {
+        let reviews = vec![
+            review("alice", "changes_requested", "2026-03-29T10:00:00Z", HEAD),
+            review("alice", "commented", "2026-03-29T11:00:00Z", HEAD),
+        ];
+        assert_eq!(
+            derive_review_decision(&reviews, &[], Some(HEAD)),
+            Some("changes_requested".into())
         );
     }
 
     #[test]
     fn test_derive_review_decision_review_requested() {
-        let reviews = vec![PrReview {
-            reviewer: "alice".into(),
-            state: "commented".into(),
-            submitted_at: Some("2026-03-29T10:00:00Z".into()),
-            body: None,
-        }];
+        let reviews = vec![review("alice", "commented", "2026-03-29T10:00:00Z", HEAD)];
         let requested = vec!["bob".to_string()];
         assert_eq!(
-            derive_review_decision(&reviews, &requested),
+            derive_review_decision(&reviews, &requested, Some(HEAD)),
             Some("review_requested".into())
         );
     }
 
     #[test]
     fn test_derive_review_decision_review_required() {
-        let reviews: Vec<PrReview> = vec![];
-        let requested: Vec<String> = vec![];
         assert_eq!(
-            derive_review_decision(&reviews, &requested),
+            derive_review_decision(&[], &[], Some(HEAD)),
             Some("review_required".into())
         );
+    }
+
+    #[test]
+    fn test_dedup_reviews_later_comment_keeps_approval() {
+        let reviews = vec![
+            review("alice", "approved", "2026-03-29T10:00:00Z", HEAD),
+            review("alice", "commented", "2026-03-29T11:00:00Z", HEAD),
+        ];
+        let result = dedup_reviews(reviews);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].state, "approved");
+    }
+
+    #[test]
+    fn test_dedup_reviews_only_comments_keeps_latest_comment() {
+        let mut later = review("alice", "commented", "2026-03-29T11:00:00Z", HEAD);
+        later.body = Some("second".into());
+        let reviews = vec![review("alice", "commented", "2026-03-29T10:00:00Z", HEAD), later];
+        let result = dedup_reviews(reviews);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].body.as_deref(), Some("second"));
     }
 
     // --- parse_github_timestamp tests ---
@@ -2901,7 +3029,8 @@ mod tests {
                 "user": { "login": "alice" },
                 "state": "APPROVED",
                 "submitted_at": "2026-03-29T11:00:00Z",
-                "body": "LGTM, shipping"
+                "body": "LGTM, shipping",
+                "commit_id": "5b56dc84"
             },
             {
                 "user": { "login": "bob" },
@@ -2922,7 +3051,9 @@ mod tests {
         assert_eq!(reviews[0].state, "approved");
         assert_eq!(reviews[0].submitted_at.as_deref(), Some("2026-03-29T11:00:00Z"));
         assert_eq!(reviews[0].body.as_deref(), Some("LGTM, shipping"));
+        assert_eq!(reviews[0].commit_id.as_deref(), Some("5b56dc84"));
         assert_eq!(reviews[1].reviewer, "bob");
+        assert_eq!(reviews[1].commit_id, None);
         assert_eq!(reviews[1].state, "changes_requested");
         assert_eq!(reviews[1].submitted_at, None);
         // Whitespace-only bodies collapse to None so the UI doesn't render an empty summary.

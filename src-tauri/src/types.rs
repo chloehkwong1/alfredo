@@ -417,6 +417,10 @@ pub struct PrReview {
     /// that only carry inline comments.
     #[serde(default)]
     pub body: Option<String>,
+    /// The commit the review was submitted on. GitHub returns `null` once
+    /// that commit is gone, e.g. after a force-push.
+    #[serde(default)]
+    pub commit_id: Option<String>,
 }
 
 /// Which side of a diff a comment or annotation is anchored to.

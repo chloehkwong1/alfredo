@@ -223,6 +223,7 @@ export function PrRailIcons({ worktreeId }: PrRailIconsProps) {
   const reviewsTitle =
     reviewDecision === "changes_requested" ? "Changes requested"
     : reviewDecision === "approved" ? "Approved"
+    : reviewDecision === "approval_outdated" ? "Approval outdated"
     : approvals > 0 ? `${approvals} approval${approvals !== 1 ? "s" : ""}`
     : "Reviews";
   const commentsTitle =

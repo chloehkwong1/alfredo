@@ -703,6 +703,17 @@ export function MergeStatusBanner({
     );
   }
 
+  // ── Approved only on an older commit ──
+  // GitHub may still allow the merge (stale approvals aren't dismissed on
+  // push), but nobody approved this head, so the merge button stays away.
+  if (reviewDecision === "approval_outdated" && !pr.draft) {
+    return (
+      <div className="px-2.5 py-1.5 bg-bg-secondary border-t border-border-default text-xs text-text-secondary font-semibold shrink-0">
+        Approval outdated &mdash; approved on an older commit, not the latest push
+      </div>
+    );
+  }
+
   // ── Changes requested ──
   if (reviewDecision === "changes_requested") {
     return (

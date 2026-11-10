@@ -28,6 +28,7 @@ export function hasPrStats(s: PrSummary): boolean {
   if (failingCheckCount != null) return true;
   if (
     reviewDecision === "approved" ||
+    reviewDecision === "approval_outdated" ||
     reviewDecision === "changes_requested" ||
     reviewDecision === "review_required" ||
     reviewDecision === "review_requested"
@@ -107,6 +108,15 @@ export function PrStatsRow({ prSummary }: { prSummary: PrSummary }) {
         <span className="flex items-center gap-1 text-xs text-status-idle">
           <Eye size={12} />
           Approved
+        </span>
+      )}
+      {reviewDecision === "approval_outdated" && (
+        <span
+          className="flex items-center gap-1 text-xs text-text-secondary"
+          title="Approved on an older commit. Nobody has approved the latest push."
+        >
+          <Eye size={12} />
+          Approval outdated
         </span>
       )}
       {reviewDecision === "changes_requested" && (

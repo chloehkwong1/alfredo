@@ -508,6 +508,8 @@ export interface PrReview {
    *  issue roll-up). `null`/`undefined` for stub reviews that only carry
    *  inline comments. */
   body?: string | null;
+  /** Commit the review was submitted on; `null` once a force-push removed it. */
+  commitId?: string | null;
 }
 
 export interface PrComment {

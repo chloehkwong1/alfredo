@@ -189,7 +189,8 @@ pub struct PrStatusWithColumn {
     pub pending_check_count: Option<u32>,
     /// Number of unresolved line-level review comments.
     pub unresolved_comment_count: Option<u32>,
-    /// Derived review decision: "approved", "changes_requested", or "review_required".
+    /// Derived review decision: "approved", "approval_outdated", "changes_requested",
+    /// "review_requested" or "review_required".
     pub review_decision: Option<String>,
     /// Whether the PR is mergeable per GitHub's assessment.
     pub mergeable: Option<bool>,
@@ -816,14 +817,15 @@ async fn poll_repo(
         if let Ok(reviews) = reviews_result {
             // Recompute auto_column with the raw review list — others' PRs
             // with any active approval (and no outstanding changes_requested)
-            // flip to Done. determine_column needs raw (un-deduped) reviews
-            // so it can find the most-recent-decisive review per reviewer
-            // even when a later non-decisive review (e.g. "commented") exists.
+            // flip to Done. determine_column and derive_review_decision need
+            // raw (un-deduped) reviews so they can find the most-recent-decisive
+            // review per reviewer even when a later non-decisive review
+            // (e.g. "commented") exists.
             let updated = determine_column(Some(pr), github_username.as_deref(), &reviews);
             pr_with_col.auto_column = column_to_string(&updated);
-            let deduped = dedup_reviews(reviews);
-            pr_with_col.review_decision = derive_review_decision(&deduped, &pr_with_col.requested_reviewers);
-            pr_with_col.reviews = deduped;
+            pr_with_col.review_decision =
+                derive_review_decision(&reviews, &pr_with_col.requested_reviewers, pr_with_col.head_sha.as_deref());
+            pr_with_col.reviews = dedup_reviews(reviews);
         }
 
         if let Ok(check_runs) = checks_result {
