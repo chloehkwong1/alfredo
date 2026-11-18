@@ -323,6 +323,13 @@ export interface ClaudeDefaults {
   codexExtraFlags?: string;
 }
 
+/** A personal rule naming an orchestration and the branch prefix that selects
+ *  its worktrees. */
+export interface OrchestrationRule {
+  name: string;
+  branchPrefix: string;
+}
+
 export interface AppConfig {
   repoPath: string;
   setupScripts?: SetupScript[] | null;
@@ -334,6 +341,9 @@ export interface AppConfig {
   /** Manual sidebar card order per kanban column (worktree names, top-first).
    *  Personal-layer only — passes through the effective config unchanged. */
   worktreeOrder?: Partial<Record<KanbanColumn, string[]>>;
+  /** Personal orchestration rules, in the user's order. Personal-layer only —
+   *  never written to alfredo.json. */
+  orchestrationRules?: OrchestrationRule[];
   theme?: string;
   notifications?: NotificationConfig;
   worktreeBasePath?: string | null;

@@ -8,6 +8,7 @@ import type {
   Annotation,
   DiffViewMode,
   KanbanColumn,
+  OrchestrationRule,
   PendingReview,
   ReviewDraftComment,
   ReviewVerdict,
@@ -71,6 +72,9 @@ interface WorkspaceState {
   ) => void;
   /** Optimistic drag update: replace one column's list for one repo. */
   setColumnOrder: (repoPath: string, column: KanbanColumn, names: string[]) => void;
+  /** Personal orchestration rules per repo. Hydrated from personal config. */
+  orchestrationRules: Record<string, OrchestrationRule[]>;
+  setOrchestrationRulesForRepo: (repoPath: string, rules: OrchestrationRule[]) => void;
   /** Inline annotations per worktree. Keyed by worktreeId. */
   annotations: Record<string, Annotation[]>;
   /** Diff view mode per worktree. Keyed by worktreeId. */
@@ -440,6 +444,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         ...state.worktreeOrder,
         [repoPath]: { ...state.worktreeOrder[repoPath], [column]: names },
       },
+    })),
+  orchestrationRules: {},
+  setOrchestrationRulesForRepo: (repoPath, rules) =>
+    set((state) => ({
+      orchestrationRules: { ...state.orchestrationRules, [repoPath]: rules },
     })),
   annotations: {},
   diffViewMode: {},
@@ -1056,6 +1065,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       draggingWorktreeId: null,
       dismissedStackAdoptions: new Set(),
       worktreeOrder: {},
+      orchestrationRules: {},
       annotations: {},
       diffViewMode: {},
       changesViewMode: {},

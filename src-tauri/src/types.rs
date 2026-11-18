@@ -675,6 +675,19 @@ pub struct AppConfig {
     /// wholesale replacements, so stale names are pruned on the next save.
     #[serde(default)]
     pub worktree_order: HashMap<KanbanColumn, Vec<String>>,
+    /// Personal orchestration rules for this repo, in the user's order.
+    /// Personal layer only — never lifted into `alfredo.json`.
+    #[serde(default)]
+    pub orchestration_rules: Vec<OrchestrationRule>,
+}
+
+/// A personal rule naming an orchestration and the branch prefix that
+/// selects its worktrees.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrchestrationRule {
+    pub name: String,
+    pub branch_prefix: String,
 }
 
 /// Persisted Linear ticket metadata for a worktree. Survives app restart so the

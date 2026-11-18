@@ -4021,6 +4021,7 @@ mod tests {
             linear_prompt_template: None,
             linear_auto_submit: false,
             worktree_order: HashMap::new(),
+            orchestration_rules: Vec::new(),
         }
     }
 

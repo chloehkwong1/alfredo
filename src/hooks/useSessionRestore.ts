@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useTabStore } from "../stores/tabStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, getWorktreeOrder, debugLog, reconcileWorktreePorts, loadResumeSessionIds } from "../api";
+import { listWorktrees, getWorktreeDiffStats, setSyncRepoPaths, findClaudeSession, getActiveBranch, getWorktreeOrder, getOrchestrationRules, debugLog, reconcileWorktreePorts, loadResumeSessionIds } from "../api";
 import { withRetry } from "./withRetry";
 import { loadSession, applyResumeSidecar } from "../services/SessionPersistence";
 import { sessionManager } from "../services/sessionManager";
@@ -47,6 +47,7 @@ export function useSessionRestore(
   const removeWorktree = useWorkspaceStore((s) => s.removeWorktree);
   const updateWorktree = useWorkspaceStore((s) => s.updateWorktree);
   const setWorktreeOrderForRepo = useWorkspaceStore((s) => s.setWorktreeOrderForRepo);
+  const setOrchestrationRulesForRepo = useWorkspaceStore((s) => s.setOrchestrationRulesForRepo);
   const restoreTabs = useTabStore((s) => s.restoreTabs);
   const updateTab = useTabStore((s) => s.updateTab);
   const ensureDefaultTabs = useTabStore((s) => s.ensureDefaultTabs);
@@ -346,6 +347,14 @@ export function useSessionRestore(
           setWorktreeOrderForRepo(repo, order ?? {});
         })
         .catch((e) => console.warn(`[session-restore] Failed to load worktree order for ${repo}:`, e));
+
+      // Orchestration rules: personal layer only, hydrated for every repo.
+      getOrchestrationRules(repo)
+        .then((rules) => {
+          if (cancelled) return;
+          setOrchestrationRulesForRepo(repo, rules ?? []);
+        })
+        .catch((e) => console.warn(`[session-restore] Failed to load orchestration rules for ${repo}:`, e));
 
       withRetry(() => listWorktrees(repo), () => cancelled, `listWorktrees ${repo}`).then(async (result) => {
         if (cancelled) return;

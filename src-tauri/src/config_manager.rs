@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use tokio::process::Command;
 
-use crate::types::{AppConfig, AppError, ClaudeDefaults, KanbanColumn, LinearTicketRef, NotificationConfig, PrAssociationRef, RunScript, SetupScript};
+use crate::types::{AppConfig, AppError, ClaudeDefaults, KanbanColumn, LinearTicketRef, NotificationConfig, OrchestrationRule, PrAssociationRef, RunScript, SetupScript};
 
 /// Legacy filename — used only for migration from in-repo config.
 const CONFIG_FILE: &str = ".alfredo.json";
@@ -84,6 +84,8 @@ struct ConfigFile {
     pub linear_auto_submit: bool,
     #[serde(default)]
     pub worktree_order: HashMap<KanbanColumn, Vec<String>>,
+    #[serde(default)]
+    pub orchestration_rules: Vec<OrchestrationRule>,
 }
 
 /// Signature of a JSON-double-encoded command: every `"` is preceded by `\`
@@ -208,6 +210,7 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
             linear_prompt_template: None,
             linear_auto_submit: false,
             worktree_order: HashMap::new(),
+            orchestration_rules: Vec::new(),
         };
         coerce_repo_shared_defaults(&mut config);
         return Ok(config);
@@ -261,6 +264,7 @@ pub async fn load_personal_config(app_data_dir: &Path, repo_path: &str) -> Resul
         linear_prompt_template: file.linear_prompt_template,
         linear_auto_submit: file.linear_auto_submit,
         worktree_order: file.worktree_order,
+        orchestration_rules: file.orchestration_rules,
     };
     coerce_repo_shared_defaults(&mut config);
     if heal_overescaped_scripts(&mut config, repo_path) {
@@ -399,6 +403,7 @@ async fn write_personal_config_file(
         linear_prompt_template: config.linear_prompt_template.clone(),
         linear_auto_submit: config.linear_auto_submit,
         worktree_order: config.worktree_order.clone(),
+        orchestration_rules: config.orchestration_rules.clone(),
     };
 
     let json = serde_json::to_string_pretty(&file)
@@ -863,6 +868,39 @@ mod tests {
         assert_eq!(back, order);
     }
 
+    #[tokio::test]
+    async fn orchestration_rules_round_trip_in_personal_config_only() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::tempdir()?;
+        let repo = "/tmp/orchestration-rules-repo";
+        let mut config = AppConfig {
+            repo_path: repo.into(),
+            ..Default::default()
+        };
+        config.orchestration_rules = vec![
+            OrchestrationRule { name: "Payments".into(), branch_prefix: "pay/".into() },
+            OrchestrationRule { name: "Search".into(), branch_prefix: "search/".into() },
+        ];
+        write_personal_config_file(dir.path(), repo, &config).await?;
+
+        // On disk it is camelCase, in order.
+        let raw = tokio::fs::read_to_string(repo_config_path(dir.path(), repo)).await?;
+        assert!(raw.contains("\"orchestrationRules\""), "{raw}");
+        assert!(raw.contains("\"branchPrefix\""), "{raw}");
+
+        let loaded = load_personal_config(dir.path(), repo).await?;
+        assert_eq!(loaded.orchestration_rules, config.orchestration_rules);
+
+        // A config file without the key loads as an empty list.
+        tokio::fs::write(repo_config_path(dir.path(), repo), "{}").await?;
+        let empty = load_personal_config(dir.path(), repo).await?;
+        assert!(empty.orchestration_rules.is_empty());
+
+        // Personal layer only: the shared-layer struct has no such field.
+        let shared = serde_json::to_string(&crate::types::RepoSharedConfig::default())?;
+        assert!(!shared.contains("rchestration"), "{shared}");
+        Ok(())
+    }
+
     #[test]
     fn test_prune_orphan_ports_removes_only_absent_worktrees() {
         let mut config = AppConfig {
@@ -933,6 +971,7 @@ mod tests {
             linear_prompt_template: None,
             linear_auto_submit: false,
             worktree_order: HashMap::new(),
+            orchestration_rules: Vec::new(),
         };
         config
             .column_overrides
@@ -1148,6 +1187,7 @@ mod tests {
             linear_prompt_template: None,
             linear_auto_submit: false,
             worktree_order: HashMap::new(),
+            orchestration_rules: Vec::new(),
         };
         coerce_repo_shared_defaults(&mut config);
         assert!(config.setup_scripts.is_none());
@@ -1354,6 +1394,7 @@ mod tests {
             linear_prompt_template: None,
             linear_auto_submit: false,
             worktree_order: HashMap::new(),
+            orchestration_rules: Vec::new(),
         };
 
         // save_config may fail on keychain in test env; we only care about JSON.
@@ -1433,6 +1474,7 @@ mod tests {
             linear_prompt_template: Some("/proceed_with_ticket {{identifier}}".to_string()),
             linear_auto_submit: true,
             worktree_order: HashMap::new(),
+            orchestration_rules: Vec::new(),
         };
 
         // Bypass keychain (which is unreliable under test parallelism) and write
@@ -1480,6 +1522,7 @@ mod tests {
             linear_prompt_template: None,
             linear_auto_submit: false,
             worktree_order: HashMap::new(),
+            orchestration_rules: Vec::new(),
         };
         set_stack_parent(&mut config, "feat-child", "feat/parent");
         set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");
@@ -1540,6 +1583,7 @@ mod tests {
             linear_prompt_template: None,
             linear_auto_submit: false,
             worktree_order: HashMap::new(),
+            orchestration_rules: Vec::new(),
         };
         set_stack_parent(&mut config, "feat-child", "feat/parent");
         set_stack_baseline(&mut config, "feat-child", "abc123abc123abc123abc123abc123abc123abcd");

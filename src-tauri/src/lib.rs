@@ -365,6 +365,7 @@ pub fn run() {
             worktree::clear_worktree_column,
             worktree::set_worktree_orders,
             worktree::get_worktree_order,
+            worktree::get_orchestration_rules,
             worktree::set_worktree_linear_ticket,
             worktree::get_commits_behind_main,
             worktree::get_ahead_behind_origin,

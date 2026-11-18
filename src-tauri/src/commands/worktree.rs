@@ -1011,6 +1011,19 @@ pub async fn get_worktree_order(
     Ok(config.worktree_order)
 }
 
+/// Read the personal orchestration rules for a repo. Personal layer only, for
+/// the same reason as `get_worktree_order`: `load_effective_config` can write
+/// an alfredo.json into a repo the user hasn't opened.
+#[tauri::command]
+pub async fn get_orchestration_rules(
+    app: AppHandle,
+    repo_path: String,
+) -> Result<Vec<crate::types::OrchestrationRule>> {
+    let app_data_dir = resolve_app_data_dir(&app)?;
+    let config = config_manager::load_personal_config(&app_data_dir, &repo_path).await?;
+    Ok(config.orchestration_rules)
+}
+
 /// Drop a worktree's persisted column override, reverting it to the auto-derived
 /// kanban column. The PR sync calls this to self-heal a stale auto-Done when a
 /// worktree's branch goes live again (reopened, or reused with a new PR).

@@ -10,6 +10,7 @@ import type {
   GifResult,
   GlobalAppConfig,
   KanbanColumn,
+  OrchestrationRule,
   LinearTicket,
   PortClaimResult,
   TakePortResult,
@@ -335,6 +336,12 @@ export function getWorktreeOrder(
   repoPath: string,
 ): Promise<Partial<Record<KanbanColumn, string[]>>> {
   return invoke("get_worktree_order", { repoPath });
+}
+
+/** Read a repo's personal orchestration rules (personal config layer only —
+ *  never triggers config migration). */
+export function getOrchestrationRules(repoPath: string): Promise<OrchestrationRule[]> {
+  return invoke("get_orchestration_rules", { repoPath });
 }
 
 /** Drop a worktree's persisted column override, reverting it to the

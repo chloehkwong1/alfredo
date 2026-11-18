@@ -1077,6 +1077,36 @@ describe("worktreeOrder", () => {
   });
 });
 
+describe("orchestrationRules", () => {
+  it("setting one repo's rules leaves another repo's rules unchanged", () => {
+    const store = useWorkspaceStore;
+    store.getState().setOrchestrationRulesForRepo("/repo-a", [
+      { name: "Payments", branchPrefix: "pay/" },
+    ]);
+    store.getState().setOrchestrationRulesForRepo("/repo-b", [
+      { name: "Search", branchPrefix: "search/" },
+    ]);
+
+    store.getState().setOrchestrationRulesForRepo("/repo-a", []);
+
+    expect(store.getState().orchestrationRules["/repo-a"]).toEqual([]);
+    expect(store.getState().orchestrationRules["/repo-b"]).toEqual([
+      { name: "Search", branchPrefix: "search/" },
+    ]);
+  });
+
+  it("clearStore resets orchestrationRules", () => {
+    const store = useWorkspaceStore;
+    store.getState().setOrchestrationRulesForRepo("/repo-a", [
+      { name: "Payments", branchPrefix: "pay/" },
+    ]);
+
+    store.getState().clearStore();
+
+    expect(store.getState().orchestrationRules).toEqual({});
+  });
+});
+
 describe("stack-adoption dismissals", () => {
   it("dismiss and read agree on the key for ids containing ':' separators", () => {
     const store = useWorkspaceStore;
