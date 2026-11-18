@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { orchestrationsFromRules } from "../../services/orchestrations";
-import type { OrchestrationRule } from "../../types";
+import { listWorktrees } from "../../api";
+import type { OrchestrationRule, Worktree } from "../../types";
 
 const inputClass = [
   "h-8 w-full px-3 text-[13px]",
@@ -20,7 +22,31 @@ interface OrchestrationRulesSettingsProps {
 }
 
 function OrchestrationRulesSettings({ repoPath, rules, onChange }: OrchestrationRulesSettingsProps) {
-  const worktrees = useWorkspaceStore((s) => s.worktrees);
+  const storeWorktrees = useWorkspaceStore((s) => s.worktrees);
+  const storeHasRepo = storeWorktrees.some((wt) => wt.repoPath === repoPath);
+
+  // The store only holds the sidebar's selected repos. For any other repo,
+  // fetch its worktrees once (not written to the store); show no count until
+  // they arrive, never a wrong 0.
+  const [fetched, setFetched] = useState<{ repoPath: string; worktrees: Worktree[] } | null>(null);
+  useEffect(() => {
+    if (storeHasRepo) return;
+    let stale = false;
+    listWorktrees(repoPath)
+      .then((worktrees) => {
+        if (!stale) setFetched({ repoPath, worktrees: worktrees ?? [] });
+      })
+      .catch((e) => console.warn("Failed to list worktrees for orchestration match count:", e));
+    return () => {
+      stale = true;
+    };
+  }, [repoPath, storeHasRepo]);
+
+  const worktrees = storeHasRepo
+    ? storeWorktrees
+    : fetched?.repoPath === repoPath
+      ? fetched.worktrees
+      : null;
 
   const setRule = (index: number, patch: Partial<OrchestrationRule>) =>
     onChange(rules.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)));
@@ -32,7 +58,9 @@ function OrchestrationRulesSettings({ repoPath, rules, onChange }: Orchestration
         Group worktrees by branch prefix. Only you see these.
       </p>
       {rules.map((rule, i) => {
-        const matching = orchestrationsFromRules(repoPath, [rule], worktrees)[0]?.items.length ?? 0;
+        const matching = worktrees
+          ? (orchestrationsFromRules(repoPath, [rule], worktrees)[0]?.items.length ?? 0)
+          : null;
         return (
           <div key={i} className="mb-2">
             <div className="flex items-center gap-2">
@@ -61,9 +89,11 @@ function OrchestrationRulesSettings({ repoPath, rules, onChange }: Orchestration
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="text-xs text-text-tertiary mt-1">
-              {matching} {matching === 1 ? "worktree matches" : "worktrees match"} now
-            </p>
+            {matching !== null && (
+              <p className="text-xs text-text-tertiary mt-1">
+                {matching} {matching === 1 ? "worktree matches" : "worktrees match"} now
+              </p>
+            )}
           </div>
         );
       })}
