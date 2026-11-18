@@ -278,6 +278,43 @@ describe("mergeOrchestrations", () => {
       },
     ]);
   });
+
+  it.each([
+    ["the folded orchestration sorts first", { a: pr(1), b: null }],
+    ["the worktree's own orchestration sorts first", { a: null, b: pr(1) }],
+  ])(
+    "keeps a noted worktree in its own orchestration when a same-named rule also matches it (%s)",
+    (_order, prStatus) => {
+      const worktrees = [
+        wt({
+          id: "a",
+          branch: "docs/a",
+          prStatus: prStatus.a,
+          agentStatus: "waitingForInput",
+          note: { label: "PR 1", orchestration: "Documents" },
+        }),
+        wt({
+          id: "b",
+          branch: "docs/b",
+          prStatus: prStatus.b,
+          agentStatus: "waitingForInput",
+          note: { label: "PR 7 · Invoices", orchestration: "Billing" },
+        }),
+      ];
+      const merged = mergeOrchestrations(
+        orchestrationsFromNotes("/r", worktrees),
+        orchestrationsFromRules("/r", [{ name: "Documents", branchPrefix: "docs/" }], worktrees),
+      );
+      const rows = yourTurnRows(merged, worktrees, none, none, {});
+      expect(rows.find((r) => r.worktreeId === "b")).toMatchObject({
+        orchestrationName: "Billing",
+        itemTitle: "PR 7 · Invoices",
+      });
+      expect(merged.find((o) => o.name === "Documents")?.items).toEqual([
+        { worktreeId: "a", title: "PR 1" },
+      ]);
+    },
+  );
 });
 
 describe("yourTurnRows", () => {

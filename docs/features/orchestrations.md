@@ -26,7 +26,7 @@ They appear in **Your turn** with no rule. The item is the note's
 `label`, or the branch when the note has no label. A worktree with a
 note that also matches a rule shows once, with the note's names. A rule
 with the same name as a note orchestration adds its other worktrees to
-it.
+it, except those a note puts in another orchestration.
 
 **What a row shows:**
 

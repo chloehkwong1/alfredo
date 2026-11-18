@@ -92,8 +92,9 @@ export function orchestrationsFromNotes(repoPath: string, worktrees: Worktree[])
 }
 
 /** Note orchestrations first, then rule orchestrations. A rule orchestration
- *  with the repo and name of a note orchestration joins it: its worktrees that
- *  are not items yet are added after the note's own. */
+ *  with the repo and name of a note orchestration joins it: its worktrees are
+ *  added after the note's own, except those a note in that repo already puts
+ *  in an orchestration. A noted worktree stays in its note's orchestration. */
 export function mergeOrchestrations(
   fromNotes: Orchestration[],
   fromRules: Orchestration[],
@@ -102,10 +103,17 @@ export function mergeOrchestrations(
     a.repoPath === b.repoPath && a.name === b.name;
   const merged = fromNotes.map((note) => {
     const items = [...note.items];
+    const taken = new Set(
+      fromNotes
+        .filter((other) => other.repoPath === note.repoPath)
+        .flatMap((other) => other.items.map((item) => item.worktreeId)),
+    );
     for (const rule of fromRules) {
       if (!isSame(note, rule)) continue;
       for (const item of rule.items) {
-        if (!items.some((existing) => existing.worktreeId === item.worktreeId)) items.push(item);
+        if (taken.has(item.worktreeId)) continue;
+        taken.add(item.worktreeId);
+        items.push(item);
       }
     }
     return { ...note, items };
