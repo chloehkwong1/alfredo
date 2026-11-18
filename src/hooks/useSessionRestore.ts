@@ -305,6 +305,18 @@ export function useSessionRestore(
     for (const repo of reposToLoad) {
       const isBranchMode = repoModeMap.get(repo) === "branch";
 
+      // Orchestration rules: personal layer only, hydrated for every repo.
+      // Same stale-fetch guard as the order block: if the settings dialog
+      // saved rules while this read was in flight, its write wins.
+      const rulesBeforeFetch = useWorkspaceStore.getState().orchestrationRules[repo];
+      getOrchestrationRules(repo)
+        .then((rules) => {
+          if (cancelled) return;
+          if (useWorkspaceStore.getState().orchestrationRules[repo] !== rulesBeforeFetch) return;
+          setOrchestrationRulesForRepo(repo, rules ?? []);
+        })
+        .catch((e) => console.warn(`[session-restore] Failed to load orchestration rules for ${repo}:`, e));
+
       // For branch-mode repos, create a synthetic worktree entry so the rest
       // of the app (TerminalView, ChangesPanel) can find it in the store.
       if (isBranchMode) {
@@ -347,18 +359,6 @@ export function useSessionRestore(
           setWorktreeOrderForRepo(repo, order ?? {});
         })
         .catch((e) => console.warn(`[session-restore] Failed to load worktree order for ${repo}:`, e));
-
-      // Orchestration rules: personal layer only, hydrated for every repo.
-      // Same stale-fetch guard as the order block: if the settings dialog
-      // saved rules while this read was in flight, its write wins.
-      const rulesBeforeFetch = useWorkspaceStore.getState().orchestrationRules[repo];
-      getOrchestrationRules(repo)
-        .then((rules) => {
-          if (cancelled) return;
-          if (useWorkspaceStore.getState().orchestrationRules[repo] !== rulesBeforeFetch) return;
-          setOrchestrationRulesForRepo(repo, rules ?? []);
-        })
-        .catch((e) => console.warn(`[session-restore] Failed to load orchestration rules for ${repo}:`, e));
 
       withRetry(() => listWorktrees(repo), () => cancelled, `listWorktrees ${repo}`).then(async (result) => {
         if (cancelled) return;

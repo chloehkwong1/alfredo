@@ -90,8 +90,11 @@ function YourTurnSection({ selectedRepos, repoDisplayNames, repoShortLabels }: Y
                 {" · "}
                 {row.text}
               </div>
-              <div className="mt-1 truncate text-[10px] text-text-tertiary">
-                {orchestrationName} · {row.itemTitle} · {isAnswer ? `waiting ${age}` : age}
+              <div className="mt-1 flex text-[10px] text-text-tertiary">
+                <span className="min-w-0 truncate">
+                  {orchestrationName} · {row.itemTitle}
+                </span>
+                <span className="shrink-0"> · {isAnswer ? `waiting ${age}` : age}</span>
               </div>
             </button>
           </div>

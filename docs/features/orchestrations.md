@@ -42,7 +42,11 @@ it unread.
 - Only questions asked with the question tool, or a plan approval,
   have text. A question written as plain prose, a permission prompt,
   or a wait found by the status backstop shows "Waiting for input".
+- A question whose hook data is larger than 64 KB, or that Alfredo
+  cannot read, shows "Waiting for input" without the text.
 - When the agent asks several questions at once, the row shows the
   first.
+- If you cancel a question with Esc, the row shows "Waiting for input"
+  until you send the next prompt.
 - The question text stays in memory. It is never written to a log or
   a file, so it is gone when you quit.

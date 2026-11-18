@@ -30,6 +30,20 @@ export interface NeedsYouSince {
   at: number;
 }
 
+/** Trim name and prefix; rows missing either are dropped, not saved half-filled. */
+export function cleanOrchestrationRules(rules: OrchestrationRule[]): OrchestrationRule[] {
+  return rules
+    .map((rule) => ({ name: rule.name.trim(), branchPrefix: rule.branchPrefix.trim() }))
+    .filter((rule) => rule.name !== "" && rule.branchPrefix !== "");
+}
+
+/** Worktrees of the repo (archived included) under the trimmed prefix; 0 for an empty prefix. */
+export function countRuleMatches(repoPath: string, branchPrefix: string, worktrees: Worktree[]): number {
+  const prefix = branchPrefix.trim();
+  if (prefix === "") return 0;
+  return worktrees.filter((wt) => wt.repoPath === repoPath && wt.branch.startsWith(prefix)).length;
+}
+
 export function orchestrationsFromRules(
   repoPath: string,
   rules: OrchestrationRule[],

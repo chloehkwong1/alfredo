@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { orchestrationsFromRules } from "../../services/orchestrations";
+import { countRuleMatches } from "../../services/orchestrations";
 import { listWorktrees } from "../../api";
 import type { OrchestrationRule, Worktree } from "../../types";
 
@@ -58,9 +58,10 @@ function OrchestrationRulesSettings({ repoPath, rules, onChange }: Orchestration
         Group worktrees by branch prefix. Only you see these.
       </p>
       {rules.map((rule, i) => {
-        const matching = worktrees
-          ? (orchestrationsFromRules(repoPath, [rule], worktrees)[0]?.items.length ?? 0)
-          : null;
+        const matching =
+          worktrees && rule.branchPrefix.trim() !== ""
+            ? countRuleMatches(repoPath, rule.branchPrefix, worktrees)
+            : null;
         return (
           <div key={i} className="mb-2">
             <div className="flex items-center gap-2">

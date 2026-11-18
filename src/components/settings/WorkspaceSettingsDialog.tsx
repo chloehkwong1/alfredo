@@ -54,6 +54,7 @@ import {
 } from "../sidebar/RepoSelector";
 import { copyText } from "../../lib/clipboard";
 import { DEFAULT_TEMPLATE } from "../../services/linearPrompt";
+import { cleanOrchestrationRules } from "../../services/orchestrations";
 
 type WorkspaceTab = "general" | "scripts" | "ports";
 type ScriptKind = "setup" | "run" | "archive";
@@ -568,9 +569,7 @@ function WorkspaceSettingsDialog({
     setSaveError(null);
     try {
       // Rows missing a name or a prefix are dropped, not saved half-filled.
-      const orchestrationRules = (config.orchestrationRules ?? [])
-        .map((rule) => ({ name: rule.name.trim(), branchPrefix: rule.branchPrefix.trim() }))
-        .filter((rule) => rule.name !== "" && rule.branchPrefix !== "");
+      const orchestrationRules = cleanOrchestrationRules(config.orchestrationRules ?? []);
       await Promise.all([
         saveConfig(currentRepoPath, { ...config, orchestrationRules }),
         ...(appConfig ? [saveAppConfig(appConfig)] : []),

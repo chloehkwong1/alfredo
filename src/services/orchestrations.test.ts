@@ -4,6 +4,8 @@ import {
   yourTurnRows,
   nextNeedsYouSince,
   formatWaitingAge,
+  countRuleMatches,
+  cleanOrchestrationRules,
   type Orchestration,
 } from "./orchestrations";
 import type { Worktree } from "../types";
@@ -282,5 +284,33 @@ describe("formatWaitingAge", () => {
     [3 * 86_400_000, "3 d"],
   ])("%i ms waited -> %s", (ms, expected) => {
     expect(formatWaitingAge(T, T + ms)).toBe(expected);
+  });
+});
+
+describe("countRuleMatches", () => {
+  const worktrees = [
+    wt({ id: "a", branch: "bill/one" }),
+    wt({ id: "b", branch: "bill/two", archived: true }),
+    wt({ id: "c", branch: "other" }),
+    wt({ id: "d", branch: "bill/three", repoPath: "/elsewhere" }),
+  ];
+  it("counts this repo's worktrees under the trimmed prefix, archived included", () => {
+    expect(countRuleMatches("/r", " bill/ ", worktrees)).toBe(2);
+  });
+  it("is 0 for an empty or blank prefix", () => {
+    expect(countRuleMatches("/r", "", worktrees)).toBe(0);
+    expect(countRuleMatches("/r", "   ", worktrees)).toBe(0);
+  });
+});
+
+describe("cleanOrchestrationRules", () => {
+  it("trims name and prefix and drops rows missing either", () => {
+    expect(
+      cleanOrchestrationRules([
+        { name: " Billing ", branchPrefix: " bill/ " },
+        { name: "", branchPrefix: "x/" },
+        { name: "No prefix", branchPrefix: "  " },
+      ]),
+    ).toEqual([{ name: "Billing", branchPrefix: "bill/" }]);
   });
 });
