@@ -349,9 +349,13 @@ export function useSessionRestore(
         .catch((e) => console.warn(`[session-restore] Failed to load worktree order for ${repo}:`, e));
 
       // Orchestration rules: personal layer only, hydrated for every repo.
+      // Same stale-fetch guard as the order block: if the settings dialog
+      // saved rules while this read was in flight, its write wins.
+      const rulesBeforeFetch = useWorkspaceStore.getState().orchestrationRules[repo];
       getOrchestrationRules(repo)
         .then((rules) => {
           if (cancelled) return;
+          if (useWorkspaceStore.getState().orchestrationRules[repo] !== rulesBeforeFetch) return;
           setOrchestrationRulesForRepo(repo, rules ?? []);
         })
         .catch((e) => console.warn(`[session-restore] Failed to load orchestration rules for ${repo}:`, e));

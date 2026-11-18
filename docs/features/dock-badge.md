@@ -25,6 +25,9 @@ A worktree you've already opened (its agent in view, focus on the
 pane) drops out of the count, unless you've explicitly marked it
 unread — unread takes precedence over seen.
 
+The sidebar's "Your turn" list (see [Orchestrations](orchestrations.md))
+uses this same test to decide which worktrees need you.
+
 **Master toggle:** the dock badge follows the **Enable
 Notifications** master toggle on Settings → Notifications. Turn that
 off and the badge clears. The banner triggers (waiting / finished)

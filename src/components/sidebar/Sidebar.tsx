@@ -16,6 +16,7 @@ import { StatusGroup } from "./StatusGroup";
 import { SelectionBar } from "./SelectionBar";
 import { clickIntent } from "./AgentItem";
 import { SidebarDragContext } from "./SidebarDragContext";
+import { YourTurnSection } from "./YourTurnSection";
 import { ArchiveSection } from "./ArchiveSection";
 import { RepoSelector } from "./RepoSelector";
 import { BranchSection } from "./BranchSection";
@@ -651,6 +652,11 @@ function Sidebar({
       <>
         {/* Scrollable agent list */}
         <div className="flex-1 overflow-y-auto pb-3">
+          <YourTurnSection
+            selectedRepos={effectiveSelectedRepos}
+            repoDisplayNames={repoDisplayNames}
+            repoShortLabels={repoShortLabels}
+          />
           {hasWorktreeRepos && (pinnedWorktrees.size > 0 || hideUnpinned) && (
             <div className="sticky top-0 z-10 flex justify-end gap-1 px-3.5 pb-1 bg-gradient-to-b from-[var(--bg-sidebar)] via-[var(--bg-sidebar)] to-transparent">
               {pinnedWorktrees.size > 0 && (

@@ -27,6 +27,7 @@ import {
   saveAppConfig,
   setRepoMode,
   listWorktrees,
+  getOrchestrationRules,
 } from "../../api";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useAppConfigStore } from "../../stores/appConfigStore";
@@ -35,6 +36,7 @@ import { useRepoConfig } from "../../hooks/useRepoConfig";
 import { openPathInEditor } from "../../services/openExternal";
 import { flagsError } from "../../services/launchCommand";
 import { Button } from "../ui/Button";
+import { OrchestrationRulesSettings } from "./OrchestrationRulesSettings";
 import { Dialog, DialogContent } from "../ui/Dialog";
 import { RepoDropdown } from "../ui/RepoDropdown";
 import {
@@ -565,8 +567,12 @@ function WorkspaceSettingsDialog({
     setSaving(true);
     setSaveError(null);
     try {
+      // Rows missing a name or a prefix are dropped, not saved half-filled.
+      const orchestrationRules = (config.orchestrationRules ?? [])
+        .map((rule) => ({ name: rule.name.trim(), branchPrefix: rule.branchPrefix.trim() }))
+        .filter((rule) => rule.name !== "" && rule.branchPrefix !== "");
       await Promise.all([
-        saveConfig(currentRepoPath, config),
+        saveConfig(currentRepoPath, { ...config, orchestrationRules }),
         ...(appConfig ? [saveAppConfig(appConfig)] : []),
       ]);
       const newName = displayNameDraft.trim() || null;
@@ -584,6 +590,12 @@ function WorkspaceSettingsDialog({
         await onSetRepoShortLabel?.(currentRepoPath, newLabel);
       }
       setDirty(false);
+      try {
+        const rules = await getOrchestrationRules(currentRepoPath);
+        useWorkspaceStore.getState().setOrchestrationRulesForRepo(currentRepoPath, rules ?? []);
+      } catch (e) {
+        console.warn("Failed to refresh orchestration rules after settings save:", e);
+      }
       try {
         const fresh = await listWorktrees(currentRepoPath);
         useWorkspaceStore.getState().setWorktreesForRepo(currentRepoPath, fresh);
@@ -935,6 +947,12 @@ function WorkspaceSettingsDialog({
                     Submit prompt automatically
                   </label>
                 </div>
+
+                <OrchestrationRulesSettings
+                  repoPath={currentRepoPath}
+                  rules={config.orchestrationRules ?? []}
+                  onChange={(orchestrationRules) => updateConfig({ orchestrationRules })}
+                />
               </div>
             )}
 

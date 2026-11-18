@@ -23,3 +23,9 @@ ui_path: N/A
 - **Repository settings** — per-repo config (scripts, cleanup
   rules, display name). Separate from Global Settings.
 - **app.json** — Alfredo's global config file on disk.
+- **Orchestration** — a personal rule (a name plus a branch prefix)
+  that groups the worktrees whose branch starts with that prefix.
+  Set in Repository settings → General. Only you see it.
+- **Your turn** — the sidebar list at the top showing worktrees in
+  your orchestrations that need you: **Answer** (the agent is
+  waiting for input) or **Check** (finished, errored, or ready).
