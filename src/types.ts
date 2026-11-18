@@ -23,7 +23,7 @@ export type PtyEvent =
   /** Terminal output bytes, base64-encoded (see the Rust `PtyEvent` serializer). */
   | { event: "output"; data: string }
   | { event: "agentState"; data: AgentState }
-  | { event: "hookAgentState"; data: { state: AgentState; notify: NotifyReason; phase: HookPhase } }
+  | { event: "hookAgentState"; data: { state: AgentState; notify: NotifyReason; phase: HookPhase; question?: AgentQuestion } }
   | { event: "heartbeat" }
   | { event: "title"; data: string | null }
   | { event: "process"; data: string | null }
@@ -35,6 +35,13 @@ export type HookPhase = "none" | "promptStart" | "toolStart" | "toolEnd" | "turn
 // ── Agent ───────────────────────────────────────────────────────
 
 export type AgentType = "claudeCode" | "codex" | "geminiCli" | "aider" | "unknown";
+
+/** The question an agent is parked on (AskUserQuestion). In-memory only: never
+ *  persisted or logged. */
+export interface AgentQuestion {
+  text: string;
+  header?: string;
+}
 
 export type AgentState = "idle" | "busy" | "waitingForInput" | "notRunning";
 
@@ -89,6 +96,9 @@ export interface Worktree {
    *  mergeWorktreeState from re-adopting a stale backend-hydrated status. */
   prStatusCleared?: boolean;
   agentStatus: AgentState;
+  /** Frontend-only: the open question of the first waiting agent tab. Written
+   *  by statusMirror; never persisted. */
+  question?: AgentQuestion;
   channelAlive?: boolean;
   staleBusy?: boolean;
   /** Number of background/Task subagents currently in flight across this

@@ -51,6 +51,7 @@ describe("setWorktrees / mergeWorktreeState", () => {
           additions: 917,
           deletions: 90,
           runningAgents: 3,
+          question: { text: "Which copy?", header: "Error copy" },
         }),
       ],
     });
@@ -82,6 +83,7 @@ describe("setWorktrees / mergeWorktreeState", () => {
     expect(wt.additions).toBe(917);
     expect(wt.deletions).toBe(90);
     expect(wt.runningAgents).toBe(3);
+    expect(wt.question).toEqual({ text: "Which copy?", header: "Error copy" });
   });
 
   it("preserves enriched state when a branch switch changes the worktree id", () => {

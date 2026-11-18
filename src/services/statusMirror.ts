@@ -31,12 +31,15 @@ export function startStatusMirror(): void {
 
   const sync = () => {
     const { tabs } = useTabStore.getState();
-    const { statuses } = useSessionStatusStore.getState();
+    const { statuses, questions } = useSessionStatusStore.getState();
     const { worktrees, updateWorktree } = useWorkspaceStore.getState();
 
     for (const wt of worktrees) {
       const agentTabs = (tabs[wt.id] ?? []).filter(isAgentTab);
       let projected: AgentState = "notRunning";
+      const question = agentTabs.find((tab) => statuses[tab.id] === "waitingForInput" && questions[tab.id])
+        ?.id;
+      const projectedQuestion = question ? questions[question] : undefined;
       for (const tab of agentTabs) {
         const state = statuses[tab.id];
         if (!state) continue;
@@ -44,8 +47,10 @@ export function startStatusMirror(): void {
           projected = state;
         }
       }
-      if (wt.agentStatus !== projected) {
-        updateWorktree(wt.id, { agentStatus: projected });
+      const questionChanged =
+        wt.question?.text !== projectedQuestion?.text || wt.question?.header !== projectedQuestion?.header;
+      if (wt.agentStatus !== projected || questionChanged) {
+        updateWorktree(wt.id, { agentStatus: projected, question: projectedQuestion });
       }
     }
   };

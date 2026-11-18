@@ -472,6 +472,7 @@ export class SessionManager implements SessionWriter {
       session.subagentDepth = 0;
       session.monitorPending = false;
       session.awaitingAnswer = false;
+      useSessionStatusStore.getState().clearSessionQuestion(sessionKey);
       session.turnEndAt = 0;
       session.onFirstOutput = undefined;
       if (session.pendingIdleTimer !== null) {
@@ -657,6 +658,7 @@ export class SessionManager implements SessionWriter {
         session.subagentDepth = 0;
         session.monitorPending = false;
         session.awaitingAnswer = false;
+        useSessionStatusStore.getState().clearSessionQuestion(sessionKey);
         session.agentState = "idle";
         // Setting hookDerivedState=idle also engages the detector's idle-mute
         // (sessionChannel agentState handler), silencing the dead-channel escape
@@ -1007,6 +1009,7 @@ export class SessionManager implements SessionWriter {
     session.subagentDepth = 0;
     session.monitorPending = false;
     session.awaitingAnswer = false;
+    useSessionStatusStore.getState().clearSessionQuestion(sessionKey);
     session.turnEndAt = 0;
     session.ptyExited = false;
     // Reset lastOutputAt so callers (e.g. auto-resume) can detect when the

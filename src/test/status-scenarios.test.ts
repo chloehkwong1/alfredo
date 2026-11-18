@@ -707,7 +707,7 @@ describe("statusMirror", () => {
     // (guarded by a module-level `started` flag) — calling it every test is
     // safe; subscriptions registered by the first call drive subsequent syncs.
     useTabStore.getState().clearStore();
-    useSessionStatusStore.setState({ statuses: {} });
+    useSessionStatusStore.setState({ statuses: {}, questions: {} });
     useWorkspaceStore.setState({
       worktrees: [{ id: "wt-mirror", agentStatus: "notRunning", staleBusy: false } as any],
     });
@@ -738,6 +738,25 @@ describe("statusMirror", () => {
     useSessionStatusStore.getState().setSessionStatus(tabB.id, "waitingForInput");
 
     expect(useWorkspaceStore.getState().worktrees[0].agentStatus).toBe("waitingForInput");
+  });
+
+  it("projects the question of the first waiting tab and drops it when answered", () => {
+    const tabA = makeAgentTab("wt-mirror:claude:aaa");
+    const tabB = makeAgentTab("wt-mirror:claude:bbb");
+    useTabStore.setState({
+      tabs: { "wt-mirror": [tabA, tabB] },
+      activeTabId: { "wt-mirror": tabA.id },
+    });
+    const store = useSessionStatusStore.getState();
+    store.setSessionStatus(tabA.id, "busy");
+    store.setSessionQuestion(tabA.id, { text: "stale, tab is not waiting" });
+    store.setSessionStatus(tabB.id, "waitingForInput");
+    store.setSessionQuestion(tabB.id, { text: "Which copy?", header: "Error copy" });
+
+    expect(useWorkspaceStore.getState().worktrees[0].question).toEqual({ text: "Which copy?", header: "Error copy" });
+
+    store.clearSessionQuestion(tabB.id);
+    expect(useWorkspaceStore.getState().worktrees[0].question).toBeUndefined();
   });
 
   it("projects notRunning when no agent tabs exist", () => {
@@ -826,7 +845,7 @@ describe("seenWorktrees ordering invariant", () => {
   });
 });
 
-import { applyHookToDepth, applySubagentDepth, applyMonitorPending, applyAwaitingAnswer, hasWorkInFlight, REGISTRY_BUSY_CONFIRM_TTL_MS, STALE_HOOK_FORCE_MS } from "../services/sessionChannel";
+import { applyHookToDepth, applySubagentDepth, applyMonitorPending, applyAwaitingAnswer, applyQuestion, hasWorkInFlight, REGISTRY_BUSY_CONFIRM_TTL_MS, STALE_HOOK_FORCE_MS } from "../services/sessionChannel";
 
 describe("applyHookToDepth", () => {
   it("increments on promptStart", () => {
@@ -1614,6 +1633,18 @@ describe("applyAwaitingAnswer", () => {
     expect(applyAwaitingAnswer(true, "busy", "subagentEnd")).toBe(true);
     expect(applyAwaitingAnswer(false, "busy", "toolStart")).toBe(false);
   });
+});
+
+describe("applyQuestion", () => {
+  const q = { text: "Which copy?", header: "Error copy" };
+  it("sets from an incoming question", () => expect(applyQuestion(null, "waitingForInput", "toolStart", q)).toEqual(q));
+  it("replaces an older question", () => expect(applyQuestion({ text: "old" }, "waitingForInput", "toolStart", q)).toEqual(q));
+  it("keeps it through background busy hooks", () => expect(applyQuestion(q, "busy", "toolStart", undefined)).toEqual(q));
+  it("keeps it through a straggler turnEnd", () => expect(applyQuestion(q, "idle", "turnEnd", undefined)).toEqual(q));
+  it("keeps it through a bare waitingForInput (idle notification)", () => expect(applyQuestion(q, "waitingForInput", "none", undefined)).toEqual(q));
+  it("clears on questionEnd", () => expect(applyQuestion(q, "busy", "questionEnd", undefined)).toBeNull());
+  it("clears on promptStart", () => expect(applyQuestion(q, "busy", "promptStart", undefined)).toBeNull());
+  it("clears on notRunning", () => expect(applyQuestion(q, "notRunning", "none", undefined)).toBeNull());
 });
 
 describe("applyHookToDepth questionEnd", () => {

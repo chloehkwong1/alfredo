@@ -1,4 +1,4 @@
-import type { ClaudeRegistryEntry, ClaudeRegistryStatus, NotifyReason, Worktree } from "../types";
+import type { AgentQuestion, ClaudeRegistryEntry, ClaudeRegistryStatus, NotifyReason, Worktree } from "../types";
 import { sendNotification } from "../hooks/notificationUtils";
 import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
 import { createPtyChannel, getAppConfig } from "../api";
@@ -344,6 +344,24 @@ export function applyAwaitingAnswer(
 }
 
 /**
+ * The open AskUserQuestion text for a session. Set by an incoming question;
+ * kept through everything else (background busy hooks, a straggler turnEnd, a
+ * bare idle-notification waitingForInput) because the question is still parked;
+ * cleared when it is answered (questionEnd), when a prompt starts, or when the
+ * session dies. Pure function — safe to unit test.
+ */
+export function applyQuestion(
+  prev: AgentQuestion | null,
+  state: import("../types").AgentState,
+  phase: import("../types").HookPhase,
+  incoming: AgentQuestion | undefined,
+): AgentQuestion | null {
+  if (incoming) return incoming;
+  if (state === "notRunning" || phase === "questionEnd" || phase === "promptStart") return null;
+  return prev;
+}
+
+/**
  * Structural proof that work is in flight: a foreground tool (workDepth) or a
  * background/Task subagent (subagentDepth). While this holds, the reconciler
  * refuses to stale-rescue and the detector fallback refuses to flip the session
@@ -528,7 +546,7 @@ export function createSessionChannel(
         break;
       }
       case "hookAgentState": {
-        const { state, notify, phase } = event.data;
+        const { state, notify, phase, question } = event.data;
         const hookDesc = `${state}${phase !== "none" ? `(${phase})` : ""}`;
         // Diagnostic: log hook arrival with delta since last turnEnd. Helps
         // identify stragglers (e.g. busy(toolEnd) arriving seconds after
@@ -565,6 +583,14 @@ export function createSessionChannel(
         // PostToolUse (questionEnd) — MUST update before the questionEnd hook
         // reaches the busy display gate below so the resume becomes visible.
         session.awaitingAnswer = applyAwaitingAnswer(session.awaitingAnswer, state, phase);
+        // Open question text, same pre-suppression line. Held in the status
+        // store (memory only) — never include it in a log line.
+        {
+          const statusStore = useSessionStatusStore.getState();
+          const nextQuestion = applyQuestion(statusStore.questions[sessionKey] ?? null, state, phase, question);
+          if (nextQuestion) statusStore.setSessionQuestion(sessionKey, nextQuestion);
+          else statusStore.clearSessionQuestion(sessionKey);
+        }
         // Record subagent activity (start OR end) before any suppression break.
         // SubagentStop is reliable where SubagentStart is not, so subagentEnd is
         // the load-bearing signal here: it proves the session was recently doing

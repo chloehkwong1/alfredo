@@ -359,6 +359,7 @@ function mergeWorktreeState(fresh: Worktree[], existing: Worktree[]): Worktree[]
         prStatusCleared: old.prStatusCleared,
         column: old.column,
         agentStatus: old.agentStatus,
+        question: old.question,
         channelAlive: old.channelAlive,
         staleBusy: old.staleBusy,
         // Frontend-only count written by the reconciler — listWorktrees has no
