@@ -1107,6 +1107,51 @@ describe("orchestrationRules", () => {
   });
 });
 
+describe("needsYouSince", () => {
+  const waiting = (id: string) =>
+    makeWorktree({ id, agentStatus: "waitingForInput", channelAlive: true });
+
+  it("gets an entry when a worktree turns waitingForInput and loses it once seen/answered", () => {
+    const s = () => useWorkspaceStore.getState();
+    s().setWorktrees([makeWorktree({ id: "wt-1", agentStatus: "busy" })]);
+    expect(s().needsYouSince).toEqual({});
+
+    s().updateWorktree("wt-1", { agentStatus: "waitingForInput" });
+    expect(s().needsYouSince["wt-1"]).toMatchObject({ kind: "answer" });
+
+    // Answered: the agent is busy again.
+    s().updateWorktree("wt-1", { agentStatus: "busy" });
+    expect(s().needsYouSince).toEqual({});
+  });
+
+  it("drops a finished worktree's entry when it is marked seen", () => {
+    const s = () => useWorkspaceStore.getState();
+    s().setWorktrees([makeWorktree({ id: "wt-1", agentStatus: "idle", channelAlive: true })]);
+    expect(s().needsYouSince["wt-1"]).toMatchObject({ kind: "check" });
+
+    s().markWorktreeSeen("wt-1");
+    expect(s().needsYouSince).toEqual({});
+  });
+
+  it("follows a worktree rename", () => {
+    const s = () => useWorkspaceStore.getState();
+    s().setWorktrees([waiting("wt-old")]);
+    const at = s().needsYouSince["wt-old"].at;
+
+    s().setWorktrees([waiting("wt-new")]);
+
+    expect(s().needsYouSince["wt-old"]).toBeUndefined();
+    expect(s().needsYouSince["wt-new"]).toEqual({ kind: "answer", at });
+  });
+
+  it("clearStore resets it", () => {
+    const s = () => useWorkspaceStore.getState();
+    s().setWorktrees([waiting("wt-1")]);
+    s().clearStore();
+    expect(s().needsYouSince).toEqual({});
+  });
+});
+
 describe("stack-adoption dismissals", () => {
   it("dismiss and read agree on the key for ids containing ':' separators", () => {
     const store = useWorkspaceStore;

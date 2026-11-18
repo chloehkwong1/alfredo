@@ -11,6 +11,23 @@ export interface BadgeCountInput {
   notificationsEnabled: boolean;
 }
 
+/** The status the sidebar row shows for a worktree, given the seen/unread sets. */
+export function worktreeEffectiveStatus(
+  wt: Worktree,
+  seen: Set<string>,
+  unread: Set<string>,
+): string {
+  const effectiveSeen = seen.has(wt.id) && !unread.has(wt.id);
+  return computeEffectiveStatus(
+    wt.agentStatus,
+    wt.channelAlive,
+    wt.staleBusy,
+    effectiveSeen,
+    wt.justCreated,
+    wt.setupInProgress,
+  );
+}
+
 /** The dock badge's per-worktree predicate. UI surfaces that claim to explain
  *  the badge number (e.g. the collapsed status-group pill) must use this, not
  *  reimplement it, so they can never drift from the badge count. */
@@ -24,16 +41,7 @@ export function worktreeNeedsYou(
   // deliberately does NOT count: routine drift like a stack root falling
   // behind main would pin a permanent badge — the chip's amber "!" and the
   // stack map remain its surfaces.
-  const effectiveSeen = seen.has(wt.id) && !unread.has(wt.id);
-  const status = computeEffectiveStatus(
-    wt.agentStatus,
-    wt.channelAlive,
-    wt.staleBusy,
-    effectiveSeen,
-    wt.justCreated,
-    wt.setupInProgress,
-  );
-  return NEEDS_YOU_STATES.has(status);
+  return NEEDS_YOU_STATES.has(worktreeEffectiveStatus(wt, seen, unread));
 }
 
 export function computeBadgeCount(input: BadgeCountInput): number {
