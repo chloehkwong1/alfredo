@@ -42,6 +42,15 @@ pub enum SessionStatus {
 /// tauri 2.11 only direct-evals JSON bodies under 8 KB and `Raw` bodies under
 /// 1 KB; everything else takes a fetch round-trip. Base64 keeps every chunk
 /// pty_manager can send (≤ 4096 B → ~5.5 KB JSON) on the direct-eval path.
+/// The first question of an AskUserQuestion call (or a fixed label for
+/// ExitPlanMode). Held in memory only: never write it to a log or to disk.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HookQuestion {
+    pub text: String,
+    pub header: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "event", content = "data")]
 pub enum PtyEvent {
@@ -55,6 +64,10 @@ pub enum PtyEvent {
         state: AgentState,
         notify: NotifyReason,
         phase: HookPhase,
+        /// The question the agent is parked on (AskUserQuestion / ExitPlanMode).
+        /// In memory only: never log it.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        question: Option<HookQuestion>,
     },
     /// Periodic heartbeat so the frontend can detect a dead PTY channel.
     Heartbeat,
@@ -127,11 +140,22 @@ mod pty_event_wire_tests {
             state: AgentState::Idle,
             notify: NotifyReason::Finished,
             phase: HookPhase::TurnEnd,
+            question: None,
         });
+        assert!(hook["data"].get("question").is_none());
         assert_eq!(hook["event"], "hookAgentState");
         assert_eq!(hook["data"]["state"], "idle");
         assert_eq!(hook["data"]["notify"], "finished");
         assert_eq!(hook["data"]["phase"], "turnEnd");
+
+        let asked = json(PtyEvent::HookAgentState {
+            state: AgentState::WaitingForInput,
+            notify: NotifyReason::Input,
+            phase: HookPhase::ToolStart,
+            question: Some(HookQuestion { text: "Which copy?".into(), header: Some("Error copy".into()) }),
+        });
+        assert_eq!(asked["data"]["question"]["text"], "Which copy?");
+        assert_eq!(asked["data"]["question"]["header"], "Error copy");
     }
 }
 

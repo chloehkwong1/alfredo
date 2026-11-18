@@ -585,6 +585,7 @@ impl PtyManager {
                         state: AgentState::NotRunning,
                         notify: NotifyReason::None,
                         phase: HookPhase::None,
+                        question: None,
                     }) {
                         eprintln!("[pty-reader {id}] channel send failed (NotRunning): {e}");
                     }
@@ -1431,7 +1432,7 @@ fn write_hooks_config(
     // PostToolUse still posts toolEnd, keeping workDepth balanced.
     let cmd_pretooluse = || -> String {
         format!(
-            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"(AskUserQuestion|ExitPlanMode)"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; elif printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"Monitor"'; then ST=busy; Q='?phase=monitorStart'; LBL='busy(monitorStart)'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then curl -sf --max-time 2 -o /dev/null -X POST "$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q" || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
+            r#"INPUT=$(cat); if printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"(AskUserQuestion|ExitPlanMode)"'; then ST=waitingForInput; Q='?notify=input&phase=toolStart'; LBL='waitingForInput(toolStart) notify=input'; SEND=1; elif printf '%s' "$INPUT" | grep -qE '"tool_name"[[:space:]]*:[[:space:]]*"Monitor"'; then ST=busy; Q='?phase=monitorStart'; LBL='busy(monitorStart)'; else ST=busy; Q='?phase=toolStart'; LBL='busy(toolStart)'; fi; echo "$(date +%H:%M:%S) FIRE $LBL session=$ALFREDO_SESSION_ID url=${{ALFREDO_STATE_URL:-UNSET}}" >> /tmp/alfredo-hooks.log; {nested_fn}; if alfredo_nested; then echo "$(date +%H:%M:%S) SUPPRESS nested $ST session=$ALFREDO_SESSION_ID" >> /tmp/alfredo-hooks.log; echo '{{}}'; exit 0; fi; if [ -n "$ALFREDO_STATE_URL" ]; then U="$ALFREDO_STATE_URL/agent-state/$ALFREDO_SESSION_ID/$ALFREDO_WORKTREE_ID/$ST$Q"; if [ -n "$SEND" ]; then printf '%s' "$INPUT" | curl -sf --max-time 2 -o /dev/null -X POST -H 'Content-Type: application/json' --data-binary @- "$U"; else curl -sf --max-time 2 -o /dev/null -X POST "$U"; fi || echo "$(date +%H:%M:%S) FAIL $LBL session=$ALFREDO_SESSION_ID url=$ALFREDO_STATE_URL" >> /tmp/alfredo-hooks.log; fi; echo '{{}}'"#
         )
     };
     // PostToolUse fires for every tool → busy?phase=toolEnd, EXCEPT the two
@@ -2631,6 +2632,15 @@ mod tests {
             cmd.contains("ExitPlanMode"),
             "PreToolUse must branch on ExitPlanMode; got: {cmd}"
         );
+        // Only the question branch posts the tool JSON as the request body.
+        assert!(
+            cmd.contains("--data-binary @-"),
+            "PreToolUse must post the hook body for AskUserQuestion; got: {cmd}"
+        );
+        assert!(
+            cmd.contains("SEND=1"),
+            "only the AskUserQuestion branch may set SEND; got: {cmd}"
+        );
         // Every other tool still posts busy?phase=toolStart (depth +1, balanced
         // by the matching PostToolUse toolEnd).
         assert!(
@@ -2677,6 +2687,10 @@ mod tests {
         assert!(
             cmd.contains("PH=toolEnd"),
             "default branch must still post busy?phase=toolEnd; got: {cmd}"
+        );
+        assert!(
+            !cmd.contains("--data-binary"),
+            "PostToolUse must not post the hook body; got: {cmd}"
         );
     }
 

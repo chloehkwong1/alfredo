@@ -8,7 +8,7 @@ use axum::Router;
 use tokio::net::TcpListener;
 
 use crate::sleep_inhibitor::SleepInhibitor;
-use crate::types::{AgentState, HookPhase, NotifyReason, PtyEvent};
+use crate::types::{AgentState, HookPhase, HookQuestion, NotifyReason, PtyEvent};
 use tauri::ipc::Channel;
 
 /// Per-session registration details.
@@ -178,6 +178,31 @@ fn parse_state(s: &str) -> Option<AgentState> {
     }
 }
 
+/// Extracts the question the agent is parked on from a PreToolUse hook body.
+/// AskUserQuestion yields its first question; ExitPlanMode a fixed label.
+/// Anything else (empty, malformed, other tools, blank text) is `None`.
+fn parse_hook_question(body: &[u8]) -> Option<HookQuestion> {
+    let v: serde_json::Value = serde_json::from_slice(body).ok()?;
+    match v.get("tool_name")?.as_str()? {
+        "ExitPlanMode" => Some(HookQuestion { text: "Plan ready for review".to_string(), header: None }),
+        "AskUserQuestion" => {
+            let first = v.get("tool_input")?.get("questions")?.as_array()?.first()?;
+            let text = first.get("question")?.as_str()?.trim();
+            if text.is_empty() {
+                return None;
+            }
+            let header = first
+                .get("header")
+                .and_then(|h| h.as_str())
+                .map(str::trim)
+                .filter(|h| !h.is_empty())
+                .map(str::to_string);
+            Some(HookQuestion { text: text.to_string(), header })
+        }
+        _ => None,
+    }
+}
+
 /// POST /agent-state/{session_id}/{worktree_id...}/{state}
 ///
 /// Routes hook events to the specific session that originated them, preventing
@@ -188,6 +213,7 @@ fn parse_state(s: &str) -> Option<AgentState> {
 async fn handle_state_update(
     State(router_state): State<RouterState>,
     uri: Uri,
+    body: axum::body::Body,
 ) -> StatusCode {
     let path = uri.path();
     let rest = path.strip_prefix("/agent-state/").unwrap_or("");
@@ -210,6 +236,18 @@ async fn handle_state_update(
     let notify = parse_notify_reason(uri.query());
     let phase = parse_phase(uri.query());
 
+    // Read the body before taking the registry lock (a std Mutex must not be
+    // held across an .await). Oversized or broken bodies are `None`: the
+    // status update is still delivered.
+    let question = if state == AgentState::WaitingForInput {
+        axum::body::to_bytes(body, 64 * 1024)
+            .await
+            .ok()
+            .and_then(|b| parse_hook_question(&b))
+    } else {
+        None
+    };
+
     let Ok(mut reg) = router_state.registry.lock() else {
         tracing::info!("[state-server] registry lock poisoned in handle_state_update");
         return StatusCode::INTERNAL_SERVER_ERROR;
@@ -226,7 +264,7 @@ async fn handle_state_update(
         let desc = format!(
             "{session_id} {state:?} phase={phase:?} notify={notify:?}"
         );
-        let send_result = entry.channel.send(PtyEvent::HookAgentState { state, notify, phase });
+        let send_result = entry.channel.send(PtyEvent::HookAgentState { state, notify, phase, question });
         let registered = reg.channels.len();
         match send_result {
             Ok(()) => tracing::info!("[state-server] → {desc} (SEND OK, registered={registered})"),
@@ -331,7 +369,7 @@ mod tests {
 
         for sid in ["live", "gone"] {
             let uri: Uri = format!("/agent-state/{sid}/wt1/busy?phase=toolStart").parse().unwrap();
-            handle_state_update(State(router_state.clone()), uri).await;
+            handle_state_update(State(router_state.clone()), uri, axum::body::Body::empty()).await;
         }
 
         assert!(handle.sleep_inhibitor.is_busy("live"));
@@ -339,5 +377,77 @@ mod tests {
             !handle.sleep_inhibitor.is_busy("gone"),
             "a hook for an unregistered session must not hold caffeinate"
         );
+    }
+
+    #[test]
+    fn parse_hook_question_reads_first_question() {
+        let body = br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which copy?","header":"Error copy"},{"question":"Second?","header":"B"}]}}"#;
+        let q = parse_hook_question(body).unwrap();
+        assert_eq!(q.text, "Which copy?");
+        assert_eq!(q.header.as_deref(), Some("Error copy"));
+    }
+
+    #[test]
+    fn parse_hook_question_exit_plan_mode() {
+        let q = parse_hook_question(br#"{"tool_name":"ExitPlanMode","tool_input":{"plan":"..."}}"#).unwrap();
+        assert_eq!(q.text, "Plan ready for review");
+        assert_eq!(q.header, None);
+    }
+
+    #[test]
+    fn parse_hook_question_rejects_other_input() {
+        assert!(parse_hook_question(b"").is_none());
+        assert!(parse_hook_question(b"not json").is_none());
+        assert!(parse_hook_question(br#"{"tool_name":"Bash","tool_input":{"command":"ls"}}"#).is_none());
+        assert!(parse_hook_question(br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[]}}"#).is_none());
+        assert!(parse_hook_question(br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"   "}]}}"#).is_none());
+    }
+
+    /// Posts a waitingForInput hook with `body` and returns the `question`
+    /// carried by the event the session's channel received.
+    async fn post_waiting_with_body(body: Vec<u8>) -> Option<HookQuestion> {
+        let handle = StateServerHandle::new_for_test();
+        let seen: Arc<Mutex<Vec<Option<HookQuestion>>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+        let channel = Channel::new(move |resp| {
+            if let tauri::ipc::InvokeResponseBody::Json(json) = resp {
+                let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+                let q = v["data"].get("question").map(|q| HookQuestion {
+                    text: q["text"].as_str().unwrap().to_string(),
+                    header: q["header"].as_str().map(str::to_string),
+                });
+                sink.lock().unwrap().push(q);
+            }
+            Ok(())
+        });
+        handle.register_channel("s1", "wt1", channel);
+        let router_state = RouterState {
+            registry: Arc::clone(&handle.registry),
+            sleep_inhibitor: Arc::clone(&handle.sleep_inhibitor),
+        };
+        let uri: Uri = "/agent-state/s1/wt1/waitingForInput?notify=input&phase=toolStart".parse().unwrap();
+        let status = handle_state_update(State(router_state), uri, axum::body::Body::from(body)).await;
+        assert_eq!(status, StatusCode::OK);
+        let events = seen.lock().unwrap();
+        assert_eq!(events.len(), 1, "the status update must always be delivered");
+        events[0].clone()
+    }
+
+    #[tokio::test]
+    async fn handler_delivers_question_from_body() {
+        let body = br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which copy?","header":"H"}]}}"#;
+        let q = post_waiting_with_body(body.to_vec()).await.unwrap();
+        assert_eq!(q.text, "Which copy?");
+        assert_eq!(q.header.as_deref(), Some("H"));
+    }
+
+    #[tokio::test]
+    async fn handler_without_body_still_delivers_status() {
+        assert_eq!(post_waiting_with_body(Vec::new()).await, None);
+    }
+
+    #[tokio::test]
+    async fn handler_with_oversized_body_still_delivers_status() {
+        assert_eq!(post_waiting_with_body(vec![b'x'; 100 * 1024]).await, None);
     }
 }
