@@ -1,6 +1,6 @@
 ---
 title: Orchestrations and "Your turn" — a list of the worktrees that need you
-keywords: [orchestration, orchestrations, your turn, answer, check, waiting for input, question, branch prefix, rule, sidebar, agent question]
+keywords: [orchestration, orchestrations, your turn, answer, check, waiting for input, question, branch prefix, rule, sidebar, agent question, worktree note]
 ui_path: Sidebar — "Your turn" at the top; Repository settings → General → Orchestrations
 ---
 
@@ -11,7 +11,7 @@ nobody else sees them and your team's repo is untouched.
 
 The **Your turn** list sits at the top of the sidebar. It shows the
 worktrees in your orchestrations that need you, oldest first. With no
-rules, or nothing waiting, it doesn't appear at all.
+orchestrations, or nothing waiting, it doesn't appear at all.
 
 **Add a rule:** Repository settings → General → **Orchestrations** →
 **Add orchestration**. Give it a name and a branch prefix (for example
@@ -19,11 +19,21 @@ rules, or nothing waiting, it doesn't appear at all.
 now. Rows missing a name or a prefix are dropped when you save. The
 list updates as soon as you save; no restart.
 
+**Without a rule:** worktrees whose
+[worktree notes](external-worktrees.md)
+have the same `orchestration` form an orchestration with that name.
+They appear in **Your turn** with no rule. The item is the note's
+`label`, or the branch when the note has no label. A worktree with a
+note that also matches a rule shows once, with the note's names. A rule
+with the same name as a note orchestration adds its other worktrees to
+it.
+
 **What a row shows:**
 
 - **Answer** — the agent is waiting for input. The row shows its
   question, then the orchestration name, the item (the branch after
-  the prefix) and `waiting` plus how long.
+  the prefix, or the name from a worktree note) and `waiting` plus
+  how long.
 - **Check** — the agent finished, errored, or is ready to start. The
   row shows which, then the orchestration name, the item and how long.
 

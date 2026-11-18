@@ -86,6 +86,13 @@ export interface StackPendingAction {
   blockedBy: "dirty" | "rebaseInProgress" | "agentBusy" | "nativeRestacked" | "foreignPrNotPushed";
 }
 
+/** What an external tool says a worktree is for, from its note file. Read by
+ *  the backend at every listWorktrees; Alfredo never writes it. */
+export interface WorktreeNote {
+  label?: string;
+  orchestration?: string;
+}
+
 export interface Worktree {
   id: string;
   name: string;
@@ -125,6 +132,8 @@ export interface Worktree {
   lastCommitEpoch?: number; // epoch ms of latest commit on branch (from Rust)
   createdAtEpoch?: number; // epoch ms the worktree directory was created (from Rust)
   adminDirIno?: number; // inode of the git admin dir — identity fallback when birthtime is unavailable
+  /** From the worktree's note file; absent when there is no usable note. */
+  note?: WorktreeNote;
   repoPath: string;
   /** Claude Code session UUID for `--resume` on next spawn. */
   claudeSessionId?: string;

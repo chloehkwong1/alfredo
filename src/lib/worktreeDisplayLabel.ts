@@ -2,7 +2,8 @@ import type { Worktree } from "../types";
 
 /**
  * A worktree's human-facing name: the user's rename override if present,
- * otherwise the git branch, otherwise the worktree directory name.
+ * otherwise the label from its worktree note, otherwise the git branch,
+ * otherwise the worktree directory name.
  *
  * Callers resolve the override themselves — it's keyed by `worktree.path`, which
  * stays stable even when the branch-derived `id` momentarily flips to "HEAD"
@@ -11,8 +12,8 @@ import type { Worktree } from "../types";
  * a rename shows up in both, not just the sidebar.
  */
 export function worktreeDisplayLabel(
-  worktree: Pick<Worktree, "branch" | "name">,
+  worktree: Pick<Worktree, "branch" | "name" | "note">,
   label: string | null | undefined,
 ): string {
-  return label ?? worktree.branch ?? worktree.name;
+  return label ?? worktree.note?.label ?? worktree.branch ?? worktree.name;
 }

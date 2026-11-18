@@ -44,6 +44,16 @@ export function countRuleMatches(repoPath: string, branchPrefix: string, worktre
   return worktrees.filter((wt) => wt.repoPath === repoPath && wt.branch.startsWith(prefix)).length;
 }
 
+/** Item order inside an orchestration: PR number ascending, then worktrees with no PR by branch. */
+function byPrNumberThenBranch(a: Worktree, b: Worktree): number {
+  const an = a.prStatus?.number;
+  const bn = b.prStatus?.number;
+  if (an !== undefined && bn !== undefined) return an - bn;
+  if (an !== undefined) return -1;
+  if (bn !== undefined) return 1;
+  return a.branch < b.branch ? -1 : a.branch > b.branch ? 1 : 0;
+}
+
 export function orchestrationsFromRules(
   repoPath: string,
   rules: OrchestrationRule[],
@@ -55,20 +65,52 @@ export function orchestrationsFromRules(
     .map((rule) => {
       const items = ofRepo
         .filter((wt) => wt.branch.startsWith(rule.branchPrefix))
-        .sort((a, b) => {
-          const an = a.prStatus?.number;
-          const bn = b.prStatus?.number;
-          if (an !== undefined && bn !== undefined) return an - bn;
-          if (an !== undefined) return -1;
-          if (bn !== undefined) return 1;
-          return a.branch < b.branch ? -1 : a.branch > b.branch ? 1 : 0;
-        })
+        .sort(byPrNumberThenBranch)
         .map((wt) => ({
           worktreeId: wt.id,
           title: wt.branch.slice(rule.branchPrefix.length) || wt.branch,
         }));
       return { repoPath, name: rule.name, items };
     });
+}
+
+/** One orchestration per `orchestration` name in the repo's worktree notes
+ *  (archived included), in the order the names first appear among the sorted
+ *  worktrees. Needs no rule. */
+export function orchestrationsFromNotes(repoPath: string, worktrees: Worktree[]): Orchestration[] {
+  const itemsByName = new Map<string, OrchestrationItem[]>();
+  const ofRepo = worktrees.filter((wt) => wt.repoPath === repoPath).sort(byPrNumberThenBranch);
+  for (const wt of ofRepo) {
+    const note = wt.note;
+    if (!note?.orchestration) continue;
+    const item = { worktreeId: wt.id, title: note.label ?? wt.branch };
+    const items = itemsByName.get(note.orchestration);
+    if (items) items.push(item);
+    else itemsByName.set(note.orchestration, [item]);
+  }
+  return [...itemsByName].map(([name, items]) => ({ repoPath, name, items }));
+}
+
+/** Note orchestrations first, then rule orchestrations. A rule orchestration
+ *  with the repo and name of a note orchestration joins it: its worktrees that
+ *  are not items yet are added after the note's own. */
+export function mergeOrchestrations(
+  fromNotes: Orchestration[],
+  fromRules: Orchestration[],
+): Orchestration[] {
+  const isSame = (a: Orchestration, b: Orchestration) =>
+    a.repoPath === b.repoPath && a.name === b.name;
+  const merged = fromNotes.map((note) => {
+    const items = [...note.items];
+    for (const rule of fromRules) {
+      if (!isSame(note, rule)) continue;
+      for (const item of rule.items) {
+        if (!items.some((existing) => existing.worktreeId === item.worktreeId)) items.push(item);
+      }
+    }
+    return { ...note, items };
+  });
+  return [...merged, ...fromRules.filter((rule) => !fromNotes.some((note) => isSame(note, rule)))];
 }
 
 function kindOf(status: string): YourTurnKind {

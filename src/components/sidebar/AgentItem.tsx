@@ -1078,7 +1078,8 @@ const AgentItem = memo(function AgentItem({
     if (!onRename) return;
     const trimmed = next.trim();
     // The input starts empty, so an empty commit means "left untouched" — keep
-    // the current label. Typing the branch name resets a custom label instead.
+    // the current label. Typing the name the row has without a custom label
+    // (the note's label, else the branch) resets the custom label instead.
     if (trimmed === "") return;
     if (trimmed === worktreeDisplayLabel(worktree, null)) {
       if (label != null) onRename(worktree.path, null);

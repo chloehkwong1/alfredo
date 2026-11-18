@@ -333,8 +333,10 @@ pub struct Worktree {
 #[serde(rename_all = "camelCase")]
 pub struct WorktreeNote {
     /// Name to show for the worktree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     /// Name of the orchestration the worktree belongs to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub orchestration: Option<String>,
 }
 

@@ -434,6 +434,22 @@ describe("setWorktrees / mergeWorktreeState", () => {
     store.getState().setWorktrees([{ ...base, prStatus: dead }]);
     expect(store.getState().worktrees[0].prStatus?.number).toBe(500);
   });
+
+  it("clears a previous note when a refresh brings none", () => {
+    const store = useWorkspaceStore;
+    const base = makeWorktree();
+    store.getState().setWorktrees([{ ...base, note: { label: "PR 1", orchestration: "Documents" } }]);
+    store.getState().setWorktrees([base]);
+    expect(store.getState().worktrees[0].note).toBeUndefined();
+  });
+
+  it("replaces a previous note when a refresh brings a new label", () => {
+    const store = useWorkspaceStore;
+    const base = makeWorktree();
+    store.getState().setWorktrees([{ ...base, note: { label: "PR 1", orchestration: "Documents" } }]);
+    store.getState().setWorktrees([{ ...base, note: { label: "PR 1 · Scopes" } }]);
+    expect(store.getState().worktrees[0].note).toEqual({ label: "PR 1 · Scopes" });
+  });
 });
 
 // ── withActivityTimestamps (via setWorktrees) ─────────────────────

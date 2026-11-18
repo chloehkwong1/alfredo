@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   orchestrationsFromRules,
+  orchestrationsFromNotes,
+  mergeOrchestrations,
   yourTurnRows,
   nextNeedsYouSince,
   formatWaitingAge,
@@ -111,6 +113,172 @@ function orch(name: string, ids: string[]): Orchestration {
     items: ids.map((id) => ({ worktreeId: id, title: `t-${id}` })),
   };
 }
+
+describe("orchestrationsFromNotes", () => {
+  it("makes one orchestration per distinct note orchestration, archived worktrees included", () => {
+    const result = orchestrationsFromNotes("/r", [
+      wt({ id: "a", branch: "a", note: { orchestration: "Documents" } }),
+      wt({ id: "b", branch: "b", note: { orchestration: "Billing" } }),
+      wt({ id: "c", branch: "c", archived: true, note: { orchestration: "Documents" } }),
+    ]);
+    expect(result).toEqual([
+      {
+        repoPath: "/r",
+        name: "Documents",
+        items: [
+          { worktreeId: "a", title: "a" },
+          { worktreeId: "c", title: "c" },
+        ],
+      },
+      { repoPath: "/r", name: "Billing", items: [{ worktreeId: "b", title: "b" }] },
+    ]);
+  });
+
+  it("orders orchestrations by where their name first appears among the sorted worktrees", () => {
+    const result = orchestrationsFromNotes("/r", [
+      wt({ id: "z", branch: "z", note: { orchestration: "No PR yet" } }),
+      wt({ id: "p9", branch: "p9", prStatus: pr(9), note: { orchestration: "Later PR" } }),
+      wt({ id: "p2", branch: "p2", prStatus: pr(2), note: { orchestration: "Earlier PR" } }),
+    ]);
+    expect(result.map((o) => o.name)).toEqual(["Earlier PR", "Later PR", "No PR yet"]);
+  });
+
+  it("titles an item with the note's label, or the branch when the note has no label", () => {
+    const [o] = orchestrationsFromNotes("/r", [
+      wt({ id: "a", branch: "docs/a", note: { label: "PR 1 · Scopes", orchestration: "Documents" } }),
+      wt({ id: "b", branch: "docs/b", note: { orchestration: "Documents" } }),
+    ]);
+    expect(o.items).toEqual([
+      { worktreeId: "a", title: "PR 1 · Scopes" },
+      { worktreeId: "b", title: "docs/b" },
+    ]);
+  });
+
+  it("orders items by PR number ascending, then no-PR worktrees by branch", () => {
+    const note = { orchestration: "Documents" };
+    const [o] = orchestrationsFromNotes("/r", [
+      wt({ id: "z", branch: "z", note }),
+      wt({ id: "p9", branch: "p9", prStatus: pr(9), note }),
+      wt({ id: "a", branch: "a", note }),
+      wt({ id: "p2", branch: "p2", prStatus: pr(2), note }),
+    ]);
+    expect(o.items.map((i) => i.worktreeId)).toEqual(["p2", "p9", "a", "z"]);
+  });
+
+  it("gives nothing for a worktree of another repo", () => {
+    expect(
+      orchestrationsFromNotes("/r", [
+        wt({ id: "x", repoPath: "/other", note: { orchestration: "Documents" } }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("gives nothing for a note with no orchestration, or a worktree with no note", () => {
+    expect(
+      orchestrationsFromNotes("/r", [
+        wt({ id: "a", note: { label: "Only a name" } }),
+        wt({ id: "b" }),
+      ]),
+    ).toEqual([]);
+  });
+});
+
+describe("mergeOrchestrations", () => {
+  it("puts note orchestrations first, then rule orchestrations unchanged", () => {
+    const fromNotes = [orch("Noted", ["a"])];
+    const fromRules = [orch("Ruled", ["b"]), orch("Empty rule", [])];
+    expect(mergeOrchestrations(fromNotes, fromRules)).toEqual([
+      orch("Noted", ["a"]),
+      orch("Ruled", ["b"]),
+      orch("Empty rule", []),
+    ]);
+  });
+
+  it("gives the rule orchestrations as they are when there are no notes", () => {
+    const fromRules = [orch("One", ["a"]), orch("Two", ["b"])];
+    expect(mergeOrchestrations([], fromRules)).toEqual(fromRules);
+  });
+
+  it("folds a rule orchestration into the note orchestration of the same repo and name", () => {
+    const fromNotes: Orchestration[] = [
+      { repoPath: "/r", name: "Documents", items: [{ worktreeId: "a", title: "PR 1" }] },
+    ];
+    const fromRules: Orchestration[] = [
+      {
+        repoPath: "/r",
+        name: "Documents",
+        items: [
+          { worktreeId: "a", title: "a-from-rule" },
+          { worktreeId: "b", title: "b-from-rule" },
+        ],
+      },
+    ];
+    expect(mergeOrchestrations(fromNotes, fromRules)).toEqual([
+      {
+        repoPath: "/r",
+        name: "Documents",
+        items: [
+          { worktreeId: "a", title: "PR 1" },
+          { worktreeId: "b", title: "b-from-rule" },
+        ],
+      },
+    ]);
+  });
+
+  it("does not fold a rule orchestration of another repo with the same name", () => {
+    const fromNotes = [orch("Documents", ["a"])];
+    const fromRules = [{ ...orch("Documents", ["b"]), repoPath: "/other" }];
+    expect(mergeOrchestrations(fromNotes, fromRules)).toEqual([...fromNotes, ...fromRules]);
+  });
+
+  it("names the row from the note when a rule also matches the worktree", () => {
+    const worktrees = [
+      wt({
+        id: "a",
+        branch: "docs/scopes",
+        agentStatus: "waitingForInput",
+        note: { label: "PR 1 · Scopes", orchestration: "Documents refactor" },
+      }),
+    ];
+    const rows = yourTurnRows(
+      mergeOrchestrations(
+        orchestrationsFromNotes("/r", worktrees),
+        orchestrationsFromRules("/r", [{ name: "Docs", branchPrefix: "docs/" }], worktrees),
+      ),
+      worktrees,
+      none,
+      none,
+      {},
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      orchestrationName: "Documents refactor",
+      itemTitle: "PR 1 · Scopes",
+    });
+  });
+
+  it("adds a same-named rule's extra worktree and makes no second orchestration", () => {
+    const worktrees = [
+      wt({ id: "a", branch: "docs/a", note: { label: "PR 1", orchestration: "Documents" } }),
+      wt({ id: "b", branch: "docs/b" }),
+    ];
+    expect(
+      mergeOrchestrations(
+        orchestrationsFromNotes("/r", worktrees),
+        orchestrationsFromRules("/r", [{ name: "Documents", branchPrefix: "docs/" }], worktrees),
+      ),
+    ).toEqual([
+      {
+        repoPath: "/r",
+        name: "Documents",
+        items: [
+          { worktreeId: "a", title: "PR 1" },
+          { worktreeId: "b", title: "b" },
+        ],
+      },
+    ]);
+  });
+});
 
 describe("yourTurnRows", () => {
   it("makes a row only for worktrees that need you", () => {

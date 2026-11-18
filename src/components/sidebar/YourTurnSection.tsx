@@ -3,6 +3,8 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { startPollInterval } from "../../services/pollInterval";
 import {
   formatWaitingAge,
+  mergeOrchestrations,
+  orchestrationsFromNotes,
   orchestrationsFromRules,
   yourTurnRows,
 } from "../../services/orchestrations";
@@ -30,7 +32,10 @@ function YourTurnSection({ selectedRepos, repoDisplayNames, repoShortLabels }: Y
 
   const { rows, reposWithOrchestrations, repoOfWorktree } = useMemo(() => {
     const orchestrations = selectedRepos.flatMap((repo) =>
-      orchestrationsFromRules(repo, rules[repo] ?? [], worktrees),
+      mergeOrchestrations(
+        orchestrationsFromNotes(repo, worktrees),
+        orchestrationsFromRules(repo, rules[repo] ?? [], worktrees),
+      ),
     );
     return {
       rows: yourTurnRows(orchestrations, worktrees, seen, unread, since),

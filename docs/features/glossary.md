@@ -26,6 +26,9 @@ ui_path: N/A
 - **Orchestration** — a personal rule (a name plus a branch prefix)
   that groups the worktrees whose branch starts with that prefix.
   Set in Repository settings → General. Only you see it.
+- **Worktree note** — a small JSON file a tool writes in the repo's
+  git folder to name a worktree and put it in an orchestration, with
+  no rule. Alfredo only reads it.
 - **Your turn** — the sidebar list at the top showing worktrees in
   your orchestrations that need you: **Answer** (the agent is
   waiting for input) or **Check** (finished, errored, or ready).

@@ -1,6 +1,6 @@
 ---
 title: Worktrees created outside Alfredo appear automatically
-keywords: [external worktree, git worktree add, discovery, adopt, auto-detect, terminal, script, deleted worktree, sync, autostart, start agent automatically, marker]
+keywords: [external worktree, git worktree add, discovery, adopt, auto-detect, terminal, script, deleted worktree, sync, autostart, start agent automatically, marker, worktree note, name a worktree, label, orchestration]
 ui_path: N/A — automatic; new worktrees appear in the sidebar within seconds
 ---
 
@@ -62,3 +62,38 @@ sends its own first prompt.
   without using it.
 - Only worktrees created while Alfredo runs are adopted, so a marker
   for a worktree that existed at launch does nothing.
+
+## Naming a worktree from outside
+
+A tool can give a worktree a name, and put it in an orchestration, by
+writing a worktree note. The note is one JSON file at
+`<common git dir>/alfredo/worktrees/<worktree folder name>.json`, in
+the same `alfredo` folder as the autostart marker:
+
+```json
+{ "path": "/abs/path/to/the/worktree", "label": "PR 2 · Document scopes", "orchestration": "Documents refactor" }
+```
+
+- `path` is required and must be the worktree's absolute path. A
+  note whose `path` is another worktree is ignored, so a reused
+  folder name does not take an old note.
+- `label` is the name in the sidebar row and in notifications.
+  `orchestration` puts the worktree in the
+  [orchestration](orchestrations.md) with that name. Both are
+  optional. A note with only a `label` only renames the row.
+- Each text is trimmed, loses its control characters, and is cut at
+  200 characters. A text that is empty after that counts as absent.
+- A label you set by hand
+  ([Renaming a worktree](renaming-worktree.md)) wins over the note's
+  `label`.
+- Alfredo reads the note each time it refreshes the worktree list,
+  so a change shows at the next refresh, usually within a minute.
+  Alfredo never changes or removes the note.
+- A note larger than 4 KB, or one that is not valid JSON, is ignored.
+
+To write one, run this inside the worktree:
+
+```bash
+dir="$(git rev-parse --path-format=absolute --git-common-dir)/alfredo/worktrees" && mkdir -p "$dir"
+printf '{"path":"%s","label":"PR 2 · Document scopes","orchestration":"Documents refactor"}\n' "$PWD" > "$dir/$(basename "$PWD").json"
+```
