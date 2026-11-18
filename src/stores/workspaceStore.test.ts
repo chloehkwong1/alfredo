@@ -1135,13 +1135,16 @@ describe("needsYouSince", () => {
 
   it("follows a worktree rename", () => {
     const s = () => useWorkspaceStore.getState();
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
     s().setWorktrees([waiting("wt-old")]);
-    const at = s().needsYouSince["wt-old"].at;
+    expect(s().needsYouSince["wt-old"].at).toBe(1000);
 
+    now.mockReturnValue(9000);
     s().setWorktrees([waiting("wt-new")]);
+    now.mockRestore();
 
     expect(s().needsYouSince["wt-old"]).toBeUndefined();
-    expect(s().needsYouSince["wt-new"]).toEqual({ kind: "answer", at });
+    expect(s().needsYouSince["wt-new"]).toEqual({ kind: "answer", at: 1000 });
   });
 
   it("clearStore resets it", () => {

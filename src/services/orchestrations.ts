@@ -120,12 +120,13 @@ export function nextNeedsYouSince(
     if (!worktreeNeedsYou(wt, seen, unread)) continue;
     const kind = kindOf(worktreeEffectiveStatus(wt, seen, unread));
     const existing = prev[wt.id];
-    if (existing && !(existing.kind === "check" && kind === "answer")) {
+    if (existing?.kind === kind) {
       next[wt.id] = existing;
-    } else {
-      next[wt.id] = { kind, at: now };
-      changed = true;
+      continue;
     }
+    // answer -> check keeps the age; check -> answer (or a new entry) restarts it.
+    next[wt.id] = { kind, at: existing && kind === "check" ? existing.at : now };
+    changed = true;
   }
   if (!changed && Object.keys(prev).length === Object.keys(next).length) return prev;
   return next;

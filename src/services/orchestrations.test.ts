@@ -249,6 +249,15 @@ describe("nextNeedsYouSince", () => {
     expect(next).toEqual({ a: { kind: "answer", at: 200 } });
   });
 
+  it("keeps the age on answer to check and resets it on the next check to answer", () => {
+    const waiting = wt({ id: "a", agentStatus: "waitingForInput" });
+    const done = wt({ id: "a", agentStatus: "idle" });
+    const step2 = nextNeedsYouSince({ a: { kind: "answer", at: 100 } }, [done], none, none, 200);
+    expect(step2).toEqual({ a: { kind: "check", at: 100 } });
+    const step3 = nextNeedsYouSince(step2, [waiting], none, none, 300);
+    expect(step3).toEqual({ a: { kind: "answer", at: 300 } });
+  });
+
   it("returns prev itself when nothing changed", () => {
     const prev = { a: { kind: "answer" as const, at: 100 } };
     const next = nextNeedsYouSince(
