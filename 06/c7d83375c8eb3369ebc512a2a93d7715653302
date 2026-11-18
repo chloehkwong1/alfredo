@@ -1,0 +1,41 @@
+src-tauri/src/lib.rs
+  s_06ad5eb13cfac0::t_00046f8471aa7d 368
+src/stores/workspaceStore.ts
+  s_06ad5eb13cfac0::t_e366a842f11c50 11
+  s_06ad5eb13cfac0::t_f8fd5e511abab6 75-77,448-452,1068
+src/types.ts
+  s_06ad5eb13cfac0::t_f8fd5e511abab6 326-332,344-346
+src-tauri/src/stack_manager.rs
+  s_06ad5eb13cfac0::t_00046f8471aa7d 4024
+src/stores/workspaceStore.test.ts
+  s_06ad5eb13cfac0::t_e366a842f11c50 1080-1109
+src/api.ts
+  s_06ad5eb13cfac0::t_1ed956493e9cc1 13
+  s_06ad5eb13cfac0::t_f8fd5e511abab6 341-346
+src-tauri/src/config_manager.rs
+  s_06ad5eb13cfac0::t_6c437ebb8dadcd 871-903
+  s_06ad5eb13cfac0::t_00046f8471aa7d 6,87-88,213,267,406,974,1190,1397,1477,1525,1586
+src-tauri/src/commands/worktree.rs
+  s_06ad5eb13cfac0::t_00046f8471aa7d 1014-1026
+src/hooks/useSessionRestore.ts
+  s_06ad5eb13cfac0::t_f8fd5e511abab6 5,50,351-357
+  s_06ad5eb13cfac0::t_550d061a1e6408 358
+src-tauri/src/types.rs
+  s_06ad5eb13cfac0::t_00046f8471aa7d 678-690
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "06c7d83375c8eb3369ebc512a2a93d7715653302",
+  "prompts": {},
+  "sessions": {
+    "s_06ad5eb13cfac0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5a13d0d-95e2-409e-9210-46ebda9a96fc",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
