@@ -1,0 +1,46 @@
+src/components/sidebar/YourTurnSection.tsx
+  s_e8b58c2234a578::t_abf311c11b1711 6-7,35-38
+src-tauri/src/types.rs
+  s_e8b58c2234a578::t_abf311c11b1711 336,339
+docs/features/external-worktrees.md
+  s_e8b58c2234a578::t_eaa274a9f47a18 3,65-99
+src/lib/worktreeDisplayLabel.ts
+  s_e8b58c2234a578::t_abf311c11b1711 5-6,15,18
+src/stores/workspaceStore.test.ts
+  s_e8b58c2234a578::t_fd363eab554dd8 437-452
+src/services/orchestrations.ts
+  s_e8b58c2234a578::t_12421ae7dd9348 84-87,89
+  s_e8b58c2234a578::t_abf311c11b1711 47-56,68,77-83,88,90-114
+  s_e8b58c2234a578::t_77006a4e958981 115
+src/types.ts
+  s_e8b58c2234a578::t_abf311c11b1711 89-95,135-136
+src/lib/worktreeDisplayLabel.test.ts
+  s_e8b58c2234a578::t_fd363eab554dd8 2,17-25
+  s_e8b58c2234a578::t_0f55bacc324010 26-27
+docs/features/glossary.md
+  s_e8b58c2234a578::t_eaa274a9f47a18 29-31
+docs/features/orchestrations.md
+  s_e8b58c2234a578::t_e940f753ca4a32 23
+  s_e8b58c2234a578::t_eaa274a9f47a18 3,14,22,24-30,35-36
+src/components/sidebar/AgentItem.tsx
+  s_e8b58c2234a578::t_eaa274a9f47a18 1081-1082
+src/services/orchestrations.test.ts
+  s_e8b58c2234a578::t_fd363eab554dd8 4-5,117-281
+  s_e8b58c2234a578::t_3891dab181a2d1 282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fa71ad6c659e5bc5b2e6b48df6d125353e1a198b",
+  "prompts": {},
+  "sessions": {
+    "s_e8b58c2234a578": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4df2c9c-2f52-48c7-a065-9d49236f5071",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
