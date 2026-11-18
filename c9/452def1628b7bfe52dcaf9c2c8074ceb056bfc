@@ -1,0 +1,32 @@
+src/services/orchestrations.ts
+  s_06ad5eb13cfac0::t_508e2e56795ed6 33-46
+src/components/settings/WorkspaceSettingsDialog.tsx
+  s_06ad5eb13cfac0::t_508e2e56795ed6 572
+  s_06ad5eb13cfac0::t_774a5de9f8d66c 57
+src/components/settings/OrchestrationRulesSettings.tsx
+  s_06ad5eb13cfac0::t_508e2e56795ed6 4,61-64
+src/hooks/useSessionRestore.ts
+  s_06ad5eb13cfac0::t_5f7e9466f09b5d 308-319
+docs/features/orchestrations.md
+  s_06ad5eb13cfac0::t_df3e19a19dd7a2 45-46,49-50
+src/components/sidebar/YourTurnSection.tsx
+  s_06ad5eb13cfac0::t_508e2e56795ed6 93-97
+src/services/orchestrations.test.ts
+  s_06ad5eb13cfac0::t_77eebf6b9c3859 7-8,289-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c9452def1628b7bfe52dcaf9c2c8074ceb056bfc",
+  "prompts": {},
+  "sessions": {
+    "s_06ad5eb13cfac0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5a13d0d-95e2-409e-9210-46ebda9a96fc",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
