@@ -1,5 +1,5 @@
 import type { Worktree } from "../types";
-import { computeEffectiveStatus, NEEDS_YOU_STATES } from "../components/sidebar/AgentItem";
+import { computeEffectiveStatus, NEEDS_YOU_STATES } from "./effectiveStatus";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAppConfigStore } from "../stores/appConfigStore";
 import { setDockBadge } from "../api";
