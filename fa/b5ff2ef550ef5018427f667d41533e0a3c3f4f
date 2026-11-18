@@ -1,0 +1,28 @@
+src-tauri/src/pty_manager.rs
+  s_06ad5eb13cfac0::t_e220dc375b721a 1435,2644-2652
+src-tauri/src/state_server.rs
+  s_06ad5eb13cfac0::t_e4003dd64a3ec8 409-412,432,448-452
+  s_06ad5eb13cfac0::t_549ddf1e0053a8 453
+src/test/status-scenarios.test.ts
+  s_06ad5eb13cfac0::t_1b475d58349af2 1647
+src-tauri/src/types.rs
+  s_06ad5eb13cfac0::t_e220dc375b721a 46-53
+src/services/sessionChannel.ts
+  s_06ad5eb13cfac0::t_6703c0e3030a84 350,361-363
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fab5ff2ef550ef5018427f667d41533e0a3c3f4f",
+  "prompts": {},
+  "sessions": {
+    "s_06ad5eb13cfac0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a5a13d0d-95e2-409e-9210-46ebda9a96fc",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Chloe Wong <70902973+chloehkwong1@users.noreply.github.com>"
+    }
+  }
+}
