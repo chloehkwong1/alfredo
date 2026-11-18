@@ -55,15 +55,16 @@ describe("open question lifecycle", () => {
     useSessionStatusStore.getState().setSessionQuestion("wt-h", { text: "Which copy?" });
     await manager.hibernateSession("wt-h");
     expect(useSessionStatusStore.getState().questions["wt-h"]).toBeUndefined();
+    await manager.closeAll();
   });
 
   it("is dropped when a session respawns", async () => {
     const manager = new SessionManager();
     manager.loadScrollbackOnly("wt-r", "wt-r", undefined, "/wt/r");
     useSessionStatusStore.getState().setSessionQuestion("wt-r", { text: "Which copy?" });
-    // The spawn itself fails outside Tauri; the reset runs before it.
-    await manager.spawnForExisting("wt-r", "wt-r", "/wt/r").catch(() => {});
+    await manager.spawnForExisting("wt-r", "wt-r", "/wt/r");
     expect(useSessionStatusStore.getState().questions["wt-r"]).toBeUndefined();
+    await manager.closeAll();
   });
 });
 

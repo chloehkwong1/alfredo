@@ -347,8 +347,8 @@ export function applyAwaitingAnswer(
  * The open AskUserQuestion text for a session. Set by an incoming question;
  * kept through everything else (background busy hooks, a straggler turnEnd, a
  * bare idle-notification waitingForInput) because the question is still parked;
- * cleared when it is answered (questionEnd) or cancelled with Esc, when a prompt starts, or when the
- * session dies. Pure function — safe to unit test.
+ * cleared when it is answered (questionEnd) or cancelled with Esc, when a
+ * prompt starts, or when the session dies. Pure function — safe to unit test.
  */
 export function applyQuestion(
   prev: AgentQuestion | null,

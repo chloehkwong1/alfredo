@@ -31,9 +31,10 @@ Click a row to open that worktree. That is all it does. The list
 ignores **Pinned only**.
 
 A worktree is in the list under the same test as the
-[dock badge](dock-badge.md): its effective status needs you and you
-haven't already seen it. Opening it clears the row, unless you mark
-it unread.
+[dock badge](dock-badge.md). An **Answer** row stays until you answer
+the question, even while you look at the worktree. A **Check** row for
+a finished agent goes when you open the worktree, unless you mark it
+unread.
 
 **Limits:**
 
