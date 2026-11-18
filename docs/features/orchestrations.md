@@ -4,8 +4,10 @@ keywords: [orchestration, orchestrations, your turn, answer, check, waiting for 
 ui_path: Sidebar — "Your turn" at the top; Repository settings → General → Orchestrations
 ---
 
-An orchestration is a name plus a branch prefix. Every worktree in the
-repo whose branch starts with that prefix belongs to it. Rules are
+An orchestration is a name plus a branch prefix, or just a name that
+[worktree notes](external-worktrees.md) share (see **Without a rule**
+below). With a prefix, every worktree in the repo whose branch starts
+with it belongs to the orchestration. Rules are
 personal: they live in your own config, never in `alfredo.json`, so
 nobody else sees them and your team's repo is untouched.
 

@@ -113,7 +113,7 @@ const lastNotifyAt = new Map<string, number>();
  * Reads config each time so changes take effect immediately.
  */
 export async function fireHookNotification(
-  worktree: Pick<Worktree, "path" | "branch" | "name">,
+  worktree: Pick<Worktree, "path" | "branch" | "name" | "note">,
   notify: NotifyReason,
   worktreeId?: string,
 ) {

@@ -11,8 +11,12 @@ input appears in place of the name. Type the new label and press Enter to
 commit, or Escape to cancel. Clicking away also commits the change.
 
 The label only affects how the worktree is shown in Alfredo's sidebar and
-tabs — the underlying git branch is untouched. To clear a custom label and
-go back to the branch name, rename it to an empty string (or to the branch
-name itself) and Alfredo will drop the override. Labels are stored per-repo in
+tabs — the underlying git branch is untouched. To clear a custom label,
+rename the worktree to the name it has without one: the branch name, or the
+label from its [worktree note](external-worktrees.md) when the note has one.
+Leaving the input empty changes nothing. On a worktree whose note has a
+label, typing the branch name does not clear the custom label: it saves the
+branch name as the custom label, which then shows instead of the note's
+label. Labels are stored per-repo in
 your global Alfredo config, so they persist across app restarts and are
 shared anywhere the same repo is viewed in Alfredo.

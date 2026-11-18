@@ -24,8 +24,9 @@ ui_path: N/A
   rules, display name). Separate from Global Settings.
 - **app.json** — Alfredo's global config file on disk.
 - **Orchestration** — a personal rule (a name plus a branch prefix)
-  that groups the worktrees whose branch starts with that prefix.
-  Set in Repository settings → General. Only you see it.
+  that groups the worktrees whose branch starts with that prefix, or
+  the worktrees whose worktree notes have the same `orchestration`.
+  A rule is set in Repository settings → General. Only you see it.
 - **Worktree note** — a small JSON file a tool writes in the repo's
   git folder to name a worktree and put it in an orchestration, with
   no rule. Alfredo only reads it.

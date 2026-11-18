@@ -87,13 +87,16 @@ the same `alfredo` folder as the autostart marker:
   ([Renaming a worktree](renaming-worktree.md)) wins over the note's
   `label`.
 - Alfredo reads the note each time it refreshes the worktree list,
-  so a change shows at the next refresh, usually within a minute.
+  so a change shows at the next refresh: usually within a minute
+  while Alfredo is the focused app, and up to about ten minutes while
+  it is not.
   Alfredo never changes or removes the note.
 - A note larger than 4 KB, or one that is not valid JSON, is ignored.
 
-To write one, run this inside the worktree:
+To write one, run this from any folder inside the worktree:
 
 ```bash
+top="$(git rev-parse --show-toplevel)"
 dir="$(git rev-parse --path-format=absolute --git-common-dir)/alfredo/worktrees" && mkdir -p "$dir"
-printf '{"path":"%s","label":"PR 2 · Document scopes","orchestration":"Documents refactor"}\n' "$PWD" > "$dir/$(basename "$PWD").json"
+printf '{"path":"%s","label":"PR 2 · Document scopes","orchestration":"Documents refactor"}\n' "$top" > "$dir/$(basename "$top").json"
 ```
