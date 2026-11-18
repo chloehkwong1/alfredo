@@ -1965,6 +1965,7 @@ pub fn list_worktrees(repo_path: &str, base_path: Option<&str>) -> Result<Vec<Wo
             assigned_port: None,
             created_at_epoch: worktree_created_at_epoch(&repo, name),
             admin_dir_ino: worktree_admin_dir_ino(&repo, name),
+            note: None,
         });
     }
 

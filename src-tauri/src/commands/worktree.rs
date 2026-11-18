@@ -10,7 +10,7 @@ use crate::git_manager::git_command;
 use crate::git_manager::get_diff_stats;
 use crate::github_manager::{self, GithubManager};
 use crate::linear_manager;
-use crate::types::{AgentState, AppError, KanbanColumn, PortClaimResult, PortHolder, SetupScript, TakePortResult, Worktree, WorktreeSource};
+use crate::types::{AgentState, AppError, KanbanColumn, PortClaimResult, PortHolder, SetupScript, TakePortResult, Worktree, WorktreeNote, WorktreeSource};
 
 type Result<T> = std::result::Result<T, AppError>;
 
@@ -299,6 +299,7 @@ pub async fn create_worktree(
         assigned_port,
         created_at_epoch,
         admin_dir_ino,
+        note: None,
     })
 }
 
@@ -392,6 +393,43 @@ pub async fn take_autostart_marker(worktree_path: String) -> Result<bool> {
     let path = PathBuf::from(&worktree_path);
     let Ok(repo) = git2::Repository::open(&path) else { return Ok(false) };
     Ok(take_autostart_marker_in(repo.commondir(), &path))
+}
+
+/// A note is a path and two short names, so anything bigger is not one.
+const WORKTREE_NOTE_MAX_BYTES: u64 = 4096;
+
+/// Read the note an external tool keeps for a worktree at `<common git dir>/
+/// alfredo/worktrees/<worktree folder name>.json`: `{"path", "label"?,
+/// "orchestration"?}`. Unlike the autostart marker it is never consumed, so
+/// every listing reads it again and the tool can rename a worktree by
+/// rewriting the file. `None` for a missing, oversized or malformed note, one
+/// whose `path` is another worktree (a reused folder name), or one with no
+/// usable text.
+fn read_worktree_note_in(common_dir: &Path, worktree_path: &Path) -> Option<WorktreeNote> {
+    // Appended, not `with_extension`: `v1.2-fix` must map to `v1.2-fix.json`.
+    let mut file_name = worktree_path.file_name()?.to_os_string();
+    file_name.push(".json");
+    let note_file = common_dir.join("alfredo").join("worktrees").join(file_name);
+    if std::fs::metadata(&note_file).ok()?.len() > WORKTREE_NOTE_MAX_BYTES {
+        return None;
+    }
+    let content = std::fs::read_to_string(&note_file).ok()?;
+    let note: serde_json::Value = serde_json::from_str(&content).ok()?;
+    // Canonicalize both sides, as `take_autostart_marker_in` does.
+    let same = matches!(
+        (std::fs::canonicalize(note.get("path")?.as_str()?), std::fs::canonicalize(worktree_path)),
+        (Ok(a), Ok(b)) if a == b
+    );
+    if !same {
+        return None;
+    }
+    let text = |key: &str| {
+        note.get(key)
+            .and_then(|v| v.as_str())
+            .and_then(crate::commands::app_config::sanitize_display_text)
+    };
+    let (label, orchestration) = (text("label"), text("orchestration"));
+    (label.is_some() || orchestration.is_some()).then_some(WorktreeNote { label, orchestration })
 }
 
 /// Delete a worktree by name.
@@ -492,10 +530,17 @@ pub async fn list_worktrees(app: AppHandle, repo_path: String) -> Result<Vec<Wor
 
     // git2 operations are blocking — run on a blocking thread
     let repo_path_clone = repo_path.clone();
-    let worktrees =
-        tokio::task::spawn_blocking(move || git_manager::list_worktrees(&repo_path_clone, Some(&base_path)))
-            .await
-            .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
+    let worktrees = tokio::task::spawn_blocking(move || {
+        let mut wts = git_manager::list_worktrees(&repo_path_clone, Some(&base_path))?;
+        if let Ok(repo) = git2::Repository::open(&repo_path_clone) {
+            for wt in &mut wts {
+                wt.note = read_worktree_note_in(repo.commondir(), Path::new(&wt.path));
+            }
+        }
+        Ok::<_, AppError>(wts)
+    })
+    .await
+    .map_err(|e| AppError::Git(format!("task join error: {e}")))?;
 
     // Pin the transient cold-start trigger (see useSessionRestore Effect 1's
     // retry): an enumeration error is otherwise invisible — the frontend's
@@ -695,6 +740,7 @@ pub async fn get_worktree_status(
         assigned_port: None,
         created_at_epoch: None, // Will be populated by list_worktrees on next refresh
         admin_dir_ino: None,    // Same — list_worktrees fills it in
+        note: None,             // Same
     };
     if config.auto_assign_ports {
         wt.assigned_port = config_manager::get_assigned_port(&config, &wt_name);
@@ -1627,6 +1673,94 @@ mod tests {
         std::fs::File::options().write(true).open(&marker).unwrap().set_modified(two_hours_ago).unwrap();
         assert!(!take_autostart_marker_in(common.path(), &wt));
         assert!(!marker.exists());
+    }
+
+    // ── read_worktree_note_in ──────────────────────────────────
+
+    /// A worktree dir plus a note file for it; the TempDirs must outlive the
+    /// test. The dot in the folder name checks that `.json` is appended to the
+    /// whole name rather than replacing a would-be extension.
+    fn note_fixture(note_content: impl Fn(&Path) -> String) -> (tempfile::TempDir, tempfile::TempDir, PathBuf, PathBuf) {
+        let common = tempfile::tempdir().unwrap();
+        let parent = tempfile::tempdir().unwrap();
+        let wt = parent.path().join("note-v1.2-test");
+        std::fs::create_dir(&wt).unwrap();
+        let dir = common.path().join("alfredo").join("worktrees");
+        std::fs::create_dir_all(&dir).unwrap();
+        let note = dir.join("note-v1.2-test.json");
+        std::fs::write(&note, note_content(&wt)).unwrap();
+        (common, parent, wt, note)
+    }
+
+    #[test]
+    fn note_for_this_worktree_is_read() {
+        let (common, _parent, wt, _note) = note_fixture(|wt| {
+            serde_json::json!({
+                "path": wt,
+                "label": " PR 2 · Scopes ",
+                "orchestration": "Documents refactor",
+                "extra": 1,
+            })
+            .to_string()
+        });
+        assert_eq!(
+            read_worktree_note_in(common.path(), &wt),
+            Some(WorktreeNote {
+                label: Some("PR 2 · Scopes".to_string()),
+                orchestration: Some("Documents refactor".to_string()),
+            })
+        );
+    }
+
+    #[test]
+    fn note_for_another_path_is_ignored() {
+        let other = tempfile::tempdir().unwrap();
+        let other_path = other.path().to_path_buf();
+        let (common, _parent, wt, note) =
+            note_fixture(|_| serde_json::json!({ "path": other_path, "label": "PR 2" }).to_string());
+        assert_eq!(read_worktree_note_in(common.path(), &wt), None);
+        assert!(note.exists());
+    }
+
+    #[test]
+    fn note_is_read_again_and_never_removed() {
+        let (common, _parent, wt, note) =
+            note_fixture(|wt| serde_json::json!({ "path": wt, "label": "PR 2" }).to_string());
+        assert!(read_worktree_note_in(common.path(), &wt).is_some());
+        assert!(read_worktree_note_in(common.path(), &wt).is_some());
+        assert!(note.exists());
+    }
+
+    #[test]
+    fn bad_notes_are_ignored() {
+        let (common, _parent, wt, note) = note_fixture(|_| String::new());
+
+        std::fs::remove_file(&note).unwrap();
+        assert_eq!(read_worktree_note_in(common.path(), &wt), None, "no file");
+
+        let five_kb = serde_json::json!({ "path": wt, "label": "PR 2", "padding": "a".repeat(5 * 1024) }).to_string();
+        let blank_text = serde_json::json!({ "path": wt, "label": "   ", "orchestration": "" }).to_string();
+        for content in ["not json", "[]", "\"str\"", r#"{"label":"x"}"#, &five_kb, &blank_text] {
+            std::fs::write(&note, content).unwrap();
+            let shown: String = content.chars().take(60).collect();
+            assert_eq!(read_worktree_note_in(common.path(), &wt), None, "{shown}");
+        }
+    }
+
+    #[test]
+    fn note_text_is_cleaned() {
+        let (common, _parent, wt, note) =
+            note_fixture(|wt| serde_json::json!({ "path": wt, "label": "a".repeat(300) }).to_string());
+        assert_eq!(
+            read_worktree_note_in(common.path(), &wt),
+            Some(WorktreeNote { label: Some("a".repeat(200)), orchestration: None })
+        );
+
+        std::fs::write(&note, serde_json::json!({ "path": wt, "label": "a\nb\u{7}c" }).to_string()).unwrap();
+        assert_eq!(
+            read_worktree_note_in(common.path(), &wt),
+            Some(WorktreeNote { label: Some("abc".to_string()), orchestration: None })
+        );
     }
 
     // ── ensure_claude_excludes ─────────────────────────────────

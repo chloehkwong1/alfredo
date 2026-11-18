@@ -113,24 +113,30 @@ pub async fn set_repo_display_name(app: AppHandle, repo_path: String, name: Opti
 
 const WORKTREE_LABEL_MAX_LEN: usize = 200;
 
+/// Clean a name that is shown in the sidebar, whether typed as a worktree
+/// label or read from a worktree note: drop control characters, trim, cut at
+/// 200 characters. Returns `None` when nothing is left.
+pub(crate) fn sanitize_display_text(input: &str) -> Option<String> {
+    let cleaned: String = input
+        .chars()
+        .filter(|c| !c.is_control())
+        .collect::<String>()
+        .trim()
+        .chars()
+        .take(WORKTREE_LABEL_MAX_LEN)
+        .collect();
+    if cleaned.is_empty() { None } else { Some(cleaned) }
+}
+
 #[tauri::command]
 pub async fn set_worktree_label(app: AppHandle, worktree_path: String, label: Option<String>) -> Result<GlobalAppConfig, AppError> {
     let dir = app_data_dir(&app)?;
     let mut config = app_config_manager::load(&dir).await?;
-    let sanitized = label.map(|n| {
-        n.chars()
-            .filter(|c| !c.is_control())
-            .collect::<String>()
-            .trim()
-            .chars()
-            .take(WORKTREE_LABEL_MAX_LEN)
-            .collect::<String>()
-    });
-    match sanitized {
-        Some(n) if !n.is_empty() => {
+    match label.as_deref().and_then(sanitize_display_text) {
+        Some(n) => {
             config.worktree_labels.insert(worktree_path, n);
         }
-        _ => {
+        None => {
             config.worktree_labels.remove(&worktree_path);
         }
     }

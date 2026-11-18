@@ -320,6 +320,22 @@ pub struct Worktree {
     /// `None` for branch-mode entries and non-unix builds.
     #[serde(default)]
     pub admin_dir_ino: Option<u64>,
+    /// What an external tool says this worktree is for, read from its note
+    /// file on every `list_worktrees`. `None` when there is no usable note.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<WorktreeNote>,
+}
+
+/// The parts of a worktree note Alfredo shows. The note is a JSON file an
+/// external tool keeps at `<common git dir>/alfredo/worktrees/<worktree folder
+/// name>.json`; Alfredo only ever reads it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorktreeNote {
+    /// Name to show for the worktree.
+    pub label: Option<String>,
+    /// Name of the orchestration the worktree belongs to.
+    pub orchestration: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
