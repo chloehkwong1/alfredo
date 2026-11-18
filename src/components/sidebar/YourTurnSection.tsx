@@ -94,7 +94,7 @@ function YourTurnSection({ selectedRepos, repoDisplayNames, repoShortLabels }: Y
                 <span className="min-w-0 truncate">
                   {orchestrationName} · {row.itemTitle}
                 </span>
-                <span className="shrink-0"> · {isAnswer ? `waiting ${age}` : age}</span>
+                <span className="shrink-0 whitespace-pre"> · {isAnswer ? `waiting ${age}` : age}</span>
               </div>
             </button>
           </div>
