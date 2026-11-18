@@ -34,14 +34,6 @@ pub enum SessionStatus {
     Exited(i32),
 }
 
-/// Tagged enum sent over a Channel from the PTY reader thread.
-/// Frontend discriminates on the `event` field.
-///
-/// `Output` is serialised as a base64 string, not serde's default JSON array
-/// of numbers (~4 bytes per byte, so a full 4 KB read was ~16 KB of JSON).
-/// tauri 2.11 only direct-evals JSON bodies under 8 KB and `Raw` bodies under
-/// 1 KB; everything else takes a fetch round-trip. Base64 keeps every chunk
-/// pty_manager can send (≤ 4096 B → ~5.5 KB JSON) on the direct-eval path.
 /// The first question of an AskUserQuestion call (or a fixed label for
 /// ExitPlanMode). Held in memory only: never write it to a log or to disk.
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -51,6 +43,14 @@ pub struct HookQuestion {
     pub header: Option<String>,
 }
 
+/// Tagged enum sent over a Channel from the PTY reader thread.
+/// Frontend discriminates on the `event` field.
+///
+/// `Output` is serialised as a base64 string, not serde's default JSON array
+/// of numbers (~4 bytes per byte, so a full 4 KB read was ~16 KB of JSON).
+/// tauri 2.11 only direct-evals JSON bodies under 8 KB and `Raw` bodies under
+/// 1 KB; everything else takes a fetch round-trip. Base64 keeps every chunk
+/// pty_manager can send (≤ 4096 B → ~5.5 KB JSON) on the direct-eval path.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "event", content = "data")]
 pub enum PtyEvent {

@@ -406,6 +406,10 @@ mod tests {
     /// Posts a waitingForInput hook with `body` and returns the `question`
     /// carried by the event the session's channel received.
     async fn post_waiting_with_body(body: Vec<u8>) -> Option<HookQuestion> {
+        post_with_body("waitingForInput", body).await
+    }
+
+    async fn post_with_body(state: &str, body: Vec<u8>) -> Option<HookQuestion> {
         let handle = StateServerHandle::new_for_test();
         let seen: Arc<Mutex<Vec<Option<HookQuestion>>>> = Arc::new(Mutex::new(Vec::new()));
         let sink = Arc::clone(&seen);
@@ -425,7 +429,7 @@ mod tests {
             registry: Arc::clone(&handle.registry),
             sleep_inhibitor: Arc::clone(&handle.sleep_inhibitor),
         };
-        let uri: Uri = "/agent-state/s1/wt1/waitingForInput?notify=input&phase=toolStart".parse().unwrap();
+        let uri: Uri = format!("/agent-state/s1/wt1/{state}?notify=input&phase=toolStart").parse().unwrap();
         let status = handle_state_update(State(router_state), uri, axum::body::Body::from(body)).await;
         assert_eq!(status, StatusCode::OK);
         let events = seen.lock().unwrap();
@@ -439,6 +443,12 @@ mod tests {
         let q = post_waiting_with_body(body.to_vec()).await.unwrap();
         assert_eq!(q.text, "Which copy?");
         assert_eq!(q.header.as_deref(), Some("H"));
+    }
+
+    #[tokio::test]
+    async fn handler_ignores_question_body_for_busy_state() {
+        let body = br#"{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which copy?","header":"H"}]}}"#;
+        assert_eq!(post_with_body("busy", body.to_vec()).await, None);
     }
 
     #[tokio::test]

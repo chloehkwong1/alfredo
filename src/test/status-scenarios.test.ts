@@ -1644,6 +1644,7 @@ describe("applyQuestion", () => {
   it("keeps it through a bare waitingForInput (idle notification)", () => expect(applyQuestion(q, "waitingForInput", "none", undefined)).toEqual(q));
   it("clears on questionEnd", () => expect(applyQuestion(q, "busy", "questionEnd", undefined)).toBeNull());
   it("clears on promptStart", () => expect(applyQuestion(q, "busy", "promptStart", undefined)).toBeNull());
+  it("clears on an Esc-cancelled question (waitingForInput toolEnd)", () => expect(applyQuestion(q, "waitingForInput", "toolEnd", undefined)).toBeNull());
   it("clears on notRunning", () => expect(applyQuestion(q, "notRunning", "none", undefined)).toBeNull());
 });
 
