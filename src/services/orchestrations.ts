@@ -1,4 +1,5 @@
-import type { OrchestrationRule, Worktree } from "../types";
+import type { HookActivity, HookPhase, OrchestrationRule, Worktree, WorkedFrom } from "../types";
+import { worktreeDisplayLabel } from "../lib/worktreeDisplayLabel";
 import { worktreeEffectiveStatus, worktreeNeedsYou } from "./dockBadge";
 
 export interface OrchestrationItem {
@@ -203,4 +204,144 @@ export function formatWaitingAge(since: number, now: number): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 48) return `${hours} h`;
   return `${Math.floor(hours / 24)} d`;
+}
+
+/** One session's work in one other worktree. `agentIds`: its sub-agents working there now. */
+export interface WorktreeLink {
+  agentIds: string[];
+  mainIn: boolean;
+}
+
+/** One session's links, keyed by the id of the worktree it works in. */
+export type SessionLinks = Record<string, WorktreeLink>;
+
+export interface LinkSource {
+  worktreeId: string;
+  active: boolean;
+  links: SessionLinks;
+}
+
+/** The worktree whose path contains `path`: the longest match wins, and the
+ *  session's own worktree wins a tie. */
+export function worktreeForPath(
+  path: string,
+  worktrees: Pick<Worktree, "id" | "path">[],
+  ownWorktreeId: string,
+): string | undefined {
+  let best: Pick<Worktree, "id" | "path"> | undefined;
+  for (const wt of worktrees) {
+    if (path !== wt.path && !path.startsWith(wt.path + "/")) continue;
+    if (!best || wt.path.length > best.path.length) best = wt;
+    else if (wt.path.length === best.path.length && wt.id === ownWorktreeId) best = wt;
+  }
+  return best?.id;
+}
+
+/** Fold one hook's activity into a session's links. Returns `prev` itself when
+ *  nothing changes. A link is never deleted. */
+export function applyActivityToLinks(
+  prev: SessionLinks,
+  ownWorktreeId: string,
+  activity: HookActivity | undefined,
+  phase: HookPhase,
+  worktrees: Pick<Worktree, "id" | "path">[],
+): SessionLinks {
+  if (!activity) return prev;
+  const { cwd, writePath, agentId } = activity;
+  const cwdId = cwd === undefined ? undefined : worktreeForPath(cwd, worktrees, ownWorktreeId);
+  const writeId = writePath === undefined ? undefined : worktreeForPath(writePath, worktrees, ownWorktreeId);
+  const next: SessionLinks = { ...prev };
+  let changed = false;
+
+  if (agentId !== undefined && phase === "subagentEnd") {
+    for (const [id, link] of Object.entries(prev)) {
+      if (!link.agentIds.includes(agentId)) continue;
+      next[id] = { ...link, agentIds: link.agentIds.filter((a) => a !== agentId) };
+      changed = true;
+    }
+  } else if (agentId !== undefined) {
+    for (const id of new Set([cwdId, writeId])) {
+      if (id === undefined || id === ownWorktreeId) continue;
+      const link = prev[id];
+      if (link?.agentIds.includes(agentId)) continue;
+      next[id] = { agentIds: [...(link?.agentIds ?? []), agentId], mainIn: link?.mainIn ?? false };
+      changed = true;
+    }
+  } else {
+    if (cwd !== undefined) {
+      const target = cwdId === ownWorktreeId ? undefined : cwdId;
+      if (target !== undefined && !prev[target]) {
+        next[target] = { agentIds: [], mainIn: true };
+        changed = true;
+      }
+      for (const [id, link] of Object.entries(prev)) {
+        const mainIn = id === target;
+        if (link.mainIn === mainIn) continue;
+        next[id] = { ...link, mainIn };
+        changed = true;
+      }
+    }
+    if (writeId !== undefined && writeId !== ownWorktreeId && !next[writeId]) {
+      next[writeId] = { agentIds: [], mainIn: false };
+      changed = true;
+    }
+  }
+  return changed ? next : prev;
+}
+
+/** Every session's sub-agents have stopped working: empty each `agentIds`, keep `mainIn`. */
+export function endAgentWork(prev: SessionLinks): SessionLinks {
+  if (Object.values(prev).every((link) => link.agentIds.length === 0)) return prev;
+  const next: SessionLinks = {};
+  for (const [id, link] of Object.entries(prev)) {
+    next[id] = link.agentIds.length === 0 ? link : { ...link, agentIds: [] };
+  }
+  return next;
+}
+
+/** Which session works in each worktree. A running link wins, then running
+ *  external work, then a link that is not running. */
+export function workedFromByWorktree(
+  sources: LinkSource[],
+  external: Record<string, WorkedFrom>,
+): Record<string, WorkedFrom> {
+  const running: Record<string, WorkedFrom> = {};
+  const quiet: Record<string, WorkedFrom> = {};
+  for (const source of sources) {
+    for (const [id, link] of Object.entries(source.links)) {
+      const isRunning = source.active && (link.agentIds.length > 0 || link.mainIn);
+      const into = isRunning ? running : quiet;
+      into[id] ??= { worktreeId: source.worktreeId, running: isRunning };
+    }
+  }
+  const result: Record<string, WorkedFrom> = { ...quiet };
+  for (const [id, entry] of Object.entries(external)) {
+    if (entry.running) result[id] = entry;
+  }
+  return Object.assign(result, running);
+}
+
+/** One orchestration per worktree of the repo that another worktree of the
+ *  repo is worked from: the head first as `orchestrator`, then the worktrees
+ *  worked from it. Ordered by head branch. */
+export function orchestrationsFromLinks(
+  repoPath: string,
+  worktrees: Worktree[],
+  labels: Record<string, string>,
+): Orchestration[] {
+  const ofRepo = worktrees.filter((wt) => wt.repoPath === repoPath);
+  const heads = ofRepo
+    .filter((head) => ofRepo.some((wt) => wt !== head && wt.workedFrom?.worktreeId === head.id))
+    .sort((a, b) => (a.branch < b.branch ? -1 : a.branch > b.branch ? 1 : 0));
+  return heads.map((head) => {
+    const linked = ofRepo
+      .filter((wt) => wt !== head && wt.workedFrom?.worktreeId === head.id)
+      .sort(byPrNumberThenBranch)
+      .map((wt) => ({ worktreeId: wt.id, title: worktreeDisplayLabel(wt, labels[wt.path]) }));
+    return {
+      repoPath,
+      name: worktreeDisplayLabel(head, labels[head.path]),
+      items: [{ worktreeId: head.id, title: "orchestrator" }, ...linked],
+    };
+  });
 }

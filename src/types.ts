@@ -19,11 +19,19 @@ export type SessionStatus =
   | "waitingForInput"
   | { exited: number };
 
+/** Where a hook's tool call ran. Mirrors the Rust `HookActivity`. */
+export interface HookActivity { cwd?: string; writePath?: string; agentId?: string }
+
+/** Frontend-only: work in this worktree done by a session that is not its own.
+ *  `worktreeId` is the worktree of the Alfredo session that does it; absent
+ *  for a session Alfredo did not start. Written by statusMirror; never persisted. */
+export interface WorkedFrom { worktreeId?: string; running: boolean }
+
 export type PtyEvent =
   /** Terminal output bytes, base64-encoded (see the Rust `PtyEvent` serializer). */
   | { event: "output"; data: string }
   | { event: "agentState"; data: AgentState }
-  | { event: "hookAgentState"; data: { state: AgentState; notify: NotifyReason; phase: HookPhase; question?: AgentQuestion } }
+  | { event: "hookAgentState"; data: { state: AgentState; notify: NotifyReason; phase: HookPhase; question?: AgentQuestion; activity?: HookActivity } }
   | { event: "heartbeat" }
   | { event: "title"; data: string | null }
   | { event: "process"; data: string | null }
@@ -106,6 +114,9 @@ export interface Worktree {
   /** Frontend-only: the open question of the first waiting agent tab. Written
    *  by statusMirror; never persisted. */
   question?: AgentQuestion;
+  /** Frontend-only: set while another session works in this worktree. Written
+   *  by statusMirror; never persisted. */
+  workedFrom?: WorkedFrom;
   channelAlive?: boolean;
   staleBusy?: boolean;
   /** Number of background/Task subagents currently in flight across this
